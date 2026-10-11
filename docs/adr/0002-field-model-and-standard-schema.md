@@ -1,10 +1,10 @@
 # 2. An own field model, with Standard Schema as the only external schema interface
 
-Date: 2026-10-08
+Date: 2026-10-08 (revised 2026-10-11)
 
 ## Status
 
-Accepted
+Proposed
 
 ## Context
 
@@ -30,10 +30,16 @@ Candidates examined (research: interfaces-and-devx.md section 2, data-layer.md s
 
 pennestack defines its own small field model (`field.*` builders and `shape()`), owned by
 `@pennestack/core`. A field carries, at the value level, its kind, modifiers and constraints and,
-at the type level, its TypeScript type and optionality. The field model implements Standard
-Schema 1.1 (validation and JSON Schema), so a `shape()` is accepted wherever a Standard Schema is,
-and it is walkable, so every projection (types, validators, JSON Schema, GraphQL, columns,
-protobuf, CLI) is derived exactly.
+at the type level, its TypeScript type and every flag that changes a derived type: optionality,
+default, uniqueness, hidden, maskable, merge type, personal subject, `stateOnly` and the
+reference it points to. Every modifier returns a field that keeps all earlier flags. The field
+model implements Standard Schema 1.1 (validation and JSON Schema), so a `shape()` is accepted
+wherever a Standard Schema is, and it is walkable, so every projection (types, validators, JSON
+Schema, GraphQL, columns, protobuf, CLI, the API surface) is derived exactly.
+
+The kinds include exact decimals typed as strings, binary floats, per-partition serials, subject
+ids, one-way verifiers, sealed secrets and blob references (architecture.md section 4.2), so
+introspected columns and the proof platforms' needs have a kind each.
 
 Standard Schema is the only schema interface a framework package depends on. Action inputs and
 outputs may be free-form Standard Schemas from any library; they are projected through Standard
@@ -49,7 +55,8 @@ Entities must use the field model (a free-form schema cannot define columns or m
   introspection API.
 - The field model is a DSL the project must own and maintain, and its projections must stay
   consistent; this is substantial work before the first transport exists. The research notes
-  estimate the runtime at a few hundred lines per projection; the type-level part is the cost.
+  estimate the runtime at a few hundred lines per projection; the type-level part is the cost,
+  and the spike of roadmap M0 checks that every flag survives every modifier.
 - Module authors learn one small builder set instead of a validation library, and may still use
   their preferred library for action payloads.
 - A later schema library needs no framework change as long as it implements Standard Schema.

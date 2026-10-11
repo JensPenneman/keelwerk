@@ -1,10 +1,10 @@
 # 1. Record architecture decisions
 
-Date: 2026-10-08
+Date: 2026-10-08 (revised 2026-10-11)
 
 ## Status
 
-Accepted
+Proposed
 
 ## Context
 
@@ -29,6 +29,9 @@ described by Michael Nygard: title, date, status, context, decision, consequence
 - The status is `Proposed`, `Accepted`, `Deprecated` or `Superseded by NNNN`. An accepted ADR is
   not rewritten: changing a decision means a new ADR that supersedes the old one. Typos and
   links may be fixed.
+- During the architecture phase, until Jens approves the architecture, every ADR is `Proposed`
+  and is edited in place when review changes its decision, together with `architecture.md`.
+  Jens's approval sets the approved ADRs to `Accepted`; from then on the supersede rule applies.
 - An ADR is added in the change that makes the decision. When a decision changes the
   specification, the same change updates `architecture.md`.
 - `architecture.md` remains the specification; ADRs explain it and settle its open points and
@@ -36,9 +39,11 @@ described by Michael Nygard: title, date, status, context, decision, consequence
 - Every change to the kernel (the composition rules, the pipeline, the scope and principal
   model, the condition AST, the error taxonomy) requires an ADR, as the brief's second addendum
   asks.
-- Number ranges for the first design round: 0002 to 0005 record the core decisions; 0006 to 0009
-  are reserved for the data layer; 0010 to 0013 are reserved for interfaces and developer
-  experience. Later ADRs continue from 0014 in any area.
+- Number ranges of the first design round: 0002 to 0005 record the core decisions; 0006 to 0009
+  the data layer; 0010 to 0013 interfaces and developer experience; 0014 and 0015 the
+  authentication module and the job queue, added by the consolidation of 2026-10-11. Later ADRs
+  continue from 0016 in any area; the roadmap names the ADRs that must exist before each
+  milestone.
 - Absolute dates everywhere; no relative time references.
 
 ## Consequences
@@ -46,5 +51,6 @@ described by Michael Nygard: title, date, status, context, decision, consequence
 - The reasoning behind the main choices is findable without reading history or research notes.
 - Each significant decision costs a short document; a reviewer asks for one when a change makes
   such a decision without it.
-- Superseded ADRs stay, so the history of a decision remains readable.
+- Superseded ADRs stay, so the history of a decision remains readable once ADRs are accepted;
+  during the architecture phase, git history keeps the earlier wording.
 - The parallel designers can write their ADRs without coordinating numbers.

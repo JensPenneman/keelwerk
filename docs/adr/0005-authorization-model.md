@@ -1,10 +1,10 @@
-# 5. Authorization: a typed-native engine with CASL vocabulary, order-independent rules and compiled conditions
+# 5. Authorization: a typed-native engine with CASL vocabulary, the invoked action as the unit, and separate conditions for the row acted on and the row produced
 
-Date: 2026-10-08
+Date: 2026-10-08 (revised 2026-10-11)
 
 ## Status
 
-Accepted
+Proposed
 
 ## Context
 
@@ -26,41 +26,87 @@ compilation; Keystone shows the gate, filter and item stages and that read masks
 govern filtering and ordering; Payload shows two defaults to avoid (silent discard of forbidden
 writes, internal calls bypassing policy).
 
+The review of 2026-10-11 found that the first version of this decision failed its own examples:
+
+- One `where` per rule had to describe both the row acted on and the row produced, so a deny rule
+  "already revoked" denied every successful revocation and an allow rule "drafts may be edited"
+  forbade publishing; state-machine transitions are the most common policy pattern of both
+  platforms.
+- Repository calls inside handlers were authorized per entity under the caller's plan, so
+  `accounts.register` and `auth.login` could not create rows, uniqueness checks narrowed silently
+  to wrong answers, and reactions ran under whoever caused the event.
+- Masked rows reached `decide`, making decisions depend on the caller's mask.
+- An interpolated `null` subject matched every row whose owner was unset, because `eq: null` meant
+  "is null".
+- The generated `set` was one action, so "members edit, only admins archive" could not be written.
+
 ## Decision
 
 1. The engine is built in `@pennestack/core` and does not depend on `@casl/ability`. It keeps
    CASL's vocabulary: allow and deny rules per entity and action, conditions, field lists, a
    reason, serialisable rules.
-2. Rules are typed against the registry: conditions name real fields and relations, field masks
-   name real fields, action lists name the actions that exist for the entity. No subject tagging.
-3. Decision algebra: `allowed = (some allow rule matches) and not (any deny rule matches)`,
-   default deny, order-independent. Modules contribute rule fragments as a set; a contribution's
-   rules may reference relations only from modules in its `when` list, which the types enforce.
-4. One condition AST (`eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `in`, `nin`, `contains`,
-   `startsWith`, `isNull`, `and`, `or`, `not`, `some`, `none`, `every`, `is`) owned by the core and
-   shared with the data layer, the live feed and the sync protocol. Adapters compile it; the
-   engine interprets it in memory. An adapter that cannot express a shape fails with
-   `unsupported`, never a wider filter.
-5. Three stages inside the invoker: gate (boolean), plan (`always`, `never` or `conditional
-   { where, fields }`, applied to every read, to update and archive target selection and to live
-   events), item check (condition against the loaded row for reads, against the resulting row for
-   creates and updates). Field masks also apply to `filter` and `sort` inputs. Forbidden field
-   writes are an error by default, with a configurable strip mode.
-6. Principals are resolved by ordered resolvers and enriched (roles, memberships) by a set of
-   enrichers, once per invocation; the principal's plan is memoised per invocation only.
-7. Every decision carries matched rule ids and reasons; a decision-log hook, `explain`, and three
-   test suites (table-driven, type-level, dual-evaluation against every adapter) are part of the
-   engine. Effective rules can be exported in CASL raw-rule shape for later clients.
-8. Tenant isolation is outside the rule set: the scope resolved in the pipeline is applied by the
-   data layer before any plan, and scope levels are checked at the gate.
-9. Configurability: app-level mode, decision log, disable, add and replace of rules; runtime rule
-   sources validated against the registry; replaceable evaluator and compilers; optional
-   generated PostgreSQL row-level security as a backstop.
+2. Rules are typed against the registry: conditions name real fields and relations, field lists
+   name real fields, action lists name the actions that exist for the entity, including the set
+   operations `create`, `update`, `archive` and `restore`, the batch `set` (authorized item by
+   item) and the aliases `read` and `write`. A rule may narrow the principal kind
+   (`principal: 'user'`), which types the subject as a non-null `SubjectId`. Rule subjects may also
+   match action kinds or transports across modules (gap G13). No subject tagging.
+3. A rule has a `where` condition on the row acted on (the pre-image, and the rows read) and an
+   optional `check` condition on the row produced (the post-image), as PostgreSQL separates
+   `USING` from `WITH CHECK`. Reads use `where`. Creates use `check ?? where`. Updates and other
+   instance commands require the target to be selected by some allow rule's `where` and by no deny
+   rule without `check`, and the post-image to pass the `check` of an allow rule that selected the
+   target (a rule without `check` places no constraint) and no deny rule's `check`. Decision
+   algebra: allowed when some allow rule matches and no deny rule matches, default deny,
+   order-independent; deny rules need a reason.
+4. One condition AST (`eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `in`, `nin`, `contains`, `startsWith`,
+   `isNull`, `and`, `or`, `not`, `some`, `none`, `every`, `is`) owned by the core and shared with
+   the data layer, the live feed and the sync protocol, with two-valued, null-safe semantics. In
+   conditions written in code, a comparison with `null` or `undefined` is false and absence is
+   tested only with `isNull`; the client filter format's bare `null` shorthand is normalised at the
+   boundary. Adapters compile the AST; the engine interprets it in memory. An adapter that cannot
+   express a shape fails with `unsupported`, never a wider filter.
+5. The invoked action is the unit of authorization. Stages inside the invoker: the gate (action
+   rules, principal kinds, scope level), the plan (`always`, `never` or `conditional { where,
+   check, fields }`), target selection by the plan's `where` for instance commands (outside it,
+   `not_found`), the item check on the post-image together with the entity invariant, and output
+   shaping. `decide`, `evolve` and handlers receive full rows; field masks apply to values leaving
+   the invoker, to `filter` and `sort` inputs, and to the fields a write changes.
+6. Inside handlers, repository calls run with the module's own authority over its own entities and
+   read access to its declared dependencies; writes to another module's entity are limited to the
+   fields the module contributed. Reads on behalf of the caller are explicit (`forCaller()`, and
+   `ctx.target` in entity-mounted queries). A denied operation throws `forbidden`; nothing narrows
+   silently. Reactions, timers and schedules run under the module service principal
+   `<module>.system`, governed by rules (a module may invoke its own actions by default), with the
+   triggering actor recorded as causation. `asSystem(reason)` is the only escalation to the system
+   principal and is logged.
+7. Field masks govern only fields declared `.maskable()`; only those may appear in the field lists
+   of read rules and of runtime rule sources, so every other field keeps its declared type in
+   `Readable<R>` and in client types. Hidden fields never appear in rules.
+8. Principals are a discriminated union resolved by ordered resolvers and enriched by a set of
+   enrichers, once per session; the plan is memoised per invocation only. Jobs and receipts store a
+   principal reference that is resolved again when the job runs.
+9. Every decision carries matched rule ids and reasons; a decision-log hook, `explain`, and three
+   test suites (table-driven with transition cases, type-level, dual-evaluation of `where` and
+   `check` against every adapter) are part of the engine. Effective rules are exported in CASL
+   raw-rule shape through `core.me`; rules with relation quantifiers arrive with their relations
+   resolved to id sets for the principal, or marked server-only.
+10. Tenant isolation is outside the rule set: the scope resolved in the pipeline is applied by the
+    data layer before any plan, scope levels are checked at the gate, backend-scope units refuse
+    tenant entities, and deployment-scope actions exist only at the operator endpoint.
+11. Configurability: app-level mode, decision log, disable, add and replace of rules; runtime rule
+    sources validated against the registry; replaceable evaluator and compilers; optional
+    generated PostgreSQL row-level security as a backstop.
 
 ## Consequences
 
 - Cross-module composition is safe: toggling a module adds or removes its fragment without
   changing the meaning of other rules.
+- State-machine transitions are expressible: deny rules guard the state an action starts from,
+  `check` guards the state it produces.
+- Handlers see true data: uniqueness checks, quotas and existence tests never narrow to a wrong
+  answer, and listings that must show only what the caller may read say so in one call.
+- Rules fail closed on optional owner fields and with principals that have no subject.
 - One AST with two interpreters risks semantic divergence (null handling, collation, nested
   `none`); the small operator set, fail-closed compilation and the dual-evaluation suite from the
   first adapter are the mitigation.
@@ -69,4 +115,5 @@ writes, internal calls bypassing policy).
 - Deny rules reintroduce reasoning complexity; they require a reason and should stay rare.
 - Deep relation chains compile to nested `EXISTS` subqueries; performance must be measured on
   the two proof apps before adding deeper derived relations.
-- A later UI can reuse the CASL client packages unchanged through the exported raw rules.
+- A later UI can reuse CASL's client packages through the exported raw rules, within the limit
+  that relation-based rules are resolved for the principal or evaluated only on the server.
