@@ -114,6 +114,21 @@ deployment" below).
   to the kernel. Where the kernel must change, an ADR records it.
 - The goal is a framework Jens can build on without having to think about the framework itself.
 
+### Versioning, rollouts, feature flags and project layout (addendum 3, 2026-10-23)
+
+- Everything is versioned, in every nook and cranny of the API and the backend: packages, modules,
+  apps, the API surface and each action's input and output, entity schemas, events, protocols,
+  configuration, generated artefacts, clients. A version is never implicit.
+- Rollouts and roll-overs are smooth: moving to a newer version never interrupts running clients
+  or running processes, and backwards compatibility is kept until a major (breaking) version is
+  deployed. The framework must offer the best-in-class mechanism for this, not an ad-hoc one.
+- Feature flags and A/B testing exist. Whether they belong to the framework or only to the APIs
+  built with it is open; the current feeling is that the framework level is the right direction.
+- Every file in a project has a single purpose: each entity its own file, each library function
+  its own file, each module its own place, with a directory structure that makes this natural.
+  The conventions of file-based frameworks (Next.js and the like) are a starting point only; the
+  structure must be designed to be the best fit for this framework and enforced by its tooling.
+
 ## Constraints
 
 - Public repository on GitHub, every commit signed with the author's personal identity.
@@ -126,3 +141,5 @@ deployment" below).
   layer, execution model, types and tooling, interfaces for humans, constraints).
 - 2026-10-08, addendum 1: multi-tenancy and one deployment.
 - 2026-10-08, addendum 2: living brief.
+- 2026-10-23, addendum 3: versioning everywhere, smooth rollouts and compatibility, feature
+  flags and A/B testing, single-purpose files and project layout.
