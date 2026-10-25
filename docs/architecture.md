@@ -1,10 +1,11 @@
 # pennestack architecture
 
-Date: 2026-10-24 (first version 2026-10-08, consolidated 2026-10-11). Status: specification,
+Date: 2026-10-25 (first version 2026-10-08, consolidated 2026-10-11). Status: specification,
 consolidated draft awaiting Jens's approval. Authors: the core architect and the data, interfaces
 and platforms designers; consolidated with the review findings of 2026-10-11 by the synthesis
 editor; the versioning and project-layout designs of addendum 3 and Jens's decisions of 2026-10-24
-merged by the integration editor on 2026-10-24.
+merged by the integration editor on 2026-10-24; the jobs, nodes and autoscaling design and the
+design of encrypted personal data (decision 7b) merged by the merge editor on 2026-10-25.
 
 This document is the design contract of the framework. [brief.md](brief.md) is the requirements
 source of truth; this document says how those requirements are met and must not drop or
@@ -13,14 +14,13 @@ reinterpret any of them. Where it chooses between alternatives, an Architecture 
 research notes under [research/](research/) are the evidence base.
 
 It is one specification. Sections 1 to 13 define the kernel, the configuration model, actions,
-authorization, execution and the toolchain; sections 14 to 16 the data layer, events and sync,
-live updates, and the transports and CLI; section 17 the shared accounts and authentication
-modules and the two proof platforms; sections 18 to 20 versioning, rollouts and feature flags;
-section 21 nodes, capacity and autoscaling (in progress); sections 22 and 23 the repository and
-the project layout; sections 24 to 26 the procedure for new requirements, traceability and the open
-questions.
+authorization, execution and the toolchain; sections 14 to 16 the data layer, events and sync, live
+updates, and the transports and CLI; section 17 the shared accounts and authentication modules and
+the two proof platforms; sections 18 to 20 versioning, rollouts and feature flags; section 21 nodes,
+capacity and autoscaling; sections 22 and 23 the repository and the project layout; sections 24 to
+26 the procedure for new requirements, traceability and the open questions.
 
-Every library named here was checked against the npm registry between 2026-10-08 and 2026-10-24;
+Every library named here was checked against the npm registry between 2026-10-08 and 2026-10-25;
 the version in parentheses is the one checked, and Appendix A lists them. Type-level claims name
 the compiler versions that checked them.
 
@@ -165,13 +165,14 @@ no business module. It provides:
 - the kernel write path: repositories, `decide` and `evolve`, merge rules, receipts and tokens,
   written once against the data adapter contract (section 14.3);
 - the implicit `core` module, which owns the control entities (`core.backend`, `core.tenant`,
-  `core.domain`, `core.placement`, `core.namespace`, `core.operatorToken`, and for versioning,
-  rollouts and flags `core.process`, `core.rollout`, `core.flag`, `core.suspension` and
-  `core.apiUsage`), the command receipts (`core.commandReceipt`), and the operator and client
-  actions (`core.introspect`, `core.me`, `core.capabilities`, `core.subjects.erase`,
-  `core.retention.*`, `core.tenant.enter`, `core.tenant.move`, `core.tenant.setApiVersion`, and
-  `core.flag.*`: `evaluate`, `restoreRules` and the operator actions behind `pennestack flags`;
-  sections 18 to 20).
+  `core.domain`, `core.placement`, `core.namespace`, `core.operatorToken`, for versioning, rollouts
+  and flags `core.process`, `core.rollout`, `core.flag`, `core.suspension` and `core.apiUsage`, and
+  for nodes and scaling `core.node` and `core.scaleDecision`, with `core.process` also recording
+  each process's provider, instance, slots, reserved connections, drain and interruption, section
+  21), the command receipts (`core.commandReceipt`), and the operator and client actions
+  (`core.introspect`, `core.me`, `core.capabilities`, `core.subjects.erase`, `core.retention.*`,
+  `core.tenant.enter`, `core.tenant.move`, `core.tenant.setApiVersion`, and `core.flag.*`:
+  `evaluate`, `restoreRules` and the operator actions behind `pennestack flags`; sections 18 to 20).
 
 Everything else is a module or an infrastructure entry in its own package. The two proof apps are
 compositions of such packages (section 17).
@@ -183,8 +184,12 @@ compositions of such packages (section 17).
   infrastructure they share.
 - A process has a role: `serve` (runs listeners and transports), `work` (runs queue workers,
   projections and the reaction dispatcher), or `all` (both; the development default). Roles are a
-  start-up flag, not a different build. Named processes with capability tags (a process that sees
-  real client addresses on port 25, a process on the edge host) are gap G9 (section 17.7).
+  start-up flag, not a different build. Named processes declare roles, capabilities (a process that
+  sees real client addresses on port 25, a host with a clean address for outbound mail, a process on
+  the edge host), slots per queue, placements, a provider and scaling limits (section 21; gap G9
+  keeps the singleton leases). A `work` process runs action jobs for the queues it slots, and effect
+  jobs only for executors whose capabilities it advertises (decision 50a; the exact contract is
+  specified in the pure-handlers section).
 - Processes share no memory. Coordination goes through the control store and the job queue, so
   any number of processes on any number of nodes can run the same role.
 - A process serves every backend of the deployment. Which backends exist, which app each runs,
@@ -201,11 +206,11 @@ The lifecycle is explicit and the same for every module. Phases run in this orde
 |---|---|---|
 | `compose` | `defineApp`, pure | Validates the module tuple at the type level and again at runtime (missing requirements and contracts, duplicate and reserved ids, conflicting fields, unknown contribution targets, dangling references, unknown execution overrides, identifier collisions), orders modules topologically by `requires` with tuple order as tie-break, applies contributions and conditional parts, builds the registry and derives the API surface. No I/O. |
 | `setup` | Each module, in order | Receives the final registry and its own resolved definition; may register derived artefacts (projections, indexes, schedules). Transports run their `check` against the surface. Runs before any adapter connects. |
-| `connect` | Kernel | Opens the infrastructure listed in `defineDeployment` (data adapters, the control store, blob stores, secret providers, the ledger sink), verifies that it provides every deployment-level contract the apps require, then opens the placements the enabled backends need and validates adapter capabilities against the modules' data needs (section 14.3.3). Replays the erasure ledger and checks namespace epochs (section 14.7.6). Registers the process in `core.process` and compares its build manifest with `core.rollout`: it joins the finalized revision or the target, or refuses to start with `buildTooOld` or `targetConflict` (section 19.1). |
+| `connect` | Kernel | Opens the infrastructure listed in `defineDeployment` (data adapters, the control store, blob stores, secret providers, the ledger sink), verifies that it provides every deployment-level contract the apps require, then opens the placements the enabled backends need and validates adapter capabilities against the modules' data needs (section 14.3.3). Replays the erasure ledger and checks namespace epochs (section 14.7.6). Registers the process in `core.process` and compares its build manifest with `core.rollout`: it joins the finalized revision or the target, or refuses to start with `buildTooOld` or `targetConflict` (section 19.1). Runs the capability probes of its named process (section 21.2) and reserves its connection pool from each placement's budget, refusing to start with `connectionBudget` when a budget is spent (section 21.3). |
 | `migrate` | Kernel | In development: plans and applies the schema diff per namespace, confirming destructive steps. In production: verifies that the applied history matches the committed migration files and refuses to start on drift. |
 | `start` | Each module, in order | Starts background work (queue workers, the reaction dispatcher, projections, schedules). Runs after data is available and before any listener accepts traffic. |
 | `listen` | Kernel | The HTTP host mounts each app's transports and the invocation protocol; listener modules start on the ports the deployment binds. The process reports ready and is marked `ready` in `core.process`. |
-| `stop` | Reverse order | The process is marked `draining`; listeners stop accepting, in-flight invocations drain within a deadline, modules stop in reverse order, infrastructure closes. |
+| `stop` | Reverse order | The drain of section 21.6: the process is marked `draining` with a deadline (`processes.<name>.drainSeconds`, default 60, or a termination notice's if sooner) and stops taking jobs; listeners stop accepting, live streams end with `going_away`, consumer and singleton leases are released, and in-flight invocations and running jobs continue; at the deadline unfinished jobs are released; modules stop in reverse order, infrastructure closes, and the process deregisters and exits with code 0. |
 
 A process that finds itself below the finalized revision, after a network partition for example,
 stops (section 19.1).
@@ -405,7 +410,7 @@ export const credential = defineEntity({
   fields: {
     subject: field.subject().index(),          // the auth subject, a SubjectId (section 8.5)
     kind: field.enum(['password', 'passkey']),
-    identifier: field.string({ format: 'email' }).optional().personal(),  // login name of password credentials
+    identifier: field.string({ format: 'email' }).optional().personal({ normalize: 'email' }),  // login name of password credentials; the unique index implies 'eq' (section 14.7.9)
     verifier: field.verifier(),                // password hash or passkey public key: hidden, sealed in events (section 6.6)
     label: field.string().optional().merge('lww'),
     lastUsedAt: field.instant().optional().maskable(),   // rules may hide it (section 8.1)
@@ -460,17 +465,20 @@ and columns. The core defines the kinds and the modifiers; section 14.5.1 maps t
 Modifiers, all chainable and all reflected in the type: `.optional()`, `.default(value)`,
 `.unique()` (unique among non-archived rows; implies merge `exclusive`), `.index()`, `.hidden()`
 (section 6.6), `.maskable()` (rules may hide the field from readers; section 8.1), `.personal()`
-or `.personal({ subject })` (encrypted per data subject in the chain; section 14.7.4),
+or `.personal({ subject?, queries?, normalize?, eq?, prefix?, contains?, order?, keys? })`
+(encrypted per data subject in the chain and in state tables, queryable per declared capability;
+`.unique()` and `.index()` on a personal field imply `'eq'`; sections 14.7.4 and 14.7.9),
 `.stateOnly()` (kept in the state table, never written to events; section 6.6),
 `.merge(type)` (section 15.3.4; default `lww` for scalars, `exclusive` for unique fields),
 `.tag(n)` (a stable protobuf-style field number; allocated deterministically and recorded in the
 module snapshot when omitted), `.describe(text)` and `.deprecated(reason)`. Every modifier returns
 a field that keeps every earlier flag and the reference (section 4.7).
 
-Entity options beyond the example: `partition: '<field>'` (an immutable field that partitions
-change tokens, section 15.1.4), `searchIndexes` (section 14.3.3), `projection` and `source` for
-the `projection` and `external` history modes (sections 15.2.2 and 14.8.4), `rederive` (recomputes
-`stateOnly` fields during rebuilds), and `retention: { suggest }` (section 14.7.1).
+Entity options beyond the example: `partition: '<field>'` (an immutable field that partitions change
+tokens, section 15.1.4), `searchIndexes` (section 14.3.3; an entry over personal fields adds `keys`
+and `languages`, section 14.7.9.9), `projection` and `source` for the `projection` and `external`
+history modes (sections 15.2.2 and 14.8.4), `rederive` (recomputes `stateOnly` fields during
+rebuilds), and `retention: { suggest }` (section 14.7.1).
 
 `shape({ ... })` builds an object schema from fields for action inputs and outputs. It is a
 Standard Schema (section 6.5), so any library that accepts Standard Schema accepts it, and it is
@@ -666,6 +674,8 @@ export default defineDeployment({
   keys: { masterKey: secret('PENNESTACK_MASTER_KEY') },    // root of the key service (section 14.7.4)
   telemetry: { otlp: env('OTEL_EXPORTER_OTLP_ENDPOINT') },
   rollout: { finalize: 'auto', graceSeconds: 600 },        // the defaults: finalization of rolling upgrades (section 19.4)
+  processes: { home: { roles: ['serve', 'work'], slots: { '*': 4 } } },   // named processes (section 21.1)
+  scaling: { maxProcesses: 8 },                            // the scaler's deployment-wide limits (section 21.4)
 })
 ```
 
@@ -677,9 +687,15 @@ alternative, selecting modules at runtime, cannot have exact types and is reject
 `defineDeployment` checks, at the type level and again at boot, that its infrastructure provides
 every deployment-level contract any app's modules require (`missingInfrastructure: 'blobs'`). The
 kernel job queue is built on the data adapters' job store and needs no entry (section 9.5); a
-different queue implementation can replace it as an infrastructure entry. Secret providers default
-to the process environment. The conventional entry file is `pennestack.config.ts` with a default
-export; `--config` and `PENNESTACK_CONFIG` name another (section 16.9.1).
+different queue implementation can replace it as an infrastructure entry. The deployment also
+declares its named processes (`processes.<name>` with `roles`, `capabilities`, `slots` per queue,
+`placements`, `provider`, `scale` and `drainSeconds`), the scaler's limits (`scaling`:
+`maxProcesses`, `maxCostPerHour` and maxima per provider), the job limits per queue (`queues.<q>`:
+`running`, `queued` and `slo`) and each placement's connection budget
+(`placements.<name>.maxConnections`, default 80 percent of the server's `max_connections`); sections
+9.5.5, 21.1, 21.3 and 21.4 specify them. Secret providers default to the process environment. The
+conventional entry file is `pennestack.config.ts` with a default export; `--config` and
+`PENNESTACK_CONFIG` name another (section 16.9.1).
 
 ### 4.7 The type-level model
 
@@ -1463,6 +1479,8 @@ and a placement serves every app it hosts.
 | deployment | `carrierEnrichers` | `CarrierEnricher`: sets `carrier.scopeKey` before scope resolution | ordered | `transport-webhooks` receiver paths (section 16.5.8) |
 | deployment | `ports` | listener port bindings (gap G1) | map | `defineDeployment({ ports })` |
 | deployment | `flagProviders` | `FlagProvider` (section 20.3) | ordered | core (`core.targeting`, `env`), `openFeatureFlags(provider)` |
+| deployment | `capabilityProbes` | `CapabilityProbe`: confirms a capability a named process declares, at `connect`, every five minutes and on `pennestack fleet probe` (section 21.2) | set | core (`docker`, `smtp-out`, `gpu`, `arch`, `region`) |
+| deployment | `nodeProviders` | `NodeProvider`: offers, lists, starts and stops processes for the scaler; called only by the kernel (section 21.5) | set | core (`static`), `@pennestack/provider-docker` (opt-in), later Kubernetes and cloud providers |
 | app | `transports` | `TransportAdapter` (section 16.3) | set | `transport-rest`, `transport-graphql`, `transport-trpc`, `transport-webhooks`, later JMAP and Connect |
 | app | `listeners` | `Listener` (non-HTTP: SMTP, IMAP) | set | mail listener modules |
 | app | `liveHub` | `LiveHub` (section 15.4.11); provides `contracts.live` | single | `live` |
@@ -1524,7 +1542,8 @@ is derived by the data adapter from `(module, entity)` inside the app's namespac
 Fields are the `field.*` builders of section 4.2. Each builder result is a `FieldDef` that
 carries, at the value level, everything a projection needs (kind, modifiers, constraints,
 description, tag) and, at the type level, the TypeScript type and every flag that changes a
-derived type (optionality, default, hidden, maskable, merge type, personal subject, reference).
+derived type (optionality, default, hidden, maskable, merge type, personal subject, the personal
+flags `queries`, normaliser and `leaks`, reference).
 Projections:
 
 | Consumer | Derived from the field model |
@@ -1533,7 +1552,7 @@ Projections:
 | Validation | a Standard Schema validator per entity (create, patch) and per action input |
 | JSON Schema | draft 2020-12 and OpenAPI 3.1 dialects (through Standard JSON Schema) |
 | GraphQL | object, input and enum types, Relay node ids |
-| Columns | dialect column type, nullability, default, index, unique (section 14.5.1) |
+| Columns | dialect column type, nullability, default, index, unique (section 14.5.1); for personal fields a sealed column plus the derived index columns of each declared capability (section 14.7.9.6) |
 | Protobuf | numbered fields through `.tag(n)` or deterministic allocation (section 16.13) |
 | CLI | flags and positional parameters (section 16.9.4) |
 | Merge | the merge type of section 15.3.4 |
@@ -1636,8 +1655,9 @@ Hidden, secret and credential data:
   tenant moves recompute it with the entity's `rederive` hook, or leave it absent until
   reindexed.
 
-Fields marked `.personal()` are encrypted per data subject in the chain, so that erasure is a key
-destruction (section 14.7.4).
+Fields marked `.personal()` are encrypted per data subject in the chain, in the state tables and in
+every derived index, so that erasure is a key destruction (section 14.7.4); queries reach them only
+through the capabilities a field declares (section 14.7.9).
 
 ### 6.7 Generated entity actions
 
@@ -1671,7 +1691,8 @@ key was destroyed read as redaction markers; and compaction bounds how far back 
 `generated` on the entity switches any of them off (`set: false` removes the set operations);
 `projection` entities have no set operations and `external` entities only `get` and `query`.
 Custom actions coexist. The generated `query` sorts by `id`, `createdAt`, `updatedAt` and indexed
-or unique fields, with a default page size of 50 and a maximum of 500 unless the entity's `page`
+or unique fields (a personal field only with the `order` capability; generated actions never scan,
+section 14.7.9.5), with a default page size of 50 and a maximum of 500 unless the entity's `page`
 option says otherwise. A transport that needs positional paging (JMAP's `position` and `anchor`)
 requests it in its surface options; the generated `query` then also accepts `position` and
 `anchor` with `anchorOffset`, up to the adapter's declared maximum offset (section 14.3.5). The
@@ -1714,7 +1735,7 @@ interface ActionOptions<I, O> {
   principal?: PrincipalKind | readonly PrincipalKind[]   // the gate admits only these kinds; narrows ctx.principal
   scope?: 'tenant' | 'backend' | 'deployment'   // default 'tenant'
   execution?: 'sync' | 'async' | 'either'       // commands only; default 'sync'
-  async?: AsyncJobOptions                       // commands that run asynchronously: group, retry, onGiveUp (section 9.5)
+  async?: AsyncJobOptions                       // asynchronous commands: queue, key, ordering, group (concurrency, rate, scope), priority, cost, retry, onGiveUp (section 9.5.1)
   isolation?: 'read-committed' | 'serializable' // commands only; default 'read-committed' (section 14.3.6)
   idempotent?: boolean                          // queries: always true; commands: default false
   idempotency?: { window: string }              // receipt retention as an ISO 8601 duration; default 'PT24H'
@@ -1743,6 +1764,12 @@ The handler is one of:
   tokens, so the subscription is resumable; `mapItems(frames, fn)` maps items and keeps tokens and
   control frames. A source that wraps a plain iterable with `unresumable(iterable)` declares that
   it cannot resume. The surface's `resumable` flag is derived from that type, not declared.
+
+Actions never declare a `capability`, which belongs to effect executors and listeners (decision
+50a; the exact contract is specified in the pure-handlers section). Query descriptions carry a scan
+option (`scan: { limit, partial }`) and a search request form, and the encryption planner that
+rewrites them over personal fields (section 14.7.9.5) is kernel code, never handler code (decision
+50a; the exact contract is specified in the pure-handlers section).
 
 For entity-mounted instance commands the kernel adds `id: Id<entity>` and an optional
 `ifVersion` to the input and loads the target with the action's plan (section 8.4): a row the
@@ -1872,6 +1899,10 @@ interface ActionContext<M extends AnyModuleBase, W extends readonly AnyModule[] 
 - `asSystem(reason)` invokes actions under the system principal, for work the caller may not do
   itself; every call is logged with the reason and the calling action, which replaces the silent
   "override access" default of other frameworks. A GritQL rule rejects an empty reason.
+- Under decision 50a, `ctx.timers.set`, `ctx.timers.cancel` and `ctx.enqueue` become effect
+  descriptions the handler returns (`setTimer`, `cancelTimer` and an enqueue description), which the
+  kernel writes in the unit as jobs (section 9.5.1), and `ctx.egress` is used by effect executors
+  only (decision 50a; the exact contract is specified in the pure-handlers section).
 
 ### 7.7 Reactions
 
@@ -1891,7 +1922,7 @@ export const dispatchNextForProject = defineReaction(deploymentsBase, {
   key: (event) => event.current?.projectId ?? event.stream.id,
   ordering: 'fifo-per-key',                                  // or 'none' (default)
   coalesce: false,                                           // true: a newer event for the same key replaces a pending job
-  concurrency: 4,                                            // jobs of this reaction running at once per scope
+  concurrency: 4,                                            // a group per reaction and scope: jobs running at once (section 9.5.5)
   retry: { delays: ['30s', '2m', '10m'], giveUpAfter: 'PT6H' },
   handle,
 })
@@ -1917,8 +1948,9 @@ else needs a rule like any other principal.
 - **Async** reactions have two tiers. The kernel's reaction dispatcher is a consumer of the event
   log (section 15.2.3) that does only short work: for each matching event it enqueues one keyed job
   per reaction in a tenant-scope unit and advances its checkpoint for that scope in the same unit.
-  The job runs the handler in its own tenant-scope unit with the reaction's key, ordering,
-  coalescing, concurrency and retry options (section 9.5). A failing handler is retried by the
+  The job runs in the lanes of its queue like any action job (section 9.5.2), and the handler in its
+  own tenant-scope unit with the reaction's key, ordering, coalescing, concurrency (a group per
+  reaction and scope) and retry options (section 9.5). A failing handler is retried by the
   queue and never blocks the checkpoint; a job that exhausts its retries is parked as a dead
   letter, which is a metric, an alert and a line in `pennestack doctor`. Delivery is at least once;
   a handler is idempotent by `(reaction id, event id)`. Module code never receives a
@@ -2073,6 +2105,12 @@ The operator set is deliberately small; an adapter that cannot express a shape f
 named derived relations in the owning module (`relations: { owner: relation.derived(...) }`) and
 referenced by name.
 
+Personal fields (section 14.7.9) compare normalised values in both interpreters and accept only the
+operators their declared capabilities allow. Approximate operators (truncated equality tags,
+`contains`, the string ties of `order`, word search) stand only in positive positions of query
+filters, where verification on unsealed rows removes false matches; rules (`where`, `check`) and
+item checks use exact capabilities only.
+
 ### 8.4 The invoked action is the unit of authorization
 
 Authorization happens where a request enters behaviour: at the action the caller invoked. Inside
@@ -2111,7 +2149,9 @@ Inside a handler, data access follows the module boundary, not the caller's rule
   never discloses it. Every entity row node leaving the invoker (outputs, pages, `EntityChange`
   items, re-read receipt outcomes) is tested against the caller's read plan; development and tests
   fail the invocation, and production drops the row (a page becomes shorter, its cursors stay
-  valid) and logs the action, the row id and the rule ids, so the bug is found without a leak.
+  valid) and logs the action, the row id and the rule ids, so the bug is found without a leak. The
+  same re-check guards rules over personal fields against index tag collisions: a row that a
+  colliding tag selected never leaves the invoker (section 14.7.9.4).
 
 Transports never evaluate policies. Field masks apply to values leaving the invoker (the shape
 stage, entity outputs, live events, sync pulls), to `filter` and `sort` inputs (a filter or sort on
@@ -2297,77 +2337,218 @@ The buses are internal to the invoker; a module never calls them directly, it us
 A synchronous command runs in one unit on the namespace of its scope (section 14.2): insert the
 pending receipt, load the target with its version, decide, buffer the events (expected version),
 evolve and store the state, run inline reactions, enqueue jobs and timers in the same unit,
-complete the receipt, assign positions at the commit tail, commit. The events table is the
-outbox: nothing outside the unit observes anything before commit, and wake-ups are sent after
-commit (section 15.2.5). Section 15.1 specifies the event store within these constraints: one
-stream per entity instance, expected-version appends, commit-ordered positions per scope, a hybrid
-logical clock per event, the actor and command id in the envelope.
+complete the receipt, assign positions at the commit tail, commit. The unit also commits the effect
+records of the effect descriptions the handler returned, written as effect jobs, and the external
+effects run after commit through their executors, as section 9.5.2 describes (decision 50a; the
+exact contract is specified in the pure-handlers section). The events table is the outbox: nothing
+outside the unit observes anything before commit, and wake-ups are sent after commit (section
+15.2.5). Section 15.1 specifies the event store within these constraints: one stream per entity
+instance, expected-version appends, commit-ordered positions per scope, a hybrid logical clock per
+event, the actor and command id in the envelope.
 
 ### 9.5 Asynchronous work: jobs, timers and schedules
 
-Asynchronous commands, async reactions, durable timers and schedules all run on one job queue
-(gap G3; ADR 0015). The kernel queue stores jobs in the namespace, through the data adapter's job
-store (section 14.3.2), so a job is enqueued in the same unit as the command that causes it on
-every adapter, carries the scope's row-level security, and needs no relay.
+Asynchronous commands, async reactions, durable timers, schedules and external effects run on one
+job queue (gap G3; ADR 0015, amended by [ADR 0025](adr/0025-nodes-capacity-and-autoscaling.md)). The
+kernel queue stores jobs in the namespace through the data adapter's job store (section 14.3.9), so
+a job is enqueued in the unit of the command that causes it on every adapter, carries the scope's
+row-level security and needs no relay. Under decision 50a no worker runs code that performs effects:
+an action job (an asynchronous command, reaction, timer, schedule or continuation) is invoked
+through the invoker and returns events and effect descriptions; an external effect (an SMTP
+dialogue, a Docker Engine request) becomes an effect job in the same unit, run by its declared
+executor where the executor's capabilities are advertised (decision 50a; the exact contract is
+specified in the pure-handlers section). Section 21 places and scales the work
+([research/jobs-nodes-autoscaling.md](research/jobs-nodes-autoscaling.md)).
+
+#### 9.5.1 Jobs and the queue interface
 
 ```ts
 interface JobSpec {
-  readonly queue: string                                      // 'reactions', 'commands', 'timers', 'schedules', or a module queue
-  readonly action: string                                     // the worker invokes this action, or runs this reaction
-  readonly input: unknown
+  readonly queue: string                                      // 'reactions', 'commands', 'timers', 'schedules', 'effects' or a module queue
+  readonly run:
+    | { readonly action: string; readonly input: unknown }    // through the invoker
+    | { readonly executor: string; readonly effect: string }  // an external effect: its executor and effect record (decision 50a)
   readonly scope: Scope
-  readonly principal: PrincipalRef                            // re-resolved when the job runs (section 7.4); module service principals for reactions, timers and schedules
+  readonly principal: PrincipalRef                            // re-resolved when the job runs (section 7.4)
   readonly causation: { readonly eventId?: string; readonly commandId?: string; readonly actor?: ActorRef }
-  readonly build: { readonly id: string; readonly revision: number }   // the enqueuer's build; workers take jobs at or below their revision (section 19.2)
-  readonly apiVersion?: string                                // external callers: the input is stored as sent, at this API version
+  readonly build: { readonly id: string; readonly revision: number }   // the enqueuer's build (section 19.2)
+  readonly apiVersion?: string                                // external callers: the input as sent, at this API version
   readonly runAt?: Date
+  readonly priority?: 'high' | 'normal' | 'low'               // set by module code, never by input
+  readonly cost?: number                                      // fair-share units; default 1
   readonly key?: { readonly value: string; readonly onConflict: 'keep' | 'replace' | 'coalesce' }
-  readonly group?: { readonly id: string; readonly concurrency: number }    // per-destination or per-tenant concurrency
   readonly ordering?: 'none' | 'fifo-per-key'
+  readonly group?: { readonly id: string; readonly concurrency?: number; readonly rate?: string; readonly scope?: 'namespace' | 'deployment' }
+  readonly capability?: readonly string[]                     // effect jobs: the executor's (section 21.2)
   readonly retry?: { readonly limit?: number; readonly delays: 'exponential' | readonly string[]; readonly maxDelay?: string; readonly giveUpAfter?: string }
-  readonly heartbeatSeconds?: number
-  readonly expireInSeconds?: number
+  readonly heartbeatSeconds?: number                          // lease renewal, default 10; a lease lasts three
+  readonly expireInSeconds?: number                           // the longest one attempt may run
   readonly deadLetter?: string
-  readonly capability?: string                                // gap G9
 }
 interface JobQueue {
-  readonly capabilities: { readonly keys: true; readonly groups: true; readonly fifoPerKey: true; readonly heartbeat: true; readonly schedules: true }
+  readonly capabilities: QueueCapabilities                    // keys, groups, fifoPerKey, heartbeat, schedules, fairLanes
   enqueue(job: JobSpec, unit: Unit): Promise<JobId>
   cancel(queue: string, key: string, unit: Unit): Promise<number>
-  work(queue: string, handler: (job: Job) => Promise<void>, options: WorkOptions): Promise<Stop>
+  work(queue: string, handler: (job: Job) => Promise<void>, options: { readonly slots: number; readonly capabilitySets: readonly string[]; readonly revision: number }): Promise<{ drain(deadline: Date): Promise<number> }>
   schedule(id: string, expression: string, job: Omit<JobSpec, 'runAt' | 'scope' | 'principal'>, fanOut: 'backend' | 'each-tenant'): Promise<void>
+  stats(selector: { readonly queue?: string; readonly backendId?: string }): Promise<readonly WorkClassStats[]>   // section 21.4
+  explain(job: JobId): Promise<JobExplanation>                // why it waits: due time, cap, group, rate, key, capability, revision
 }
 
-// Durable, keyed timers inside handlers, set in the caller's unit; they fire under the module's service principal:
-await ctx.timers.set({ key: `node-offline:${id}`, at, invoke: markOffline, input: { id } })   // an own action part, by value
-await ctx.timers.cancel(`node-offline:${id}`)
-// Schedules, one per file, contribute to the core's `schedules` extension point:
+// nodes.node.heartbeat (section 17.3.4), decision 50a: the timer's job row commits in this unit and fires under
+// the module's service principal; cancelTimer(key) is the inverse.
+return {
+  events: [ctx.events.heartbeat({ active: input.active })],
+  effects: [setTimer({ key: `node-offline:${input.id}`, after: '45s', invoke: markOffline, input: { id: input.id } })],
+}
 export const refreshPublicAddressSchedule = defineSchedule(dnsBase, { every: '5m', invoke: refreshPublicAddress, scope: 'each-tenant', jitter: '30s' })
-// modules/dns/src/module.ts: schedules: { refreshPublicAddress: refreshPublicAddressSchedule }   (the key is the schedule id)
+// modules/dns/src/module.ts: schedules: { refreshPublicAddress: refreshPublicAddressSchedule }   (the key is the schedule id; schedules contribute to the core's `schedules` extension point)
+// An effect executor's job options; the executor contract is decision 50a's and its name provisional:
+export const smtpSend = defineEffectExecutor(mailDeliveryBase, {
+  queue: 'mail-delivery',
+  capability: ({ config }) => (config.relay ? [] : ['smtp-out']),
+  group: ({ effect, config }) => ({ id: `mx:${effect.domain}`, concurrency: config.connectionsPerDomain, rate: '60/1m' }),
+  retry: { delays: ['5m', '15m', '30m', '1h', '2h'], maxDelay: '4h', giveUpAfter: 'P5D' },   // section 17.4.7
+  run,                                                        // imperative: the SMTP dialogue through the egress service
+})
 ```
 
-- Workers run only in processes with the `work` role. They take jobs with row locks
-  (`FOR UPDATE SKIP LOCKED` on PostgreSQL and MySQL; the single writer on SQLite, PGlite and the
-  in-memory adapter), respect keys, groups and FIFO order, renew heartbeats and park exhausted jobs
-  as dead letters.
-- Retries follow the error taxonomy: `unavailable`, `rate_limited` (honouring `retryAfter`) and
-  `conflict` with `retryable` are retried by the job's policy; every other kind fails the job at
-  once. Domain waits (an image that does not exist yet) are state machines with timers, not job
-  retries.
-- The worker sets the scope, resolves the principal from its reference, invokes the action through
-  the invoker (so the gate and the item check run again against current state) and records the
-  outcome on the receipt.
+Asynchronous actions and async reactions set the same job options, `capability` apart (section 7.3).
+
+#### 9.5.2 Where jobs live
+
+- Per namespace: `ps_jobs` (open jobs: `scheduled`, `available`, `waiting`, `running`);
+  `ps_job_lanes`, one row per scope, queue, capability set and priority class (cap, weight, `taken`,
+  virtual time); `ps_job_lane_counts`, an `enqueued` and a `done` counter per lane; `ps_job_groups`
+  (concurrency, token bucket, blocked-until); `ps_job_history` (outcome, attempts, timings and
+  error, without input, seven days). Dead letters keep their input until replayed or discarded.
+- Lane state is split by writer: what makes a job available (an enqueue tail, a promotion, a FIFO
+  release) moves `enqueued`, takes move `taken` and the virtual time, completions `done`; groups
+  count the same way. Takes lock only lane rows, so an enqueue burst never makes takers skip a lane,
+  and a stale `done` only lowers a lane's room.
+- A job due now is `available` and counted at its cause's commit tail, beside the scope's position
+  counter (section 15.1.4); a later `runAt` (timers, retries, delayed sends) stays `scheduled` until
+  the queue's fetcher promotes it, so lanes count only due work. FIFO followers are `waiting`;
+  `replace` and `coalesce` act on a pending job of the same key and lane.
+- Completion is a statement of the job's unit, conditional on its lease: success removes the row and
+  writes history, a retryable failure schedules the next attempt, and the key's next `waiting` job
+  becomes `available`.
+- A job's unit runs the kernel's loads, then writes events, effect records, receipt and completion
+  at its tail (decision 50a). No handler waits on the network inside a unit, so no long write
+  transaction pins PostgreSQL's MVCC horizon. Database effects commit with the completion,
+  effectively once; effect jobs run after commit, at least once, passing the effect id as
+  idempotency key where the destination accepts one. Each outcome is recorded on its effect record,
+  linked to its cause, and passed to the continuation the description names.
+
+#### 9.5.3 The fair take
+
+```sql
+-- PostgreSQL (MySQL: the same steps in two statements); a kernel namespace-scope unit only the queue tables'
+-- policies admit. $sets: capability sets this process satisfies; $vmin: least virtual time of busy lanes.
+with picked as (
+  select l.id, l.cap - (l.taken - d.value) as room from ps_job_lanes l
+  join ps_job_lane_counts e on e.lane_id = l.id and e.kind = 'enqueued'   -- read, never locked
+  join ps_job_lane_counts d on d.lane_id = l.id and d.kind = 'done'
+  where l.queue = $queue and l.capability_set = any($sets) and e.value > l.taken and l.taken - d.value < l.cap
+  order by l.priority, (l.taken - d.value) / l.weight, greatest(l.vtime, $vmin)   -- class, load per share, round robin
+  limit $lanes
+  for update of l skip locked
+), share as (select greatest(1, ceil($batch::numeric / nullif(count(*), 0))) as n from picked)
+select j.* from picked p cross join share s cross join lateral (
+  select * from ps_jobs j
+  where j.lane_id = p.id and j.state = 'available' and j.revision <= $revision
+    and not exists (select 1 from ps_job_groups g where g.id = j.group_id and g.blocked_until > now())
+  order by j.run_at, j.id
+  limit least(p.room, s.n)
+  for update skip locked) j;
+-- Same transaction: jobs become 'running' with (worker, attempt, lease); lanes add the jobs to `taken` and cost / weight
+-- to `vtime` (lifted to $vmin first); group rows are locked in id order and checked; a job over its limit goes back.
+```
+
+- Order: strict priority classes; then the least running work per unit of weight, which counts long
+  jobs as load (Temporal's task-queue fairness weighs dispatches only); then virtual time, a
+  weighted round robin (stride scheduling). Lifting a lane to `$vmin` means idleness earns no
+  credit.
+- Takers lock different lanes, then different jobs, sharing a batch over the lanes picked. Group
+  rows serialise only takes of one group; counting under that lock replaces the count inside the
+  take statement, which raced at `READ COMMITTED`.
+- SQLite, PGlite and the in-memory adapter (the conformance oracle) run the same steps under their
+  single writer.
+
+#### 9.5.4 Retries, leases and failures
+
+- Retries follow the error taxonomy, in which executors report too: `unavailable`, `rate_limited`
+  (honouring `retryAfter`, and blocking the job's group until then) and `conflict` with `retryable`
+  are retried by the job's policy, with full jitter; every other kind fails the job at once. Domain
+  waits (an image that does not exist yet) are state machines with timers, not job retries.
+- The worker renews its running jobs' leases every `heartbeatSeconds`, one statement per namespace;
+  a lease lasts three heartbeats. The next take reclaims an expired one: the job returns to
+  `available`, the attempt counted as `unavailable`, `core.job_lease_lost`. Renewal and completion
+  are conditional on (worker, attempt), so a paused or partitioned attempt fails at its completion
+  statement and rolls back its own unit.
+- Three consecutive lost leases make a job a dead letter, so a poison job cannot take the fleet down
+  one process at a time. `expireInSeconds` aborts an attempt through its abort signal with
+  `core.timeout` (retryable).
+- Dead letters are a metric, an alert and a `pennestack doctor` line; `pennestack jobs
+  replay|discard` handles them.
+
+#### 9.5.5 Limits, priorities and backpressure
+
+The job side of the quota model (section 12.2):
+
+| Limit | Configured | Enforced | When reached |
+|---|---|---|---|
+| running jobs per tenant and queue (the lane's cap) | `queues.<q>.running` (a number or a share of live slots), per backend with tenant overrides | the take | jobs wait |
+| running jobs per backend and queue | `core.quota.set` per backend | an implicit group `backend:<id>` | jobs wait |
+| queued jobs per tenant and queue | `queues.<q>.queued`, default 10,000; backend and tenant overrides | the enqueue's commit tail | commands: `rate_limited` (`core.queue_full`, `retryAfter`); the reaction dispatcher pauses the scope until the lane is below 90 percent; timers and schedules are bounded by keys |
+| share | weight per backend and tenant, default 1, operator only | the take's order | |
+| priority | module code: `high` for liveness timers, `low` for bulk work | the take's order | lower classes wait; their age drives the scaler |
+| destination concurrency and rate | `group` options of executors and actions, from module configuration | the take, under the group's row lock; `scope: 'deployment'` groups (M7) through control-store permits | jobs wait for a slot or a token |
+| process slots | `processes.<name>.slots` (section 21.1) | the worker | |
+
+Without a cap the take is work-conserving: one tenant may fill idle slots, and the fair order gives
+the next free one to the least-served lane. Tenants cannot raise their own weight or caps (gap G10
+configuration cannot reach them); `pennestack jobs lanes` and `pennestack doctor` show them.
+
+#### 9.5.6 Workers, scopes and schedules
+
+- Workers run only in processes with the `work` role, for the queues their named process slots, and
+  take effect jobs only for executors whose capabilities the process advertises (section 21.2). One
+  fetcher per queue promotes due jobs and takes batches for the slots, woken after commit by the
+  notifier of section 14.3.7 (channel `ps_jobs`) and by a jittered poll every second. With
+  per-tenant namespaces (M7), wake-ups pass through the control store, and each process sweeps the
+  namespaces that rendezvous hashing over the live registry gives it.
+- An action job runs through the invoker after the worker sets the scope and resolves the principal,
+  so the gate and the item check run again against current state. An effect job runs its executor
+  outside any unit; one short unit then records the outcome, enqueues the continuation (under the
+  module's service principal) and completes the job.
 - `each-tenant` schedules enumerate the tenants of the backends whose app contains the module and
-  enqueue one job per tenant, with group concurrency per backend; at most one run per tick and
-  scope exists, however many processes run. Schedules run under the module's service principal
-  with the schedule id as the reason.
-- Per-tenant job concurrency (a group per tenant and queue) is the job side of the quota model
-  (section 12.2).
-- pg-boss 12.37.1 has nearly all of these primitives on PostgreSQL alone. The kernel queue is
-  preferred because the same queue then works on every adapter, in `pennestack dev` on PGlite and
-  in tests on the in-memory adapter, and because job payloads stay under tenant row-level
-  security. A `queue-pg` infrastructure entry built on pg-boss remains possible behind the same
-  interface; section 26.1 lists the choice as decision point 6.
+  enqueue one job per tenant, with group concurrency per backend and the schedule's jitter; at most
+  one run per tick and scope exists, however many processes run. Schedules run under the module's
+  service principal with the schedule id as the reason.
+
+#### 9.5.7 Implementations and the upgrade path
+
+Decision point 6 was re-examined for many nodes against four families (research note): this kernel
+queue; a PostgreSQL queue library (pg-boss 12.38.0); a broker (NATS JetStream or Redis Streams)
+behind `JobQueue`; a durable execution engine. Only the kernel queue gives transactional enqueue on
+every adapter, row-level security on payloads and one semantics in development, tests and
+production. pg-boss now has groups, FIFO per key, heartbeats, Kysely enqueue and PGlite, but no
+MySQL, SQLite or in-memory store, no scope predicate and no fair shares. Brokers need an outbox
+relay and carry payloads out of the database; engines keep a second record of every step beside the
+event log, which records every effect under decision 50a. The kernel queue stays.
+
+- Ceiling: graphile-worker 0.18's benchmark reaches about 15,600 trivial jobs per second unbatched
+  and 184,000 batched on one machine; Hatchet's maintainers reported that bursts above 5,000 tasks
+  per second (about 25,000 transactions) outgrew a plain `SKIP LOCKED` queue. The ceiling is per
+  placement: plan with 2,000 jobs per second, handlers included, until the M0 and M2 measurements
+  replace the number. The proof platforms need well under 10.
+- Upgrade path, keeping `JobQueue`, `JobStore`, `JobSpec` and the conformance suite: first more
+  placements, partitioned `ps_jobs` and a transaction-mode pooler; then a dispatch tier, where
+  leased fetchers per namespace and queue take fair batches and publish job ids on NATS JetStream
+  work-queue subjects, and workers claim them by id with the same conditional statements. The broker
+  carries ids only, so no tenant payload leaves the namespace and the broker needs no backup.
+- A `queue-pg` entry on pg-boss remains possible for PostgreSQL-only deployments, not planned.
 
 ### 9.6 Live updates
 
@@ -2395,8 +2576,8 @@ producing events or transient change records and from the generated `watch` on e
 Jobs, events, receipts and subscriptions carry the scope; a worker sets the scope and resolves the
 principal from the job before any code runs; placements are resolved per scope, so two tenants on
 different databases never share a transaction; positions are counted per scope, so one tenant's
-writes never queue behind another's (section 15.1.4); quotas are enforced at `admit` and by job
-concurrency per tenant (section 12.2).
+writes never queue behind another's (section 15.1.4); quotas are enforced at `admit` and by lane
+caps and queued caps per tenant and queue (sections 9.5.5 and 12.2).
 
 ## 10. Errors
 
@@ -2447,8 +2628,12 @@ and `core.protocol_retired` (`not_found`), `core.rollout_in_progress` and `core.
 (`unavailable`), `core.version_change_failed` (`internal`), `core.feature_disabled` (`forbidden`)
 and `core.rollout_not_finalized` (`conflict`). The shape-stage row check fails with
 `core.row_outside_plan` (`internal`, section 8.4), and an `asOf` read before a stream's compaction
-horizon with `core.history_compacted` (`not_found`, section 14.7.1). The taxonomy itself is
-unchanged.
+horizon with `core.history_compacted` (`not_found`, section 14.7.1). The job queue adds
+`core.queue_full` (`rate_limited` with `retryAfter`, section 9.5.5), `core.job_lease_lost` (an
+attempt counted as `unavailable`, section 9.5.4) and `core.capability_unplaceable` (`unsupported`,
+section 21.2); queries over encrypted personal fields add `core.personal_operator`,
+`core.personal_needle_short` and `core.scan_limit` (all `unsupported`, section 14.7.9). The taxonomy
+itself is unchanged.
 
 Declared errors become typed unions in GraphQL, typed results of `attempt` in the typed client,
 documented responses in OpenAPI and exit codes in the CLI. Error codes are part of the public
@@ -2464,9 +2649,13 @@ contract and are never reused.
   the queue add child spans; W3C `traceparent` is propagated in and out and stored in every event
   envelope, so live deliveries, async reactions and webhooks link back to the command that caused
   them. Section 16.11 adds the interface layer's spans and metrics.
-- Metrics: invocations and durations by action and outcome, job queue depth, age and dead letters,
-  event append rate per namespace, projection and change-feed lag, live subscriptions, per-tenant
-  quota usage (section 12.2), and `pennestack.flags.evaluations` by flag, variant and reason.
+- Metrics: invocations and durations by action and outcome, job queue depth, age and dead letters
+  (with the job and scaling metrics of section 21.9: `pennestack.jobs.due`, `.oldest_due`,
+  `.lanes.capped`, `.unplaceable`, `.wait`, `.run`, `.take.duration` and `.outcomes` by kind and
+  outcome, and `pennestack.slots`, `.processes`, `.connections.reserved` and `.scaler.desired` per
+  named process), event append rate per namespace, projection and change-feed lag, live
+  subscriptions, per-tenant quota usage (section 12.2), and `pennestack.flags.evaluations` by flag,
+  variant and reason.
 - API usage counters: requests per day, backend, tenant, API version and transport, per action or
   field for deprecated items, flushed at `complete` into `core.apiUsage` (section 18.5).
 - Logs are structured, carry the scope ids and request id, and go through `ctx.log`; no module
@@ -2494,7 +2683,7 @@ The brief makes this cross-cutting; this section collects the statements of each
 | Pipeline | `resolveScope` runs first on every request or connection, followed by `resolvePrincipal` and `resolveVersion`, using the deployment-ordered tenant resolvers (host name, path prefix, header, scope key from tokens, receivers and listeners such as the SMTP recipient domain); the same resolvers serve every transport, the CLI and non-HTTP listeners; actions declare the scope level they accept and the gate rejects a mismatch. |
 | Data layer | Placement per tenant (shared tables with a tenant key, schema per tenant, database per tenant, or a different adapter), chosen at tenant creation and changeable by a move; the adapter injects the scope predicate into every statement; PostgreSQL row-level security as a backstop; positions, consumer checkpoints and usage counters per scope; migrations per namespace; application code never sees the strategy (section 14.9). |
 | Authorization | Scope is applied before and outside policies (section 8.8); the operator principal and explicit, logged tenant entry; no rule can widen a scope. |
-| Execution | Jobs, events, receipts, subscriptions and checkpoints carry the scope; workers adopt it and resolve the principal again before running; quotas and job concurrency per tenant (sections 9.7 and 12.2). |
+| Execution | Jobs, events, receipts, subscriptions and checkpoints carry the scope; workers adopt it and resolve the principal again before running; quotas, and lane caps and queued caps per tenant and queue (sections 9.7 and 12.2). |
 | Transports | Fill the carrier and never resolve tenants themselves; the HTTP host routes by the resolved app; cookies, CORS and CSRF checks follow the tenant's origins; generated documents are per app, served per backend (section 16.12). |
 | CLI | A profile names a deployment, a backend and a tenant (or the deployment level for operator work); the token in the profile is resolved like any other principal; every command accepts `--backend` and `--tenant` overrides; operator commands create backends and tenants at runtime. |
 | Secrets and configuration | Per backend with per-tenant overrides, sealed by the key service under backend and tenant keys, never in the app code or the environment of a tenant (section 5.7). |
@@ -2509,7 +2698,9 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
 | request rate (per tenant, per principal, per action class) | `core` quota configuration per backend, with tenant overrides | token buckets in the tenant's namespace, refilled by time; each process takes a small allowance at a time so the shared row is touched rarely | `admit`: `rate_limited` with `retryAfter` |
 | concurrent invocations per tenant | as above | per process, reconciled through leases in the control store | `admit` |
 | storage: rows, event bytes and blob bytes per tenant | as above; modules may declare finer dimensions (`mail-store`'s bytes per mail account) | usage counters per scope, updated in the commit tail of the unit that changes them (blob bytes when a blob is adopted or purged) | the commit tail: `rate_limited` with code `core.quota_exceeded`, not retryable |
-| jobs per tenant | as above | queue groups per tenant and queue | the job queue: excess jobs wait |
+| running jobs per tenant and queue | `queues.<q>.running` per backend, with tenant overrides (section 9.5.5) | the lane's `taken` and `done` counters | the take, by the lane's cap: excess jobs wait |
+| queued jobs per tenant and queue | `queues.<q>.queued` (default 10,000), with backend and tenant overrides | the lane counters (section 9.5.2) | the enqueue's commit tail: `rate_limited` with code `core.queue_full` and `retryAfter` |
+| share of a queue | a weight per backend and tenant (default 1), operator only | the lane's virtual time | the take's order |
 | live subscriptions and connections per tenant | as above | deployment-wide, through leases in the control store; per-process counters for the fast path | `admit` at subscribe time |
 
 - Quota dimensions are declared like configuration (`quotas: { storageBytes: quota.bytes().default('10GiB') }`
@@ -2911,10 +3102,16 @@ Checks the environment and the project, then the running backends:
   derived from exports, mounts in `base.ts` and `module.ts`, and the package shape (section 23.13);
 - flags past their expiry or otherwise stale, and release or experiment flags expiring more than
   40 days after their first build (section 20.7);
+- the personal-data pass (section 14.7.9.12): each personal field's capabilities, leaks, key scope
+  and normaliser and, on a running deployment, its index rows and bytes per tenant, with warnings
+  for equality indexes on low-entropy fields, `prefix.min` below 3, `contains.bits` above 12, every
+  `order` field, tenant-keyed search indexes, indexes built under another Unicode version, failed
+  reindex jobs and backups still holding plaintext of fields made personal later;
 - the deployment: operator socket permissions, master key present, control store reachable, the
   control store on a different database cluster than the placements or an erasure-ledger sink
-  configured (section 14.7.6), external-table drift, dead letters and parked streams; then
-  `app.health` and `app.ready` per backend.
+  configured (section 14.7.6), external-table drift, dead letters and parked streams, queued caps
+  above 80 percent, capped lanes and unplaceable work (sections 9.5.5 and 21.2); then `app.health`
+  and `app.ready` per backend.
 
 ## 14. Data layer
 
@@ -2923,8 +3120,9 @@ the field model, migrations per module, retention and erasure, the live types of
 how the data layer handles tenancy. Section 15 continues with the event log, consumers, offline
 sync and live updates. ADRs [0006](adr/0006-data-adapter-boundary-namespaces-and-migrations.md),
 [0007](adr/0007-event-log-positions-and-projections.md),
-[0008](adr/0008-offline-sync-and-merge-rules.md) and
-[0009](adr/0009-personal-data-retention-and-erasure.md) record the decisions. The PostgreSQL
+[0008](adr/0008-offline-sync-and-merge-rules.md),
+[0009](adr/0009-personal-data-retention-and-erasure.md) and
+[0027](adr/0027-encrypted-personal-data-and-queries.md) record the decisions. The PostgreSQL
 statements this section relies on (the commit-tail counter, including the reuse of a rolled-back
 allocation, and the unique-violation code of expected-version conflicts) and the `xid8` visibility
 scheme it rejects were run on PostgreSQL 18.3 through PGlite 0.5.8 on 2026-10-11; PGlite has a
@@ -2970,7 +3168,8 @@ deployment
 └── placement "default"                   adapter postgres, strategy shared-tables
       ├── namespace "launchway"           root: PostgreSQL schema launchway
       │     framework tables  ps_events  ps_positions  ps_shapes  ps_consumers  ps_parked
-      │                       ps_jobs  ps_serials  ps_usage  ps_subject_keys  ps_value_keys
+      │                       ps_jobs  ps_job_lanes  ps_job_lane_counts  ps_job_groups  ps_job_history
+      │                       ps_serials  ps_usage  ps_subject_keys  ps_value_keys  ps_index_keys
       │                       ps_subject_refs  ps_tombstones  ps_stream_records  ps_migrations
       │     module tables     core__command_receipt  accounts__profile  auth__credential  auth__session ...
       └── namespace "mail"                root: PostgreSQL schema mail
@@ -3048,7 +3247,8 @@ export interface EntityDescriptor {
   readonly indexes: readonly IndexDescriptor[]          // including partial unique indexes
   readonly partition: string | null        // field whose value partitions change tokens (section 15.1.4)
   readonly mergeState: boolean             // an offline-capable command can write this entity (M8)
-  readonly searchIndexes: readonly SearchIndexDescriptor[]   // capability `search` (M4)
+  readonly searchIndexes: readonly SearchIndexDescriptor[]   // capability `search` (M4); over personal fields, keyed token indexes with `keys` and `languages` (section 14.7.9.9)
+  readonly derivedIndexes: Readonly<Record<string, DerivedIndexField>>   // index fields of personal fields, kinds 'binary', 'tagSet' and 'ore'; the encryption planner rewrites conditions onto them (section 14.7.9.5)
   readonly external: ExternalMapping | null                 // history 'external' only (M7)
 }
 
@@ -3064,7 +3264,7 @@ export interface FieldDescriptor {
   readonly stateOnly: boolean              // never written to events or before-images (section 6.6)
   readonly sealed: boolean                 // credential material: secret and verifier kinds, sealed per value (section 14.7.4)
   readonly merge: 'lww' | 'counter' | 'set' | 'sequence' | 'richText' | 'exclusive'
-  readonly personal: false | { readonly subject: string }   // the entity's dataSubject, or another field of the row
+  readonly personal: false | { readonly subject: string; readonly queries: readonly PersonalQuery[]; readonly normalize: NormalizerRef; readonly params: PersonalParams; readonly keys: 'tenant' | 'subject' }   // subject: the entity's dataSubject or another field of the row; the rest: section 14.7.9.2
   readonly constraints: FieldConstraints   // maxLength, pattern, format, min, max, wide, precision, scale, values, per
   readonly ref: { readonly entity: string; readonly foreignKey: boolean } | null
   readonly inner: FieldDescriptor | null   // element of set and list
@@ -3173,6 +3373,17 @@ export interface RowQuery {
   readonly forUpdate?: boolean             // lock the rows for the unit where supported; versions guard everywhere
 }
 
+/** Capability `search`. A keyed token index over personal fields receives tags, never words (section 14.7.9.9). */
+export interface SearchRequest {
+  readonly index: string                   // a name from the entity's searchIndexes
+  readonly match:
+    | { readonly text: string }            // a plaintext search index
+    | { readonly terms: readonly (readonly { readonly field: string; readonly tag: bigint }[])[] }   // per query word, its field-qualified tags: any matches, every word must
+  readonly subject?: string                // indexes with `keys: 'subject'`: the one pinned data subject (for mail, the account)
+  readonly where?: Condition               // the plan and the other conditions, as in RowQuery
+  readonly page?: RowQuery['page']
+}
+
 export interface RowPage {
   readonly rows: readonly StorageRow[]
   readonly pageInfo: { readonly hasNextPage: boolean; readonly hasPreviousPage: boolean; readonly startCursor: string | null; readonly endCursor: string | null }
@@ -3237,12 +3448,13 @@ export interface AdapterCapabilities {
   readonly changeFeed: 'poll' | 'notify' | 'stream'
   readonly rowLevelSecurity: boolean
   readonly rowLocks: false | { readonly skipLocked: boolean; readonly noWait: boolean }
-  readonly search: false | 'tsvector' | 'fulltext' | 'fts5' | 'naive'
+  readonly search: false | 'tsvector' | 'fulltext' | 'fts5' | 'naive'   // plaintext search indexes only (section 14.7.9.9)
   readonly positionPaging: false | { readonly maxOffset: number }   // JMAP position and anchor (section 14.3.5)
   readonly jobs: 'skip-locked' | 'single-writer'      // how workers take jobs (section 14.3.9)
   readonly broadcast: boolean                          // topics and presence across processes
   readonly sql: false | { readonly dialect: 'postgres' | 'mysql' | 'sqlite' }
   readonly processes: 'single' | 'host' | 'network'   // in-memory: single; SQLite file: host; servers: network
+  readonly encryptedQueries: EncryptedQueryCapabilities   // personal fields: equality, tagSets, order, maxScan (section 14.7.9.10)
 }
 ```
 
@@ -3251,9 +3463,10 @@ Capabilities are checked at three moments, always failing closed:
 - At `connect`, for every namespace of the placement: chain entities need `eventStore`;
   `richText` and `sequence` fields need a codec module (section 15.3.9); a module that declares
   data needs (`defineModule({ data: { needs: ['search', 'rowLocks', 'positionPaging', { sql: 'postgres' }] } })`)
-  needs them, including the SQL dialect it writes queries for; a deployment with several processes
-  needs `processes` beyond `single`. A failure marks the backends of that namespace `unavailable`
-  and names the module and the capability; other namespaces start.
+  needs them, including the SQL dialect it writes queries for; personal fields need the
+  `encryptedQueries` capabilities their declarations imply (section 14.7.9.10); a deployment with
+  several processes needs `processes` beyond `single`. A failure marks the backends of that
+  namespace `unavailable` and names the module and the capability; other namespaces start.
 - At `core.tenant.create` and `core.tenant.move`: the target placement must satisfy the app,
   including every module's dialect, else `unsupported`.
 - When a plan or a query is compiled: an operator or field kind the adapter declares unsupported
@@ -3284,9 +3497,13 @@ Rules that keep the two interpreters equal:
   PostgreSQL, `utf8mb4_bin` on MySQL, SQLite's default `BINARY`), and the in-memory interpreter
   compares code points (not UTF-16 code units). Locale-aware ordering, when added, is a sort option
   only and never available in conditions.
+- Personal fields compare normalised values: the compiled interpreter compares tags of `N(value)`,
+  the in-memory one compares `N(stored)` with `N(operand)`, where `N` is the field's normaliser
+  (section 14.7.9.3).
 - Restricted kinds: `json`, `richText` and `list` with merge `sequence` support only `isNull`;
   `binary` supports `eq`, `ne` and `isNull`; `secret` supports nothing; `set` and `list` support
-  `contains` and `isNull`; on SQLite, `decimal` values are stored as canonical text, so ordering
+  `contains` and `isNull`; personal fields support only the operators their declared capabilities
+  allow (section 14.7.9.4); on SQLite, `decimal` values are stored as canonical text, so ordering
   operators on `decimal` are unsupported there.
 - Relation quantifiers are evaluated by the database in both directions. When the in-memory
   interpreter meets a quantifier (an item check on a post-image, a live event, an offline
@@ -3297,7 +3514,9 @@ Rules that keep the two interpreters equal:
   implementation is the reference.
 
 Operators unsupported per adapter, beyond the kind restrictions above: PostgreSQL none, MySQL none,
-SQLite ordering on `decimal`, in-memory none. A Drizzle-based adapter, if written, declares its own.
+SQLite ordering on `decimal`, in-memory none; on personal fields, ordering on MySQL, SQLite and the
+Supabase preset, whose `encryptedQueries.order` is `false` (section 14.7.9.10). A Drizzle-based
+adapter, if written, declares its own.
 Absence is tested only with `isNull`; the wire filter's bare `null` shorthand is normalised to
 `isNull: true` at the boundary and never reaches the AST (section 16.4.4).
 
@@ -3311,7 +3530,9 @@ sort last ascending and first descending, compiled explicitly (`NULLS LAST` on P
 `col IS NULL, col` on MySQL and SQLite) and mirrored in memory. `first`/`after` and
 `last`/`before` follow section 6.7; `total` is an opt-in count; page sizes come
 from the action's `page` specification. A field outside the principal's read mask cannot be a sort
-key (section 8.4).
+key (section 8.4). A cursor over a personal sort field carries its order token sealed, never the
+value, and pages over verified conditions may be shorter than requested while their cursors stay
+valid (section 14.7.9.5).
 
 Positional paging exists for JMAP, whose `/query` takes `position` (negative positions count from
 the end) and `anchor` with `anchorOffset`, and whose mail clients page by position. Adapters that
@@ -3432,7 +3653,10 @@ entity definitions (section 14.8.4).
 **In-memory.** The reference semantics: every mandatory operation, the event store, positions,
 receipts, jobs, keys and an in-process feed; serialisable units through a mutex and copy-on-write maps,
 with savepoints as snapshots; naive substring search; no SQL hatch. Unit tests use it, and the
-dual-evaluation suite uses it as the oracle.
+dual-evaluation suite uses it as the oracle. It stores sealed personal values and their index tags
+as the SQL adapters do, so tests exercise the encryption planner's rewrite; for personal fields the
+conformance kit adds the unsealing oracle ("unseal and evaluate") as the reference (section
+14.7.9.10).
 
 #### 14.3.8 The SQL escape hatch (M7)
 
@@ -3446,7 +3670,9 @@ field names. Plugins on that instance (Kysely's `transformQuery` hook):
 - scope every table reference: reads see a derived table filtered by the unit's scope, updates and
   deletes get the scope predicate, inserts get the scope value (a different value is an error);
 - reject writes to `chain` and `projection` tables, whose only writer is the kernel;
-- on PostgreSQL, row-level security repeats the scope.
+- on PostgreSQL, row-level security repeats the scope;
+- type personal columns as `Sealed`, hide their index columns and refuse writes to both; the hatch
+  offers no predicates on personal fields in the first release (section 14.7.9.11).
 
 Raw SQL strings cannot be scoped by inspection, so `sql.raw` and table references inside `sql`
 template fragments are available only on `ctx.asSystem(reason).sql`, which is logged. Kysely is
@@ -3456,34 +3682,53 @@ pinned to an exact version.
 #### 14.3.9 The job store
 
 The kernel job queue of section 9.5 is implemented once, in the core, over a `JobStore` that every
-adapter provides in its unit. Jobs live in `ps_jobs` in the namespace, carry the scope (so
-row-level security covers their payloads) and are inserted in the unit of the command, timer or
-reaction dispatch that causes them.
+adapter provides in its unit. Jobs live in `ps_jobs` in the namespace, beside their lanes, lane
+counters, groups and history (section 9.5.2), carry the scope (so row-level security covers their
+payloads) and are inserted in the unit of the command, timer or reaction dispatch that causes them.
 
 ```ts
 export interface JobStore {
-  enqueue(job: StoredJobSpec): Promise<JobId>                 // keys: keep, replace or coalesce a pending job with the same key
+  enqueue(job: StoredJobSpec): Promise<JobId>                 // keys: keep, replace or coalesce a pending job with the same key and lane
   cancel(queue: string, key: string): Promise<number>
-  /** Takes up to `limit` due jobs of a queue, respecting keys, FIFO order per key and group concurrency;
-      only jobs enqueued at or below `maxRevision`, the worker's build revision (section 19.2). */
-  take(queue: string, worker: string, limit: number, leaseMs: number, maxRevision: number): Promise<readonly StoredJob[]>
-  heartbeat(jobIds: readonly JobId[], worker: string, leaseMs: number): Promise<void>
-  complete(jobId: JobId, outcome: JobOutcome): Promise<void>  // succeeded, retry at a time, or dead letter
+  /** Moves due `scheduled` jobs (timers, retries, delayed sends) to `available` and counts them on their lanes. */
+  promote(queue: string, limit: number): Promise<number>
+  /** The fair take of section 9.5.3 over the lanes of the worker's capability sets: lane caps, keys, FIFO order per key
+      and group limits; reclaims expired leases first; only jobs enqueued at or below `maxRevision`, the worker's build
+      revision (section 19.2). */
+  take(queue: string, worker: string, request: { readonly limit: number; readonly capabilitySets: readonly string[]; readonly maxRevision: number; readonly leaseMs: number }): Promise<readonly StoredJob[]>
+  /** Conditional on (worker, attempt); returns the attempts whose lease still holds. */
+  heartbeat(attempts: readonly JobAttempt[], worker: string, leaseMs: number): Promise<readonly JobAttempt[]>
+  /** Conditional on (worker, attempt): succeeded (history written), retry at a time, or dead letter; false when the lease was lost. */
+  complete(attempt: JobAttempt, worker: string, outcome: JobOutcome): Promise<boolean>
+  stats(queue?: string): Promise<readonly WorkClassStats[]>  // per queue and capability set, from the lane tables (section 21.4)
   schedules(): ScheduleStore                                  // one row per schedule and scope: last tick, next tick
 }
 ```
 
-- On PostgreSQL and MySQL, `take` selects due rows `FOR UPDATE SKIP LOCKED`, so any number of
-  workers on any number of processes share a queue. On SQLite, PGlite and the in-memory adapter,
-  the single writer serialises `take`; they serve `pennestack dev`, tests and single-process
-  deployments.
-- Group concurrency counts running jobs per group in the same statement; FIFO per key takes only
-  the oldest pending job of a key and none while one of that key runs.
-- Completed jobs are removed after seven days, which bounds personal data in job inputs;
-  dead letters stay until an operator replays or discards them (`pennestack jobs`).
+- On PostgreSQL and MySQL, `take` locks lane rows and then job rows with `SKIP LOCKED` (section
+  9.5.3), so any number of workers on any number of processes share a queue. On SQLite, PGlite and
+  the in-memory adapter, the single writer serialises `take`; they serve `pennestack dev`, tests and
+  single-process deployments.
+- Lane counters are split by writer: `ps_job_lanes` holds each lane's cap, weight, `taken` and
+  virtual time, of which takes write only `taken` and the virtual time; `ps_job_lane_counts` holds
+  its `enqueued` and `done` counters, which enqueue tails, promotions, FIFO releases and completions
+  write and takers read without locking. An enqueue burst therefore never makes takers skip a lane,
+  and a stale `done` only lowers a lane's room.
+- Group limits (concurrency and rate) are counted under the group's row lock, taken in id order
+  after the jobs are picked, and a job over its limit goes back; counting them inside the take
+  statement raced at `READ COMMITTED`. FIFO per key keeps a key's followers `waiting` and makes the
+  next one `available` when its predecessor completes.
+- Renewal and completion are conditional on (worker, attempt), so a paused or partitioned attempt
+  fails at its completion statement and rolls back its own unit; the next take returns a job whose
+  lease expired to `available` (section 9.5.4).
+- Finished jobs leave `ps_jobs`, and `ps_job_history` keeps their outcome, attempts, timings and
+  error, without input, for seven days, which bounds personal data in job inputs; dead letters keep
+  their input until an operator replays or discards them (`pennestack jobs`).
 - The conformance suite runs the same queue scenarios (keys, coalescing, FIFO under concurrency,
-  groups, retries, heartbeats, expiry, dead letters, schedules ticking once per scope) on every
-  adapter (section 14.10).
+  groups with rates, retries, heartbeats, expiry, dead letters, schedules ticking once per scope,
+  the fair-take order, lane caps, the queued cap with backpressure, lease loss and fencing, release
+  at a drain, split lane counters and the promotion of scheduled jobs) on every adapter (section
+  14.10).
 
 ### 14.4 Placements, namespaces and tenancy
 
@@ -3602,8 +3847,11 @@ complete.
   overflow can surprise a module. `field.decimal()` is typed as an exact canonical string, because a
   JavaScript number cannot hold `numeric` values exactly; `field.float()` is the binary
   floating-point kind for measurements and introspected `real` and `double` columns.
-- Columns of `.personal()` fields are nullable in storage whatever the field's optionality, because
-  erasure clears them (section 14.7.5).
+- `.personal()` fields of every kind map to a sealed column (`bytea` on PostgreSQL, `VARBINARY` or a
+  `BLOB` type on MySQL, `BLOB` on SQLite) plus the derived index columns of their declared
+  capabilities: arrays with GIN indexes on PostgreSQL, one index table per entity on MySQL and
+  SQLite (section 14.7.9.6). These columns are nullable in storage whatever the field's optionality,
+  because erasure clears them (section 14.7.5).
 - Columns added by contributions and conditional parts are nullable or carry a default in storage,
   because rows are inserted while those parts are inactive (section 14.6.5).
 - `field.serial({ per })` is a per-partition sequence allocated at insert (section 15.1.4), the IMAP
@@ -3697,12 +3945,12 @@ packages/module-auth/migrations/
   when-accounts/snapshot.json       when-accounts/0001-profile-link.ts
 ```
 
-A snapshot is the neutral description of the track's tables as of its last file: physical names,
-the track's version, fields (kind, column, constraints, tag, merge type, personal subject,
-hidden, maskable and `stateOnly` flags), indexes, foreign keys, the history mode, the merge-state
-flag, the rename history of every field, domain event shapes with their versions, and a hash of
-each `evolve` source text (section 15.2.4). Column ownership is per track, so `pennestack db
-check` knows which module owns each column.
+A snapshot is the neutral description of the track's tables as of its last file: physical names, the
+track's version, fields (kind, column, constraints, tag, merge type, personal subject, capabilities,
+normaliser and parameters, hidden, maskable and `stateOnly` flags), indexes, foreign keys, the
+history mode, the merge-state flag, the rename history of every field, domain event shapes with
+their versions, and a hash of each `evolve` source text (section 15.2.4). Column ownership is per
+track, so `pennestack db check` knows which module owns each column.
 
 An entity's shape is the union of the tracks that are active in an app. Every event therefore
 records the shape it was written with: `ps_shapes` maps a shape id (a hash) to the set of active
@@ -3781,6 +4029,13 @@ and fail closed on a dialect they do not cover.
   two phases gated by the process registry, for one process or many: a new column written beside
   the old one, a backfill after finalization, reads moving per namespace, then the contract step
   (section 19.3).
+- Personal fields: a change of a field's declared capabilities, normaliser, parameters (`bits`,
+  prefix bounds, languages) or index key version is planned as expand (shadow index columns), a
+  backfill (a reindex job that unseals each row and writes the new tags while writers write both), a
+  read switch and a contract step that drops the old tags, with uniqueness held on both. Making a
+  plaintext field personal runs the same steps (add the sealed and index columns, backfill, switch,
+  drop the plaintext column) plus a vacuum, and `pennestack doctor` states that older backups keep
+  the plaintext until their retention passes (section 14.7.9.7).
 
 #### 14.6.5 Toggling, retiring and renaming modules
 
@@ -3899,10 +4154,8 @@ after it, and the stream is reported as changed.
   `namespace ‖ stream id ‖ event id ‖ field`, encoded as
   `{ "$pse": 1, "k": "<key id>", "n": "<nonce>", "c": "<ciphertext and tag>" }` (base64url). Random
   nonces are safe far beyond the number of encryptions one subject's key will see.
-- **In state tables.** Plaintext. State tables are projections that erasure scrubs, and plaintext
-  keeps uniqueness, filtering, sorting and search working. Encrypting state columns as well (with
-  blind indexes for equality) would forbid `contains`, `startsWith` and ordering on personal fields
-  and is not offered in the first release; section 26.1 lists this as decision point 7.
+- **In state tables.** Personal values are sealed in state columns and in every derived index too,
+  queryable only through the capabilities a field declares (decision 7b, section 14.7.9).
 - **Credential material.** Values of `field.secret()` and `field.verifier()` are sealed with their
   own value key (`ps_value_keys`), in the state row and in events alike, with the entity, row id and
   field as associated data. When a value is replaced, its row archived or purged, the kernel destroys
@@ -3914,7 +4167,9 @@ after it, and the stream is reported as changed.
   secret providers; a key-management module later) wraps a deployment key, one key per backend and
   one per tenant, all stored wrapped in the control store; these wrap the per-subject data keys
   (`ps_subject_keys(scope_id, subject_id, key_id, wrapped, kek_version, created_at, shredded_at)`)
-  and the per-value and per-blob keys in the namespace. Deployment and backend keys protect secrets
+  and the per-value and per-blob keys in the namespace; each tenant's index root keys
+  (`ps_index_keys`) and the per-subject index keys (`ps_subject_keys` with purpose `index`) of
+  section 14.7.9.7 sit beside them. Deployment and backend keys protect secrets
   that are not tenant data (module configuration per backend, operator tokens); tenant keys protect
   everything of a tenant. A database dump of a placement alone cannot decrypt the chain.
 - **Rotation.** The master key and the deployment, backend and tenant keys rotate by re-wrapping
@@ -3923,14 +4178,15 @@ after it, and the stream is reported as changed.
   key, which makes every personal value, secret and blob of that tenant unreadable at once.
 - **Subject references.** `ps_subject_refs(scope_id, subject_id, stream_type, stream_id)` is written
   when an event carries personal values; erasure walks it.
-- **Caching.** Unwrapped data keys sit in a bounded per-process cache for 60 seconds, invalidated by
-  the control store's erasure-ledger feed.
+- **Caching.** Unwrapped data keys and index keys sit in a bounded per-process cache for 60 seconds,
+  invalidated by the control store's erasure-ledger feed.
 - **Blobs** (gap G5): a personal blob's per-blob key is wrapped by the subject's data key
   (`SubjectKeyStore.wrap`), so shredding the data key makes the blob unreadable before its bytes are
   removed.
 - **Elsewhere.** The kernel redacts personal, secret, verifier and hidden values in logs, traces and
-  decision logs; receipts of entity commands store references, not rows; the job store removes
-  completed jobs after seven days, which bounds personal inputs in job payloads.
+  decision logs; receipts of entity commands store references, not rows; finished jobs leave
+  `ps_jobs` and keep only their outcome, without input, in `ps_job_history` for seven days (section
+  9.5.2), which bounds personal inputs in job payloads.
 
 ```ts
 export interface SubjectKeyStore {
@@ -3962,12 +4218,14 @@ which is self-service account deletion; the platforms decide). The worker:
 1. Writes the erasure to the ledger in the control store and to the deployment's ledger sinks
    (tenant, subject, time, requester, reason) first, so a crash later, or a restore, is repaired by
    replaying the ledger (section 14.7.6).
-2. Shreds the subject's data keys.
+2. Shreds the subject's data keys and its subject index keys (section 14.7.9.8).
 3. Appends an `erased` event to every stream in the subject references (actor: the module service
    principal of the core, on behalf of the requester; command id: the erasure's). Its evolve clears
    the subject's personal fields in that row, including `.stateOnly()` personal fields such as
    extracted message text, and, where the row's `dataSubject` (directly or through its reference
-   path) is the subject, sets `ps_erased_at` and archives it.
+   path) is the subject, sets `ps_erased_at` and archives it. In the same unit it clears each such
+   field's sealed column and index columns, its index-table rows and its tags and counts in every
+   search index (section 14.7.9.8).
 4. Purges the stream records keyed by rows the subject owns.
 5. Projections, search indexes and CRDT documents follow from the events (a scrubbed CRDT field is
    replaced by an empty document); live subscribers and sync clients receive the scrubbed row or a
@@ -4005,8 +4263,9 @@ positions from before and after the restore. Three mechanisms keep both true:
   deployment is a database snapshot of the control store and the placements plus a snapshot of the
   blob stores taken after it.
 
-What remains is plaintext in state tables inside old backup files, bounded by the operator's backup
-retention; the operations guide states it.
+What remains in old backup files is ciphertext, wrapped keys and index tags, readable only with the
+master key and bounded by the operator's backup retention (section 14.7.9.8); the operations guide
+states it.
 
 #### 14.7.7 Operator redaction (M7)
 
@@ -4023,6 +4282,351 @@ links of the chain hold. Inside CRDT documents, redaction of a range of history 
   scrub. A client that never reconnects cannot be reached; revocation is forward-looking.
 - Free text not marked `.personal()` is not covered; marking fields is the module author's duty.
 - Personal data already sent elsewhere (mail delivered, webhooks called) is out of reach.
+
+#### 14.7.9 Encrypted personal data and queries
+
+Traceability: decision 7b of the register (decided 2026-10-25): personal fields are encrypted in
+the state tables too, and searching, filtering, ordering, uniqueness and full-text search over them
+are designed here. This subsection replaces the plaintext rule that section 14.7.4 stated for state
+tables, and sections 4.2, 6.2, 6.6, 8.3, 8.4, 14.3, 14.5.1, 16.4.4, 17.4.5 and 17.4.13 refer to it;
+[ADR 0027](adr/0027-encrypted-personal-data-and-queries.md) records it, and
+[research/encrypted-queries.md](research/encrypted-queries.md) is the evidence.
+
+A personal value is sealed wherever it is stored: in events and before-images (section 14.7.4,
+unchanged), in its state column and in every derived index. The database holds ciphertext plus the
+index tags the kernel computes for the capabilities a field declares. Handlers never see tags or
+keys: queries return query descriptions (decision 50a), which the kernel and the adapters run.
+
+##### 14.7.9.1 Threat model
+
+Protected:
+
+- A database dump, backup, stolen volume or replica without the deployment master key: no personal
+  value can be read; it reveals the declared indexes' leakage (the matrix below), presence (a null
+  column) and a 16-byte length bucket.
+- Read access without process memory (a database administrator, a query injected through the SQL
+  escape hatch, statement logs): the same plus the access pattern over time; statement parameters
+  carry tags, never values.
+- Write access: a sealed value cannot be forged or moved to another row or field (its associated
+  data binds namespace, entity, row id, field and key id); an older value put back is found by
+  comparing state with the chain.
+
+Not protected:
+
+- A compromised pennestack process (remote code execution, a memory dump, a malicious module): it
+  holds unwrapped keys and can query and unseal as the kernel does.
+- The operator: the master key decrypts everything.
+- A backup together with the master key yields what that backup held, including subjects erased
+  later; backup retention bounds this (section 14.7.6).
+- Copies on clients, data sent elsewhere and free text nobody marked (section 14.7.8).
+
+##### 14.7.9.2 Declaring capabilities
+
+```ts
+type PersonalQuery = 'eq' | 'prefix' | 'contains' | 'order' | 'search'
+type Normalizer = 'exact' | 'nfc' | 'caseless' | 'email' | CustomNormalizer   // custom: a pure function with id and version
+
+interface PersonalOptions<Q extends readonly PersonalQuery[]> {
+  readonly subject?: string                    // another subject of the row (section 14.7.4)
+  readonly queries?: Q                         // default []; .unique(), .index() and entity indexes imply 'eq'
+  readonly normalize?: Normalizer              // default 'nfc' for string and text kinds, 'exact' otherwise
+  readonly eq?: { readonly bits?: number }     // 8 to 32: truncated tags for low-entropy, non-unique fields
+  readonly prefix?: { readonly min?: number; readonly max?: number }   // characters; defaults 3 and 32
+  readonly contains?: { readonly bits?: number }                       // trigram tags; default 12 bits
+  readonly order?: { readonly bytes?: number }                         // strings: ORE over the first bytes; default 16
+  readonly keys?: 'tenant' | 'subject'         // key scope of the field's indexes; default 'tenant'
+}
+
+// In the field's type: hovering a field shows what its indexes reveal
+interface PersonalFlags<Q extends readonly PersonalQuery[]> {
+  readonly subject: string | null
+  readonly queries: Q                          // effective, an implied 'eq' included
+  readonly leaks: readonly ('presence' | 'length' | 'equality' | 'prefixes' | 'ngrams' | 'order' | 'tokens')[]
+}
+```
+
+- Equality is always available: a personal field whose kind supports `eq` gets it by declaring it,
+  and it is implied wherever the author already declared a lookup (`.unique()`, `.index()`, an
+  entity index naming the field). A personal field without any of these supports `isNull` only
+  (decision point 65).
+- Uniqueness (`.unique()`, unique entity indexes, merge `exclusive`) needs the full 128-bit tag under
+  a tenant key; `eq.bits` and `keys: 'subject'` are refused on such fields at `defineEntity`.
+- Every other capability is opt-in, costs storage and writes and reveals what the matrix says;
+  `pennestack doctor` reports both.
+- `contains` requires a declared `maxLength` of at most 1,024 characters; longer text uses `search`
+  (these defaults, with 12-bit trigram tags and operands of at least three characters, are decision
+  point 72).
+- `search` admits the field to an entity's `searchIndexes` (without it, a compose error).
+- `keys: 'subject'` derives the index keys from the data subject's key material, so two subjects'
+  tags never match and erasure destroys the keys; each query on such an index must pin one
+  subject (for mail, the `accountId` partition), else `unsupported`.
+
+##### 14.7.9.3 Normalisation
+
+The normaliser `N` defines equality for the field in both interpreters of the condition AST: the
+compiled one compares tags of `N(value)`; the in-memory one compares `N(stored)` with `N(operand)`.
+Every operator, uniqueness and search tokens use it; the stored value keeps its written form.
+
+- `exact`: the kind's canonical encoding (decimal integers and decimals, RFC 3339 instants with
+  milliseconds, strings as written).
+- `nfc`, the default for strings: Unicode NFC, so a composed and a decomposed "é" are equal
+  (decision point 66).
+- `caseless`: NFKC, then locale-independent lower case.
+- `email`: trimmed, NFC, the domain through `domainToASCII`, all lower case: `Jens@JensPenneman.com`
+  and `jens@jenspenneman.com` are one value, also for the unique index.
+- custom: changing its id or version rebuilds the field's indexes.
+
+Normalisers follow the runtime's Unicode tables (17.0 on Node 24.21.0); each index records its
+version, and `pennestack doctor` warns on a mismatch.
+
+##### 14.7.9.4 The operator matrix
+
+| Operator or need | Served by | Leaks (dump; query observer) | Otherwise |
+|---|---|---|---|
+| `eq`, `in` | blind index: HMAC-SHA-256 of `N(value)`, 128 bits, B-tree; exact | equality classes and sizes; repeated queries, result sets | `unsupported`, code `core.personal_operator`; in code, a type error first |
+| `ne`, `nin` | the same tag, null-safe complement; full tags only | as `eq` | as above |
+| uniqueness | a unique, partial index on the tag among non-archived rows | as `eq` | declaring `.unique()` declares it |
+| `isNull` | the sealed column is `NULL` when absent | presence | always available |
+| `startsWith` | prefix tags (64 bits) of `N(value)` for lengths `min` to `max`; a longer operand uses the `max` tag, then verification | the prefix tree with branch counts | `unsupported`; an operand shorter than `min`: `core.personal_needle_short` |
+| `contains` on strings | trigram tags truncated to `bits`, all of the operand's required, then verification | bucketed trigram statistics per row | `unsupported`; operands under 3 characters: `core.personal_needle_short` |
+| `contains` on personal sets and lists | element tags (`eq` on the element); exact | element equality classes | `unsupported` |
+| `lt`, `lte`, `gt`, `gte`, sort, keyset pagination | ORE tokens (`order`, M7 on PostgreSQL; decision point 69): exact for numbers, decimals, instants and dates; strings by their first `bytes`, ties refined after unsealing; a cursor carries the token sealed, never the value | the total order of all values | `unsupported`; `page.sortable` refuses the field; a bounded scan sorts in memory |
+| words of free text | the keyed token index (below) | per-row token sets; result sets | `unsupported` (JMAP: `unsupportedFilter`) |
+| case-insensitive matching, Unicode normalisation | the normaliser, before every tag and in the in-memory interpreter | coarser classes only | code points after NFC |
+| `some`, `none`, `every`, `is` | inner comparisons with exact capabilities only (`eq` family, `isNull`, prefix), because the database evaluates `EXISTS` | those of the inner capabilities | `unsupported` |
+| `not`, negative positions | exact capabilities; approximate ones (truncated `eq`, `contains`, string ties of `order`, words) only in positive positions, where verification removes false matches | | `unsupported` |
+| authorization rules (`where`, `check`), item checks; partial-index `where` | rules: exact capabilities only, and the shape stage re-checks every row in memory (section 8.4), so a tag collision cannot disclose a row; partial indexes: plaintext fields only | | compose error at `defineApp` |
+| `count`, `total` | exact capabilities in the database; with verification, every candidate up to the scan limit | | `core.scan_limit` |
+| `GROUP BY`, `DISTINCT` | by equality tag, labelled by unsealing one value per group (no aggregation API exists yet) | equality classes | `unsupported` |
+| sums and averages of personal numbers | never in the database; a bounded scan in the kernel; minimum and maximum through `order` | | `unsupported` |
+| joins on personal fields | not offered: per-field keys keep tags of different fields unlinkable; relations use ids | | not expressible |
+
+Nothing falls back silently: what a field does not declare or a placement cannot serve fails closed.
+
+##### 14.7.9.5 How a query runs
+
+1. The kernel normalises the filter to the AST and conjoins the caller's plan (sections 8.3, 8.4).
+2. The encryption planner checks each comparison on a personal field against its capabilities,
+   normalises the operand, computes the tags and rewrites the comparison onto a derived index field
+   of the entity descriptor (`binary` for equality tags, `tagSet` for prefix, trigram and token
+   tags, `ore` for order tokens), marking approximate ones. The AST stays one AST; adapters compile
+   the rewritten tree like any other.
+3. The adapter runs it under the scope predicate (section 14.4.3).
+4. The kernel unseals the rows' personal fields, re-evaluates the original condition in memory when
+   anything was marked, and fills the page in sort order until it is full or ten times the page size
+   has been examined; a shorter page then carries a cursor after the last examined row, so paging
+   stays complete.
+5. The shape stage masks and re-checks every row (section 8.4).
+
+Live filters, item checks and offline ingestion evaluate on unsealed rows in memory (section 15.4.3)
+and accept the same operators.
+
+```ts
+// accounts.profile.search: displayName is plaintext, email declares 'prefix'; a description, not rows (decision 50a)
+handle: (input, ctx) => ctx.target.query({
+  where: { or: [{ displayName: { contains: input.text } }, { email: { startsWith: input.text } }] },
+  sort: [{ field: 'displayName', direction: 'asc' }],
+})
+
+// A bounded scan: one account's identities, sorted by a personal field without 'order'
+handle: (input, ctx) => ctx.data.mailStore.identity.query({
+  where: { accountId: input.accountId },
+  sort: [{ field: 'name', direction: 'asc' }],
+  scan: { limit: 200 },
+})
+```
+
+A scan is the only way past a field's capabilities, and it is explicit: the indexable part of the
+condition selects at most `limit` candidates (default 2,000, at most the adapter's `maxScan`), which
+the kernel unseals, filters and sorts in memory. More candidates fail with `unsupported`, code
+`core.scan_limit`, unless the description says `partial: true`; the result then carries
+`complete: false` and a cursor to scan on. Generated actions never scan; custom queries opt in
+(decision point 71).
+
+##### 14.7.9.6 Storage
+
+On PostgreSQL (physical names from the adapter, section 14.4.2):
+
+| Column | Type | Content | Index |
+|---|---|---|---|
+| `<field>` | `bytea`, nullable | format byte, key id (16), nonce (12), ciphertext of the value padded to 16 bytes, GCM tag (16): the binary form of the chain's `$pse` envelope | none |
+| `<field>__eq` | `bytea` (16) | the blind index tag | B-tree; unique and partial for unique fields |
+| `<field>__prefix` | `bigint[]` | prefix tags | GIN |
+| `<field>__ngram` | `smallint[]` | trigram tags | GIN |
+| `<field>__ore` | `ore` (M7) | the ORE token | B-tree through an operator class |
+| `ps_search_<index>` | `bigint[]` | token tags of a search index | GIN |
+| `ps_search_<index>_counts` | `bytea` | token counts, sealed with the subject's data key | none |
+
+MySQL and SQLite keep equality tags in `BINARY(16)` or `BLOB` columns and multi-valued tags in one
+index table per entity, `(tenant_id, row_id, slot, tag)`, with a B-tree on `(tenant_id, slot, tag)`.
+State sealing is independent of the chain (associated data `namespace ‖ entity ‖ row id ‖ field ‖
+key id`), because compaction rewrites event ciphertexts.
+
+| Per personal value written | Work | Storage beside the row |
+|---|---|---|
+| sealing | one AES-256-GCM | the value rounded up to 16 bytes plus 45 bytes |
+| `eq` | one HMAC | 16 bytes and a B-tree entry |
+| `prefix` | up to 30 HMACs | 8 bytes per prefix and GIN entries |
+| `contains` | one HMAC per distinct trigram | 2 bytes per trigram and GIN entries |
+| `search` | one HMAC per distinct field and word form | 8 bytes per tag, GIN entries, the sealed counts |
+| `order` | one ORE encryption (256 PRF calls per byte) | several hundred bytes |
+
+An e-mail address with `eq` and `prefix` costs about 1 KB, mostly prefix GIN entries; a
+filed message with 300 distinct word forms 5 to 10 KB on PostgreSQL and 20 to 30 KB in an index
+table (estimates for M4 to measure).
+
+##### 14.7.9.7 Keys and rotation
+
+- Each tenant has an index root key per version, 256 random bits wrapped by the tenant key, in
+  `ps_index_keys(scope_id, version, wrapped, created_at, retired_at)` in the namespace.
+- Field keys come from HKDF-SHA-256 over the root key, salt `pennestack/index/1`, info `entity ‖
+  field ‖ capability ‖ normaliser id and version ‖ parameters`: each capability has its own key, so
+  the equality tag and the prefix tags of one value cannot be linked by value.
+- `keys: 'subject'` uses a per-subject index key stored with the data keys (`ps_subject_keys`,
+  purpose `index`) and shredded with them. Ciphertexts use the subject's data key, as in the chain;
+  unwrapped keys share the 60-second cache of section 14.7.4.
+- Rotation is reindexing: `pennestack keys rotate --index` adds a root key version and plans, per
+  entity, shadow index columns (expand), a backfill job that unseals each row and writes new tags
+  while writers write both, a read switch when the job completes and a contract step dropping the
+  old tags, with uniqueness held on both (section 19.3). A changed normaliser, `bits`, prefix bound
+  or language plans the same; `pennestack db reindex <entity> [--field <name>]` rebuilds on demand.
+- Making a field personal later is a migration (add sealed and index columns, backfill, switch,
+  drop the plaintext column, vacuum); older backups keep the plaintext until their retention passes.
+
+##### 14.7.9.8 Erasure, restores and backups
+
+Erasure (section 14.7.5) shreds the subject's data keys and subject index keys in step 2: from then
+on no query matches the subject's subject-keyed tags, and its sealed values read as absent. In step 3
+the `erased` event's evolve clears, in the same unit, each personal field of the subject: the sealed
+column, its equality, prefix, trigram and ORE tags, its index-table rows and its tags and counts in
+every search index; rows the subject owns become erased tombstones as before. A restore replays the
+ledger and repeats steps 3 to 5, clearing restored index entries again. An old backup keeps what it
+held (ciphertext, wrapped keys, tags), which only the master key opens; backup retention bounds it.
+
+##### 14.7.9.9 Full-text search over personal text
+
+A search index that contains a personal field is a keyed token index, maintained by the kernel and
+stored in the adapter's tag sets, so it works on every adapter; the `search` capability of section
+14.3.3 (`tsvector`, `fulltext`, `fts5`) remains for plaintext indexes.
+
+- Tokens: words from `Intl.Segmenter`, NFKC, lower case, diacritics folded; address fields add the
+  whole address, its local part and its domain. Each word yields its folded form and one stem per
+  declared language (`@orama/stemmers` 3.1.18), tagged per field as `HMAC(key, field ‖ form)`
+  truncated to 64 bits, under the subject's key unless the index declares `keys: 'tenant'`
+  (decision point 70).
+- Queries: every query word must match (any of its forms, in any requested field). The index answers
+  neither phrases nor parts of words; a custom query may verify a phrase on unsealed text in a scan.
+  Ranking by token counts (term frequency times inverse document frequency, from the sealed counts)
+  serves custom queries for at most the scan limit's candidates.
+- The index is derived and scrubbable: never in events, rebuilt from the chain and the blobs by
+  `rederive` and `pennestack db reindex`, cleared by erasure, rebuilt by rotation.
+- Known limit: whoever mails an account a word and later reads a dump learns that word's tag and
+  every message of the account containing it; subject keys confine this to that account.
+
+For the mail store (section 17.4):
+
+| JMAP `Email/query` (RFC 8621) | Served by |
+|---|---|
+| `inMailbox`, `inMailboxOtherThan`, `before`, `after`, `minSize`, `maxSize`, `hasKeyword`, `notKeyword`, the thread-keyword conditions, `hasAttachment` | plaintext fields, unchanged |
+| `text`, `from`, `to`, `cc`, `subject`, `body` | the token index, word semantics |
+| `bcc`, `header` | `unsupportedFilter` |
+| sort by `receivedAt`, `size`, `sentAt`, keyword sorts | plaintext, unchanged |
+| sort by `from`, `to`, `subject` | `unsupportedSort` |
+
+IMAP `SEARCH` maps alike: `FROM`, `TO`, `CC`, `SUBJECT`, `BODY` and `TEXT` become word matches
+instead of RFC 9051's substring matches (documented; decision point 68); `HEADER Message-ID` uses
+the plaintext `messageId`; other `HEADER` keys and `BCC` scan the selected mailbox up to the scan
+limit, else `NO [LIMIT]`. `SearchSnippet/get` unseals the requested messages and marks the matched
+forms. The `mail-store` configuration `search: 'full' | 'headers' | 'off'` sets what filing
+tokenises: headers and bodies, header fields only, or nothing (search then stays with clients;
+decision point 67).
+
+##### 14.7.9.10 Adapters
+
+```ts
+// Added to AdapterCapabilities (section 14.3.3)
+readonly encryptedQueries: {
+  readonly equality: boolean                     // tag columns with unique and partial indexes
+  readonly tagSets: 'array' | 'table' | false    // prefix, trigram and token tags
+  readonly order: 'ore' | false                  // ORE comparison in the database
+  readonly maxScan: number                       // bound of a scan's limit
+}
+```
+
+| Adapter | equality | tagSets | order | Milestone |
+|---|---|---|---|---|
+| PostgreSQL, PGlite | yes | `array` (GIN) | `ore` through an operator class (needs a superuser) | M1 equality, M3 prefix and trigrams, M4 tokens, M7 order |
+| In-memory | yes | `table` (maps) | `ore` (the reference) | with each capability |
+| MySQL 8.4, SQLite | yes | `table` | false | M7 |
+| Supabase preset | yes | `array` | false (no operator class) | M7 |
+
+A capability the placement's adapter lacks marks the namespace's backends `unavailable` at
+`connect` (section 14.3.3). The in-memory adapter stores sealed values and tags as SQL adapters do,
+so tests exercise the rewrite. The reference semantics are "unseal and evaluate": the conformance
+kit's oracle unseals every row and evaluates the original condition with the core interpreter, and
+the dual-evaluation suite requires each adapter's rewritten, verified result to equal the oracle's
+for random rows, normalisers and operators (section 14.10).
+
+##### 14.7.9.11 Types
+
+`Row`, `Readable<R>`, `AsOf<R>` and `HistoryEntry<R>` are unchanged: a personal field keeps its
+declared type. Only the operators a filter may use narrow:
+
+```ts
+type PersonalOps<T, Q extends PersonalQuery> =
+  & { readonly isNull?: boolean }
+  & ('eq' extends Q ? { readonly eq?: T; readonly ne?: T | null; readonly in?: readonly T[]; readonly nin?: readonly T[] } : {})
+  & ('prefix' extends Q ? { readonly startsWith?: string } : {})
+  & ('contains' extends Q ? { readonly contains?: string } : {})
+  & ('order' extends Q ? { readonly lt?: T; readonly lte?: T; readonly gt?: T; readonly gte?: T } : {})
+```
+
+`Where<R>`, the wire `Filter` of section 16.4.4 and the GraphQL filter inputs use it for personal
+fields; `page.sortable` accepts a personal field only with `order`, and a query description's `sort`
+accepts one without it only beside `scan`. The SQL escape hatch types personal columns as `Sealed`,
+hides index columns and refuses writes to both.
+
+##### 14.7.9.12 `pennestack doctor`
+
+The personal-data pass lists each personal field's capabilities, leaks, key scope and normaliser
+and, on a running deployment, its index rows and bytes per tenant. It warns about equality indexes on
+`boolean` and `enum` kinds or on fields with fewer than 1,000 distinct values in a tenant (sampled by
+unsealing, with an `eq.bits` range from the rule `2 ≤ collisions < √P`), `prefix.min` below 3,
+`contains.bits` above 12, every `order` field, search indexes with `keys: 'tenant'`, indexes built
+under another Unicode version, failed reindex jobs, and backups still holding plaintext of fields
+made personal later.
+
+##### 14.7.9.13 Worked example: accounts and the mail store
+
+```ts
+// accounts.profile: registration looks the address up; the admin search types ahead
+email: field.string({ format: 'email' }).unique().personal({ normalize: 'email', queries: ['prefix'] }).maskable(),
+
+// auth.credential: the entity's unique index implies 'eq'
+identifier: field.string({ format: 'email' }).optional().personal({ normalize: 'email' }),
+//   indexes: [{ fields: ['identifier'], unique: true, where: { kind: 'password', revokedAt: { isNull: true } } }]
+
+// mail-store.address: RCPT TO resolves by equality; the tag joins a composite unique index
+localPart: field.string({ maxLength: 64 }).personal({ normalize: 'caseless' }),
+//   indexes: [{ fields: ['localPart', 'domainId'], unique: true }]
+
+// mail-store.email (section 17.4.13)
+from: field.json(addressList).personal({ queries: ['search'] }),
+to: field.json(addressList).personal({ queries: ['search'] }),
+cc: field.json(addressList).optional().personal({ queries: ['search'] }),
+subject: field.text().optional().personal({ queries: ['search'] }),
+preview: field.string({ maxLength: 256 }).personal(),               // shown, never queried: no index
+searchText: field.text().hidden().personal({ queries: ['search'] }).stateOnly(),
+//   searchIndexes: [{ name: 'text', fields: ['subject', 'from', 'to', 'cc', 'searchText'], keys: 'subject', languages: ['nl', 'en'] }]
+```
+
+Unchanged: the plaintext fields (`receivedAt`, `size`, `mailboxIds`, `keywords`, `threadId`,
+`messageId`), hence listings, threading, flags, quotas and positional paging. Changed: subject,
+sender and body searches become word searches through the per-account token index, sorting by sender
+or subject is refused, and `preview` and `mimeTree` are only shown. The api-sketch profile
+search sends `'Je'`, below the prefix minimum of three: the action must require three characters, or
+the field declares `prefix: { min: 2 }` and accepts a shallower prefix tree (an open question of
+section 26.3).
 
 ### 14.8 Live types
 
@@ -4238,8 +4842,8 @@ export const customer = defineEntity({
 | Identifiers | Primary keys include the scope; ids are unique per scope; client-supplied ids are checked. |
 | Transactions | A unit spans one namespace and one scope; backend-level reads from tenant commands use a separate snapshot on every placement; backend- and deployment-scope units refuse tenant entities (section 12.3). |
 | Event log and feed | `scope_id` on every event; feeds, heads and tokens per scope (and partition); wake-ups carry the scope. |
-| Consumers and jobs | Kernel consumers keep a checkpoint per scope and only enqueue jobs; jobs run per tenant with per-tenant groups, so one tenant's failing or slow work never blocks another tenant (section 15.2.3). |
-| Keys | Deployment, backend and tenant keys under the master key; subject and value keys under them; retiring a tenant destroys its key. |
+| Consumers and jobs | Kernel consumers keep a checkpoint per scope and only enqueue jobs; jobs run per tenant in lanes with caps and weights, so one tenant's failing, slow or bursting work never blocks another tenant (sections 9.5 and 15.2.3). |
+| Keys | Deployment, backend and tenant keys under the master key; subject, value and index keys under them (section 14.7.9.7); retiring a tenant destroys its key. |
 | Migrations | Per namespace; tenant namespaces provisioned at creation and migrated with bounded parallelism; a lagging namespace is `unavailable`. |
 | Retention and erasure | Rules per backend with per-tenant overrides; erasure per tenant and subject; the ledger in the control store and the ledger sinks. |
 | Moves | `core.tenant.move` copies the chain with its positions (M7). |
@@ -4271,18 +4875,23 @@ Every adapter passes the conformance suite in `@pennestack/testing` before it is
    when a notification is lost.
 9. Migrations: render, apply and introspect give back the snapshot; MySQL resumes a failed file;
    partial unique indexes behave; toggle-then-rebuild keeps the values of inactive tracks.
-10. Stores: the job store's queue scenarios (section 14.3.9), consumer checkpoints and leases,
+10. Stores: the job store's queue scenarios (section 14.3.9), with the fair-take order, lane caps,
+    the queued cap with backpressure, lease loss and fencing on (worker, attempt), release at a
+    drain, split lane counters and the promotion of scheduled jobs; consumer checkpoints and leases,
     tombstones, stream records and usage counters.
 11. Restore detection: a rewound counter or a changed cluster identity bumps the scope epochs.
 12. Capability honesty: operators declared unsupported fail with `unsupported`, and nothing else
     does.
+13. Encrypted queries: dual evaluation of rewritten and verified conditions against the unsealing
+    oracle for every capability and normaliser, with random rows and operators (section 14.7.9.10).
 
 Property tests with fast-check 4.10.2: the inline projection equals a rebuild from the log for random
 command sequences; merge rules converge for random permutations of concurrent offline mutations
 (M8); CRDT fields converge (M9); the hash chain verifies after compaction, shredding and a module
 rename; the disclosure rule never reports an id that was never readable (a model-based test with
 random rows and policies). Erasure tests search a dump of the test database for marker values of the
-erased subject, and credential tests search it for former password hashes and secret values. CI runs
+erased subject, credential tests search it for former password hashes and secret values, and a dump
+test asserts that no plaintext personal marker value appears in state tables or indexes. CI runs
 PostgreSQL and MySQL through testcontainers 12.2.0
 (`@testcontainers/postgresql`, `@testcontainers/mysql`); local runs use PGlite and SQLite; the proof
 apps are the integration suites (section 22).
@@ -4303,6 +4912,10 @@ apps are the integration suites (section 22).
 | A restore rewinds the ledger together with the data. | Ledger sinks outside the placement, a doctor warning for shared clusters, epochs derived from the cluster identity and high-water marks (section 14.7.6). |
 | Schema-per-tenant migrations take long with many tenants. | Bounded parallelism, unavailable lagging namespaces, shared tables as the default. |
 | MySQL has no row-level security. | The scoping plugin and adversarial tests; PostgreSQL recommended for multi-tenant production. |
+| Module authors misread what the indexes of a personal field leak. | The leaks are part of the field's type, every capability beyond equality is opt-in, and the personal-data pass of `pennestack doctor` lists and warns (section 14.7.9). |
+| Indexes over personal fields grow: prefix, trigram and token tags cost storage and writes (5 to 10 KB per filed message on PostgreSQL, estimated). | Opt-in capabilities, index sizes per tenant in `pennestack doctor`, a measurement on a fixture mailbox in M4. |
+| A Node upgrade changes the Unicode tables the normalisers follow. | Each index records its Unicode version, `pennestack doctor` warns on a mismatch and `pennestack db reindex` rebuilds (section 14.7.9.3). |
+| An own ORE implementation is flawed. | Order is opt-in, PostgreSQL only and M7, after a spike on operator-class installation and a review of the implementation; `pennestack doctor` warns on every `order` field. |
 
 ## 15. Events, sync and live updates
 
@@ -4628,7 +5241,9 @@ export interface ReceiptStore {
 - Retention compaction writes a `snapshot` event whose `anchor` is the hash of the last removed
   event, and verification starts there. Operator redaction (section 14.7.7) keeps the stored hash, so
   links hold while that event's content no longer matches, and the redaction ledger explains why.
-- `pennestack db verify [--stream <ref>]` recomputes the chain.
+- `pennestack db verify [--stream <ref>]` recomputes the chain. It could gain a state check that
+  compares sealed state values with the fold of the chain, because an older ciphertext put back into
+  a state column is invisible in the state table (section 14.7.9.1).
 - Always on for chain entities: one SHA-256 per event is negligible next to the write itself.
   Transient records carry no hash.
 
@@ -5246,9 +5861,10 @@ head as the first statement of their unit, so their state is a valid `after` for
    plan (`never`, `always` or a conditional `where`) is evaluated once per batch: field operators
    in memory, with the interpreter of section 8.3 that the dual-evaluation suite covers, and
    relation quantifiers with one `rows.matching` query per distinct plan and batch (section
-   14.3.4). Each subscription's own filter is then applied in memory. Relation-based rules, the
-   common case, therefore cost one query per distinct plan and batch, not one per subscriber; the
-   cost is measured on the proof apps.
+   14.3.4). Each subscription's own filter is then applied in memory, on unsealed post-images;
+   filters on personal fields accept only the operators the field declares (section 14.7.9.4).
+   Relation-based rules, the common case, therefore cost one query per distinct plan and batch, not
+   one per subscriber; the cost is measured on the proof apps.
 3. Visibility is tracked per subscription. While a stream is connected, its set of delivered ids
    decides exactly: a delivered row the subscriber can no longer see produces `removed`, a row that
    becomes visible produces `changed` with the row, a row it never could see is never mentioned. The
@@ -6165,7 +6781,7 @@ the AST exists, while in code a `null` comparison never matches:
 
 ```ts
 type Filter<Row, Rels> =
-  & { readonly [K in keyof Row]?: Row[K] | null | FieldOps<Row[K]> }       // a bare value means eq; null means isNull
+  & { readonly [K in keyof Row]?: Row[K] | null | FieldOps<Row[K]> }       // a bare value means eq; null means isNull; personal fields: PersonalOps (section 14.7.9.11)
   & { readonly [R in keyof Rels]?: RelationOps<Rels[R]> }
   & { readonly and?: readonly Filter<Row, Rels>[]; readonly or?: readonly Filter<Row, Rels>[]; readonly not?: Filter<Row, Rels> }
 
@@ -6182,12 +6798,15 @@ interface RelationOps<Target> { readonly some?: Target; readonly none?: Target; 
 | REST | `filter` query parameter holding JSON (described in OpenAPI as a parameter with `content: application/json`), or `filter` in the `POST .../query` body | `sort=displayName,-createdAt` (a leading `-` means descending), or `sort` as an array in the body |
 | GraphQL | `filter: <Type>Filter` input with `and`, `or`, `not`, one operator input per field (`StringFilter`, `InstantFilter`, `IdFilter`, enum filters) and `some`, `none`, `every`, `is` per relation | `sort: [<Type>Sort!]` with `field: <Type>SortField!` and `direction: SortDirection!` |
 | tRPC, invocation protocol | the object form | `[{ field, direction }]` |
-| CLI | `--filter <json\|@file>`, plus `--where field=value` for equality on scalar fields | `--sort displayName,-createdAt` |
+| CLI | `--filter <json\|@file>`, plus `--where field=value` for equality on scalar fields (on a personal field only with `eq`) | `--sort displayName,-createdAt` |
 
 Rules, all enforced in the pipeline rather than in transports: `and`, `or` and `not` are reserved
 names (no field or relation may use them, section 5.1); a filter or sort on a field the principal's
 mask hides is `forbidden`; an operator the placement's adapter cannot express is `unsupported`;
 only fields in `page.sortable` sort, and the data layer appends `id` as the final tie-breaker.
+Filters on personal fields use `PersonalOps` instead of `FieldOps`, so only declared operators
+type-check; the GraphQL filter inputs and the OpenAPI document describe only those, and the CLI's
+`--where` equality needs `eq` (section 14.7.9.11).
 
 #### 16.4.5 Field selection and masks
 
@@ -6938,12 +7557,12 @@ pennestack
 
 Framework commands and action commands share the first level, so framework command names are
 reserved as module ids (section 5.1): `app`, `backend`, `build`, `call`, `completion`, `consumers`,
-`core`, `db`, `dev`, `doctor`, `domain`, `explain`, `flags`, `generate`, `help`, `init`,
+`core`, `db`, `dev`, `doctor`, `domain`, `explain`, `fleet`, `flags`, `generate`, `help`, `init`,
 `introspect`, `jobs`, `keys`, `login`, `logout`, `migrate`, `module`, `new`, `operator`, `profile`,
-`rollout`, `start`, `surface`, `tenant`, `version`, `watch` and `x`: 33 names, of which `flags`,
-`rollout` and `surface` came with sections 18 to 20 and `new` with section 23, before the list is
-frozen. The list is frozen per major version; a new framework command lands under an existing
-group or under `x` until the next major version.
+`rollout`, `start`, `surface`, `tenant`, `version`, `watch` and `x`: 34 names, of which `flags`,
+`rollout` and `surface` came with sections 18 to 20, `new` with section 23 and `fleet` with section
+21 (decision point 62), before the list is frozen. The list is frozen per major version; a new
+framework command lands under an existing group or under `x` until the next major version.
 
 #### 16.9.4 Flags from field nodes
 
@@ -7007,8 +7626,9 @@ the plan and the matched rule ids) and `--trace` (prints the trace id).
 | `pennestack start --role serve\|work\|all` | project (built) | runs a process with the role of section 3.2 |
 | `pennestack generate [--watch] [--check] [--only <producer>]` | project | writes or checks every artefact of section 13.7 |
 | `pennestack migrate` | project or operator socket | applies pending migration files (an alias of `db apply`) |
-| `pennestack db plan\|generate\|apply\|status\|check\|introspect\|retire\|rebuild\|verify\|restore` | project or operator socket | the data layer's commands, with the semantics of sections 14.6.4, 15.2.4, 14.7.6 and 14.8.4 |
-| `pennestack consumers list\|unpark`, `pennestack jobs list\|replay\|discard`, `pennestack keys rotate`, `pennestack tenant move` | operator socket | consumers and parked streams (section 15.2.3), dead-letter jobs (section 14.3.9), key rotation (section 14.7.4), tenant moves (section 14.4.5) |
+| `pennestack db plan\|generate\|apply\|status\|check\|introspect\|retire\|rebuild\|verify\|restore\|reindex` | project or operator socket | the data layer's commands, with the semantics of sections 14.6.4, 15.2.4, 14.7.6, 14.7.9.7 and 14.8.4 |
+| `pennestack consumers list\|unpark`, `pennestack jobs stats\|lanes\|list\|explain\|replay\|discard\|pause\|resume`, `pennestack keys rotate [--index]`, `pennestack tenant move` | operator socket | consumers and parked streams (section 15.2.3); statistics per queue and capability set, the busiest lanes, why a job waits, dead-letter jobs and pausing a queue (sections 9.5 and 21.9); key rotation, with `--index` a reindex (sections 14.7.4 and 14.7.9.7); tenant moves (section 14.4.5) |
+| `pennestack fleet [list\|show\|watch]`, `fleet cordon\|uncordon\|drain\|probe\|forget`, `fleet scale status\|explain\|history\|set\|pause\|resume` | operator socket or remote operator | nodes and processes with roles, capabilities, revision, state, slots and heartbeat; placement on nodes, drains with a deadline and probes; the scaler's plans, decisions and runtime limits within the deployment's (section 21.9) |
 | `pennestack operator token issue\|revoke\|list` | operator socket | short-lived operator tokens for remote operator profiles (section 3.5) |
 | `pennestack introspect [modules\|actions\|entity <ref>\|policies\|extensions\|diff]` | any | the surface and the composition report as a tree or JSON; `introspect diff` is an alias of `surface diff` |
 | `pennestack surface diff\|version new\|usage\|retire` | project; `usage` and `retire` on the operator socket | compatibility of every API version against a git base (section 18.6), a new API version in the ledger (section 18.2), usage per tenant and version, retirement below the floor (section 18.5) |
@@ -7250,8 +7870,9 @@ comment with its gap id (`// G3`); names of platform modules are proposals.
   sessions, a scope directory for keys other than host names, jobs with timers and schedules,
   secrets with a key hierarchy, blob storage, streams for logs, commit-ordered change positions,
   HTTP ingress for webhooks and raw responses, process placement and tenant-editable
-  configuration. Most are now specified in the core sections; G1, G2, G4, G5 and G9 remain
-  proposals whose ADRs the roadmap schedules before the milestone that needs them (section 17.7).
+  configuration. Most are now specified in the core sections; G1, G2, G4 and G5, and the singleton
+  leases of G9, remain proposals whose ADRs the roadmap schedules before the milestone that needs
+  them (section 17.7).
   One composition rule needed a refinement and has it (G16, section 5.5): extension values and
   services that carry behaviour run with the context of the module that provides them.
 - The mail server is built from framework modules for every protocol (SMTP for receiving and for
@@ -7259,7 +7880,8 @@ comment with its gap id (`// G3`); names of platform modules are proposals.
   (rspamd), antivirus (ClamAV, optional), recursive DNS resolution (Unbound) and, from the home
   connection, an outbound relay are external components.
 - The mail server does not need the raw SQL escape hatch: the data layer provides per-partition
-  serials, a full-text capability, positional paging for JMAP and partitioned change tokens (G7).
+  serials, full-text search (a keyed token index over personal text, section 14.7.9.9), positional
+  paging for JMAP and partitioned change tokens (G7).
   Queue locking stays inside the job store.
 - Launchway's limit of one API instance holding all agent connections (its ADR 0004) disappears:
   commands to a node become rows of a node-scoped entity, delivered through a subscription over the
@@ -8383,9 +9005,11 @@ How the protocols' requirements map onto the core model:
 - Search: the entity declares a search index over `subject`, `from`, `to`, `cc` and `searchText`
   (text extracted at filing, capped in size). `searchText` is `stateOnly`: it lives in the state
   table and the index only, never in events, so erasure scrubs it completely; rebuilds re-extract
-  it from the blob (`rederive`). IMAP `SEARCH TEXT` and JMAP's `text` filter use the adapter's
-  full-text capability combined with the principal's plan (G7). The index is a projection that
-  erasure drops (G11).
+  it from the blob (`rederive`). IMAP `SEARCH` and JMAP's `text`, `from`, `to`, `cc`, `subject` and
+  `body` filters use the per-account keyed token index of section 14.7.9.9, combined with the
+  principal's plan, with word semantics; JMAP answers `unsupportedFilter` for `bcc` and `header` and
+  `unsupportedSort` for sorts by `from`, `to` and `subject`, and IMAP `HEADER Message-ID` uses the
+  plaintext `messageId` (G7). The index is derived, and erasure clears the subject's entries (G11).
 - "Nothing deleted": IMAP `EXPUNGE` and JMAP `Email/set destroy` append `archived` events; the
   message disappears from every view at once. A retention rule chosen by the operator (for example
   30 days) later destroys the per-blob key, removes the bytes and keeps a tombstone (G11). Trash
@@ -8444,8 +9068,11 @@ Submission:
 
 Delivery (one job per submission and recipient domain, G3):
 
-- Jobs are grouped by destination domain with a concurrency limit (two connections per domain by
-  default).
+- Under decision 50a the SMTP dialogue is the `smtpSend` effect executor (section 9.5.1): it
+  requires the capability `smtp-out` in direct mode (none in relay mode), runs in the group
+  `mx:<domain>` with two connections per destination domain by default, and carries the retry policy
+  below; MX and MTA-STS lookups are effects too (decision 50a; the exact contract is specified in
+  the pure-handlers section).
 - Direct mode resolves MX records, applies the domain's MTA-STS policy (fetched and cached per its
   `max_age`), requires STARTTLS where the policy enforces it, and delivers with Nodemailer's SMTP
   client. Relay mode sends every external delivery to the configured relay with authentication;
@@ -8656,18 +9283,25 @@ export const email = defineEntity({
     mailboxIds: field.set(field.ref.own('mailbox')).merge('set'),
     keywords: field.set(field.string({ maxLength: 255 })).merge('set'),
     messageId: field.string().optional().index(),
-    from: field.json(addressList).personal(),
-    to: field.json(addressList).personal(),
-    cc: field.json(addressList).optional().personal(),
-    subject: field.text().optional().personal(),
+    from: field.json(addressList).personal({ queries: ['search'] }),
+    to: field.json(addressList).personal({ queries: ['search'] }),
+    cc: field.json(addressList).optional().personal({ queries: ['search'] }),
+    subject: field.text().optional().personal({ queries: ['search'] }),
     sentAt: field.instant().optional(),
-    preview: field.string({ maxLength: 256 }).personal(),
+    preview: field.string({ maxLength: 256 }).personal(),   // shown, never queried: no index
     hasAttachment: field.boolean(),
-    mimeTree: field.json(mimeTreeShape).personal(),    // MIME parts with byte ranges into `raw`; attachment names are personal
-    searchText: field.text().hidden().personal().stateOnly(),   // input of the full-text index: never returned, never in events
+    mimeTree: field.json(mimeTreeShape).personal(),    // MIME parts with byte ranges into `raw`; attachment names are personal; shown, no index
+    searchText: field.text().hidden().personal({ queries: ['search'] }).stateOnly(),   // input of the token index: never returned, never in events
   },
-  searchIndexes: [{ name: 'text', fields: ['subject', 'from', 'to', 'cc', 'searchText'] }],   // G7
+  searchIndexes: [{ name: 'text', fields: ['subject', 'from', 'to', 'cc', 'searchText'], keys: 'subject', languages: ['nl', 'en'] }],   // G7: a per-account keyed token index (section 14.7.9.9)
 })
+
+// examples/mail/modules/mail-store/src/entities/address.ts (excerpt): RCPT TO resolves by equality; the tag joins a composite unique index
+localPart: field.string({ maxLength: 64 }).personal({ normalize: 'caseless' }),
+//   indexes: [{ fields: ['localPart', 'domainId'], unique: true }]
+
+// examples/mail/modules/mail-store/src/entities/identity.ts (excerpt): who may send as which address
+email: field.string({ format: 'email' }).personal({ normalize: 'email', queries: ['eq'] }),
 
 // examples/mail/modules/mail-store/src/entities/mailbox-entry.ts
 export const mailboxEntry = defineEntity({
@@ -8927,10 +9561,14 @@ export default defineDeployment({
     'smtp-submission.submission': 587,
     'imap.imaps': 993,
   },
-  processes: {                                                                      // G9: named processes, one container each (section 17.5.2)
-    home: { roles: ['serve', 'work'] },                                             // HTTP and workers, no listener port; rolled blue-green behind Caddy (section 19.6)
+  processes: {                                                                      // named processes, one container each (sections 17.5.2 and 21.1)
+    home: { roles: ['serve', 'work'], slots: { '*': 4 } },                          // HTTP and workers, no listener port; rolled blue-green behind Caddy (section 19.6)
     mail: { roles: ['serve'], capabilities: ['smtp-public'] },                      // binds the listener ports above: the mail listeners run only here (G1)
+    // Once needed: workers started on demand (decision points 63 and 64) and a relay host with a clean address (decision point 21)
+    // worker: { roles: ['work'], slots: { reactions: 8, '*': 2 }, provider: 'docker', scale: { min: 0, max: 4 } },
+    // relay: { roles: ['work'], capabilities: ['smtp-out'], slots: { 'mail-delivery': 8 } },   // static, run by the operator
   },
+  scaling: { maxProcesses: 8 },                                                     // the scaler's deployment-wide limit (section 21.4)
   // Carriers that name a scope key (tokens, node credentials, webhook paths, mail domains) resolve through the directory.
   tenantResolution: [byHostname(), byScopeKey(), byHeader('x-pennestack-tenant')],  // G2
   egress: { allow: [] },                                                            // no private destinations (section 12.3)
@@ -9109,12 +9747,13 @@ own client.
 
 #### 17.6.4 The SQL escape hatch
 
-The mail server does not force it. Mailbox search uses a declared full-text capability combined
-with the authorization plan, UIDs use a per-partition serial, JMAP and IMAP synchronisation use
-partitioned, commit-ordered change positions and positional paging for JMAP (all G7), and queue
-locking lives inside the job store behind `JobQueue`. A `mail-store` that needs any of these on an
-adapter without the capability fails at `connect` with `unsupported`, as the core prescribes. The escape hatch remains
-useful for operator reports and DMARC aggregate statistics, which are optional modules.
+The mail server does not force it. Mailbox search uses the keyed token index over personal text
+(section 14.7.9.9) combined with the authorization plan, UIDs use a per-partition serial, JMAP and
+IMAP synchronisation use partitioned, commit-ordered change positions and positional paging for JMAP
+(all G7), and queue locking lives inside the job store behind `JobQueue`. A `mail-store` that needs
+any of these on an adapter without the capability fails at `connect` with `unsupported`, as the core
+prescribes. The escape hatch remains useful for operator reports and DMARC aggregate statistics,
+which are optional modules.
 
 #### 17.6.5 Names that differ from the first draft
 
@@ -9153,13 +9792,13 @@ the roadmap schedules before the milestone that first needs them ([roadmap.md](r
 | G1 | Connection-oriented listeners and invoker sessions | Launchway agents; SMTP, IMAP, JMAP | sessions specified; listener contract proposed, ADR before M4 | sections 9.2 and 16.3.4; proposal below |
 | G2 | Scope directory for keys other than host names | tokens, node credentials, webhook paths, mail domains | proposed, ADR before M3 | proposal below |
 | G16 | Extension values bound to their contributor's context | git providers, heartbeat observers, DKIM signers, inbound checks | specified (ADR 0003) | section 5.5 |
-| G3 | Jobs, durable timers and schedules | both platforms throughout | specified (ADR 0015) | sections 7.7, 9.5 and 14.3.9 |
+| G3 | Jobs, durable timers and schedules | both platforms throughout | specified (ADRs 0015 and 0025) | sections 7.7, 9.5, 14.3.9 and 21 |
 | G4 | Secrets and a key hierarchy | Launchway environments and credentials; DKIM keys, relay password, certificates | key service and sealing specified; the `ctx.secrets` interface proposed, ADR before M3 | sections 6.6 and 14.7.4; proposal below |
 | G5 | Blob storage | messages, attachments, uploads; later log archives | proposed, ADR before M4 | section 5.2 (the `blobs` contract); proposal below |
 | G6 | Streams, topics and a live feed for state entities | deployment logs, container logs, the agent channel, delivery attempts | storage and live delivery specified; the DSL lands in M2 | sections 15.1.10, 15.1.12 and 15.4 |
-| G7 | Change positions and data capabilities | IMAP and JMAP synchronisation, mail search, UIDs, Launchway's one-running-deployment rule | specified | sections 14.3.3, 14.3.5, 14.5.1 and 15.1.4 |
+| G7 | Change positions and data capabilities | IMAP and JMAP synchronisation, mail search, UIDs, Launchway's one-running-deployment rule | specified | sections 14.3.3, 14.3.5, 14.5.1, 14.7.9 and 15.1.4 |
 | G8 | HTTP ingress beyond JSON actions | GitHub webhooks and manifest flow; MTA-STS, autoconfig, JMAP downloads | specified | section 16.5.8 |
-| G9 | Process capabilities and singleton work | mail ports, the edge, reconcilers | proposed, ADR before M3 (singleton) and M4 (capabilities) | proposal below |
+| G9 | Process capabilities and singleton work | mail ports, the edge, reconcilers | named processes and capabilities specified (ADR 0025); singleton leases proposed, ADR 0018 before M3 | section 21; proposal below |
 | G10 | Tenant-editable configuration with change events | Launchway settings, mail policies | specified | section 5.7 |
 | G11 | Retention and purge | Trash and Junk, previews, logs, delivery queues, command rows | specified | section 14.7.1 |
 | G12 | Cross-cutting observers and request metadata | audit, later outbound webhooks and search indexers | request metadata specified; `observes: 'all'` proposed | sections 11 and 15.1.7; proposal below |
@@ -9306,13 +9945,15 @@ certificate renewal, DKIM rotation, retention), retry policies with explicit sch
 delivery for up to 5 days), heartbeats for long jobs, cancellation by key and dead letters, on
 every adapter the proof apps run on.
 
-Status: specified in sections 7.7, 9.5 and 14.3.9 and ADR 0015. The kernel job queue runs over the
-data adapters' job store with keys (keep, replace, coalesce), groups with concurrency, FIFO per
-key, retry schedules driven by the error taxonomy, heartbeats, expiry, dead letters and schedules
-(`backend` or `each-tenant`). Jobs store a principal reference that is resolved again when they
-run; timers, schedules and reactions run under the module's service principal. pg-boss 12.37.1 has
-nearly all of these primitives on PostgreSQL alone, which is why the queue stays replaceable by an
-infrastructure entry (a decision point in section 26.1).
+Status: specified in sections 7.7, 9.5, 14.3.9 and 21 and ADRs 0015 and 0025. The kernel job queue
+runs over the data adapters' job store with keys (keep, replace, coalesce), fair lanes with caps
+and weights per tenant and queue, a queued cap with backpressure, groups with concurrency and
+rates, priority classes, FIFO per key, retry schedules driven by the error taxonomy, leases fenced
+by (worker, attempt), expiry, dead letters and schedules (`backend` or `each-tenant`). Jobs store
+a principal reference that is resolved again when they run; timers, schedules and reactions run
+under the module's service principal. pg-boss 12.38.0 now has groups, FIFO per key, heartbeats,
+Kysely enqueue and PGlite, but no MySQL, SQLite or in-memory store, no scope predicate and no fair
+shares; the queue stays replaceable by an infrastructure entry (decision point 6 of section 26.1).
 
 #### G4. Secrets and a key hierarchy
 
@@ -9430,11 +10071,12 @@ JMAP's `Email/query`; partial unique indexes (one running deployment per project
 one active DKIM key per domain and algorithm); atomic increments with the resulting value for
 quota counters.
 
-Status: specified. Positions come from a counter per scope (section 15.1.4); `partition` on
-entities and `field.serial` are in sections 15.1.4 and 14.5.1; the `search` and `positionPaging`
-capabilities and partial unique indexes are in sections 14.3.3, 14.3.5 and 14.5.1; rows locked for
-writes make increments atomic and `update` returns the resulting row (section 15.1.6). Search
-ships in M4, before the mail server needs it (roadmap).
+Status: specified. Positions come from a counter per scope (section 15.1.4); `partition` on entities
+and `field.serial` are in sections 15.1.4 and 14.5.1; the `search` and `positionPaging` capabilities
+and partial unique indexes are in sections 14.3.3, 14.3.5 and 14.5.1, and search over personal text
+through keyed token indexes in section 14.7.9.9; rows locked for writes make increments atomic and
+`update` returns the resulting row (section 15.1.6). Search ships in M4, before the mail server
+needs it (roadmap).
 
 #### G8. HTTP ingress beyond JSON actions
 
@@ -9454,17 +10096,18 @@ the public mail ports on a host that sees real client addresses, outbound mail o
 clean address. Reconcilers (edge, DNS) must run at most once per tenant at a time across
 processes.
 
-Status: proposal. The singleton lease lands with its ADR before M3 (the edge and DNS reconcilers),
-process capabilities before M4 (the mail listeners); roadmap.
+Status: named processes, capabilities, probes and placement are specified in section 21 (ADR 0025,
+before M4 for the mail listeners); the singleton lease remains a proposal, with ADR 0018 before M3
+(the edge and DNS reconcilers); roadmap.
 
-Proposal: `defineDeployment({ processes: { name: { roles, capabilities } } })` and a start flag
-naming the process; listeners, schedules, asynchronous actions and reactions may declare a required
-`capability`; a `singleton: true` option holds a lease per (action, scope) so two processes never
-run the same reconciler for one tenant; readiness reports the capabilities a process serves. The
-process registry of section 19.1 (`core.process`) already records each process's name, roles,
-capabilities and the singleton lease holders, so ADR 0018 builds on it. With
-the edge configuration applied through the agent (a decision point in section 26.1), no process
-needs the Caddy admin socket.
+Proposal for singleton work: a `singleton: true` option holds a lease with a fencing epoch per
+(action, scope) in the control store, so two processes never run the same reconciler for one
+tenant, and a draining process hands its leases over (section 21.2). The process registry of
+section 19.1 (`core.process`) already records each process's name, roles, capabilities and the
+singleton lease holders, so ADR 0018 builds on it. Named processes with a start flag, declared and
+probed capabilities, and the capabilities a process advertises are section 21's. With the edge
+configuration applied through the agent (a decision point in section 26.1), no process needs the
+Caddy admin socket.
 
 #### G10. Tenant-editable configuration with change events
 
@@ -9732,7 +10375,7 @@ current target's (`targetConflict`). One rollout runs at a time.
 ```ts
 export interface ProcessRecord {                         // core.process, in the control store
   readonly id: string                                    // UUIDv7, new per start
-  readonly name: string | null                           // the named process of gap G9
+  readonly name: string | null                           // the named process (section 21.1)
   readonly node: string
   readonly roles: readonly ('serve' | 'work')[]
   readonly capabilities: readonly string[]
@@ -9741,6 +10384,7 @@ export interface ProcessRecord {                         // core.process, in the
   readonly apiVersions: Readonly<Record<string, readonly string[]>>   // per app
   readonly state: 'starting' | 'ready' | 'draining' | 'stopped'
   readonly heartbeatAt: Date                             // every 10 s; presumed gone after 30 s of silence
+  // section 21.1 adds provider, instance, slots per queue, reserved connections, drain and interruption
 }
 export interface RolloutState {                          // core.rollout, chain-backed: its events are the history
   readonly finalizedRevision: number
@@ -10007,10 +10651,241 @@ stay in the tenant's namespace, and only counts reach backend scope.
 
 ## 21. Nodes, capacity and autoscaling
 
-The design of jobs, nodes, capacity and autoscaling is in progress (the jobs/nodes/autoscaling
-designer, started on 2026-10-24). When it lands, it replaces section 9.5 and fills this section;
-until then, section 9.5, gap G9 (section 17.7) and decision point 6 of section 26.1 describe the job
-queue and where work runs.
+Jens's requirement of 2026-10-23: "This job queue should be thought out REALLY WELL: I plan to work
+with an arbitrary number of nodes in the future, and they should all scale automatically, with
+limits." [ADR 0025](adr/0025-nodes-capacity-and-autoscaling.md) records the decisions, ADR 0018 the
+singleton leases (gap G9).
+
+### 21.1 Nodes, processes and named processes
+
+- A **node** is a host that runs pennestack processes (a machine, a virtual machine, a Docker
+  engine); a **process** is one `pennestack start`; a **named process** is an entry of
+  `defineDeployment({ processes })` with roles, declared capabilities, slots per queue, placements,
+  a provider and scaling limits, whose replicas the scaler counts. Without `--process` a process
+  belongs to the built-in, static `default`.
+- `core.process` (section 19.1) gains the fields below and `core.node` is new; lifecycle changes
+  write change records (`pennestack fleet watch`), heartbeats and slot counts go to lease rows.
+
+```ts
+// pennestack.config.ts: workers started on demand, a relay host with a clean address
+processes: {
+  home: { roles: ['serve', 'work'], slots: { '*': 4 } },
+  mail: { roles: ['serve'], capabilities: ['smtp-public'] },
+  worker: { roles: ['work'], slots: { reactions: 8, '*': 2 }, provider: 'docker', scale: { min: 0, max: 4 } },
+  relay: { roles: ['work'], capabilities: ['smtp-out'], slots: { 'mail-delivery': 8 } },   // static, run by the operator
+},
+scaling: { maxProcesses: 8 },
+
+export interface ProcessRecord {                      // core.process: the fields of section 19.1, and
+  readonly provider: string                           // 'static', 'docker', ...
+  readonly instance: string | null                    // the provider's handle
+  readonly slots: Readonly<Record<string, { readonly total: number; readonly busy: number }>>   // per queue
+  readonly connections: Readonly<Record<string, number>>                                       // pool reserved per placement
+  readonly drain: { readonly deadline: Date; readonly reason: string } | null
+  readonly interruption: Date | null                  // a provider's termination notice
+}
+export interface NodeRecord {                         // core.node, deployment scope
+  readonly id: string                                 // --node, PENNESTACK_NODE, the provider's, else the machine id
+  readonly provider: string
+  readonly labels: Readonly<Record<string, string>>   // region, zone, arch
+  readonly capabilities: readonly string[]            // probed on the host
+  readonly maxProcesses: number
+  readonly state: 'active' | 'cordoned' | 'draining' | 'gone'   // gone: no heartbeat for 5 minutes
+  readonly seenAt: Date
+}
+```
+
+### 21.2 Capabilities and placement
+
+- A process advertises a capability its named process declares (or `--capability` names) once its
+  probe, if any, passes. Probes fill the deployment-level `capabilityProbes` extension point; the
+  core ships `docker`, `smtp-out` (port 25 of an operator-chosen host is reachable), `gpu`, `arch`
+  and `region`. They run at `connect`, every five minutes and on `pennestack fleet probe`; a failing
+  probe withdraws the capability, and running jobs finish.
+- Only listeners and effect executors require capabilities (`smtp-public` for the port 25 listener,
+  `smtp-out` for direct delivery). Every other job runs a pure handler (decision 50a) on any work
+  process slotting its queue. A synchronous caller never waits for an effect job: the invoker never
+  forwards a request.
+- Unplaceable work fails closed: a static capability that no named process declares is refused at
+  boot (`unplaceableCapability`), a computed one at enqueue (`unsupported`,
+  `core.capability_unplaceable`). Declared but not live: jobs wait in their lane while the scaler
+  starts a process that declares it, if a provider can; otherwise `pennestack doctor` names it and
+  `giveUpAfter` applies.
+- Singleton work (reconcilers, the finalizer of section 19.4, the scaler) holds leases with a
+  fencing epoch in the control store (ADR 0018); a draining process hands them over.
+
+### 21.3 Capacity and the connection budget
+
+- Each placement has a connection budget, `placements.<name>.maxConnections` (default 80 percent of
+  the server's `max_connections`); a starting process reserves its pool per placement when it
+  registers, and over budget the start is refused (`connectionBudget`). The default pool is the
+  action queues' slots, plus three (notifier, listener, effect completions), plus the serve role's
+  pool: under decision 50a no job holds a connection while it waits on the network. A named process
+  connects only to the placements it lists (default all).
+- Workers added to a saturated database slow the queue, so the scaler adds none while a placement's
+  take latency (p95) exceeds 250 milliseconds or its budget is spent.
+
+### 21.4 The scaler
+
+The scaler runs under a singleton lease every 15 seconds, in a work process of a named process whose
+`min` is at least 1. Its plan is a pure function of its inputs (decision 50a); the kernel gathers
+the inputs and executes the plan's provider calls as recorded effects; tests drive it with the fake
+provider and clock of `@pennestack/testing`.
+
+```ts
+export interface WorkClassStats {                     // JobQueue.stats per queue and capability set, over every namespace
+  readonly queue: string
+  readonly capabilities: readonly string[]
+  readonly due: number                                // available and due now
+  readonly oldestDueSeconds: number
+  readonly arrivalsPerSecond: number                  // smoothed over a minute
+  readonly meanRunSeconds: number
+  readonly running: number
+  readonly nextDueAt: Date | null
+  readonly sloSeconds: number                         // queues.<q>.slo, target wait from due to start; default 30
+}
+export interface ScaleLimits {                        // processes.<name>.scale
+  readonly min: number                                // 0 allows scale-to-zero, except for the scaler's own process
+  readonly max: number
+  readonly maxPerNode?: number
+  readonly up?: { readonly percent: number; readonly processes: number }   // per evaluation; default 100 percent or 4
+  readonly down?: { readonly processes: number; readonly window: string }  // default 1, after a '5m' window
+  readonly tolerance?: number                         // default 0.1
+  readonly activationLead?: string                    // default '60s'
+}
+export declare function plan(inputs: ScalerInputs, scaling: DeploymentScaling, at: Date): ScalePlan   // scaling: maxProcesses, maxCostPerHour, per provider
+// ScalerInputs: class stats, named processes, provider offers, placements, recent decisions
+```
+
+1. Slots needed per work class: `ceil(meanRunSeconds × (arrivalsPerSecond + due / sloSeconds))`
+   (Little's law plus the backlog drained within one target wait), times the oldest age over the
+   target, at most 2, while the target is missed; never fewer than the class's running jobs, because
+   a plan from backlog alone scales in on top of busy workers (KEDA issues 7368 and 8249); at least
+   one when work is due within `activationLead`.
+2. Static processes' slots are subtracted; the rest goes to the named processes that advertise the
+   class's capabilities and slot its queue, cheapest provider first, then in declaration order.
+3. Limits clamp the result, the binding one recorded as `limitedBy`: `min`, `max`, `maxPerNode`
+   times the provider's nodes, provider maximums, `maxProcesses`, `maxCostPerHour`, each placement's
+   connection budget, the database guard.
+4. Stabilisation, after Kubernetes' defaults (checked on 2026-10-25): up at once by at most 100
+   percent or 4 processes, whichever is more; changes within 10 percent ignored; down to the highest
+   value wanted in the last 5 minutes, but one process per evaluation (Kubernetes allows 100
+   percent), because every stop is a drain. Starting processes count as present and idle, so a
+   backlog is answered once.
+5. Starts are spread (0 to 2 seconds of random delay); stops are drains. Each acting evaluation
+   writes a `core.scaleDecision` row (inputs, plan, bound, actions, outcomes), kept for 30 days.
+
+With `min: 0` a named process reaches zero after a down window without work and starts again for
+work due within the activation lead. With the static provider the plan is a recommendation in
+`pennestack fleet scale status`; when automatic scaling ships is decision point 63.
+
+### 21.5 Node providers
+
+`nodeProviders` is a deployment-level extension point (set), filled by infrastructure entries that
+are imperative like adapters and called only by the kernel.
+
+```ts
+export interface NodeProvider {
+  readonly id: string                                 // 'static', 'docker'
+  offer(): Promise<ProviderOffer>                     // what it can start, its maximums, cost per process hour, startup time
+  list(signal: AbortSignal): Promise<readonly ProviderInstance[]>   // { instance, node, process, state }: reconciliation after failover
+  start(request: { readonly requestId: string; readonly process: string; readonly build: { readonly id: string; readonly revision: number } }, signal: AbortSignal): Promise<ProviderInstance>   // idempotent by request id
+  stop(instance: string, options: { readonly deadline: Date; readonly reason: string }, signal: AbortSignal): Promise<void>   // SIGTERM, removal after the deadline
+}
+```
+
+- **static** (core): operator-run processes; the plan is a recommendation and scale-down a drain
+  request the process obeys.
+- **docker** (`@pennestack/provider-docker`): the Docker Engine API over its Unix socket through
+  `node:http`. It runs the running build's image (the target during a rollout) as `pennestack start
+  --role work --process <name>`, unprivileged, with only the named process's networks and volumes,
+  restart policy `no` and secrets as mounted files. The socket is root on its host, so the provider
+  is off by default, belongs only to the scaler's named process and goes through a socket proxy
+  admitting container create, start, stop, inspect and list (decision point 64).
+- **kubernetes** (later): a Deployment scaled through `@kubernetes/client-node` 2.0.1, or desired
+  replicas published at `/_pennestack/scale` for KEDA's Metrics API scaler or an HPA external
+  metric. **Cloud providers** (later): instance groups, drains within spot termination notices.
+- **Launchway as a provider** (not planned): only above a floor another provider supplies, and only
+  for an operator-owned tenant, because the containers carry the master key.
+
+### 21.6 Scale-down is a drain
+
+1. The scaler picks the replica with the fewest busy slots, preferring cordoned nodes and never the
+   last process advertising a capability with due work; the scaler's own process hands its lease
+   over first.
+2. The record turns `draining` with a deadline: `processes.<name>.drainSeconds` (default 60), or a
+   termination notice's if sooner.
+3. The process stops taking, its listeners stop accepting, live streams end with `going_away`
+   (section 15.4.5), consumer and singleton leases are released, and running jobs continue.
+4. At the deadline, unfinished jobs are released (back to `available`, the attempt not counted) and
+   their executors aborted; an effect that already reached its destination may run again.
+5. The process deregisters (reservations freed) and exits with code 0; the provider removes the
+   instance. `SIGTERM` from any source runs the same sequence.
+
+### 21.7 Failure modes
+
+| Failure | Handling |
+|---|---|
+| A process or node is lost | leases expire within 30 seconds and the next take requeues its jobs (`core.job_lease_lost`); the scaler replaces it within limits |
+| Split brain | completion and renewal are conditional on (worker, attempt); singleton holders check their lease before each effect; providers count instances before a start, so two scalers overshoot a limit by one start at most |
+| Thundering herd | coalesced wake-ups (50 milliseconds per namespace), jittered takes, schedules and retries, spread starts |
+| The database as the bottleneck | batched takes, split lane counters, the connection budget and guard, more placements, then the dispatch tier |
+| A hot tenant | the fair order, caps, weights, the queued cap with backpressure |
+| A poison job | a dead letter after its retries or three lost leases |
+| A long job | lease renewal, `expireInSeconds`, release at a drain; long waits are effect jobs or state machines with timers, never an open unit |
+| A provider or the scaler's process fails | starts retry with backoff (`limitedBy: 'provider'`); an expired scaler lease passes to another work process, which reconciles through `list` first |
+
+### 21.8 The Launchway agent in this model
+
+- The agent is not a pennestack node but the separate program of section 17.3.4, a client of the
+  agent-protocol transport (decision point 23). It runs the builds; pennestack runs the dispatch
+  reaction keyed by project and its timers (section 17.3.5).
+- A Launchway node is tenant data running tenant code (decision point 25); a pennestack node holds
+  database credentials and the master key of every tenant on its placements, so no tenant may run or
+  host one. A docker provider and the agent may share an engine, never an identity. Launchway's
+  `nodes` module keeps its id; the framework's command group is `fleet` (decision point 62).
+
+### 21.9 Commands and observability
+
+| Command | What it does |
+|---|---|
+| `pennestack fleet [list\|show\|watch]` | nodes and processes with roles, capabilities, revision, state, slots and heartbeat |
+| `pennestack fleet cordon\|uncordon\|drain\|probe\|forget` | stop placing on a node, drain with `--deadline`, rerun probes, remove a gone node |
+| `pennestack fleet scale status\|explain\|history\|set\|pause\|resume` | desired and current per named process, the last plan, decisions, runtime limits within the deployment's |
+| `pennestack jobs stats\|lanes\|list\|explain\|replay\|discard\|pause\|resume` | statistics per queue and capability set, the busiest lanes, why a job waits, dead letters, pausing a queue |
+
+`fleet` joins the reserved names of section 16.9.3 (34 names; decision point 62); `jobs` is reserved
+already.
+
+```
+$ pennestack fleet scale explain worker
+reactions []: due 840, oldest 41 s (target 30 s), 22/s, 0.18 s each -> 9 slots x 1.4 -> 13; 8 per replica -> 2; start 1 on docker
+```
+
+Metrics (section 11): the gauges `pennestack.jobs.due`, `.oldest_due`, `.lanes.capped` and
+`.unplaceable` per queue and capability set; the histograms `.wait` (due to start), `.run` and
+`.take.duration`; the counter `.outcomes` by kind (action, effect) and outcome; `pennestack.slots`,
+`.processes`, `.connections.reserved` and `.scaler.desired` per named process; `backend` is an
+attribute, `tenant` only where a backend opts in.
+
+### 21.10 Backends and tenants
+
+- Nodes, processes and the scaler are deployment-scope control data for the operator only; tenants
+  never see nodes, other lanes or other tenants' depth.
+- Lane rows carry their scope under row-level security: enqueue and completion stay in tenant units,
+  while takes, renewals, reaping and statistics run in kernel namespace-scope units.
+- Backends of one app share a namespace's lanes, with backend caps between them; a tenant move
+  (section 14.4.5) copies its jobs and lanes.
+
+### 21.11 Traceability
+
+| Requirement | Subsections |
+|---|---|
+| Jens, 2026-10-23: "This job queue should be thought out REALLY WELL" | all of section 9.5, above all 9.5.3 (the fair take), 9.5.4 (retries, leases and failures) and 9.5.7 (the upgrade path) |
+| "an arbitrary number of nodes in the future" | 21.1 (nodes, processes and named processes), 21.2 (capabilities and placement), 21.3 (capacity and the connection budget), 21.7 (failure modes) |
+| "they should all scale automatically" | 21.4 (the scaler), 21.5 (node providers), 21.6 (scale-down is a drain) |
+| "with limits" | 9.5.5 (limits, priorities and backpressure), 21.4 (`ScaleLimits` and the deployment's `scaling`), 21.3 (the connection budget) |
+| Brief addendum 4 and decision 50a | 9.5.2 (where jobs live), 9.5.6 (workers, scopes and schedules), 21.2 (capabilities and placement), 21.4 (the scaler) |
 
 ## 22. Repository layout and package plan
 
@@ -10040,6 +10915,7 @@ pennestack/
     client/                  @pennestack/client: AppClient, remote client, SSE and WebSocket clients
     cli/                     @pennestack/cli: the `pennestack` binary and the CLI manifest artefact
     blobs-fs/                @pennestack/blobs-fs (M4); blobs-s3 later
+    provider-docker/         @pennestack/provider-docker (M5): the opt-in docker node provider (section 21.5)
     crdt-loro/               @pennestack/crdt-loro: the Loro codec, with the first app that declares a collaborative field
     sync-client/             @pennestack/sync-client (M8)
     module-accounts/         @pennestack/module-accounts
@@ -10060,9 +10936,10 @@ pennestack/
   biome.json  knip.json  pnpm-workspace.yaml  tsconfig.base.json  tsconfig.json  package.json
 ```
 
-Later packages: `transport-static`, `transport-connect`, `module-outbound-webhooks`, `blobs-s3`,
-and possibly `transport-orpc` and `queue-pg` (a pg-boss queue behind `JobQueue`). Milestones refer
-to [roadmap.md](roadmap.md); packages without one belong to M0 to M3.
+Later packages: `transport-static`, `transport-connect`, `module-outbound-webhooks`, `blobs-s3`, a
+Kubernetes node provider and cloud providers, and possibly `transport-orpc` and `queue-pg` (a
+pg-boss queue behind `JobQueue`). Milestones refer to [roadmap.md](roadmap.md); packages without one
+belong to M0 to M3.
 
 Rules:
 
@@ -10632,8 +11509,11 @@ architecture, and that the review of 2026-10-11 changed rules and contracts, not
 kernel. Addendum 3 (2026-10-23) landed as sections 18 to 21 and 23: versioning, rollouts and flags
 as kernel changes that ADRs 0021 to 0023 record (two pipeline stages, control entities, extension
 points and error codes in the existing kinds) plus one module, `experiments`; the project layout as
-conventions, a module base and tooling (ADR 0024); and the jobs, nodes and autoscaling design as a
-replacement of section 9.5 that is still in progress.
+conventions, a module base and tooling (ADR 0024); and the jobs, nodes and autoscaling design
+(2026-10-25) as a replacement of section 9.5 and the new section 21: kernel contracts, deployment
+configuration, two deployment-level extension points and one optional provider package (ADR 0025).
+Decision 7b landed in the data layer as field options, a kernel planner and adapter capabilities
+(section 14.7.9, ADR 0027).
 
 ## 25. Requirements traceability
 
@@ -10688,6 +11568,7 @@ replacement of section 9.5 that is still in progress.
 | Smooth rollouts and roll-overs; compatibility until a major; a best-in-class mechanism (addendum 3, item 2) | 19, 18.5, 18.6 | Adjacent build revisions run side by side under the N-1 rule, and destructive steps wait for finalization; CI refuses a break of a supported version (decision points 53 to 56). |
 | Feature flags and A/B testing, at framework level (addendum 3, item 3) | 20, 20.1 | Flags are a kernel concept; experiments are the optional `experiments` module (decision points 51 and 57). |
 | Every file has a single purpose, in a structure designed for this framework and enforced by its tooling (addendum 3, item 4) | 23 (per sentence in 23.15) | One definition per file, a package per module, explicit assembly over a module base (decision points 58 to 61). |
+| Many nodes that scale automatically, with limits, on a job queue "thought out REALLY WELL" (Jens, 2026-10-23, with addendum 3) | 9.5, 21 (per phrase in 21.11) | Fair lanes with caps keep tenants apart on any number of processes; named processes, probed capabilities and connection budgets place the work; the scaler is a pure plan clamped by explicit limits, and scale-down is a drain (decision points 6 and 62 to 64). |
 | Public repository on GitHub, every commit signed with the author's personal identity | 22 | The repository stays private until Jens approves the architecture and becomes public then. |
 | Best practice from first principles, no copied conventions | this document and the ADRs cite research, not older projects | |
 | The product name never references other companies' products | the working name and all package names are generic | |
@@ -10701,6 +11582,7 @@ Decided:
 | 3 | DSL shape: modules are object literals, a module base, parts typed against it and a module literal, never a builder chain (section 4.1) | 2026-10-24 |
 | 4 | Data access inside handlers: module authority with an explicit `forCaller()`, plus a shape-stage check of every entity row leaving the invoker against the caller's plan, an error in development and a dropped, logged row in production (section 8.4) | 2026-10-24 |
 | 5 | Deny rules: allow and deny rules, deny requiring a reason, default deny (section 8.2 as written) | 2026-10-24 |
+| 7 | Personal data in state tables: personal fields are encrypted in the state tables as well (sealed columns, blind indexes and query tokens per declared capability, fail-closed operators and explicit bounded scans; section 14.7.9, ADR 0027); its defaults are decision points 65 to 72 | 2026-10-25 |
 | 8 | Operational buffer defaults accepted (transient change records 7 days, receipts 24 hours, inactive sync clients 90 days), plus `asOf` on the generated `get` and `history` reads of chain entities (sections 6.7, 14.7.1 and 14.8.1) | 2026-10-24 |
 
 The decision register ([decisions.md](decisions.md)) records each answer with the sections that
@@ -10709,7 +11591,7 @@ apply it.
 ### 26.1 Decision points for Jens
 
 Each changes the work; each has a recommendation, which the rest of this document assumes. The
-numbers are those of the decision register; points 3, 4, 5 and 8 are decided (above).
+numbers are those of the decision register; points 3, 4, 5, 7 and 8 are decided (above).
 
 1. **Runtime module selection.** Should a backend's modules be fixed by the apps compiled into the
    deployment, or toggled per backend at runtime? Options: a catalogue of compiled apps, with
@@ -10721,18 +11603,22 @@ numbers are those of the decision register; points 3, 4, 5 and 8 are decided (ab
    genuine needs; make every dependency optional and type every cross-module access as possibly
    absent. Recommendation: accept it (section 5.2); soft influence already uses `optional`,
    contributions and conditional parts.
+
 Points 3, 4 and 5 are decided (above).
 
-6. **Job queue.** Should the kernel queue run on every data adapter's job store, or should
-   pennestack depend on pg-boss and PostgreSQL for queued work? Options: the adapter-backed kernel
-   queue (`ps_jobs`, section 14.3.9); pg-boss 12.37.1, which leaves MySQL and SQLite deployments,
-   `pennestack dev` on PGlite and in-memory tests without a queue. Recommendation: the kernel queue,
-   keeping a pg-boss entry possible behind `JobQueue`.
-7. **Personal data in state tables.** Plaintext state tables with crypto-shredding of the chain,
-   or encrypted state columns with blind indexes? Recommendation: plaintext plus crypto-shredding
-   (section 14.7.4); exposure is limited to old backups, bounded by backup retention and the
-   ledger replay at restore.
-Point 8 is decided (above).
+6. **Job queue.** Which queue carries asynchronous commands, reactions, timers, schedules and effect
+   jobs on many nodes that scale automatically, with limits? Options: the kernel queue over every
+   adapter's job store, with fair lanes, split counters, leases and effect jobs (PostgreSQL, MySQL,
+   SQLite, PGlite, in memory); pg-boss 12.38.0 on PostgreSQL (and PGlite) only, behind `JobQueue`,
+   which now has groups, `key_strict_fifo`, Kysely enqueue and PGlite, but no MySQL, SQLite or
+   in-memory store, no scope predicate and no fair shares; a broker (NATS JetStream or Redis
+   Streams) behind `JobQueue`, with an outbox relay; a durable execution engine (Temporal, Restate,
+   DBOS, Inngest or Trigger.dev). Recommendation: the kernel queue (sections 9.5 and 21, ADR 0025);
+   only it gives transactional enqueue on every adapter, row-level security on payloads and one
+   semantics in development, tests and production. A pg-boss `queue-pg` entry stays possible but is
+   not planned, and a broker appears only as a later dispatch tier carrying job ids.
+
+Points 7 and 8 are decided (above).
 
 9. **Offline multi-actor sync.** When should it ship? Options: M8, after the mail server; earlier.
    Recommendation: M8 (roadmap); neither proof app needs offline authorship to launch, and every
@@ -10757,8 +11643,8 @@ Point 8 is decided (above).
     defer it (ADR 0011); the invocation protocol and `AppClient` already give typed clients, and
     oRPC remains one more adapter.
 16. **CLI namespace.** Should action commands sit at the top level beside framework commands, or
-    under a verb (`pennestack run <module> ...`)? Recommendation: top level with 33 reserved names
-    (section 16.9.3); daily commands stay short.
+    under a verb (`pennestack run <module> ...`)? Recommendation: top level with 34 reserved names
+    (section 16.9.3; `fleet` is decision point 62); daily commands stay short.
 17. **Operator impersonation.** What may `pennestack explain --as <principal>` do? Options: evaluate
     only, everywhere; also execute, logged. Recommendation: evaluate everywhere, execute only in
     development.
@@ -10772,7 +11658,7 @@ Point 8 is decided (above).
     Apache-2.0 for its explicit patent grant; both fit every library named.
 21. **Outbound mail from the home connection.** Residential addresses sit on policy blocklists and
     their reverse DNS belongs to the provider. Options: relay through an external host with a static
-    address; a second pennestack process with the `outbound-mail` capability on such a host; direct
+    address; a second pennestack process with the `smtp-out` capability on such a host; direct
     delivery from home. Recommendation: relay first; direct delivery is built anyway and becomes the
     production path on a node with a clean address.
 22. **IMAP.** How does the mail server serve IMAP clients? Options: an own IMAP listener after
@@ -10848,6 +11734,61 @@ flags, the spike questions, the questions by area and addendum 4):
     refusing files not in the canonical shape and offering `--dry-run`, or only print the two lines?
     Recommendation: narrow edits of assembly files only (sections 16.9.8 and 23.14).
 
+Points 62 to 72 came with the designs of 2026-10-25: 62 to 64 with nodes, capacity and autoscaling
+(section 21, ADR 0025), 65 to 72 with encrypted personal data (section 14.7.9, ADR 0027):
+
+62. **Fleet command name.** Launchway already has a module `nodes`, so the framework's command group
+    for nodes, processes and scaling needs another name. Options: `pennestack fleet` (list, show,
+    watch, cordon, uncordon, drain, probe, forget, scale ...), one more reserved name (34);
+    `pennestack nodes`, renaming Launchway's module; `pennestack x nodes` until the next major
+    version. Recommendation: `pennestack fleet` (sections 16.9.3 and 21.9).
+63. **When automatic scaling ships.** Options: M3 with the scaler as a pure plan and the static
+    provider (recommendations in `pennestack fleet scale status`), then the opt-in docker provider
+    for extra workers in M5; the docker provider already in M3; recommendations only until a
+    Kubernetes or cloud provider exists. Recommendation: M3, then M5 (sections 21.4 and 21.5).
+64. **Docker provider on the home server.** The Docker engine is root on that host. Options: opt-in
+    per deployment, held only by the scaler's named process, through a socket proxy limited to
+    container create, start, stop, inspect and list; never, extra workers being started by hand
+    through the static provider; on by default. Recommendation: opt-in behind the proxy (section
+    21.5).
+65. **Equality index by default.** When does a personal field get its blind index? Options: only
+    where a lookup is declared (`.unique()`, `.index()`, an entity index or `queries: ['eq']`),
+    other personal fields supporting `isNull` only; every scalar personal field, with `queries: []`
+    as the opt-out. Recommendation: only where declared (section 14.7.9.2); no equality leak without
+    a purpose, and existing lookups such as the profile's e-mail address and the credential
+    identifier keep working.
+66. **Default normaliser for personal strings.** Options: NFC, so composed and decomposed accents
+    compare equal, with `normalize: 'email'` on e-mail fields, which also makes their uniqueness
+    case-insensitive; exact code points, as for plaintext fields; caseless by default.
+    Recommendation: NFC (section 14.7.9.3).
+67. **Server-side mail search over personal text.** Options: a per-account keyed token index over
+    subject, addresses and bodies (`search: 'full'`, switchable to `'headers'` or `'off'` per
+    backend); header fields only, bodies by bounded scans; no server-side search until pennestack
+    has its own client. Recommendation: the token index (section 14.7.9.9); it works for every
+    client and every adapter, and the injection leak it states is confined to one account.
+68. **Mail search matching.** Options: word and stem matching for JMAP and IMAP, a documented
+    deviation from IMAP's substring rule; exact substring matching through scans, only for mailboxes
+    within the scan limit. Recommendation: words and stems (section 14.7.9.9), which give the same
+    results whatever the mailbox size.
+69. **Ordering and ranges on personal fields.** Options: bounded scans only until M7, then
+    order-revealing encryption tokens on PostgreSQL as an opt-in with a doctor warning; never,
+    bounded scans only; an order-preserving encoding on every adapter now (more leakage, no operator
+    class needed). Recommendation: scans until M7, then opt-in tokens (sections 14.7.9.4 and
+    14.7.9.10); neither proof platform sorts on a personal field, and order tokens leak the most.
+70. **Key scope of search indexes.** Options: per data subject (the mailbox owner), so tags of
+    different accounts never match and erasure destroys the key; per tenant, which allows operator
+    search across accounts but links words across accounts. Recommendation: per data subject
+    (section 14.7.9.9).
+71. **Bounded scans.** Where may the kernel unseal and evaluate in memory? Options: custom queries
+    only, with an explicit limit (default 2,000; at most the adapter's `maxScan`, proposed 10,000 on
+    PostgreSQL); also generated queries over transports, with a per-entity limit; nowhere.
+    Recommendation: custom queries only (section 14.7.9.5); a scan stays a visible decision in
+    module code, and clients cannot trigger one.
+72. **Substring search defaults.** Options: trigram tags truncated to 12 bits, operands of at least
+    3 characters, only fields with `maxLength` of at most 1,024; 16-bit tags (fewer false matches,
+    sharper statistics for a thief); no `contains` on personal fields, word search only.
+    Recommendation: the 12-bit defaults (sections 14.7.9.2 and 14.7.9.4).
+
 ### 26.2 Open for the spike (roadmap M0)
 
 1. The type-model checklist of section 4.7: the module base with parts typed against it in
@@ -10861,14 +11802,17 @@ flags, the spike questions, the questions by area and addendum 4):
 4. Whether `ctx.data` of optional modules is best typed `| undefined` or as a `Maybe` object with
    `.ifPresent()`, after writing the auth module against it.
 5. The write path on a networked PostgreSQL: concurrent writers in many tenants, the commit tail
-   per scope, the notifier's coalescing, and the absence of cross-tenant waiting.
+   per scope, the notifier's coalescing, and the absence of cross-tenant waiting; and the fair take
+   of section 9.5.3 (take p95 against the number of lanes and the batch size), whose result replaces
+   the planning figure of 2,000 jobs per second per placement (section 9.5.7).
 
 ### 26.3 Open questions by area
 
 Data:
 
-- Which mail entities declare `partition: 'accountId'` beyond `email` and `mailboxEntry`, and
-  whether mail search must work on SQLite (`fts5`) or only on PostgreSQL.
+- Which mail entities declare `partition: 'accountId'` beyond `email` and `mailboxEntry`. Whether
+  mail search must work on SQLite (`fts5`) is answered: the keyed token index of section 14.7.9.9
+  works on every adapter, and `tsvector` and `fts5` remain for plaintext search indexes.
 - The clock-skew bound for offline clients (5 minutes by default).
 - Whether heads of the hash chain should later be anchored outside the database, and the threshold
   for partitioning `ps_events`.
@@ -10879,6 +11823,43 @@ Data:
 - The experiments module's `observes: 'all'` reaction enqueues one job per event per tenant
   (section 20.8); gap G12 may need a dispatch-time event-type filter held as data, because module
   code may not run inside consumers (section 15.2.3).
+- Should `accounts.profile.displayName`, a person's name, be `.personal()`? The profile search's
+  `contains` on it would then need the `contains` capability, with its cost and leak (section
+  14.7.9.13).
+- Should the chain's `$pse` envelope also pad values to 16-byte buckets, so that events and state
+  tables reveal the same length class (section 14.7.9.6)?
+- Can the migration role on the home PostgreSQL create an operator class for order tokens?
+  `CREATE OPERATOR CLASS` needs a superuser, and CipherStash reports the same. Is an own TypeScript
+  implementation of Lewi-Wu block ORE acceptable, or must `order` wait for an externally reviewed
+  implementation (decision point 69)?
+- Index sizes, the over-fetch budget (ten times the page size) and the scan default (2,000) are
+  estimates; M4 measures them on a fixture mailbox (sections 14.7.9.5 and 14.7.9.6).
+- After a Node upgrade that changes the Unicode version (17.0 on Node 24.21.0), should the kernel
+  reindex automatically, or only warn in `pennestack doctor` (section 14.7.9.3)?
+- Not verified within the research cap: what Stalwart's full-text index holds for messages it
+  encrypted at rest (its documentation, updated 2026-10-03, is silent), and which MongoDB server
+  version made the substring queries of Queryable Encryption generally available.
+
+Execution:
+
+- The effect executor contract (the name `defineEffectExecutor` is provisional), the effect
+  description constructors (`setTimer`, `cancelTimer`, enqueue) and the naming of continuations
+  are fixed by the decision 50a pass (ADR 0026); section 9.5 assumes that executors declare a queue,
+  a capability, a group, a retry policy and `run` (decision 50a; the exact contract is specified in
+  the pure-handlers section).
+- Can a synchronous invocation ever await an effect's outcome (a "test SMTP connection" action, for
+  example)? Sections 9.5 and 21.2 assume not: the invoker never forwards a request, and outcomes
+  arrive through receipts, events and continuations.
+- Does any pure job ever need a capability? Section 21.2 assumes not: placements handle data
+  locality, and GPU work would be an effect.
+- The planning figure of 2,000 jobs per second per placement (section 9.5.7) is to be replaced by a
+  measurement of the fair take (take p95 against the number of lanes and the batch size on a
+  networked PostgreSQL). The roadmap adds it to the M0 write-path spike (section 26.2, item 5); or
+  should M2 measure it on the real queue?
+- Should the docker provider ever reach a remote Docker engine (with TLS client certificates), or
+  only its local socket through the proxy (section 21.5)?
+- Which socket proxy the docker provider uses is neither chosen nor checked (section 21.5, decision
+  point 64).
 
 Interfaces:
 
@@ -10897,6 +11878,9 @@ Interfaces:
 - The scaffold command shape: this design reserves one name, `pennestack new <kind> <reference>`
   (with `pennestack module new` kept as an alias); the alternative, `pennestack entity|action|flag
   new`, reserves three module ids.
+- The profile search of `docs/api-sketch.ts` sends a two-character prefix (`'Je'`), below the
+  default minimum of three: should the action require three characters, or should the field declare
+  `prefix: { min: 2 }` and accept a shallower prefix tree (section 14.7.9.13)?
 
 Platforms:
 
@@ -10924,6 +11908,13 @@ Platforms:
   one more component on the home server (decision point 56)?
 - The example package scopes (`@launchway`, `@mail`) depend on decision 48 of the register, where
   Launchway's modules live.
+- Mail delivery's 5-day retry schedule: does it stay a retry policy of the `smtpSend` executor
+  (section 17.4.7), or become a domain state machine with timers, so that each attempt lands in the
+  `mail-delivery.attempt` stream through a continuation?
+- A relay node on a rented host needs a database connection to the home placement (a tunnel). Is a
+  remote worker acceptable, or does decision point 21a (an external relay) make it moot?
+- Do the clients of the M6 matrix (Thunderbird, Apple Mail, iOS Mail) rely on substring semantics in
+  IMAP `SEARCH` (decision point 68)? Not researched within the cap.
 
 Toolchain and layout:
 
@@ -10966,7 +11957,7 @@ toolchain is in section 13.2.
 | `loro-crdt` | 1.16.4 | MIT | 2026-10-11 (API names in the type definitions) | CRDT codec |
 | `yjs` | 13.6.33 | MIT | 2026-10-10 | possible second codec |
 | `uuid` | 14.0.3 (published 2026-10-10) | MIT | 2026-10-10 | UUIDv7 |
-| `pg-boss` | 12.37.1 | MIT | 2026-10-10 | prior art for the kernel job queue; a possible `queue-pg` entry (section 9.5) |
+| `pg-boss` | 12.37.1 (12.38.0 on 2026-10-25, A.6) | MIT | 2026-10-10 | prior art for the kernel job queue; a possible `queue-pg` entry (section 9.5.7) |
 | `kysely-codegen` | 0.20.0 | MIT | 2026-10-11 | prior art for introspection; not a dependency |
 | `canonicalize` | 5.1.0 | Apache-2.0 | 2026-10-11 | independent RFC 8785 implementation in tests |
 | `fast-check` | 4.10.2 | MIT | 2026-10-10 | property tests |
@@ -11031,7 +12022,7 @@ Checked on 2026-10-11 with `npm view` (packages) or the project's repository (co
 | `imapflow` | 2.4.0 | MIT | IMAP client for tests |
 | `jmap-jam` | 0.13.8 | MIT | JMAP client for tests |
 | `wildduck` | 1.46.1 | EUPL-1.2 | examined, not used |
-| `pg-boss` | 12.37.1 | MIT | examined; the kernel queue covers its primitives (section 9.5) |
+| `pg-boss` | 12.37.1 (12.38.0 on 2026-10-25, A.6) | MIT | examined; the kernel queue covers its primitives (section 9.5.7) |
 | `ws` | 8.22.0 | MIT | WebSocket server under the HTTP host |
 | `@orpc/server` | 1.15.5 | MIT | examined for agent protocol v2; not adopted (ADR 0011) |
 | `@simplewebauthn/server` | 14.0.3 | MIT | passkeys in `auth` |
@@ -11065,6 +12056,31 @@ Checked by the versioning and project-layout designers with `npm view` (licences
 | `@openfeature/server-sdk` | 1.23.0 | 2026-10-24 | the optional `openFeatureFlags(provider)` infrastructure entry (section 20.3) |
 | `knip` | 6.43.0 | 2026-10-24 | unused files, exports and dependencies in CI (sections 13.8 and 23.12) |
 | `@biomejs/biome` | 2.5.15 pinned; 2.6.0 (2026-10-21) added JavaScript plugins as a developer preview | 2026-10-24 | the preset's layout rules (section 13.9); the later home of the name checks |
+
+### A.6 Added with the jobs, nodes and autoscaling and the encrypted-data designs (2026-10-25)
+
+Versions checked with `npm view` by the designers on 2026-10-25 and checked again, with their
+licences, by the merge editor the same day.
+
+| Package | Version | Licence | Use here |
+|---|---|---|---|
+| `pg-boss` | 12.38.0 | MIT | decision point 6, option b: groups, `key_strict_fifo`, heartbeats, Kysely enqueue and PGlite; a possible `queue-pg` entry, not planned (section 9.5.7) |
+| `graphile-worker` | 0.18.0 | MIT | throughput reference for a `SKIP LOCKED` queue (section 9.5.7); not used |
+| `@hatchet-dev/typescript-sdk` | 1.43.0 | MIT | prior art: a PostgreSQL-backed engine with concurrency keys; not used |
+| `bullmq` | 6.4.2 | MIT | prior art: a Redis queue (option c family); not used |
+| `@nats-io/jetstream` | 3.4.0 | Apache-2.0 | option c, and the later dispatch tier carrying job ids (section 9.5.7) |
+| `redis` / `ioredis` | 6.3.0 / 6.0.0 | MIT | option c (Redis Streams); not used |
+| `amqplib` | 2.2.0 | MIT | prior art: RabbitMQ; not used |
+| `@temporalio/client` | 1.24.0 | MIT | option d; prior art for task-queue fairness keys; not used |
+| `inngest` | 4.26.0 | Apache-2.0 | option d; not used |
+| `@trigger.dev/sdk` | 4.8.1 | MIT | option d; not used |
+| `@restatedev/restate-sdk` | 1.17.4 | MIT | option d; not used |
+| `@dbos-inc/dbos-sdk` | 5.3.0 | MIT | option d; prior art for partitioned queues in PostgreSQL; not used |
+| `@kubernetes/client-node` | 2.0.1 | Apache-2.0 | the later Kubernetes node provider (section 21.5) |
+| `@orama/stemmers` | 3.1.18 | Apache-2.0 | stemming in the keyed token index (section 14.7.9.9) |
+| `@cipherstash/stack` / `@cipherstash/protect` / `@cipherstash/protect-ffi` | 1.2.1 / 12.0.1 / 0.33.0 | MIT | prior art for queries over encrypted columns; not used |
+| `ciphersweet-js` | 2.0.6 | ISC | prior art: blind indexes; not used |
+| `mongodb-client-encryption` | 7.2.1 | Apache-2.0 | prior art: Queryable Encryption; not used |
 
 ## Appendix B. Verified typing listing
 

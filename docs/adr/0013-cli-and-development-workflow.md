@@ -1,13 +1,14 @@
 # 13. One `pennestack` CLI generated from the surface, and a generate-and-check development loop
 
-Date: 2026-10-11 (revised after review the same day, and on 2026-10-24 for addendum 3)
+Date: 2026-10-11 (revised after review the same day, on 2026-10-24 for addendum 3 and on 2026-10-25
+for ADRs 0025 and 0027)
 
 ## Status
 
 Proposed. The reservation of framework command names as module ids (item 2) is decision point 16
 for Jens (architecture.md section 26.1); if action commands move under a verb instead, item 2
 changes before the ADR is accepted. Scaffold edits of assembly files (item 7) are decision point
-61.
+61, and the `fleet` command group is decision point 62.
 
 ## Context
 
@@ -56,13 +57,14 @@ Facts checked on 2026-10-10 and 2026-10-11:
    in-process or the dev socket), the operator socket, and remote profiles over the invocation
    protocol, which the HTTP host serves for every app (ADR 0010); the CLI manifest artefact is produced
    by the CLI itself.
-2. **Reserved names.** Framework commands share the first level with module ids, so their 33
-   names (`app`, `backend`, `build`, `call`, `completion`, `consumers`, `core`, `db`, `dev`,
-   `doctor`, `domain`, `explain`, `flags`, `generate`, `help`, `init`, `introspect`, `jobs`, `keys`,
+2. **Reserved names.** Framework commands share the first level with module ids, so their 34 names
+   (`app`, `backend`, `build`, `call`, `completion`, `consumers`, `core`, `db`, `dev`, `doctor`,
+   `domain`, `explain`, `fleet`, `flags`, `generate`, `help`, `init`, `introspect`, `jobs`, `keys`,
    `login`, `logout`, `migrate`, `module`, `new`, `operator`, `profile`, `rollout`, `start`,
    `surface`, `tenant`, `version`, `watch`, `x`) are reserved module ids, frozen per major version;
-   `flags`, `rollout`, `surface` (ADRs 0021 to 0023) and `new` (ADR 0024) were added on 2026-10-24,
-   before the list is frozen. New framework commands go under an existing group or under `x`.
+   `flags`, `rollout`, `surface` (ADRs 0021 to 0023) and `new` (ADR 0024) were added on 2026-10-24
+   and `fleet` (ADR 0025) on 2026-10-25, before the list is frozen. New framework commands go under
+   an existing group or under `x`.
 3. **Outputs and exit codes.** Human output on a terminal, JSON otherwise (`--output` for text,
    table, JSON, YAML, NDJSON); subscriptions as NDJSON with automatic resume; exit codes 3 to 11 per
    error kind, 1 for internal errors, 2 for usage errors and 130 for interrupts. Profiles and
@@ -70,14 +72,16 @@ Facts checked on 2026-10-10 and 2026-10-11:
    that carry a `cli.login` hint, so the CLI never knows which module authenticates.
 4. **Framework commands**: `init`, `dev`, `build`, `start`, `generate`, `migrate` (an alias of
    `db apply`), `db` (`plan`, `generate`, `apply`, `status`, `check`, `introspect`, `retire`,
-   `rebuild`, `verify`, `restore`, with the semantics of architecture.md section 14), `consumers`,
-   `jobs`, `keys`, `operator token`, `introspect` (whose `diff` is an alias of `surface diff`),
-   `surface diff|version new|usage|retire` (ADR 0021), `rollout status|finalize|abort` (ADR 0022),
-   `flags list|get|set|history|explain|stale` (ADR 0023), `new <kind> <reference>` for module,
-   entity, action, flag, policy, reaction, service, error, schedule, stream, topic, contribution,
-   condition, version-change, lib, shape, app and script (ADR 0024), `module new|rename|retire`
-   (`module new` an alias of `new module`), `backend`, `tenant` and `domain` aliases, `call`,
-   `watch`, `explain`, `doctor`, `login`, `logout`, `profile`, `completion`.
+   `rebuild`, `verify`, `restore`, `reindex` (ADR 0027), with the semantics of architecture.md
+   section 14), `consumers`, `jobs` (with `stats`, `lanes`, `explain`, `pause` and `resume` from ADR
+   0025), `fleet` (nodes, processes and scaling, ADR 0025), `keys`, `operator token`, `introspect`
+   (whose `diff` is an alias of `surface diff`), `surface diff|version new|usage|retire` (ADR 0021),
+   `rollout status|finalize|abort` (ADR 0022), `flags list|get|set|history|explain|stale` (ADR
+   0023), `new <kind> <reference>` for module, entity, action, flag, policy, reaction, service,
+   error, schedule, stream, topic, contribution, condition, version-change, lib, shape, app and
+   script (ADR 0024), `module new|rename|retire` (`module new` an alias of `new module`), `backend`,
+   `tenant` and `domain` aliases, `call`, `watch`, `explain`, `doctor`, `login`, `logout`,
+   `profile`, `completion`.
 5. **Development loop.** `pennestack dev` supervises `tsc -b --watch` (TypeScript 7.0.2), a
    fresh-process probe per change that writes only changed artefacts, the data layer's development
    database synchronisation, and an app process restarted on change with the dev operator socket and

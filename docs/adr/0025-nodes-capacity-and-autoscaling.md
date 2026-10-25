@@ -6,7 +6,9 @@ Date: 2026-10-25
 
 Proposed. Amends ADR 0015 (decisions 3, 6 and 7). The queue implementation is decision point 6 for
 Jens (architecture.md section 26.1); this ADR assumes the recommended kernel queue. Singleton leases
-stay with ADR 0018, the executor contract with ADR 0026 (decision 50a).
+stay with ADR 0018, the executor contract with ADR 0026 (decision 50a). The command name, the
+release of automatic scaling and the docker provider are decision points 62 to 64. Architecture.md
+sections 9.5 and 21 specify the design.
 
 ## Context
 
@@ -50,8 +52,8 @@ engines) and autoscaling prior art; KEDA's backlog-only Temporal scaler scales i
 7. **Providers and drains.** `static` in the core, `docker` as an opt-in package behind a socket
    proxy, Kubernetes and cloud providers later. Scale-down is a drain with a deadline (60 seconds by
    default) that releases unfinished jobs.
-8. **Commands.** `pennestack fleet` (nodes, processes, scaling) becomes a reserved name; `pennestack
-   jobs` gains `stats`, `lanes` and `explain`.
+8. **Commands.** `pennestack fleet` (nodes, processes, scaling) becomes a reserved name (decision
+   point 62); `pennestack jobs` gains `stats`, `lanes` and `explain`.
 9. **Upgrade path.** `JobQueue`, `JobStore`, `JobSpec` and the conformance suite stay fixed: more
    placements, partitioned `ps_jobs` and a pooler, then a dispatch tier on NATS JetStream.
 

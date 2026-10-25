@@ -5,7 +5,8 @@ Date: 2026-10-25
 ## Status
 
 Proposed. Decision 7b of the register (2026-10-25) is taken; the defaults below are open decision
-points for Jens (architecture.md section 26.1). Amends ADR 0009, decision 2.
+points 65 to 72 for Jens (architecture.md section 26.1). Amends ADR 0009, decision 2.
+Architecture.md section 14.7.9 specifies the design.
 
 ## Context
 

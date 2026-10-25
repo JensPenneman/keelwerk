@@ -1,18 +1,23 @@
 /**
  * pennestack public API sketch, as seen by an application author.
- * Date: 2026-10-24 (first version 2026-10-08; rewritten in the literal form on 2026-10-24). Status:
- * target for the spike of roadmap M0, which type-checks it as the acceptance test of the DSL; it does
- * not compile against anything yet.
+ * Date: 2026-10-25 (first version 2026-10-08; rewritten in the literal form on 2026-10-24 and in the
+ * strict model of decision 50a on 2026-10-25). Status: target for the spike of roadmap M0, which
+ * type-checks it as the acceptance test of the DSL; it does not compile against anything yet.
  *
  * It shows: an accounts module, an authentication module that contributes to accounts and adapts
- * itself when accounts (or a live module) is present, two apps composing them, a deployment, rules
- * with conditions on the row acted on and the row produced, commands, queries and a subscription,
- * and how the derived types are consumed. Every module is object literals (decision point 3, decided
- * on 2026-10-24): a module base, parts typed against it, and a module literal that mounts them. In a
- * project each part is a file of its own (architecture.md section 23); the sketch keeps them in one
- * file, as tests and spikes may. The DSL is specified in architecture.md section 4, the type-level
- * model in section 4.7, the handler context in section 7.6, authorization in section 8 and the
- * authentication module in section 17.2.
+ * itself when accounts (or a live module) is present, a small module with an external effect, two
+ * apps composing the first two, a deployment, rules with conditions on the row acted on and the row
+ * produced, commands, queries and a subscription, and how the derived types are consumed. Every
+ * module is object literals (decision point 3, decided on 2026-10-24): a module base, parts typed
+ * against it, and a module literal that mounts them. In a project each part is a file of its own
+ * (architecture.md section 23); the sketch keeps them in one file, as tests and spikes may.
+ *
+ * Every handler is pure (decision 50a, decided on 2026-10-25; the section "Pure handlers and the
+ * effect interpreter"): a command's `decide` yields requests with `yield*` and returns a decision
+ * (events, effects, result); a query's `read` returns a request or a value; reactions `react`;
+ * services and fills return values or generators. Only effect executors (`defineEffectExecutor`)
+ * run imperative code. The DSL is specified in architecture.md section 4, the type-level model in
+ * section 4.7, authorization in section 8 and the authentication module in section 17.2.
  */
 
 import {
@@ -22,6 +27,8 @@ import {
   defineCondition,
   defineContribution,
   defineDeployment,
+  defineEffect,
+  defineEffectExecutor,
   defineEntity,
   defineError,
   defineFill,
@@ -37,7 +44,9 @@ import {
   errors,
   extensionPoint,
   field,
+  invoke,
   mapItems,
+  outcomeOf,
   pageOf,
   relation,
   secret,
@@ -47,6 +56,8 @@ import {
   byHostname,
   byScopeKey,
   type AppType,
+  type Draft,
+  type Gen,
   type Id,
   type ModuleBaseType,
   type ModuleType,
@@ -68,8 +79,8 @@ import type { AppClient } from '@pennestack/client'
 export interface IdentityProvider {
   readonly id: string
   readonly label: string
-  /** Fillers are bound to their contributor's context (section 5.5): auth reads its own credentials here. */
-  listFor(profileId: Id<'accounts.profile'>): Promise<ReadonlyArray<{ kind: string; label: string; createdAt: Date }>>
+  /** A pure generator, bound to its contributor's context (gap G16): auth loads its own credentials here. */
+  listFor(profileId: Id<'accounts.profile'>): Gen<ReadonlyArray<{ kind: string; label: string; createdAt: Date }>>
 }
 
 export const emailTaken = defineError('accounts.email_taken', {
@@ -83,7 +94,9 @@ const profile = defineEntity({
   dataSubject: 'id', // the row is the subject's own record
   fields: {
     displayName: field.string({ maxLength: 120 }).merge('lww'),
-    email: field.string({ format: 'email' }).unique().personal().maskable(), // unique implies merge 'exclusive'
+    // unique implies merge 'exclusive' and the 'eq' capability; 'email' normalises case, so uniqueness is
+    // case-insensitive; 'prefix' (three characters at least) serves the search below (section 14.7.9)
+    email: field.string({ format: 'email' }).unique().personal({ normalize: 'email', queries: ['prefix'] }).maskable(),
     locale: field.string().default('nl-BE'),
     deactivatedAt: field.instant().optional(),
   },
@@ -112,7 +125,8 @@ const accountsBaseDef = defineModuleBase({
 export interface AccountsBase extends ModuleBaseType<typeof accountsBaseDef> {}
 export const accountsBase: AccountsBase = accountsBaseDef
 
-// A command on a chain-backed entity: a pure decider over the full current row.
+// A command on a chain-backed entity: a plain function of the input, the full current row and ctx.
+// ctx.clock.now() is the invocation's time, recorded as the events' recordedAt.
 const deactivate = defineCommand(accountsBase, profile, {
   input: shape({ reason: field.string().optional() }),
   errors: [],
@@ -120,45 +134,51 @@ const deactivate = defineCommand(accountsBase, profile, {
   decide: (input, current, ctx) => [ctx.events.deactivated({ at: ctx.clock.now(), reason: input.reason })],
 })
 
-// An entity query: ctx.target is the entity as the caller may read it under this action's rules.
+// An entity query: read returns a request (a query description) that the kernel plans and runs.
+// ctx.target is the entity as the caller may read it under this action's rules; email declares
+// 'prefix', whose minimum is three characters, so the input requires three.
 const search = defineQuery(accountsBase, profile, {
-  input: shape({ text: field.string({ maxLength: 80 }) }),
+  input: shape({ text: field.string({ minLength: 3, maxLength: 80 }) }),
   output: pageOf(profile),
   page: { sortable: ['displayName', 'createdAt'], defaultSize: 25, maxSize: 100 },
-  handle: (input, ctx) =>
+  read: (input, ctx) =>
     ctx.target.query({
       where: { or: [{ displayName: { contains: input.text } }, { email: { startsWith: input.text } }] },
       sort: [{ field: 'displayName', direction: 'asc' }],
     }),
 })
 
-// A module-level command. ctx.data runs with accounts' own authority, so the uniqueness check
-// sees every profile of the tenant even though the caller is anonymous (section 8.4).
+// A module-level command as a generator. ctx.load runs with accounts' own authority, so the uniqueness
+// check sees every profile of the tenant even though the caller is anonymous (section 8.4). A concurrent
+// registration fails the unique index at commit; the kernel repeats the unit and this check then throws.
 const register = defineCommand(accountsBase, {
   input: shape({ displayName: field.string(), email: field.string({ format: 'email' }) }),
   output: shape({ profileId: field.ref.own('profile') }),
   errors: [emailTaken],
   execution: 'sync',
   auth: { public: true },
-  handle: async (input, ctx) => {
+  *decide(input, ctx) {
     if (!ctx.config.allowSelfRegistration) throw errors.forbidden('Self-registration is disabled.')
-    const existing = await ctx.data.accounts.profile.findOne({ where: { email: input.email } })
-    if (existing) throw emailTaken({ email: input.email })
-    const created = await ctx.data.accounts.profile.create({ displayName: input.displayName, email: input.email })
-    return { profileId: created.id }
+    if (yield* ctx.load.accounts.profile.exists({ email: input.email })) throw emailTaken({ email: input.email })
+    const id = yield* ctx.newId(profile) // recorded in the decision record, so a re-decide reproduces it
+    return {
+      events: [ctx.write.accounts.profile.create({ id, displayName: input.displayName, email: input.email })],
+      result: { profileId: id },
+    }
   },
 })
 
-// A query that reads the extension point; empty when no login module is selected.
+// A query that reads the extension point; empty when no login module is selected. The providers'
+// generators yield their own loads, answered with their contributor's authority.
 const identities = defineQuery(accountsBase, {
   input: shape({ profileId: field.ref.own('profile') }),
   output: shape({ providers: field.list(field.json(shape({ id: field.string(), label: field.string() }))) }),
   principal: 'user',
-  handle: async (input, ctx) => ({
-    providers: await Promise.all(
-      ctx.extensions.identityProviders.map(async (p) => ({ id: p.id, label: p.label, items: await p.listFor(input.profileId) })),
-    ),
-  }),
+  *read(input, ctx) {
+    const providers = []
+    for (const p of ctx.extensions.identityProviders) providers.push({ id: p.id, label: p.label, items: yield* p.listFor(input.profileId) })
+    return { providers }
+  },
 })
 
 const profilePolicy = definePolicy(accountsBase, profile, [
@@ -183,8 +203,9 @@ const profilePolicy = definePolicy(accountsBase, profile, [
 const registerPolicy = definePolicy(accountsBase, register, [{ effect: 'allow', public: true }])
 const identitiesPolicy = definePolicy(accountsBase, identities, [{ effect: 'allow', principal: 'user' }])
 
-// Bound to accounts (section 5.5): callers write ctx.services.accounts.findByEmail(email).
-const findByEmail = defineService(accountsBase, async (own, email: string) => own.data.accounts.profile.findOne({ where: { email } }))
+// Bound to accounts (section 5.5): a pure service returning a request; callers write
+// `yield* ctx.services.accounts.findByEmail(email)`.
+const findByEmail = defineService(accountsBase, (own, email: string) => own.load.accounts.profile.one({ where: { email } }))
 
 // The module literal: mounts the parts under keys that are ids.
 const accountsDef = defineModule(accountsBase, {
@@ -216,7 +237,7 @@ const credential = defineEntity({
   fields: {
     subject: field.subject().index(), // opaque subject id; a profile id when accounts is selected
     kind: field.enum(['password', 'passkey']),
-    identifier: field.string({ format: 'email' }).optional().personal(), // login name of password credentials
+    identifier: field.string({ format: 'email' }).optional().personal({ normalize: 'email' }), // login name; the unique index implies 'eq'
     verifier: field.verifier(), // Argon2id hash or passkey public key: hidden, sealed in events (section 6.6)
     label: field.string().optional().merge('lww'),
     lastUsedAt: field.instant().optional().maskable(),
@@ -292,6 +313,7 @@ const revoke = defineCommand(authBase, credential, {
   decide: (input, current, ctx) => [ctx.events.revoked({ at: ctx.clock.now(), reason: input.reason })],
 })
 
+// Verification is computation, the session is state: login performs no effect.
 const login = defineCommand(authBase, {
   input: shape({ identifier: field.string({ format: 'email' }), password: field.secret() }),
   output: shape({ sessionToken: field.string(), sessionId: field.ref.own('session'), expiresAt: field.instant() }),
@@ -302,23 +324,27 @@ const login = defineCommand(authBase, {
     http: { cookie: { set: { name: '__Host-pennestack_session', from: 'sessionToken', expiresFrom: 'expiresAt' }, omitFromBody: ['sessionToken'] } },
     cli: { login: { tokenField: 'sessionToken' } },
   },
-  handle: async (input, ctx) => {
+  *decide(input, ctx) {
     // auth's own authority: reading credentials needs no rule and no escalation (section 8.4).
-    const cred = await ctx.data.auth.credential.findOne({ where: { identifier: input.identifier, kind: 'password', revokedAt: { isNull: true } } })
-    // auth's own code calls the library function its verifyPassword service wraps (section 5.5);
-    // an unknown identifier is verified against a dummy hash (section 17.2.2). Secret inputs are plain in process, redacted in logs.
-    const ok = await argon2idVerify(cred?.verifier ?? DUMMY_VERIFIER, input.password)
+    const cred = yield* ctx.load.auth.credential.one({ where: { identifier: input.identifier, kind: 'password', revokedAt: { isNull: true } } })
+    // Argon2id is pure but slow: the kernel answers it off the event loop. An unknown identifier is
+    // verified against a dummy hash (section 17.2.2). Secret inputs are plain in process, redacted in logs.
+    const ok = yield* ctx.compute.argon2idVerify(cred?.verifier ?? DUMMY_VERIFIER, input.password)
     if (!cred || !ok) throw invalidCredentials()
     const now = ctx.clock.now()
-    const token = ctx.secrets.issue({ prefix: 'pss' }) // { plain, publicId, verifier }: shown once
-    const idleExpiresAt = new Date(now.getTime() + ctx.config.sessionIdleMinutes * 60_000)
-    const absoluteExpiresAt = new Date(now.getTime() + ctx.config.sessionAbsoluteDays * 86_400_000)
-    const s = await ctx.data.auth.session.create({
-      subject: cred.subject, credentialId: cred.id, publicId: token.publicId, tokenVerifier: token.verifier,
-      authenticatedAt: now, idleExpiresAt, absoluteExpiresAt,
-    })
-    await ctx.data.auth.credential.update({ where: { id: cred.id }, patch: { lastUsedAt: now } })
-    return { sessionToken: token.plain, sessionId: s.id, expiresAt: idleExpiresAt }
+    const id = yield* ctx.newId(session)
+    const token = yield* ctx.secrets.issue({ prefix: 'pss' }) // { plain, publicId, verifier }: recorded without the plaintext
+    const idleExpiresAt = addMinutes(now, ctx.config.sessionIdleMinutes)
+    return {
+      events: [
+        ctx.write.auth.session.create({
+          id, subject: cred.subject, credentialId: cred.id, publicId: token.publicId, tokenVerifier: token.verifier,
+          authenticatedAt: now, idleExpiresAt, absoluteExpiresAt: addDays(now, ctx.config.sessionAbsoluteDays),
+        }),
+        ctx.write.auth.credential.update(cred, { lastUsedAt: now }), // the loaded row's version is the expected version
+      ],
+      result: { sessionToken: token.plain, sessionId: id, expiresAt: idleExpiresAt },
+    }
   },
 })
 
@@ -326,20 +352,27 @@ const logout = defineCommand(authBase, {
   principal: 'user',
   execution: 'sync',
   hints: { http: { cookie: { clear: { name: '__Host-pennestack_session' } } } },
-  handle: async (_input, ctx) => {
+  decide: (_input, ctx) => {
     const sessionId = ctx.principal.ref?.credentialId
-    if (sessionId) await ctx.data.auth.session.update({ where: { id: sessionId }, patch: { revokedAt: ctx.clock.now() } })
+    return sessionId ? [ctx.write.auth.session.update(sessionId, { revokedAt: ctx.clock.now() })] : []
   },
 })
 
-// Invoked by auth's own reactions under auth.system; no user rule allows it.
+// Invoked by auth's own reactions under auth.system; no user rule allows it. ctx.all answers both loads
+// in one round trip where the adapter can.
 const revokeSubject = defineCommand(authBase, {
   input: shape({ subject: field.subject(), reason: field.string() }),
   execution: 'sync',
-  handle: async (input, ctx) => {
-    const now = ctx.clock.now()
-    await ctx.data.auth.credential.update({ where: { subject: input.subject, revokedAt: { isNull: true } }, patch: { revokedAt: now } })
-    await ctx.data.auth.session.update({ where: { subject: input.subject, revokedAt: { isNull: true } }, patch: { revokedAt: now } })
+  *decide(input, ctx) {
+    const at = ctx.clock.now()
+    const [credentials, sessions] = yield* ctx.all([
+      ctx.load.auth.credential.many({ where: { subject: input.subject, revokedAt: { isNull: true } }, limit: 1000 }),
+      ctx.load.auth.session.many({ where: { subject: input.subject, revokedAt: { isNull: true } }, limit: 1000 }),
+    ])
+    return [
+      ...credentials.map((c) => ctx.write.auth.credential.revoked(c, { at, reason: input.reason })),
+      ...sessions.map((s) => ctx.write.auth.session.update(s, { revokedAt: at })),
+    ]
   },
 })
 
@@ -362,9 +395,13 @@ const sessionPolicy = definePolicy(authBase, session, [
   { effect: 'allow', actions: ['read'], id: 'self-sessions', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) },
 ])
 
-// Services for dependants. Argon2id through node:crypto.
-const verifyPassword = defineService(authBase, async (_own, verifier: string | undefined, password: string) => argon2idVerify(verifier ?? DUMMY_VERIFIER, password))
-const hashPassword = defineService(authBase, async (_own, password: string) => argon2idHash(password))
+// Services for dependants: pure, returning requests or generators that callers delegate to with yield*.
+// The random salt is an answer recorded in the caller's decision record, so the hash is reproducible.
+const verifyPassword = defineService(authBase, (own, verifier: string | undefined, password: string) => own.compute.argon2idVerify(verifier ?? DUMMY_VERIFIER, password))
+const hashPassword = defineService(authBase, function* (own, password: string) {
+  const salt = yield* own.random(16)
+  return yield* own.compute.argon2idHash(password, salt)
+})
 
 // Parts of the contribution to accounts: typed with within(), so accounts counts as required and
 // profile rows include the fields auth contributes. They run with auth's context.
@@ -373,14 +410,17 @@ const changePassword = defineCommand(within(authBase, toAccounts), 'profile', {
   principal: 'user',
   errors: [reauthenticationRequired],
   execution: 'sync',
-  handle: async (input, ctx) => {
-    const recent = await isRecentlyAuthenticated(ctx)
-    const cred = await ctx.data.auth.credential.findOne({ where: { subject: ctx.principal.subject, kind: 'password', revokedAt: { isNull: true } } })
-    const confirmed = input.currentPassword !== undefined && (await argon2idVerify(cred?.verifier ?? DUMMY_VERIFIER, input.currentPassword))
+  *decide(input, _current, ctx) {
+    const recent = yield* isRecentlyAuthenticated(ctx) // lib/: a generator that loads the caller's session
+    const cred = yield* ctx.load.auth.credential.one({ where: { subject: ctx.principal.subject, kind: 'password', revokedAt: { isNull: true } } })
+    const confirmed = input.currentPassword !== undefined && (yield* ctx.compute.argon2idVerify(cred?.verifier ?? DUMMY_VERIFIER, input.currentPassword))
     if (!recent && !confirmed) throw reauthenticationRequired()
-    const verifier = await argon2idHash(input.newPassword)
-    if (cred) await ctx.data.auth.credential.update({ where: { id: cred.id }, patch: { verifier } }) // the old hash's key is destroyed
-    await revokeOtherSessions(ctx)
+    const salt = yield* ctx.random(16)
+    const verifier = yield* ctx.compute.argon2idHash(input.newPassword, salt)
+    return [
+      ...(cred ? [ctx.write.auth.credential.update(cred, { verifier })] : []), // the old hash's key is destroyed at append
+      ...(yield* revokeOtherSessions(ctx)), // lib/: loads the caller's other sessions and returns their drafts
+    ]
   },
 })
 
@@ -413,31 +453,31 @@ const accountsProfilePolicy = definePolicy(within(authBase, toAccounts), 'profil
   },
 ])
 
-// A factory of auth's own context: listFor reads auth.credential with auth's authority.
+// A factory of auth's own context: listFor is a generator that loads auth.credential with auth's authority.
 const identityProvidersFill = defineFill(within(authBase, toAccounts), 'identityProviders', (own) => [passwordProvider(own)])
 
 // accounts influences auth: when a profile is deactivated, every credential and session of that
-// subject is revoked, in the same transaction, under auth.system (section 7.7).
+// subject is revoked, in the same transaction, under auth.system (section 7.7). The reaction returns
+// the invocation as an effect; the kernel runs it in this unit.
 const revokeOnDeactivation = defineReaction(within(authBase, whenAccounts), {
   on: 'accounts.profile.deactivated',
   timing: 'inline',
-  handle: async (event, ctx) => {
-    await ctx.invoke(revokeSubject, { subject: asSubject(event.state.id), reason: 'profile deactivated' }) // an own action, by value
-  },
+  react: (event) => ({ effects: [invoke(revokeSubject, { subject: asSubject(event.state.id), reason: 'profile deactivated' })] }), // an own action, by value
 })
 
 // and the login timestamp flows back to the profile field auth contributed (a keyed job per event).
 const recordLogin = defineReaction(within(authBase, whenAccounts), {
   on: 'auth.session.created',
   timing: 'async',
-  handle: async (event, ctx) => {
+  react: (event, ctx) => {
     const profileId = event.current ? profileIdOf(event.current.subject) : null
     // auth may write lastLoginAt because it contributed that field to accounts.profile (section 8.4)
-    if (profileId) await ctx.data.accounts.profile.update({ where: { id: profileId }, patch: { lastLoginAt: event.at } })
+    return profileId ? [ctx.write.accounts.profile.update(profileId, { lastLoginAt: event.at })] : []
   },
 })
 
-// A subscription that exists only when a module providing the live contract is selected.
+// A subscription that exists only when a module providing the live contract is selected. The source
+// is a description the live module runs; the item map is a pure function.
 const sessionEvents = defineSubscription(within(authBase, whenLive), {
   event: shape({ sessionId: field.ref.own('session'), kind: field.enum(['created', 'revoked']) }),
   principal: 'user',
@@ -449,8 +489,11 @@ const sessionEvents = defineSubscription(within(authBase, whenLive), {
 })
 const sessionEventsPolicy = definePolicy(within(authBase, whenLive), sessionEvents, [{ effect: 'allow', principal: 'user' }])
 
-const onTenantCreated = defineHook(authBase, 'onTenantCreated', async (tenant, ctx) => {
+// A lifecycle hook is a reaction: pure, returning a decision. Logging is the one capability in ctx:
+// write-only, never part of the decision.
+const onTenantCreated = defineHook(authBase, 'onTenantCreated', (tenant, ctx) => {
   ctx.log.info({ tenant: tenant.id }, 'auth ready for tenant')
+  return []
 })
 
 const authDef = defineModule(authBase, {
@@ -477,6 +520,119 @@ export interface Auth extends ModuleType<typeof authDef> {}
 export const auth: Auth = authDef
 
 // ============================================================================
+// 2b. hooks: an external effect with its executor, a continuation and an inline test (decision 50a).
+//     Outbound webhooks (decision point 49), reduced to one endpoint per backend. The module compiles
+//     on its own (section 3.4); the apps below do not select it.
+// ============================================================================
+
+const delivery = defineEntity({
+  prefix: 'hdl',
+  fields: {
+    event: field.string({ maxLength: 120 }),
+    body: field.text(), // the JSON body as sent
+    status: field.enum(['pending', 'delivered', 'failed']).default('pending'),
+    responseStatus: field.integer().optional(),
+  },
+  events: {
+    settled: shape({ status: field.enum(['delivered', 'failed']), responseStatus: field.integer().optional(), at: field.instant() }),
+  },
+  evolve: {
+    settled: (state, e) => ({ ...state, status: e.status, responseStatus: e.responseStatus }),
+  },
+})
+
+const hooksBaseDef = defineModuleBase({
+  id: 'hooks',
+  version: '0.1.0',
+  config: shape({
+    endpoint: field.string({ format: 'uri' }),
+    signingKey: field.secret(), // sealed under the backend's key; only the executor reveals it
+  }),
+  entities: { delivery },
+})
+export interface HooksBase extends ModuleBaseType<typeof hooksBaseDef> {}
+export const hooksBase: HooksBase = hooksBaseDef
+
+// The effect: recorded as core.effect/<id> with `requested` (in the requesting unit) and `settled`.
+// Its input says everything the effect does; the secret travels as a reference, never as plaintext.
+const post = defineEffect(hooksBase, {
+  input: shape({ url: field.string({ format: 'uri' }), signingKey: field.secret(), body: field.text() }),
+  output: shape({ status: field.integer() }),
+})
+
+// The module's only imperative code: no data access, egress only, the effect id as idempotency key.
+// One POST is all or nothing, so its retries are mechanical and belong to the executor.
+const postExecutor = defineEffectExecutor(hooksBase, post, {
+  queue: 'hooks',
+  inline: true, // needs no capability, so prepare may also perform it
+  timeout: '10s',
+  group: ({ input }) => ({ id: `host:${new URL(input.url).host}`, concurrency: 2 }),
+  retry: { delays: 'exponential', maxDelay: '30m', giveUpAfter: 'PT24H' },
+  run: async (input, ctx) => {
+    const key = await ctx.secrets.reveal(input.signingKey, 'sign an outbound webhook')
+    const response = await ctx.egress.fetch(input.url, {
+      method: 'POST',
+      body: input.body,
+      headers: { 'content-type': 'application/json', 'idempotency-key': ctx.effect.id, 'x-signature-256': signHmacSha256(key, input.body) },
+      signal: ctx.signal,
+    })
+    if (response.status === 429 || response.status >= 500) throw errors.unavailable(`The endpoint answered ${response.status}.`) // retried
+    return { status: response.status } // a 4xx is an outcome, not an error
+  },
+})
+
+// A command that requests the effect with a continuation; the response also lists the effect's id,
+// so a client can watch core.effect.watch until it settles.
+const notify = defineCommand(hooksBase, {
+  input: shape({ event: field.string({ maxLength: 120 }), payload: field.text() }),
+  output: shape({ deliveryId: field.ref.own('delivery') }),
+  execution: 'sync',
+  *decide(input, ctx) {
+    const id = yield* ctx.newId(delivery)
+    const body = JSON.stringify({ id, event: input.event, payload: input.payload })
+    return {
+      events: [ctx.write.hooks.delivery.create({ id, event: input.event, body })],
+      effects: [post({ url: ctx.config.endpoint, signingKey: ctx.config.signingKey, body }, { then: recordOutcome, with: { id } })],
+      result: { deliveryId: id },
+    }
+  },
+})
+
+// The continuation: an entity command the kernel invokes under hooks.system with the effect's outcome.
+const recordOutcome = defineCommand(hooksBase, delivery, {
+  input: outcomeOf(post),
+  decide: (input, _current, ctx) => {
+    const status = input.outcome.ok ? input.outcome.value.status : undefined
+    return [ctx.events.settled({ status: status !== undefined && status < 300 ? 'delivered' : 'failed', responseStatus: status, at: ctx.clock.now() })]
+  },
+})
+
+// An inline effect in prepare: the operator waits for the answer, which nothing retries; the effect is
+// still recorded. decide sees prepare's result as ctx.prepared.
+const testEndpoint = defineCommand(hooksBase, {
+  output: shape({ status: field.integer().optional(), error: field.string().optional() }),
+  principal: 'operator',
+  execution: 'sync',
+  *prepare(_input, ctx) {
+    return yield* ctx.perform(post({ url: ctx.config.endpoint, signingKey: ctx.config.signingKey, body: '{"event":"hooks.test"}' }))
+  },
+  decide: (_input, ctx) => ({ result: ctx.prepared.ok ? { status: ctx.prepared.value.status } : { error: ctx.prepared.error.code } }),
+})
+
+const notifyPolicy = definePolicy(hooksBase, notify, [{ effect: 'allow', principal: 'operator' }])
+const testEndpointPolicy = definePolicy(hooksBase, testEndpoint, [{ effect: 'allow', principal: 'operator' }])
+
+const hooksDef = defineModule(hooksBase, {
+  actions: { notify, testEndpoint },
+  entityActions: { delivery: { recordOutcome } }, // hooks.system may invoke its own actions (section 7.7)
+  policies: [notifyPolicy, testEndpointPolicy],
+  effects: { post },
+  executors: { post: postExecutor },
+})
+export interface Hooks extends ModuleType<typeof hooksDef> {}
+export const hooks: Hooks = hooksDef
+
+// ============================================================================
 // 3. Two apps from the same modules. Apps list modules only; infrastructure is the deployment's.
 //    In a project, each app's selection is the as-const tuple of its src/modules.ts (section 23.1).
 // ============================================================================
@@ -491,14 +647,14 @@ export const directory: Directory = directoryDef
 
 const portalModules = [accounts, auth, live, rest, graphql] as const
 // An app action, typed against the app's selection.
-const health = defineQuery(portalModules, { auth: { public: true }, scope: 'backend', output: shape({ ok: field.boolean() }), handle: async () => ({ ok: true }) })
+const health = defineQuery(portalModules, { auth: { public: true }, scope: 'backend', output: shape({ ok: field.boolean() }), read: () => ({ ok: true }) })
 
 const portalDef = defineApp({
   id: 'portal',
   modules: portalModules,
   actions: { health },
   execution: {
-    'accounts.profile.deactivate': 'either', // external callers may prefer async; ctx.invoke keeps the declared mode
+    'accounts.profile.deactivate': 'either', // external callers may prefer async; invoke keeps the declared mode
   },
   authorization: { mode: 'strict', decisionLog: 'denials' },
   policies: {
@@ -531,7 +687,7 @@ export default defineDeployment({
     httpHost({ listen: [{ port: 3000 }] }), // provides contracts.httpHost; serves the invocation protocol for every app
     ledgerFile({ path: '/var/lib/pennestack-ledger/erasure.log' }),
   ],
-  control: { adapter: 'postgres', url: env('PENNESTACK_CONTROL_URL') },
+  control: { adapter: 'postgres', url: env('PENNESTACK_CONTROL_URL') }, // env() and secret() read the environment here only
   placements: {
     default: { adapter: 'postgres', url: env('PENNESTACK_DATA_URL'), strategy: 'shared-tables' },
     isolated: { adapter: 'postgres', url: env('PENNESTACK_ISOLATED_URL'), strategy: 'schema-per-tenant' },
@@ -543,7 +699,8 @@ export default defineDeployment({
 })
 
 // ============================================================================
-// 5. Calling actions: the CLI, tests and modules all go through the invoker.
+// 5. Calling actions: the CLI, tests and modules all go through the invoker. Callers outside
+//    pennestack are imperative code; they await outcomes, handlers never do.
 // ============================================================================
 
 export async function example(operator: AppClient<Portal>, client: AppClient<Portal>) {
@@ -554,10 +711,10 @@ export async function example(operator: AppClient<Portal>, client: AppClient<Por
   // Tenant-scoped calls: the scope comes from the client's profile (backend, tenant) and the token, once logged in.
   const anonymous = client.as({ backend: backend.id, tenant: tenant.id })
   const { profileId } = await anonymous.invoke('accounts.register', { displayName: 'Jens', email: 'jens@acme.example' })
-  const { sessionToken } = await anonymous.invoke('auth.login', { identifier: 'jens@acme.example', password: '<password>' })
+  const { sessionToken } = await anonymous.invoke('auth.login', { identifier: 'Jens@Acme.example', password: '<password>' }) // normalised: matches
   const scoped = client.as({ backend: backend.id, tenant: tenant.id, token: sessionToken })
 
-  const page = await scoped.invoke('accounts.profile.search', { text: 'Je', first: 10 })
+  const page = await scoped.invoke('accounts.profile.search', { text: 'Jen', first: 10 }) // three characters: the prefix minimum
   const receipt = await scoped.invoke('accounts.profile.deactivate', { id: profileId }, { prefer: 'async' })
   //    ^ { commandId, status: 'accepted' } because the app declared `either` for external callers
   void receipt
@@ -573,11 +730,14 @@ export async function example(operator: AppClient<Portal>, client: AppClient<Por
 }
 
 // Helpers assumed from a module or from the application; shown so the sketch reads top to bottom.
+// Pure helpers live in a module's lib/; signHmacSha256 is an executor helper (src/executors/lib/),
+// the only place a module may use node:crypto.
 declare const DUMMY_VERIFIER: string
-declare function argon2idVerify(verifier: string, password: string): Promise<boolean>
-declare function argon2idHash(password: string): Promise<string>
+declare function addMinutes(at: Date, minutes: number): Date
+declare function addDays(at: Date, days: number): Date
 declare function passwordProvider(own: unknown): IdentityProvider
-declare function isRecentlyAuthenticated(ctx: unknown): Promise<boolean>
-declare function revokeOtherSessions(ctx: unknown): Promise<void>
+declare function isRecentlyAuthenticated(ctx: unknown): Gen<boolean>
+declare function revokeOtherSessions(ctx: unknown): Gen<readonly Draft[]>
 declare function asSubject(profileId: Id<'accounts.profile'>): string
 declare function profileIdOf(subject: string): Id<'accounts.profile'> | null
+declare function signHmacSha256(key: string, body: string): string

@@ -1,10 +1,12 @@
 # 9. Personal data, credential material, retention and erasure: crypto-shredding in the chain, scrubbed projections, operator-chosen retention, restores that never resurrect
 
-Date: 2026-10-11 (revised after review the same day)
+Date: 2026-10-11 (revised after review the same day; amended 2026-10-25)
 
 ## Status
 
-Proposed
+Proposed. Decision 2's plaintext state tables, and the consequence about plaintext in backups of
+state tables, are superseded by [ADR 0027](0027-encrypted-personal-data-and-queries.md) (decision 7b
+of 2026-10-25).
 
 ## Context
 
@@ -45,7 +47,8 @@ and the key hierarchy had no keys for secrets that are not tenant data.
 2. **Encryption in the chain.** Personal values in event payloads and before-images are encrypted with
    the subject's data key: AES-256-GCM, a random 96-bit nonce, associated data binding the namespace,
    stream, event and field. State tables hold plaintext, so queries keep working, and erasure scrubs
-   them.
+   them (superseded by ADR 0027: state columns are sealed too and queryable per declared
+   capability).
 3. **Credential material.** Values of `field.secret()` and `field.verifier()` are sealed with a value
    key of their own, in state rows and events alike; the kernel destroys a value's key when the value
    is replaced, the row archived or purged. Hidden fields are left out of before-images unless they
@@ -84,8 +87,8 @@ and the key hierarchy had no keys for secrets that are not tenant data.
    not personal data but must go, records the original hash in a ledger, and accepts that the content
    of that event no longer verifies; inside CRDT history it uses Loro's redaction.
 10. **Elsewhere.** Personal, secret, verifier and hidden values never enter logs, traces or decision
-    logs; receipts of entity commands store references rather than rows; completed jobs are removed
-    after seven days.
+    logs; receipts of entity commands store references rather than rows; finished jobs keep only
+    their outcome, without input, in `ps_job_history` for seven days (ADR 0025).
 
 ## Consequences
 
@@ -93,7 +96,9 @@ and the key hierarchy had no keys for secrets that are not tenant data.
   disappear.
 - A database dump yields no former password hash, token verifier or secret value: their keys are gone.
 - Filters, sorting, uniqueness and search on personal fields keep working, at the price of plaintext
-  in backups of state tables until they expire (a decision point for Jens).
+  in backups of state tables until they expire (a decision point for Jens). Superseded by ADR 0027:
+  backups hold ciphertext, wrapped keys and index tags, and queries on personal fields use the
+  capabilities each field declares.
 - A dump of a placement alone cannot decrypt personal values in the chain; losing the master key, on
   the other hand, loses every personal value, secret and blob, so the master key needs its own
   backup and custody procedure.

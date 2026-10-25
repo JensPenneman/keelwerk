@@ -44,7 +44,7 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
    reason, default deny): architecture.md section 8.2 as written, ADR 0005.
 6. **Job queue.** a) ★ a kernel queue over every data adapter's job store (works on MySQL,
    SQLite, PGlite and in memory); b) pg-boss on PostgreSQL only. Status: open; researched and designed 2026-10-25 (docs/research/jobs-nodes-autoscaling.md,
-   docs/sections/jobs-nodes-autoscaling.md, ADR 0025); options now: a) ★ the kernel queue over every
+   architecture sections 9.5 and 21, ADR 0025); options now: a) ★ the kernel queue over every
    adapter's job store with fair lanes, caps, leases and effect jobs; b) pg-boss 12.38.0 (PostgreSQL
    and PGlite only); c) a broker (NATS JetStream or Redis Streams) behind JobQueue with an outbox
    relay; d) a durable execution engine (Temporal, Restate, DBOS, Inngest, Trigger.dev). Briefed in
@@ -55,7 +55,7 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
    indexes and whatever else the research finds), with a research mandate from Jens: an agent
    investigates searching, filtering, ordering, uniqueness and full-text search over encrypted
    personal data (mail search included) and designs the operator support matrix. Designed 2026-10-25:
-   docs/research/encrypted-queries.md, docs/sections/encrypted-personal-data.md, ADR 0027; its
+   docs/research/encrypted-queries.md, architecture section 14.7.9, ADR 0027; its
    decision points are questions 65 to 72.
 8. **Operational buffer defaults** (transient change records 7 days, receipts 24 hours, inactive
    sync clients 90 days, without an adopted rule). a) ★ accept; b) the operator must adopt even
@@ -80,7 +80,7 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
 14. **External tables.** a) ★ introspected entity definitions with drift checks; b) declaration
     files generated from live introspection. Status: open.
 15. **oRPC beside tRPC.** a) ★ defer; b) include in the first release. Status: open.
-16. **CLI namespace.** a) ★ action commands at the top level with 33 reserved names (29 plus
+16. **CLI namespace.** a) ★ action commands at the top level with 34 reserved names (`fleet` included) (29 plus
     `flags`, `new`, `rollout` and `surface` from addendum 3); b) under a verb (`pennestack run
     <module> ...`). Status: open.
 17. **Operator impersonation** (`pennestack explain --as <principal>`). a) ★ evaluate everywhere,
@@ -91,7 +91,7 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
     the baseline; b) Temporal with a polyfill from the start. Status: open.
 20. **Licence.** a) ★ Apache-2.0; b) MIT. Due before the repository becomes public. Status: open.
 21. **Outbound mail from the home connection.** a) ★ relay through an external host first (direct
-    delivery is built anyway); b) a second pennestack process with the `outbound-mail`
+    delivery is built anyway); b) a second pennestack process with the `smtp-out`
     capability on a host with a clean address; c) direct delivery from home. Status: open.
 22. **IMAP.** a) ★ an own IMAP listener after JMAP (M6); b) JMAP only; c) an external IMAP server
     with its own storage. Status: open.
@@ -313,3 +313,42 @@ Project layout:
     characters, only fields with `maxLength` of at most 1,024; b) 16-bit tags (fewer false matches,
     sharper statistics for a thief); c) no `contains` on personal fields, word search only.
     Status: open.
+
+## I. Pure handlers and the effect interpreter (designed 2026-10-25, decision 50a)
+
+73. **How a handler gets its data.** a) ★ generators: `decide`, `read` and `react` yield typed
+    requests with `yield*`; dependent loads compose by delegation; plain functions stay allowed
+    for handlers that need nothing; `ctx.all` batches parallel loads; b) declared loads: a
+    `load(input, ctx)` member returns named load descriptions answered before `decide`, which
+    becomes a plain function of (input, loaded, ctx), with a second stage for dependent loads;
+    c) both, declared loads as the common form and generators only for dependent loads.
+    Status: open.
+74. **Inline effects in `prepare`.** May a sync command call outside and wait for the answer?
+    a) ★ yes, restricted: only in `prepare` of sync commands, only executors marked `inline` that
+    need no capability, at most 30 seconds, no retries, recorded before and after (needed by OAuth
+    and OpenID Connect logins, GitHub's manifest conversion, "test SMTP connection"); b) no, every
+    effect is deferred and interactive flows become two steps. Status: open.
+75. **Who retries outside calls.** a) ★ the rule: executor retries only for failures without
+    domain meaning (lost lease, refused connection, 429 or 5xx honouring the idempotency key);
+    everything with domain meaning, mail delivery included, is a state machine with timers and one
+    effect per attempt; b) executor retries for everything, mail included; c) no executor retries
+    at all. Status: open.
+76. **Logging inside pure handlers.** a) ★ `ctx.log` and `ctx.trace` stay write-only capabilities
+    (return nothing, cannot influence a result, not part of the logbook); b) logs as returned or
+    yielded values; c) no logging in handlers, the kernel logs decisions and effects itself.
+    Status: open.
+77. **Clock, ids and randomness.** a) ★ the clock is the invocation's fixed time (equal to the
+    events' `recordedAt`); ids and random values are yielded requests recorded in the decision
+    record; b) all three recorded requests, each `now()` a fresh reading; c) all three derived from
+    a recorded per-invocation seed (Restate's approach). Status: open.
+78. **Where effect records live.** a) ★ in the chain: one `core.effect` stream per effect
+    (requested, settled), positioned and hashed with the scope's other events, attempts as stream
+    records kept 90 days; b) a separate `ps_effects` table per namespace with its own retention,
+    not hashed. Status: open.
+79. **Command inputs in the logbook.** a) digest only (the receipt's fingerprint); b) ★ digest by
+    default plus sealed inputs for actions that opt in (`trace: { input: 'sealed', retention }`),
+    personal fields under the subject's key; c) sealed inputs for every command. Status: open.
+80. **Launchway's agents under the strict model.** a) ★ commands to agents are effects with an
+    external performer: the agent pulls pending `agentCommand` effects over `nodes.channel` and
+    settles them through `nodes.ack`, with a deadline and a continuation; b) keep the
+    `nodes.command` rows and `nodes.command.ack` of section 17.3.4 as module data. Status: open.

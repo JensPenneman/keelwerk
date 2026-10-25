@@ -1,10 +1,11 @@
 # 15. Jobs, durable timers and schedules on one kernel queue over the adapters' job store
 
-Date: 2026-10-11 (revised 2026-10-24)
+Date: 2026-10-11 (revised 2026-10-24 and 2026-10-25)
 
 ## Status
 
-Proposed
+Proposed. Amended by [ADR 0025](0025-nodes-capacity-and-autoscaling.md) (decisions 3, 6 and 7, on
+2026-10-25); architecture.md sections 9.5 and 21 specify the result.
 
 ## Context
 
@@ -33,11 +34,15 @@ fired under whoever set them, so the node-offline timer ran under the node's own
 2. **Enqueued with the cause.** Asynchronous commands, timers, schedules and reaction jobs are
    inserted in the unit of the command, timer or dispatch that causes them, so they commit with it on
    every adapter and no relay exists.
-3. **Capabilities.** Keys with `keep`, `replace` or `coalesce`; groups with concurrency (per
-   destination, per tenant); FIFO per key; retry schedules (exponential or explicit, with a maximum
-   delay and a give-up horizon) driven by the error taxonomy's `retryable` flag; heartbeats; expiry;
-   dead letters that an operator replays or discards; cancellation by key; schedules from cron or
-   RRULE expressions, per backend or for each tenant, at most one run per tick and scope.
+3. **Capabilities.** Keys with `keep`, `replace` or `coalesce`; groups with concurrency and a rate
+   (per destination); fair lanes per scope, queue, capability set and priority class, each with a
+   cap (running jobs per tenant and queue) and a weight, and a queued cap with backpressure;
+   priority classes; FIFO per key; retry schedules (exponential or explicit, with a maximum delay
+   and a give-up horizon) driven by the error taxonomy's `retryable` flag; leases renewed by
+   heartbeats and fenced by (worker, attempt); expiry; dead letters that an operator replays or
+   discards; cancellation by key; schedules from cron or RRULE expressions, per backend or for each
+   tenant, at most one run per tick and scope. Fair lanes, caps, group rates, priorities and leases
+   were added by ADR 0025.
 4. **Principals.** A job stores a principal reference (resolver id, principal id, credential id),
    never a snapshot. The worker resolves and enriches it again and fails the job with
    `unauthenticated` when the credential was revoked or expired, then invokes through the invoker so
@@ -48,14 +53,20 @@ fired under whoever set them, so the node-offline timer ran under the node's own
    per reaction; reaction options (`key`, `ordering`, `coalesce`, `concurrency`, `retry`) are job
    options. A failing reaction is retried by the queue and parked as a dead letter, never holding a
    checkpoint.
-6. **DSL.** `ctx.timers.set({ key, at, invoke, input })` and `ctx.timers.cancel(key)` in handlers;
+6. **DSL.** Timers are effect descriptions that handlers return,
+   `setTimer({ key, at or after, invoke, input })` and `cancelTimer(key)`, in place of the earlier
+   `ctx.timers.set` and `ctx.timers.cancel` calls (amended by ADR 0025; decision 50a; the exact
+   contract is specified in the pure-handlers section);
    `defineSchedule(base, { every, invoke, scope })` parts, mounted under the module literal's
    `schedules` keyed by schedule id and contributing to the core's `schedules` extension point;
-   `async: { group, retry, onGiveUp }` on asynchronous actions. `invoke` and `onGiveUp` take an own
-   action part by value (ADR 0003, revised 2026-10-24). Jobs record their enqueuer's build revision
-   and, from external callers, the input as sent with its API version (ADR 0022).
-7. **Tenancy.** Jobs carry their scope; per-tenant groups bound a tenant's concurrency, which is the
-   job side of the quota model; completed jobs are removed after seven days.
+   `async: { queue, key, ordering, group, priority, cost, retry, onGiveUp }` on asynchronous
+   actions. `invoke` and `onGiveUp` take an own action part by value (ADR 0003, revised 2026-10-24).
+   Jobs record their enqueuer's build revision and, from external callers, the input as sent with
+   its API version (ADR 0022).
+7. **Tenancy.** Jobs carry their scope; lane caps bound a tenant's running jobs per queue and the
+   queued cap its backlog, which is the job side of the quota model (ADR 0025, replacing per-tenant
+   groups); finished jobs leave `ps_jobs` and keep their outcome, without input, in
+   `ps_job_history` for seven days.
 
 ## Consequences
 

@@ -1,7 +1,7 @@
 # Jobs, nodes and autoscaling
 
 Date: 2026-10-25. Status: research input for the sections "Asynchronous work: jobs, timers and
-schedules" and "Nodes, capacity and autoscaling" (`docs/sections/jobs-nodes-autoscaling.md`, to
+schedules" and "Nodes, capacity and autoscaling" (`docs/architecture.md sections 9.5 and 21`, to
 become architecture.md sections 9.5 and 21) and for ADRs 0015 and 0025; it decides nothing by
 itself. Scope: decision point 6, re-examined for Jens's requirement of 2026-10-23 (an arbitrary
 number of nodes that all scale automatically, with limits) and under decision 50a. Method: the
