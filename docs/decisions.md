@@ -43,14 +43,20 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
    conditions. Status: applied (decided 2026-10-24: **a**, allow and deny rules, deny requiring a
    reason, default deny): architecture.md section 8.2 as written, ADR 0005.
 6. **Job queue.** a) ★ a kernel queue over every data adapter's job store (works on MySQL,
-   SQLite, PGlite and in memory); b) pg-boss on PostgreSQL only. Status: open; the jobs/nodes/autoscaling agent is running (started 2026-10-24 ~20:10); briefing
+   SQLite, PGlite and in memory); b) pg-boss on PostgreSQL only. Status: open; researched and designed 2026-10-25 (docs/research/jobs-nodes-autoscaling.md,
+   docs/sections/jobs-nodes-autoscaling.md, ADR 0025); options now: a) ★ the kernel queue over every
+   adapter's job store with fair lanes, caps, leases and effect jobs; b) pg-boss 12.38.0 (PostgreSQL
+   and PGlite only); c) a broker (NATS JetStream or Redis Streams) behind JobQueue with an outbox
+   relay; d) a durable execution engine (Temporal, Restate, DBOS, Inngest, Trigger.dev). Briefed in
+   chat on 2026-10-25.
    follows.
 7. **Personal data in state tables.** a) ★ plaintext state tables with crypto-shredding of the
    chain; b) encrypted state columns with blind indexes. Status: decided 2026-10-25: **b**, personal fields encrypted in the state tables as well (blind
    indexes and whatever else the research finds), with a research mandate from Jens: an agent
    investigates searching, filtering, ordering, uniqueness and full-text search over encrypted
-   personal data (mail search included) and designs the operator support matrix. Queued after the
-   running agents; its findings land as a section, ADR 0027 and questions in the register.
+   personal data (mail search included) and designs the operator support matrix. Designed 2026-10-25:
+   docs/research/encrypted-queries.md, docs/sections/encrypted-personal-data.md, ADR 0027; its
+   decision points are questions 65 to 72.
 8. **Operational buffer defaults** (transient change records 7 days, receipts 24 hours, inactive
    sync clients 90 days, without an adopted rule). a) ★ accept; b) the operator must adopt even
    these. Status: applied (decided 2026-10-24: **a** for the three buffers). Jens's underlying
@@ -260,4 +266,50 @@ Project layout:
     the matching key of one assembly file (`base.ts`, `module.ts`, `app.ts` or `modules.ts`),
     refuse any file not in the canonical shape and print the lines instead, and offer `--dry-run`;
     b) keep the earlier rule: scaffolds only print the two lines for the author to paste.
+    Status: open.
+
+## G. Jobs, nodes and autoscaling (designed 2026-10-25; decision 6 above is the main choice)
+
+62. **Fleet command name.** Launchway already has a module `nodes`, so the framework's command group
+    for nodes, processes and scaling needs another name. a) ★ `pennestack fleet` (list, show, watch,
+    cordon, uncordon, drain, probe, forget, scale ...), one more reserved name (34); b) `pennestack
+    nodes` and rename Launchway's module; c) `pennestack x nodes` until the next major. Status: open.
+63. **When automatic scaling ships.** a) ★ M3: the scaler as a pure plan with the static provider
+    (recommendations in `pennestack fleet scale status`); M5: the opt-in docker provider for extra
+    workers; b) the docker provider already in M3; c) recommendations only until a Kubernetes or
+    cloud provider exists. Status: open.
+64. **Docker provider on the home server.** The Docker engine is root on that host. a) ★ opt-in per
+    deployment, held only by the scaler's named process, through a socket proxy limited to container
+    create, start, stop, inspect and list; b) never: extra workers are started by hand; c) on by
+    default. Status: open.
+
+## H. Encrypted personal data and queries (designed 2026-10-25, decision 7b)
+
+65. **Equality index by default?** When does a personal field get its blind index? a) ★ only where a
+    lookup is declared (`.unique()`, `.index()`, an entity index or `queries: ['eq']`); other
+    personal fields support `isNull` only; b) every scalar personal field gets one, opt-out with
+    `queries: []`. Status: open.
+66. **Default normaliser for personal strings.** a) ★ NFC (composed and decomposed accents compare
+    equal); e-mail fields declare `normalize: 'email'`, which makes uniqueness case-insensitive;
+    b) exact code points; c) caseless by default. Status: open.
+67. **Server-side mail search over personal text.** a) ★ a per-account keyed token index over
+    subject, addresses and bodies (`search: 'full'`, switchable to `'headers'` or `'off'` per
+    backend); b) headers only, bodies by bounded scans; c) no server-side search until pennestack
+    has its own client. Status: open.
+68. **Mail search matching.** a) ★ word and stem matching for JMAP and IMAP (a documented deviation
+    from IMAP's substring rule); b) exact substring through scans, only for mailboxes within the
+    scan limit. Status: open.
+69. **Ordering and ranges on personal fields.** a) ★ bounded scans only until M7, then
+    order-revealing encryption tokens on PostgreSQL as an opt-in with a doctor warning; b) never,
+    bounded scans only; c) an order-preserving encoding on every adapter now (more leakage).
+    Status: open.
+70. **Key scope of search indexes.** a) ★ per data subject (the mailbox owner): tags of different
+    accounts never match, erasure destroys the key; b) per tenant: operator search across accounts,
+    but tags link words across accounts. Status: open.
+71. **Bounded scans (unseal and evaluate in memory).** a) ★ custom queries only, with an explicit
+    limit (default 2,000; adapter maximum, proposed 10,000 on PostgreSQL); b) also generated queries
+    over transports, with a per-entity limit; c) nowhere. Status: open.
+72. **Substring search defaults.** a) ★ trigram tags truncated to 12 bits, operands of at least 3
+    characters, only fields with `maxLength` of at most 1,024; b) 16-bit tags (fewer false matches,
+    sharper statistics for a thief); c) no `contains` on personal fields, word search only.
     Status: open.
