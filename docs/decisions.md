@@ -18,11 +18,11 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
 1. **Runtime module selection.** How does a backend get its modules? a) ★ from the apps compiled
    into the deployment, with per-backend variation through module configuration and feature
    flags; b) toggled per backend at runtime, with types that cannot follow the selection.
-   Status: decided 2026-10-25: **a**, the compiled catalogue; condition from Jens: development always
+   Status: applied (sections 4.5 and 26). Decided 2026-10-25: **a**, the compiled catalogue; condition from Jens: development always
    has the full, exact types of the app being built (section 4.5 guarantees it per app).
 2. **Toggling with requirements.** A module can only be switched off together with the modules
    that `require` it. a) ★ accept; keep hard dependencies for genuine needs; b) make every
-   dependency optional and type every cross-module access as possibly absent. Status: decided 2026-10-25: **a**, hard dependencies stay; a module switches off together with
+   dependency optional and type every cross-module access as possibly absent. Status: applied (sections 5.2 and 26). Decided 2026-10-25: **a**, hard dependencies stay; a module switches off together with
    its dependants.
 3. **DSL shape.** a) ★ builder chain whose callbacks receive typed contexts (Hono, Elysia, Better
    Auth style); b) one object literal with a hand-written context type on every handler.
@@ -51,7 +51,7 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
    chat on 2026-10-25.
    follows.
 7. **Personal data in state tables.** a) ★ plaintext state tables with crypto-shredding of the
-   chain; b) encrypted state columns with blind indexes. Status: decided 2026-10-25: **b**, personal fields encrypted in the state tables as well (blind
+   chain; b) encrypted state columns with blind indexes. Status: applied (section 14.7.9, ADR 0027). Decided 2026-10-25: **b**, personal fields encrypted in the state tables as well (blind
    indexes and whatever else the research finds), with a research mandate from Jens: an agent
    investigates searching, filtering, ordering, uniqueness and full-text search over encrypted
    personal data (mail search included) and designs the operator support matrix. Designed 2026-10-25:
@@ -186,7 +186,7 @@ Platforms:
     environment reads outside the deployment file, enforced by lint; c) ★ split: a) for everything
     that decides (commands, reactions, process managers, policies, flag rules, version transforms,
     merge rules), b) for queries, services wrapping external systems, adapters, transports and
-    listeners, with b)'s bans everywhere. Status: decided 2026-10-25: **a**, fully strict, c) kept as the fallback if a) becomes a burden in
+    listeners, with b)'s bans everywhere. Status: applied (section 7.9, ADR 0026, api-sketch.ts; questions 73 to 80 hold its open choices). Decided 2026-10-25: **a**, fully strict, c) kept as the fallback if a) becomes a burden in
     practice. Jens's motivation: trace every cause and effect, and rebuild the database and a full
     logbook from them. Consequences to design (next agent pass): handlers never perform effects;
     commands yield load requests and return events plus effect descriptions; queries return query
@@ -352,3 +352,16 @@ Project layout:
     external performer: the agent pulls pending `agentCommand` effects over `nodes.channel` and
     settles them through `nodes.ack`, with a deadline and a continuation; b) keep the
     `nodes.command` rows and `nodes.command.ack` of section 17.3.4 as module data. Status: open.
+
+## J. Editorial items from the merge passes (2026-10-25, for the lead and Jens)
+
+- New names introduced by the final editor to make the strict sketches concrete, to confirm or
+  rename: `ReadContext`, `SourceContext`, `KernelInvocationContext`, `TargetLoads`, `TargetRowOf`,
+  `PrepareHandler`, `ExecutorSecrets`, `LiveSource`, `PendingEffect`, `EffectOptions`,
+  `ctx.flagDetails`, `nodes.ack`, `settle({ effect, id, where }, outcome)`, the REST header
+  `Pennestack-Effects`, the GitHub effects `mirrorStatus`, `listReleases`, `convertManifest`, the
+  relay probe shapes, the lib helper `combine`.
+- Section 14.3.8 still lists scoping rules for update, delete and insert although the SQL escape
+  hatch is read-only under 50a; kept as defence in depth, may be cut.
+- Appendix A.7 licences are not re-checked; Kysely stays pinned at 0.29.6 (0.29.7 exists).
+- Question 80 gates M2 (external performers ship in M2), not M3.
