@@ -1,8 +1,10 @@
 # pennestack architecture
 
-Date: 2026-10-11 (first version 2026-10-08). Status: specification, consolidated draft awaiting
-Jens's approval. Authors: the core architect and the data, interfaces and platforms designers;
-consolidated with the review findings of 2026-10-11 by the synthesis editor.
+Date: 2026-10-24 (first version 2026-10-08, consolidated 2026-10-11). Status: specification,
+consolidated draft awaiting Jens's approval. Authors: the core architect and the data, interfaces
+and platforms designers; consolidated with the review findings of 2026-10-11 by the synthesis
+editor; the versioning and project-layout designs of addendum 3 and Jens's decisions of 2026-10-24
+merged by the integration editor on 2026-10-24.
 
 This document is the design contract of the framework. [brief.md](brief.md) is the requirements
 source of truth; this document says how those requirements are met and must not drop or
@@ -13,10 +15,12 @@ research notes under [research/](research/) are the evidence base.
 It is one specification. Sections 1 to 13 define the kernel, the configuration model, actions,
 authorization, execution and the toolchain; sections 14 to 16 the data layer, events and sync,
 live updates, and the transports and CLI; section 17 the shared accounts and authentication
-modules and the two proof platforms; sections 18 to 21 the repository, the procedure for new
-requirements, traceability and the open questions.
+modules and the two proof platforms; sections 18 to 20 versioning, rollouts and feature flags;
+section 21 nodes, capacity and autoscaling (in progress); sections 22 and 23 the repository and
+the project layout; sections 24 to 26 the procedure for new requirements, traceability and the open
+questions.
 
-Every library named here was checked against the npm registry between 2026-10-08 and 2026-10-11;
+Every library named here was checked against the npm registry between 2026-10-08 and 2026-10-24;
 the version in parentheses is the one checked, and Appendix A lists them. Type-level claims name
 the compiler versions that checked them.
 
@@ -39,10 +43,15 @@ Contents:
 15. Events, sync and live updates
 16. Transports and CLI
 17. Shared modules and platforms
-18. Repository layout and package plan
-19. How a new requirement lands
-20. Requirements traceability
-21. Open questions
+18. Versioning and compatibility
+19. Rollouts
+20. Feature flags and experiments
+21. Nodes, capacity and autoscaling
+22. Repository layout and package plan
+23. Project layout and the single-purpose rule
+24. How a new requirement lands
+25. Requirements traceability
+26. Open questions
 
 Appendix A. Versions checked. Appendix B. Verified typing listing.
 
@@ -105,7 +114,9 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 | **Operator** | The person administering the deployment (Jens). A principal kind with deployment scope. |
 | **Principal** | Who is acting: anonymous, user, service, operator or system, with the scope it belongs to, claims, roles and memberships (section 8.5). |
 | **Module service principal** | The service principal `<module>.system` under which a module's reactions, timers and schedules run; governed by rules like any principal (section 8.4). |
-| **Module** | A unit of composition with a string id. Owns entities, actions, policies, services, reactions and extension points; declares requirements, optional dependencies, contracts it provides, contributions and conditional parts. |
+| **Module** | A unit of composition with a string id. Owns entities, actions, policies, services, reactions and extension points; declares requirements, optional dependencies, contracts it provides, contributions and conditional parts. Written as a module base and a module literal, `defineModule(base, { ... })` (section 4.1). |
+| **Module base** | A module's declaration literal, `defineModuleBase({ ... })` in `base.ts`: identity, dependencies, configuration, extension points, entities, streams, flags and the data of contributions and conditional parts, against which parts are typed (sections 4.1 and 23.5). |
+| **Part** | The one definition a source file exports (an action, a policy, a reaction, a service, a fill, a schedule, ...), typed against a module base and mounted by an assembly file (sections 4.1 and 23.3). |
 | **Contract** | A named capability with a typed interface (`live`, `blobs`, `httpHost`) that modules list in `requires` or `optional` instead of a concrete implementation; a module or an infrastructure entry declares that it `provides` it (section 5.2). |
 | **Entity** | A data structure owned by a module: fields, relations, indexes, events and the actions mounted on it. |
 | **Field** | A typed column declared with the `field.*` builders. Emits a validator, a JSON Schema, a GraphQL type and a column definition. |
@@ -154,9 +165,13 @@ no business module. It provides:
 - the kernel write path: repositories, `decide` and `evolve`, merge rules, receipts and tokens,
   written once against the data adapter contract (section 14.3);
 - the implicit `core` module, which owns the control entities (`core.backend`, `core.tenant`,
-  `core.domain`, `core.placement`, `core.namespace`, `core.operatorToken`), the command receipts
-  (`core.commandReceipt`), and the operator and client actions (`core.introspect`, `core.me`,
-  `core.subjects.erase`, `core.retention.*`, `core.tenant.enter`, `core.tenant.move`).
+  `core.domain`, `core.placement`, `core.namespace`, `core.operatorToken`, and for versioning,
+  rollouts and flags `core.process`, `core.rollout`, `core.flag`, `core.suspension` and
+  `core.apiUsage`), the command receipts (`core.commandReceipt`), and the operator and client
+  actions (`core.introspect`, `core.me`, `core.capabilities`, `core.subjects.erase`,
+  `core.retention.*`, `core.tenant.enter`, `core.tenant.move`, `core.tenant.setApiVersion`, and
+  `core.flag.*`: `evaluate`, `restoreRules` and the operator actions behind `pennestack flags`;
+  sections 18 to 20).
 
 Everything else is a module or an infrastructure entry in its own package. The two proof apps are
 compositions of such packages (section 17).
@@ -186,11 +201,14 @@ The lifecycle is explicit and the same for every module. Phases run in this orde
 |---|---|---|
 | `compose` | `defineApp`, pure | Validates the module tuple at the type level and again at runtime (missing requirements and contracts, duplicate and reserved ids, conflicting fields, unknown contribution targets, dangling references, unknown execution overrides, identifier collisions), orders modules topologically by `requires` with tuple order as tie-break, applies contributions and conditional parts, builds the registry and derives the API surface. No I/O. |
 | `setup` | Each module, in order | Receives the final registry and its own resolved definition; may register derived artefacts (projections, indexes, schedules). Transports run their `check` against the surface. Runs before any adapter connects. |
-| `connect` | Kernel | Opens the infrastructure listed in `defineDeployment` (data adapters, the control store, blob stores, secret providers, the ledger sink), verifies that it provides every deployment-level contract the apps require, then opens the placements the enabled backends need and validates adapter capabilities against the modules' data needs (section 14.3.3). Replays the erasure ledger and checks namespace epochs (section 14.7.6). |
+| `connect` | Kernel | Opens the infrastructure listed in `defineDeployment` (data adapters, the control store, blob stores, secret providers, the ledger sink), verifies that it provides every deployment-level contract the apps require, then opens the placements the enabled backends need and validates adapter capabilities against the modules' data needs (section 14.3.3). Replays the erasure ledger and checks namespace epochs (section 14.7.6). Registers the process in `core.process` and compares its build manifest with `core.rollout`: it joins the finalized revision or the target, or refuses to start with `buildTooOld` or `targetConflict` (section 19.1). |
 | `migrate` | Kernel | In development: plans and applies the schema diff per namespace, confirming destructive steps. In production: verifies that the applied history matches the committed migration files and refuses to start on drift. |
 | `start` | Each module, in order | Starts background work (queue workers, the reaction dispatcher, projections, schedules). Runs after data is available and before any listener accepts traffic. |
-| `listen` | Kernel | The HTTP host mounts each app's transports and the invocation protocol; listener modules start on the ports the deployment binds. The process reports ready. |
-| `stop` | Reverse order | Listeners stop accepting, in-flight invocations drain within a deadline, modules stop in reverse order, infrastructure closes. |
+| `listen` | Kernel | The HTTP host mounts each app's transports and the invocation protocol; listener modules start on the ports the deployment binds. The process reports ready and is marked `ready` in `core.process`. |
+| `stop` | Reverse order | The process is marked `draining`; listeners stop accepting, in-flight invocations drain within a deadline, modules stop in reverse order, infrastructure closes. |
+
+A process that finds itself below the finalized revision, after a network partition for example,
+stops (section 19.1).
 
 Two runtime hooks exist beside the process lifecycle, because backends and tenants are created
 while the process runs: `onBackendCreated(backend)` and `onTenantCreated(tenant)` (and their
@@ -206,26 +224,32 @@ from the module alone: `ActionContext<M>` depends on the module's own definition
 and `optional` lists and the contracts it declares, never on an app. Module packages are compiled
 and type-checked once, before any app that selects them exists, and several apps share them; a
 handler type that depended on the app would need an import of the app from the module package,
-which is a cycle.
+which is a cycle. Concretely, the context is computed from the module base (section 4.1), the
+value every part is typed against.
 
 - `ctx.data.<module>.<entity>`: repositories for the module's own entities (full rows, with the
   module's own authority), and read access to the entities of modules it `requires` (typed as
   present) or lists as `optional` (typed as possibly undefined). Writes to another module's
   entity are limited to the fields this module contributed to it; anything else goes through that
   module's actions or services (section 8.4).
-- `ctx.services.<module>.<name>`: service functions of the module itself and of its dependencies,
-  bound by the kernel to the providing module's context (section 5.5); call sites pass no context.
+- `ctx.services.<module>.<name>`: service functions of the module's dependencies, bound by the
+  kernel to the providing module's context (section 5.5); call sites pass no context. Parts are
+  typed against the module base, which holds no services, so a module's own code calls the `lib/`
+  functions its services wrap.
 - `ctx.extensions.<name>`: the values other modules contributed to this module's extension points,
   with behavioural values already bound to their contributor's context (section 5.5).
-- `ctx.invoke(ref, input)`: actions of the module itself and of its required modules, run through
-  the invoker under the current principal with their declared execution mode, joining the current
-  unit when they share its scope; `ctx.enqueue(ref, input)` runs a command after commit and returns
-  its receipt (section 7.6).
+- `ctx.invoke(action, input)`: actions of the module itself, passed by value as the part
+  (`ctx.invoke(revokeSubject, input)`), and actions of its required modules, named by reference
+  (`ctx.invoke('accounts.profile.get', input)`), run through the invoker under the current
+  principal with their declared execution mode, joining the current unit when they share its
+  scope; `ctx.enqueue` runs a command after commit and returns its receipt (section 7.6).
+- `ctx.flags`: the flags of the module and of the modules it requires (the `when` modules included
+  inside a conditional part), typed and read from one snapshot per invocation (section 20.3).
 - `ctx.live`, `ctx.blobs`: present when the module requires the `live` or `blobs` contract,
   possibly undefined when it lists the contract as `optional`, absent otherwise (section 5.2).
 
-Inside a conditional part, the `when` modules count as required, so a reaction declared under
-`w.when([accounts], ...)` sees `ctx.data.accounts` as present. Module ids with hyphens appear in
+Inside a conditional part, the `when` modules count as required, so a reaction typed with
+`within(authBase, whenAccounts)` sees `ctx.data.accounts` as present. Module ids with hyphens appear in
 lower camel case in the context (`ctx.data.mailStore`, `ctx.services.apiKeys`), while references
 keep the id (`mail-store.email.get`); a camel-case collision between two selected modules is a
 compose error (section 5.1).
@@ -258,20 +282,29 @@ The DSL is a set of plain functions exported by `@pennestack/core`. Each returns
 given, narrowed to literal types, so that later functions can compute over it. Nothing in the DSL
 performs I/O; `defineApp` builds a registry, `defineDeployment` describes where it runs.
 
-### 4.1 `defineModule`
+### 4.1 `defineModuleBase` and `defineModule`
 
-A module is built in steps. The first call fixes identity, dependencies and configuration; each
-later call adds a part and returns a module value that already works as a module. The steps
-after the first can be omitted or reordered, except that `entities` must precede the steps whose
-callbacks are typed against entities.
+A module is written as object literals, never as a builder chain. Three kinds of value make it up:
+
+- the **module base**, `defineModuleBase({ ... })`: identity, dependencies, configuration, data
+  needs, extension points, entities, streams, flags and the declarations of contributions and
+  conditional parts, which is everything a handler's types depend on;
+- **parts**, one literal each, typed against the base: `defineCommand`, `defineQuery` and
+  `defineSubscription` (section 4.3), `definePolicy` (section 4.4), `defineReaction` and
+  `defineProcess` (section 7.7), `defineService` and `defineFill` (section 5.5), `defineSchedule`
+  (section 9.5), `defineTopic` (gap G6) and `defineHook` (section 3.3);
+- the **module literal**, `defineModule(base, { ... })`, which mounts the parts and is the module
+  value apps select.
 
 ```ts
-import { contracts, defineModule, extensionPoint, field, shape, type ModuleType } from '@pennestack/core'
+import { contracts, defineCommand, defineModule, defineModuleBase, extensionPoint, field, shape, type ModuleBaseType, type ModuleType } from '@pennestack/core'
 import { accounts } from '@pennestack/module-accounts'
+// credential, session, toAccounts, whenAccounts, whenLive and the other parts come from their own files (section 23.5).
 
-const authDef = defineModule({
+// The base: what every part is typed against.
+const authBaseDef = defineModuleBase({
   id: 'auth',                       // literal; permanent; grammar and reserved ids in section 5.1
-  version: '0.1.0',                 // informational; the id is the identity
+  version: '0.1.0',                 // the package's semantic version, enforced by `pennestack surface diff` (section 18.6)
   requires: [],                     // hard dependencies: module values or contracts; compile-time and boot-time checked
   optional: [accounts, contracts.live], // soft dependencies: typed as possibly undefined in the context
   provides: [],                     // contracts this module implements (the live module provides contracts.live)
@@ -282,36 +315,85 @@ const authDef = defineModule({
   extensionPoints: {                // typed slots other modules may fill (section 5.5)
     identityProviders: extensionPoint<IdentityProvider>({ mode: 'set' }),
   },
+  entities: { credential, session },            // section 4.2
+  streams: {},                                  // records without a chain (gap G6)
+  flags: {},                                    // section 20.2
+  contributions: { toAccounts },                // defineContribution(accounts, { ... }): what auth adds to accounts (section 5.3)
+  conditions: { whenAccounts, whenLive },       // defineCondition([accounts], { ... }): what auth adds to itself (section 5.4)
 })
-  .entities({ credential, session })                    // section 4.2
-  .actions((b) => ({ login: b.command({ /* ... */ }) }))   // module-level actions, section 4.3
-  .entityActions('credential', (e) => ({ revoke: e.command({ /* ... */ }) }))
-  .policies((rule) => [ /* ... */ ])                    // section 4.4
-  .reactions((r) => [ /* ... */ ])                      // event handlers, section 7.7
-  .services((s) => ({ /* ... */ }))                     // typed functions for dependants, section 5.5
-  .contributes((c) => [c.to(accounts, { /* ... */ })])  // section 5.3
-  .conditional((w) => [w.when([accounts], { /* ... */ })]) // section 5.4
-  .lifecycle({ setup, start, stop, onTenantCreated })   // section 3.3
+export interface AuthBase extends ModuleBaseType<typeof authBaseDef> {}
+export const authBase: AuthBase = authBaseDef
 
-// Every exported module value has a named type (section 13.11): dependants' declaration files
-// then reference `Auth` instead of copying its structure.
+// A part: one literal, typed against the base. ctx is ActionContext<AuthBase>; current is the credential row.
+export const revoke = defineCommand(authBase, credential, {
+  input: shape({ reason: field.string().optional() }),
+  decide: (input, current, ctx) => [ctx.events.revoked({ at: ctx.clock.now(), reason: input.reason })],
+})
+
+// The module literal: mounts the parts under keys that are ids.
+const authDef = defineModule(authBase, {
+  actions: { login, logout, revokeSubject },             // module-level actions, section 4.3
+  entityActions: { credential: { revoke } },             // actions mounted on own entities
+  policies: [credentialPolicy, loginPolicy],             // section 4.4
+  reactions: {},                                         // event handlers; keys are reaction ids (section 7.7)
+  services: { verifyPassword, hashPassword },            // typed functions for dependants, section 5.5
+  topics: {},                                            // gap G6
+  contributes: { toAccounts: { entityActions: { profile: { changePassword } }, policies: [profilePolicy] } },   // section 5.3
+  conditional: { whenAccounts: { reactions: { revokeOnDeactivation } } },                                      // section 5.4
+  schedules: {},                                         // keys are schedule ids (section 9.5)
+  lifecycle: { onTenantCreated },                        // hooks of section 3.3
+  changes: {},                                           // version changes; keys are the ids the API ledger records (section 18.2)
+})
+
+// Every exported module value and its base have a named type (section 13.11): dependants' declaration
+// files then reference `Auth` instead of copying its structure.
 export interface Auth extends ModuleType<typeof authDef> {}
 export const auth: Auth = authDef
 ```
 
-Why a builder: the callbacks receive builders whose handler parameters are already typed with
-the module's context (`ctx.data`, `ctx.services`, entity rows), which a single object literal
-cannot do because TypeScript cannot type a property from its siblings. The builder's accumulated
-state is a plain object with the normalised shape of section 4.7; `defineApp` only ever sees that
-shape. The chain must be unbroken for the accumulated type to survive, as with Hono and Elysia
-(research: module-systems.md, section 3.1); a lint rule flags discarded steps (section 13.9).
+Section 23 puts the base in `base.ts`, each part in a file of its own and the module literal in
+`module.ts`; tests, spikes and the API sketch may write all three in one file. Flags and version
+changes are declarations that need no base: `defineFlag` (section 20.2), listed by the base's
+`flags`, and `defineVersionChange`, listed by the module literal's `changes`; an app's dated API
+versions are a `defineApiVersions` value (section 18.2).
+
+- **Mounts.** An own entity is passed by value (`defineCommand(authBase, credential, { ... })`);
+  another module's entity is named, inside a contribution: `defineCommand(within(authBase,
+  toAccounts), 'profile', { ... })` mounts on `accounts.profile`. `within(base, declaration)` types
+  a part of a contribution or conditional part: the target and `when` modules count as required,
+  and rows include the contributed fields. Own actions are likewise used by value and other
+  modules' actions by reference (section 7.6).
+- **Checks.** A part's type records the base it was built against and its mount, and the module
+  literal accepts it only where both match: `entityActions: { session: { revoke } }` fails at
+  compile time and at boot. `defineModule` records each part's reference, so the registry resolves
+  the value `revoke` to `auth.credential.revoke`.
+- **Keys.** The keys of `actions`, `entityActions`, `reactions`, `schedules`, `topics` and `changes`
+  are ids: renaming an action changes the API, and reaction, schedule and version-change ids never
+  change once released. `policies` is an array, because a rule set is identified by its rules' ids.
+- **Contributions and conditional parts** have two halves under one key: the base's
+  `contributions` and `conditions` hold the declarations with the data they add, and the module
+  literal's `contributes` and `conditional` hold the behaviour. Entries that share a (target,
+  `when`) identity merge, because they are one migration track (section 14.6.1).
+
+Why literals: Jens decided on 2026-10-24 (decision point 3, section 26) that modules are object
+literals and never a builder chain. The first design used a chain because its callbacks could type
+handlers from sibling declarations, which a single object literal cannot do: TypeScript cannot type
+a property from its siblings. The base makes the chain unnecessary, because every part is typed
+against a value that exists before it: `defineCommand(authBase, credential, { ... })` takes
+`ctx.data`, `ctx.config`, `ctx.flags`, the row and the event constructors from `authBase` and
+`credential` alone, and the module literal only mounts values whose types are complete.
+`defineModule(base, { ... })` normalises the base and the literal into the module shape of
+section 4.7, which is all `defineApp` ever sees; the type-level model is unchanged. Because the
+base holds no services, a part's `ctx.services` lists only its dependencies' services, and a
+module's own code calls the `lib/` functions its services wrap (section 3.4).
 
 Why the named type: a module value's type is inferred and anonymous, and `requires`, `optional`
-and `contributes[].to` hold the full type of each dependency. Under `composite`, declaration emit
-is mandatory and would copy every dependency's structure into each dependant's `.d.ts`,
-recursively, until the compiler refuses with TS7056. `ModuleType<T>` is the identity; extending
-it in an interface gives the value a name that emit references. `pennestack module new`
-scaffolds the pattern, a GritQL rule flags an exported module or app value without a named type,
+and the targets of contributions hold the full type of each dependency. Under `composite`,
+declaration emit is mandatory and would copy every dependency's structure into each dependant's
+`.d.ts`, recursively, until the compiler refuses with TS7056. `ModuleType<T>` is the identity;
+extending it in an interface gives the value a name that emit references, and `ModuleBaseType<T>`
+does the same for the base, which every part's type names. `pennestack new module` scaffolds the
+pattern, a GritQL rule flags an exported module, module base or app value without a named type,
 and CI measures declaration size (section 13.11).
 
 ### 4.2 `defineEntity` and the field model
@@ -396,97 +478,112 @@ walkable, so transports can project it exactly.
 
 ### 4.3 Actions
 
-Actions are created by the builders handed to `.actions()` and `.entityActions()`. The same
-builders exist as standalone functions (`defineAction`) for actions mounted on the app.
+Actions are literals passed to `defineCommand`, `defineQuery` and `defineSubscription`. The first
+argument types the handlers: a module base (section 4.1), a base narrowed to a contribution or a
+conditional part with `within(base, declaration)`, or, for actions mounted on the app, the app's
+selection, the `as const` tuple that `apps/<id>/src/modules.ts` exports (section 4.5). An entity
+between the base and the literal mounts the action on that entity: an own entity by value, a
+target's entity by name inside a contribution.
 
 ```ts
-.entityActions('credential', (e) => ({
-  revoke: e.command({
-    input: shape({ reason: field.string().optional() }),
-    errors: [alreadyRevoked],                              // closed set, section 10
-    execution: 'sync',                                     // 'sync' | 'async' | 'either'
-    scope: 'tenant',                                       // default
-    decide: (input, current, ctx) => {                     // pure: the full current row in, events out
-      if (current.revokedAt) throw alreadyRevoked({ id: current.id })
-      return [e.events.revoked({ at: ctx.clock.now(), reason: input.reason })]
-    },
-    // output defaults to the entity row after the events are applied, masked for the caller
-  }),
-  active: e.query({
-    input: shape({ subject: field.subject() }),
-    output: e.page(),                                      // a page of rows, cursor pagination
-    handle: (input, ctx) => ctx.target.query({             // the entity as the caller may read it under this action's rules
-      where: { subject: input.subject, revokedAt: { isNull: true } },
-      sort: [{ field: 'createdAt', direction: 'desc' }],
-    }),
-  }),
-}))
+// One part per file (section 23); module.ts mounts them:
+//   entityActions: { credential: { revoke, active } }, actions: { login, whoami },
+//   conditional: { whenLive: { actions: { sessionEvents } } }
+export const revoke = defineCommand(authBase, credential, {
+  input: shape({ reason: field.string().optional() }),
+  errors: [alreadyRevoked],                              // closed set, section 10
+  execution: 'sync',                                     // 'sync' | 'async' | 'either'
+  scope: 'tenant',                                       // default
+  decide: (input, current, ctx) => {                     // pure: the full current row in, events out
+    if (current.revokedAt) throw alreadyRevoked({ id: current.id })
+    return [ctx.events.revoked({ at: ctx.clock.now(), reason: input.reason })]
+  },
+  // output defaults to the entity row after the events are applied, masked for the caller
+})
 
-.actions((b) => ({
-  login: b.command({
-    input: shape({ identifier: field.string({ format: 'email' }), password: field.secret() }),
-    output: shape({ sessionToken: field.string(), sessionId: field.ref.own('session'), expiresAt: field.instant() }),
-    errors: [invalidCredentials],
-    auth: { public: true },                                // no principal required; still scoped to a tenant
-    execution: 'sync',
-    hints: { http: { cookie: { set: { name: '__Host-pennestack_session', from: 'sessionToken', expiresFrom: 'expiresAt' }, omitFromBody: ['sessionToken'] } } },
-    handle: async (input, ctx) => { /* section 17.2 */ },
+export const active = defineQuery(authBase, credential, {
+  input: shape({ subject: field.subject() }),
+  output: pageOf(credential),                            // a page of rows, cursor pagination
+  handle: (input, ctx) => ctx.target.query({             // the entity as the caller may read it under this action's rules
+    where: { subject: input.subject, revokedAt: { isNull: true } },
+    sort: [{ field: 'createdAt', direction: 'desc' }],
   }),
-  // principalShape and summarise() are module-local helpers, not framework exports
-  whoami: b.query({ output: principalShape, principal: 'user', handle: (_, ctx) => summarise(ctx.principal) }),
-}))
+})
 
-.conditional((w) => [
-  w.when([contracts.live], {                               // the subscription exists only when a live module is selected
-    actions: (b) => ({
-      sessionEvents: b.subscription({
-        event: shape({ sessionId: field.ref.own('session'), kind: field.enum(['created', 'revoked']) }),
-        principal: 'user',                                 // the gate admits user principals only; ctx.principal is narrowed
-        source: (_input, ctx, resume) =>                   // resume: the stream token the client presented
-          mapItems(
-            ctx.live.entity('auth', 'session', { where: { subject: ctx.principal.subject }, after: resume }),
-            (change) => ({ sessionId: change.id, kind: change.type === 'created' ? 'created' : 'revoked' }),
-          ),
-      }),
-    }),
-  }),
-])
+export const login = defineCommand(authBase, {
+  input: shape({ identifier: field.string({ format: 'email' }), password: field.secret() }),
+  output: shape({ sessionToken: field.string(), sessionId: field.ref.own('session'), expiresAt: field.instant() }),
+  errors: [invalidCredentials],
+  auth: { public: true },                                // no principal required; still scoped to a tenant
+  execution: 'sync',
+  hints: { http: { cookie: { set: { name: '__Host-pennestack_session', from: 'sessionToken', expiresFrom: 'expiresAt' }, omitFromBody: ['sessionToken'] } } },
+  handle: async (input, ctx) => { /* section 17.2 */ },
+})
+
+// principalShape and summarise() are module-local helpers, not framework exports
+export const whoami = defineQuery(authBase, { output: principalShape, principal: 'user', handle: (_, ctx) => summarise(ctx.principal) })
+
+// The subscription exists only when a live module is selected: a part of the conditional part whenLive.
+export const sessionEvents = defineSubscription(within(authBase, whenLive), {
+  event: shape({ sessionId: field.ref.own('session'), kind: field.enum(['created', 'revoked']) }),
+  principal: 'user',                                     // the gate admits user principals only; ctx.principal is narrowed
+  source: (_input, ctx, resume) =>                       // resume: the stream token the client presented
+    mapItems(
+      ctx.live.entity('auth', 'session', { where: { subject: ctx.principal.subject }, after: resume }),
+      (change) => ({ sessionId: change.id, kind: change.type === 'created' ? 'created' : 'revoked' }),
+    ),
+})
 ```
 
 `handle` is the imperative form (runs inside a transaction for commands; reads through `ctx.data`
 for queries). `decide` is the pure form for commands on chain-backed entities: it receives the
 full current row, returns events, and the kernel appends them, evolves the state and returns it.
 `source` builds a subscription's frames; `mapItems` changes items and keeps stream tokens and
-control frames, so the subscription stays resumable. Section 7 defines the full option set.
+control frames, so the subscription stays resumable. `pageOf(entity)` and `rowOf(entity)` are the
+output shapes of entity rows, which the shape stage masks (section 8.4). Section 7 defines the full
+option set.
 
 ### 4.4 Policies
 
+A policy is a literal array of rules over one target, typed against the base: an own entity, an
+own module-level action (or a list of them), or a selector across modules (gap G13). Each rule is
+an object with the members of section 8.1.
+
 ```ts
-.policies((rule) => [
-  rule.allow('credential', ['read'], {                     // 'read' covers get, query, changes, queryChanges, watch, history
+// modules/auth/src/policies/credential.ts
+export const credentialPolicy = definePolicy(authBase, credential, [
+  {
+    effect: 'allow',
+    actions: ['read'],                                     // 'read' covers get, query, changes, queryChanges, watch, history
     id: 'self',                                            // becomes auth.credential.self
     principal: 'user',                                     // narrows ctx.principal: subject is a SubjectId, never null
     where: (ctx) => ({ subject: ctx.principal.subject }),  // typed condition over credential
     fields: ['lastUsedAt'],                                // the maskable fields this rule reveals
     reason: 'A user may see their own credentials.',
-  }),
-  rule.allow('credential', ['revoke'], { id: 'self-revoke', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) }),
-  rule.deny('credential', ['revoke'], {                    // without `check`, a deny rule tests the row before the action
+  },
+  { effect: 'allow', actions: ['revoke'], id: 'self-revoke', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) },
+  {
+    effect: 'deny',                                        // without `check`, a deny rule tests the row before the action
+    actions: ['revoke'],
     id: 'already-revoked',
     where: () => ({ revokedAt: { isNull: false } }),
     reason: 'This credential is already revoked.',
-  }),
-  rule.allow('login', { public: true }),                   // module-level action
-  rule.allow('whoami', { principal: 'user' }),
+  },
 ])
+// modules/auth/src/policies/login.ts and whoami.ts: module-level actions
+export const loginPolicy = definePolicy(authBase, login, [{ effect: 'allow', public: true }])
+export const whoamiPolicy = definePolicy(authBase, whoami, [{ effect: 'allow', principal: 'user' }])
 
-// A transition: members may move an invitation from pending to withdrawn, and to nothing else.
-rule.allow('invitation', ['update'], {
+// A transition, in the members module's policy over invitation: members may move an invitation from
+// pending to withdrawn, and to nothing else.
+{
+  effect: 'allow',
+  actions: ['update'],
   id: 'withdraw',
   principal: 'user',
   where: (ctx) => ({ status: 'pending', invitedBy: ctx.principal.subject }),   // the row acted on
   check: () => ({ status: 'withdrawn' }),                                      // the row produced
-})
+}
 ```
 
 Entity rules carry a `where` condition over the row acted on (compiled to the data layer and
@@ -498,20 +595,35 @@ contribution can add rules to another module's entities (section 5.3).
 ### 4.5 `defineApp`
 
 ```ts
-import { defineApp, field, shape, type AppType, type Row } from '@pennestack/core'
+// apps/launchway/src/modules.ts: the selection
 import { accounts } from '@pennestack/module-accounts'
 import { auth } from '@pennestack/module-auth'
 import { live } from '@pennestack/live'
 import { graphql } from '@pennestack/transport-graphql'
 import { rest } from '@pennestack/transport-rest'
+import { deployments } from '@launchway/module-deployments'
+import { projects } from '@launchway/module-projects'
+
+export const modules = [accounts, auth, live, projects, deployments, graphql, rest] as const   // order is a tie-break only
+
+// apps/launchway/src/actions/health.ts: an app action, typed against the selection
+export const health = defineQuery(modules, { /* app-level, referenced as app.health */ })
+
+// apps/launchway/src/app.ts
+import { defineApp, type AppType, type Row } from '@pennestack/core'
+import { health } from './actions/health.ts'
+import { launchwayApi } from './api-versions.ts'
+import { modules } from './modules.ts'
 
 const launchwayDef = defineApp({
   id: 'launchway',
-  modules: [accounts, auth, live, projects, deployments, graphql, rest],   // const tuple; order is a tie-break only
-  actions: (b) => ({ health: b.query({ /* app-level, referenced as app.health */ }) }),
+  modules,                                                 // the const tuple of modules.ts
+  actions: { health },
   execution: { 'deployments.deployment.redeploy': 'async' }, // how external callers are answered (section 7.4)
   authorization: { mode: 'strict', decisionLog: 'denials' },
   policies: { disable: [], add: [] },                      // per-app rule overrides, section 8.7
+  api: launchwayApi,                                       // defineApiVersions: the app's dated API versions (section 18.2)
+  flags: {},                                               // app-level flags (section 20.2)
 })
 export interface Launchway extends AppType<typeof launchwayDef> {}
 export const launchway: Launchway = launchwayDef
@@ -553,6 +665,7 @@ export default defineDeployment({
   operator: { socket: '/run/pennestack/operator.sock', hosts: ['ops.example'], bootstrapSecret: secret('PENNESTACK_OPERATOR_SECRET') },
   keys: { masterKey: secret('PENNESTACK_MASTER_KEY') },    // root of the key service (section 14.7.4)
   telemetry: { otlp: env('OTEL_EXPORTER_OTLP_ENDPOINT') },
+  rollout: { finalize: 'auto', graceSeconds: 600 },        // the defaults: finalization of rolling upgrades (section 19.4)
 })
 ```
 
@@ -570,17 +683,20 @@ export; `--config` and `PENNESTACK_CONFIG` name another (section 16.9.1).
 
 ### 4.7 The type-level model
 
-The derived types operate on the normalised module shape below, which is what the builder
-accumulates. The listing was checked on 2026-10-11 with TypeScript 7.0.2 and 5.9.3
+The derived types operate on the normalised module shape below, which `defineModule(base, { ... })`
+produces from the module base and the module literal (section 4.1). The listing was checked on 2026-10-11 with TypeScript 7.0.2 and 5.9.3
 (`--strict --exactOptionalPropertyTypes --noUncheckedIndexedAccess`) together with the fourteen
 groups of positive and negative cases listed after it: every positive case holds, and every
 negative case fails with the named check. The file with its cases costs 61,042 type
 instantiations on TypeScript 7.0.2 (57,242 on 5.9.3).
 
-The listing models the composition fold, not the whole DSL. The builder chain and its typed
-callbacks, the module-local contexts of section 7.6, action input and output types derived from
-the field model, `Insert` and `Patch`, and relations are the spike's work, against the checklist
-at the end of this section. The spike must keep these properties:
+The listing models the composition fold, not the whole DSL: its `defineModule(m)` takes the
+normalised shape directly and applies the module-level checks, as the DSL's `defineModule(base,
+{ ... })` does after normalising, and `contribute` and `whenPresent` build the normalised entries
+that `defineContribution` and `defineCondition` declare. The module base, the parts typed against
+it and the module literal, the module-local contexts of section 7.6, action input and output types
+derived from the field model, `Insert` and `Patch`, and relations are the spike's work, against
+the checklist at the end of this section. The spike must keep these properties:
 
 - every lookup is a mapped type over the union of module ids plus `Extract` by id; there is no
   recursion over the tuple, so depth is constant in the number of modules;
@@ -596,6 +712,8 @@ at the end of this section. The spike must keep these properties:
   module until reserved ids got their own check (found while checking this listing);
 - every public derived type is named and wrapped in `Prettify`, so hovers show rows, not
   conditionals;
+- the normalised shape also carries the module's `flags` and `changes` (sections 20.2 and 18.2);
+  no composition check reads them, so the listing leaves them out;
 - every type that can appear in a module value's type is exported by `@pennestack/core`;
   otherwise declaration emit fails with TS4023 or TS2742 (checked with this listing);
 - a single `any` in a module definition would collapse `UnionToIntersection`; module packages
@@ -663,7 +781,7 @@ export interface ActionDef<K extends ActionKind, I, O, X extends Execution> {
 }
 type AnyAction = ActionDef<ActionKind, unknown, unknown, Execution>
 
-// ---- Normalised definitions (what the builder accumulates and defineApp consumes)
+// ---- Normalised definitions (what defineModule produces and defineApp consumes)
 type HistoryMode = 'chain' | 'state' | 'projection' | 'external'
 type GeneratorTemplate = 'watch'                       // closed, core-known set filled by modules
 interface AnyEntity {
@@ -1032,9 +1150,12 @@ thing:
 
 Spike checklist, to be run before any M1 code is written (roadmap M0):
 
-1. The builder chain with typed callbacks (`entities` before `entityActions`, `actions`,
-   `policies`, `reactions`, `services`, `contributes`, `conditional`), each typed with
-   `ActionContext<M>`.
+1. The module base and the parts typed against it: `defineCommand`, `defineQuery`,
+   `defineSubscription`, `definePolicy`, `defineReaction`, `defineService` and the other part
+   functions over a base, and `within(base, declaration)` for parts of contributions and
+   conditional parts, each handler typed with `ActionContext<Base>`; parts in separate files that
+   never import their module; `defineModule(base, { ... })` producing the same normalised module
+   type as the module written in one file; own actions invoked by value.
 2. Module-local contexts: `DataOf<M>` (own rows with hidden fields and `SecretRef`, dependency rows
    without them, patches of contributed fields only), `InvokableRefs<M>`, `when` modules of a
    conditional part treated as required, `ctx.live` and `ctx.blobs` from contracts, and a type
@@ -1053,7 +1174,8 @@ Spike checklist, to be run before any M1 code is written (roadmap M0):
 9. Declaration emit of every example module and both proof apps under the pnpm layout:
    `.d.ts` size per module, and no TS7056, TS2742 or TS4023.
 10. Instantiation budgets set on synthetic apps of 25 and 40 modules (the proof apps have 25 and
-    26 modules), with the builder chain.
+    26 modules), with every part typed against its base, and the cost of that typing (one
+    `ActionContext<Base>` per part) compared with the same modules written in one file each.
 
 Budget: measured on 2026-10-11 with this listing on synthetic apps in which every module has two
 entities of four fields, two entity actions, a module action, a contribution and a conditional
@@ -1061,7 +1183,8 @@ part, and requires its two predecessors: 20,279, 72,543, 195,783 and 408,543 ins
 12, 25 and 40 modules on TypeScript 7.0.2 (16,714, 69,179, 192,809 and 406,019 on 5.9.3), with
 check times below 0.25 seconds on 7.0.2. Growth is super-linear, roughly with the 1.4th to 1.6th
 power of the module count. The checker's limit is 5,000,000 instantiations per statement, so the
-fold leaves room, but the builder chain and field-model-derived action types add to it; the spike
+fold leaves room, but typing every part against its base and field-model-derived action types add
+to it; the spike
 sets the CI budget from the 25- and 40-module runs (section 13.11). The app-level fold is paid
 once: transports, the CLI and the generated file consume `AppEntities<App>` and
 `AppActionTree<App>` through `pennestack.generated.ts` and never fold the tuple again.
@@ -1075,8 +1198,10 @@ A module's identity is its `id`, a lowercase literal matching `[a-z][a-z0-9]*(-[
 type-level lookup, the runtime registry, the table namespace, the migration history, the policy
 rule ids and the action references, so it is permanent: renaming a module is a data migration
 with an explicit `pennestack module rename` command that rewrites the history table and the
-namespace, never a silent change. `version` is informational; compatibility between modules is
-expressed through the types, not through version ranges.
+namespace, never a silent change. `version` is the package's semantic version, and `pennestack
+surface diff` enforces it: a breaking change to the module's surface or declaration files needs a
+major, an additive one a minor (section 18.6). Compatibility between modules is still expressed
+through the types, not through version ranges.
 
 In handler contexts and in wire names that are property names (tRPC paths, GraphQL fields), an id
 appears in lower camel case: `mail-store` becomes `mailStore` (gap G15, section 17.7). Two ids that
@@ -1135,7 +1260,8 @@ defineModule({ id: 'live', provides: [contracts.live], ... })                   
 - App-level contracts are provided by a selected module that declares `provides`; `defineApp`
   reports an unprovided one as `missingModules`. Deployment-level contracts are provided by
   infrastructure entries; `defineDeployment` reports `missingInfrastructure` (section 4.7).
-- A conditional part's `when` list may name app-level contracts (`w.when([contracts.live], ...)`).
+- A conditional part's `when` list may name app-level contracts (`defineCondition([contracts.live],
+  { ... })`).
 - A contract provided by more than one selected module is a boot error unless the contract
   declares itself `set`-valued; this and empty required extension points are the cardinality
   checks of gap G14 (section 5.5).
@@ -1145,7 +1271,7 @@ defineModule({ id: 'live', provides: [contracts.live], ... })                   
 Toggling: a module can be switched off on its own unless another selected module `requires` it;
 then both go together. This is how "any module can be selected or toggled independently" is met
 without typing absent things as present: soft influence uses `optional`, contributions and
-conditional parts, and only genuine needs use `requires`. Section 21 lists this reading as a
+conditional parts, and only genuine needs use `requires`. Section 26 lists this reading as a
 decision point.
 
 ### 5.3 Contributions to other modules
@@ -1159,28 +1285,40 @@ toggling effect. Contributed fields must be optional or have a default, because 
 while the contribution is inactive (`contributedFieldsNeedDefault`, section 4.7).
 
 ```ts
-.contributes((c) => [
-  c.to(accounts, {
-    entities: {
-      profile: {
-        fields: { lastLoginAt: field.instant().optional().maskable(), emailVerifiedAt: field.instant().optional() },
-        relations: { credentials: relation.many.own('credential', { by: 'subject', to: 'id' }) },
-      },
+// modules/auth/src/contributions/to-accounts/contribution.ts: the declaration, listed by the base
+export const toAccounts = defineContribution(accounts, {
+  entities: {
+    profile: {
+      fields: { lastLoginAt: field.instant().optional().maskable(), emailVerifiedAt: field.instant().optional() },
+      relations: { credentials: relation.many.own('credential', { by: 'subject', to: 'id' }) },
     },
-    actions: (b) => ({ whoami: b.query({ /* mounted as accounts.whoami */ }) }),
-    entityActions: { profile: (e) => ({ changePassword: e.command({ /* accounts.profile.changePassword */ }) }) },
-    policies: (rule) => [
-      rule.allow('profile', ['read', 'update'], {
-        id: 'self',
-        principal: 'user',
-        where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }),
-        fields: ['displayName', 'locale'],
-      }),
-    ],
-    extensionPoints: { profileCards: [{ id: 'auth.security', title: 'Security' }] },
-  }),
-  c.to(projects, { when: [teams], policies: (rule) => [ /* rules that reference projects.team.members */ ] }),
+  },
+})
+// Parts of the contribution are typed with within(): accounts counts as required, profile rows include the fields above.
+export const whoami = defineQuery(within(authBase, toAccounts), { /* mounted as accounts.whoami */ })
+export const changePassword = defineCommand(within(authBase, toAccounts), 'profile', { /* accounts.profile.changePassword */ })
+export const profilePolicy = definePolicy(within(authBase, toAccounts), 'profile', [
+  {
+    effect: 'allow',
+    actions: ['read', 'update'],
+    id: 'self',
+    principal: 'user',
+    where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }),
+    fields: ['displayName', 'locale'],
+  },
 ])
+// modules/auth/src/base.ts: contributions: { toAccounts, toProjectsWhenTeams }, where
+// toProjectsWhenTeams = defineContribution(projects, { when: [teams] })
+// modules/auth/src/module.ts: the behaviour, under the declarations' keys
+contributes: {
+  toAccounts: {
+    actions: { whoami },
+    entityActions: { profile: { changePassword } },
+    policies: [profilePolicy],
+    extensionPoints: { profileCards: [{ id: 'auth.security', title: 'Security' }] },
+  },
+  toProjectsWhenTeams: { policies: [teamProjectsPolicy] },   // rules that reference projects.team.members
+},
 ```
 
 What a contribution can carry, and the composition rule for each:
@@ -1197,24 +1335,32 @@ What a contribution can carry, and the composition rule for each:
 
 A module may contribute to any module it lists in `requires` or `optional`; anything else is a
 boot error, so the dependency graph stays explicit. A contribution's code (its entity actions,
-its policies' conditions) runs with the contributor's context, not the target's.
+its policies' conditions) runs with the contributor's context, not the target's. A contribution is
+declared in two fragments under one key, its target, `when` list and data in the base and its
+behaviour in the module literal; the kernel merges fragments that share a (target, `when`)
+identity, which is also the identity of its migration track (section 14.6.1). Contribution and
+condition directories carry the names of those tracks, `contributions/to-<target>/` beside
+`migrations/to-<target>/` (section 23.4).
 
 ### 5.4 Conditional parts, and how accounts and authentication influence each other
 
 A module adds to **itself** on the condition that other modules are selected:
 
 ```ts
-.conditional((w) => [
-  w.when([accounts], {
-    entities: { credential: { fields: { profileId: field.ref(accounts, 'profile').optional() } } },
-    reactions: (r) => [
-      // runs in the producing transaction, under auth's service principal auth.system (section 7.7)
-      r.inline(accounts, 'profile.deactivated', async (event, ctx) => {
-        await ctx.invoke('auth.revokeSubject', { subject: event.state.id, reason: 'profile deactivated' })
-      }),
-    ],
-  }),
-])
+// modules/auth/src/conditional/when-accounts/condition.ts: the declaration, listed by the base
+export const whenAccounts = defineCondition([accounts], {
+  entities: { credential: { fields: { profileId: field.ref(accounts, 'profile').optional() } } },
+})
+// modules/auth/src/conditional/when-accounts/reactions/revoke-on-deactivation.ts
+// runs in the producing transaction, under auth's service principal auth.system (section 7.7)
+export const revokeOnDeactivation = defineReaction(within(authBase, whenAccounts), {
+  on: 'accounts.profile.deactivated',
+  timing: 'inline',
+  handle: async (event, ctx) => {
+    await ctx.invoke(revokeSubject, { subject: event.state.id, reason: 'profile deactivated' })   // an own action, by value
+  },
+})
+// modules/auth/src/module.ts: conditional: { whenAccounts: { reactions: { revokeOnDeactivation } } }
 ```
 
 With contributions (push: a module adds to another) and conditional parts (self-adaptation when
@@ -1222,7 +1368,9 @@ another is present), both directions of influence are expressible with a single 
 import. The rule: **the lower module publishes contracts (entities, events, extension points);
 the higher module imports it, contributes to it and adapts itself to it.** Inside a conditional
 part the `when` modules count as required, so the reaction above may read `ctx.data.accounts`
-and invoke accounts actions.
+and invoke accounts actions. Like a contribution, a conditional part has its declaration and data
+in the base and its behaviour in the module literal, under one key, merged by its `when`
+identity.
 
 For the accounts and authentication pair, accounts is lower (a directory of people needs no
 login; a credential store needs no profiles). Section 17.2 specifies both modules.
@@ -1253,7 +1401,10 @@ extensionPoints: { identityProviders: extensionPoint<IdentityProvider>({ mode: '
 ctx.extensions.identityProviders
 // Filled by auth, without accounts importing auth. A value that carries behaviour is a factory of
 // the contributor's own context, so listFor reads auth.credential with auth's authority:
-c.to(accounts, { extensionPoints: { identityProviders: (own) => [passwordProvider(own), passkeyProvider(own)] } })
+export const identityProvidersFill = defineFill(within(authBase, toAccounts), 'identityProviders', (own) => [passwordProvider(own), passkeyProvider(own)])
+// mounted in auth's module literal: contributes: { toAccounts: { extensionPoints: { identityProviders: identityProvidersFill } } }
+// A filler typed outside defineFill names the value type through the declaring module's type:
+type Provider = ExtensionValue<Accounts, 'identityProviders'>    // IdentityProvider; no subpath export of accounts needed
 ```
 
 Modes: `set` (any number of values), `ordered` (values carry `order`), `single` (exactly one
@@ -1270,18 +1421,23 @@ scope, principal, unit, trace and clock, with the contributor's data authority, 
 configuration and secrets. The declaring module sees ready instances. Plain data values (labels,
 menu entries) stay plain values.
 
-Services follow the same rule. `.services((s) => ({ ... }))` declares functions a module offers to
-its dependants; the kernel binds each to the providing module's context, so a service reads the
-provider's tables with the provider's authority and the provider's configuration, never the
-caller's. Call sites pass no context:
+Services follow the same rule. `defineService(base, fn)` declares a function a module offers to
+its dependants, mounted under the module literal's `services`; the kernel binds each to the
+providing module's context, so a service reads the provider's tables with the provider's
+authority and the provider's configuration, never the caller's. Call sites pass no context:
 
 ```ts
-.services((s) => ({
-  verifyPassword: s.service(async (own, verifier: string, password: string) => argon2Verify(verifier, password)),
-}))
+// modules/auth/src/services/verify-password.ts: wraps lib/verify-argon2id.ts
+export const verifyPassword = defineService(authBase, async (own, verifier: string, password: string) => verifyArgon2id(verifier, password))
+// modules/auth/src/module.ts: services: { verifyPassword }
 // in a dependant:
 const ok = await ctx.services.auth.verifyPassword(cred.verifier, input.password)
 ```
+
+A module's own parts do not see its services, because the base they are typed against does not
+hold them; they call the `lib/` function a service wraps (section 23.5). The core's type helper
+`ExtensionValue<Module, 'point'>` gives fillers the value type of an extension point from the
+declaring module's type, so module packages need no subpath exports for contract types.
 
 Binding never widens the principal: a bound service or filler runs under the caller's principal,
 so actions it invokes are gated as the caller's, and the data authority it uses is the
@@ -1306,6 +1462,7 @@ and a placement serves every app it hosts.
 | deployment | `tenantResolution` | `TenantResolver`, in deployment order (section 12) | ordered | core (`byHostname`, `byScopeKey`, `byHeader`, `byPath`) |
 | deployment | `carrierEnrichers` | `CarrierEnricher`: sets `carrier.scopeKey` before scope resolution | ordered | `transport-webhooks` receiver paths (section 16.5.8) |
 | deployment | `ports` | listener port bindings (gap G1) | map | `defineDeployment({ ports })` |
+| deployment | `flagProviders` | `FlagProvider` (section 20.3) | ordered | core (`core.targeting`, `env`), `openFeatureFlags(provider)` |
 | app | `transports` | `TransportAdapter` (section 16.3) | set | `transport-rest`, `transport-graphql`, `transport-trpc`, `transport-webhooks`, later JMAP and Connect |
 | app | `listeners` | `Listener` (non-HTTP: SMTP, IMAP) | set | mail listener modules |
 | app | `liveHub` | `LiveHub` (section 15.4.11); provides `contracts.live` | single | `live` |
@@ -1316,12 +1473,15 @@ and a placement serves every app it hosts.
 | app | `invocationMiddleware` | `Middleware` around the pipeline stages | ordered | rate limiting, audit, request logging |
 | app | `ruleSources` | `RuleSource` (runtime-defined policy rules) | set | a later tenant-admin module |
 | app | `crdtCodecs` | `CrdtCodec` (section 15.3.9) | set | `crdt-loro` |
-| app | `schedules` | `Schedule` (section 9.5) | set | modules through `.schedules()` |
+| app | `schedules` | `Schedule` (section 9.5) | set | modules through the `schedules` key of their module literal |
+| app | `flagContextEnrichers` | `FlagContextEnricher`: attributes for flag rules, once per session (section 20.3) | set | modules; bound to their contributor (gap G16) |
+| app | `flagObservers` | `FlagObserver`: sees each flag evaluation of an invocation (section 20.5) | set | `experiments`; bound to its contributor (gap G16) |
 
 ```ts
 export const graphql = defineTransportModule({ id: 'graphql', requires: [contracts.httpHost], transport: graphqlAdapter })
-// expands to:
-defineModule({ id: 'graphql', requires: [contracts.httpHost] }).contributes((c) => [c.to(core, { extensionPoints: { transports: [graphqlAdapter] } })])
+// expands to a base and a module literal:
+const graphqlBase = defineModuleBase({ id: 'graphql', requires: [contracts.httpHost], contributions: { toCore: defineContribution(core, {}) } })
+defineModule(graphqlBase, { contributes: { toCore: { extensionPoints: { transports: [graphqlAdapter] } } } })
 ```
 
 Because `core` is implicitly part of every app, such contributions are always active. An app
@@ -1341,6 +1501,12 @@ A module may declare `configAccess: { level: 'tenant', edit: 'policy' }` (gap G1
 generates `<module>.config.get` and `<module>.config.set` actions governed by ordinary rules, and
 emits a typed `config.changed` event that reactions consume (Launchway's settings re-render the
 edge when they change). Without it, configuration changes only through operator actions.
+
+Configuration shapes carry a configuration version, and each stored value records the version it
+was written with. A change that removes, renames or narrows a field ships a configuration
+migration that upgrades stored values; reads go through it, and rewriting the stored values is a
+contract step that refuses with `conflict`, `core.rollout_not_finalized`, until the rollout that
+introduced it is finalized (section 19.2).
 
 The brief's "everything configurable" is met by this plus the app-level overrides on `defineApp`
 (execution modes, policy overrides, authorization options) and the deployment's infrastructure.
@@ -1376,8 +1542,8 @@ Projections:
 ### 6.3 Relations
 
 - `field.ref(module, entity)` declares a to-one reference to another module's entity;
-  `field.ref.own(entity)` references an entity of the module being defined, by name, because the
-  module value does not exist until its builder chain completes (a module value referenced inside
+  `field.ref.own(entity)` references an entity of the module being defined, by name, because an
+  entity is defined before the base and the module that hold it (a module value referenced inside
   its own definition is a runtime temporal-dead-zone error and a type circularity). Inside a
   contribution, `own` names an entity of the contributor, not of the target: github's
   `field.ref.own('connection')` on `projects.project` points at `github.connection`.
@@ -1408,7 +1574,7 @@ Projections:
   cannot be passed for another.
 - Instants are UTC. `field.instant()` is a `Date` in process and an RFC 3339 string on the wire
   until Node 26 is the baseline, after which it becomes `Temporal.Instant` behind the same
-  builder (decision point in section 21). `createdAt` and `updatedAt` are set by the kernel,
+  builder (decision point in section 26.1). `createdAt` and `updatedAt` are set by the kernel,
   never by database defaults.
 - The system clock used for `createdAt`, hybrid logical clocks and tokens is `ctx.clock`, which
   tests can control.
@@ -1446,7 +1612,8 @@ Deletion through any generated or custom action is an `archived` event; `restore
 reads hide archived rows unless the query asks for them and the policy allows it. `retire` of a
 module, run explicitly by the operator, is the only operation that drops tables. Entities in the
 `state` mode, transient records and receipts are not history: retention purges them under the
-rules of section 14.7.1, which the decision points of section 21 make explicit.
+rules of section 14.7.1, whose defaults Jens accepted on 2026-10-24 (decision point 8, section
+26).
 
 Hidden, secret and credential data:
 
@@ -1479,20 +1646,27 @@ transport state-based incremental sync and optimistic concurrency without per-en
 
 | Action | Kind | Semantics |
 |---|---|---|
-| `get` | query | by ids, with a field selection; returns rows, `notFound` ids and the current `state` token |
+| `get` | query | by ids, with a field selection; returns rows, `notFound` ids and the current `state` token; on chain entities, `asOf` (an instant) returns the rows as they were then, without a token |
 | `query` | query | `filter` (condition AST), `sort`, cursor pagination (`first/after`, `last/before`), opt-in `total`; returns ids or rows plus `queryState` |
 | `changes` | query | since a `state` token: created, changed, archived ids and the new token |
 | `queryChanges` | query | since a `queryState`: added and removed ids for a filter |
 | `create`, `update`, `archive`, `restore` | command | one item each; instance operations take `id` and an optional `ifVersion`; authorized under their own names |
 | `set` | command | the batch form: `create`, `update` (patch), `archive`, `restore` with per-item `ifVersion` and collection-level `ifInState`; per-item results and errors; each item is authorized against its own operation |
 | `watch` | subscription | added by the live module's generator (section 15.4.1) |
-| `history` | query | the versions of one row (section 14.8.1); off unless `generated: { history: true }` |
+| `history` | query | the versions of one row (section 14.8.1), up to `asOf` when given; off unless `generated: { history: true }` |
 
 Rules name the operations (`create`, `update`, `archive`, `restore`); `write` is an alias for all
 four and `set`, and `read` an alias for `get`, `query`, `changes`, `queryChanges`, `watch` and
 `history`, so a rule written today does not silently miss tomorrow's generated read (section 8.1).
 `archivedAt` is a system field that field masks do not cover, which is why archive and restore are
 operations of their own: "members may edit projects, only admins may archive them" is two rules.
+
+`asOf` serves point-in-time reads (decision point 8, section 26): every change of a chain entity is
+an event with the changed fields and their before-images, so the row as it was at an instant is the
+fold of its stream up to the last event accepted at or before it. Only chain entities offer it;
+`asOf` reads are authorized and masked like `get`, against the row as it was; personal values whose
+key was destroyed read as redaction markers; and compaction bounds how far back they reach
+(section 14.7.1).
 
 `generated` on the entity switches any of them off (`set: false` removes the set operations);
 `projection` entities have no set operations and `external` entities only `get` and `query`.
@@ -1520,14 +1694,14 @@ returns data it did not produce. Reads after writes are consistent for the entit
 
 ### 7.2 Mounting
 
-| Mount | Declared with | Reference | Context extras |
-|---|---|---|---|
-| entity | `.entityActions('profile', (e) => ({...}))` | `accounts.profile.deactivate` | `e.events`, `e.page()`, `e.row()`, `ctx.target`, `decide(input, current, ctx)` |
-| module | `.actions((b) => ({...}))` | `auth.login` | |
-| app | `defineApp({ actions: (b) => ({...}) })` | `app.health` | the app's own registry |
+| Mount | Declared with | Mounted by | Reference | Context extras |
+|---|---|---|---|---|
+| entity | `defineCommand(accountsBase, profile, {...})` | `entityActions: { profile: { deactivate } }` | `accounts.profile.deactivate` | `ctx.events` (the entity's event constructors), `ctx.target`, `decide(input, current, ctx)`; output shapes `rowOf(profile)`, `pageOf(profile)` |
+| module | `defineCommand(authBase, {...})` | `actions: { login }` | `auth.login` | |
+| app | `defineQuery(modules, {...})` | `defineApp({ actions: { health } })` | `app.health` | the app's own registry |
 
 A contribution mounts actions on the target module or its entities (section 5.3); a conditional
-part mounts actions on the contributor itself.
+part mounts actions on the contributor itself. Both are typed with `within(base, declaration)`.
 
 ### 7.3 Definition
 
@@ -1549,7 +1723,8 @@ interface ActionOptions<I, O> {
   timeoutMs?: number
   hints?: Partial<TransportHints>               // naming and carriage per transport; never behaviour
   description?: string
-  deprecated?: { reason: string }
+  deprecated?: { reason: string; at?: string; sunset?: string }   // dates; from `at`, responses carry Deprecation and Sunset (section 18.5)
+  gate?: BooleanFlagKey                         // a boolean flag of the module; the action runs only while it is true (section 20.6)
 }
 ```
 
@@ -1633,19 +1808,22 @@ table. Queries are idempotent by definition.
 
 ### 7.6 The context object
 
-`ActionContext<M>` is computed from the module alone (section 3.4). In a conditional part it is
-`ActionContext<M, W>`, where the `when` modules `W` count as required.
+`ActionContext<M>` is computed from the module base alone (section 3.4): `M` is the base a part is
+typed against. In a part typed with `within(base, declaration)` it is `ActionContext<M, W>`, where
+the target and `when` modules `W` count as required.
 
 ```ts
-interface ActionContext<M extends AnyModule, W extends readonly AnyModule[] = []> {
+interface ActionContext<M extends AnyModuleBase, W extends readonly AnyModule[] = []> {
   readonly scope: Scope                                  // { level: 'tenant', backendId, tenantId } | { level: 'backend', backendId } | { level: 'deployment' }
   readonly principal: Principal                          // never undefined; narrowed by the action's `principal` option
   readonly ability: Ability                              // can(), plan(), explain() for this principal, section 8
   readonly data: DataOf<M, W>                            // own entities with the module's authority; dependencies read-only (section 8.4)
-  readonly services: ServicesOf<M, W>                    // bound to their providing modules (section 5.5)
+  readonly services: ServicesOf<M, W>                    // the dependencies' services, bound to their providing modules (section 5.5)
   readonly extensions: ExtensionsOf<M>                   // behavioural values bound to their contributors
   readonly config: ConfigOf<M>
-  readonly events: EventEmitters<M>                      // typed constructors for own domain events
+  readonly flags: FlagsOf<M, W>                          // one snapshot per invocation: ctx.flags.checkout.newFlow (section 20.3)
+  flagDetails(key: FlagKeyOf<M, W>): FlagResolution<unknown>   // value, variant, reason, rule version, provider
+  readonly events: EventEmitters<M>                      // entity parts: typed constructors for the entity's domain events
   readonly secrets: Secrets                              // reveal, seal, issue (section 6.6, gap G4)
   readonly timers: Timers                                // keyed durable timers, set in this unit (section 9.5)
   readonly scopeKeys: ScopeKeys                          // claim and release deployment-wide scope keys (gap G2)
@@ -1656,7 +1834,9 @@ interface ActionContext<M extends AnyModule, W extends readonly AnyModule[] = []
   readonly trace: Span
   readonly signal: AbortSignal
   readonly request: RequestInfo                          // id, transport, command id, preference, connection metadata, user agent; never credentials
-  invoke<R extends InvokableRefs<M, W>>(ref: R, input: InputOf<M, R>, options?: { prefer?: 'sync' | 'async' }): Promise<ResultOf<M, R>>
+  invoke<A extends OwnActionPart<M>>(action: A, input: PartInput<A>, options?: { prefer?: 'sync' | 'async' }): Promise<PartResult<A>>   // an own action, by value
+  invoke<R extends InvokableRefs<M, W>>(ref: R, input: InputOf<M, R>, options?: { prefer?: 'sync' | 'async' }): Promise<ResultOf<M, R>>    // a dependency's action, by reference
+  enqueue<A extends OwnCommandPart<M>>(action: A, input: PartInput<A>, options?: { commandId?: string; runAt?: Date }): Promise<CommandReceipt>
   enqueue<R extends CommandRefsOf<M, W>>(ref: R, input: InputOf<M, R>, options?: { commandId?: string; runAt?: Date }): Promise<CommandReceipt>
   asSystem(reason: string): SystemContext<M, W>          // invokes actions as the system principal; logged with the reason
 }
@@ -1672,12 +1852,21 @@ interface ActionContext<M extends AnyModule, W extends readonly AnyModule[] = []
 - Writes go to the module's own entities, and to another module's entity only for the fields this
   module contributed to it; the type of the patch says so, and a denied write throws `forbidden`.
   Everything else goes through the owning module's actions or services.
-- `ctx.invoke` accepts the module's own actions, the actions its contributions and conditional
-  parts mount, and the actions of required modules (and of `W`). A command of the same scope joins
+- `ctx.invoke` accepts the module's own actions, including those its contributions and
+  conditional parts mount, as part values (`ctx.invoke(revokeSubject, input)`), which the registry
+  resolves to their references, and the actions of required modules (and of `W`) by reference.
+  The same holds for `ctx.enqueue`, `ctx.timers.set({ invoke })`, `async.onGiveUp` and schedules;
+  inside a module, its own actions are never named by string. A command of the same scope joins
   the current unit as a savepoint; a query of the same or a wider scope reads in its own read-only
   unit when the scope differs. Commands of another scope are not invokable inline: `ctx.enqueue`
   runs them after commit and returns their receipt, so atomicity never depends on whether two
   scopes happen to share a database (section 12.3).
+- `ctx.services` lists the services of the module's dependencies only: parts are typed against the
+  base, which does not hold the module's own services, so a module's own code calls the `lib/`
+  functions its services wrap (section 5.5).
+- `ctx.flags` is synchronous and typed from the base's flags and those of the modules it requires
+  (and of `W`): a boolean flag reads as `boolean`, a variant flag as the union of its variants;
+  `flagDetails` returns the resolution with its reason (section 20.3).
 - `ctx.request` exposes request metadata only; credentials (the `Authorization` and `Cookie`
   headers, SASL secrets, tokens) stay inside the principal resolvers.
 - `asSystem(reason)` invokes actions under the system principal, for work the caller may not do
@@ -1686,22 +1875,35 @@ interface ActionContext<M extends AnyModule, W extends readonly AnyModule[] = []
 
 ### 7.7 Reactions
 
-Reactions are a module's event handlers, declared in `.reactions()` or in a conditional part:
+Reactions are a module's event handlers: one `defineReaction` or `defineProcess` literal per file,
+typed against the base (or with `within(base, declaration)` in a conditional part), mounted under
+the module literal's `reactions` or a conditional part's `reactions`:
 
 ```ts
-.reactions((r) => [
-  r.inline(accounts, 'profile.deactivated', handler),        // in the producing unit, before commit
-  r.async(deployments, 'deployment.changed', handler, {      // a keyed job per matching event, in its own unit
-    key: (event) => event.current?.projectId ?? event.stream.id,
-    ordering: 'fifo-per-key',                                // or 'none' (default)
-    coalesce: false,                                         // true: a newer event for the same key replaces a pending job
-    concurrency: 4,                                          // jobs of this reaction running at once per scope
-    retry: { delays: ['30s', '2m', '10m'], giveUpAfter: 'PT6H' },
-  }),
-  r.own('session.created', { timing: 'async' }, handler),    // the module's own events, by name
-  r.process('onboarding', { on: ['accounts.profile.created', 'auth.credential.created'], decide, evolve }), // stateful process manager
-])
+export const revokeOnDeactivation = defineReaction(within(authBase, whenAccounts), {
+  on: 'accounts.profile.deactivated',
+  timing: 'inline',                                          // in the producing unit, before commit
+  handle,
+})
+export const dispatchNextForProject = defineReaction(deploymentsBase, {
+  on: 'deployments.deployment.changed',                      // the module's own events, by reference
+  timing: 'async',                                           // a keyed job per matching event, in its own unit
+  key: (event) => event.current?.projectId ?? event.stream.id,
+  ordering: 'fifo-per-key',                                  // or 'none' (default)
+  coalesce: false,                                           // true: a newer event for the same key replaces a pending job
+  concurrency: 4,                                            // jobs of this reaction running at once per scope
+  retry: { delays: ['30s', '2m', '10m'], giveUpAfter: 'PT6H' },
+  handle,
+})
+// stateful process manager, in a module that requires accounts and auth:
+export const onboarding = defineProcess(onboardingBase, { on: ['accounts.profile.created', 'auth.credential.created'], decide, evolve })
+
+// modules/deployments/src/module.ts: the keys are reaction ids (deployments.dispatchNextForProject)
+reactions: { dispatchNextForProject },
 ```
+
+The key under which a reaction is mounted is its id, `<module>.<key>`: idempotency by `(reaction
+id, event id)`, checkpoints and dead letters use it, so a key never changes once released.
 
 A reaction to another module's events is conditional on that module (it must be in `requires`
 or the reaction sits in a conditional part). Reactions run under the module's service principal
@@ -1779,7 +1981,12 @@ interface Rule<E> {
   readonly fields?: readonly FieldName<E>[]    // reads: the maskable fields this rule reveals; writes: the fields that may change
   readonly reason?: string                     // required for deny rules
 }
+// The callbacks' PrincipalContext carries the principal, the scope and `flags`, the flags of the rule's
+// module typed as in ActionContext, so rules may read flags (section 20.6).
 ```
+
+Policies are written as arrays of these objects, one `definePolicy(base, target, [...])` per target
+(section 4.4); `definePolicy` fills in `subject` from the target and prefixes the ids.
 
 Action names: a rule names custom actions, the set operations `create`, `update`, `archive` and
 `restore`, the batch `set`, or the aliases `read` (`get`, `query`, `changes`, `queryChanges`, and
@@ -1819,12 +2026,14 @@ revocation, and an allow rule "drafts may be edited" would forbid publishing.
 
 Consequences, which the table-driven suite tests as transition cases:
 
-- `rule.deny('credential', ['revoke'], { where: () => ({ revokedAt: { isNull: false } }) })`
-  denies revoking an already revoked credential and never the revocation itself.
-- `rule.allow('post', ['update'], { where: ..., check: () => ({ status: { in: ['draft', 'published'] } }) })`
-  lets an editor publish a draft but not move it anywhere else.
-- `rule.deny('profile', ['deactivate', 'update'], { where: () => ({ deactivatedAt: { isNull: false } }) })`
-  freezes deactivated profiles and still lets an active profile be deactivated.
+- `{ effect: 'deny', actions: ['revoke'], where: () => ({ revokedAt: { isNull: false } }) }` in the
+  policy over `credential` denies revoking an already revoked credential and never the revocation
+  itself.
+- `{ effect: 'allow', actions: ['update'], where: ..., check: () => ({ status: { in: ['draft',
+  'published'] } }) }` over `post` lets an editor publish a draft but not move it anywhere else.
+- `{ effect: 'deny', actions: ['deactivate', 'update'], where: () => ({ deactivatedAt: { isNull:
+  false } }) }` over `profile` freezes deactivated profiles and still lets an active profile be
+  deactivated.
 
 Deny rules exist for genuine overrides (suspended accounts, archived records, tenant-wide
 freezes), must carry a `reason`, and should stay rare.
@@ -1875,7 +2084,7 @@ the invoker:
 | plan | which rows may the action select, which rows may it produce, which maskable fields may the caller see? | `always`, `never`, or `conditional { where, check, fields }`, memoised per invocation |
 | target | for instance commands: does the plan's `where` select the target? | outside it, `not_found`; the handler then receives the full row |
 | item check | does the post-image (for creates, the new row) pass the rules of section 8.2 and the entity invariant? | failure rolls the unit back with `forbidden` |
-| shape | which fields leave the invoker? | entity rows in the output are masked by the plan's fields |
+| shape | which rows and fields leave the invoker? | every entity row in the output is checked against the caller's read plan and masked by its fields; a row the plan does not select is an `internal` error (`core.row_outside_plan`) in development and tests, and in production it is dropped from the output and logged |
 
 Inside a handler, data access follows the module boundary, not the caller's rules:
 
@@ -1897,12 +2106,18 @@ Inside a handler, data access follows the module boundary, not the caller's rule
   deactivation by an operator therefore still revokes the subject's credentials, because
   `auth.system` may invoke auth's own actions.
 - `ctx.asSystem(reason)` invokes actions as the system principal and is logged with the reason.
+- The shape stage is the backstop of module authority (decision point 4, decided 2026-10-24): a
+  handler that returns a row it read with the module's authority, which the caller may not read,
+  never discloses it. Every entity row node leaving the invoker (outputs, pages, `EntityChange`
+  items, re-read receipt outcomes) is tested against the caller's read plan; development and tests
+  fail the invocation, and production drops the row (a page becomes shorter, its cursors stay
+  valid) and logs the action, the row id and the rule ids, so the bug is found without a leak.
 
 Transports never evaluate policies. Field masks apply to values leaving the invoker (the shape
 stage, entity outputs, live events, sync pulls), to `filter` and `sort` inputs (a filter or sort on
 a field the caller cannot see is `forbidden`, so a masked field cannot leak through a query), and
 to the fields a write changes. Custom outputs carry maskable entity fields only inside entity row
-nodes (`e.row()`, `e.page()`, `EntityChange`), which the shape stage masks; an output shape that
+nodes (`rowOf(entity)`, `pageOf(entity)`, `EntityChange`), which the shape stage checks and masks; an output shape that
 reuses a maskable field definition outside them is a compose error. Subscriptions re-run the plan
 per emitted event, since a principal can lose access mid-stream.
 
@@ -1918,6 +2133,7 @@ interface PrincipalBase {
   readonly via: string                                    // resolver id: 'auth.session', 'api-keys.key', 'core.operator', 'core.module'
   readonly ref: PrincipalRef | null                       // what jobs and receipts store: resolver id, principal id, credential id
   readonly expiresAt?: Date                               // when the presented credential stops being valid
+  readonly apiVersion?: string                            // from the credential: an API key created with a version (section 18.3)
 }
 interface UserPrincipal extends PrincipalBase {
   readonly kind: 'user'
@@ -2017,16 +2233,20 @@ the interfaces themselves are fixed here.
 |---|---|---|---|
 | `resolveScope` | carrier, after the deployment's carrier enrichers | `not_found` (unknown host, scope key or tenant), `unavailable` (backend suspended) | `tenantResolution`, `carrierEnrichers` |
 | `resolvePrincipal` | carrier, scope | `unauthenticated` for invalid bearer tokens and API keys; an invalid cookie session counts as absent (section 16.4.10) | `principalResolvers`, `principalEnrichers` |
-| `locate` | action ref, scope | `not_implemented` when the backend's app lacks the module or the action; `forbidden` when the action's scope level does not match | registry |
-| `admit` | tenant quotas, rate limits, maintenance flags (section 12.2) | `rate_limited`, `unavailable` | `invocationMiddleware` |
-| `validate` | input against the action's schema, in wire or in-process form | `validation` with Standard Schema issues | |
-| `authorize` | gate (section 8.4) | `forbidden` with rule ids | engine, `ruleSources` |
-| `execute` | handler inside a unit (read-write for commands, read-only for queries); target selection and item check inside | domain errors, `conflict` on version mismatch | data layer, job queue |
-| `shape` | output masks, output validation in development | `internal` | |
-| `complete` | telemetry, decision log, receipt | | `invocationMiddleware` |
+| `resolveVersion` | the request's version, else the credential's, the tenant's pin, the backend's default (section 18.3) | `validation` (`core.api_version_invalid`, `core.api_version_unknown`), `not_found` (`core.api_version_retired`); on an older process during a rollout, `unavailable` (`core.rollout_in_progress`) | |
+| `locate` | action ref (an older reference mapped to the head's), scope | `not_implemented` when the backend's app lacks the module or the action; `forbidden` when the action's scope level does not match; `unavailable` (`core.rollout_in_progress`) on an older process during a rollout | registry |
+| `admit` | tenant quotas, rate limits, kill switches and `core.suspension` rows (sections 12.2 and 20.7) | `rate_limited`, `unavailable` (`core.feature_suspended`) | `invocationMiddleware` |
+| `validate` | input against the action's schema at the session's API version, in wire or in-process form | `validation` with Standard Schema issues | |
+| `translate` | input transforms of the version changes the session's version lacks, oldest first (section 18.2) | `internal` (`core.version_change_failed`) | version changes |
+| `authorize` | gate (section 8.4), including flag gates | `forbidden` with rule ids; `core.feature_disabled` for a gate | engine, `ruleSources` |
+| `execute` | handler inside a unit (read-write for commands, read-only for queries); target selection and item check inside; every appended event records its writer and the flags read | domain errors, `conflict` on version mismatch | data layer, job queue |
+| `shape` | the row check against the caller's plan, output masks, output validation in development | `internal` | |
+| `translate` | output, error and item transforms, newest first | `internal` (`core.version_change_failed`) | version changes |
+| `complete` | telemetry, decision log, receipt; flushes API usage counters, flag counters and exposures | | `invocationMiddleware`, `flagObservers` |
 
-`resolveScope` and `resolvePrincipal` run once per transport request or connection, in
-`Invoker.open`, which returns an `InvocationSession` (section 16.3.4); invocations reuse it.
+`resolveScope`, `resolvePrincipal` and `resolveVersion` run once per transport request or
+connection, in `Invoker.open`, which returns an `InvocationSession` (section 16.3.4); invocations
+reuse it.
 Middleware wraps stages (an onion) and is contributed through `invocationMiddleware`; it can
 observe and short-circuit, never skip `authorize`.
 
@@ -2070,7 +2290,7 @@ interface EventBus {
 ```
 
 The buses are internal to the invoker; a module never calls them directly, it uses `ctx.invoke`,
-`ctx.enqueue`, `e.events.*` and reactions.
+`ctx.enqueue`, `ctx.events.*` and reactions.
 
 ### 9.4 Transactions and the event chain
 
@@ -2098,6 +2318,8 @@ interface JobSpec {
   readonly scope: Scope
   readonly principal: PrincipalRef                            // re-resolved when the job runs (section 7.4); module service principals for reactions, timers and schedules
   readonly causation: { readonly eventId?: string; readonly commandId?: string; readonly actor?: ActorRef }
+  readonly build: { readonly id: string; readonly revision: number }   // the enqueuer's build; workers take jobs at or below their revision (section 19.2)
+  readonly apiVersion?: string                                // external callers: the input is stored as sent, at this API version
   readonly runAt?: Date
   readonly key?: { readonly value: string; readonly onConflict: 'keep' | 'replace' | 'coalesce' }
   readonly group?: { readonly id: string; readonly concurrency: number }    // per-destination or per-tenant concurrency
@@ -2117,10 +2339,11 @@ interface JobQueue {
 }
 
 // Durable, keyed timers inside handlers, set in the caller's unit; they fire under the module's service principal:
-await ctx.timers.set({ key: `node-offline:${id}`, at, invoke: 'nodes.node.markOffline', input: { id } })
+await ctx.timers.set({ key: `node-offline:${id}`, at, invoke: markOffline, input: { id } })   // an own action part, by value
 await ctx.timers.cancel(`node-offline:${id}`)
-// Schedules, a contribution to the core's `schedules` extension point:
-.schedules((s) => [s.every('5m', 'dns.refreshPublicAddress', { scope: 'each-tenant', jitter: '30s' })])
+// Schedules, one per file, contribute to the core's `schedules` extension point:
+export const refreshPublicAddressSchedule = defineSchedule(dnsBase, { every: '5m', invoke: refreshPublicAddress, scope: 'each-tenant', jitter: '30s' })
+// modules/dns/src/module.ts: schedules: { refreshPublicAddress: refreshPublicAddressSchedule }   (the key is the schedule id)
 ```
 
 - Workers run only in processes with the `work` role. They take jobs with row locks
@@ -2144,7 +2367,7 @@ await ctx.timers.cancel(`node-offline:${id}`)
   preferred because the same queue then works on every adapter, in `pennestack dev` on PGlite and
   in tests on the in-memory adapter, and because job payloads stay under tenant row-level
   security. A `queue-pg` infrastructure entry built on pg-boss remains possible behind the same
-  interface; section 21 lists the choice as a decision point.
+  interface; section 26.1 lists the choice as decision point 6.
 
 ### 9.6 Live updates
 
@@ -2218,6 +2441,15 @@ reason (`WireError`, section 16.4.6). The core registers its own codes: `core.fo
 `core.quota_exceeded` and `core.timeout`. A command that exceeds its timeout is rolled back and reported as `unavailable`
 with code `core.timeout`, retryable under the same command id.
 
+Versioning, rollouts and flags add codes within the same kinds (section 18.8):
+`core.api_version_invalid` and `core.api_version_unknown` (`validation`), `core.api_version_retired`
+and `core.protocol_retired` (`not_found`), `core.rollout_in_progress` and `core.feature_suspended`
+(`unavailable`), `core.version_change_failed` (`internal`), `core.feature_disabled` (`forbidden`)
+and `core.rollout_not_finalized` (`conflict`). The shape-stage row check fails with
+`core.row_outside_plan` (`internal`, section 8.4), and an `asOf` read before a stream's compaction
+horizon with `core.history_compacted` (`not_found`, section 14.7.1). The taxonomy itself is
+unchanged.
+
 Declared errors become typed unions in GraphQL, typed results of `attempt` in the typed client,
 documented responses in OpenAPI and exit codes in the CLI. Error codes are part of the public
 contract and are never reused.
@@ -2227,13 +2459,16 @@ contract and are never reused.
 - Tracing and metrics through OpenTelemetry (`@opentelemetry/api` 1.9.1; SDK 2.x in the
   deployment package). The invoker opens one span per invocation with attributes
   `pennestack.app`, `.backend`, `.tenant`, `.module`, `.entity`, `.action`, `.kind`,
-  `.transport`, `.execution`, `.outcome` and the matched rule ids; transports, the data layer and
+  `.transport`, `.execution`, `.outcome`, `.api_version`, `.build` (build id and revision) and
+  `.flags` (the flags read, with variant and reason) and the matched rule ids; transports, the data layer and
   the queue add child spans; W3C `traceparent` is propagated in and out and stored in every event
   envelope, so live deliveries, async reactions and webhooks link back to the command that caused
   them. Section 16.11 adds the interface layer's spans and metrics.
 - Metrics: invocations and durations by action and outcome, job queue depth, age and dead letters,
   event append rate per namespace, projection and change-feed lag, live subscriptions, per-tenant
-  quota usage (section 12.2).
+  quota usage (section 12.2), and `pennestack.flags.evaluations` by flag, variant and reason.
+- API usage counters: requests per day, backend, tenant, API version and transport, per action or
+  field for deprecated items, flushed at `complete` into `core.apiUsage` (section 18.5).
 - Logs are structured, carry the scope ids and request id, and go through `ctx.log`; no module
   writes to `console`. The default `Logger` implementation in the deployment package is pino
   10.4.0 writing JSON lines to standard output; the core depends only on the `Logger` interface.
@@ -2255,8 +2490,8 @@ The brief makes this cross-cutting; this section collects the statements of each
 
 | Layer | How it handles backends and tenants |
 |---|---|
-| Kernel | Control entities `core.backend`, `core.tenant`, `core.domain`, `core.placement` and `core.namespace` (tenancy `deployment`) and the scope directory; `core.commandReceipt` with tenancy `invocation` (rows carry their command's scope); operator actions with `scope: 'deployment'`; runtime creation without restart; per-backend module configuration and per-tenant overrides; `onBackendCreated` and `onTenantCreated` hooks for provisioning; a change feed over the control store keeps every process's directory current. |
-| Pipeline | `resolveScope` runs first on every request or connection, using the deployment-ordered tenant resolvers (host name, path prefix, header, scope key from tokens, receivers and listeners such as the SMTP recipient domain); the same resolvers serve every transport, the CLI and non-HTTP listeners; actions declare the scope level they accept and the gate rejects a mismatch. |
+| Kernel | Control entities `core.backend`, `core.tenant`, `core.domain`, `core.placement` and `core.namespace` (tenancy `deployment`) and the scope directory; API version pins per backend, tenant and credential (section 18.3); the process registry `core.process` (section 19.1); `core.commandReceipt` with tenancy `invocation` (rows carry their command's scope); operator actions with `scope: 'deployment'`; runtime creation without restart; per-backend module configuration and per-tenant overrides; `onBackendCreated` and `onTenantCreated` hooks for provisioning; a change feed over the control store keeps every process's directory current. |
+| Pipeline | `resolveScope` runs first on every request or connection, followed by `resolvePrincipal` and `resolveVersion`, using the deployment-ordered tenant resolvers (host name, path prefix, header, scope key from tokens, receivers and listeners such as the SMTP recipient domain); the same resolvers serve every transport, the CLI and non-HTTP listeners; actions declare the scope level they accept and the gate rejects a mismatch. |
 | Data layer | Placement per tenant (shared tables with a tenant key, schema per tenant, database per tenant, or a different adapter), chosen at tenant creation and changeable by a move; the adapter injects the scope predicate into every statement; PostgreSQL row-level security as a backstop; positions, consumer checkpoints and usage counters per scope; migrations per namespace; application code never sees the strategy (section 14.9). |
 | Authorization | Scope is applied before and outside policies (section 8.8); the operator principal and explicit, logged tenant entry; no rule can widen a scope. |
 | Execution | Jobs, events, receipts, subscriptions and checkpoints carry the scope; workers adopt it and resolve the principal again before running; quotas and job concurrency per tenant (sections 9.7 and 12.2). |
@@ -2382,8 +2617,10 @@ parameter properties, no decorators; relative imports carry `.ts`.
   declaration emit.
 - The root `tsconfig.json` is a solution file (`"files": []` and the references of every package);
   `tsc -b` builds the graph with TypeScript 7.0.2.
-- Tests live next to sources (`*.test.ts`, `*.test-d.ts`). Each package has a `tsconfig.test.json`
-  (no emit, includes the tests, references the package), which Vitest's type checker uses.
+- Unit and type tests live next to sources (`*.test.ts`, `*.test-d.ts`); integration tests live in
+  each package's `test/` directory (section 23.8). Each package has a `tsconfig.test.json` (no
+  emit, includes both, references the package), which Vitest's type checker uses; `tsconfig.json`
+  excludes them.
 
 ### 13.4 Workspace packages from source
 
@@ -2418,25 +2655,20 @@ published, through one export condition:
   behaviours were checked with Node 24.21.0 (Appendix B).
 - Production runs the JavaScript that `tsc -b` emits (`pennestack start` runs `dist`), so production
   does not depend on type stripping at all.
+- Library packages such as `@pennestack/core` keep `src/index.ts` (and subpath entries such as
+  `src/wire/index.ts`) as curated entry files of named re-exports. Module packages point `"."` at
+  `src/module.ts`, the module literal, instead of `src/index.ts`, and have no other entry
+  (section 23.7).
 
 ### 13.5 Project layout
 
-The framework repository follows section 18; `examples/launchway` and
-`examples/mail` are apps. An application repository built on pennestack looks the same at a smaller
-scale:
-
-```
-my-platform/
-  pennestack.config.ts            export default defineDeployment({ apps: [...] })
-  apps/portal/
-    package.json  tsconfig.json
-    src/app.ts                    const portalDef = defineApp({ ... }); export interface Portal extends AppType<typeof portalDef> {}; export const portal: Portal = portalDef
-    src/pennestack.generated.ts   generated, committed
-    generated/                    api-surface/, openapi/, graphql/, cli/: generated, committed
-  modules/<id>/                   one package per module (section 16.9.8)
-  .pennestack/                    dev socket and caches; ignored by git
-  biome.json  package.json  pnpm-workspace.yaml  tsconfig.base.json  tsconfig.json
-```
+The framework repository follows section 22; `examples/launchway` and `examples/mail` are apps
+whose modules are packages under their `modules/` directories. An application repository built on
+pennestack has the layout of section 23.1: `pennestack.config.ts`, one package per app under
+`apps/<id>/` with `src/modules.ts` (the selection) and `src/app.ts` (`defineApp` with its named
+type), every module a package under `modules/<id>/` in the module layout of section 23.2,
+`scripts/` with one task per file, and `knip.json` beside `biome.json` at the root. Section 23
+also states the single-purpose rule, the names and the tooling that keeps them.
 
 ### 13.6 `pennestack dev`
 
@@ -2469,10 +2701,11 @@ development do transports serve GraphiQL, the API reference page and verbose pro
 | Artefact | Producer | Written by | Committed | Checked by | At runtime |
 |---|---|---|---|---|---|
 | `src/pennestack.generated.ts` | core, plus type fragments from transports | `dev` on change, `generate` | yes | `generate --check` | not loaded (types only) |
-| `generated/api-surface/<app>.json` | core | `dev`, `generate` | yes | `generate --check`, `introspect diff` | recomputed in memory; the hash is compared at boot (warning in development, configurable in production) |
-| `generated/openapi/<app>.json` | `transport-rest` | `dev`, `generate` | yes | `generate --check`, OpenAPI schema validation | recomputed by the same function and served with per-backend `servers` |
-| `generated/graphql/<app>.graphql` | `transport-graphql` | `dev`, `generate` | yes | `generate --check` | the schema object is built from the surface; its printed form equals the file |
-| `generated/cli/<app>.json` | `@pennestack/cli` | `dev`, `generate` | yes | `generate --check` | not used; the CLI builds from the surface |
+| `generated/api-surface/<app>/<api version>.json` | core | `dev`, `generate` | yes | `generate --check`, `surface diff` | recomputed in memory; the hash is compared at boot (warning in development, configurable in production) |
+| `generated/api-surface/<app>/ledger.json` | core | `surface version new` (explicit) | yes | `generate --check` against `defineApiVersions`; `surface diff` keeps released entries unchanged | read at `compose` for module version changes (section 18.2) |
+| `generated/openapi/<app>/<api version>.json` | `transport-rest` | `dev`, `generate` | yes | `generate --check`, OpenAPI schema validation | recomputed by the same function and served with per-backend `servers` |
+| `generated/graphql/<app>/<api version>.graphql` | `transport-graphql` | `dev`, `generate` | yes | `generate --check` | the schema object is built from the surface; its printed form equals the file |
+| `generated/cli/<app>/<api version>.json` | `@pennestack/cli` | `dev`, `generate` | yes | `generate --check` | not used; the CLI builds from the surface |
 | `TrpcRouter` type alias | `transport-trpc` | type fragment in the generated file | yes | `generate --check` | the router value is built from the surface |
 | migrations and module snapshots | data layer | `db generate` (explicit, never by the watch loop) | yes | `generate --check` (definitions against snapshots), `db check` | production verifies the applied history |
 | entity definitions for external tables | data layer | `db introspect` (section 14.8.4) | yes | `db introspect --check` | no |
@@ -2481,7 +2714,7 @@ The generated TypeScript file re-exports what application code needs, so the app
 instantiated once:
 
 ```ts
-// Generated by pennestack from src/app.ts. Do not edit. Surface sha256-3q2F...
+// Generated by pennestack 0.1.0 from src/app.ts. Do not edit. Format pennestack.generated/1, API version 2027-01-12, surface sha256-3q2F...
 import type { ActionRef as ActionRefOf, AppActionTree, AppEntities, Row } from '@pennestack/core'
 import type { AppClient } from '@pennestack/client'
 import type { TrpcRouterOf } from '@pennestack/transport-trpc'
@@ -2494,10 +2727,13 @@ export type ActionRef = ActionRefOf<App>
 export type Client = AppClient<App>
 export type RowOf<R extends string> = Row<App, R>
 export type TrpcRouter = TrpcRouterOf<App>               // type fragment of transport-trpc
+export const apiVersion = '2027-01-12'                   // the head the types describe; createRemoteClient sends it (section 18.2)
 ```
 
 Rules for every artefact: LF line endings, a trailing newline, sorted keys, two-space JSON
-indentation, no timestamps, a header naming the producer and the surface hash. Biome excludes
+indentation, no timestamps, a header naming the producer and its version, the format, the API
+version and the surface hash. Documents derived from the surface exist once per supported API
+version (section 18.2). Biome excludes
 generated paths from linting and formatting (`"!**/generated"`, `"!**/pennestack.generated.ts"`)
 but keeps them indexed for type-aware rules.
 
@@ -2506,7 +2742,9 @@ but keeps them indexed for type-aware rules.
 CI runs, in order:
 
 1. `pnpm install --frozen-lockfile`;
-2. `biome ci` (formatting and linting, no writes);
+2. `biome ci` (formatting and linting, no writes), then `knip` (unused files, which are forgotten
+   mounts, unused exports and dependencies) and `pennestack doctor --layout` (the layout pass of
+   section 23.13);
 3. `tsc -b` with TypeScript 7.0.2 (checks every project and emits `dist`);
 4. `vitest run` with type checking (unit, integration and type tests);
 5. `pennestack generate --check`;
@@ -2519,15 +2757,17 @@ CI runs, in order:
    TypeScript 7.0.2, Appendix B), declaration size per module package, and no TS7056, TS2742 or
    TS4023; attest benchmarks for the core's composition types run on TypeScript 6.0.3, which
    attest still needs;
-9. `pennestack introspect diff --base origin/main`: compares each app's committed surface with the
-   base and classifies every change as breaking (an action or an output field removed; an output
-   field made optional; a new required input field; an input type narrowed or an input enum value
-   removed; an execution mode changed away from `sync`; an error code given another kind),
-   dangerous (an output enum value or a union member added, which exhaustive clients must handle),
-   additive or neutral. A breaking change fails unless the change set acknowledges it in the app's
-   changelog.
+9. `pennestack surface diff --base origin/main` (section 18.6): derives the surface of every API
+   version of each app on both sides and classifies every change as breaking (an action or an
+   output field removed; an output field made optional; a new required input field; an input type
+   narrowed or an input enum value removed; an execution mode changed away from `sync`; an error
+   code given another kind), dangerous (an output enum value or a union member added, which
+   exhaustive clients must handle), additive or neutral. A breaking change to a supported version
+   fails, whatever the changelog says; dangerous changes need a changelog acknowledgement. Each
+   changed module package's own surface and declaration files must fit its semantic version bump.
 
-`pennestack build` runs steps 2 to 6 and 9 locally, then emits JavaScript for production.
+`pennestack build` runs steps 2 to 6 and 9 locally, the layout pass included, then emits JavaScript
+for production.
 
 ### 13.9 Biome preset and framework lint rules
 
@@ -2539,7 +2779,7 @@ its formatter defaults. The preset enables these rules as errors:
 |---|---|
 | `noExplicitAny` (suspicious) | one `any` in a module definition collapses the composition types (section 4.7) |
 | `noConsole` (suspicious) | logs go through `ctx.log` (section 11) |
-| `noImportCycles` (suspicious) | the package graph is a DAG (section 18) |
+| `noImportCycles` (suspicious) | the package graph is a DAG (section 22) |
 | `noTsIgnore` (suspicious) | `@ts-expect-error` makes a negative type test fail when the error disappears |
 | `noEnum`, `noNamespace`, `noParameterProperties` (style) | erasable syntax only, for Node's type stripping |
 | `useImportType`, `useExportType` (style) | `verbatimModuleSyntax` |
@@ -2550,7 +2790,15 @@ its formatter defaults. The preset enables these rules as errors:
 | `useImportExtensions` (correctness) | relative imports carry `.ts`, as Node and `rewriteRelativeImportExtensions` need |
 | `noUnusedImports`, `noPrivateImports` (correctness) | hygiene; `@private` internals stay private |
 | `noFloatingPromises`, `noMisusedPromises` (nursery) | unawaited work escapes the transaction and the span; the exact Biome version is pinned, so nursery behaviour does not drift |
-| `noRestrictedImports` (style) | the package-kind boundaries below |
+| `noRestrictedImports` (style) | the package-kind boundaries below, and per-directory patterns of the layout (section 23.12) |
+| `useFilenamingConvention` (style), `filenameCases: ["kebab-case"]`, `requireAscii` | file names are `kebab()` of their export (section 23.4) |
+| `useNamingConvention` (style), `strictCase` | identifiers without consecutive capitals, so the name mapping reads back |
+| `noBarrelFile`, `noReExportAll`, `noNamespaceImport` (performance); `noExportedImports` (style) | no re-exporting files, `export *`, `import * as` or exported imports (section 23.3) |
+| `useExportsLast` (style) | a file's exports are its last statements |
+| `noExcessiveLinesPerFile` (style), 300 non-blank lines, as a warning | a file long enough to hold two purposes |
+
+Overrides exempt the entry files of library packages from the barrel rules, migrations and
+generated paths from the naming rule, and scripts and tests from the import-effects plugin below.
 
 Package-kind boundaries, as `overrides` with `includes`:
 
@@ -2566,12 +2814,18 @@ GritQL plugins shipped in the same package, each with tests:
 | Plugin | Flags |
 |---|---|
 | `no-selection-augmentation.grit` | `declare module '@pennestack/...'` and `declare global` in module and app packages (principle 2) |
-| `named-module-types.grit` | an exported `defineModule(...)` or `defineApp(...)` value without a named type annotation (section 4.1) |
+| `named-module-types.grit` | an exported `defineModuleBase(...)`, `defineModule(...)` or `defineApp(...)` value without a named type annotation (section 4.1), in `base.ts`, `module.ts` and `app.ts` |
 | `no-null-in-conditions.grit` | a literal `null` as a comparison value in a rule's `where` or `check` (section 8.3) |
 | `as-system-reason.grit` | `ctx.asSystem()` without a reason or with an empty string |
 | `pure-deciders.grit` | `Date.now()`, `new Date()` without arguments, `Math.random()`, `crypto.randomUUID()` and `performance.now()` inside `decide` and `evolve` (use `ctx.clock` and `ctx.ids`) |
-| `unbroken-builder.grit` | an expression statement that discards the result of a builder step (`entities`, `actions`, `entityActions`, `policies`, `reactions`, `services`, `contributes`, `conditional`, `lifecycle`): every step returns a new module value |
 | `error-code-format.grit` | `defineError` codes that do not match `<module>.<snake_case>` |
+| `one-export.grit` | a second exported value in a source file, outside assembly files, library entries and tests (section 23.3) |
+| `no-import-effects.grit` | top-level expression statements, `await` and bare imports, outside tests and scripts |
+| `wiring-only-assembly.grit` | a function or arrow function in `base.ts`, `module.ts`, `app.ts` or `modules.ts` |
+
+The last three are scoped with `includes`, because GritQL cannot read the file path; checks that
+need paths belong to the layout pass of `pennestack doctor` (section 23.13). Modules are object
+literals (section 4.1), so no rule guards a chain of steps.
 
 ```grit
 or {
@@ -2594,7 +2848,9 @@ error-code prefixes against the declaring module, unique TypeID prefixes) run at
   7.0.2 and reports failing assertions (Appendix B).
 - The core's suite contains the fourteen cases of section 4.7, the context rules of section 7.6
   (each module compiles with no app in scope; `ctx.data.accounts` is `| undefined` under
-  `optional` and present inside a `w.when([accounts])` part; `ctx.live` follows the contract),
+  `optional` and present in a part typed with `within(base, whenAccounts)`; `ctx.live` follows the
+  contract; parts in separate files produce the module type of the same module written in one
+  file),
   the policy typing (a condition cannot name a field or relation that the rule's modules do not
   provide; read rules list only maskable fields; `principal: 'user'` narrows the subject), and the
   generated file's exports.
@@ -2602,7 +2858,7 @@ error-code prefixes against the declaring module, unique TypeID prefixes) run at
   `ExpectValidApp<A>` (no `defineApp` check properties), `HasEntity<App, 'accounts.profile'>`,
   `HasAction<App, 'accounts.profile.changePassword'>`, and the client types `InputOf`, `ResultOf`
   and `EventOf` for asserting what a transport will accept and return.
-- `pennestack module new` scaffolds the toggle cases: the module alone, the module with each module
+- `pennestack new module` scaffolds the toggle cases: the module alone, the module with each module
   in its `optional` list, and the conditional parts present only in the latter.
 - Transport packages carry type tests of their derived types (the cases of Appendix B for tRPC,
   the result types per execution mode for the typed client, `Readable<Row>` for masks) and an
@@ -2626,7 +2882,7 @@ the tenth module of a larger chain. Both proof apps are that deep (`previews` re
 which requires `mail-store`, which requires `mail-domains`). Rules:
 
 - every exported module and app value has a named type (`ModuleType`, `AppType`), scaffolded by
-  `pennestack module new` and enforced by `named-module-types.grit`;
+  `pennestack new module` and enforced by `named-module-types.grit`;
 - every type that can appear in a DSL value's type is exported by `@pennestack/core`, or emit fails
   with TS4023 or TS2742;
 - CI builds both proof apps under the pnpm layout and fails on TS7056, TS2742 or TS4023, and when a
@@ -2634,7 +2890,7 @@ which requires `mail-store`, which requires `mail-domains`). Rules:
 
 **Instantiations.** CI runs `tsc -p <app> --extendedDiagnostics` on `examples/launchway` and
 `examples/mail` and fails when the instantiation count exceeds the budget the spike establishes on
-synthetic apps of 25 and 40 modules with the builder chain (section 4.7 gives the fold's own
+synthetic apps of 25 and 40 modules with parts typed against their bases (section 4.7 gives the fold's own
 figures: 195,783 and 408,543 on TypeScript 7.0.2). attest benchmarks guard the composition types in
 `@pennestack/core`.
 
@@ -2650,7 +2906,11 @@ Checks the environment and the project, then the running backends:
   from `package.json`);
 - package manifests: the source condition in `exports`, absent from `publishConfig.exports`;
 - artefacts fresh (`generate --check`);
-- named types on exported module and app values, and declaration sizes within budget;
+- named types on exported module, module base and app values, and declaration sizes within budget;
+- the layout pass (`--layout` runs it alone): placement of files in their kind's directory, names
+  derived from exports, mounts in `base.ts` and `module.ts`, and the package shape (section 23.13);
+- flags past their expiry or otherwise stale, and release or experiment flags expiring more than
+  40 days after their first build (section 20.7);
 - the deployment: operator socket permissions, master key present, control store reachable, the
   control store on a different database cluster than the placements or an erasure-ledger sink
   configured (section 14.7.6), external-table drift, dead letters and parked streams; then
@@ -3204,8 +3464,9 @@ reaction dispatch that causes them.
 export interface JobStore {
   enqueue(job: StoredJobSpec): Promise<JobId>                 // keys: keep, replace or coalesce a pending job with the same key
   cancel(queue: string, key: string): Promise<number>
-  /** Takes up to `limit` due jobs of a queue, respecting keys, FIFO order per key and group concurrency. */
-  take(queue: string, worker: string, limit: number, leaseMs: number): Promise<readonly StoredJob[]>
+  /** Takes up to `limit` due jobs of a queue, respecting keys, FIFO order per key and group concurrency;
+      only jobs enqueued at or below `maxRevision`, the worker's build revision (section 19.2). */
+  take(queue: string, worker: string, limit: number, leaseMs: number, maxRevision: number): Promise<readonly StoredJob[]>
   heartbeat(jobIds: readonly JobId[], worker: string, leaseMs: number): Promise<void>
   complete(jobId: JobId, outcome: JobOutcome): Promise<void>  // succeeded, retry at a time, or dead letter
   schedules(): ScheduleStore                                  // one row per schedule and scope: last tick, next tick
@@ -3247,7 +3508,9 @@ home namespace, chosen when the backend is created.
   contain `_`, so the mapping is injective. Auxiliary tables of an entity (an FTS5 side table, for
   example) are `<module>__<entity>__<suffix>`.
 - **Framework tables.** `ps_<name>` (a single underscore, so never equal to a module table).
-- **Columns.** Field names in snake case (`displayName` becomes `display_name`). System columns are
+- **Columns.** Field names in snake case (`displayName` becomes `display_name`). A renamed field
+  keeps the column recorded in the snapshot: a rename changes the field name and the rename history,
+  never the column (sections 14.6.4 and 19.3). System columns are
   `id`, `tenant_id` or `backend_id`, `created_at`, `updated_at`, `archived_at` and `version`;
   framework columns are `ps_last_hlc`, `ps_last_hash`, `ps_erased_at` and, from M8, `ps_merge`. A
   field whose column name would collide with a system or framework column is a compose error.
@@ -3381,7 +3644,7 @@ complete.
   past `ps_last_hlc` (and past every field clock in the merge state), so a server-authored event
   always carries a clock greater than every clock already in the stream. Online writes are therefore
   "last committed wins", and only offline-authored writes can lose an `lww` comparison (section 15.3).
-- The switch to `Temporal.Instant` behind `field.instant()` (section 21) changes
+- The switch to `Temporal.Instant` behind `field.instant()` (decision point 19, section 26.1) changes
   codecs, not storage.
 
 #### 14.5.4 Wire forms of merge-typed fields
@@ -3456,7 +3719,6 @@ export type MigrationStep =
   | { readonly op: 'dropTable'; readonly entity: string }                                  // contract step
   | { readonly op: 'addColumn'; readonly entity: string; readonly field: string; readonly column: ColumnSpec }
   | { readonly op: 'dropColumn'; readonly entity: string; readonly field: string }          // contract step
-  | { readonly op: 'renameColumn'; readonly entity: string; readonly from: string; readonly to: string }   // contract step
   | { readonly op: 'alterColumn'; readonly entity: string; readonly field: string; readonly from: ColumnSpec; readonly to: ColumnSpec }
   | { readonly op: 'createIndex' | 'dropIndex'; readonly entity: string; readonly index: IndexSpec }
   | { readonly op: 'addForeignKey' | 'dropForeignKey'; readonly entity: string; readonly key: ForeignKeySpec }
@@ -3470,6 +3732,8 @@ export interface MigrationFile {
   readonly steps: readonly MigrationStep[]
   /** Event payloads written with the previous entity schema version, upgraded on read (section 15.1.9). */
   readonly upcast?: Readonly<Record<string, (data: unknown, eventName: string) => unknown>>
+  /** The reverse: while a rollout target runs, the target writes the finalized track version through it (section 19.2). */
+  readonly downcast?: Readonly<Record<string, (data: unknown, eventName: string) => unknown>>
   /** A dialect-neutral data step through repositories, run per tenant in batches under the system principal. */
   readonly data?: (ctx: MigrationContext) => Promise<void>
 }
@@ -3500,18 +3764,23 @@ and fail closed on a dialect they do not cover.
   the terminal, `rebuild` steps after confirmation). `pennestack db generate <track> --name <name>`
   writes the file and updates the snapshot when the author is ready; when a field disappears and
   another appears in one entity, the planner asks whether it is a rename (as drizzle-kit and Gel do)
-  and records the answer in the file and the rename history.
+  and records the answer in the file and the rename history. A rename keeps its column (section
+  14.4.2), so it needs no DDL.
 - CI: `pennestack generate --check` fails when definitions and snapshots differ (a file is missing);
   `pennestack db check` migrates a scratch database and compares its catalogue with the snapshots.
 - Production: the `migrate` phase verifies the history against the files and refuses to start on
   drift (section 3.3); `pennestack db apply` (alias `pennestack migrate`) applies
   pending files as a release step, and `pennestack db status` lists applied and pending files per
   namespace.
-- Expand and contract: `dropTable`, `dropColumn`, `renameColumn` and narrowing `alterColumn` steps
-  are contract steps. `db apply` applies only expand steps unless `--contract` is given, so the old
-  and the new build of a rolling deploy both work against the schema. With several processes, a
-  rename in production becomes add column, backfill and a later drop (from M7); until then, a
-  deployment with a single process accepts renames directly.
+- Expand and contract: `dropTable`, `dropColumn` and narrowing `alterColumn` steps are contract
+  steps. `db apply` applies only expand steps unless `--contract` is given, so the old and the new
+  build of a rolling deploy both work against the schema; no expand step adds a constraint the
+  older build's writes violate (a new required column gets a database default until a contract
+  step). `--contract` refuses with `conflict`, `core.rollout_not_finalized`, until the finalized
+  revision covers the step and no live process is below it. A type change or a split column runs in
+  two phases gated by the process registry, for one process or many: a new column written beside
+  the old one, a backfill after finalization, reads moving per namespace, then the contract step
+  (section 19.3).
 
 #### 14.6.5 Toggling, retiring and renaming modules
 
@@ -3584,8 +3853,11 @@ events; purging it (`purgeArchived`, `purgeRows`) removes those keys in the same
 the row, and the blob store's collector removes the bytes later, never before the deployment's
 backup retention has passed (section 14.7.6; gaps G5 and G11).
 
-The defaults govern operational buffers, not history, and the operator can change them; section
-21 lists them as a decision point. The worker runs in `work` processes, one tenant-scope unit at a
+The defaults govern operational buffers, not history, and the operator can change them; Jens
+accepted them on 2026-10-24 (decision point 8, section 26). Compaction also bounds point-in-time
+reads: `asOf` on `get` and `history` (sections 6.7 and 14.8.1) reaches back to the stream's
+compaction horizon, and an earlier instant is `not_found`, code `core.history_compacted`, because
+the snapshot event does not say what the row looked like before it. The worker runs in `work` processes, one tenant-scope unit at a
 time per scope and batch, outside peak hours when the operator configures a window.
 
 #### 14.7.2 Tombstones
@@ -3630,7 +3902,7 @@ after it, and the stream is reported as changed.
 - **In state tables.** Plaintext. State tables are projections that erasure scrubs, and plaintext
   keeps uniqueness, filtering, sorting and search working. Encrypting state columns as well (with
   blind indexes for equality) would forbid `contains`, `startsWith` and ordering on personal fields
-  and is not offered in the first release; section 21 lists this as a decision point.
+  and is not offered in the first release; section 26.1 lists this as decision point 7.
 - **Credential material.** Values of `field.secret()` and `field.verifier()` are sealed with their
   own value key (`ps_value_keys`), in the state row and in events alike, with the entity, row id and
   field as associated data. When a value is replaced, its row archived or purged, the kernel destroys
@@ -3797,6 +4069,8 @@ type OfflineEvents<F> =
 
 interface Repository<R extends { readonly id: unknown }, I, P> {
   get(id: R['id']): Promise<R | undefined>
+  /** Chain entities only: the row as it was at `asOf`, folded from its events up to that instant. */
+  get(id: R['id'], options: { readonly asOf: Date }): Promise<AsOf<R> | undefined>
   findOne(q: { readonly where: Where<R>; readonly includeArchived?: boolean }): Promise<R | undefined>
   query(q: QueryOf<R>): Promise<Page<R>>                              // { items, pageInfo, total? }
   count(where?: Where<R>): Promise<number>
@@ -3804,8 +4078,12 @@ interface Repository<R extends { readonly id: unknown }, I, P> {
   update(q: { readonly where: Where<R>; readonly patch: P; readonly ifVersion?: number }): Promise<readonly R[]>
   archive(q: { readonly where: Where<R>; readonly reason?: string }): Promise<number>
   restore(q: { readonly where: Where<R> }): Promise<number>
-  history(id: R['id'], range?: { readonly fromVersion?: number; readonly limit?: number }): AsyncIterable<HistoryEntry<R>>
+  /** `asOf` (chain entities): the entries up to that instant. */
+  history(id: R['id'], range?: { readonly fromVersion?: number; readonly limit?: number; readonly asOf?: Date }): AsyncIterable<HistoryEntry<R>>
 }
+
+/** A row read at an instant: a personal value whose key is gone reads as Redacted, as in history entries. */
+type AsOf<R> = { readonly [K in keyof R]: R[K] | Redacted }
 
 /** History entries are honest about erasure: a personal value whose key is gone reads as Redacted. */
 type HistoryEntry<R> = {
@@ -4007,7 +4285,7 @@ random rows and policies). Erasure tests search a dump of the test database for 
 erased subject, and credential tests search it for former password hashes and secret values. CI runs
 PostgreSQL and MySQL through testcontainers 12.2.0
 (`@testcontainers/postgresql`, `@testcontainers/mysql`); local runs use PGlite and SQLite; the proof
-apps are the integration suites (section 18).
+apps are the integration suites (section 22).
 
 ### 14.11 Risks
 
@@ -4074,7 +4352,8 @@ create table <root>.ps_events (
   shape_id        bytea           not null,             -- the tracks and versions the payload was written with (15.1.9)
   data            jsonb           not null,             -- personal fields encrypted per subject, credential material sealed
   before          jsonb,                                -- previous values of the fields this event changed
-  meta            jsonb           not null,             -- actor, command, action, causation, correlation, client, merge, trace
+  meta            jsonb           not null,             -- actor, command, action, causation, correlation, client, merge, trace,
+                                                        -- writer { build, revision }, flags [{ key, variant, reason, ruleVersion }]
   hlc             text            not null,
   recorded_at     timestamptz(3)  not null,
   transient       boolean         not null default false,
@@ -4119,6 +4398,8 @@ export interface EventEnvelope<Type extends string = string, Data = unknown> {
   readonly correlationId: string
   readonly client: { readonly id: string; readonly seq: number } | null   // offline-authored mutations (M8)
   readonly merge: MergeReport | null           // what lost an lww comparison (M8)
+  readonly writer: { readonly build: string; readonly revision: number }   // the build and revision that appended it (section 19.1)
+  readonly flags: readonly FlagRead[]          // the flags the invocation read (section 20.5)
   readonly transient: boolean
   readonly prevHash: string | null             // hexadecimal SHA-256
   readonly hash: string | null
@@ -4129,12 +4410,15 @@ export interface MergeReport {
   readonly lost?: readonly string[]                              // lww fields whose proposed value lost
   readonly winners?: Readonly<Record<string, Hlc>>               // the clocks they lost against
 }
+
+export interface FlagRead { readonly key: string; readonly variant: string; readonly reason: string; readonly ruleVersion: number | null }
 ```
 
 The envelope meets the constraints of section 9.4 (one stream per entity instance,
 expected-version appends, commit-ordered positions per scope, a clock, the actor and the command
 id, the hash chain, the trace context) and adds `before`, `partition`, `client`, `merge`,
-`transient` and `shape`. All of them are written from M1, so the stored format is final then.
+`writer`, `flags`, `transient` and `shape`. All of them are written from M1, so the stored format
+is final then.
 
 #### 15.1.4 Positions, partitions and serials
 
@@ -4287,7 +4571,8 @@ the resulting value: the atomic increment with result that G7 asks for (quota us
 #### 15.1.7 Receipts and the asynchronous outbox
 
 Receipts are the core module's `commandReceipt` entity (`history: 'state'`; fields `commandId`,
-`action`, `fingerprint`, `principal` (a reference, section 8.5), `status`, `outcome`, request
+`action`, `fingerprint`, `principal` (a reference, section 8.5), `status`, `outcome`, `apiVersion`
+(the API version the outcome is expressed in, which the fingerprint covers; section 19.2), request
 metadata (transport, remote address, user agent), `clientId`, `clientSeq`, `expiresAt`). Its tenancy
 is `invocation`, a mode only the core uses: a row carries the scope of its command, so a tenant
 command's receipt is a tenant row in the tenant's namespace (`core__command_receipt`, unique on
@@ -4305,7 +4590,8 @@ delivery id) call `core.commandReceipt.get` with it. Command ids are stored as t
   the handler a second time; the receipt is completed (or, for an asynchronous command, set to
   `accepted`) in the same unit.
 - The outcome of an entity command is a reference (`{ entity, id, version }`): a replay re-reads the
-  row and masks it for the caller. Other commands store their serialised output.
+  row at the receipt's API version and masks it for the caller. Other commands store their
+  serialised output.
 - Receipts expire after their action's idempotency window (default 24 hours, section 7.5). They are
   operational records, outside the "nothing deleted" rule. Receipts of sync mutations are kept until
   the client acknowledges them (section 15.3.6).
@@ -4333,7 +4619,8 @@ export interface ReceiptStore {
 - Every chain event stores `hash = SHA-256(prevHash ‖ JCS(content))`, where JCS is the JSON
   Canonicalization Scheme of RFC 8785 and `content` holds the event id, stream id, version, local
   event name, schema version, `data` (with ciphertext for personal values), `before`, clock,
-  recorded time, actor, command id and client fields. The state row keeps `ps_last_hash`, so chaining
+  recorded time, actor, writer, flags, command id and client fields (the writer and flags as the
+  actor is, a recommendation listed in section 26.3). The state row keeps `ps_last_hash`, so chaining
   costs no read. The canonicaliser lives in the core; `canonicalize` 5.1.0 (Apache-2.0) serves as an
   independent implementation in tests.
 - The chain survives crypto-shredding (the ciphertext does not change) and module renames (the
@@ -4353,7 +4640,8 @@ export interface ReceiptStore {
   track removed are dropped, and added fields are absent (their defaults apply on evolve). Fields of
   tracks that are inactive in the reading app are passed through unchanged by the generic evolve and
   by rebuilds, so their columns keep their data. A type change needs an `upcast` function in the
-  migration file; the planner refuses to write a migration with an unhandled type change.
+  migration file, and a `downcast` so that a rollout target can write the finalized track version
+  (section 19.2); the planner refuses to write a migration with an unhandled type change.
 - Domain event shapes are part of the snapshot and evolve the same way.
 - Upcasting never rewrites stored events.
 - CRDT payloads carry their codec id (`loro/1`); a change of codec format ships a converter in the
@@ -4483,7 +4771,7 @@ const projectStats = defineEntity({
 
 A projection that reads another module's events depends on that module like a reaction does
 (`requires`, or inside a conditional part). Projections are a history mode rather than a new
-builder step (section 6.6).
+kind of part (section 6.6).
 
 #### 15.2.3 Consumers
 
@@ -4509,7 +4797,8 @@ export interface ConsumerSpec {
   parked_at)`.
 - Leases: one active instance per consumer and namespace across all processes, acquired by a
   conditional update and renewed every third of the lease; only processes with the `work` role run
-  consumers. The instance learns which scopes moved from wake-ups and from `movedScopes`, and
+  consumers. During a rollout, leases move to processes of the target revision, so reactions the
+  target adds see every event (section 19.2). The instance learns which scopes moved from wake-ups and from `movedScopes`, and
   handles each scope in its own tenant-scope unit, so one scope's batch never shares a unit, a
   checkpoint or a failure with another's.
 - Delivery: at least once. Effects inside the namespace commit with the scope's checkpoint, so they
@@ -4533,6 +4822,7 @@ export interface ConsumerSpec {
 - M7, online blue/green: the new table `<table>__r<n>` is built from the log while writers continue,
   catches up, takes the exclusive lock briefly for the final catch-up, swaps names, and the old table
   is dropped after a grace period. Projection entities switch the same way, without a writer lock.
+- Rebuilds wait for the finalization of a running rollout (sections 19.2 and 19.4).
 - Triggers: `rebuild` and `enableMergeState` migration steps. The snapshot stores a hash of each
   `evolve` source text; when it changes, `pennestack db generate` asks whether the change alters
   results (a formatting change does not) and writes a `rebuild` step if it does.
@@ -4577,8 +4867,9 @@ A token is `v1.<epoch>.<position>.<scope>.<check>`: the scope's epoch in base 36
 decimal; `scope`, the first 8 hexadecimal characters of SHA-256 over the backend id and the scope
 id (independent of the namespace, so tokens survive a tenant move); and `check`, the first 8
 hexadecimal characters of SHA-256 over the rules that govern reads of the token's entity type for
-that principal (their ids and a hash of their conditions and field lists), the principal's id,
-roles and memberships, the entity type, the partition and, for `queryState`, the filter and sort.
+that principal (their ids and a hash of their conditions and field lists), the values of the flags
+those rules read, the principal's id, roles and memberships, the entity type, the partition and, for
+`queryState`, the filter and sort. A flag flip that changes visibility therefore resets tokens.
 A deploy that changes rules for other entities, or rules that do not apply to the principal,
 leaves the token valid; one that changes what this principal may read of this type resets it. It is
 the core's opaque `StateToken`: JMAP `state` and `queryState`, live stream tokens (section
@@ -4756,7 +5047,8 @@ export interface CrdtPullOutput { readonly codec: string; readonly update: strin
 Push semantics:
 
 - The client row (`sync.client`, a `history: 'state'` entity of the `sync` module: principal, label,
-  shapes, shapes hash, `lastClientSeq`, acknowledged sequence, last push, registration time) binds a
+  shapes, shapes hash, the client's API version and sync protocol major, `lastClientSeq`,
+  acknowledged sequence, last push, registration time) binds a
   client to the principal
   that registered it; a push by another principal is `forbidden` (`sync.client_principal`).
 - Mutations are processed in order. `clientSeq ≤ lastClientSeq` is `duplicate` (its outcome comes
@@ -5014,6 +5306,9 @@ Used by the invocation protocol (`/_pennestack/v1/subscribe`) and by REST subscr
 ```
 retry: 3000
 
+event: welcome
+data: {"apiVersion":"2026-10-23","surfaceHash":"sha256-3q2F...","protocol":1}
+
 id: <stream token>
 event: data
 data: {"type":"changed","id":"prof_01j9...","version":12,"row":{"id":"prof_01j9...","displayName":"Jens","version":12}}
@@ -5030,11 +5325,19 @@ data: {"missed":12}
 event: error
 data: {"kind":"forbidden","code":"core.forbidden","message":"...","retryable":false,"requestId":"..."}
 
+event: notice
+data: {"kind":"deprecation","apiVersion":"2026-10-23","at":"2027-06-01","sunset":"2028-01-31"}
+
 event: end
 data: {"reason":"going_away"}
 
 : ping
 ```
+
+The `welcome` event opens every stream; a client whose cached surface hash differs refetches its
+surface (section 19.5). `notice` carries deprecation notices from their `at` date (section 18.5).
+`end` reasons are `complete`, `going_away`, `max_duration` and `version_retired`, the last sent
+when the floor passes the stream's API version.
 
 - `GET` with query parameters serves browsers' `EventSource`; `POST` with a JSON body serves fetch
   based clients and long inputs. Responses are `text/event-stream` with `Cache-Control: no-cache`.
@@ -5052,7 +5355,7 @@ Endpoint `GET /_pennestack/v1/live`, subprotocol `pennestack.live.v1`, JSON text
 
 ```ts
 export type ClientMessage =
-  | { readonly type: 'hello'; readonly token?: string; readonly backend?: string; readonly tenant?: string; readonly traceparent?: string }
+  | { readonly type: 'hello'; readonly token?: string; readonly backend?: string; readonly tenant?: string; readonly apiVersion?: string; readonly traceparent?: string }
   | { readonly type: 'subscribe'; readonly id: string; readonly action: string; readonly input?: unknown; readonly after?: string }
   | { readonly type: 'unsubscribe'; readonly id: string }
   | { readonly type: 'invoke'; readonly id: string; readonly request: InvokeRequest }
@@ -5060,7 +5363,7 @@ export type ClientMessage =
   | { readonly type: 'ping' }
 
 export type ServerMessage =
-  | { readonly type: 'welcome'; readonly principal: { readonly kind: string; readonly id: string | null }; readonly heartbeatMs: number }
+  | { readonly type: 'welcome'; readonly principal: { readonly kind: string; readonly id: string | null }; readonly heartbeatMs: number; readonly apiVersion: string; readonly surfaceHash: string; readonly protocol: number }
   | { readonly type: 'data'; readonly id: string; readonly state?: string; readonly item: unknown }
   | { readonly type: 'head'; readonly id: string; readonly state: string }
   | { readonly type: 'reset'; readonly id: string; readonly reason: 'overflow' | 'expired' | 'resync'; readonly state?: string }
@@ -5068,7 +5371,8 @@ export type ServerMessage =
   | { readonly type: 'presence'; readonly channel: string; readonly peers: readonly PresencePeer[] }
   | { readonly type: 'result'; readonly id: string; readonly response: InvokeResponse }
   | { readonly type: 'error'; readonly id?: string; readonly error: WireError }
-  | { readonly type: 'end'; readonly id: string; readonly reason: 'complete' | 'going_away' | 'max_duration' }
+  | { readonly type: 'notice'; readonly notice: { readonly kind: 'deprecation'; readonly apiVersion?: string; readonly action?: string; readonly at: string; readonly sunset?: string } }
+  | { readonly type: 'end'; readonly id: string; readonly reason: 'complete' | 'going_away' | 'max_duration' | 'version_retired' }
   | { readonly type: 'pong' }
 
 export interface PresencePeer {
@@ -5085,7 +5389,8 @@ export interface PresencePeer {
   the host refuses the upgrade with `forbidden` and code `core.csrf` (section 16.4.10). The same
   check applies to cookie-authenticated SSE requests.
 - The first frame must be `hello` within 10 seconds. Credentials come from `hello.token` or from the
-  upgrade request's cookie or `Authorization` header; they open the connection's session.
+  upgrade request's cookie or `Authorization` header; they open the connection's session, and
+  `hello.apiVersion` selects its API version (section 18.3), which `welcome` confirms.
 - One connection multiplexes up to 100 subscriptions. `invoke` carries commands on the same
   connection, so collaborative clients (rich-text edits, flushes of an offline queue) do not open a
   request per edit; results are the invocation protocol's responses.
@@ -5096,7 +5401,7 @@ export interface PresencePeer {
   states (a cursor, a selection), and receives the peers of the channel within its own scope.
   States expire 30 seconds after their last update. Across processes, presence and topics travel
   through a broadcast capability of the data adapter (PostgreSQL `NOTIFY` with payloads below its
-  8,000-byte limit); without it they reach only subscribers on the same process (section 21).
+  8,000-byte limit); without it they reach only subscribers on the same process (section 26.3).
 - The same carrier with `subscribe` and `invoke` on one connection is what Launchway's agent
   protocol v2 needs (section 17.3.4): the agent holds `nodes.channel` and calls its actions with
   the typed client, without oRPC.
@@ -5254,10 +5559,11 @@ change to the registry's internal shape does not ripple into transports.
 #### 16.2.2 Shape
 
 ```ts
-/** One app's public interface. Derived by the core during `compose`; serialisable, deterministic, order-independent. */
+/** One app's public interface at one API version. Derived by the core during `compose`; serialisable, deterministic, order-independent. */
 export interface ApiSurface {
   readonly format: 'pennestack.surface/1'
   readonly app: string                                   // the app id, e.g. 'launchway'
+  readonly apiVersion: string                            // the dated API version this surface describes (section 18.2)
   readonly hash: string                                  // 'sha256-' + base64url of SHA-256 over the RFC 8785 form, without `hash`
   readonly modules: readonly SurfaceModule[]             // sorted by id
   readonly entities: readonly SurfaceEntity[]            // sorted by ref
@@ -5317,7 +5623,11 @@ export interface SurfaceAction {
   readonly hints: TransportHints
   readonly contributedBy?: string                        // module id when mounted by a contribution or a conditional part
   readonly description?: string
-  readonly deprecated?: { readonly reason: string }
+  readonly deprecated?: { readonly reason: string; readonly at?: string; readonly sunset?: string }
+  readonly since: string                                 // the API version that introduced the action
+  readonly changedIn: readonly string[]                  // the API versions whose version changes touched it
+  readonly inputHash: string                             // SHA-256 of the input's field node, so a diff names what changed
+  readonly outputHash: string
 }
 
 export interface SurfaceError {
@@ -5400,7 +5710,7 @@ export type FieldNode = FieldNodeBase & (
   | { readonly kind: 'list' | 'set'; readonly item: FieldNode }
   | { readonly kind: 'shape'; readonly fields: Readonly<Record<string, FieldNode>> }
   | { readonly kind: 'json'; readonly schema: JsonSchema }                                   // field.json(schema)
-  | { readonly kind: 'page'; readonly item: FieldNode }                                      // e.page()
+  | { readonly kind: 'page'; readonly item: FieldNode }                                      // pageOf(entity)
   | { readonly kind: 'foreign'; readonly input: JsonSchema; readonly output: JsonSchema }    // a free-form Standard Schema
 )
 ```
@@ -5458,8 +5768,9 @@ section 16.4.2):
 - It is order-independent: arrays are sorted by reference, code or name, and objects are serialised
   with sorted keys (RFC 8785, JSON Canonicalization Scheme). Two apps with the same modules in a
   different tuple order have the same surface and the same hash, as principle 6 requires.
-- It depends only on the app. Backend and tenant configuration never change it; a feature a backend
-  switches off at runtime stays in the surface and fails at runtime with its own error.
+- It depends only on the app and the API version. Backend and tenant configuration never change
+  it, and neither do flags; a feature a backend switches off at runtime stays in the surface and
+  fails at runtime with its own error. Each supported API version has its own surface and hash.
 
 #### 16.2.5 Introspection
 
@@ -5467,9 +5778,10 @@ The surface is available in three places, all with the same content:
 
 - the core action `core.introspect` (query, backend scope); its default rule allows any
   non-anonymous principal, and a backend setting makes it public or operator-only;
-- `GET /_pennestack/v1/surface` on the invocation protocol (section 16.8), with the hash as `ETag`, so
-  the CLI revalidates its cache with `If-None-Match`;
-- the committed artefact `generated/api-surface/<app>.json` (section 13.7).
+- `GET /_pennestack/v1/surface` on the invocation protocol (section 16.8), at the session's API
+  version, with that version's hash as `ETag`, so the CLI revalidates its cache with
+  `If-None-Match`;
+- the committed artefacts `generated/api-surface/<app>/<api version>.json` (section 13.7).
 
 #### 16.2.6 The composition report
 
@@ -5671,6 +5983,8 @@ export interface InvocationSession {
   readonly scope: Scope
   readonly app: string                                   // the app of the resolved backend; 'core' at deployment level
   readonly principal: Principal                          // kind 'anonymous' when no credentials were presented
+  readonly apiVersion: string                            // resolved by resolveVersion (section 18.3)
+  readonly deprecation: { readonly at: string; readonly sunset?: string } | null   // when the session's version is deprecated
   readonly expiresAt?: Date                              // when the presented credentials stop being valid
   /** Runs resolvePrincipal again from the retained carrier; used by long-lived connections. */
   revalidate(): Promise<Outcome<InvocationSession>>
@@ -5795,12 +6109,12 @@ the `graphql.field` hint as the fix. In REST, a module action whose kebab name e
 module's collection names is a `routeConflict`. Hints are written next to the action:
 
 ```ts
-search: e.query({
+export const search = defineQuery(accountsBase, profile, {
   input: shape({ text: field.string({ maxLength: 80 }) }),
-  output: e.page(),
+  output: pageOf(profile),
   hints: { graphql: { field: 'searchProfiles' }, cli: { aliases: ['find'] } },
   handle: (input, ctx) => ctx.data.accounts.profile.query({ where: { displayName: { contains: input.text } } }),
-}),
+})
 ```
 
 #### 16.4.2 Wire encoding of values
@@ -5895,10 +6209,10 @@ The closed taxonomy of section 10, projected:
 
 | Kind | REST status | GraphQL `extensions.code` | tRPC code | Invocation protocol | CLI exit | WebSocket close |
 |---|---|---|---|---|---|---|
-| `validation` | 422; 400 for malformed syntax (code `core.malformed_request`); 413 for `core.payload_too_large` | `BAD_USER_INPUT` | `BAD_REQUEST` | as REST | 3 | 4400 |
+| `validation` | 422; 400 for malformed syntax (code `core.malformed_request`) and for `core.api_version_invalid` and `core.api_version_unknown`; 413 for `core.payload_too_large` | `BAD_USER_INPUT` | `BAD_REQUEST` | as REST | 3 | 4400 |
 | `unauthenticated` | 401 with `WWW-Authenticate` | `UNAUTHENTICATED` | `UNAUTHORIZED` | 401 | 4 | 4401 |
 | `forbidden` | 403 | `FORBIDDEN` | `FORBIDDEN` | 403 | 5 | 4403 |
-| `not_found` | 404 | `NOT_FOUND` | `NOT_FOUND` | 404 | 6 | 4404 |
+| `not_found` | 404; 410 for `core.api_version_retired` and `core.protocol_retired` | `NOT_FOUND` | `NOT_FOUND` | as REST | 6 | 4404 |
 | `conflict` | 409; 412 for failed preconditions (`core.version_mismatch`, `core.state_mismatch`); 422 for `core.idempotency_mismatch` | `CONFLICT` | `CONFLICT`; `PRECONDITION_FAILED` for failed preconditions | as REST | 7 | 4409 |
 | `rate_limited` | 429 with `Retry-After` (none for `core.quota_exceeded`) | `RATE_LIMITED` | `TOO_MANY_REQUESTS` | 429 | 8 | 4429 |
 | `not_implemented` | 501 | `NOT_IMPLEMENTED` | `NOT_IMPLEMENTED` | 501 | 9 | 4501 |
@@ -5907,7 +6221,9 @@ The closed taxonomy of section 10, projected:
 | `internal` | 500 | `INTERNAL_SERVER_ERROR` | `INTERNAL_SERVER_ERROR` | 500 | 1 | 1011 |
 
 CLI usage errors (unknown command, unparsable flag) exit with 2, and an interrupted command with
-130. Each transport follows its ecosystem's conventions for the outer code (tRPC reports input
+130. Every HTTP response echoes `Pennestack-Version`; at a deprecated API version or for a deprecated
+action, responses also carry `Deprecation` (RFC 9745), `Sunset` (RFC 8594) and a `Link` with
+`rel="deprecation"` (section 18.5). Each transport follows its ecosystem's conventions for the outer code (tRPC reports input
 validation as `BAD_REQUEST`); the error object inside is the same everywhere:
 
 ```ts
@@ -5928,7 +6244,7 @@ export interface WireError {
 Which members an audience sees is decided once, by the core's `toWire(error, audience)`
 (section 10), never by a transport: operator principals and development get `rules` and unredacted
 `internal` messages; everyone else gets the code, the kind, the message and the deny reason.
-Error codes are part of the public contract; `pennestack introspect diff` (section 13.8) fails when
+Error codes are part of the public contract; `pennestack surface diff` (section 13.8) fails when
 a code disappears and reappears with another meaning.
 
 #### 16.4.7 Execution preference, receipts and waiting
@@ -5994,7 +6310,7 @@ hint lets an action's output set or clear an HttpOnly cookie while the authentic
 all the knowledge:
 
 ```ts
-login: b.command({
+export const login = defineCommand(authBase, {
   input: shape({ identifier: field.string({ format: 'email' }), password: field.secret() }),
   output: shape({ sessionToken: field.string(), sessionId: field.ref.own('session'), expiresAt: field.instant() }),
   auth: { public: true },
@@ -6003,7 +6319,7 @@ login: b.command({
     cli: { login: { tokenField: 'sessionToken' } },
   },
   handle: async (input, ctx) => { /* section 17.2 */ },
-}),
+})
 ```
 
 Cookie rules:
@@ -6477,7 +6793,8 @@ All under `/_pennestack/v1` on every host name of the app, and on the operator e
 | `POST /invoke` | one query or command |
 | `POST /batch` | up to 20 invocations, executed in order, each independently (no shared transaction) |
 | `GET /subscribe?action=&input=&after=` or `POST /subscribe` | one subscription as SSE (section 15.4.6); `GET` serves browsers' `EventSource` |
-| `GET /surface` | the API surface; `ETag` is the surface hash |
+| `GET /surface` | the API surface at the session's API version; `ETag` is that version's surface hash |
+| `GET /capabilities` | `core.capabilities`, public: the protocol majors served and the API versions with status and dates (section 18.7) |
 | `GET /live` | WebSocket with subprotocol `pennestack.live.v1` (section 15.4.7) |
 
 ```ts
@@ -6499,7 +6816,10 @@ export interface BatchResponse { readonly results: readonly InvokeResponse[] }
 HTTP statuses follow the REST column of section 16.4.6, and the body is always the JSON envelope above,
 so a client never parses two error formats. Requests carry `authorization`, `traceparent`, and the
 backend and tenant selectors the deployment's resolvers read (by default `x-pennestack-backend` and
-`x-pennestack-tenant`, as in section 4.6).
+`x-pennestack-tenant`, as in section 4.6), plus `Pennestack-Version` (the API version, section
+18.3), `Pennestack-Client: <name>/<version>` from the typed client, the CLI and the Launchway
+agent, and `Pennestack-Client-Id`, a client-chosen device id that gives anonymous principals a flag
+targeting key (section 20.3).
 
 #### 16.8.3 The operator socket
 
@@ -6555,6 +6875,7 @@ type ResultOf<App, R, P> =
 
 export function createRemoteClient<App>(options: {
   readonly url: string                                   // 'https://lvj.example' or 'unix:///run/pennestack/operator.sock'
+  readonly apiVersion: string                            // required: the head the types were compiled with, exported by the generated file
   readonly token?: string
   readonly backend?: string
   readonly tenant?: string
@@ -6597,7 +6918,7 @@ project mode, otherwise from `GET /_pennestack/v1/surface`, cached by hash under
 
 ```
 pennestack
-├── dev | build | start | generate | migrate | db | introspect | module | ...   framework commands (11.7)
+├── dev | build | start | generate | migrate | db | introspect | module | ...   framework commands (16.9.7)
 ├── <module> <entity> <action>      accounts profile deactivate prof_01j9... --reason "left the company"
 ├── <module> <action>               accounts register --display-name Jens --email jens@acme.example
 ├── app <action>                    app health
@@ -6617,10 +6938,12 @@ pennestack
 
 Framework commands and action commands share the first level, so framework command names are
 reserved as module ids (section 5.1): `app`, `backend`, `build`, `call`, `completion`, `consumers`,
-`core`, `db`, `dev`, `doctor`, `domain`, `explain`, `generate`, `help`, `init`, `introspect`,
-`jobs`, `keys`, `login`, `logout`, `migrate`, `module`, `operator`, `profile`, `start`, `tenant`,
-`version`, `watch` and `x`. The list is frozen per major version; a new framework command lands under an existing group or
-under `x` until the next major version.
+`core`, `db`, `dev`, `doctor`, `domain`, `explain`, `flags`, `generate`, `help`, `init`,
+`introspect`, `jobs`, `keys`, `login`, `logout`, `migrate`, `module`, `new`, `operator`, `profile`,
+`rollout`, `start`, `surface`, `tenant`, `version`, `watch` and `x`: 33 names, of which `flags`,
+`rollout` and `surface` came with sections 18 to 20 and `new` with section 23, before the list is
+frozen. The list is frozen per major version; a new framework command lands under an existing
+group or under `x` until the next major version.
 
 #### 16.9.4 Flags from field nodes
 
@@ -6678,7 +7001,7 @@ the plan and the matched rule ids) and `--trace` (prints the trace id).
 
 | Command | Connection | What it does |
 |---|---|---|
-| `pennestack init [dir]` | none | creates a project: workspace, base TypeScript configuration, Biome preset, `pennestack.config.ts`, one app and one module |
+| `pennestack init [dir]` | none | creates a project in the canonical layout of section 23.1: workspace, base TypeScript configuration, Biome preset, `knip.json`, `pennestack.config.ts`, one app and one module |
 | `pennestack dev` | project | the watch loop of section 13.6 |
 | `pennestack build` | project | the checks of section 13.8, then emits JavaScript for production |
 | `pennestack start --role serve\|work\|all` | project (built) | runs a process with the role of section 3.2 |
@@ -6687,34 +7010,50 @@ the plan and the matched rule ids) and `--trace` (prints the trace id).
 | `pennestack db plan\|generate\|apply\|status\|check\|introspect\|retire\|rebuild\|verify\|restore` | project or operator socket | the data layer's commands, with the semantics of sections 14.6.4, 15.2.4, 14.7.6 and 14.8.4 |
 | `pennestack consumers list\|unpark`, `pennestack jobs list\|replay\|discard`, `pennestack keys rotate`, `pennestack tenant move` | operator socket | consumers and parked streams (section 15.2.3), dead-letter jobs (section 14.3.9), key rotation (section 14.7.4), tenant moves (section 14.4.5) |
 | `pennestack operator token issue\|revoke\|list` | operator socket | short-lived operator tokens for remote operator profiles (section 3.5) |
-| `pennestack introspect [modules\|actions\|entity <ref>\|policies\|extensions\|diff]` | any | the surface and the composition report as a tree or JSON; `diff --base <git ref>` classifies interface changes (section 13.8) |
-| `pennestack module new\|rename\|retire` | project; rename and retire also on the operator socket | scaffolding (section 16.9.8) and the operator actions of sections 5.1 and 6.6 |
+| `pennestack introspect [modules\|actions\|entity <ref>\|policies\|extensions\|diff]` | any | the surface and the composition report as a tree or JSON; `introspect diff` is an alias of `surface diff` |
+| `pennestack surface diff\|version new\|usage\|retire` | project; `usage` and `retire` on the operator socket | compatibility of every API version against a git base (section 18.6), a new API version in the ledger (section 18.2), usage per tenant and version, retirement below the floor (section 18.5) |
+| `pennestack rollout status\|finalize\|abort` | operator socket | processes, revisions and pending contract steps; finalization and abort of a rollout (section 19.4) |
+| `pennestack flags list\|get\|set\|history\|explain\|stale` | operator socket or remote operator | aliases of the `core.flag` operator actions (section 20.9) |
+| `pennestack new <kind> <reference>` | project | scaffolds one part and mounts it in its assembly file (sections 16.9.8 and 23.14) |
+| `pennestack module new\|rename\|retire` | project; rename and retire also on the operator socket | `module new` is an alias of `new module` (section 16.9.8); the operator actions of sections 5.1 and 6.6 |
 | `pennestack backend ...`, `tenant ...`, `domain ...` | operator socket or remote operator | aliases of the `core` action commands |
 | `pennestack call <ref> [--input ...]` | any | invokes any action by reference, for scripts that should not depend on routes |
 | `pennestack watch <ref> [--input ...]` | any | subscribes to any subscription by reference |
-| `pennestack explain <ref> [--input ...] [--as <principal>]` | operator socket, development | shows the authorization decision without executing (section 8.6); what `--as` may do is a decision point (section 21) |
+| `pennestack explain <ref> [--input ...] [--as <principal>]` | operator socket, development | shows the authorization decision without executing (section 8.6); what `--as` may do is decision point 17 (section 26.1) |
 | `pennestack doctor` | any | the checks of section 13.12, then `app.health` and `app.ready` |
 | `pennestack login\|logout\|profile ...` | remote | profiles and credentials |
 | `pennestack completion bash\|zsh\|fish` | none | prints a completion script |
 
 #### 16.9.8 Module scaffolding
 
-`pennestack module new <id> [--kind domain|transport|adapter] [--requires a,b] [--optional c]`
+`pennestack new <kind> <reference>` scaffolds one part, located by its reference (section 23.14),
+for the kinds `module`, `entity`, `action`, `flag`, `policy`, `reaction`, `service`, `error`,
+`schedule`, `stream`, `topic`, `contribution`, `condition`, `version-change`, `lib`, `shape`, `app`
+and `script`; `pennestack module new` stays as an alias of `pennestack new module`.
+`pennestack new module <id> [--kind domain|transport|adapter] [--requires a,b] [--optional c]`
 creates a package that already compiles, tests and type-tests:
 
 ```
 packages/module-<id>/                     (modules/<id>/ in an application repository)
-  package.json          name, "type": "module", exports with the source condition, publishConfig.exports without it (section 13.4)
+  package.json          name, "type": "module", exports "." to src/module.ts with the source condition, publishConfig.exports without it (section 13.4)
   tsconfig.json         extends the base configuration; composite; rootDir src; references to the packages it requires
-  src/index.ts          const <camelId>Def = defineModule({ id: '<id>', version: '0.1.0', requires: [...], optional: [...] })
+  tsconfig.test.json    includes src/**/*.test*.ts and test/
+  src/base.ts           const <camelId>BaseDef = defineModuleBase({ id: '<id>', version: '0.1.0', requires: [...], optional: [...] })
+                        export interface <PascalId>Base extends ModuleBaseType<typeof <camelId>BaseDef> {}
+                        export const <camelId>Base: <PascalId>Base = <camelId>BaseDef
+  src/module.ts         const <camelId>Def = defineModule(<camelId>Base, {}); the package entry
                         export interface <PascalId> extends ModuleType<typeof <camelId>Def> {}
                         export const <camelId>: <PascalId> = <camelId>Def
-  src/<id>.test.ts      a test through createLocalClient against an app made of this module alone
-  src/<id>.test-d.ts    type tests: composes alone, composes with each optional module, conditional parts appear only then
+  src/module.test-d.ts  type tests: composes alone, composes with each optional module, conditional parts appear only then
+  test/alone.test.ts    a test through createLocalClient against an app made of this module alone
 ```
 
-It adds the package to the root `tsconfig.json` references and prints the import and the tuple entry
-to add to an app. It never rewrites TypeScript sources.
+It adds the package to the root `tsconfig.json` references and, with `--app <id>`, adds the module
+to that app's `modules.ts`. A scaffold of any other kind writes the part (with a test beside
+actions, policies and reactions) and inserts one import and one entry into the matching key of one
+assembly file (`base.ts`, `module.ts`, `app.ts` or `modules.ts`). It edits nothing else, refuses a
+file it does not recognise as the canonical shape and prints the two lines instead, and
+`--dry-run` shows the plan (decision point 61 of section 26.1).
 
 #### 16.9.9 Completions and help
 
@@ -6872,9 +7211,9 @@ interface layer:
   not a renaming of the generated actions. Section 17.4.8 decides which entities the mail app
   exposes.
 - **Connect** (gRPC-compatible): needs stable field numbers (`.tag(n)`, a decision point of section
-  21). Descriptors would be built at runtime from field nodes with `@bufbuild/protobuf` 2.16.0
+  26.1). Descriptors would be built at runtime from field nodes with `@bufbuild/protobuf` 2.16.0
   (`createFileRegistry`) and the `.proto` file emitted as an artefact; a runtime-descriptor spike
-  (section 21) decides whether `@connectrpc/connect` 2.2.0 accepts them.
+  (section 26.3) decides whether `@connectrpc/connect` 2.2.0 accepts them.
 - **oRPC**: not in the first release (ADR 0011). A `transport-orpc` remains one more adapter if a
   client needs oRPC's ecosystem.
 - **Outbound webhooks**: an `outbound-webhooks` module (distinct from the inbound `webhooks`
@@ -6927,7 +7266,7 @@ comment with its gap id (`// G3`); names of platform modules are proposals.
   live feed, so any process can hold the agent's socket.
 - The residential connection constrains the mail server more than the framework does: outbound
   delivery needs a host with a static address and matching reverse DNS, and the MX host name must
-  be an address record that follows the dynamic public address (a decision point in section 21).
+  be an address record that follows the dynamic public address (a decision point in section 26.1).
 
 ### 17.2 Accounts and authentication
 
@@ -7060,13 +7399,21 @@ are counted in metrics and in the decision log.
 #### 17.2.8 Rules
 
 ```ts
-.policies((rule) => [
-  rule.allow(['login', 'passkey.options', 'passkey.verify', 'requestPasswordReset', 'resetPassword'], { public: true }),
-  rule.allow(['logout', 'reauthenticate'], { principal: 'user' }),
-  rule.allow('credential', ['read'], { id: 'self', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }), fields: ['lastUsedAt'] }),
-  rule.allow('credential', ['revoke'], { id: 'self-revoke', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) }),
-  rule.deny('credential', ['revoke'], { id: 'already-revoked', where: () => ({ revokedAt: { isNull: false } }), reason: 'This credential is already revoked.' }),
-  rule.allow('session', ['read', 'revoke'], { id: 'self-sessions', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) }),
+// modules/auth/src/policies/public-actions.ts: one rule over several module-level actions, named after its rule id
+export const publicActionsPolicy = definePolicy(authBase, [login, requestPasswordReset, resetPassword], [{ effect: 'allow', id: 'public-actions', public: true }])
+// modules/auth/src/policies/passkey.ts: the passkey ceremony's actions
+export const passkeyPolicy = definePolicy(authBase, passkey, [{ effect: 'allow', actions: ['options', 'verify'], id: 'ceremony', public: true }])
+// modules/auth/src/policies/signed-in.ts
+export const signedInPolicy = definePolicy(authBase, [logout, reauthenticate], [{ effect: 'allow', id: 'signed-in', principal: 'user' }])
+// modules/auth/src/policies/credential.ts
+export const credentialPolicy = definePolicy(authBase, credential, [
+  { effect: 'allow', actions: ['read'], id: 'self', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }), fields: ['lastUsedAt'] },
+  { effect: 'allow', actions: ['revoke'], id: 'self-revoke', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) },
+  { effect: 'deny', actions: ['revoke'], id: 'already-revoked', where: () => ({ revokedAt: { isNull: false } }), reason: 'This credential is already revoked.' },
+])
+// modules/auth/src/policies/session.ts
+export const sessionPolicy = definePolicy(authBase, session, [
+  { effect: 'allow', actions: ['read', 'revoke'], id: 'self-sessions', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) },
 ])
 ```
 
@@ -7155,7 +7502,7 @@ What toggling does:
 - All Launchway entities are tenant data (`tenancy: 'tenant'`): nodes, projects, deployments,
   domains, DNS provider accounts, GitHub connections. Nodes and the edge belong to one tenant, so
   containers of two tenants never share a Docker host or the proxy network (a decision point in
-  section 21).
+  section 26.1).
 - Scope resolution per carrier, all through the pipeline's `resolveScope`:
   - the UI and REST clients: the host name (`core.domain`);
   - API tokens and node credentials: the token carries a public id that is a scope key (G2);
@@ -7211,10 +7558,13 @@ The command channel is the part that changes most:
   a crashed process, which never calls the close hook.
 - Join tokens are single use, expire after 15 minutes and are stored as verifiers (section 17.2.2);
   the bundled local agent of the installer gets a bootstrap token issued by the operator.
+- Versions: the agent's `hello` carries `protocol` and `agentVersion`, `nodes.node` records both,
+  and `hello.ok` names the protocol spoken, or `error` carries `core.protocol_retired` with the
+  oldest accepted major (section 19.7).
 - Protocol v2, later: the agent uses the typed client over the live module's WebSocket carrier
   (`pennestack.live.v1`, with `subscribe` and `invoke` on one connection), holding the same
-  subscription and calling the same actions (ADR 0011). The v1 transport stays until no v1 agent is
-  left (a decision point in section 21).
+  subscription and calling the same actions (ADR 0011), pinned to an API version. The v1 transport
+  goes after 30 days without a v1 connection (decision point 23 of section 26.1).
 
 #### 17.3.5 Deployments
 
@@ -7274,7 +7624,7 @@ The command channel is the part that changes most:
   schedule every 10 minutes, and never twice at the same time for one tenant (G9).
 - Applying the file needs either the Caddy admin socket, which only a process on the edge host can
   open (a process capability, G9), or a new agent message `edge.apply` that the edge node's agent
-  executes locally (a decision point in section 21).
+  executes locally (a decision point in section 26.1).
 - `edge.rendered` (query) returns the rendered file with the reason above each placeholder site,
   replacing `GET /edge/config`.
 - The pennestack deployment's own HTTP host sits behind this edge: `external` routes in the
@@ -7363,52 +7713,71 @@ roles from the `members` enricher and combine them with conditions, which is the
 CASL-style engine over plain roles.
 
 ```ts
-// examples/launchway/modules/projects.ts (excerpt)
-.policies((rule) => [
-  rule.allow('project', ['read'], {
+// examples/launchway/modules/projects/src/policies/project.ts
+export const projectPolicy = definePolicy(projectsBase, project, [
+  {
+    effect: 'allow',
+    actions: ['read'],
     id: 'read',
     principal: 'user',
     where: (ctx) => hasRole(ctx, 'viewer', 'member', 'admin', 'owner'),
-  }),
-  rule.allow('project', ['create', 'update'], {
+  },
+  {
+    effect: 'allow',
+    actions: ['create', 'update'],
     id: 'manage',
     principal: 'user',
     where: (ctx) => hasRole(ctx, 'member', 'admin', 'owner'),
     fields: ['name', 'slug', 'composeFiles', 'dockerfile', 'context', 'nodeId'],   // the fields members may change
-  }),
-  rule.allow('project', ['create', 'update'], {
+  },
+  {
+    effect: 'allow',
+    actions: ['create', 'update'],
     id: 'admin-fields',
     principal: 'user',
     where: (ctx) => hasRole(ctx, 'admin', 'owner'),
     fields: ['trustedMounts', 'proxyServices'],
     reason: 'Bind mounts and proxy attachments change what a node and the edge expose.',
-  }),
-  rule.allow('project', ['archive', 'restore'], {                       // members edit; only admins archive
+  },
+  {
+    effect: 'allow',
+    actions: ['archive', 'restore'],                                    // members edit; only admins archive
     id: 'archive',
     principal: 'user',
     where: (ctx) => hasRole(ctx, 'admin', 'owner'),
-  }),
-  rule.allow('envVar', ['read'], {
+  },
+])
+
+// examples/launchway/modules/projects/src/policies/env-var.ts
+export const envVarPolicy = definePolicy(projectsBase, envVar, [
+  {
+    effect: 'allow',
+    actions: ['read'],
     id: 'read-env',
     principal: 'user',
     where: (ctx) => hasRole(ctx, 'member', 'admin', 'owner'),          // viewers never see variables; `value` is a secret field (G4)
-  }),
+  },
 ])
 
-// examples/launchway/modules/deployments.ts (excerpt): a node reports only on its own work.
-rule.allow('deployment', ['reportPhase', 'reportResult', 'reportRuntime', 'appendLog'], {
+// examples/launchway/modules/deployments/src/policies/deployment.ts (excerpt): a node reports only on its own work.
+{
+  effect: 'allow',
+  actions: ['reportPhase', 'reportResult', 'reportRuntime', 'appendLog'],
   id: 'assigned-node',
   principal: 'service',
   where: (ctx) => (ctx.principal.via === 'nodes.credential' ? { nodeId: ctx.principal.idAs('nodes.node') } : false),
   reason: 'A node reports only on deployments assigned to it.',
-})
+}
 
-// @pennestack/module-api-keys (excerpt): read-only keys cannot run commands in any module.
-rule.deny({ kinds: ['command'] }, {                                    // G13
-  id: 'read-only-key',
-  when: (ctx) => ctx.principal.via === 'api-keys.key' && !hasScope(ctx, 'write'),
-  reason: 'This API key has the read scope only.',
-})
+// @pennestack/module-api-keys, src/policies/read-only-key.ts: read-only keys cannot run commands in any module.
+export const readOnlyKeyPolicy = definePolicy(apiKeysBase, { kinds: ['command'] }, [   // G13: a selector across modules
+  {
+    effect: 'deny',
+    id: 'read-only-key',
+    when: (ctx) => ctx.principal.via === 'api-keys.key' && !hasScope(ctx, 'write'),
+    reason: 'This API key has the read scope only.',
+  },
+])
 ```
 
 The gate authorizes `reportResult` for the node; inside the handler, `deployments` reads and
@@ -7444,9 +7813,12 @@ under policies, with change events (G10).
 
 #### 17.3.13 The app definition
 
+The app is the package `@launchway/app-launchway` in `examples/launchway/`, and each of its own
+modules is a package in `examples/launchway/modules/<id>/` named `@launchway/module-<id>`, in the
+layout of section 23 (section 23.10 shows the trees).
+
 ```ts
-// examples/launchway/app.ts
-import { defineApp, field, shape, type AppType, type Row } from '@pennestack/core'
+// examples/launchway/src/modules.ts
 import { accounts } from '@pennestack/module-accounts'
 import { auth } from '@pennestack/module-auth'
 import { apiKeys } from '@pennestack/module-api-keys'
@@ -7460,26 +7832,34 @@ import { rest } from '@pennestack/transport-rest'
 import { graphql } from '@pennestack/transport-graphql'
 import { trpc } from '@pennestack/transport-trpc'
 import { webhooks } from '@pennestack/transport-webhooks'                   // G8
-import { projects } from './modules/projects.ts'
-import { nodes } from './modules/nodes.ts'
-import { agentGateway } from './modules/agent-gateway.ts'
-import { deployments } from './modules/deployments.ts'
-import { domains } from './modules/domains.ts'
-import { edge } from './modules/edge.ts'
-import { github } from './modules/github.ts'
-import { previews } from './modules/previews.ts'
+import { projects } from '@launchway/module-projects'
+import { nodes } from '@launchway/module-nodes'
+import { agentGateway } from '@launchway/module-agent-gateway'
+import { deployments } from '@launchway/module-deployments'
+import { domains } from '@launchway/module-domains'
+import { edge } from '@launchway/module-edge'
+import { github } from '@launchway/module-github'
+import { previews } from '@launchway/module-previews'
+
+export const modules = [
+  accounts, auth, apiKeys, members, audit,
+  dns, dnsCloudflare, dnsManual,
+  projects, nodes, agentGateway, deployments, domains, edge, github, previews,
+  live, rest, graphql, trpc, webhooks,
+] as const
+
+// examples/launchway/src/actions/health.ts
+export const health = defineQuery(modules, { auth: { public: true }, scope: 'backend', output: shape({ ok: field.boolean() }), handle: async () => ({ ok: true }) })
+
+// examples/launchway/src/app.ts
+import { defineApp, type AppType, type Row } from '@pennestack/core'
+import { health } from './actions/health.ts'
+import { modules } from './modules.ts'
 
 const launchwayDef = defineApp({
   id: 'launchway',
-  modules: [
-    accounts, auth, apiKeys, members, audit,
-    dns, dnsCloudflare, dnsManual,
-    projects, nodes, agentGateway, deployments, domains, edge, github, previews,
-    live, rest, graphql, trpc, webhooks,
-  ],
-  actions: (b) => ({
-    health: b.query({ auth: { public: true }, scope: 'backend', output: shape({ ok: field.boolean() }), handle: async () => ({ ok: true }) }),
-  }),
+  modules,
+  actions: { health },
   execution: {
     'previews.preview.close': 'either',          // the UI waits; the CLI may prefer a receipt
     'domains.domain.verify': 'either',
@@ -7497,108 +7877,132 @@ The `nodes` module shows the agent channel, the heartbeat timer and the extensio
 which the higher `deployments` module observes heartbeats without `nodes` importing it:
 
 ```ts
-// examples/launchway/modules/nodes.ts (excerpt)
+// examples/launchway/modules/nodes/src/extension-points/heartbeat-observers.ts
 export interface HeartbeatObserver {
   readonly id: string
   observe(nodeId: Id<'nodes.node'>, activeDeploymentIds: readonly string[]): Promise<void>     // bound to the contributor (G16)
 }
+export const heartbeatObservers = extensionPoint<HeartbeatObserver>({ mode: 'set' })
 
+// examples/launchway/modules/nodes/src/extension-points/command-resolvers.ts
 export interface CommandResolver {
   readonly types: readonly AgentCommand['type'][]
   resolve(nodeId: Id<'nodes.node'>, command: AgentCommandRow): Promise<AgentCommandPayload>   // bound to the contributor (G16)
 }
+export const commandResolvers = extensionPoint<CommandResolver>({ mode: 'set' })
 
-const nodesDef = defineModule({
+// examples/launchway/modules/nodes/src/entities/node.ts, credential.ts, presence.ts and command.ts
+export const node = defineEntity({
+  prefix: 'node',
+  fields: {
+    name: field.string({ maxLength: 63 }).unique(),
+    lanIp: field.string().optional(),
+    arch: field.enum(['amd64', 'arm64']).optional(),
+    allowedBindRoots: field.list(field.string()).default([]),
+    status: field.enum(['pending', 'online', 'offline']).default('pending'),
+    protocol: field.integer().optional(),               // the agent protocol major of its last hello (section 19.7)
+    agentVersion: field.string().optional(),
+  },
+})
+export const credential = defineEntity({
+  prefix: 'nodecred',
+  fields: {
+    nodeId: field.ref.own('node').index(),
+    kind: field.enum(['join', 'node']),
+    verifier: field.verifier(),                         // verifier of a token shown once (section 17.2.2)
+    expiresAt: field.instant().optional(),
+    revokedAt: field.instant().optional(),
+  },
+  history: 'state',
+  reason: 'Credentials are issued and revoked, never edited; audit records both.',
+})
+export const presence = defineEntity({
+  prefix: 'pres',
+  fields: { nodeId: field.ref.own('node').unique(), lastSeenAt: field.instant(), activeDeploymentIds: field.list(field.string()) },
+  history: 'state',
+  reason: 'A heartbeat every 15 seconds is liveness, not history.',
+})
+export const command = defineEntity({
+  prefix: 'ncmd',
+  fields: {
+    nodeId: field.ref.own('node').index(),
+    type: field.enum(['deploy', 'stop', 'remove', 'status', 'logs.start', 'logs.stop', 'deployment.cancel', 'edge.apply']),
+    payload: field.json(agentCommandPayload),           // references only; secrets are revealed at emit time
+    ackedAt: field.instant().optional(),
+  },
+  history: 'state',
+  reason: 'An outbox row per message; acknowledged rows are purged by retention (G11).',
+})
+
+// examples/launchway/modules/nodes/src/config.ts
+export const config = shape({
+  heartbeatTimeoutSeconds: field.integer({ min: 15 }).default(45),
+  joinTokenTtlSeconds: field.integer({ min: 60 }).default(900),
+})
+
+// examples/launchway/modules/nodes/src/base.ts
+const nodesBaseDef = defineModuleBase({
   id: 'nodes',
   version: '0.1.0',
   requires: [contracts.live],                          // the agent channel is a live subscription
-  config: shape({
-    heartbeatTimeoutSeconds: field.integer({ min: 15 }).default(45),
-    joinTokenTtlSeconds: field.integer({ min: 60 }).default(900),
-  }),
-  extensionPoints: {
-    heartbeatObservers: extensionPoint<HeartbeatObserver>({ mode: 'set' }),
-    commandResolvers: extensionPoint<CommandResolver>({ mode: 'set' }),
+  config,
+  extensionPoints: { heartbeatObservers, commandResolvers },
+  entities: { node, credential, presence, command },
+  contributions: { toCore },                           // contributions/to-core/contribution.ts: defineContribution(core, {})
+})
+export interface NodesBase extends ModuleBaseType<typeof nodesBaseDef> {}
+export const nodesBase: NodesBase = nodesBaseDef
+
+// examples/launchway/modules/nodes/src/actions/node/heartbeat.ts
+export const heartbeat = defineCommand(nodesBase, node, {
+  input: shape({ activeDeploymentIds: field.list(field.string()) }),
+  execution: 'sync',
+  handle: async (input, ctx) => {
+    await ctx.data.nodes.presence.update({ where: { nodeId: ctx.target.id }, patch: { lastSeenAt: ctx.clock.now(), activeDeploymentIds: input.activeDeploymentIds } })
+    await ctx.timers.set({                                                          // keyed; replaces the previous timer; fires as nodes.system
+      key: `node-offline:${ctx.target.id}`,
+      at: new Date(ctx.clock.now().getTime() + ctx.config.heartbeatTimeoutSeconds * 1000),
+      invoke: markOffline,                                                          // an own action part, by value
+      input: { id: ctx.target.id },
+    })
+    for (const observer of ctx.extensions.heartbeatObservers) await observer.observe(ctx.target.id, input.activeDeploymentIds)
   },
 })
-  .entities({
-    node: defineEntity({
-      prefix: 'node',
-      fields: {
-        name: field.string({ maxLength: 63 }).unique(),
-        lanIp: field.string().optional(),
-        arch: field.enum(['amd64', 'arm64']).optional(),
-        allowedBindRoots: field.list(field.string()).default([]),
-        status: field.enum(['pending', 'online', 'offline']).default('pending'),
-      },
-    }),
-    credential: defineEntity({
-      prefix: 'nodecred',
-      fields: {
-        nodeId: field.ref.own('node').index(),
-        kind: field.enum(['join', 'node']),
-        verifier: field.verifier(),                     // verifier of a token shown once (section 17.2.2)
-        expiresAt: field.instant().optional(),
-        revokedAt: field.instant().optional(),
-      },
-      history: 'state',
-      reason: 'Credentials are issued and revoked, never edited; audit records both.',
-    }),
-    presence: defineEntity({
-      prefix: 'pres',
-      fields: { nodeId: field.ref.own('node').unique(), lastSeenAt: field.instant(), activeDeploymentIds: field.list(field.string()) },
-      history: 'state',
-      reason: 'A heartbeat every 15 seconds is liveness, not history.',
-    }),
-    command: defineEntity({
-      prefix: 'ncmd',
-      fields: {
-        nodeId: field.ref.own('node').index(),
-        type: field.enum(['deploy', 'stop', 'remove', 'status', 'logs.start', 'logs.stop', 'deployment.cancel', 'edge.apply']),
-        payload: field.json(agentCommandPayload),       // references only; secrets are revealed at emit time
-        ackedAt: field.instant().optional(),
-      },
-      history: 'state',
-      reason: 'An outbox row per message; acknowledged rows are purged by retention (G11).',
-    }),
-  })
-  .entityActions('node', (e) => ({
-    heartbeat: e.command({
-      input: shape({ activeDeploymentIds: field.list(field.string()) }),
-      execution: 'sync',
-      handle: async (input, ctx) => {
-        await ctx.data.nodes.presence.update({ where: { nodeId: ctx.target.id }, patch: { lastSeenAt: ctx.clock.now(), activeDeploymentIds: input.activeDeploymentIds } })
-        await ctx.timers.set({                                                          // keyed; replaces the previous timer; fires as nodes.system
-          key: `node-offline:${ctx.target.id}`,
-          at: new Date(ctx.clock.now().getTime() + ctx.config.heartbeatTimeoutSeconds * 1000),
-          invoke: 'nodes.node.markOffline',
-          input: { id: ctx.target.id },
-        })
-        for (const observer of ctx.extensions.heartbeatObservers) await observer.observe(ctx.target.id, input.activeDeploymentIds)
-      },
-    }),
-    markOffline: e.command({ execution: 'sync', handle: async (_input, ctx) => { /* status 'offline'; event for dispatch and the UI */ } }),
-  }))
-  .actions((b) => ({
-    join: b.command({ output: shape({ nodeId: field.ref.own('node'), credential: field.string() }), execution: 'sync', handle: async (_input, ctx) => {
-      /* consume the join token; issue the node credential with ctx.secrets.issue and claim its public id as a scope key (G2) */
-    } }),
-    channel: b.subscription({
-      event: agentCommandShape,
-      principal: 'service',                                                         // node credentials resolve to a service principal
-      source: (_input, ctx, resume) => {
-        const nodeId = ctx.principal.idAs('nodes.node')
-        if (nodeId === null) throw errors.forbidden('Only a node may hold its command channel.')
-        const commands = ctx.live.entity('nodes', 'command', { where: { nodeId, ackedAt: { isNull: true } }, from: 'beginning', after: resume })   // G6: live feed over a state entity
-        return mapItems(commands, async (change) => change.type === 'removed' ? undefined : resolvePayload(ctx.extensions.commandResolvers, nodeId, change.row))
-      },
-    }),
-  }))
-  .services((s) => ({
-    // bound to nodes: inserts with nodes' authority in the caller's unit; callers write ctx.services.nodes.send(nodeId, command)
-    send: s.service(async (own, nodeId: Id<'nodes.node'>, command: AgentCommand) => own.data.nodes.command.create({ nodeId, ...command })),
-  }))
-  .contributes((c) => [c.to(core, { extensionPoints: { principalResolvers: [nodeCredentialResolver] } })])
+
+// examples/launchway/modules/nodes/src/actions/node/mark-offline.ts
+export const markOffline = defineCommand(nodesBase, node, { execution: 'sync', handle: async (_input, ctx) => { /* status 'offline'; event for dispatch and the UI */ } })
+
+// examples/launchway/modules/nodes/src/actions/join.ts
+export const join = defineCommand(nodesBase, { output: shape({ nodeId: field.ref.own('node'), credential: field.string() }), execution: 'sync', handle: async (_input, ctx) => {
+  /* consume the join token; issue the node credential with ctx.secrets.issue and claim its public id as a scope key (G2) */
+} })
+
+// examples/launchway/modules/nodes/src/actions/channel.ts
+export const channel = defineSubscription(nodesBase, {
+  event: agentCommandShape,
+  principal: 'service',                                                           // node credentials resolve to a service principal
+  source: (_input, ctx, resume) => {
+    const nodeId = ctx.principal.idAs('nodes.node')
+    if (nodeId === null) throw errors.forbidden('Only a node may hold its command channel.')
+    const commands = ctx.live.entity('nodes', 'command', { where: { nodeId, ackedAt: { isNull: true } }, from: 'beginning', after: resume })   // G6: live feed over a state entity
+    return mapItems(commands, async (change) => change.type === 'removed' ? undefined : resolvePayload(ctx.extensions.commandResolvers, nodeId, change.row))
+  },
+})
+
+// examples/launchway/modules/nodes/src/services/send.ts
+// bound to nodes: inserts with nodes' authority in the caller's unit; callers write ctx.services.nodes.send(nodeId, command)
+export const send = defineService(nodesBase, async (own, nodeId: Id<'nodes.node'>, command: AgentCommand) => own.data.nodes.command.create({ nodeId, ...command }))
+
+// examples/launchway/modules/nodes/src/contributions/to-core/fills/principal-resolvers.ts
+export const principalResolversFill = defineFill(within(nodesBase, toCore), 'principalResolvers', [nodeCredentialResolver])
+
+// examples/launchway/modules/nodes/src/module.ts
+const nodesDef = defineModule(nodesBase, {
+  actions: { join, channel },
+  entityActions: { node: { heartbeat, markOffline } },
+  services: { send },
+  contributes: { toCore: { extensionPoints: { principalResolvers: principalResolversFill } } },
+})
 export interface Nodes extends ModuleType<typeof nodesDef> {}
 export const nodes: Nodes = nodesDef
 ```
@@ -7607,8 +8011,11 @@ The `deployments` module records results, schedules image retries and supersedes
 deployment; the lane is a FIFO key on the dispatch reaction:
 
 ```ts
-// examples/launchway/modules/deployments.ts (excerpt)
-const deployment = defineEntity({
+// examples/launchway/modules/deployments/src/entities/deployment.ts
+import { nodes } from '@launchway/module-nodes'
+import { projects } from '@launchway/module-projects'
+
+export const deployment = defineEntity({
   prefix: 'dep',
   fields: {
     projectId: field.ref(projects, 'project').index(),
@@ -7625,49 +8032,77 @@ const deployment = defineEntity({
   indexes: [{ fields: ['projectId', 'environment'], unique: true, where: { status: 'running' } }],   // G7: partial unique index
 })
 
+// examples/launchway/modules/deployments/src/streams/log.ts
+export const log = defineStream({                                    // G6
+  key: field.ref.own('deployment'),
+  record: shape({ at: field.instant(), source: field.enum(['stdout', 'stderr', 'system']), line: field.text() }),
+  retention: { maxAge: '30d', maxPerKey: 50_000 },
+})
+
+// examples/launchway/modules/deployments/src/base.ts
+const deploymentsBaseDef = defineModuleBase({
+  id: 'deployments',
+  version: '0.1.0',
+  requires: [projects, nodes],
+  entities: { deployment },
+  streams: { log },
+  contributions: { toNodes },                                        // contributions/to-nodes/contribution.ts: defineContribution(nodes, {})
+})
+export interface DeploymentsBase extends ModuleBaseType<typeof deploymentsBaseDef> {}
+export const deploymentsBase: DeploymentsBase = deploymentsBaseDef
+
+// examples/launchway/modules/deployments/src/actions/deployment/report-result.ts
 const imageRetryMinutes = [1, 2, 4, 8, 15, 15, 15] as const          // Launchway ADR 0019
 
-const deploymentsDef = defineModule({ id: 'deployments', version: '0.1.0', requires: [projects, nodes] })
-  .entities({ deployment })
-  .streams({                                                          // G6
-    log: defineStream({
-      key: field.ref.own('deployment'),
-      record: shape({ at: field.instant(), source: field.enum(['stdout', 'stderr', 'system']), line: field.text() }),
-      retention: { maxAge: '30d', maxPerKey: 50_000 },
-    }),
-  })
-  .entityActions('deployment', (e) => ({
-    reportResult: e.command({
-      input: shape({ outcome: field.enum(['succeeded', 'failed', 'cancelled']), reason: field.string().optional(), message: field.string().optional() }),
-      execution: 'sync',
-      handle: async (input, ctx) => {
-        const d = ctx.target
-        const waitMinutes = imageRetryMinutes[d.retryCount]
-        if (input.outcome === 'failed' && input.reason === 'image-not-found' && d.trigger !== 'manual' && waitMinutes !== undefined) {
-          const at = new Date(ctx.clock.now().getTime() + waitMinutes * 60_000)
-          await ctx.data.deployments.deployment.update({ where: { id: d.id }, patch: { status: 'queued', retryCount: d.retryCount + 1, nextAttemptAt: at, failureReason: 'image-not-found' } })
-          await ctx.timers.set({ key: `deployment-retry:${d.id}`, at, invoke: 'deployments.deployment.retryDue', input: { id: d.id } })   // fires as deployments.system
-          return
-        }
-        if (input.outcome === 'succeeded') {                          // deployments' own authority: the node needs no rule on other deployments
-          const previous = await ctx.data.deployments.deployment.findOne({ where: { projectId: d.projectId, environment: d.environment, status: 'running' } })
-          if (previous) await ctx.data.deployments.deployment.update({ where: { id: previous.id }, patch: { status: 'superseded' } })
-          await ctx.data.deployments.deployment.update({ where: { id: d.id }, patch: { status: 'running' } })
-          return
-        }
-        await ctx.data.deployments.deployment.update({ where: { id: d.id }, patch: { status: input.outcome === 'failed' ? 'failed' : 'cancelled' } })
-      },
-    }),
-  }))
-  .reactions((r) => [
-    // One dispatcher per project lane: a keyed job per event, FIFO per key, so one build per project runs at a time.
-    r.own('deployment.changed', { timing: 'async', key: (event) => event.current?.projectId ?? event.stream.id, ordering: 'fifo-per-key' }, dispatchNextForProject),
-    r.inline(nodes, 'node.changed', wakeLanesOfNode),
-  ])
-  .contributes((c) => [c.to(nodes, { extensionPoints: {
-    heartbeatObservers: (own) => [reconcileActiveDeployments(own)],               // G16: bound to deployments' context
-    commandResolvers: (own) => [deployCommandResolver(own)],                      // checks the assignment, calls projects.environmentFor
-  } })])
+export const reportResult = defineCommand(deploymentsBase, deployment, {
+  input: shape({ outcome: field.enum(['succeeded', 'failed', 'cancelled']), reason: field.string().optional(), message: field.string().optional() }),
+  execution: 'sync',
+  handle: async (input, ctx) => {
+    const d = ctx.target
+    const waitMinutes = imageRetryMinutes[d.retryCount]
+    if (input.outcome === 'failed' && input.reason === 'image-not-found' && d.trigger !== 'manual' && waitMinutes !== undefined) {
+      const at = new Date(ctx.clock.now().getTime() + waitMinutes * 60_000)
+      await ctx.data.deployments.deployment.update({ where: { id: d.id }, patch: { status: 'queued', retryCount: d.retryCount + 1, nextAttemptAt: at, failureReason: 'image-not-found' } })
+      await ctx.timers.set({ key: `deployment-retry:${d.id}`, at, invoke: retryDue, input: { id: d.id } })   // fires as deployments.system
+      return
+    }
+    if (input.outcome === 'succeeded') {                          // deployments' own authority: the node needs no rule on other deployments
+      const previous = await ctx.data.deployments.deployment.findOne({ where: { projectId: d.projectId, environment: d.environment, status: 'running' } })
+      if (previous) await ctx.data.deployments.deployment.update({ where: { id: previous.id }, patch: { status: 'superseded' } })
+      await ctx.data.deployments.deployment.update({ where: { id: d.id }, patch: { status: 'running' } })
+      return
+    }
+    await ctx.data.deployments.deployment.update({ where: { id: d.id }, patch: { status: input.outcome === 'failed' ? 'failed' : 'cancelled' } })
+  },
+})
+
+// examples/launchway/modules/deployments/src/reactions/dispatch-next-for-project.ts
+// One dispatcher per project lane: a keyed job per event, FIFO per key, so one build per project runs at a time.
+export const dispatchNextForProject = defineReaction(deploymentsBase, {
+  on: 'deployments.deployment.changed',
+  timing: 'async',
+  key: (event) => event.current?.projectId ?? event.stream.id,
+  ordering: 'fifo-per-key',
+  handle: async (event, ctx) => { /* dispatch the project's next queued deployment to its node */ },
+})
+
+// examples/launchway/modules/deployments/src/reactions/wake-lanes-of-node.ts
+export const wakeLanesOfNode = defineReaction(deploymentsBase, {
+  on: 'nodes.node.changed',
+  timing: 'inline',
+  handle: async (event, ctx) => { /* a node came online: wake the lanes waiting for it */ },
+})
+
+// examples/launchway/modules/deployments/src/contributions/to-nodes/fills/heartbeat-observers.ts and command-resolvers.ts
+export const heartbeatObserversFill = defineFill(within(deploymentsBase, toNodes), 'heartbeatObservers', (own) => [reconcileActiveDeployments(own)])   // G16: bound to deployments' context
+export const commandResolversFill = defineFill(within(deploymentsBase, toNodes), 'commandResolvers', (own) => [deployCommandResolver(own)])          // checks the assignment, calls projects.environmentFor
+
+// examples/launchway/modules/deployments/src/module.ts (excerpt)
+const deploymentsDef = defineModule(deploymentsBase, {
+  entityActions: { deployment: { reportResult, retryDue } },
+  reactions: { dispatchNextForProject, wakeLanesOfNode },
+  contributes: { toNodes: { extensionPoints: { heartbeatObservers: heartbeatObserversFill, commandResolvers: commandResolversFill } } },
+})
 export interface Deployments extends ModuleType<typeof deploymentsDef> {}
 export const deployments: Deployments = deploymentsDef
 ```
@@ -7675,93 +8110,135 @@ export const deployments: Deployments = deploymentsDef
 `github` and `previews` show contributions and a conditional part in the same app:
 
 ```ts
-// examples/launchway/modules/github.ts (excerpt)
-export const github = defineModule({ id: 'github', version: '0.1.0', requires: [projects, deployments], optional: [webhooks] })
-  .entities({
-    connection: defineEntity({
-      prefix: 'gh',
-      fields: {
-        kind: field.enum(['app', 'token']),
-        appId: field.integer().optional(),
-        installationId: field.integer({ wide: true }).optional(),
-        privateKey: field.secret().optional(),                    // G4
-        webhookSecret: field.secret().optional(),
-        token: field.secret().optional(),
-        refusedUntil: field.instant().optional(),
-      },
-      events: { releasePublished: releaseShape, pushed: pushShape, pullRequestChanged: pullRequestShape },
-    }),
-  })
-  .actions((b) => ({
-    ingest: b.command({
-      input: shape({ connectionId: field.ref.own('connection'), event: field.string(), signature: field.string(), rawBody: field.text() }),
-      execution: 'sync',                  // verify and record before answering GitHub; reactions run asynchronously
-      handle: async (input, ctx) => { /* constant-time HMAC check with the revealed webhook secret, then append domain events */ },
-    }),
-  }))
-  .contributes((c) => [
-    c.to(projects, {
-      entities: {
-        project: {
-          fields: {
-            githubConnectionId: field.ref.own('connection').optional(),
-            repository: field.string({ pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' }).optional(),
-            autoDeployReleases: field.boolean().default(false),
-            autoDeployPrereleases: field.boolean().default(false),
-            autoDeployBranch: field.string().optional(),
-            githubDeployments: field.boolean().default(true),
-          },
-        },
-      },
-      extensionPoints: { gitProviders: (own) => [githubProvider(own)] },                    // G16
-    }),
-    c.to(deployments, { entities: { deployment: { fields: { githubDeploymentId: field.integer({ wide: true }).optional() } } } }),
-    c.to(webhooks, { extensionPoints: { receivers: [githubReceiver] } }),        // G8; verified by github's own resolver; dropped when webhooks is absent
-  ])
-  .reactions((r) => [
-    r.async(deployments, 'deployment.changed', mirrorToGitHub, { key: (event) => event.stream.id, coalesce: true }),   // a keyed, coalescing job per deployment
-    r.own('connection.releasePublished', { timing: 'async' }, createAutomaticDeployment),
-    r.own('connection.pushed', { timing: 'async' }, createAutomaticDeployment),
-  ])
-  .schedules((s) => [s.every('5m', 'github.pollReleases', { scope: 'each-tenant' })])                                 // G3
+// examples/launchway/modules/github/src/entities/connection.ts
+export const connection = defineEntity({
+  prefix: 'gh',
+  fields: {
+    kind: field.enum(['app', 'token']),
+    appId: field.integer().optional(),
+    installationId: field.integer({ wide: true }).optional(),
+    privateKey: field.secret().optional(),                    // G4
+    webhookSecret: field.secret().optional(),
+    token: field.secret().optional(),
+    refusedUntil: field.instant().optional(),
+  },
+  events: { releasePublished: releaseShape, pushed: pushShape, pullRequestChanged: pullRequestShape },
+})
 
-// examples/launchway/modules/previews.ts (excerpt)
-export const previews = defineModule({
+// examples/launchway/modules/github/src/contributions/to-projects/contribution.ts
+export const toProjects = defineContribution(projects, {
+  entities: {
+    project: {
+      fields: {
+        githubConnectionId: field.ref.own('connection').optional(),
+        repository: field.string({ pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' }).optional(),
+        autoDeployReleases: field.boolean().default(false),
+        autoDeployPrereleases: field.boolean().default(false),
+        autoDeployBranch: field.string().optional(),
+        githubDeployments: field.boolean().default(true),
+      },
+    },
+  },
+})
+// examples/launchway/modules/github/src/contributions/to-deployments/contribution.ts and to-webhooks/contribution.ts
+export const toDeployments = defineContribution(deployments, { entities: { deployment: { fields: { githubDeploymentId: field.integer({ wide: true }).optional() } } } })
+export const toWebhooks = defineContribution(webhooks, {})     // G8; dropped when webhooks is absent
+
+// examples/launchway/modules/github/src/base.ts
+const githubBaseDef = defineModuleBase({
+  id: 'github',
+  version: '0.1.0',
+  requires: [projects, deployments],
+  optional: [webhooks],
+  entities: { connection },
+  contributions: { toProjects, toDeployments, toWebhooks },
+})
+
+// examples/launchway/modules/github/src/actions/ingest.ts
+export const ingest = defineCommand(githubBase, {
+  input: shape({ connectionId: field.ref.own('connection'), event: field.string(), signature: field.string(), rawBody: field.text() }),
+  execution: 'sync',                  // verify and record before answering GitHub; reactions run asynchronously
+  handle: async (input, ctx) => { /* constant-time HMAC check with the revealed webhook secret, then append domain events */ },
+})
+
+// examples/launchway/modules/github/src/reactions/mirror-to-github.ts, deploy-on-release.ts and deploy-on-push.ts
+export const mirrorToGitHub = defineReaction(githubBase, {
+  on: 'deployments.deployment.changed',
+  timing: 'async',
+  key: (event) => event.stream.id,
+  coalesce: true,                                             // a keyed, coalescing job per deployment
+  handle: async (event, ctx) => { /* create or update the GitHub deployment and its status */ },
+})
+export const deployOnRelease = defineReaction(githubBase, { on: 'github.connection.releasePublished', timing: 'async', handle: createAutomaticDeployment })
+export const deployOnPush = defineReaction(githubBase, { on: 'github.connection.pushed', timing: 'async', handle: createAutomaticDeployment })   // lib/create-automatic-deployment.ts
+
+// examples/launchway/modules/github/src/schedules/poll-releases.ts
+export const pollReleasesSchedule = defineSchedule(githubBase, { every: '5m', invoke: pollReleases, scope: 'each-tenant' })   // G3
+
+// examples/launchway/modules/github/src/module.ts (excerpt)
+const githubDef = defineModule(githubBase, {
+  actions: { ingest, startManifest, completeManifest, pollReleases },
+  reactions: { mirrorToGitHub, deployOnRelease, deployOnPush },
+  schedules: { pollReleases: pollReleasesSchedule },
+  contributes: {
+    toProjects: { extensionPoints: { gitProviders: gitProvidersFill } },   // fills/git-providers.ts: (own) => [githubProvider(own)], G16
+    toWebhooks: { extensionPoints: { receivers: receiversFill } },         // fills/receivers.ts: [githubReceiver], verified by github's own resolver
+  },
+})
+
+// examples/launchway/modules/previews/src/config.ts
+export const config = shape({
+  baseDomain: field.string({ format: 'hostname' }).optional(),
+  maxPerProject: field.integer({ min: 0 }).default(10),
+  maxTotal: field.integer({ min: 0 }).default(20),
+})
+
+// examples/launchway/modules/previews/src/contributions/to-projects/contribution.ts
+export const toProjects = defineContribution(projects, {
+  entities: {
+    project: {
+      fields: {
+        previewsEnabled: field.boolean().default(false),
+        previewSkipBots: field.boolean().default(true),
+        previewRequireLabel: field.string().optional(),
+        previewHostTemplate: field.string().default('{slug}-pr-{number}.{base}'),
+        previewEnvOverrides: field.json(envOverridesShape).default({}),
+        previewComposeFiles: field.list(field.string()).optional(),
+      },
+    },
+  },
+})
+// examples/launchway/modules/previews/src/contributions/to-deployments/contribution.ts
+export const toDeployments = defineContribution(deployments, { entities: { deployment: { fields: { previewId: field.ref.own('preview').optional() } } } })
+// examples/launchway/modules/previews/src/conditional/when-github/condition.ts
+export const whenGithub = defineCondition([github], {})
+
+// examples/launchway/modules/previews/src/base.ts
+const previewsBaseDef = defineModuleBase({
   id: 'previews',
   version: '0.1.0',
   requires: [projects, deployments, domains],
   optional: [github],
-  config: shape({
-    baseDomain: field.string({ format: 'hostname' }).optional(),
-    maxPerProject: field.integer({ min: 0 }).default(10),
-    maxTotal: field.integer({ min: 0 }).default(20),
-  }),
+  config,
+  entities: { preview },
+  contributions: { toProjects, toDeployments },
+  conditions: { whenGithub },
 })
-  .entities({ preview })
-  .contributes((c) => [
-    c.to(projects, {
-      entities: {
-        project: {
-          fields: {
-            previewsEnabled: field.boolean().default(false),
-            previewSkipBots: field.boolean().default(true),
-            previewRequireLabel: field.string().optional(),
-            previewHostTemplate: field.string().default('{slug}-pr-{number}.{base}'),
-            previewEnvOverrides: field.json(envOverridesShape).default({}),
-            previewComposeFiles: field.list(field.string()).optional(),
-          },
-        },
-      },
-    }),
-    c.to(deployments, { entities: { deployment: { fields: { previewId: field.ref.own('preview').optional() } } } }),
-  ])
-  .conditional((w) => [
-    w.when([github], {
-      reactions: (r) => [
-        r.async(github, 'connection.pullRequestChanged', syncPreview, { key: (event) => `${event.data.repository}#${event.data.number}` }),   // G3
-      ],
-    }),
-  ])
+
+// examples/launchway/modules/previews/src/conditional/when-github/reactions/sync-preview.ts
+export const syncPreview = defineReaction(within(previewsBase, whenGithub), {
+  on: 'github.connection.pullRequestChanged',
+  timing: 'async',
+  key: (event) => `${event.data.repository}#${event.data.number}`,   // G3
+  handle: async (event, ctx) => { /* open, update or close the preview of the pull request */ },
+})
+
+// examples/launchway/modules/previews/src/module.ts (excerpt)
+const previewsDef = defineModule(previewsBase, {
+  actions: { open },
+  entityActions: { preview: { close } },
+  conditional: { whenGithub: { reactions: { syncPreview } } },
+})
 ```
 
 ### 17.4 The mail server
@@ -7779,7 +8256,7 @@ accept:
 | Outbound delivery | RFC 5321 retry rules, delivery status notifications (RFC 3464), MTA-STS (RFC 8461), TLS reporting (RFC 8460) | first; DANE (RFC 7672) later |
 | Sender authentication | SPF (RFC 7208), DKIM (RFC 6376) with RSA and Ed25519 (RFC 8463), DMARC (RFC 7489), ARC (RFC 8617), Authentication-Results (RFC 8601) | first; ARC sealing for forwarding later |
 | Client access, current | JMAP core (RFC 8620), JMAP mail and submission (RFC 8621), quotas (RFC 9425) | first |
-| Client access, compatible | IMAP4rev2 (RFC 9051) and IMAP4rev1 (RFC 3501), CONDSTORE and QRESYNC (RFC 7162), QUOTA (RFC 9208) | second phase (decision point 22 of section 21) |
+| Client access, compatible | IMAP4rev2 (RFC 9051) and IMAP4rev1 (RFC 3501), CONDSTORE and QRESYNC (RFC 7162), QUOTA (RFC 9208) | second phase (decision point 22 of section 26.1) |
 | Automatic replies and filters | vacation responses (JMAP VacationResponse, RFC 3834 rules); Sieve (RFC 5228), ManageSieve (RFC 5804), JMAP Sieve (RFC 9661) | vacation first; Sieve later |
 | Discovery | SRV records (RFC 6186), JMAP discovery (RFC 8620 section 2.2), an autoconfig document for clients that read one | first |
 | Spam handling | content scoring, DNS blocklists, learning from user actions | first |
@@ -7804,7 +8281,7 @@ network forces it (a relay with a clean address).
 | Spam scoring | external: rspamd 4.2.2 (Apache-2.0) with Valkey 9.1.2 (BSD-3-Clause) for its statistics | the rules, Bayes classifier, fuzzy hashes and blocklist logic are a product of their own; pennestack talks to its HTTP interface |
 | Antivirus, optional | external: ClamAV (GPL-2.0) through `clamd` | signature database |
 | Recursive DNS for blocklists and DNSSEC | external: Unbound (BSD-3-Clause) next to rspamd | Spamhaus refuses blocklist queries that arrive through large public resolvers |
-| Outbound relay from the home connection | external host with a static address and matching reverse DNS | residential address ranges sit on policy blocklists and their reverse DNS belongs to the provider (decision point 21 of section 21) |
+| Outbound relay from the home connection | external host with a static address and matching reverse DNS | residential address ranges sit on policy blocklists and their reverse DNS belongs to the provider (decision point 21 of section 26.1) |
 | TLS certificates for the mail listeners | shared module `certificates` (ACME DNS-01 through `dns`) | listeners terminate TLS inside the pennestack process |
 | HTTPS for JMAP, the MTA-STS policy and the autoconfig document | the Launchway edge in front of the pennestack HTTP host | the edge already terminates TLS for every HTTP host of the deployment |
 | Conformance references | Stalwart v0.16.25 (AGPL-3.0-only or its own enterprise licence) as a reference server; imaptest (MIT) for IMAP; `jmap-jam` 0.13.8 (MIT) as JMAP test client | not dependencies |
@@ -8009,7 +8486,7 @@ JMAP comes first because it is a projection the framework already plans:
   (RFC 9670) comes later.
 
 IMAP follows as a listener module with its own protocol implementation (decision point 22 of
-section 21):
+section 26.1):
 
 - IMAP4rev2 (RFC 9051, which folds in IDLE, NAMESPACE, UIDPLUS, MOVE, ENABLE and SPECIAL-USE) and
   IMAP4rev1 for older clients, plus CONDSTORE and QRESYNC (RFC 7162) and QUOTA (RFC 9208), on port
@@ -8099,13 +8576,15 @@ and TXT records coexist with it.
   The callback reads that directory and picks up renewals without a restart (`smtp-server` has
   `updateSecureContext`).
 - The library question is open: `acme-client` 5.4.0 (MIT) is complete but has had no commit since
-  2024-07-17 (section 21).
+  2024-07-17 (section 26.3).
 
 #### 17.4.13 The app definition
 
+The app is the package `@mail/app-mail` in `examples/mail/`, and each of its own modules is a
+package in `examples/mail/modules/<id>/` named `@mail/module-<id>` (section 23.11 shows the trees).
+
 ```ts
-// examples/mail/app.ts
-import { defineApp, field, shape, type AppType } from '@pennestack/core'
+// examples/mail/src/modules.ts
 import { accounts } from '@pennestack/module-accounts'
 import { auth } from '@pennestack/module-auth'
 import { apiKeys } from '@pennestack/module-api-keys'
@@ -8117,44 +8596,45 @@ import { certificates } from '@pennestack/module-certificates'
 import { live } from '@pennestack/live'
 import { rest } from '@pennestack/transport-rest'
 import { jmap } from '@pennestack/transport-jmap'
-import { mailDomains } from './modules/mail-domains.ts'
-import { mailStore } from './modules/mail-store.ts'
-import { senderAuth } from './modules/sender-auth.ts'
-import { spam } from './modules/spam.ts'
-import { smtpIn } from './modules/smtp-in.ts'
-import { smtpSubmission } from './modules/smtp-submission.ts'
-import { mailDelivery } from './modules/mail-delivery.ts'
-import { imap } from './modules/imap.ts'
-import { mtaSts } from './modules/mta-sts.ts'
-import { autoconfig } from './modules/autoconfig.ts'
+import { mailDomains } from '@mail/module-mail-domains'
+import { mailStore } from '@mail/module-mail-store'
+import { senderAuth } from '@mail/module-sender-auth'
+import { spam } from '@mail/module-spam'
+import { smtpIn } from '@mail/module-smtp-in'
+import { smtpSubmission } from '@mail/module-smtp-submission'
+import { mailDelivery } from '@mail/module-mail-delivery'
+import { imap } from '@mail/module-imap'
+import { mtaSts } from '@mail/module-mta-sts'
+import { autoconfig } from '@mail/module-autoconfig'
 
 // mail-store requires contracts.blobs (G5): the blob store is infrastructure of the deployment (section 17.5.1).
+export const modules = [
+  accounts, auth, apiKeys, members, audit,
+  dns, dnsCloudflare, certificates,
+  mailDomains, mailStore, senderAuth, spam,
+  smtpIn, smtpSubmission, mailDelivery, imap, mtaSts, autoconfig,
+  live, rest, jmap,
+] as const
+
+// examples/mail/src/app.ts, with src/actions/health.ts as in Launchway (section 17.3.13)
 const mailDef = defineApp({
   id: 'mail',
-  modules: [
-    accounts, auth, apiKeys, members, audit,
-    dns, dnsCloudflare, certificates,
-    mailDomains, mailStore, senderAuth, spam,
-    smtpIn, smtpSubmission, mailDelivery, imap, mtaSts, autoconfig,
-    live, rest, jmap,
-  ],
-  actions: (b) => ({
-    health: b.query({ auth: { public: true }, scope: 'backend', output: shape({ ok: field.boolean() }), handle: async () => ({ ok: true }) }),
-  }),
+  modules,
+  actions: { health },
   authorization: { mode: 'strict', decisionLog: 'denials' },
 })
 export interface Mail extends AppType<typeof mailDef> {}
 export const mail: Mail = mailDef
 
-// Other platforms from the same modules, each with exact types for its selection. The CLI reaches
-// them like any app, because the host serves the invocation protocol for every app (section 16.8).
+// Other platforms from the same modules, each an app package of its own whose src/modules.ts exports the tuple
+// shown inline here. The CLI reaches them like any app, because the host serves the invocation protocol for every app (section 16.8).
 const mailArchiveDef = defineApp({
   id: 'mail-archive',              // receive-only: no submission entity, no delivery queue, no listener on 587
-  modules: [accounts, auth, apiKeys, dns, dnsCloudflare, certificates, mailDomains, mailStore, smtpIn, live, jmap],
+  modules: [accounts, auth, apiKeys, dns, dnsCloudflare, certificates, mailDomains, mailStore, smtpIn, live, jmap] as const,
 })
 const mailSenderDef = defineApp({
   id: 'mail-sender',               // outbound only, for applications that send notifications
-  modules: [apiKeys, dns, dnsCloudflare, certificates, mailDomains, mailStore, senderAuth, mailDelivery, smtpSubmission, rest],
+  modules: [apiKeys, dns, dnsCloudflare, certificates, mailDomains, mailStore, senderAuth, mailDelivery, smtpSubmission, rest] as const,
 })
 ```
 
@@ -8162,8 +8642,8 @@ The store declares the protocol-facing structure; the conditional part links mai
 profiles only when `accounts` is selected:
 
 ```ts
-// examples/mail/modules/mail-store.ts (excerpt)
-const email = defineEntity({
+// examples/mail/modules/mail-store/src/entities/email.ts
+export const email = defineEntity({
   prefix: 'email',
   partition: 'accountId',                              // per-account JMAP state (section 15.1.4)
   dataSubject: 'accountId.ownerSubject',               // the account owner, through an immutable reference (section 14.7.4)
@@ -8189,7 +8669,8 @@ const email = defineEntity({
   searchIndexes: [{ name: 'text', fields: ['subject', 'from', 'to', 'cc', 'searchText'] }],   // G7
 })
 
-const mailboxEntry = defineEntity({
+// examples/mail/modules/mail-store/src/entities/mailbox-entry.ts
+export const mailboxEntry = defineEntity({
   prefix: 'mbe',
   fields: {
     mailboxId: field.ref.own('mailbox').index(),
@@ -8198,55 +8679,83 @@ const mailboxEntry = defineEntity({
   },
 })
 
-const mailStoreDef = defineModule({
+// examples/mail/modules/mail-store/src/conditional/when-accounts/condition.ts
+export const whenAccounts = defineCondition([accounts], { entities: { mailAccount: { fields: { profileId: field.ref(accounts, 'profile').optional() } } } })
+
+// examples/mail/modules/mail-store/src/extension-points/inbound-checks.ts
+export const inboundChecks = extensionPoint<InboundCheck>({ mode: 'ordered' })   // filled by sender-auth and spam (G16)
+
+// examples/mail/modules/mail-store/src/config.ts
+export const config = shape({
+  defaultQuotaBytes: field.integer({ wide: true }).default(10n * 1024n ** 3n),
+  rejectUnknownRecipients: field.boolean().default(true),
+})
+
+// examples/mail/modules/mail-store/src/base.ts
+const mailStoreBaseDef = defineModuleBase({
   id: 'mail-store',
   version: '0.1.0',
   requires: [mailDomains, contracts.blobs, contracts.live],
   optional: [accounts],
-  extensionPoints: { inboundChecks: extensionPoint<InboundCheck>({ mode: 'ordered' }) },   // filled by sender-auth and spam (G16)
-  config: shape({
-    defaultQuotaBytes: field.integer({ wide: true }).default(10n * 1024n ** 3n),
-    rejectUnknownRecipients: field.boolean().default(true),
-  }),
+  extensionPoints: { inboundChecks },
+  config,
+  entities: { mailAccount, address, identity, mailbox, email, mailboxEntry, thread, inbound, vacationResponse },
+  conditions: { whenAccounts },
 })
-  .entities({ mailAccount, address, identity, mailbox, email, mailboxEntry, thread, inbound, vacationResponse })
-  .actions((b) => ({
-    resolveAddress: b.query({
-      input: shape({ address: field.string({ format: 'email' }) }),
-      output: shape({ deliverable: field.boolean() }),                                  // rate-limited at admit
-      handle: async (input, ctx) => ({ deliverable: (await ctx.services.mailStore.expand(input.address)).length > 0 }),   // camelCase key, bound service
-    }),
-    acceptInbound: b.command({
-      input: shape({ staged: field.blob(), envelope: field.json(envelopeShape), client: field.json(clientShape) }),
-      output: shape({ verdict: field.enum(['accepted', 'rejected']), reply: field.string().optional() }),
-      execution: 'sync',                               // durable before the SMTP 250
-      handle: async (input, ctx) => { /* run ctx.extensions.inboundChecks, apply policy, adopt the blob, write `inbound` */ },
-    }),
-    importEmail: b.command({ execution: 'sync', handle: async (input, ctx) => { /* IMAP APPEND, JMAP Email/import; returns the UID */ } }),
-  }))
-  .entityActions('inbound', (e) => ({
-    file: e.command({ execution: 'sync', handle: async (_input, ctx) => { /* aliases, vacation, Junk, UIDs, thread, search text; runs in the reaction's job */ } }),
-  }))
-  .entityActions('mailbox', (e) => ({
-    select: e.query({ output: selectStateShape, handle: async (_input, ctx) => { /* uidValidity, uidNext, highestModseq, counts */ } }),
-    fetch: e.query({ input: shape({ uids: field.string(), items: field.list(field.string()) }), output: fetchRowsShape, handle: async (input, ctx) => { /* rows by UID set */ } }),
-    idle: e.subscription({                             // IMAP IDLE; `watch` is the generated name, reserved per entity
-      event: mailboxChangeShape,
-      source: (_input, ctx, resume) => mapItems(ctx.live.entity('mail-store', 'mailboxEntry', { where: { mailboxId: ctx.target.id }, after: resume }), toMailboxChange),
-    }),
-  }))
-  .policies((rule) => [
-    rule.allow(['resolveAddress', 'acceptInbound'], {
-      id: 'mx-listener',
-      principal: 'service',
-      when: (ctx) => ctx.principal.via === 'smtp-in',                   // the listener's service principal (G1); never public
-      reason: 'Only the MX listener hands over inbound mail.',
-    }),
-  ])
-  .reactions((r) => [r.own('inbound.created', { timing: 'async' }, (event, ctx) => ctx.invoke('mail-store.inbound.file', { id: event.stream.id }))])   // a job per row, as mail-store.system
-  .conditional((w) => [
-    w.when([accounts], { entities: { mailAccount: { fields: { profileId: field.ref(accounts, 'profile').optional() } } } }),
-  ])
+export interface MailStoreBase extends ModuleBaseType<typeof mailStoreBaseDef> {}
+export const mailStoreBase: MailStoreBase = mailStoreBaseDef
+
+// examples/mail/modules/mail-store/src/actions/resolve-address.ts, accept-inbound.ts and import-email.ts
+export const resolveAddress = defineQuery(mailStoreBase, {
+  input: shape({ address: field.string({ format: 'email' }) }),
+  output: shape({ deliverable: field.boolean() }),                                  // rate-limited at admit
+  handle: async (input, ctx) => ({ deliverable: (await expandAddress(ctx.data.mailStore, input.address)).length > 0 }),   // lib/expand-address.ts, which the expand service wraps
+})
+export const acceptInbound = defineCommand(mailStoreBase, {
+  input: shape({ staged: field.blob(), envelope: field.json(envelopeShape), client: field.json(clientShape) }),
+  output: shape({ verdict: field.enum(['accepted', 'rejected']), reply: field.string().optional() }),
+  execution: 'sync',                                   // durable before the SMTP 250
+  handle: async (input, ctx) => { /* run ctx.extensions.inboundChecks, apply policy, adopt the blob, write `inbound` */ },
+})
+export const importEmail = defineCommand(mailStoreBase, { execution: 'sync', handle: async (input, ctx) => { /* IMAP APPEND, JMAP Email/import; returns the UID */ } })
+
+// examples/mail/modules/mail-store/src/actions/inbound/file.ts
+export const file = defineCommand(mailStoreBase, inbound, { execution: 'sync', handle: async (_input, ctx) => { /* aliases, vacation, Junk, UIDs, thread, search text; runs in the reaction's job */ } })
+
+// examples/mail/modules/mail-store/src/actions/mailbox/select.ts, fetch.ts and idle.ts
+export const select = defineQuery(mailStoreBase, mailbox, { output: selectStateShape, handle: async (_input, ctx) => { /* uidValidity, uidNext, highestModseq, counts */ } })
+export const fetch = defineQuery(mailStoreBase, mailbox, { input: shape({ uids: field.string(), items: field.list(field.string()) }), output: fetchRowsShape, handle: async (input, ctx) => { /* rows by UID set */ } })
+export const idle = defineSubscription(mailStoreBase, mailbox, {   // IMAP IDLE; `watch` is the generated name, reserved per entity
+  event: mailboxChangeShape,
+  source: (_input, ctx, resume) => mapItems(ctx.live.entity('mail-store', 'mailboxEntry', { where: { mailboxId: ctx.target.id }, after: resume }), toMailboxChange),
+})
+
+// examples/mail/modules/mail-store/src/policies/mx-listener.ts: one rule over two module-level actions
+export const mxListenerPolicy = definePolicy(mailStoreBase, [resolveAddress, acceptInbound], [
+  {
+    effect: 'allow',
+    id: 'mx-listener',
+    principal: 'service',
+    when: (ctx) => ctx.principal.via === 'smtp-in',                   // the listener's service principal (G1); never public
+    reason: 'Only the MX listener hands over inbound mail.',
+  },
+])
+
+// examples/mail/modules/mail-store/src/reactions/file-inbound.ts: a job per row, as mail-store.system
+export const fileInbound = defineReaction(mailStoreBase, {
+  on: 'mail-store.inbound.created',
+  timing: 'async',
+  handle: (event, ctx) => ctx.invoke(file, { id: event.stream.id }),
+})
+
+// examples/mail/modules/mail-store/src/module.ts (excerpt)
+const mailStoreDef = defineModule(mailStoreBase, {
+  actions: { resolveAddress, acceptInbound, importEmail },
+  entityActions: { inbound: { file }, mailbox: { select, fetch, idle } },
+  policies: [mxListenerPolicy],
+  reactions: { fileInbound },
+  services: { expand },                                // services/expand.ts, for dependants
+})
 export interface MailStore extends ModuleType<typeof mailStoreDef> {}
 export const mailStore: MailStore = mailStoreDef
 ```
@@ -8255,11 +8764,11 @@ The receiving listener holds no domain logic: it resolves scopes per recipient, 
 message to staging and asks each tenant to accept it:
 
 ```ts
-// examples/mail/modules/smtp-in.ts (excerpt)
-import { SMTPServer } from 'smtp-server'
+// examples/mail/modules/smtp-in/src/module.ts
 import { defineListenerModule, field, shape } from '@pennestack/core'           // G1: sugar that contributes to core.listeners
-
-const smtpError = (code: number, message: string) => Object.assign(new Error(message), { responseCode: code })
+import { mailDomains } from '@mail/module-mail-domains'
+import { mailStore } from '@mail/module-mail-store'
+import { listener } from './listener.ts'
 
 export const smtpIn = defineListenerModule({
   id: 'smtp-in',
@@ -8267,105 +8776,123 @@ export const smtpIn = defineListenerModule({
   config: shape({ maxMessageBytes: field.integer().default(52_428_800) }),
   ports: { mx: { default: 25, tls: 'starttls', proxyProtocol: 'optional' } },   // G1: a named port, bound by defineDeployment
   capability: 'smtp-public',                                                     // G9
-  listener: (kit) => {
-    const server = new SMTPServer({
-      name: kit.hostname,
-      size: kit.limits.maxMessageBytes,
-      SNICallback: kit.certificates.sniCallback,                                 // G1: the deployment's certificate directory (section 17.4.12)
-      disabledCommands: ['AUTH'],                                                // an MX never authenticates clients
-      async onRcptTo(address, smtp, done) {
-        const domain = address.address.slice(address.address.lastIndexOf('@') + 1).toLowerCase()
-        const session = await kit.sessions.open({ connection: kit.connectionOf(smtp), scopeKey: { kind: 'mail-domain', value: domain } })   // G1, G2
-        if (!session.ok) return done(smtpError(550, '5.7.1 Relaying denied'))
-        const found = await session.value.invoke('mail-store.resolveAddress', { address: address.address })
-        if (!found.ok || !found.value.deliverable) return done(smtpError(550, '5.1.1 No such recipient'))
-        kit.state(smtp).recipients.push({ address: address.address, session: session.value })
-        done()
-      },
-      async onData(stream, smtp, done) {
-        const staged = await kit.blobs.stage(stream, { maxBytes: kit.limits.maxMessageBytes })                  // G5
-        const outcomes = await Promise.all(
-          groupBySession(kit.state(smtp).recipients).map(({ session, recipients }) =>
-            session.invoke('mail-store.acceptInbound',
-              { staged: staged.ref, envelope: { mailFrom: smtp.envelope.mailFrom, rcptTo: recipients }, client: kit.clientOf(smtp) },
-              { commandId: inboundCommandId(staged.sha256, smtp.envelope, session.scope) })),               // retries stay idempotent
-        )
-        if (outcomes.some((o) => !o.ok)) return done(smtpError(451, '4.3.0 Try again later'))
-        if (outcomes.every((o) => o.ok && o.value.verdict === 'rejected')) return done(smtpError(550, '5.7.1 Message refused'))
-        done()
-      },
-    })
-    return {
-      accept: (socket) => server.connect(socket, {}),                            // the deployment owns the port and hands over sockets
-      updateCertificates: (options) => server.updateSecureContext(options),
-      drain: () => new Promise<void>((resolve) => server.close(() => resolve())),
-    }
-  },
+  listener,
 })
+
+// examples/mail/modules/smtp-in/src/listener.ts
+import { SMTPServer } from 'smtp-server'
+import { smtpError } from './lib/smtp-error.ts'                                  // Object.assign(new Error(message), { responseCode: code })
+
+export const listener = (kit: ListenerKit) => {
+  const server = new SMTPServer({
+    name: kit.hostname,
+    size: kit.limits.maxMessageBytes,
+    SNICallback: kit.certificates.sniCallback,                                   // G1: the deployment's certificate directory (section 17.4.12)
+    disabledCommands: ['AUTH'],                                                  // an MX never authenticates clients
+    async onRcptTo(address, smtp, done) {
+      const domain = address.address.slice(address.address.lastIndexOf('@') + 1).toLowerCase()
+      const session = await kit.sessions.open({ connection: kit.connectionOf(smtp), scopeKey: { kind: 'mail-domain', value: domain } })   // G1, G2
+      if (!session.ok) return done(smtpError(550, '5.7.1 Relaying denied'))
+      const found = await session.value.invoke('mail-store.resolveAddress', { address: address.address })
+      if (!found.ok || !found.value.deliverable) return done(smtpError(550, '5.1.1 No such recipient'))
+      kit.state(smtp).recipients.push({ address: address.address, session: session.value })
+      done()
+    },
+    async onData(stream, smtp, done) {
+      const staged = await kit.blobs.stage(stream, { maxBytes: kit.limits.maxMessageBytes })                  // G5
+      const outcomes = await Promise.all(
+        groupBySession(kit.state(smtp).recipients).map(({ session, recipients }) =>
+          session.invoke('mail-store.acceptInbound',
+            { staged: staged.ref, envelope: { mailFrom: smtp.envelope.mailFrom, rcptTo: recipients }, client: kit.clientOf(smtp) },
+            { commandId: inboundCommandId(staged.sha256, smtp.envelope, session.scope) })),               // retries stay idempotent
+      )
+      if (outcomes.some((o) => !o.ok)) return done(smtpError(451, '4.3.0 Try again later'))
+      if (outcomes.every((o) => o.ok && o.value.verdict === 'rejected')) return done(smtpError(550, '5.7.1 Message refused'))
+      done()
+    },
+  })
+  return {
+    accept: (socket) => server.connect(socket, {}),                              // the deployment owns the port and hands over sockets
+    updateCertificates: (options) => server.updateSecureContext(options),
+    drain: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  }
+}
 ```
 
 Delivery is a job per submission and destination domain, with the queue options this needs:
 
 ```ts
-// examples/mail/modules/mail-delivery.ts (excerpt)
-export const mailDelivery = defineModule({
+// examples/mail/modules/mail-delivery/src/extension-points/signers.ts and outbound-checks.ts
+export const signers = extensionPoint<MessageSigner>({ mode: 'ordered' })                // sender-auth: DKIM (G16)
+export const outboundChecks = extensionPoint<OutboundCheck>({ mode: 'ordered' })         // spam: outbound scoring (G16)
+
+// examples/mail/modules/mail-delivery/src/streams/attempt.ts
+export const attempt = defineStream({ key: field.ref.own('submission'), record: attemptShape, retention: { maxAge: '90d' } })   // G6
+
+// examples/mail/modules/mail-delivery/src/base.ts
+const mailDeliveryBaseDef = defineModuleBase({
   id: 'mail-delivery',
   version: '0.1.0',
   requires: [mailStore],
-  extensionPoints: {
-    signers: extensionPoint<MessageSigner>({ mode: 'ordered' }),                  // sender-auth: DKIM (G16)
-    outboundChecks: extensionPoint<OutboundCheck>({ mode: 'ordered' }),           // spam: outbound scoring (G16)
-  },
+  extensionPoints: { signers, outboundChecks },
   config: shape({
     relay: field.json(relayShape).optional(),               // { host, port, tls: 'implicit' | 'starttls', username }
     relayPassword: field.secret().optional(),               // G4
     connectionsPerDomain: field.integer({ min: 1 }).default(2),
     giveUpAfterHours: field.integer({ min: 96 }).default(120),
   }),
+  entities: { submission },
+  streams: { attempt },
 })
-  .entities({ submission })
-  .streams({ attempt: defineStream({ key: field.ref.own('submission'), record: attemptShape, retention: { maxAge: '90d' } }) })   // G6
-  .actions((b) => ({
-    submit: b.command({ execution: 'sync', handle: async (input, ctx) => { /* outbound checks, signers, submission row, one job per domain */ } }),
-  }))
-  .entityActions('submission', (e) => ({
-    deliver: e.command({
-      input: shape({ domain: field.string({ format: 'hostname' }) }),
-      execution: 'async',
-      async: {                                                                      // G3: job options of an asynchronous action
-        group: (input) => ({ id: `mx:${input.domain}`, concurrency: (ctx) => ctx.config.connectionsPerDomain }),
-        retry: { schedule: ['5m', '15m', '30m', '1h', '2h', '4h'], thenEvery: '4h', giveUpAfter: (ctx) => `${ctx.config.giveUpAfterHours}h` },
-        onGiveUp: 'mail-delivery.submission.bounce',
-      },
-      handle: async (input, ctx) => { /* relay or MX, MTA-STS, STARTTLS, Nodemailer's SMTP client; a 4xx reply throws a retryable error */ },
-    }),
-    bounce: e.command({ execution: 'async', handle: async (_input, ctx) => { /* RFC 3464 report to the sender through mail-store.acceptInbound */ } }),
-  }))
+
+// examples/mail/modules/mail-delivery/src/actions/submit.ts
+export const submit = defineCommand(mailDeliveryBase, { execution: 'sync', handle: async (input, ctx) => { /* outbound checks, signers, submission row, one job per domain */ } })
+
+// examples/mail/modules/mail-delivery/src/actions/submission/deliver.ts
+export const deliver = defineCommand(mailDeliveryBase, submission, {
+  input: shape({ domain: field.string({ format: 'hostname' }) }),
+  execution: 'async',
+  async: {                                                                      // G3: job options of an asynchronous action
+    group: (input) => ({ id: `mx:${input.domain}`, concurrency: (ctx) => ctx.config.connectionsPerDomain }),
+    retry: { schedule: ['5m', '15m', '30m', '1h', '2h', '4h'], thenEvery: '4h', giveUpAfter: (ctx) => `${ctx.config.giveUpAfterHours}h` },
+    onGiveUp: bounce,                                                           // an own action part, by value
+  },
+  handle: async (input, ctx) => { /* relay or MX, MTA-STS, STARTTLS, Nodemailer's SMTP client; a 4xx reply throws a retryable error */ },
+})
+
+// examples/mail/modules/mail-delivery/src/actions/submission/bounce.ts
+export const bounce = defineCommand(mailDeliveryBase, submission, { execution: 'async', handle: async (_input, ctx) => { /* RFC 3464 report to the sender through mail-store.acceptInbound */ } })
+
+// examples/mail/modules/mail-delivery/src/module.ts (excerpt)
+const mailDeliveryDef = defineModule(mailDeliveryBase, { actions: { submit }, entityActions: { submission: { deliver, bounce } } })
 ```
 
 The IMAP listener maps commands onto the store's actions under one session per connection, and
 `sender-auth` rotates keys on a schedule:
 
 ```ts
-// examples/mail/modules/imap.ts (excerpt)
+// examples/mail/modules/imap/src/module.ts
 export const imap = defineListenerModule({
   id: 'imap',
   requires: [mailStore],
   ports: { imaps: { default: 993, tls: 'implicit' }, imap: { default: 143, tls: 'starttls', enabled: false } },   // G1
-  listener: (kit) => imapServer({                                               // own IMAP4rev2 and IMAP4rev1 implementation
-    authenticate: (connection, sasl) =>
-      kit.sessions.open({ connection, sasl, scopeKey: { kind: 'mail-domain', value: domainOf(sasl.authcid) } }),   // G1, G2
-    select: (session, mailboxId) => session.invoke('mail-store.mailbox.select', { id: mailboxId }),
-    fetch: (session, mailboxId, uids, items) => session.invoke('mail-store.mailbox.fetch', { id: mailboxId, uids, items }),
-    readPart: (session, emailId, section, range) => session.invoke('mail-store.email.readPart', { id: emailId, section, range }),   // a blob range (G5)
-    idle: (session, mailboxId, resume) => session.subscribe('mail-store.mailbox.idle', { id: mailboxId }, resume),
-  }),
+  listener,                                                                     // src/listener.ts, below
 })
 
-// examples/mail/modules/sender-auth.ts (excerpt)
-.schedules((s) => [
-  s.every('1d', 'sender-auth.rotateDue', { scope: 'each-tenant' }),            // G3: publish a new selector, switch after DNS propagation, retire the old one
-])
+// examples/mail/modules/imap/src/listener.ts
+export const listener = (kit: ListenerKit) => imapServer({                      // own IMAP4rev2 and IMAP4rev1 implementation in src/lib/
+  authenticate: (connection, sasl) =>
+    kit.sessions.open({ connection, sasl, scopeKey: { kind: 'mail-domain', value: domainOf(sasl.authcid) } }),   // G1, G2
+  select: (session, mailboxId) => session.invoke('mail-store.mailbox.select', { id: mailboxId }),
+  fetch: (session, mailboxId, uids, items) => session.invoke('mail-store.mailbox.fetch', { id: mailboxId, uids, items }),
+  readPart: (session, emailId, section, range) => session.invoke('mail-store.email.readPart', { id: emailId, section, range }),   // a blob range (G5)
+  idle: (session, mailboxId, resume) => session.subscribe('mail-store.mailbox.idle', { id: mailboxId }, resume),
+})
+
+// examples/mail/modules/sender-auth/src/schedules/rotate-due.ts
+// G3: publish a new selector, switch after DNS propagation, retire the old one
+export const rotateDueSchedule = defineSchedule(senderAuthBase, { every: '1d', invoke: rotateDue, scope: 'each-tenant' })
+// examples/mail/modules/sender-auth/src/module.ts: schedules: { rotateDue: rotateDueSchedule }
 ```
 
 ### 17.5 One deployment carrying both
@@ -8379,8 +8906,8 @@ import { ledgerFile } from '@pennestack/core/ledger'
 import { postgresAdapter } from '@pennestack/adapter-postgres'
 import { httpHost } from '@pennestack/transport-http'
 import { blobsFs } from '@pennestack/blobs-fs'
-import { launchway } from './examples/launchway/app.ts'
-import { mail } from './examples/mail/app.ts'
+import { launchway } from '@launchway/app-launchway'                            // examples/launchway, src/app.ts
+import { mail } from '@mail/app-mail'                                            // examples/mail, src/app.ts
 
 export default defineDeployment({
   apps: [launchway, mail],
@@ -8400,8 +8927,9 @@ export default defineDeployment({
     'smtp-submission.submission': 587,
     'imap.imaps': 993,
   },
-  processes: {                                                                      // G9
-    home: { roles: ['serve', 'work'], capabilities: ['smtp-public'] },
+  processes: {                                                                      // G9: named processes, one container each (section 17.5.2)
+    home: { roles: ['serve', 'work'] },                                             // HTTP and workers, no listener port; rolled blue-green behind Caddy (section 19.6)
+    mail: { roles: ['serve'], capabilities: ['smtp-public'] },                      // binds the listener ports above: the mail listeners run only here (G1)
   },
   // Carriers that name a scope key (tokens, node credentials, webhook paths, mail domains) resolve through the directory.
   tenantResolution: [byHostname(), byScopeKey(), byHeader('x-pennestack-tenant')],  // G2
@@ -8419,7 +8947,8 @@ Windows 11, residential connection with a dynamic public IPv4 address and no inb
 
 | Container | Ports | Role |
 |---|---|---|
-| `pennestack` (one image with both apps) | 3000 on the proxy network; 25, 465, 587 and 993 published on the host | process `home`, roles `serve` and `work` |
+| `pennestack` (one image with both apps) | 3000 on the proxy network | process `home`, roles `serve` and `work`; during an upgrade a second container of the new build runs beside it (blue-green behind Caddy) |
+| `pennestack-mail` (the same image) | 25, 465, 587 and 993 published on the host | process `mail`, role `serve`, capability `smtp-public`: the mail listeners |
 | `postgres-control` (`postgres:18-alpine`) | internal | the control store, with the erasure ledger and the recorded high-water marks |
 | `postgres` (`postgres:18-alpine`) | internal | the default placement, with the job store |
 | `caddy` (`caddy:2-alpine`) | 80, 443 | the Launchway edge for every HTTP host of the deployment |
@@ -8431,9 +8960,14 @@ Windows 11, residential connection with a dynamic public IPv4 address and no inb
   (section 14.7.6). Backups snapshot both instances and the blob directory; blob bytes outlive the
   backup retention.
 - The router forwards 25, 465, 587 and 993 to the home server, in addition to 80 and 443.
+- Upgrades (section 19.6): the HTTP container rolls blue-green behind Caddy (start the new
+  container, wait for `/_pennestack/ready`, move the Caddy upstream, drain the old one). The mail
+  listeners get their own container, a named process of gap G9, because two containers cannot
+  publish ports 25, 465, 587 and 993 at once; it is replaced by stop and start within seconds, and
+  SMTP senders retry and IMAP clients reconnect (decision point 56 of section 26.1).
 - External services: the DNS provider, GitHub, Let's Encrypt and, for outbound mail, the relay
-  (a decision point in section 21).
-- Two facts must be verified on the home server before it becomes the MX host (section 21): whether
+  (a decision point in section 26.1).
+- Two facts must be verified on the home server before it becomes the MX host (section 26.3): whether
   the connection allows inbound port 25 and outbound port 25 at all, and whether Docker Desktop's
   port publishing preserves the client's source address. SPF, DMARC, blocklists and rate limits all
   need the real address; if it is hidden, the listeners need host networking or another host.
@@ -8441,7 +8975,7 @@ Windows 11, residential connection with a dynamic public IPv4 address and no inb
   and pull-request previews, which are code pennestack does not control; served as subdomains of
   `jenspenneman.com`, they would be same-site with `deploy.jenspenneman.com` and
   `mail.jenspenneman.com`, so `SameSite=Lax` would not stop them from sending the session cookie.
-  Deployed apps and previews therefore get a domain of their own (a decision point in section 21),
+  Deployed apps and previews therefore get a domain of their own (a decision point in section 26.1),
   in addition to the `__Host-` cookies and origin checks of section 16.4.10.
 - The home server is also a Launchway node, and its agent controls Docker. On that node,
   `allowedBindRoots` excludes pennestack's volumes, the ledger volume and the Docker socket by
@@ -8600,10 +9134,12 @@ The first draft of this specification (2026-10-08) named the proof apps' modules
 
 Shared platform modules (`module-members`, `module-dns`, `dns-cloudflare`, `dns-manual`,
 `module-certificates`, `blobs-fs` and later `blobs-s3`, `transport-webhooks`, `transport-jmap`) are
-packages of this repository (section 18). Launchway's and the mail server's own modules live under
-`examples/launchway/modules/` and `examples/mail/modules/` until they are stable; whether
-Launchway's modules later move to the Launchway repository as its real backend is open
-(section 21).
+packages of this repository (section 22). Launchway's and the mail server's own modules are packages
+in `examples/launchway/modules/<id>/` (`@launchway/module-<id>`) and `examples/mail/modules/<id>/`
+(`@mail/module-<id>`) until they are stable, and the apps are the packages `examples/launchway` and
+`examples/mail` with `src/modules.ts` and `src/app.ts` (section 23.10 and 23.11). Whether
+Launchway's modules later move to the Launchway repository as its real backend is open (section
+26.3); moving a module changes its package name and nothing inside it.
 
 ### 17.7 Gaps for the core and where they land
 
@@ -8776,7 +9312,7 @@ key, retry schedules driven by the error taxonomy, heartbeats, expiry, dead lett
 (`backend` or `each-tenant`). Jobs store a principal reference that is resolved again when they
 run; timers, schedules and reactions run under the module's service principal. pg-boss 12.37.1 has
 nearly all of these primitives on PostgreSQL alone, which is why the queue stays replaceable by an
-infrastructure entry (a decision point in section 21).
+infrastructure entry (a decision point in section 26.1).
 
 #### G4. Secrets and a key hierarchy
 
@@ -8924,8 +9460,10 @@ process capabilities before M4 (the mail listeners); roadmap.
 Proposal: `defineDeployment({ processes: { name: { roles, capabilities } } })` and a start flag
 naming the process; listeners, schedules, asynchronous actions and reactions may declare a required
 `capability`; a `singleton: true` option holds a lease per (action, scope) so two processes never
-run the same reconciler for one tenant; readiness reports the capabilities a process serves. With
-the edge configuration applied through the agent (a decision point in section 21), no process
+run the same reconciler for one tenant; readiness reports the capabilities a process serves. The
+process registry of section 19.1 (`core.process`) already records each process's name, roles,
+capabilities and the singleton lease holders, so ADR 0018 builds on it. With
+the edge configuration applied through the agent (a decision point in section 26.1), no process
 needs the Caddy admin socket.
 
 #### G10. Tenant-editable configuration with change events
@@ -8958,9 +9496,12 @@ Problem. A reaction to another module's events requires that module in `requires
 needs the request's remote address and user agent.
 
 Status: the request metadata on the receipt is specified (sections 11 and 15.1.7). Proposal for the
-rest: a module declares `observes: 'all'`, which allows `r.observeAll(...)` (an async reaction to
-every event, dispatched like any other, section 7.7) and is listed in the registry and by
-`pennestack doctor`. It lands with `audit` in M2 and needs no ADR beyond ADR 0015.
+rest: a module declares `observes: 'all'` in its base, which allows `defineReaction(base, { on:
+'all', timing: 'async', handle })` (an async reaction to every event, dispatched like any other,
+section 7.7) and is listed in the registry and by `pennestack doctor`. It lands with `audit` in M2
+and needs no ADR beyond ADR 0015. The experiments module (section 20.8) observes all events too,
+which costs one job per event per tenant; the proposal must bound that cost, possibly with a
+dispatch-time event-type filter held as data (section 26.3).
 
 #### G13. Rules over credential scopes
 
@@ -8972,8 +9513,12 @@ Status: specified in section 8.1 and ADR 0005: rule subjects that match action k
 across modules, evaluated at the gate with the usual explanation.
 
 ```ts
-rule.deny({ kinds: ['command'] }, { id: 'read-only-key', when: (ctx) => isReadOnlyKey(ctx), reason: 'This API key has the read scope only.' })
-rule.allow({ transports: ['imap', 'smtp-submission'] }, { id: 'app-password', when: (ctx) => keyAllowsTransport(ctx) })
+export const readOnlyKeyPolicy = definePolicy(apiKeysBase, { kinds: ['command'] }, [
+  { effect: 'deny', id: 'read-only-key', when: (ctx) => isReadOnlyKey(ctx), reason: 'This API key has the read scope only.' },
+])
+export const appPasswordPolicy = definePolicy(apiKeysBase, { transports: ['imap', 'smtp-submission'] }, [
+  { effect: 'allow', id: 'app-password', when: (ctx) => keyAllowsTransport(ctx) },
+])
 ```
 
 #### G14. Extension-point cardinality and carrier coverage checks
@@ -8989,7 +9534,485 @@ Status: specified in sections 3.4 and 5.1. Module ids keep their hyphens in refe
 (`mail-store.email.get`) and appear in lower camel case in the context (`ctx.data.mailStore`,
 `ctx.services.apiKeys`); ids that camel-case to the same name cannot be selected together.
 
-## 18. Repository layout and package plan
+## 18. Versioning and compatibility
+
+Every contract carries an explicit version. Old API versions are served from one head
+implementation by translation in the invoker, and CI refuses any change that breaks a supported
+version. [ADR 0021](adr/0021-api-versioning-and-compatibility.md) records the decisions and
+[research/versioning-rollouts-flags.md](research/versioning-rollouts-flags.md) the evidence.
+
+### 18.1 What carries a version
+
+Whatever crosses a process boundary or outlives its writer names the version it was written with.
+A value without one is refused (`validation` on the wire, `internal` in storage), never guessed; a
+request without a version header still resolves one, through pins that always exist.
+
+| What | Version | Where |
+|---|---|---|
+| Packages and modules | semantic version (a module's `version` is its package's), bumped from surface and declaration diffs | `package.json`, changelog, build manifest, surface |
+| App | dated API versions, a surface hash each | `defineApiVersions`, ledger, `Pennestack-Version` |
+| Deployment build | build id (manifest hash) and the revision assigned at start | build manifest, `core.process` |
+| API surface | `format`; hash per API version | per-version artefacts, `ETag` of `/surface` |
+| Action input and output | `since`, `changedIn`, schema hashes | surface |
+| Entity schemas and events | track versions, shape ids | snapshots, `ps_shapes`, envelope `shape` |
+| Protocols, stream tokens, cursors | integer major | path, subprotocol, `v1.` prefix, `hello.protocol` |
+| Module configuration | configuration version | each stored value |
+| Generated artefacts | producer version, format, API version, surface hash | file header |
+| Clients and the CLI | semantic version, API version spoken | `Pennestack-Client`, `Pennestack-Version`, `sync.client` |
+| Flags | definition: its module's version; targeting: `ruleVersion` | code, control store, the events' `flags` |
+| Events, jobs, receipts | writer's build and revision; API version of input or output | `ps_events.meta`, job row, receipt |
+
+### 18.2 Named API versions
+
+- An app's public contract has dated API versions (`YYYY-MM-DD`, strictly increasing). Handlers
+  implement only the head, the code as written; each version is served by translating requests
+  forward and responses backward through the version changes it lacks, as Stripe's version change
+  modules do (decision point 52 of section 26.1).
+- Additive and neutral changes (section 13.8) reach every supported version; clients ignore output
+  members they do not know.
+- A breaking change to a module's surface is a version change beside what it changes, in a major
+  of the module's package. Until an API version adopts it, it is translated for every version, so
+  a module upgrade never alters a released version.
+- Removed behaviour (an action, a module, a field no transform can produce) goes only when the app
+  raises its floor, the app's major.
+
+```ts
+// modules/accounts/src/versions/display-name.ts: one version change per file
+export const displayName = defineVersionChange({
+  since: '2.0.0',                                        // the module version that made the change
+  surface: [{ entity: profile, field: 'displayName', renamedFrom: 'name' }],   // also addedRequired, removed, action renames
+  input: {}, output: {},                                 // custom transforms, typed by the shapes the change names
+  errors: { 'accounts.display_name_invalid': 'accounts.name_invalid' },
+  fixtures: [{ ref: 'accounts.profile.update', older: { id: 'prof_1', name: 'J' }, newer: { id: 'prof_1', displayName: 'J' } }],
+})
+// modules/accounts/src/module.ts: the module literal lists its changes beside the parts they refer to, which checks
+// them; the keys are the change ids the ledger records and never change once released.
+const accountsDef = defineModule(accountsBase, { entityActions: { profile: { update } }, changes: { displayName } })
+
+// apps/portal/src/api-versions.ts
+export const portalApi = defineApiVersions({
+  '2026-10-23': { deprecated: { at: '2027-06-01', sunset: '2028-01-31' } },
+  '2027-01-12': { changes: [healthDetails] },            // app-level changes; module changes come from the ledger
+})
+// apps/portal/src/app.ts
+const portalDef = defineApp({ id: 'portal', modules, api: portalApi })   // modules: the tuple of src/modules.ts
+```
+
+`pennestack surface version new <date>` appends to `generated/api-surface/<app>/ledger.json` the
+module versions in force, the changes the version adopts and its surface hash, and prints the entry
+for `defineApiVersions`; `generate --check` fails while the two disagree.
+
+A request at version D runs with the changes D lacks: `locate` maps an older reference to the head
+reference, `validate` checks the input against D's schema, and `translate` applies input transforms
+oldest first, filters, sorts and selections included. Handlers, rules and masks see head shapes
+only. After `shape`, `translate` applies output and error transforms newest first, per item for
+subscriptions; stream tokens are unaffected. Tests check translated inputs against the head schema
+(`internal`, `core.version_change_failed`) and run every module's fixtures.
+
+Transports project the session's version, one projection per supported version per mount, built
+at first use; surface, OpenAPI and SDL documents are committed per version
+(`generated/<kind>/<app>/`). `AppClient<App>` and the tRPC router type describe the head they were
+compiled with; the generated file exports it as `apiVersion`, which `createRemoteClient` and the
+tRPC link helpers require and send.
+
+### 18.3 Selecting a version
+
+The session's version is the first of:
+
+1. the request: header `Pennestack-Version`, query parameter `pennestack-version` on `GET`
+   (`EventSource` sends no headers), `hello.apiVersion` on WebSocket, `--api-version` in the CLI;
+2. the credential: an API key created with a version, so an integration does not move with its
+   tenant;
+3. the tenant's pin, set at creation to the backend's default;
+4. the backend's default, set at creation to the app's head (at deployment level, the core's
+   newest version).
+
+`resolveVersion` runs in `Invoker.open` after `resolvePrincipal`; responses echo
+`Pennestack-Version`, and receipts and spans (`pennestack.api_version`) record it. Pins are fields
+of `core.backend` and `core.tenant`, changed as reversible events by `core.tenant.setApiVersion`
+(tenant scope, governed by rules) and operator actions; no deploy changes a pin except the floor
+rise. The typed client, the CLI and the Launchway agent also send
+`Pennestack-Client: <name>/<version>`.
+
+### 18.4 Compatibility per transport
+
+| Contract | Compatible | Breaking |
+|---|---|---|
+| Surface (every transport) | new actions, entities, optional inputs, output fields; dangerous: new output enum values, union members, declared errors | the breaking list of section 13.8 |
+| REST | new paths, optional parameters, members, headers | a changed path, status or header meaning |
+| CLI | new commands, optional flags | a renamed route or flag, a new required flag, another exit code |
+| Protocols, module protocols included | optional members, new message types | anything else: a new major beside the old |
+| Events | optional or defaulted fields, new event types | renames and type changes (upcasters, the N-1 rule); removals are contract steps |
+| Module configuration | fields with defaults | removed, renamed or narrowed fields, through a configuration migration |
+
+### 18.5 Deprecation, sunset and usage
+
+- `deprecated: { at, sunset? }` marks a version entry, and the action option `deprecated` gains
+  `at` and `sunset`. From `at`, responses carry `Deprecation: @<seconds>` (RFC 9745),
+  `Sunset: <HTTP-date>` (RFC 8594, never before `at`) and a `Link` with `rel="deprecation"`;
+  GraphQL adds `extensions.pennestack.deprecations`, the CLI warns on standard error, live
+  connections get a `notice` frame.
+- Processes count requests per day, backend, tenant, version and transport (per action or field
+  for deprecated items) into `core.apiUsage`, read by `pennestack surface usage`.
+- A version stays supported at least 12 months after a newer one exists (decision point 53 of
+  section 26.1). The
+  floor rises when entries leave `defineApiVersions`, which CI accepts only after each removed
+  version's sunset and with a major in the app's changelog. Before that build is deployed,
+  `pennestack surface retire <version>` shows 30 days of usage per tenant, refuses unless it is
+  zero or `--force` carries a logged reason, and records the retirement. A retired version is then
+  `not_found`, `core.api_version_retired` (REST 410); tenants and credentials pinned below the
+  floor are re-pinned to it by an event.
+- A module or core major never ends a pinned version: the app's next version adopts its changes,
+  and new protocol majors run beside the old.
+
+### 18.6 `pennestack surface diff`
+
+`pennestack surface diff --base <git ref>` takes over step 9 of section 13.8 (`introspect diff`
+becomes its alias). For every API version on both sides it derives the surface twice and fails on a
+breaking difference; removed versions pass only under the floor rule; dangerous changes need a
+changelog acknowledgement; ledger entries on the base must stay unchanged. Each changed module
+package's own surface (the module composed alone) and declaration files must fit its version
+bump: breaking needs a major with a version change per surface break, additive a minor, neutral a
+patch, as section 5.1 requires.
+
+### 18.7 Protocol versions and negotiation
+
+Each protocol carries an integer major in its own place (path, subprotocol, prefix, `format`,
+`hello.protocol`). Within a major only optional members and message types are added and readers
+ignore what they do not know; a new major runs beside the old until counters show 30 days without
+use. `core.capabilities` (public query, `GET /_pennestack/v1/capabilities`) lists, like a JMAP
+session object, the majors served and the API versions with status and dates; clients declare
+what they use, as JMAP's `using` does, and the server picks the highest common major or answers
+`not_found`, `core.protocol_retired`.
+
+### 18.8 Pipeline stages and errors
+
+The pipeline of section 9.2 runs `resolveVersion` in `open` after `resolvePrincipal`, and
+`translate` after `validate` and after `shape`; `admit` also checks kill switches and suspensions,
+`authorize` flag gates, `execute` records writer and flags per event, and `complete` flushes
+counters and exposures.
+Every failure fits an existing kind of section 10:
+
+| Code | Kind | REST | When |
+|---|---|---|---|
+| `core.api_version_invalid` | `validation` | 400 | not `YYYY-MM-DD` |
+| `core.api_version_unknown` | `validation` | 400 | not a version of the app |
+| `core.api_version_retired` | `not_found` | 410 | below the floor |
+| `core.protocol_retired` | `not_found` | 410; WebSocket 4404 | a major no longer served |
+| `core.rollout_in_progress` | `unavailable` | 503, `Retry-After` | an older process meets a version, action or protocol it does not know while a target exists |
+| `core.version_change_failed` | `internal` | 500 | a transform failed |
+| `core.feature_disabled` | `forbidden` | 403 | a gate's flag is false for the caller |
+| `core.feature_suspended` | `unavailable` | 503 | a kill switch is false or a suspension matches |
+| `core.rollout_not_finalized` | `conflict` | 409 | the registry refuses a contract step or finalization |
+
+### 18.9 Backends and tenants
+
+A version's surface depends only on the app and the version; version changes are the same for every
+backend and tenant. Pins are per backend, tenant and credential, so one build serves tenants on
+different versions, and a tenant principal changes only its own tenant's pin.
+
+## 19. Rollouts
+
+A new build never interrupts running clients or processes: two builds of adjacent revisions run
+side by side under an N-1 rule, and incompatible formats and destructive steps wait for a
+finalization that the process registry gates, as CockroachDB's upgrades do
+([ADR 0022](adr/0022-rolling-upgrades-expand-and-contract.md)).
+
+### 19.1 Builds, revisions and the process registry
+
+`pennestack build` writes the build manifest: package versions and the compatibility content
+(migration files per track, event shapes, configuration versions, job formats, protocol majors,
+version change ids, and each app's API versions with their surfaces). `core.rollout` records the
+finalized revision and its content. At `connect` a starting process compares: equal content joins
+the finalized revision; content that only adds runs at the target revision (finalized plus one), as
+the new target or one more process of it; content lacking anything the finalized build has, retired
+versions and majors apart, refuses to start (`buildTooOld`), as does content that differs from a
+current target's (`targetConflict`). One rollout runs at a time.
+
+```ts
+export interface ProcessRecord {                         // core.process, in the control store
+  readonly id: string                                    // UUIDv7, new per start
+  readonly name: string | null                           // the named process of gap G9
+  readonly node: string
+  readonly roles: readonly ('serve' | 'work')[]
+  readonly capabilities: readonly string[]
+  readonly build: { readonly id: string; readonly revision: number }
+  readonly protocols: Readonly<Record<string, readonly number[]>>     // 'invocation', 'live', 'sync', module protocols
+  readonly apiVersions: Readonly<Record<string, readonly string[]>>   // per app
+  readonly state: 'starting' | 'ready' | 'draining' | 'stopped'
+  readonly heartbeatAt: Date                             // every 10 s; presumed gone after 30 s of silence
+}
+export interface RolloutState {                          // core.rollout, chain-backed: its events are the history
+  readonly finalizedRevision: number
+  readonly finalizedContent: string                      // hash of the finalized compatibility content
+  readonly target: { readonly revision: number; readonly buildId: string; readonly startedAt: Date } | null
+}
+// defineDeployment({ rollout: { finalize: 'auto' | 'manual', graceSeconds: 600 } }); 'auto' is the default
+```
+
+A process registers at `connect`, is `ready` at `listen` and `draining` at `stop`; the registry has
+a change feed like the scope directory (section 3.2) and records singleton lease holders (gap G9).
+A process that finds itself below the finalized revision, after a partition for example, stops.
+
+### 19.2 The N-1 rule
+
+| Shared thing | Rule while the finalized build and a target run |
+|---|---|
+| Namespaces, the control store included | expand steps only, none adding a constraint the older build's writes violate (a new required column gets a database default until a contract step) |
+| Events | the target writes the finalized track versions: new optional fields, renamed fields under the old name, type changes through a `downcast` beside the migration's `upcast`; older live sources skip unknown event types |
+| Consumers | leases move to target processes, so reactions the target adds see every event; rebuilds wait for finalization |
+| Jobs | a job records its enqueuer's build and revision and, from an external caller, the input as sent with its API version; workers take jobs at or below their revision, run external input through the pipeline at that version and translate internal input with the version changes the enqueuer's manifest lacks |
+| Receipts | the outcome's API version is recorded and fingerprinted; a replay returns the stored outcome, re-reading entity outcomes at that version |
+| Requests | an older process meeting a version, action or protocol it does not know answers `unavailable`, `core.rollout_in_progress`, `Retry-After: 2`; clients retry, commands under the same command id |
+| Configuration | the target reads older stored values through their migration and writes the older version until finalization |
+
+### 19.3 Migrations in two phases
+
+`pennestack db plan` shows per namespace and track the expand steps (`db apply`, before the target
+takes traffic), the data steps (idempotent, batched backfills) and the contract steps
+(`db apply --contract`), each with the revision that introduced it. `--contract` and rewrites of
+stored configuration refuse with `conflict`, `core.rollout_not_finalized`, unless the finalized
+revision covers them and no live process is below it. For one process or many:
+
+- a field rename keeps its physical column, recorded in the snapshot (section 14.4.2), so nothing
+  waits (decision point 55 of section 26.1);
+- a type change or a split column is a new column that the target writes beside the old one
+  (through `downcast`) while reading the old one, a backfill through `upcast` after finalization,
+  reads moving to the new column per namespace once its backfill is recorded, and a contract step
+  dropping the old column. This replaces the multi-process procedure that section 14.6.4 had
+  scheduled for M7.
+
+### 19.4 Finalization and rollback
+
+`pennestack rollout status` lists processes, revisions and pending contract steps.
+`pennestack rollout finalize` raises the finalized revision when every live process runs at the
+target revision, and with `finalize: 'auto'` a singleton finalizer does so once that has held for
+the grace period (decision point 54 of section 26.1). Finalization switches writers to the new formats and starts backfills; contract
+steps stay explicit because they destroy data. Before finalization, rollback is a redeploy of the
+finalized build, which reads everything the target wrote, then `pennestack rollout abort`: once
+none of the target's processes is live, it clears the target, moves the target's jobs the
+finalized build can run to its revision and parks the rest as dead letters. After finalization,
+going back means a restore (section 14.7.6).
+
+### 19.5 Clients during a rollout
+
+Draining processes end streams with `going_away` (section 15.4.5); clients resume from their token
+on any process at the same API version. The WebSocket `welcome` frame and a new SSE `welcome` event
+carry `apiVersion`, `surfaceHash` and the protocol major, and a client whose cached hash differs
+refetches its surface. When the floor passes a connection's version, the stream ends with reason
+`version_retired` and a user interface reloads onto a supported build: the forced refresh.
+
+### 19.6 Deployment strategies
+
+Rolling replacement is the default; blue-green moves traffic at the edge in one step, switchable
+back until finalization, and a canary build uses weighted edge routes. On the home server (section
+17.5.2): start the new container, wait for `/_pennestack/ready`, move the Caddy upstream, drain the
+old one. Two containers cannot publish one host port, so the mail listeners (ports 25, 465, 587,
+993) get their own container, a named process of gap G9, replaced by stop and start within seconds;
+SMTP senders retry and IMAP clients reconnect (decision point 56 of section 26.1).
+
+Deploying and releasing are separate: new behaviour ships behind a tenant-level release flag, moves
+from canary tenants to a percentage and to everyone
+(`pennestack flags set checkout.newFlow --backend launchway --tenants home --percent 10`), and
+leaves the code when the stale report asks.
+
+### 19.7 Sync and agent protocols
+
+`sync.register` records the client's API version and sync major; push and pull run at the
+session's version; a cursor of an older format gets `reset: 'shapes'`. The Launchway agent's `hello`
+carries `protocol` and `agentVersion`, and `hello.ok` names the protocol spoken, or `error` carries
+`core.protocol_retired` with the oldest accepted major; `nodes.node` records both. The v1 transport
+goes after 30 days without a v1 connection (decision point 23 of section 26.1); v2 agents are typed
+clients pinned to an API version.
+
+### 19.8 Backends and tenants
+
+The registry, revisions and finalization are deployment-wide, because one build serves every
+backend. Expand and contract run per namespace, so tenants with their own namespaces migrate one by
+one (section 14.6.6).
+
+## 20. Feature flags and experiments
+
+### 20.1 Where they live
+
+Flag definitions and evaluation are a small kernel concept in `@pennestack/core`; experiments are
+a module, `@pennestack/module-experiments` (id `experiments`;
+[ADR 0023](adr/0023-feature-flags-and-experiments.md)). Flags must be readable wherever behaviour
+is decided (handlers, rules, `admit`, transports through the rules over transports of gap G13,
+reactions, jobs, the kernel's own rollouts), and only the core is a dependency of all of them;
+`ctx.flags` is typed from the module base like `ctx.config`. Experiments own data and actions, are
+optional and observe events: by section 24, a module (decision point 51 of section 26.1).
+
+### 20.2 Defining flags
+
+```ts
+// modules/checkout/src/flags/new-flow.ts, layout.ts and exports-enabled.ts: one flag per file
+export const newFlow = defineFlag({          // listed by the base of its owning module
+  kind: 'boolean',                           // 'boolean' | 'string' | 'number' | 'json' | 'variant'
+  default: false,                            // keeps established behaviour; served when nothing else decides
+  level: 'tenant',                           // whose key splits: 'deployment' | 'backend' | 'tenant' | 'principal'
+  purpose: 'release',                        // 'release' | 'experiment' | 'operational' | 'kill-switch' | 'permission'
+  expires: '2027-01-31',                     // required for release and experiment flags
+  client: true,                              // readable by clients through core.flag.evaluate
+})
+export const layout = defineFlag({ kind: 'variant', variants: ['control', 'compact'], default: 'control', level: 'principal', purpose: 'experiment', expires: '2027-03-01' })
+export const exportsEnabled = defineFlag({ kind: 'boolean', default: true, level: 'tenant', purpose: 'kill-switch' })
+
+// modules/checkout/src/base.ts
+const checkoutBaseDef = defineModuleBase({ id: 'checkout', version: '1.3.0', requires: [orders], flags: { newFlow, layout, exportsEnabled } })   // keys 'checkout.newFlow', ...
+// modules/checkout/src/actions/place-order.ts and export-all.ts
+export const placeOrder = defineCommand(checkoutBase, { gate: 'newFlow' /* ... */ })         // false: forbidden, core.feature_disabled
+export const exportAll = defineCommand(checkoutBase, { gate: 'exportsEnabled' /* ... */ })   // false: unavailable, core.feature_suspended
+```
+
+`json` flags take a `schema` (a `shape`) and `number` flags optional bounds; `tenantEditable: true`
+lets tenants override a flag that drives no experiment, through generated actions as for
+configuration (section 5.7); `defineApp({ flags })` declares app-level flags. Flags belong to the
+base, so every part is typed against them.
+
+### 20.3 Evaluation
+
+```ts
+// ActionContext<M, W> (section 7.6) has `flags: FlagsOf<M, W>`: ctx.flags.checkout.newFlow is a boolean,
+// ctx.flags.checkout.layout is 'control' | 'compact', ctx.flagDetails(key) a FlagResolution.
+export interface FlagContext {
+  readonly scope: Scope
+  readonly principal: { readonly kind: PrincipalKind; readonly id: string | null; readonly roles: readonly string[] }
+  readonly attributes: Readonly<Record<string, string | number | boolean>>   // from flagContextEnrichers
+  readonly targetingKey: string | null                                      // by level: backend, tenant or principal id
+}
+export interface FlagResolution<T> {
+  readonly value: T
+  readonly variant: string
+  readonly reason: 'STATIC' | 'DEFAULT' | 'TARGETING_MATCH' | 'SPLIT' | 'DISABLED' | 'CACHED' | 'STALE' | 'ERROR'
+  readonly errorCode?: 'FLAG_NOT_FOUND' | 'TYPE_MISMATCH' | 'TARGETING_KEY_MISSING' | 'PARSE_ERROR' | 'GENERAL'
+  readonly ruleId?: string
+  readonly ruleVersion?: number
+  readonly provider: string
+}
+export interface FlagProvider {             // deployment-level ordered extension point `flagProviders`
+  readonly id: string
+  readonly sync: boolean                    // true: resolve never returns a promise
+  start(signal: AbortSignal): Promise<void>
+  /** undefined passes the decision to the next provider. */
+  resolve<T>(flag: FlagSpec<T>, context: FlagContext): FlagResolution<T> | undefined | Promise<FlagResolution<T> | undefined>
+  readonly changes?: AsyncIterable<{ readonly keys: readonly string[] }>
+}
+```
+
+- Providers in order: `core.targeting` (the control store's targeting, always present);
+  optionally `openFeatureFlags(provider)`, an infrastructure entry adapting an OpenFeature server
+  provider (`@openfeature/server-sdk` 1.23.0, checked 2026-10-24); `env`
+  (`PENNESTACK_FLAG_CHECKOUT_NEW_FLOW=true`, development and tests only). The first resolution
+  wins, else the default with `DEFAULT`.
+- `ctx.flags` is synchronous: synchronous providers resolve a flag on first read, and with an
+  asynchronous one the kernel resolves every flag the invoked module can read before `authorize`.
+  One invocation sees one snapshot; `core.targeting` keeps all targeting in memory, refreshed from
+  the control store's change feed within about a second.
+- An error never fails an invocation: the default is served with `ERROR` and counted, so the
+  default must keep established behaviour.
+- An anonymous principal has a targeting key only when the client sends `Pennestack-Client-Id`;
+  otherwise principal-level flags give the default with `TARGETING_KEY_MISSING`.
+- `flagContextEnrichers` (app level, mode `set`) add attributes once per session. Clients read
+  `client: true` flags with `core.flag.evaluate` (query, tenant scope).
+
+### 20.4 Targeting, assignment and history
+
+- A flag's targeting (`core.flag`, chain-backed, in the control store) exists per backend, plus an
+  optional deployment-wide one for backends without their own: `enabled` (off serves the default
+  with `DISABLED`), ordered rules that match listed tenants or principals and a condition over
+  attributes (the condition AST of section 8.3, interpreted in memory) and serve a variant or a
+  split, and a fallthrough; values are validated on write.
+- Splits hash `SHA-256(salt ‖ ':' ‖ targetingKey)`; the first four bytes over 2^32 give a number
+  in [0, 1), and variants own cumulative ranges in declared order, so raising a rollout's
+  percentage never removes a key. The salt is the flag key, or `exp:<id>:<phase>` for an
+  experiment, whose weights are frozen while it runs.
+- Every change is an event with an actor and a required reason; the stream version is the
+  `ruleVersion`, and `core.flag.restoreRules` goes back.
+
+### 20.5 Exposure and provenance
+
+Every event a command appends records, in the `meta` column of `ps_events` (section 15.1.2), its
+writer's build and revision and the key, variant, reason and rule version of each flag the
+invocation read; the envelope exposes them as `writer` and `flags`. Spans carry `pennestack.flags`;
+`pennestack.flags.evaluations` counts by flag, variant and reason. The experiments module fills the
+app-level extension point `flagObservers` (mode `set`, bound to its contributor, gap G16) and
+records each targeting key's first exposure per phase of a running experiment: in the command's
+unit for commands, otherwise through a per-process buffer flushed every second, so a crash loses at
+most a second of exposures, alike for every variant.
+
+### 20.6 What flags may gate
+
+- Actions: `gate` names a boolean flag of the module, and the action runs only while it is true.
+  It compiles to a deny rule `<action ref>.gate` at `authorize` (`forbidden`,
+  `core.feature_disabled`), explained by `pennestack explain` and visible through `core.me`; on a
+  `kill-switch` flag it runs at `admit` instead (`unavailable`, `core.feature_suspended`). Gated
+  actions stay in the surface.
+- Policies: `where`, `check` and `when` read `ctx.flags`; the plan records the flags its rules
+  read, and the token check of section 15.2.6 includes their values, so a flip that changes
+  visibility resets tokens.
+- Modules: a base with `flags: { enabled }` and `gate: 'enabled'` gates every action the module
+  mounts, contributed ones included; reactions and schedules keep running. Configuration keeps
+  durable settings (decision point 1 of section 26.1), flags temporary or targeted variation with an
+  owner and an expiry; runtime module selection stays rejected.
+- Transports: a rule over a transport subject (gap G13) whose `when` reads a flag.
+
+### 20.7 Kill switches and stale flags
+
+The operator suspends any action with a `core.suspension` row (action reference; deployment,
+backend or tenant; reason), checked at `admit` beside quotas. `pennestack flags stale` and
+`pennestack doctor` report flags past their expiry, serving one value to everyone for 14 days,
+unevaluated for 30 days or with targeting no build defines. `doctor` warns when a release or
+experiment flag's `expires` lies more than 40 days after its first build (Unleash's default
+lifetime); an operational flag without `expires` is stale 7 days after its first build; kill
+switches and permission flags never go stale by age.
+
+### 20.8 The experiments module
+
+- `experiment` (backend tenancy, chain-backed): key, driven flag, hypothesis, level (tenant or
+  principal), variants and weights, allocation, status, phase, primary and guardrail metrics,
+  planned sample size per variant. `metric` (backend tenancy): an event selector
+  (`{ event: 'checkout.order.placed', value?: 'total' }`), kind `binomial` or `mean`, a window
+  after first exposure (default 7 days). `exposure` (tenant tenancy, `history: 'state'`, unique per
+  experiment, phase and targeting key, which is `.personal()`); `tally` (tenant tenancy:
+  participants, conversions, sum and sum of squares per experiment, phase, variant and metric);
+  `result` (backend tenancy: tallies summed over tenants).
+- Starting writes the split into the flag's targeting; new weights need a new phase and salt. An
+  asynchronous reaction over the selected events (`observes: 'all'`, gap G12) updates a tally when
+  the event's actor (principal level) or tenant (tenant level) was exposed within the window; an
+  hourly `each-tenant` schedule sends each tenant's counts to backend scope.
+- `experiments.experiment.results` reports per variant and metric the participants, the rate or
+  mean and, against control, the difference with a 95 % interval and a two-sided p-value: a
+  two-proportion z-test for binomial metrics, Welch's t-test with a normal approximation for means.
+  Before the planned sample size the result reads "inconclusive: planned size not reached",
+  because repeated looks inflate false positives; a sample ratio mismatch (chi-squared against the
+  weights, p < 0.001) marks it invalid; variants under 100 participants are marked too small; the
+  primary metric decides, and guardrails get no multiple-comparison correction. Bayesian analysis,
+  CUPED and sequential tests come later (decision point 57 of section 26.1).
+
+### 20.9 Commands
+
+New framework commands: `pennestack surface diff|version new|usage|retire` (project; `usage` and
+`retire` on the operator socket), `pennestack rollout status|finalize|abort` (operator socket) and
+`pennestack flags list|get|set|history|explain|stale` (aliases of `core.flag` actions for
+operators). `surface`, `rollout` and `flags` join the reserved names of section 16.9.3;
+`pennestack experiments ...` are the module's action commands.
+
+### 20.10 Backends and tenants
+
+Targeting addresses the tenants and principals of one backend and is written only by operator and
+core-generated actions; a tenant principal changes only its own tenant's overrides. Evaluation runs
+inside the session's scope, so no rule serves one tenant's value to another; exposures and tallies
+stay in the tenant's namespace, and only counts reach backend scope.
+
+## 21. Nodes, capacity and autoscaling
+
+The design of jobs, nodes, capacity and autoscaling is in progress (the jobs/nodes/autoscaling
+designer, started on 2026-10-24). When it lands, it replaces section 9.5 and fills this section;
+until then, section 9.5, gap G9 (section 17.7) and decision point 6 of section 26.1 describe the job
+queue and where work runs.
+
+## 22. Repository layout and package plan
 
 ```
 pennestack/
@@ -9026,14 +10049,15 @@ pennestack/
     module-audit/            @pennestack/module-audit
     module-dns/              @pennestack/module-dns, with dns-cloudflare/ and dns-manual/
     module-certificates/     @pennestack/module-certificates (M4)
+    module-experiments/      @pennestack/module-experiments (after M3, section 20.8)
     testing/                 @pennestack/testing: harness, local client, policy matchers, conformance suites, type helpers
-    biome-config/            @pennestack/biome-config: the Biome preset and the GritQL plugins
+    biome-config/            @pennestack/biome-config: the Biome preset, the GritQL plugins and their fixtures
   examples/
     portal/                  the accounts and authentication app of the M1 slice (roadmap.md)
-    launchway/               the deployment platform app and its modules
-    mail/                    the mail server app and its modules
+    launchway/               the deployment platform app; its modules are packages in modules/<id>/
+    mail/                    the mail server app; its modules are packages in modules/<id>/
   spikes/                    throwaway verifications (the type-model spike, the write-path measurement, the Connect descriptor spike)
-  biome.json  pnpm-workspace.yaml  tsconfig.base.json  tsconfig.json  package.json
+  biome.json  knip.json  pnpm-workspace.yaml  tsconfig.base.json  tsconfig.json  package.json
 ```
 
 Later packages: `transport-static`, `transport-connect`, `module-outbound-webhooks`, `blobs-s3`,
@@ -9043,7 +10067,12 @@ to [roadmap.md](roadmap.md); packages without one belong to M0 to M3.
 Rules:
 
 - pnpm workspace with TypeScript project references; `tsc -b` builds the graph; every package
-  compiles alone with the options of section 13.3.
+  compiles alone with the options of section 13.3. The workspace lists `packages/*`, `examples/*`
+  and `examples/*/modules/*`.
+- Inside packages, files follow section 23: module packages (`module-*`, and the modules of the
+  examples) have the module layout of section 23.2 with `src/module.ts` as their entry; library
+  packages have curated entry files of named re-exports (section 23.3); section 23.9 shows the
+  framework's packages.
 - The dependency graph between packages is a DAG: `core` depends on nothing in the workspace;
   `data`, `events` and `live` depend on `core`; adapters depend on `data`; transports depend on
   `core`; modules depend on `core` and on the modules they require or optionally use; `client`
@@ -9053,7 +10082,7 @@ Rules:
 - The repository is private on GitHub (JensPenneman/pennestack) until Jens approves this
   architecture; it becomes public after that approval, published under the `@pennestack` scope.
   Every commit is signed with the author's personal identity; a `CONTRIBUTING.md` states both. The
-  licence is a decision point for Jens (section 21).
+  licence is decision point 20 for Jens (section 26.1).
 - One `CHANGELOG.md` per package, kept by the release tooling; semantic versions; the `core`
   package's public types are a compatibility contract.
 - Examples are the integration tests: CI boots both apps against PostgreSQL (and the in-memory
@@ -9061,7 +10090,523 @@ Rules:
   transport conformance suite, the dual-evaluation authorization suite, `generate --check`,
   `db check`, the declaration-emit checks and the instantiation budgets (section 13.8).
 
-## 19. How a new requirement lands
+## 23. Project layout and the single-purpose rule
+
+Every file in a pennestack project defines one thing and is named after it; every module is a
+package; and a module's parts become the module value through explicit imports, never through
+discovery. It specifies the layouts, the rule, the assembly of parts with exact types, and the
+tooling that keeps them, refining sections 4.1, 13.5 and 16.9.8.
+[ADR 0024](adr/0024-project-layout-and-single-purpose-files.md) records the decisions and
+[research/project-layout.md](research/project-layout.md) the evidence.
+
+### 23.1 Project layout
+
+```
+my-platform/
+  pennestack.config.ts              the deployment: defineDeployment, the only default export (section 4.6)
+  apps/<app-id>/                    one package per app, named <scope>/app-<app-id>
+    src/modules.ts                  the selection: export const modules = [accounts, auth, rest] as const
+    src/app.ts                      defineApp({ id, modules, actions, ... }) with its named type
+    src/api-versions.ts             defineApiVersions, when the app versions its API
+    src/actions/<action>.ts         app-level actions, one per file
+    src/flags/<flag>.ts             app-level flags
+    src/policies/<target>.ts        rules the app adds
+    src/versions/<change>.ts        version changes of app-level actions
+    src/app.test-d.ts               ExpectValidApp, HasEntity and HasAction assertions
+    src/pennestack.generated.ts     generated, committed (section 13.7)
+    generated/                      surfaces, OpenAPI documents, SDL, CLI manifest: generated, committed
+    test/                           end-to-end, isolation and conformance suites of the app
+  modules/<module-id>/              one package per module, named <scope>/module-<module-id>
+  scripts/<script>.ts               one task per file, run with Node against the typed client
+  docs/                             the project's decisions and notes
+  .pennestack/                      dev socket and caches, ignored by git
+  biome.json  knip.json  package.json  pnpm-workspace.yaml  tsconfig.base.json  tsconfig.json
+```
+
+- The workspace lists `apps/*` and `modules/*`. Every package has the manifests of sections 13.3
+  and 13.4 and references the packages it imports, so `tsc -b` enforces the module graph of
+  section 5.2.
+- A module is a package wherever it lives: `modules/<id>/` in a project, `packages/module-<id>/`
+  in a shared repository, `examples/<app>/modules/<id>/` here. Moving it changes its package name
+  and nothing inside it.
+
+### 23.2 Module layout
+
+The tree shows `auth` where it has a part and a placeholder where it has none:
+
+```
+module-auth/
+  package.json                      exports "." to src/module.ts (source condition) and dist/module.js
+  tsconfig.json  tsconfig.test.json
+  migrations/own/  to-accounts/  when-accounts/    tracks with snapshot.json and NNNN-<name>.ts (section 14.6.1)
+  src/
+    base.ts                         the declaration; exports authBase and type AuthBase
+    module.ts                       the assembly; exports auth and type Auth; the package entry
+    module.test-d.ts                toggle type tests (section 13.10)
+    config.ts                       shape({ sessionIdleMinutes, ... })
+    entities/credential.ts          defineEntity: fields, relations, indexes, domain events with evolve, invariant
+    entities/session.ts
+    streams/<stream>.ts             defineStream (G6)
+    flags/<flag>.ts                 defineFlag
+    extension-points/<point>.ts     the point and its contract type
+    errors/invalid-credentials.ts   defineError('auth.invalid_credentials', ...)
+    shapes/<shape>.ts               a shape used by several parts
+    lib/verify-argon2id.ts          one function
+    actions/login.ts  logout.ts  revoke-subject.ts     module-level actions
+    actions/credential/revoke.ts    an action mounted on credential
+    policies/credential.ts  login.ts                   the rules over one entity or one module-level action
+    reactions/<reaction>.ts         one reaction or process manager
+    services/verify-password.ts     a service offered to dependants
+    schedules/<action>.ts           the schedule of one action
+    topics/<topic>.ts               defineTopic with its subscriber hooks (G6)
+    lifecycle/on-tenant-created.ts  one hook
+    versions/<change>.ts            one defineVersionChange
+    contributions/to-accounts/
+      contribution.ts               the target and the fields and relations added to accounts.profile
+      actions/profile/change-password.ts
+      policies/profile.ts
+      fills/identity-providers.ts
+    conditional/when-accounts/
+      condition.ts                  credential.profileId while accounts is selected
+      reactions/revoke-on-deactivation.ts  record-login.ts
+    conditional/when-live/
+      condition.ts  actions/session-events.ts  policies/session-events.ts
+  test/alone.test.ts  with-accounts.test.ts
+  README.md  CHANGELOG.md
+```
+
+- Only the directories a module needs exist; any other directory is layout drift.
+- `actions/<name>.ts` and `actions/<name>/` never collide: entity names and module-level action
+  names share one namespace per module (section 5.1).
+- Domain events stay in their entity's file: `evolve` is typed by the row, and the chain's shape is
+  reviewed as one definition. Event data that other parts use goes to `shapes/`.
+- A policy file holds every rule over one target, an entity or a module-level action, so allows and
+  denies are reviewed together (decision point 60 of section 26.1).
+
+### 23.3 The single-purpose rule
+
+A source file has one purpose when:
+
+1. it exports exactly one value, the definition it is named after, plus at most the types that
+   value's signature names (an extension point's contract type, a service's argument types);
+2. everything else in it is private and serves that export: a constant, a local shape, a small
+   function. A helper that a second file needs moves to `lib/` (one function per file) or
+   `shapes/`;
+3. its exports are its last statements;
+4. importing it has no effect: no top-level expression statement, `await` or bare `import 'x'`
+   (section 13.6 already requires definition files to be free of I/O at import time).
+
+Forbidden in every package: files that re-export (barrels), `export * from`, `import * as`,
+exporting an imported binding, and default exports. Exceptions, each with its reason:
+
+- Assembly files (`base.ts`, `module.ts`, `app.ts`, `modules.ts`) import many parts and export a
+  value with its named type (section 4.1); they hold no function bodies.
+- Role files (`config.ts`, `contribution.ts`, `condition.ts`, and `adapter.ts` or `listener.ts`
+  in transport and listener modules) are named by role, because their directory is their identity.
+- The entry files of a framework library package (`src/index.ts`, subpath entries such as
+  `src/wire/index.ts`) hold only explicit named re-exports: a library needs one public API, and an
+  explicit list makes every addition visible in review. No file imports its own package's entry.
+- `pennestack.config.ts` keeps its default export, because the CLI finds it by convention
+  (section 16.9.1).
+- Generated files and migrations follow their producers' names and are excluded from the naming
+  rules (section 13.7).
+- Test files may hold many cases and fixtures; scripts are entry points and may run code at import.
+- Tests, spikes and the API sketch may write a module's base, parts and module literal in one file
+  (section 4.1).
+
+### 23.4 Names
+
+- Every file and directory name is kebab-case, produced from the export's name by the `kebab()`
+  function of section 16.4.1: `changePassword` lives in `change-password.ts`, also its CLI route
+  and REST path segment. Identifiers are camelCase without consecutive capitals, so the mapping
+  reads back.
+- Assembly and role files take their export's name from their directory: `module.ts` of
+  `mail-store` exports `mailStore` with type `MailStore`, `base.ts` exports `mailStoreBase` with
+  type `MailStoreBase`, `contribution.ts` in `to-accounts/` exports `toAccounts`, `condition.ts` in
+  `when-accounts/` exports `whenAccounts`, `app.ts` the app id in camel case, `modules.ts`
+  `modules`, `config.ts` `config`.
+- A file that attaches something to another part is named after that part, and its export adds
+  the kind, because the plain name belongs to the target: `policies/profile.ts` exports
+  `profilePolicy`, `schedules/poll-releases.ts` exports `pollReleasesSchedule` (an entity action's
+  schedule is `<entity>-<action>.ts`), `fills/identity-providers.ts` exports
+  `identityProvidersFill`. A policy over a selector is named after its rule id.
+- Error codes are the module id and the export's snake case: `errors/email-taken.ts` exports
+  `emailTaken` with code `accounts.email_taken`.
+- Entity action directories carry the entity's kebab name. Contribution directories are
+  `to-<target id>`, with `-when-<id>` per `when` module; condition directories are `when-<id>`
+  joined by `-and-`, contracts by name (`when-live`). Migration tracks use the same names, so
+  `src/contributions/to-accounts/` and `migrations/to-accounts/` describe one toggle boundary.
+- Tests take the name of the file they test (`revoke.test.ts`, `module.test-d.ts`); integration
+  tests are named after their scenario.
+
+Kebab-case is chosen because every other path segment already is (module ids, CLI routes, REST
+paths, migrations) and because git cannot see case-only renames on default macOS and Windows file
+systems. The cost: Biome 2.5.15 cannot check a file's link to its export; the layout pass does
+(decision point 58 of section 26.1).
+
+### 23.5 Assembly
+
+From file-based frameworks pennestack keeps one idea, a part's path mirroring its reference
+(`actions/credential/revoke.ts` is `auth.credential.revoke`), and drops discovery, reserved file
+names and private folders: a file counts only when mounted. A module is assembled in two files,
+both object literals (section 4.1):
+
+- `base.ts` holds the module base, `defineModuleBase({ id, version, requires, optional, provides,
+  config, data, extensionPoints, entities, streams, flags, contributions, conditions })`. Every type
+  a part needs exists once the base does.
+- `module.ts` holds the module literal, `defineModule(base, { actions, entityActions, policies,
+  reactions, services, topics, contributes, conditional, schedules, lifecycle, changes })`, which
+  mounts the behaviour parts.
+
+```ts
+// modules/auth/src/base.ts
+import { contracts, defineModuleBase, type ModuleBaseType } from '@pennestack/core'
+import { accounts } from '@pennestack/module-accounts'
+import { whenAccounts } from './conditional/when-accounts/condition.ts'
+import { whenLive } from './conditional/when-live/condition.ts'
+import { config } from './config.ts'
+import { toAccounts } from './contributions/to-accounts/contribution.ts'
+import { credential } from './entities/credential.ts'
+import { session } from './entities/session.ts'
+
+const authBaseDef = defineModuleBase({
+  id: 'auth',
+  version: '0.1.0',
+  optional: [accounts, contracts.live],
+  config,
+  entities: { credential, session },
+  contributions: { toAccounts },               // fields and relations auth adds to accounts.profile
+  conditions: { whenAccounts, whenLive },      // credential.profileId while accounts is selected; the live subscription
+})
+
+export interface AuthBase extends ModuleBaseType<typeof authBaseDef> {}
+export const authBase: AuthBase = authBaseDef
+```
+
+```ts
+// modules/auth/src/actions/credential/revoke.ts
+import { defineCommand, field, shape } from '@pennestack/core'
+import { authBase } from '../../base.ts'
+import { credential } from '../../entities/credential.ts'
+import { alreadyRevoked } from '../../errors/already-revoked.ts'
+
+export const revoke = defineCommand(authBase, credential, {
+  input: shape({ reason: field.string().optional() }),
+  errors: [alreadyRevoked],
+  execution: 'sync',
+  decide: (input, current, ctx) => {          // current: the credential row; ctx: ActionContext<AuthBase>
+    if (current.revokedAt) throw alreadyRevoked({ id: current.id })
+    return [ctx.events.revoked({ at: ctx.clock.now(), reason: input.reason })]
+  },
+})
+```
+
+```ts
+// modules/auth/src/module.ts (excerpt)
+import { defineModule, type ModuleType } from '@pennestack/core'
+import { revoke } from './actions/credential/revoke.ts'
+import { login } from './actions/login.ts'
+import { revokeSubject } from './actions/revoke-subject.ts'
+import { authBase } from './base.ts'
+import { revokeOnDeactivation } from './conditional/when-accounts/reactions/revoke-on-deactivation.ts'
+import { changePassword } from './contributions/to-accounts/actions/profile/change-password.ts'
+import { identityProvidersFill } from './contributions/to-accounts/fills/identity-providers.ts'
+import { profilePolicy } from './contributions/to-accounts/policies/profile.ts'
+import { credentialPolicy } from './policies/credential.ts'
+
+const authDef = defineModule(authBase, {
+  actions: { login, revokeSubject },
+  entityActions: { credential: { revoke } },
+  policies: [credentialPolicy],
+  contributes: {
+    toAccounts: {                              // the behaviour of the contribution the base declares under this key
+      entityActions: { profile: { changePassword } },
+      policies: [profilePolicy],
+      extensionPoints: { identityProviders: identityProvidersFill },
+    },
+  },
+  conditional: { whenAccounts: { reactions: { revokeOnDeactivation } } },
+})
+
+export interface Auth extends ModuleType<typeof authDef> {}
+export const auth: Auth = authDef
+```
+
+The part functions of section 4.1 (`defineCommand`, `defineQuery`, `defineSubscription`,
+`definePolicy`, `defineReaction`, `defineProcess`, `defineService`, `defineFill`, `defineSchedule`,
+`defineTopic`, `defineHook`) take the base as their first argument, or `within(base, declaration)`
+for parts inside a contribution or conditional part. At runtime they return plain objects. An
+app's own parts take the selection instead, `defineQuery(modules, { ... })`. Version changes and
+flags (`defineVersionChange`, `defineFlag`) need no base.
+
+An action file exports one action part: the definition literal, whose type also records the base
+it was built against and its mount (module level, an own entity, or inside a contribution or
+condition). The module literal accepts a part only where both match: `entityActions: { credential:
+{ revoke } }` rejects a part built for `session` or against another module's base. The literal's
+type adds every part's input, output, errors and events, so `Auth` equals the type of the same
+module written in one file. `defineModule` records each part's reference, so the registry resolves
+a part value to `auth.credential.revoke`.
+
+| Part | Mounted by |
+|---|---|
+| config, data needs, extension points | `config`, `data`, `extensionPoints` of the base |
+| entities, streams, flags | `entities: {...}`, `streams: {...}`, `flags: {...}` of the base |
+| `contribution.ts`, `condition.ts` | `contributions: {...}`, `conditions: {...}` of the base, under the declaration's name |
+| actions | `actions: {...}`, `entityActions: { <entity>: {...} }` of the module literal |
+| policies | `policies: [...]` |
+| reactions, schedules, services, topics, hooks, version changes | `reactions: {...}`, `schedules: {...}`, `services: {...}`, `topics: {...}`, `lifecycle: {...}`, `changes: {...}` |
+| behaviour of a contribution or condition | `contributes: { toAccounts: {...} }`, `conditional: { whenAccounts: {...} }`, under the base's key |
+
+Object keys are ids: entity and action names (renaming one is an API change), the reaction id
+that idempotency uses (section 7.7), the schedule id, and the version change id the API ledger
+records; the last three never change once released. Name clashes in `module.ts` (two entities
+with a `revoke` action) are resolved with an import alias, the only place aliases are allowed.
+
+Typing parts against the base means:
+
+- Parts invoke their own module's actions by value, `ctx.invoke(revokeSubject, input)`, and pass
+  them by value to timers, `async.onGiveUp` and schedules; other modules' actions keep string
+  references.
+- `ctx.services` in a part lists the dependencies' services; a module's own code calls the `lib/`
+  function its service wraps.
+- Imports inside a package run one way: declaration files (`config.ts`, `entities/`, `streams/`,
+  `flags/`, `extension-points/`, `errors/`, `shapes/`, `contribution.ts`, `condition.ts`) import
+  neither `base.ts` nor parts, `lib/` imports no part, and only tests import `module.ts`.
+- Parts depend on the base, not on the module type, so editing one re-checks it, its importers and
+  `module.ts`. The type-model spike measures the cost (roadmap M0).
+
+The alternative was a `module.generated.ts` that `pennestack generate` writes from the directory
+conventions and CI checks for drift. It saves two lines per part, but puts a generator in the type
+path (principle 10), lets a file's path decide an action's reference, so that moving a file could
+break the API, and leaves a new part out of the types until the generator runs (decision point 59
+of section 26.1).
+
+### 23.6 Contributions and conditional parts
+
+- A contribution is one directory per target and `when` list under `contributions/`; a
+  conditional part one directory per condition under `conditional/`. Its `contribution.ts` or
+  `condition.ts` declares the target or condition and the data it adds:
+  `defineContribution(accounts, { entities: { profile: { fields, relations } } })`,
+  `defineCondition([accounts], { entities: { credential: { fields } } })`. The base lists these,
+  so every part sees contributed fields in rows and patches (section 4.7). Every such directory has
+  its declaration file, also when it adds no data.
+- Behaviour sits beside the declaration: `actions/`, `policies/`, `fills/<point>.ts`, and
+  `reactions/` in conditional parts. Parts there are typed with `within(authBase, toAccounts)`:
+  the target and `when` modules count as required, rows include the contributed fields, and the
+  part mounts only there, under the declaration's key of `contributes` or `conditional`. The base's
+  entry and the module literal's entry under one key form one contribution or conditional part;
+  entries that share a (target, `when`) identity merge, because they are one migration track.
+- The import direction of section 5.4 is visible in the tree: only the higher module has a
+  `to-<lower>` or `when-<lower>` directory, and the lower module never names the higher one.
+  Fillers of the kernel's extension points sit in `contributions/to-core/fills/`.
+
+### 23.7 App-specific modules and shared packages
+
+- Both have the module layout. App-specific modules are private packages that shared ones never
+  import; no module imports an app.
+- A module package has one entry, `src/module.ts`. Dependants derive other types from the module
+  type through `@pennestack/core` helpers, such as a new `ExtensionValue<Accounts,
+  'identityProviders'>` for fillers.
+- `package.json` lists every module named in `requires`, `optional`, contribution targets and
+  `when` lists, and `tsconfig.json` references them.
+
+### 23.8 Tests and scripts
+
+- Unit tests sit beside the file they test, type tests beside the file whose types they assert;
+  `module.test-d.ts` holds the toggle cases of section 13.10.
+- Integration tests live in each package's `test/`: a module alone and with each optional module
+  through `createLocalClient`; an app's end-to-end, isolation, policy and conformance suites from
+  `@pennestack/testing`. `tsconfig.test.json` includes them and the tests in `src/`.
+- Scripts compose actions through the typed client (section 16.9.2), one task per file.
+
+### 23.9 The framework's packages
+
+```
+packages/
+  core/src/index.ts  wire/index.ts  ledger/index.ts  entry files: named re-exports only
+  core/src/dsl/  registry/  invoker/  authorization/  errors/  fields/  surface/  ...
+                                    subsystems: one function, class or type per file
+  core/src/core-module/             the core module in the module layout
+  data/  events/  client/  testing/  adapter-*/  blobs-fs/  ...   the same rule
+  live/  transport-*/               libraries; a module they ship sits in src/module.ts
+  cli/src/commands/<group>/<command>.ts            one Stricli command per file
+  module-*/                         the module layout
+  biome-config/                     biome.json, plugins/<rule>.grit, plugins/fixtures/<rule>/
+examples/portal/  launchway/  mail/ app packages with their modules in modules/<id>/
+```
+
+### 23.10 Worked example: the deployment platform
+
+Each module also has the package manifests, `src/base.ts`, `src/module.ts`,
+`src/module.test-d.ts`, `test/` and `migrations/`; shared modules come from `@pennestack/*`.
+
+```
+examples/launchway/                 @launchway/app-launchway
+  src/modules.ts                    the 21 modules of section 17.3.13
+  src/app.ts  src/actions/health.ts  src/pennestack.generated.ts  generated/  test/
+  modules/
+    projects/                       @launchway/module-projects
+      src/entities/project.ts  env-var.ts
+      src/extension-points/git-providers.ts           GitProvider; min 1
+      src/policies/project.ts  env-var.ts             read, manage, admin-fields, archive; read-env
+      src/services/environment-for.ts
+    nodes/                          requires contracts.live
+      src/entities/node.ts  credential.ts  presence.ts  command.ts
+      src/extension-points/heartbeat-observers.ts  command-resolvers.ts
+      src/actions/join.ts  channel.ts                 channel: the agent's subscription
+      src/actions/node/heartbeat.ts  mark-offline.ts
+      src/services/send.ts
+      src/topics/container-logs.ts                    hooks send logs.start and logs.stop
+      src/contributions/to-core/contribution.ts  fills/principal-resolvers.ts
+    deployments/                    requires projects, nodes
+      src/entities/deployment.ts  src/streams/log.ts
+      src/actions/create-automatic.ts
+      src/actions/deployment/report-phase.ts  report-result.ts  report-runtime.ts  append-log.ts  logs.ts
+      src/reactions/dispatch-next-for-project.ts  wake-lanes-of-node.ts
+      src/contributions/to-nodes/contribution.ts  fills/heartbeat-observers.ts
+    agent-gateway/                  transport module: src/module.ts, src/adapter.ts, src/lib/
+    domains/                        requires projects; optional dns
+      src/entities/domain.ts  route.ts
+      src/actions/domain/verify.ts  src/schedules/domain-verify.ts
+    edge/                           requires domains, deployments, nodes
+      src/entities/render.ts
+      src/actions/apply.ts  rendered.ts
+      src/reactions/rerender.ts                       keyed and coalescing per tenant
+      src/schedules/apply.ts                          drift repair every 10 minutes
+      src/lib/render-caddyfile.ts                     the pure renderer
+    github/                         requires projects, deployments; optional webhooks
+      src/entities/connection.ts                      with GitHub's four domain events
+      src/actions/ingest.ts  start-manifest.ts  complete-manifest.ts  poll-releases.ts
+      src/reactions/mirror-to-github.ts  deploy-on-release.ts  deploy-on-push.ts
+      src/lib/create-automatic-deployment.ts          shared by both deploy reactions
+      src/schedules/poll-releases.ts
+      src/contributions/to-projects/contribution.ts  fills/git-providers.ts
+      src/contributions/to-deployments/contribution.ts                githubDeploymentId
+      src/contributions/to-webhooks/contribution.ts  fills/receivers.ts
+    previews/                       requires projects, deployments, domains; optional github
+      src/entities/preview.ts
+      src/actions/open.ts  src/actions/preview/close.ts
+      src/contributions/to-projects/contribution.ts                   preview settings
+      src/contributions/to-deployments/contribution.ts                previewId
+      src/conditional/when-github/condition.ts  reactions/sync-preview.ts
+```
+
+### 23.11 Worked example: the mail server
+
+```
+examples/mail/                      @mail/app-mail
+  src/modules.ts  src/app.ts  src/actions/health.ts  src/pennestack.generated.ts  generated/  test/
+  modules/
+    mail-domains/                   optional dns
+      src/entities/mail-domain.ts
+    mail-store/                     requires mail-domains, contracts.blobs; optional accounts
+      src/entities/mail-account.ts  address.ts  identity.ts  mailbox.ts  email.ts
+                   mailbox-entry.ts  thread.ts  inbound.ts  vacation-response.ts
+      src/extension-points/inbound-checks.ts
+      src/shapes/select-state.ts  fetch-rows.ts
+      src/actions/resolve-address.ts  accept-inbound.ts  import-email.ts
+      src/actions/inbound/file.ts
+      src/actions/mailbox/select.ts  fetch.ts  idle.ts  search.ts  expunge.ts
+      src/actions/email/read-part.ts  set-keywords.ts
+      src/policies/mx-listener.ts                     resolveAddress and acceptInbound
+      src/reactions/file-inbound.ts  src/services/expand.ts
+      src/conditional/when-accounts/condition.ts      mailAccount.profileId
+    sender-auth/                    requires mail-domains; optional mail-store, mail-delivery, dns
+      src/entities/dkim-key.ts  src/actions/rotate-due.ts  src/schedules/rotate-due.ts
+      src/contributions/to-mail-store/contribution.ts  fills/inbound-checks.ts
+      src/contributions/to-mail-delivery/contribution.ts  fills/signers.ts
+    spam/                           requires mail-store; optional mail-delivery
+      src/extension-points/scanners.ts
+      src/contributions/to-mail-store/contribution.ts  fills/inbound-checks.ts
+      src/contributions/to-mail-delivery/contribution.ts  fills/outbound-checks.ts
+    mail-delivery/                  requires mail-store
+      src/entities/submission.ts  src/streams/attempt.ts
+      src/extension-points/signers.ts  outbound-checks.ts
+      src/actions/submit.ts  src/actions/submission/deliver.ts  bounce.ts
+    smtp-in/  smtp-submission/  imap/                 listener modules: src/module.ts, src/listener.ts, src/lib/
+    mta-sts/  autoconfig/           requires mail-domains; optional dns; one action per raw endpoint (G8)
+```
+
+`certificates` and `transport-jmap` are shared packages.
+
+### 23.12 Enforcement
+
+Rules and options are those of the Biome 2.5.15 schema the preset pins, checked on 2026-10-24.
+Plugins are scoped with `includes`; GritQL cannot read the file path, so path checks belong to the
+layout pass.
+
+| Check | What it checks | When it fires |
+|---|---|---|
+| `useFilenamingConvention` (style), `filenameCases: ["kebab-case"]`, `requireAscii` | file names and their extension segments | editor and `biome ci`; not migrations or generated files |
+| `useNamingConvention` (style), `strictCase` | identifiers with consecutive capitals | as above |
+| `noBarrelFile`, `noReExportAll` (performance); `noExportedImports` (style) | re-exporting files, `export * from`, exported imports | everywhere except library entry files |
+| `noNamespaceImport` (performance) | `import * as` | everywhere |
+| `useExportsLast` (style) | a statement after an export | source files |
+| `noExcessiveLinesPerFile` (style), 300 non-blank lines, warning | a file long enough to hold two purposes | source files except tests |
+| `noRestrictedImports` (style), per directory | declaration files importing `base.ts`, `module.ts` or parts; `lib/` importing parts; any file importing `module.ts` | preset overrides, finalised against fixtures |
+| `one-export.grit` | a second exported value | `**/src/**/*.ts` minus assembly files, library entries and tests |
+| `no-import-effects.grit` | top-level expression statements, `await`, bare imports | `**/src/**/*.ts` minus tests |
+| `wiring-only-assembly.grit` | a function or arrow function | `**/src/{base,module,app,modules}.ts` |
+| knip 6.43.0 | unused files (a forgotten mount), unused exports and types, unused or unlisted dependencies, duplicate exports | CI after `biome ci`; `pennestack init` writes `knip.json` with the entry files |
+| layout pass | conventions that need paths and several files | `pennestack doctor`, `build`, CI, and `dev`'s status line |
+
+Biome 2.6.0 (2026-10-21) added JavaScript plugins, a developer preview that sees the file path;
+once they are stable in a pinned release, the name checks move into the editor.
+
+### 23.13 Layout drift
+
+The layout pass of `pennestack doctor` reports:
+
+- placement: a file outside its kind's directory (a `defineEntity` outside `entities/`), an
+  unknown directory, a part built for another contribution or condition than its directory;
+- names: a file not named `kebab()` of its export; an assembly or role file whose export does not
+  follow its directory; an error code, policy or schedule named against "Names"; a contribution
+  or condition directory that differs from its declaration; a migration track without
+  a source directory, or the reverse; a package name that differs from the module id;
+- mounts: a part that `base.ts` or `module.ts` does not mount, with the import and entry to add,
+  or mounts elsewhere than its path says;
+- packages: a module package whose `exports` is not `src/module.ts`, a missing named type, a
+  missing reference to a module in `requires`, `optional`, a target or a `when` list.
+
+It parses sources with TypeScript 6.0.3 (section 13.2 pins it for compiler-API tools), compares
+them with the registry the probe composes, names a fix per finding and never edits.
+
+### 23.14 Scaffolding
+
+`pennestack new <kind> <reference>` creates one part, located by its reference:
+
+```
+pennestack new module mail-store --requires mail-domains --optional accounts   # alias: pennestack module new
+pennestack new entity mail-store.mailboxEntry
+pennestack new action auth.credential.revoke --kind command
+pennestack new action accounts.profile.changePassword --from auth             # contributions/to-accounts/
+pennestack new flag checkout.newFlow --kind boolean --level tenant --purpose release --expires 2027-01-31
+```
+
+- Further kinds: `policy`, `reaction`, `service`, `error`, `schedule`, `stream`, `topic`,
+  `contribution`, `condition`, `version-change`, `lib`, `shape`, `app`, `script`; `--when <ids>`
+  places a part in a conditional part.
+- A scaffold writes the part (with a test beside actions, policies and reactions) and inserts one
+  import and one entry into the matching key of one assembly file. It edits nothing else, prints
+  the two lines instead when that file is not in the canonical shape, and `--dry-run` shows the
+  plan (decision point 61 of section 26.1). `new module` writes the package of section 16.9.8 in this layout and, with
+  `--app <id>`, adds the module to that app's `modules.ts`.
+- `new` becomes a reserved framework command name (section 16.9.3).
+
+### 23.15 Traceability of brief addendum 3, item 4
+
+| Brief sentence | Sections |
+|---|---|
+| Every file in a project has a single purpose | 23.3 (the single-purpose rule), 23.4 (names), 23.12 (enforcement) |
+| each entity its own file | 23.2, 23.3 |
+| each library function its own file | 23.2 (`lib/`), 23.3 item 2 |
+| each module its own place | 23.1, 23.7 |
+| with a directory structure that makes this natural | 23.2, 23.5, 23.6, 23.10, 23.11 |
+| file-based frameworks are a starting point only | 23.5 (first paragraph); [research/project-layout.md](research/project-layout.md), sections 1 and 2 |
+| designed to be the best fit for this framework | 23.5, 23.6, ADR 0024 |
+| and enforced by its tooling | 23.12, 23.13, 23.14 |
+
+## 24. How a new requirement lands
 
 Requirements arrive incrementally and the brief is appended. The decision procedure for each
 addition, in order:
@@ -9084,9 +10629,13 @@ addition, in order:
 The proof of the procedure is that the two addenda of 2026-10-08 landed in this document as a
 kernel concept (scope) plus configuration, extension points and adapters, not as a new
 architecture, and that the review of 2026-10-11 changed rules and contracts, not the shape of the
-kernel.
+kernel. Addendum 3 (2026-10-23) landed as sections 18 to 21 and 23: versioning, rollouts and flags
+as kernel changes that ADRs 0021 to 0023 record (two pipeline stages, control entities, extension
+points and error codes in the existing kinds) plus one module, `experiments`; the project layout as
+conventions, a module base and tooling (ADR 0024); and the jobs, nodes and autoscaling design as a
+replacement of section 9.5 that is still in progress.
 
-## 20. Requirements traceability
+## 25. Requirements traceability
 
 | Brief requirement | Where it is met | How the text reads it |
 |---|---|---|
@@ -9096,9 +10645,9 @@ kernel.
 | Configuration system in TypeScript; app defined as a set of modules | 4.1, 4.5, 4.7 | |
 | A module owns entities | 5.1, 6.1 | |
 | Entities carry actions; actions on modules and the app | 6.7, 7.2 | |
-| Modules plug and play, toggled independently, the application still works | 4.7 (checks and tests), 5.2, 5.3, 5.4 | A module can be switched off on its own unless a selected module `requires` it; then both go together. Soft influence uses `optional`, contributions and conditional parts. Listed as a decision point in section 21. |
+| Modules plug and play, toggled independently, the application still works | 4.7 (checks and tests), 5.2, 5.3, 5.4 | A module can be switched off on its own unless a selected module `requires` it; then both go together. Soft influence uses `optional`, contributions and conditional parts. Listed as decision point 2 in section 26.1. |
 | Modules influence each other, explicit and typed, both still toggleable | 5.3, 5.4, 5.5, 17.2, api-sketch.ts | |
-| Multiple platforms from different selections | 4.5, 4.6, 17 | Selections are compiled apps; runtime module toggles are rejected (decision point in section 21). |
+| Multiple platforms from different selections | 4.5, 4.6, 17 | Selections are compiled apps; runtime module toggles are rejected (decision point in section 26.1). |
 | CASL-style authorization in code, per action, with conditions; not plain RBAC | 8.1 to 8.4, 17.3.11 | The invoked action is the unit of authorization; rules have conditions on the row acted on and the row produced. |
 | Everything about authorization configurable | 8.7 | |
 | Transports as modules, several active together | 5.6, 16.3 | |
@@ -9109,13 +10658,13 @@ kernel.
 | Each transport derives from the same definitions | 16.2 (one surface), 16.4 (one set of rules), 16.3.8 (conformance) | |
 | Authentication module in which users keep login information and sign in | 17.2 | |
 | Separate accounts module; mutual influence | 5.4, 17.2.1 | |
-| Pluggable databases: PostgreSQL, MySQL, a hosted service such as Supabase, Drizzle, anything fitting | 5.6, 14.3, 14.3.7 | PostgreSQL first (M1), MySQL, SQLite and the Supabase preset in M7; a Drizzle-based adapter waits for Drizzle 1.0, and existing Drizzle schemas are imported by `db introspect` (decision point in section 21). |
+| Pluggable databases: PostgreSQL, MySQL, a hosted service such as Supabase, Drizzle, anything fitting | 5.6, 14.3, 14.3.7 | PostgreSQL first (M1), MySQL, SQLite and the Supabase preset in M7; a Drizzle-based adapter waits for Drizzle 1.0, and existing Drizzle schemas are imported by `db introspect` (decision point in section 26.1). |
 | CQRS-like execution; requests handled asynchronously | 7.1, 7.4, 9.5 | |
 | Choose which requests are handled synchronously | 7.4, 16.4.7 | Declared per action; the app's map decides how external callers are answered. |
 | Live updates on everything, delivered by a module | 6.7, 9.6, 15.4 | |
-| Nothing truly deleted, everything appended to a chain | 6.6, 15.1, 14.7 | Chain entities are append-only; `state` entities, transient records, receipts and sync clients are operational data that retention purges, with defaults for the operational buffers (decision point in section 21). History is removed only by rules the operator adopts. |
-| Multiple actors online and offline at the same time, handled gracefully | 15.3, 15.4.7 | Offline authorship ships in M8 and collaborative fields in M9 (decision point in section 21). |
-| Database types always live, generated by a TypeScript server or an equivalent, whatever the connection | 13.1, 14.8 | Types are inferred from definitions with no generator in the type path. Tables the framework does not own are described by introspected definitions, checked against the live catalogue at `connect`, in `pennestack dev` and in CI (decision point in section 21). |
+| Nothing truly deleted, everything appended to a chain | 6.6, 15.1, 14.7 | Chain entities are append-only; `state` entities, transient records, receipts and sync clients are operational data that retention purges, with defaults for the operational buffers, which Jens accepted on 2026-10-24 (decision point 8, section 26). History is removed only by rules the operator adopts. |
+| Multiple actors online and offline at the same time, handled gracefully | 15.3, 15.4.7 | Offline authorship ships in M8 and collaborative fields in M9 (decision point in section 26.1). |
+| Database types always live, generated by a TypeScript server or an equivalent, whatever the connection | 13.1, 14.8 | Types are inferred from definitions with no generator in the type path. Tables the framework does not own are described by introspected definitions, checked against the live catalogue at `connect`, in `pennestack dev` and in CI (decision point in section 26.1). |
 | Compiler, linter and toolchain always know what to do | 13.2 to 13.12 | |
 | No frontend framework; everything works as an API and a backend framework | 16.5 to 16.8 | |
 | A later UI fully pluggable | 16.10 | |
@@ -9133,17 +10682,34 @@ kernel.
 | Physical tenant data placement pluggable and invisible to application code | 12.3, 14.4, 14.9 | Semantics do not depend on placement (section 12.3). |
 | Each layer states how it handles multi-tenancy | 3.5, 8.8, 9.7, 12, 14.9, 16.12 | |
 | Living brief: appended, never rewritten | brief.md changelog | |
-| New requirements land as module, adapter, policy or configuration; kernel changes need an ADR | 19, adr/0001 | |
+| New requirements land as module, adapter, policy or configuration; kernel changes need an ADR | 24, adr/0001 | |
 | A framework Jens can build on without thinking about the framework | 3.4, 7.6, 13 | |
-| Public repository on GitHub, every commit signed with the author's personal identity | 18 | The repository stays private until Jens approves the architecture and becomes public then. |
+| Everything versioned, in every nook and cranny; a version is never implicit (addendum 3, item 1) | 18.1, 18.2, 18.3, 18.7 | Apps have dated API versions served from one head by translation; protocols keep integer majors; whatever crosses a process boundary or outlives its writer names its version (decision point 52). |
+| Smooth rollouts and roll-overs; compatibility until a major; a best-in-class mechanism (addendum 3, item 2) | 19, 18.5, 18.6 | Adjacent build revisions run side by side under the N-1 rule, and destructive steps wait for finalization; CI refuses a break of a supported version (decision points 53 to 56). |
+| Feature flags and A/B testing, at framework level (addendum 3, item 3) | 20, 20.1 | Flags are a kernel concept; experiments are the optional `experiments` module (decision points 51 and 57). |
+| Every file has a single purpose, in a structure designed for this framework and enforced by its tooling (addendum 3, item 4) | 23 (per sentence in 23.15) | One definition per file, a package per module, explicit assembly over a module base (decision points 58 to 61). |
+| Public repository on GitHub, every commit signed with the author's personal identity | 22 | The repository stays private until Jens approves the architecture and becomes public then. |
 | Best practice from first principles, no copied conventions | this document and the ADRs cite research, not older projects | |
 | The product name never references other companies' products | the working name and all package names are generic | |
 
-## 21. Open questions
+## 26. Open questions
 
-### 21.1 Decision points for Jens
+Decided:
 
-Each changes the work; each has a recommendation, which the rest of this document assumes.
+| Number | Decision | Date |
+|---|---|---|
+| 3 | DSL shape: modules are object literals, a module base, parts typed against it and a module literal, never a builder chain (section 4.1) | 2026-10-24 |
+| 4 | Data access inside handlers: module authority with an explicit `forCaller()`, plus a shape-stage check of every entity row leaving the invoker against the caller's plan, an error in development and a dropped, logged row in production (section 8.4) | 2026-10-24 |
+| 5 | Deny rules: allow and deny rules, deny requiring a reason, default deny (section 8.2 as written) | 2026-10-24 |
+| 8 | Operational buffer defaults accepted (transient change records 7 days, receipts 24 hours, inactive sync clients 90 days), plus `asOf` on the generated `get` and `history` reads of chain entities (sections 6.7, 14.7.1 and 14.8.1) | 2026-10-24 |
+
+The decision register ([decisions.md](decisions.md)) records each answer with the sections that
+apply it.
+
+### 26.1 Decision points for Jens
+
+Each changes the work; each has a recommendation, which the rest of this document assumes. The
+numbers are those of the decision register; points 3, 4, 5 and 8 are decided (above).
 
 1. **Runtime module selection.** Should a backend's modules be fixed by the apps compiled into the
    deployment, or toggled per backend at runtime? Options: a catalogue of compiled apps, with
@@ -9155,20 +10721,8 @@ Each changes the work; each has a recommendation, which the rest of this documen
    genuine needs; make every dependency optional and type every cross-module access as possibly
    absent. Recommendation: accept it (section 5.2); soft influence already uses `optional`,
    contributions and conditional parts.
-3. **DSL shape.** Should modules be defined with a builder chain whose callbacks receive typed
-   contexts, or with a single object literal and a hand-written context annotation on every
-   handler? Recommendation: the builder chain (section 4.1), as Hono, Elysia and Better Auth do;
-   it is the only way to type `ctx.data` from sibling declarations.
-4. **Data access inside handlers.** Should repository calls in a handler run with the module's own
-   authority (the action having been authorized as a whole), or with the caller's authority plus
-   declared grants for anything more? Options: module authority with explicit `forCaller()` reads
-   and no silent narrowing; caller authority by default with typed grants per action.
-   Recommendation: module authority (section 8.4); it keeps uniqueness checks and quotas correct,
-   and the caller's view is one explicit call where an action lists or searches.
-5. **Deny rules.** Should the first release have deny rules, or allow-only rules with `unless`
-   conditions? Recommendation: allow and deny, deny requiring a reason and testing the row before
-   the action unless it declares `check` (section 8.2); freezes and suspensions need an override
-   that composes order-independently.
+Points 3, 4 and 5 are decided (above).
+
 6. **Job queue.** Should the kernel queue run on every data adapter's job store, or should
    pennestack depend on pg-boss and PostgreSQL for queued work? Options: the adapter-backed kernel
    queue (`ps_jobs`, section 14.3.9); pg-boss 12.37.1, which leaves MySQL and SQLite deployments,
@@ -9178,11 +10732,8 @@ Each changes the work; each has a recommendation, which the rest of this documen
    or encrypted state columns with blind indexes? Recommendation: plaintext plus crypto-shredding
    (section 14.7.4); exposure is limited to old backups, bounded by backup retention and the
    ledger replay at restore.
-8. **Operational data and its defaults.** `state` entities change in place and retention purges
-   them; transient change records expire after 7 days, receipts after their action's window
-   (24 hours by default) and inactive sync clients after 90 days, without an adopted rule. Accept
-   these defaults, or require the operator to adopt even these? Recommendation: accept them
-   (section 14.7.1); they are buffers, not history, and the operator can change them.
+Point 8 is decided (above).
+
 9. **Offline multi-actor sync.** When should it ship? Options: M8, after the mail server; earlier.
    Recommendation: M8 (roadmap); neither proof app needs offline authorship to launch, and every
    event from M1 already carries what sync needs.
@@ -9206,7 +10757,7 @@ Each changes the work; each has a recommendation, which the rest of this documen
     defer it (ADR 0011); the invocation protocol and `AppClient` already give typed clients, and
     oRPC remains one more adapter.
 16. **CLI namespace.** Should action commands sit at the top level beside framework commands, or
-    under a verb (`pennestack run <module> ...`)? Recommendation: top level with 29 reserved names
+    under a verb (`pennestack run <module> ...`)? Recommendation: top level with 33 reserved names
     (section 16.9.3); daily commands stay short.
 17. **Operator impersonation.** What may `pennestack explain --as <principal>` do? Options: evaluate
     only, everywhere; also execute, logged. Recommendation: evaluate everywhere, execute only in
@@ -9246,11 +10797,63 @@ Each changes the work; each has a recommendation, which the rest of this documen
     the ledger file only? Recommendation: two instances plus the ledger file (section 17.5.2), so a
     restore of either never brings back erased data.
 
-### 21.2 Open for the spike (roadmap M0)
+Points 51 to 61 came with addendum 3 on 2026-10-24 (the register's numbers 28 to 50 are the lead's
+flags, the spike questions, the questions by area and addendum 4):
 
-1. The type-model checklist of section 4.7: the builder chain, module-local contexts, all field
-   flags, generated actions with typed `watch`, `defineApp` options, `AppActionTree` from the field
-   model; and `api-sketch.ts` compiled as the acceptance test of the DSL.
+51. **Where feature flags live.** In the framework core (`defineFlag`, typed `ctx.flags`, gates,
+    provenance) with experiments as an optional module, in a flags module that other modules
+    require or list as optional, or only in the apps built on the framework? Recommendation: the
+    core, with experiments as `@pennestack/module-experiments` (section 20.1); flags are needed in
+    rules, `admit`, transports, jobs and the kernel's own rollouts, and only the core reaches all
+    of them.
+52. **API version naming.** Dated versions pinned per request, credential, tenant and backend and
+    served from one head by version-change transforms; integer majors per app, each a separate
+    surface; or no versions, continuous evolution with deprecation only? Recommendation: dated
+    versions with transforms (section 18.2); integer majors only for wire protocols (section 18.7).
+53. **Support window.** At least 12 months after a newer version exists, then retirement only after
+    its sunset and 30 days of zero use (or a logged `--force`); 24 months, as GitHub promises; or
+    until usage reaches zero? Recommendation: 12 months plus the zero-use check (section 18.5); for
+    a personal deployment the usage counters matter more than the calendar.
+54. **Automatic finalization.** Finalize a rollout once every live process has run the target
+    revision for a 600-second grace period, with a manual mode per deployment, or always by hand
+    (`pennestack rollout finalize`)? Recommendation: automatic by default (section 19.4); contract
+    steps stay manual because they destroy data.
+55. **Field renames in production.** Keep the physical column recorded in the snapshot (a logical
+    rename, no DDL), or rename it through add, dual write, backfill and drop? Recommendation: keep
+    the column (sections 14.4.2 and 19.3); type changes and splits use the gated add, dual write,
+    backfill and contract procedure.
+56. **Mail listeners during upgrades.** Their own container (a named process of gap G9), replaced
+    by stop and start in seconds; a TCP proxy in front that drains connections; or the single
+    pennestack container with a restart? Recommendation: their own container (sections 17.5.2 and
+    19.6); SMTP senders retry and IMAP clients reconnect, and the HTTP container rolls blue-green
+    behind Caddy.
+57. **Experiment statistics.** Fixed-horizon frequentist tests (two-proportion z-test, Welch's
+    t-test, 95 % intervals) with a planned-size gate and a sample-ratio check, Bayesian analysis or
+    sequential testing from the start, or counts only? Recommendation: fixed-horizon first (section
+    20.8); Bayesian, CUPED and sequential tests later, each with its own validation.
+58. **File naming.** Kebab-case names derived from the export by `kebab()` (section 16.4.1), checked
+    by the layout pass until a Biome JavaScript plugin can do it in the editor, or the identifier's
+    own case (`changePassword.ts`), which Biome 2.5.15 checks in the editor? Recommendation:
+    kebab-case (section 23.4); it matches module ids, CLI routes and REST paths, and case-only
+    renames cannot slip past git on macOS and Windows.
+59. **Module assembly.** Explicit: `base.ts` holds the module base, parts are typed against it, and
+    `module.ts` imports every part and mounts it in the module literal; or generated: `pennestack
+    generate` writes `module.generated.ts` from directory conventions and CI checks it for drift?
+    Recommendation: explicit assembly over a module base (section 23.5); no generator sits in the
+    type path, and the API name is set in code.
+60. **Policy granularity.** One policy file per entity or module-level action holding all rules for
+    that target, or one rule per file? Recommendation: one file per target (section 23.2), so allows
+    and denies are reviewed together.
+61. **Scaffold edits.** May scaffolds insert one import and one entry into one assembly file,
+    refusing files not in the canonical shape and offering `--dry-run`, or only print the two lines?
+    Recommendation: narrow edits of assembly files only (sections 16.9.8 and 23.14).
+
+### 26.2 Open for the spike (roadmap M0)
+
+1. The type-model checklist of section 4.7: the module base with parts typed against it in
+   separate files and the module literal that mounts them, module-local contexts, all field flags,
+   generated actions with typed `watch`, `defineApp` options, `AppActionTree` from the field model;
+   and `api-sketch.ts` compiled as the acceptance test of the DSL.
 2. The instantiation budgets on synthetic apps of 25 and 40 modules, and the declaration-size
    budget per module under the pnpm layout.
 3. Whether the `Check` property form or a rest-parameter form gives the better editor message at
@@ -9260,7 +10863,7 @@ Each changes the work; each has a recommendation, which the rest of this documen
 5. The write path on a networked PostgreSQL: concurrent writers in many tenants, the commit tail
    per scope, the notifier's coalescing, and the absence of cross-tenant waiting.
 
-### 21.3 Open questions by area
+### 26.3 Open questions by area
 
 Data:
 
@@ -9269,6 +10872,13 @@ Data:
 - The clock-skew bound for offline clients (5 minutes by default).
 - Whether heads of the hash chain should later be anchored outside the database, and the threshold
   for partitioning `ps_events`.
+- Should the `writer` and `flags` members of `ps_events.meta` enter the hash-chain content of
+  section 15.1.8? Recommendation: yes, like the actor; section 15.1.8 assumes it.
+- `Pennestack-Client-Id`, which gives anonymous principals a targeting key (section 20.3), is a
+  device identifier: does it need the personal-data handling of section 14.7?
+- The experiments module's `observes: 'all'` reaction enqueues one job per event per tenant
+  (section 20.8); gap G12 may need a dispatch-time event-type filter held as data, because module
+  code may not run inside consumers (section 15.2.3).
 
 Interfaces:
 
@@ -9278,6 +10888,15 @@ Interfaces:
   operation limits become own validation rules.
 - The upload side of blobs (multipart or resumable uploads, JMAP's upload endpoint), with gap G5.
 - The Connect runtime-descriptor spike, when the Connect transport is scheduled.
+- Should client-readable flags (`client: true`) appear in the API surface, so that
+  `core.flag.evaluate` is typed, and how should `pennestack surface diff` classify removing one?
+- How are the core module's own API versions at the operator endpoint declared: a
+  framework-maintained `defineApiVersions`, or package majors only?
+- At an older version, is an action that a version change renamed also reachable under its new
+  name, as additive changes would suggest?
+- The scaffold command shape: this design reserves one name, `pennestack new <kind> <reference>`
+  (with `pennestack module new` kept as an alias); the alternative, `pennestack entity|action|flag
+  new`, reserves three module ids.
 
 Platforms:
 
@@ -9301,6 +10920,30 @@ Platforms:
   repository as its backend once the framework is public?
 - An outbound webhooks module (Standard Webhooks, `standardwebhooks` 1.1.1) for deployment
   notifications: part of Launchway's first pennestack release or later?
+- Is a TCP proxy in front of the mail listeners, which drops no connection during upgrades, worth
+  one more component on the home server (decision point 56)?
+- The example package scopes (`@launchway`, `@mail`) depend on decision 48 of the register, where
+  Launchway's modules live.
+
+Toolchain and layout:
+
+- Which tool classifies declaration-file diffs for the module semantic-version check of section
+  18.6 (an API-report differ)? Not researched within the designers' search caps.
+- The CI check that a removed version's sunset has passed depends on the date CI runs; accept that,
+  or compare against the commit date?
+- Not verified: whether Biome 2.5.15's kebab-case check accepts numeric-prefixed migration file
+  names such as `0001-initial.ts`. The preset excludes `migrations/` from
+  `useFilenamingConvention` until fixtures show the behaviour.
+- In Biome, GritQL has no semantic model and no file path. The patterns of `one-export.grit` and
+  `no-import-effects.grit` still have to be proven against fixtures.
+- The M0 type-model spike must measure the instantiation cost of typing each part against the base
+  (one `ActionContext<Base>` per part) and compare it with one module written in a single file.
+- Topics (gap G6) carry subscriber hooks, so they are mounted in `module.ts`; whether subscriptions
+  read them by value depends on G6's final DSL in M2.
+- For published module packages: should modules listed in `optional` be regular dependencies or
+  optional peer dependencies? A static import requires the package to be installed.
+- `useNamingConvention` with `strictCase` may need overrides for wire-shaped names in object
+  literals; fixtures settle it.
 
 ## Appendix A. Versions checked
 
@@ -9412,6 +11055,16 @@ Checked on 2026-10-11 with `npm view` (packages) or the project's repository (co
 | `typescript` | 7.0.2 and 5.9.3 | Apache-2.0 | the checks of the section 4.7 listing, the synthetic apps and the declaration-emit chain |
 | Node.js `node:crypto` `argon2` | Node 24.21.0 | MIT | Argon2id password hashing in `auth` (section 17.2.2), run without an experimental warning |
 | `@simplewebauthn/server` | 14.0.3 | MIT | passkeys in `auth` |
+
+### A.5 Added with addendum 3 (2026-10-24)
+
+Checked by the versioning and project-layout designers with `npm view` (licences not re-checked).
+
+| Package or component | Version | Checked | Use here |
+|---|---|---|---|
+| `@openfeature/server-sdk` | 1.23.0 | 2026-10-24 | the optional `openFeatureFlags(provider)` infrastructure entry (section 20.3) |
+| `knip` | 6.43.0 | 2026-10-24 | unused files, exports and dependencies in CI (sections 13.8 and 23.12) |
+| `@biomejs/biome` | 2.5.15 pinned; 2.6.0 (2026-10-21) added JavaScript plugins as a developer preview | 2026-10-24 | the preset's layout rules (section 13.9); the later home of the name checks |
 
 ## Appendix B. Verified typing listing
 
@@ -9564,10 +11217,12 @@ void useClient; void useTrpc
 
 Further checks on 2026-10-10 and 2026-10-11:
 
-- `isolatedDeclarations`: a module and an app defined with the DSL shape (`export const accounts =
-  defineModule({ id: 'accounts' }).entities({ ... })`, `export const app = defineApp({ ... })`) fail
-  with TS9010 ("Variable must have an explicit type annotation with --isolatedDeclarations") and
-  TS9013 ("Expression type can't be inferred with --isolatedDeclarations") on TypeScript 7.0.2.
+- `isolatedDeclarations`: a module and an app whose types come from inference (checked with the
+  builder form of the time, an exported `defineModule({ id: 'accounts' })` call followed by an
+  `entities` step, and `export const app = defineApp({ ... })`) fail with TS9010 ("Variable must
+  have an explicit type annotation with --isolatedDeclarations") and TS9013 ("Expression type can't
+  be inferred with --isolatedDeclarations") on TypeScript 7.0.2. The literal form
+  `defineModule(accountsBase, { ... })` is inferred the same way, so section 13.3's rule stands.
 - Vitest 5.0.3 `--typecheck` with TypeScript 7.0.2: a passing `expectTypeOf` assertion passes and a
   deliberately wrong one is reported as a `TypeCheckError`.
 - TypeScript 7.0.2 reports `Instantiations` under `--extendedDiagnostics` and writes a trace with

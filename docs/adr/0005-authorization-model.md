@@ -1,10 +1,11 @@
 # 5. Authorization: a typed-native engine with CASL vocabulary, the invoked action as the unit, and separate conditions for the row acted on and the row produced
 
-Date: 2026-10-08 (revised 2026-10-11)
+Date: 2026-10-08 (revised 2026-10-11 and 2026-10-24)
 
 ## Status
 
-Proposed
+Proposed. Jens decided decision points 4 and 5 of architecture.md section 26 on 2026-10-24 as
+items 6 and 3 state them, adding the shape-stage row check of item 5.
 
 ## Context
 
@@ -71,7 +72,10 @@ The review of 2026-10-11 found that the first version of this decision failed it
    check, fields }`), target selection by the plan's `where` for instance commands (outside it,
    `not_found`), the item check on the post-image together with the entity invariant, and output
    shaping. `decide`, `evolve` and handlers receive full rows; field masks apply to values leaving
-   the invoker, to `filter` and `sort` inputs, and to the fields a write changes.
+   the invoker, to `filter` and `sort` inputs, and to the fields a write changes. The shape stage
+   also checks every entity row leaving the invoker against the caller's read plan: a row the plan
+   does not select is an `internal` error (`core.row_outside_plan`) in development and tests, and in
+   production it is dropped from the output and logged.
 6. Inside handlers, repository calls run with the module's own authority over its own entities and
    read access to its declared dependencies; writes to another module's entity are limited to the
    fields the module contributed. Reads on behalf of the caller are explicit (`forCaller()`, and
@@ -106,6 +110,9 @@ The review of 2026-10-11 found that the first version of this decision failed it
   `check` guards the state it produces.
 - Handlers see true data: uniqueness checks, quotas and existence tests never narrow to a wrong
   answer, and listings that must show only what the caller may read say so in one call.
+- A handler that returns a row it read with the module's authority, which the caller may not read,
+  fails in development and never reaches the caller in production; the check costs one in-memory
+  evaluation of the read plan per row that leaves the invoker.
 - Rules fail closed on optional owner fields and with principals that have no subject.
 - One AST with two interpreters risks semantic divergence (null handling, collation, nested
   `none`); the small operator set, fail-closed compilation and the dual-evaluation suite from the

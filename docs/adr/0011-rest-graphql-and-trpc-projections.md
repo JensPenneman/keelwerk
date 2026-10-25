@@ -4,7 +4,7 @@ Date: 2026-10-11 (revised after review the same day)
 
 ## Status
 
-Proposed. Item 5 (oRPC) is a decision point for Jens (architecture.md section 21); if he keeps
+Proposed. Item 5 (oRPC) is decision point 15 for Jens (architecture.md section 26.1); if he keeps
 oRPC in the first release, item 5 changes before the ADR is accepted.
 
 ## Context
@@ -97,7 +97,7 @@ version and the JSON fallback for free-form GraphQL inputs open. Facts checked o
 - tRPC clients get exact types without code generation, except that tRPC cannot narrow an `either`
   command's result per call; the typed client keeps that precision.
 - Without oRPC there is one transport less to maintain and test; the first draft recommended the
-  opposite, so Jens must confirm (decision point 15 of architecture.md section 21).
+  opposite, so Jens must confirm (decision point 15 of architecture.md section 26.1).
 - graphql-armor's last publish is 2025-12-29; if it stops being maintained, the same limits become a
   handful of own validation rules.
 - Receivers and response kinds keep webhook verification, well-known documents and downloads inside

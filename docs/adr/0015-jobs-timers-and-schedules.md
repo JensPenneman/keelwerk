@@ -1,6 +1,6 @@
 # 15. Jobs, durable timers and schedules on one kernel queue over the adapters' job store
 
-Date: 2026-10-11
+Date: 2026-10-11 (revised 2026-10-24)
 
 ## Status
 
@@ -49,8 +49,11 @@ fired under whoever set them, so the node-offline timer ran under the node's own
    options. A failing reaction is retried by the queue and parked as a dead letter, never holding a
    checkpoint.
 6. **DSL.** `ctx.timers.set({ key, at, invoke, input })` and `ctx.timers.cancel(key)` in handlers;
-   `.schedules((s) => [s.every(...)])` contributing to the core's `schedules` extension point;
-   `async: { group, retry, onGiveUp }` on asynchronous actions.
+   `defineSchedule(base, { every, invoke, scope })` parts, mounted under the module literal's
+   `schedules` keyed by schedule id and contributing to the core's `schedules` extension point;
+   `async: { group, retry, onGiveUp }` on asynchronous actions. `invoke` and `onGiveUp` take an own
+   action part by value (ADR 0003, revised 2026-10-24). Jobs record their enqueuer's build revision
+   and, from external callers, the input as sent with its API version (ADR 0022).
 7. **Tenancy.** Jobs carry their scope; per-tenant groups bound a tenant's concurrency, which is the
    job side of the quota model; completed jobs are removed after seven days.
 

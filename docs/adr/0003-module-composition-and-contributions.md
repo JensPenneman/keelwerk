@@ -1,6 +1,6 @@
 # 3. Module composition: a const tuple, hard requirements and contracts, soft contributions, extension points, deployment infrastructure
 
-Date: 2026-10-08 (revised 2026-10-11)
+Date: 2026-10-08 (revised 2026-10-11 and 2026-10-24)
 
 ## Status
 
@@ -43,19 +43,34 @@ The review of 2026-10-11 found five more problems in the first version of this d
 - Behavioural extension values and services ran with the wrong module's context: a filler with
   the declaring module's, a service with the caller's.
 
+The first design wrote a module as a builder chain whose callbacks typed handlers from sibling
+declarations. On 2026-10-24 Jens decided for object literals only (decision point 3 of
+architecture.md section 26). A module base that every part is typed against removes the chain's
+reason, and the project layout (ADR 0024) needs parts in files of their own.
+
 ## Decision
 
-1. An app is `defineApp({ id, modules: [...] })` over a `const` tuple of module values; the `core`
-   module is always prepended. Every derived type (`AppEntities`, `ActionRef`, `AppActionTree`) is a
+1. A module is written as object literals, never as a builder chain (Jens's decision of
+   2026-10-24): a module base, `defineModuleBase({ id, version, requires, optional, provides,
+   config, data, extensionPoints, entities, streams, flags, contributions, conditions })`; parts,
+   one literal each, typed against that base (`defineCommand(base, entity, { ... })`,
+   `defineQuery(base, { ... })`, `definePolicy(base, target, [...])`, `defineReaction(base, ...)`,
+   `defineService(base, ...)` and the other part functions); and a module literal,
+   `defineModule(base, { actions, entityActions, policies, reactions, services, topics,
+   contributes, conditional, schedules, lifecycle, changes })`, which mounts the parts and is
+   normalised into the shape every derived type folds over. Because each part is typed against a
+   value that exists before it, no chain is needed to type handlers. An app is `defineApp({ id,
+   modules })` over a `const` tuple of module values, in a project the tuple that `modules.ts`
+   exports; the `core` module is always prepended. Every derived type (`AppEntities`, `ActionRef`, `AppActionTree`) is a
    non-recursive mapped type over the union of module ids with `Extract` by id. Declaration merging
    is never used for anything that depends on the selection. Module types are computed from the
    module alone where code runs inside a module (`ActionContext<M>`, ADR 0004); app types serve
    clients, transports and the generated file.
-2. Every exported module and app value has a named type: `export interface Auth extends
-   ModuleType<typeof authDef> {}` and `export const auth: Auth = authDef`, so declaration emit stays
-   about one kilobyte per module (measured 2026-10-11 on TypeScript 7.0.2, against 219 KB at the
-   tenth module of a chain without names). `pennestack module new` scaffolds it, a GritQL rule
-   flags an exported value without it, and CI checks declaration sizes and TS7056, TS2742 and
+2. Every exported module, module base and app value has a named type: `export interface Auth
+   extends ModuleType<typeof authDef> {}` and `export const auth: Auth = authDef` (`ModuleBaseType`
+   for the base), so declaration emit stays about one kilobyte per module (measured 2026-10-11 on
+   TypeScript 7.0.2, against 219 KB at the tenth module of a dependency chain without names).
+   `pennestack new module` scaffolds it, a GritQL rule flags an exported value without it, and CI checks declaration sizes and TS7056, TS2742 and
    TS4023 for both proof apps. `@pennestack/core` exports every type that can appear in a module
    value's type.
 3. A module declares hard dependencies in `requires` and soft dependencies in `optional`. Both hold
@@ -65,14 +80,20 @@ The review of 2026-10-11 found five more problems in the first version of this d
    infrastructure entry (checked by `defineDeployment`); the context types the matching member as
    present, possibly undefined or absent. References may point only at the module itself, its hard
    requirements, and, inside a contribution or conditional part, at the target and `when` modules.
-4. A module adds to other modules through **contributions** (`c.to(target, { fields, relations,
-   actions, policies, extension-point values, when: [...] })`), active only when the target and the
-   `when` modules are selected and dropped silently otherwise; when active, they are checked
-   against the target's real definition, so naming an entity the target lacks is a compile error.
-   Contributed fields must be optional or defaulted.
-5. A module adapts **itself** through **conditional parts** (`w.when([modules or app-level
-   contracts], { fields, actions, reactions })`), present only when those are selected; inside them
-   the `when` modules count as required.
+4. A module adds to other modules through **contributions** (fields, relations, actions,
+   policies and extension-point values for a target, with an optional `when` list), active only
+   when the target and the `when` modules are selected and dropped silently otherwise; when active,
+   they are checked against the target's real definition, so naming an entity the target lacks is
+   a compile error. Contributed fields must be optional or defaulted. A contribution may be
+   declared in two fragments under one key: the data in the base
+   (`defineContribution(target, { when, entities })`) and the behaviour in the module literal's
+   `contributes`, typed with `within(base, declaration)`. The kernel merges fragments that share a
+   (target, `when`) identity, which is also the identity of the migration track.
+5. A module adapts **itself** through **conditional parts** (fields, actions, reactions and
+   policies under a list of modules or app-level contracts), present only when those are
+   selected; inside them the `when` modules count as required. Like contributions, they may be
+   declared in two fragments merged by identity: `defineCondition([...], { entities })` in the base
+   and the behaviour in the module literal's `conditional`.
 6. A module declares typed **extension points** that others fill through contributions, without the
    owner importing them, with modes `set`, `ordered` and `single` and an optional minimum. Values
    that carry behaviour are factories `(own) => value`, and services are functions of their
@@ -89,7 +110,7 @@ The review of 2026-10-11 found five more problems in the first version of this d
 8. The import graph between module packages is a DAG. The lower module publishes contracts
    (entities, events, extension points); the higher module imports it, contributes to it and adapts
    itself to it. For the accounts and authentication pair, accounts is lower.
-9. `defineModule`, `defineApp` and `defineDeployment` reject, with named errors, references outside
+9. `defineModuleBase`, `defineModule`, `defineApp` and `defineDeployment` reject, with named errors, references outside
    the requirements, contributed fields without a default, missing modules and contracts, duplicate
    and reserved ids, fields defined by more than one source (counted by source, whatever the types),
    contributions to unknown entities, references to unselected modules, execution overrides for
@@ -112,7 +133,10 @@ The review of 2026-10-11 found five more problems in the first version of this d
 - Mutual influence is expressible without import cycles, at the cost of deciding which module of
   a pair is lower; both still compile and run alone.
 - A module can be switched off on its own unless another selected module requires it; this reading
-  of "independently toggleable" is a decision point for Jens (architecture.md section 21).
+  of "independently toggleable" is decision point 2 for Jens (architecture.md section 26.1).
+- A module costs two literals and a file per part instead of one chain; the base holds what parts
+  are typed against, so a part never imports its module and editing one re-checks only it, its
+  importers and the module literal.
 - Type-instantiation cost grows faster than linearly with the module count (the fold measured
   195,783 instantiations at 25 modules and 408,543 at 40 on TypeScript 7.0.2); it is paid once
   per app, bounded by the non-recursive model and guarded by CI budgets set from synthetic 25- and

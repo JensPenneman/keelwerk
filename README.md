@@ -13,7 +13,7 @@ The framework is the product. Two platforms prove it and will run in one deploym
 
 ## Status
 
-Architecture phase, as of 2026-10-11. Nothing is runnable yet: the repository holds the requirements,
+Architecture phase, as of 2026-10-24. Nothing is runnable yet: the repository holds the requirements,
 the specification, the decision records, the research and the plan. The design waits for Jens's
 approval; until then the ADRs are `Proposed`, and implementation starts with milestone M0 of the
 roadmap.
@@ -28,7 +28,10 @@ identity.
 - [Architecture](docs/architecture.md): the specification. Sections 1 to 13 cover the kernel, the
   configuration model, actions, authorization, execution and the toolchain; sections 14 to 16 the
   data layer, events and sync, live updates, transports and the CLI; section 17 the accounts and
-  authentication modules and both platforms; section 21 the decision points for Jens.
+  authentication modules and both platforms; sections 18 to 20 versioning, rollouts and feature
+  flags; section 23 the project layout; section 26 the decision points for Jens.
+- [Decision register](docs/decisions.md): every open question, numbered, with the answers Jens has
+  given and where they apply.
 - [Architecture decision records](docs/adr/): why each significant choice was made, starting with
   [ADR 0001](docs/adr/0001-record-architecture-decisions.md).
 - [API sketch](docs/api-sketch.ts): the DSL as an application author would write it.
@@ -37,11 +40,13 @@ identity.
   [authorization](docs/research/authorization.md),
   [data layer](docs/research/data-layer.md),
   [events and sync](docs/research/events-and-sync.md),
-  [interfaces and developer experience](docs/research/interfaces-and-devx.md).
+  [interfaces and developer experience](docs/research/interfaces-and-devx.md),
+  [versioning, rollouts and flags](docs/research/versioning-rollouts-flags.md),
+  [project layout](docs/research/project-layout.md).
 - [Roadmap](docs/roadmap.md): milestones from the repository toolchain (M0) to the deployment
   platform (M3) and the mail server (M5 and M6), with exit criteria.
 
 ## Licence
 
-Not chosen yet: Apache-2.0 or MIT is a decision point for Jens (architecture section 21), due before
+Not chosen yet: Apache-2.0 or MIT is decision point 20 for Jens (architecture section 26.1), due before
 the repository becomes public.

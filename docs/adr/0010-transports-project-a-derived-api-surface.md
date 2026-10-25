@@ -1,6 +1,6 @@
 # 10. Transports project a derived API surface through one host and one invoker session
 
-Date: 2026-10-11 (revised after review the same day)
+Date: 2026-10-11 (revised after review the same day, and on 2026-10-24 for API versions)
 
 ## Status
 
@@ -47,9 +47,10 @@ across tenants, and a revoked session's cookie locked browsers out of the login 
    nodes, declared error codes, auth, scope, effective execution mode, pagination, hints), every
    entity (fields with access flags, relations, TypeID prefix, generated actions), every declared
    error and every event. It excludes `tenantId`, hidden fields, handlers, validators and policies;
-   it is sorted by reference and serialised with RFC 8785, so it is order-independent; its SHA-256
-   hash identifies an interface version. Every transport, the CLI, introspection and every artefact
-   read the surface, never the registry.
+   it is sorted by reference and serialised with RFC 8785, so it is order-independent. One surface
+   and one SHA-256 hash exist per app and dated API version (ADR 0021): the hash identifies that
+   version's interface. Every transport, the CLI, introspection and every artefact read the
+   surface, never the registry.
 2. **The adapter contract.** An adapter is `{ name, capabilities, static, check(surface),
    artifacts(surface), mount(ctx) }`. `check` and `artifacts` are pure. Static options (which shape
    names and documents) are fixed when the module value is built; per-backend behaviour comes from
@@ -82,7 +83,7 @@ across tenants, and a revoked session's cookie locked browsers out of the login 
    masks (`$masked` and `_masked`), execution preference, command ids and `ifVersion` are defined
    once in architecture.md section 16.4 and only encoded per transport.
 7. **The invocation protocol and the typed client.** The host serves a small JSON protocol under
-   `/_pennestack/v1` (`invoke`, `batch`, `subscribe`, `surface`, `live`) for every app and over the
+   `/_pennestack/v1` (`invoke`, `batch`, `subscribe`, `surface`, `capabilities`, `live`) for every app and over the
    operator Unix socket, so the CLI reaches every backend whatever its app selects. It is the canonical, lossless projection; `AppClient<App>` from
    `@pennestack/client` speaks it remotely (or calls the invoker in process) with types inferred
    from the app.
@@ -97,8 +98,8 @@ across tenants, and a revoked session's cookie locked browsers out of the login 
 
 - Adding a transport is a module and an adapter; it touches neither the kernel nor another
   transport, and the conformance suite tells whether it projects faithfully.
-- Artefacts are byte-stable and reviewable, and the surface hash gives every interface change a
-  version, which makes breaking-change detection in CI possible.
+- Artefacts are byte-stable and reviewable, and the surface hash of each API version gives every
+  interface change a fingerprint, which makes breaking-change detection in CI possible.
 - The surface is a second derived model of the registry that the core must keep in step; deriving it
   in the core with its own tests contains that cost.
 - The core changes this decision required (`Invoker.open` and `Invocation.session`, action types in

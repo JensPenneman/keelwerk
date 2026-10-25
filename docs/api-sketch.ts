@@ -1,36 +1,54 @@
 /**
  * pennestack public API sketch, as seen by an application author.
- * Date: 2026-10-11 (first version 2026-10-08). Status: target for the spike of roadmap M0, which
- * type-checks it as the acceptance test of the DSL; it does not compile against anything yet.
+ * Date: 2026-10-24 (first version 2026-10-08; rewritten in the literal form on 2026-10-24). Status:
+ * target for the spike of roadmap M0, which type-checks it as the acceptance test of the DSL; it does
+ * not compile against anything yet.
  *
  * It shows: an accounts module, an authentication module that contributes to accounts and adapts
  * itself when accounts (or a live module) is present, two apps composing them, a deployment, rules
  * with conditions on the row acted on and the row produced, commands, queries and a subscription,
- * and how the derived types are consumed. The DSL is specified in architecture.md section 4, the
- * type-level model in section 4.7, the handler context in section 7.6, authorization in section 8
- * and the authentication module in section 17.2.
+ * and how the derived types are consumed. Every module is object literals (decision point 3, decided
+ * on 2026-10-24): a module base, parts typed against it, and a module literal that mounts them. In a
+ * project each part is a file of its own (architecture.md section 23); the sketch keeps them in one
+ * file, as tests and spikes may. The DSL is specified in architecture.md section 4, the type-level
+ * model in section 4.7, the handler context in section 7.6, authorization in section 8 and the
+ * authentication module in section 17.2.
  */
 
 import {
   contracts,
   defineApp,
+  defineCommand,
+  defineCondition,
+  defineContribution,
   defineDeployment,
   defineEntity,
   defineError,
+  defineFill,
+  defineHook,
   defineModule,
+  defineModuleBase,
+  definePolicy,
+  defineQuery,
+  defineReaction,
+  defineService,
+  defineSubscription,
   env,
   errors,
   extensionPoint,
   field,
   mapItems,
+  pageOf,
   relation,
   secret,
   shape,
+  within,
   byHeader,
   byHostname,
   byScopeKey,
   type AppType,
   type Id,
+  type ModuleBaseType,
   type ModuleType,
   type Row,
 } from '@pennestack/core'
@@ -79,7 +97,8 @@ const profile = defineEntity({
   // history: 'chain' and tenancy: 'tenant' are the defaults
 })
 
-const accountsDef = defineModule({
+// The base: everything the parts below are typed against.
+const accountsBaseDef = defineModuleBase({
   id: 'accounts',
   version: '0.1.0',
   config: shape({
@@ -88,78 +107,92 @@ const accountsDef = defineModule({
   extensionPoints: {
     identityProviders: extensionPoint<IdentityProvider>({ mode: 'set' }),
   },
+  entities: { profile },
 })
-  .entities({ profile })
-  .entityActions('profile', (e) => ({
-    // A command on a chain-backed entity: a pure decider over the full current row.
-    deactivate: e.command({
-      input: shape({ reason: field.string().optional() }),
-      errors: [],
-      execution: 'sync',
-      decide: (input, current, ctx) => [e.events.deactivated({ at: ctx.clock.now(), reason: input.reason })],
+export interface AccountsBase extends ModuleBaseType<typeof accountsBaseDef> {}
+export const accountsBase: AccountsBase = accountsBaseDef
+
+// A command on a chain-backed entity: a pure decider over the full current row.
+const deactivate = defineCommand(accountsBase, profile, {
+  input: shape({ reason: field.string().optional() }),
+  errors: [],
+  execution: 'sync',
+  decide: (input, current, ctx) => [ctx.events.deactivated({ at: ctx.clock.now(), reason: input.reason })],
+})
+
+// An entity query: ctx.target is the entity as the caller may read it under this action's rules.
+const search = defineQuery(accountsBase, profile, {
+  input: shape({ text: field.string({ maxLength: 80 }) }),
+  output: pageOf(profile),
+  page: { sortable: ['displayName', 'createdAt'], defaultSize: 25, maxSize: 100 },
+  handle: (input, ctx) =>
+    ctx.target.query({
+      where: { or: [{ displayName: { contains: input.text } }, { email: { startsWith: input.text } }] },
+      sort: [{ field: 'displayName', direction: 'asc' }],
     }),
-    // An entity query: ctx.target is the entity as the caller may read it under this action's rules.
-    search: e.query({
-      input: shape({ text: field.string({ maxLength: 80 }) }),
-      output: e.page(),
-      page: { sortable: ['displayName', 'createdAt'], defaultSize: 25, maxSize: 100 },
-      handle: (input, ctx) =>
-        ctx.target.query({
-          where: { or: [{ displayName: { contains: input.text } }, { email: { startsWith: input.text } }] },
-          sort: [{ field: 'displayName', direction: 'asc' }],
-        }),
-    }),
-  }))
-  .actions((b) => ({
-    // A module-level command. ctx.data runs with accounts' own authority, so the uniqueness check
-    // sees every profile of the tenant even though the caller is anonymous (section 8.4).
-    register: b.command({
-      input: shape({ displayName: field.string(), email: field.string({ format: 'email' }) }),
-      output: shape({ profileId: field.ref.own('profile') }),
-      errors: [emailTaken],
-      execution: 'sync',
-      auth: { public: true },
-      handle: async (input, ctx) => {
-        if (!ctx.config.allowSelfRegistration) throw errors.forbidden('Self-registration is disabled.')
-        const existing = await ctx.data.accounts.profile.findOne({ where: { email: input.email } })
-        if (existing) throw emailTaken({ email: input.email })
-        const created = await ctx.data.accounts.profile.create({ displayName: input.displayName, email: input.email })
-        return { profileId: created.id }
-      },
-    }),
-    // A query that reads the extension point; empty when no login module is selected.
-    identities: b.query({
-      input: shape({ profileId: field.ref.own('profile') }),
-      output: shape({ providers: field.list(field.json(shape({ id: field.string(), label: field.string() }))) }),
-      principal: 'user',
-      handle: async (input, ctx) => ({
-        providers: await Promise.all(
-          ctx.extensions.identityProviders.map(async (p) => ({ id: p.id, label: p.label, items: await p.listFor(input.profileId) })),
-        ),
-      }),
-    }),
-  }))
-  .policies((rule) => [
-    rule.allow('profile', '*', { id: 'operator', principal: 'operator' }),
-    rule.allow('profile', ['read', 'search'], {
-      id: 'directory',
-      where: (ctx) => ctx.principal.roles.includes('directory'),
-      fields: [], // reveals no maskable field: e-mail addresses stay hidden from the directory role
-    }),
-    // A deny rule without `check` tests the row before the action: deactivated profiles are frozen,
-    // and an active profile can still be deactivated (section 8.2).
-    rule.deny('profile', ['deactivate', 'update'], {
-      id: 'frozen',
-      where: () => ({ deactivatedAt: { isNull: false } }),
-      reason: 'A deactivated profile is read-only.',
-    }),
-    rule.allow('register', { public: true }),
-    rule.allow('identities', { principal: 'user' }),
-  ])
-  .services((s) => ({
-    // Bound to accounts (section 5.5): callers write ctx.services.accounts.findByEmail(email).
-    findByEmail: s.service(async (own, email: string) => own.data.accounts.profile.findOne({ where: { email } })),
-  }))
+})
+
+// A module-level command. ctx.data runs with accounts' own authority, so the uniqueness check
+// sees every profile of the tenant even though the caller is anonymous (section 8.4).
+const register = defineCommand(accountsBase, {
+  input: shape({ displayName: field.string(), email: field.string({ format: 'email' }) }),
+  output: shape({ profileId: field.ref.own('profile') }),
+  errors: [emailTaken],
+  execution: 'sync',
+  auth: { public: true },
+  handle: async (input, ctx) => {
+    if (!ctx.config.allowSelfRegistration) throw errors.forbidden('Self-registration is disabled.')
+    const existing = await ctx.data.accounts.profile.findOne({ where: { email: input.email } })
+    if (existing) throw emailTaken({ email: input.email })
+    const created = await ctx.data.accounts.profile.create({ displayName: input.displayName, email: input.email })
+    return { profileId: created.id }
+  },
+})
+
+// A query that reads the extension point; empty when no login module is selected.
+const identities = defineQuery(accountsBase, {
+  input: shape({ profileId: field.ref.own('profile') }),
+  output: shape({ providers: field.list(field.json(shape({ id: field.string(), label: field.string() }))) }),
+  principal: 'user',
+  handle: async (input, ctx) => ({
+    providers: await Promise.all(
+      ctx.extensions.identityProviders.map(async (p) => ({ id: p.id, label: p.label, items: await p.listFor(input.profileId) })),
+    ),
+  }),
+})
+
+const profilePolicy = definePolicy(accountsBase, profile, [
+  { effect: 'allow', actions: ['*'], id: 'operator', principal: 'operator' },
+  {
+    effect: 'allow',
+    actions: ['read', 'search'],
+    id: 'directory',
+    where: (ctx) => ctx.principal.roles.includes('directory'),
+    fields: [], // reveals no maskable field: e-mail addresses stay hidden from the directory role
+  },
+  // A deny rule without `check` tests the row before the action: deactivated profiles are frozen,
+  // and an active profile can still be deactivated (section 8.2).
+  {
+    effect: 'deny',
+    actions: ['deactivate', 'update'],
+    id: 'frozen',
+    where: () => ({ deactivatedAt: { isNull: false } }),
+    reason: 'A deactivated profile is read-only.',
+  },
+])
+const registerPolicy = definePolicy(accountsBase, register, [{ effect: 'allow', public: true }])
+const identitiesPolicy = definePolicy(accountsBase, identities, [{ effect: 'allow', principal: 'user' }])
+
+// Bound to accounts (section 5.5): callers write ctx.services.accounts.findByEmail(email).
+const findByEmail = defineService(accountsBase, async (own, email: string) => own.data.accounts.profile.findOne({ where: { email } }))
+
+// The module literal: mounts the parts under keys that are ids.
+const accountsDef = defineModule(accountsBase, {
+  entityActions: { profile: { deactivate, search } },
+  actions: { register, identities },
+  policies: [profilePolicy, registerPolicy, identitiesPolicy],
+  services: { findByEmail },
+})
 
 export interface Accounts extends ModuleType<typeof accountsDef> {}
 export const accounts: Accounts = accountsDef
@@ -200,7 +233,7 @@ const session = defineEntity({
   dataSubject: 'subject',
   fields: {
     subject: field.subject().index(),
-    credentialId: field.ref.own('credential'), // in-module reference: the module value does not exist yet
+    credentialId: field.ref.own('credential'), // in-module reference: the base and the module do not exist yet
     publicId: field.string().unique(), // the lookup half of the token; the token itself is stored nowhere
     tokenVerifier: field.verifier(),
     authenticatedAt: field.instant(),
@@ -213,7 +246,32 @@ const session = defineEntity({
   generated: { set: false },
 })
 
-const authDef = defineModule({
+// auth -> accounts: active only when accounts is selected. The declaration holds the data; the
+// behaviour is mounted under the same key in the module literal below.
+const toAccounts = defineContribution(accounts, {
+  entities: {
+    profile: {
+      fields: {
+        lastLoginAt: field.instant().optional().maskable(),
+        emailVerifiedAt: field.instant().optional(),
+      },
+      relations: {
+        credentials: relation.many.own('credential', { by: 'subject', to: 'id' }),
+      },
+    },
+  },
+})
+
+// auth adapts itself when accounts is present; inside, accounts counts as required.
+const whenAccounts = defineCondition([accounts], {
+  entities: {
+    credential: { fields: { profileId: field.ref(accounts, 'profile').optional() } },
+  },
+})
+// A conditional part keyed on a contract: it exists only when a module providing `live` is selected.
+const whenLive = defineCondition([contracts.live], {})
+
+const authBaseDef = defineModuleBase({
   id: 'auth',
   version: '0.1.0',
   optional: [accounts, contracts.live],
@@ -222,205 +280,223 @@ const authDef = defineModule({
     sessionAbsoluteDays: field.integer({ min: 1 }).default(30),
     reauthenticateWithinMinutes: field.integer({ min: 1 }).default(10),
   }),
+  entities: { credential, session },
+  contributions: { toAccounts },
+  conditions: { whenAccounts, whenLive },
 })
-  .entities({ credential, session })
-  .entityActions('credential', (e) => ({
-    revoke: e.command({
-      input: shape({ reason: field.string().optional() }),
-      decide: (input, current, ctx) => [e.events.revoked({ at: ctx.clock.now(), reason: input.reason })],
-    }),
-  }))
-  .actions((b) => ({
-    login: b.command({
-      input: shape({ identifier: field.string({ format: 'email' }), password: field.secret() }),
-      output: shape({ sessionToken: field.string(), sessionId: field.ref.own('session'), expiresAt: field.instant() }),
-      errors: [invalidCredentials],
-      auth: { public: true },
-      execution: 'sync',
-      hints: {
-        http: { cookie: { set: { name: '__Host-pennestack_session', from: 'sessionToken', expiresFrom: 'expiresAt' }, omitFromBody: ['sessionToken'] } },
-        cli: { login: { tokenField: 'sessionToken' } },
-      },
-      handle: async (input, ctx) => {
-        // auth's own authority: reading credentials needs no rule and no escalation (section 8.4).
-        const cred = await ctx.data.auth.credential.findOne({ where: { identifier: input.identifier, kind: 'password', revokedAt: { isNull: true } } })
-        const ok = await ctx.services.auth.verifyPassword(cred?.verifier, input.password) // secret inputs are plain in process, redacted in logs
-        if (!cred || !ok) throw invalidCredentials()
-        const now = ctx.clock.now()
-        const token = ctx.secrets.issue({ prefix: 'pss' }) // { plain, publicId, verifier }: shown once
-        const idleExpiresAt = new Date(now.getTime() + ctx.config.sessionIdleMinutes * 60_000)
-        const absoluteExpiresAt = new Date(now.getTime() + ctx.config.sessionAbsoluteDays * 86_400_000)
-        const s = await ctx.data.auth.session.create({
-          subject: cred.subject, credentialId: cred.id, publicId: token.publicId, tokenVerifier: token.verifier,
-          authenticatedAt: now, idleExpiresAt, absoluteExpiresAt,
-        })
-        await ctx.data.auth.credential.update({ where: { id: cred.id }, patch: { lastUsedAt: now } })
-        return { sessionToken: token.plain, sessionId: s.id, expiresAt: idleExpiresAt }
-      },
-    }),
-    logout: b.command({
-      principal: 'user',
-      execution: 'sync',
-      hints: { http: { cookie: { clear: { name: '__Host-pennestack_session' } } } },
-      handle: async (_input, ctx) => {
-        const sessionId = ctx.principal.ref?.credentialId
-        if (sessionId) await ctx.data.auth.session.update({ where: { id: sessionId }, patch: { revokedAt: ctx.clock.now() } })
-      },
-    }),
-    // Invoked by auth's own reactions under auth.system; no user rule allows it.
-    revokeSubject: b.command({
-      input: shape({ subject: field.subject(), reason: field.string() }),
-      execution: 'sync',
-      handle: async (input, ctx) => {
-        const now = ctx.clock.now()
-        await ctx.data.auth.credential.update({ where: { subject: input.subject, revokedAt: { isNull: true } }, patch: { revokedAt: now } })
-        await ctx.data.auth.session.update({ where: { subject: input.subject, revokedAt: { isNull: true } }, patch: { revokedAt: now } })
-      },
-    }),
-  }))
-  .policies((rule) => [
-    rule.allow('login', { public: true }),
-    rule.allow('logout', { principal: 'user' }),
-    rule.allow('credential', ['read'], {
-      id: 'self',
-      principal: 'user',
-      where: (ctx) => ({ subject: ctx.principal.subject }),
-      fields: ['lastUsedAt'],
-      reason: 'A user sees their own credentials.',
-    }),
-    rule.allow('credential', ['revoke'], { id: 'self-revoke', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) }),
-    rule.deny('credential', ['revoke'], { id: 'already-revoked', where: () => ({ revokedAt: { isNull: false } }), reason: 'This credential is already revoked.' }),
-    rule.allow('session', ['read'], { id: 'self-sessions', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) }),
-  ])
-  .services((s) => ({
-    // Argon2id through node:crypto; an unknown identifier is verified against a dummy hash (section 17.2.2).
-    verifyPassword: s.service(async (_own, verifier: string | undefined, password: string) => argon2idVerify(verifier ?? DUMMY_VERIFIER, password)),
-    hashPassword: s.service(async (_own, password: string) => argon2idHash(password)),
-  }))
-  // auth -> accounts: active only when accounts is selected.
-  .contributes((c) => [
-    c.to(accounts, {
-      entities: {
-        profile: {
-          fields: {
-            lastLoginAt: field.instant().optional().maskable(),
-            emailVerifiedAt: field.instant().optional(),
-          },
-          relations: {
-            credentials: relation.many.own('credential', { by: 'subject', to: 'id' }),
-          },
-        },
-      },
-      entityActions: {
-        profile: (e) => ({
-          // Runs with auth's context: it writes auth.credential with auth's authority.
-          changePassword: e.command({
-            input: shape({ currentPassword: field.secret().optional(), newPassword: field.secret() }),
-            principal: 'user',
-            errors: [reauthenticationRequired],
-            execution: 'sync',
-            handle: async (input, ctx) => {
-              const recent = await isRecentlyAuthenticated(ctx)
-              const cred = await ctx.data.auth.credential.findOne({ where: { subject: ctx.principal.subject, kind: 'password', revokedAt: { isNull: true } } })
-              const confirmed = input.currentPassword !== undefined && (await ctx.services.auth.verifyPassword(cred?.verifier, input.currentPassword))
-              if (!recent && !confirmed) throw reauthenticationRequired()
-              const verifier = await ctx.services.auth.hashPassword(input.newPassword)
-              if (cred) await ctx.data.auth.credential.update({ where: { id: cred.id }, patch: { verifier } }) // the old hash's key is destroyed
-              await revokeOtherSessions(ctx)
-            },
-          }),
-        }),
-      },
-      policies: (rule) => [
-        // "Own profile" only means something when a login exists; the fragment lives here, typed against profile.
-        rule.allow('profile', ['read'], {
-          id: 'self',
-          principal: 'user',
-          where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }), // null never matches (section 8.3)
-          fields: ['email', 'lastLoginAt'], // read rules list maskable fields only
-        }),
-        rule.allow('profile', ['update'], {
-          id: 'self-edit',
-          principal: 'user',
-          where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }),
-          fields: ['displayName', 'locale'], // the fields a user may change
-        }),
-        rule.allow('profile', ['changePassword'], { id: 'self-password', principal: 'user', where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }) }),
-        // A relation contributed above is usable in the same contribution.
-        rule.allow('profile', ['read'], {
-          id: 'shared-credential',
-          principal: 'user',
-          where: (ctx) => ({ credentials: { some: { subject: ctx.principal.subject } } }),
-        }),
-      ],
-      extensionPoints: {
-        // A factory of auth's own context: listFor reads auth.credential with auth's authority.
-        identityProviders: (own) => [passwordProvider(own)],
-      },
-    }),
-  ])
-  // auth adapts itself when accounts is present; inside, accounts counts as required.
-  .conditional((w) => [
-    w.when([accounts], {
-      entities: {
-        credential: { fields: { profileId: field.ref(accounts, 'profile').optional() } },
-      },
-      reactions: (r) => [
-        // accounts influences auth: when a profile is deactivated, every credential and session of that
-        // subject is revoked, in the same transaction, under auth.system (section 7.7).
-        r.inline(accounts, 'profile.deactivated', async (event, ctx) => {
-          await ctx.invoke('auth.revokeSubject', { subject: asSubject(event.state.id), reason: 'profile deactivated' })
-        }),
-        // and the login timestamp flows back to the profile field auth contributed (a keyed job per event).
-        r.own('session.created', { timing: 'async' }, async (event, ctx) => {
-          const profileId = event.current ? profileIdOf(event.current.subject) : null
-          // auth may write lastLoginAt because it contributed that field to accounts.profile (section 8.4)
-          if (profileId) await ctx.data.accounts.profile.update({ where: { id: profileId }, patch: { lastLoginAt: event.at } })
-        }),
-      ],
-    }),
-    // A subscription that exists only when a module providing the live contract is selected.
-    w.when([contracts.live], {
-      actions: (b) => ({
-        sessionEvents: b.subscription({
-          event: shape({ sessionId: field.ref.own('session'), kind: field.enum(['created', 'revoked']) }),
-          principal: 'user',
-          source: (_input, ctx, resume) =>
-            mapItems(
-              ctx.live.entity('auth', 'session', { where: { subject: ctx.principal.subject }, after: resume }),
-              (change) => (change.type === 'removed' ? undefined : { sessionId: change.id, kind: change.type === 'created' ? 'created' : 'revoked' }),
-            ),
-        }),
-      }),
-      policies: (rule) => [rule.allow('sessionEvents', { principal: 'user' })],
-    }),
-  ])
-  .lifecycle({
-    onTenantCreated: async (tenant, ctx) => {
-      ctx.log.info({ tenant: tenant.id }, 'auth ready for tenant')
+export interface AuthBase extends ModuleBaseType<typeof authBaseDef> {}
+export const authBase: AuthBase = authBaseDef
+
+const revoke = defineCommand(authBase, credential, {
+  input: shape({ reason: field.string().optional() }),
+  decide: (input, current, ctx) => [ctx.events.revoked({ at: ctx.clock.now(), reason: input.reason })],
+})
+
+const login = defineCommand(authBase, {
+  input: shape({ identifier: field.string({ format: 'email' }), password: field.secret() }),
+  output: shape({ sessionToken: field.string(), sessionId: field.ref.own('session'), expiresAt: field.instant() }),
+  errors: [invalidCredentials],
+  auth: { public: true },
+  execution: 'sync',
+  hints: {
+    http: { cookie: { set: { name: '__Host-pennestack_session', from: 'sessionToken', expiresFrom: 'expiresAt' }, omitFromBody: ['sessionToken'] } },
+    cli: { login: { tokenField: 'sessionToken' } },
+  },
+  handle: async (input, ctx) => {
+    // auth's own authority: reading credentials needs no rule and no escalation (section 8.4).
+    const cred = await ctx.data.auth.credential.findOne({ where: { identifier: input.identifier, kind: 'password', revokedAt: { isNull: true } } })
+    // auth's own code calls the library function its verifyPassword service wraps (section 5.5);
+    // an unknown identifier is verified against a dummy hash (section 17.2.2). Secret inputs are plain in process, redacted in logs.
+    const ok = await argon2idVerify(cred?.verifier ?? DUMMY_VERIFIER, input.password)
+    if (!cred || !ok) throw invalidCredentials()
+    const now = ctx.clock.now()
+    const token = ctx.secrets.issue({ prefix: 'pss' }) // { plain, publicId, verifier }: shown once
+    const idleExpiresAt = new Date(now.getTime() + ctx.config.sessionIdleMinutes * 60_000)
+    const absoluteExpiresAt = new Date(now.getTime() + ctx.config.sessionAbsoluteDays * 86_400_000)
+    const s = await ctx.data.auth.session.create({
+      subject: cred.subject, credentialId: cred.id, publicId: token.publicId, tokenVerifier: token.verifier,
+      authenticatedAt: now, idleExpiresAt, absoluteExpiresAt,
+    })
+    await ctx.data.auth.credential.update({ where: { id: cred.id }, patch: { lastUsedAt: now } })
+    return { sessionToken: token.plain, sessionId: s.id, expiresAt: idleExpiresAt }
+  },
+})
+
+const logout = defineCommand(authBase, {
+  principal: 'user',
+  execution: 'sync',
+  hints: { http: { cookie: { clear: { name: '__Host-pennestack_session' } } } },
+  handle: async (_input, ctx) => {
+    const sessionId = ctx.principal.ref?.credentialId
+    if (sessionId) await ctx.data.auth.session.update({ where: { id: sessionId }, patch: { revokedAt: ctx.clock.now() } })
+  },
+})
+
+// Invoked by auth's own reactions under auth.system; no user rule allows it.
+const revokeSubject = defineCommand(authBase, {
+  input: shape({ subject: field.subject(), reason: field.string() }),
+  execution: 'sync',
+  handle: async (input, ctx) => {
+    const now = ctx.clock.now()
+    await ctx.data.auth.credential.update({ where: { subject: input.subject, revokedAt: { isNull: true } }, patch: { revokedAt: now } })
+    await ctx.data.auth.session.update({ where: { subject: input.subject, revokedAt: { isNull: true } }, patch: { revokedAt: now } })
+  },
+})
+
+const loginPolicy = definePolicy(authBase, login, [{ effect: 'allow', public: true }])
+const logoutPolicy = definePolicy(authBase, logout, [{ effect: 'allow', principal: 'user' }])
+const credentialPolicy = definePolicy(authBase, credential, [
+  {
+    effect: 'allow',
+    actions: ['read'],
+    id: 'self',
+    principal: 'user',
+    where: (ctx) => ({ subject: ctx.principal.subject }),
+    fields: ['lastUsedAt'],
+    reason: 'A user sees their own credentials.',
+  },
+  { effect: 'allow', actions: ['revoke'], id: 'self-revoke', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) },
+  { effect: 'deny', actions: ['revoke'], id: 'already-revoked', where: () => ({ revokedAt: { isNull: false } }), reason: 'This credential is already revoked.' },
+])
+const sessionPolicy = definePolicy(authBase, session, [
+  { effect: 'allow', actions: ['read'], id: 'self-sessions', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) },
+])
+
+// Services for dependants. Argon2id through node:crypto.
+const verifyPassword = defineService(authBase, async (_own, verifier: string | undefined, password: string) => argon2idVerify(verifier ?? DUMMY_VERIFIER, password))
+const hashPassword = defineService(authBase, async (_own, password: string) => argon2idHash(password))
+
+// Parts of the contribution to accounts: typed with within(), so accounts counts as required and
+// profile rows include the fields auth contributes. They run with auth's context.
+const changePassword = defineCommand(within(authBase, toAccounts), 'profile', {
+  input: shape({ currentPassword: field.secret().optional(), newPassword: field.secret() }),
+  principal: 'user',
+  errors: [reauthenticationRequired],
+  execution: 'sync',
+  handle: async (input, ctx) => {
+    const recent = await isRecentlyAuthenticated(ctx)
+    const cred = await ctx.data.auth.credential.findOne({ where: { subject: ctx.principal.subject, kind: 'password', revokedAt: { isNull: true } } })
+    const confirmed = input.currentPassword !== undefined && (await argon2idVerify(cred?.verifier ?? DUMMY_VERIFIER, input.currentPassword))
+    if (!recent && !confirmed) throw reauthenticationRequired()
+    const verifier = await argon2idHash(input.newPassword)
+    if (cred) await ctx.data.auth.credential.update({ where: { id: cred.id }, patch: { verifier } }) // the old hash's key is destroyed
+    await revokeOtherSessions(ctx)
+  },
+})
+
+// "Own profile" only means something when a login exists; the fragment lives here, typed against profile.
+const accountsProfilePolicy = definePolicy(within(authBase, toAccounts), 'profile', [
+  {
+    effect: 'allow',
+    actions: ['read'],
+    id: 'self',
+    principal: 'user',
+    where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }), // null never matches (section 8.3)
+    fields: ['email', 'lastLoginAt'], // read rules list maskable fields only
+  },
+  {
+    effect: 'allow',
+    actions: ['update'],
+    id: 'self-edit',
+    principal: 'user',
+    where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }),
+    fields: ['displayName', 'locale'], // the fields a user may change
+  },
+  { effect: 'allow', actions: ['changePassword'], id: 'self-password', principal: 'user', where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }) },
+  // A relation contributed above is usable in the same contribution.
+  {
+    effect: 'allow',
+    actions: ['read'],
+    id: 'shared-credential',
+    principal: 'user',
+    where: (ctx) => ({ credentials: { some: { subject: ctx.principal.subject } } }),
+  },
+])
+
+// A factory of auth's own context: listFor reads auth.credential with auth's authority.
+const identityProvidersFill = defineFill(within(authBase, toAccounts), 'identityProviders', (own) => [passwordProvider(own)])
+
+// accounts influences auth: when a profile is deactivated, every credential and session of that
+// subject is revoked, in the same transaction, under auth.system (section 7.7).
+const revokeOnDeactivation = defineReaction(within(authBase, whenAccounts), {
+  on: 'accounts.profile.deactivated',
+  timing: 'inline',
+  handle: async (event, ctx) => {
+    await ctx.invoke(revokeSubject, { subject: asSubject(event.state.id), reason: 'profile deactivated' }) // an own action, by value
+  },
+})
+
+// and the login timestamp flows back to the profile field auth contributed (a keyed job per event).
+const recordLogin = defineReaction(within(authBase, whenAccounts), {
+  on: 'auth.session.created',
+  timing: 'async',
+  handle: async (event, ctx) => {
+    const profileId = event.current ? profileIdOf(event.current.subject) : null
+    // auth may write lastLoginAt because it contributed that field to accounts.profile (section 8.4)
+    if (profileId) await ctx.data.accounts.profile.update({ where: { id: profileId }, patch: { lastLoginAt: event.at } })
+  },
+})
+
+// A subscription that exists only when a module providing the live contract is selected.
+const sessionEvents = defineSubscription(within(authBase, whenLive), {
+  event: shape({ sessionId: field.ref.own('session'), kind: field.enum(['created', 'revoked']) }),
+  principal: 'user',
+  source: (_input, ctx, resume) =>
+    mapItems(
+      ctx.live.entity('auth', 'session', { where: { subject: ctx.principal.subject }, after: resume }),
+      (change) => (change.type === 'removed' ? undefined : { sessionId: change.id, kind: change.type === 'created' ? 'created' : 'revoked' }),
+    ),
+})
+const sessionEventsPolicy = definePolicy(within(authBase, whenLive), sessionEvents, [{ effect: 'allow', principal: 'user' }])
+
+const onTenantCreated = defineHook(authBase, 'onTenantCreated', async (tenant, ctx) => {
+  ctx.log.info({ tenant: tenant.id }, 'auth ready for tenant')
+})
+
+const authDef = defineModule(authBase, {
+  entityActions: { credential: { revoke } },
+  actions: { login, logout, revokeSubject },
+  policies: [loginPolicy, logoutPolicy, credentialPolicy, sessionPolicy],
+  services: { verifyPassword, hashPassword },
+  // the behaviour of the contribution and the conditional parts declared in the base, under the same keys
+  contributes: {
+    toAccounts: {
+      entityActions: { profile: { changePassword } },
+      policies: [accountsProfilePolicy],
+      extensionPoints: { identityProviders: identityProvidersFill },
     },
-  })
+  },
+  conditional: {
+    whenAccounts: { reactions: { revokeOnDeactivation, recordLogin } },
+    whenLive: { actions: { sessionEvents }, policies: [sessionEventsPolicy] },
+  },
+  lifecycle: { onTenantCreated },
+})
 
 export interface Auth extends ModuleType<typeof authDef> {}
 export const auth: Auth = authDef
 
 // ============================================================================
 // 3. Two apps from the same modules. Apps list modules only; infrastructure is the deployment's.
+//    In a project, each app's selection is the as-const tuple of its src/modules.ts (section 23.1).
 // ============================================================================
 
+const directoryModules = [accounts, rest] as const // no auth: profiles without logins
 const directoryDef = defineApp({
   id: 'directory',
-  modules: [accounts, rest], // no auth: profiles without logins
+  modules: directoryModules,
 })
 export interface Directory extends AppType<typeof directoryDef> {}
 export const directory: Directory = directoryDef
 
+const portalModules = [accounts, auth, live, rest, graphql] as const
+// An app action, typed against the app's selection.
+const health = defineQuery(portalModules, { auth: { public: true }, scope: 'backend', output: shape({ ok: field.boolean() }), handle: async () => ({ ok: true }) })
+
 const portalDef = defineApp({
   id: 'portal',
-  modules: [accounts, auth, live, rest, graphql],
-  actions: (b) => ({
-    health: b.query({ auth: { public: true }, scope: 'backend', output: shape({ ok: field.boolean() }), handle: async () => ({ ok: true }) }),
-  }),
+  modules: portalModules,
+  actions: { health },
   execution: {
     'accounts.profile.deactivate': 'either', // external callers may prefer async; ctx.invoke keeps the declared mode
   },

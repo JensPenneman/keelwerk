@@ -1,39 +1,67 @@
 # Decision register
 
-Date: 2026-10-23. Status: open. This register lists every open question of the architecture in
+Date: 2026-10-23 (updated 2026-10-24). Status: open. This register lists every open question of the architecture in
 one place, numbered, so that Jens can answer them one by one in conversation. Each answer is
 recorded here with its date and the section or ADR that applies it. The questions come from
-[architecture.md](architecture.md) section 21 (decision points, spike questions, questions by
+[architecture.md](architecture.md) section 26 (decision points, spike questions, questions by
 area), plus the lead's own flags and the points raised by the addendum 3 designs.
 
 How to answer: by number and letter, for example `1a 5a 20b`. The starred option (★) is the
 recommendation the specification currently assumes; a question left unanswered keeps the star.
+When a question needs more context, the lead briefs it from the architecture in conversation
+(the relevant sections are quoted and explained); nobody has to read the whole specification.
 
 Status values: `open`, `decided <date>` (with the answer), `applied` (with the section or ADR).
 
-## A. Decision points (architecture.md section 21.1)
+## A. Decision points (architecture.md section 26.1)
 
 1. **Runtime module selection.** How does a backend get its modules? a) ★ from the apps compiled
    into the deployment, with per-backend variation through module configuration and feature
    flags; b) toggled per backend at runtime, with types that cannot follow the selection.
-   Status: open.
+   Status: decided 2026-10-25: **a**, the compiled catalogue; condition from Jens: development always
+   has the full, exact types of the app being built (section 4.5 guarantees it per app).
 2. **Toggling with requirements.** A module can only be switched off together with the modules
    that `require` it. a) ★ accept; keep hard dependencies for genuine needs; b) make every
-   dependency optional and type every cross-module access as possibly absent. Status: open.
+   dependency optional and type every cross-module access as possibly absent. Status: decided 2026-10-25: **a**, hard dependencies stay; a module switches off together with
+   its dependants.
 3. **DSL shape.** a) ★ builder chain whose callbacks receive typed contexts (Hono, Elysia, Better
    Auth style); b) one object literal with a hand-written context type on every handler.
-   Status: open.
+   Status: applied (decided 2026-10-24: **b**, always object literals, no builder chain).
+   Consequence: a module is a manifest literal (id, dependencies, config, entities) plus a module
+   literal that lists its parts; action files import the manifest and their entity, so handlers
+   are typed without a chain. Applied as the module base (`defineModuleBase`), parts typed against
+   it and the module literal (`defineModule(base, { ... })`) in architecture.md sections 4.1, 4.3
+   to 4.5, 4.7, 5.3 to 5.6, 7.2, 7.6, 7.7, 9.5, 13.9, 17 and 23.5, ADRs 0003, 0004, 0015, 0021,
+   0023 and 0024, and api-sketch.ts.
 4. **Data access inside handlers.** a) ★ module authority, with an explicit `forCaller()` for
-   caller-scoped reads; b) caller authority by default with typed grants per action. Status: open.
+   caller-scoped reads; b) caller authority by default with typed grants per action. Status:
+   applied (decided 2026-10-24: **a**, module authority with explicit `forCaller()`, plus the
+   shape-stage check of every entity row leaving the invoker against the caller's plan;
+   development: error; production: dropped and logged). Applied in architecture.md section 8.4
+   (code `core.row_outside_plan`, section 10) and ADR 0005.
 5. **Deny rules.** a) ★ allow and deny, deny requiring a reason; b) allow-only with `unless`
-   conditions. Status: open.
+   conditions. Status: applied (decided 2026-10-24: **a**, allow and deny rules, deny requiring a
+   reason, default deny): architecture.md section 8.2 as written, ADR 0005.
 6. **Job queue.** a) ★ a kernel queue over every data adapter's job store (works on MySQL,
-   SQLite, PGlite and in memory); b) pg-boss on PostgreSQL only. Status: open.
+   SQLite, PGlite and in memory); b) pg-boss on PostgreSQL only. Status: open; the jobs/nodes/autoscaling agent is running (started 2026-10-24 ~20:10); briefing
+   follows.
 7. **Personal data in state tables.** a) ★ plaintext state tables with crypto-shredding of the
-   chain; b) encrypted state columns with blind indexes. Status: open.
+   chain; b) encrypted state columns with blind indexes. Status: decided 2026-10-25: **b**, personal fields encrypted in the state tables as well (blind
+   indexes and whatever else the research finds), with a research mandate from Jens: an agent
+   investigates searching, filtering, ordering, uniqueness and full-text search over encrypted
+   personal data (mail search included) and designs the operator support matrix. Queued after the
+   running agents; its findings land as a section, ADR 0027 and questions in the register.
 8. **Operational buffer defaults** (transient change records 7 days, receipts 24 hours, inactive
    sync clients 90 days, without an adopted rule). a) ★ accept; b) the operator must adopt even
-   these. Status: open.
+   these. Status: applied (decided 2026-10-24: **a** for the three buffers). Jens's underlying
+   requirement: point-in-time recovery far back, with configurable retention of the change
+   history. Already covered by the chain (every change is an event with the changed fields and
+   their before-images; history is kept forever until a `compactHistory` rule per entity or module
+   folds events older than a configurable horizon into a snapshot). Addition: `asOf` on the
+   generated `get` and `history` reads of chain entities, so a row can be read as it was at a
+   moment in time. Receipts stay idempotency bookkeeping (24 hours); the event already records the
+   command id, actor and causation. Applied in architecture.md sections 6.7, 14.7.1 (an `asOf`
+   before the compaction horizon is `not_found`, `core.history_compacted`) and 14.8.1.
 9. **Offline multi-actor sync timing.** a) ★ M8, after the mail server; b) earlier. Status: open.
 10. **Before-images** in every event from M1. a) ★ yes; b) no. Status: open.
 11. **Collaborative fields.** a) ★ Loro documents from the first app that declares one; b) plain
@@ -46,8 +74,9 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
 14. **External tables.** a) ★ introspected entity definitions with drift checks; b) declaration
     files generated from live introspection. Status: open.
 15. **oRPC beside tRPC.** a) ★ defer; b) include in the first release. Status: open.
-16. **CLI namespace.** a) ★ action commands at the top level with 29 reserved names; b) under a
-    verb (`pennestack run <module> ...`). Status: open.
+16. **CLI namespace.** a) ★ action commands at the top level with 33 reserved names (29 plus
+    `flags`, `new`, `rollout` and `surface` from addendum 3); b) under a verb (`pennestack run
+    <module> ...`). Status: open.
 17. **Operator impersonation** (`pennestack explain --as <principal>`). a) ★ evaluate everywhere,
     execute only in development; b) also execute in production, logged. Status: open.
 18. **Protobuf field tags.** a) ★ allocate from day one; b) when the Connect transport arrives.
@@ -72,7 +101,7 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
 27. **Ledger and control store at home.** a) ★ two PostgreSQL instances plus the ledger file;
     b) one instance plus the ledger file. Status: open.
 
-## B. Lead's own flags (not in section 21)
+## B. Lead's own flags (not in section 26)
 
 28. **Toolchain baseline.** a) ★ TypeScript 7.0 and Node 24 type stripping (no decorators, no
     enums, `.ts` import extensions, no build step for sources); b) TypeScript 5.9/6 with a build
@@ -82,7 +111,7 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
 30. **SQL family.** a) ★ Kysely underneath the SQL adapters; b) Drizzle underneath (overlaps
     with 13). Status: open.
 
-## C. Spike questions (section 21.2; answers optional, the M0 spike decides the rest)
+## C. Spike questions (section 26.2; answers optional, the M0 spike decides the rest)
 
 31. **Composition error form.** a) ★ the `Check` property form (missing property with a literal
     type); b) a rest-parameter form, if it reads better in the editor. Status: open.
@@ -92,7 +121,7 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
 The other spike items (instantiation and declaration-size budgets, the write-path measurement)
 are measurements, not choices.
 
-## D. Questions by area (section 21.3)
+## D. Questions by area (section 26.3)
 
 Data:
 
@@ -141,8 +170,94 @@ Platforms:
 49. **Outbound webhooks.** a) ★ part of Launchway's first pennestack release (M3); b) later.
     Status: open.
 
-## E. Addendum 3 (2026-10-23): being designed
+## E. Addendum 4 (2026-10-24): pure functions
 
-Versioning everywhere, smooth rollouts with backwards compatibility, feature flags and A/B
-testing, and the single-purpose project layout are being designed. Their decision points are
-appended here as questions 50 onwards when the design lands.
+50. **How strict is "pure"?** a) strict functional core: handlers never perform effects; commands
+    declare or yield what to load and return events plus effect descriptions, queries return a
+    query description, only the kernel, adapters, transports and listeners are imperative;
+    b) pragmatic: handlers receive a context parameter and call its capabilities (data, invoke,
+    egress) directly, with no globals, no module-level state, no ambient context and no
+    environment reads outside the deployment file, enforced by lint; c) ★ split: a) for everything
+    that decides (commands, reactions, process managers, policies, flag rules, version transforms,
+    merge rules), b) for queries, services wrapping external systems, adapters, transports and
+    listeners, with b)'s bans everywhere. Status: decided 2026-10-25: **a**, fully strict, c) kept as the fallback if a) becomes a burden in
+    practice. Jens's motivation: trace every cause and effect, and rebuild the database and a full
+    logbook from them. Consequences to design (next agent pass): handlers never perform effects;
+    commands yield load requests and return events plus effect descriptions; queries return query
+    descriptions; effects are executed by the kernel and recorded with their outcome, linked to the
+    event and command that caused them; imperative code exists only in the kernel, adapters,
+    transports, listeners and declared effect executors. To apply: sections 4.3, 7.3, 7.6, 8.4, 9.2,
+    the layout section, api-sketch.ts, ADR 0004; new ADR 0026.
+
+## F. Addendum 3 (2026-10-23): versioning, rollouts, flags and project layout
+
+The designs landed on 2026-10-24 as architecture.md sections 18 to 20 and 23 (ADRs 0021 to 0024);
+section 26.1 lists the same points under the same numbers. The jobs, nodes and autoscaling design
+(section 21) is still in progress.
+
+Versioning, rollouts and flags:
+
+51. **Where flags live.** Where do feature flags live? a) ★ framework core: `defineFlag`, typed
+    `ctx.flags`, gates and provenance, with experiments as an optional module
+    (`@pennestack/module-experiments`), because flags are needed in rules, `admit`, transports,
+    jobs and the kernel's own rollouts, and only the core reaches all of them; b) a flags module
+    that other modules require or list as optional; c) only in the apps built on the framework.
+    Status: open.
+52. **API version naming.** How are app API versions named and served? a) ★ dated versions pinned
+    per request, credential, tenant and backend, served from one head by version-change
+    transforms; integer majors only for wire protocols; b) integer majors per app (v1, v2) in a
+    header, each major a separate surface; c) no versions: continuous evolution with deprecation
+    only. Status: open.
+53. **Support window.** How long must an API version stay supported? a) ★ at least 12 months after
+    a newer one exists, then retirement only after its sunset and 30 days of zero use (or a logged
+    `--force`); for a personal deployment the usage counters matter more than the calendar; b) 24
+    months, as GitHub promises; c) until usage reaches zero, however long that takes. Status: open.
+54. **Automatic finalization.** Is finalization of a rollout automatic? a) ★ automatic once every
+    live process has run the target revision for a 600-second grace period, with a manual mode per
+    deployment; contract steps stay manual because they destroy data; b) always manual
+    (`pennestack rollout finalize`). Status: open.
+55. **Field renames in production.** How are field renames handled in production? a) ★ keep the
+    physical column recorded in the snapshot (a logical rename, no DDL); type changes and splits
+    use the gated add, dual write, backfill and contract procedure; b) rename the column through
+    add, dual write, backfill and drop. Status: open.
+56. **Mail listeners during upgrades.** How do the mail listeners survive upgrades on the home
+    server? a) ★ their own container (a named process of gap G9), replaced by stop and start in
+    seconds: SMTP senders retry and IMAP clients reconnect, and the HTTP container rolls blue-green
+    behind Caddy; b) a TCP proxy in front that drains connections (no drops, one more component);
+    c) keep them in the single pennestack container and accept a restart. Status: open.
+57. **Experiment statistics.** Which statistics does the first experiments module offer? a) ★
+    fixed-horizon frequentist tests (two-proportion z-test, Welch's t-test, 95 % intervals) with a
+    planned-size gate and a sample-ratio check; Bayesian, CUPED and sequential tests later, each
+    with its own validation; b) Bayesian analysis from the start; c) sequential testing from the
+    start; d) no analysis: export counts only. Status: open.
+
+Project layout:
+
+58. **File naming.** What case do file and directory names use, given that every file is named
+    after its export? a) ★ kebab-case derived from the export by `kebab()` of architecture.md
+    section 16.4.1 (`changePassword` -> `change-password.ts`): it matches module ids, CLI routes
+    and REST paths and is safe on case-insensitive file systems; the file-to-export check runs in
+    `pennestack doctor`'s layout pass until a Biome JavaScript plugin can do it in the editor;
+    b) the identifier's own case (`changePassword.ts`), which Biome 2.5.15 checks in the editor
+    with `useFilenamingConvention` `filenameCases: ["export"]`; paths then mix kebab module
+    directories with camelCase files, and case-only renames can slip past git on macOS and
+    Windows. Status: open.
+59. **Module assembly.** How do a module's part files become the module value? a) ★ explicit:
+    `base.ts` holds the module base and parts are typed against it through the part functions
+    (`defineCommand(base, ...)` and the others); `module.ts` imports every part and mounts it in the
+    module literal; scaffolds insert the import and the entry; no generator sits in the type path,
+    and the API name is set in code; b) generated: `pennestack generate` writes
+    `module.generated.ts` from the directory conventions, and `generate --check` catches drift in
+    CI; nothing needs registering by hand, but the types are stale until the generator runs and a
+    file's path decides its action reference. Status: open.
+60. **Policy granularity.** How are authorization rules split into files? a) ★ one policy file per
+    entity or module-level action (`policies/<target>.ts` exporting `<target>Policy`), holding all
+    rules for that target so allows and denies are reviewed together; b) one rule per file
+    (`policies/<entity>/<rule-id>.ts`), so the file name equals the rule id; many small files, and
+    name clashes in `module.ts` need aliases. Status: open.
+61. **Scaffold edits.** May scaffolds edit TypeScript sources? Section 16.9.8 used to say they never
+    do. a) ★ narrow edits of assembly files only: scaffolds insert one import and one entry into
+    the matching key of one assembly file (`base.ts`, `module.ts`, `app.ts` or `modules.ts`),
+    refuse any file not in the canonical shape and print the lines instead, and offer `--dry-run`;
+    b) keep the earlier rule: scaffolds only print the two lines for the author to paste.
+    Status: open.

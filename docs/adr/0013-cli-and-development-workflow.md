@@ -1,12 +1,13 @@
 # 13. One `pennestack` CLI generated from the surface, and a generate-and-check development loop
 
-Date: 2026-10-11 (revised after review the same day)
+Date: 2026-10-11 (revised after review the same day, and on 2026-10-24 for addendum 3)
 
 ## Status
 
-Proposed. The reservation of framework command names as module ids (item 2) is a decision point for
-Jens (architecture.md section 21); if action commands move under a verb instead, item 2 changes
-before the ADR is accepted.
+Proposed. The reservation of framework command names as module ids (item 2) is decision point 16
+for Jens (architecture.md section 26.1); if action commands move under a verb instead, item 2
+changes before the ADR is accepted. Scaffold edits of assembly files (item 7) are decision point
+61.
 
 ## Context
 
@@ -24,9 +25,9 @@ optional module, so apps without it could not be administered.
 
 Facts checked on 2026-10-10 and 2026-10-11:
 
-- TypeScript 7.0.2 rejects `export const accounts = defineModule(...)...` and `export const app =
+- TypeScript 7.0.2 rejects `export const accounts = defineModule(...)` and `export const app =
   defineApp(...)` under `isolatedDeclarations` with TS9010 and TS9013, because their types come from
-  inference.
+  inference (checked with the builder form of the time; the literal form is inferred the same way).
 - Vitest 5.0.3's type checker runs on TypeScript 7.0.2; TypeScript 7.0.2 reports instantiation
   counts with `--extendedDiagnostics` and writes traces with `--generateTrace`.
 - Node 24.21.0 type-strips a workspace package reached through a `node_modules` link, but refuses
@@ -55,12 +56,13 @@ Facts checked on 2026-10-10 and 2026-10-11:
    in-process or the dev socket), the operator socket, and remote profiles over the invocation
    protocol, which the HTTP host serves for every app (ADR 0010); the CLI manifest artefact is produced
    by the CLI itself.
-2. **Reserved names.** Framework commands share the first level with module ids, so their names
-   (`app`, `backend`, `build`, `call`, `completion`, `consumers`, `core`, `db`, `dev`, `doctor`,
-   `domain`, `explain`, `generate`, `help`, `init`, `introspect`, `jobs`, `keys`, `login`, `logout`,
-   `migrate`, `module`, `operator`, `profile`, `start`, `tenant`, `version`, `watch`, `x`) are
-   reserved module ids, frozen per major version; new framework commands go under an existing group
-   or under `x`.
+2. **Reserved names.** Framework commands share the first level with module ids, so their 33
+   names (`app`, `backend`, `build`, `call`, `completion`, `consumers`, `core`, `db`, `dev`,
+   `doctor`, `domain`, `explain`, `flags`, `generate`, `help`, `init`, `introspect`, `jobs`, `keys`,
+   `login`, `logout`, `migrate`, `module`, `new`, `operator`, `profile`, `rollout`, `start`,
+   `surface`, `tenant`, `version`, `watch`, `x`) are reserved module ids, frozen per major version;
+   `flags`, `rollout`, `surface` (ADRs 0021 to 0023) and `new` (ADR 0024) were added on 2026-10-24,
+   before the list is frozen. New framework commands go under an existing group or under `x`.
 3. **Outputs and exit codes.** Human output on a terminal, JSON otherwise (`--output` for text,
    table, JSON, YAML, NDJSON); subscriptions as NDJSON with automatic resume; exit codes 3 to 11 per
    error kind, 1 for internal errors, 2 for usage errors and 130 for interrupts. Profiles and
@@ -69,10 +71,13 @@ Facts checked on 2026-10-10 and 2026-10-11:
 4. **Framework commands**: `init`, `dev`, `build`, `start`, `generate`, `migrate` (an alias of
    `db apply`), `db` (`plan`, `generate`, `apply`, `status`, `check`, `introspect`, `retire`,
    `rebuild`, `verify`, `restore`, with the semantics of architecture.md section 14), `consumers`,
-   `jobs`, `keys`, `operator token`,
-   `introspect` (including `diff` for breaking-change classification), `module new|rename|retire`,
-   `backend`, `tenant` and `domain` aliases, `call`, `watch`, `explain`, `doctor`, `login`, `logout`,
-   `profile`, `completion`.
+   `jobs`, `keys`, `operator token`, `introspect` (whose `diff` is an alias of `surface diff`),
+   `surface diff|version new|usage|retire` (ADR 0021), `rollout status|finalize|abort` (ADR 0022),
+   `flags list|get|set|history|explain|stale` (ADR 0023), `new <kind> <reference>` for module,
+   entity, action, flag, policy, reaction, service, error, schedule, stream, topic, contribution,
+   condition, version-change, lib, shape, app and script (ADR 0024), `module new|rename|retire`
+   (`module new` an alias of `new module`), `backend`, `tenant` and `domain` aliases, `call`,
+   `watch`, `explain`, `doctor`, `login`, `logout`, `profile`, `completion`.
 5. **Development loop.** `pennestack dev` supervises `tsc -b --watch` (TypeScript 7.0.2), a
    fresh-process probe per change that writes only changed artefacts, the data layer's development
    database synchronisation, and an app process restarted on change with the dev operator socket and
@@ -81,32 +86,38 @@ Facts checked on 2026-10-10 and 2026-10-11:
    drop the condition through `publishConfig.exports`; production runs emitted JavaScript.
 6. **Committed artefacts.** The generated TypeScript file (with type fragments from transports), the
    surface, the OpenAPI document, the SDL and the CLI manifest are deterministic, committed, and
-   checked by `generate --check`; migrations come only from explicit `db generate` runs. CI also runs the
-   conformance suite, the type budget with `--extendedDiagnostics` on TypeScript 7.0.2, and
-   `introspect diff` against the base branch.
+   checked by `generate --check`; migrations come only from explicit `db generate` runs. Documents
+   derived from the surface exist per API version. CI also runs the conformance suite, the type
+   budget with `--extendedDiagnostics` on TypeScript 7.0.2, and `surface diff` against the base
+   branch.
 7. **Toolchain rules.** `isolatedDeclarations` is enabled only in packages with explicitly typed
    exports; every package sets `rootDir`. Every exported module and app value has a named type
-   (`ModuleType`, `AppType`; ADR 0003), which `pennestack module new` scaffolds and a GritQL rule
+   (`ModuleType`, `ModuleBaseType`, `AppType`; ADR 0003), which `pennestack new module` scaffolds and a GritQL rule
    enforces; CI builds both proof apps under the pnpm layout and fails on TS7056, TS2742, TS4023 and
    declaration sizes above the spike's budget. `@pennestack/biome-config` publishes a Biome 2.5.15 preset
    (the rules above as errors, package-kind import boundaries through `overrides`) and GritQL
    plugins for what syntax can catch: declaration merging on framework modules, exported module and
    app values without a named type, literal `null` in rule conditions, `asSystem` without a reason,
-   impure deciders, discarded builder steps, malformed error codes. Checks that need the
-   registry run at `defineApp` and boot. Type tests use Vitest's type checker, and
-   `@pennestack/testing/types` ships assertion helpers; `pennestack module new` scaffolds a package
-   with toggle-case type tests. `pennestack doctor` checks the environment, the TypeScript and
-   package configuration, artefact freshness and the deployment.
+   impure deciders, malformed error codes, and for the layout of ADR 0024 a second exported value,
+   import side effects and functions in assembly files. Checks that need the registry run at
+   `defineApp` and boot; checks that need paths run in the layout pass of `pennestack doctor`.
+   Type tests use Vitest's type checker, and `@pennestack/testing/types` ships assertion helpers.
+   `pennestack new <kind> <reference>` scaffolds one part and inserts one import and one entry into
+   one assembly file, refusing files it does not recognise; `pennestack new module` writes a
+   package with `src/base.ts`, `src/module.ts` (the entry), `src/module.test-d.ts` with the
+   toggle-case type tests, and `test/`. `pennestack init` creates the canonical layout and
+   `knip.json`. `pennestack doctor` checks the environment, the TypeScript and package
+   configuration, artefact freshness, the layout and the deployment.
 
 ## Consequences
 
 - The CLI always matches the selected backend's app exactly, and needs no release when a module adds
   an action; startup costs one conditional request to revalidate the cached surface.
-- Reserving command names takes 27 identifiers away from module ids beyond the core's `core` and
+- Reserving command names takes 31 identifiers away from module ids beyond the core's `core` and
   `app`, a small and permanent constraint; the alternative (`pennestack run <module> ...`) would
   avoid it at the cost of a longer command for every daily use.
 - Every interface change shows up in review as a diff of committed artefacts, and CI fails on drift
-  and on unacknowledged breaking changes.
+  and on any breaking change to a supported API version.
 - Editing any workspace package is live in `pennestack dev` without a build, while published
   packages remain plain JavaScript with declarations.
 - Dropping `isolatedDeclarations` from module and app packages refines the first draft; declaration

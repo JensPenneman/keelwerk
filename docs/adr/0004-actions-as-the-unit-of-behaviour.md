@@ -1,6 +1,6 @@
 # 4. Actions as the only unit of behaviour, with command and query semantics
 
-Date: 2026-10-08 (revised 2026-10-11)
+Date: 2026-10-08 (revised 2026-10-11 and 2026-10-24)
 
 ## Status
 
@@ -50,9 +50,10 @@ could not resume; and that idempotency allowed two concurrent duplicates to run.
    generator adds `watch`, and `history` is opt-in. History modes switch set operations off for
    projections and leave only reads for external tables. Transports that need JMAP's positional
    paging request it in their surface options.
-5. One invoker runs a fixed pipeline (resolve scope, resolve principal, locate, admit, validate,
-   authorize, execute, shape, complete); `Invoker.open` resolves scope and principal once per
-   request or connection into an unforgeable session. Transports, listeners, the CLI, tests and
+5. One invoker runs a fixed pipeline (resolve scope, resolve principal, resolve version, locate,
+   admit, validate, translate, authorize, execute, shape, translate, complete; the version stages
+   are ADR 0021's); `Invoker.open` resolves scope, principal and API version once per request or
+   connection into an unforgeable session. Transports, listeners, the CLI, tests and
    modules calling each other all go through it. Transports never contain behaviour, never evaluate
    policies and never touch the data layer.
 6. Every command invocation has a command id (a UUIDv7 or an opaque client key of up to 128
@@ -61,10 +62,11 @@ could not resume; and that idempotency allowed two concurrent duplicates to run.
    running twice; receipts live in the command's namespace with tenancy `invocation`, are
    addressable by command id, and expire after the action's window (24 hours by default). Longer
    deduplication uses durable business keys.
-7. The context passed to handlers, `ActionContext<M>`, is computed from the module alone: its own
-   entities with the module's authority, read access to its dependencies, services bound to their
-   providers, contracts it declares, and `ctx.invoke` for its own and its required modules'
-   actions; commands of another scope run after commit through `ctx.enqueue`, which returns a
+7. The context passed to handlers, `ActionContext<M>`, is computed from the module base alone (the
+   value every part is typed against, ADR 0003): its own entities with the module's authority,
+   read access to its dependencies, the dependencies' services bound to their providers, contracts
+   it declares, its flags, and `ctx.invoke` for its own actions (passed by value) and its required
+   modules' actions (by reference); commands of another scope run after commit through `ctx.enqueue`, which returns a
    receipt. Reads on behalf of the caller are explicit (`forCaller()`); `ctx.asSystem(reason)`
    invokes as the system principal and is logged. Authorization of the invoked action is ADR 0005.
 8. Reactions are how a module responds to events: inline in the producing unit, or asynchronous as

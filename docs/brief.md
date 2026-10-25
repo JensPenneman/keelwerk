@@ -129,6 +129,16 @@ deployment" below).
   The conventions of file-based frameworks (Next.js and the like) are a starting point only; the
   structure must be designed to be the best fit for this framework and enforced by its tooling.
 
+### Pure functions, explicit inputs and outputs (addendum 4, 2026-10-24)
+
+- Everything runs on pure functions. A function's inputs are kept within its parameters and its
+  outputs are only ever returned through its return value; nothing flows through global state,
+  module-level state, ambient context or any other hidden channel. This is a hard requirement
+  for the framework itself and for the code written on it.
+- Where the outside world must be touched (databases, networks, clocks, randomness), the
+  architecture states how this is reconciled with the rule: which parts perform effects, how
+  effects enter and leave pure code, and how the rule is enforced by tooling.
+
 ## Constraints
 
 - Public repository on GitHub, every commit signed with the author's personal identity.
@@ -143,3 +153,4 @@ deployment" below).
 - 2026-10-08, addendum 2: living brief.
 - 2026-10-23, addendum 3: versioning everywhere, smooth rollouts and compatibility, feature
   flags and A/B testing, single-purpose files and project layout.
+- 2026-10-24, addendum 4: pure functions, explicit inputs and outputs, no global state.
