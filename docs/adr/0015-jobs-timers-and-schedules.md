@@ -5,7 +5,8 @@ Date: 2026-10-11 (revised 2026-10-24 and 2026-10-25)
 ## Status
 
 Proposed. Amended by [ADR 0025](0025-nodes-capacity-and-autoscaling.md) (decisions 3, 6 and 7, on
-2026-10-25); architecture.md sections 9.5 and 21 specify the result.
+2026-10-25); [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) (decision 50a) gives
+decision 6 its effect contract. Architecture.md sections 7.9, 9.5 and 21 specify the result.
 
 ## Context
 
@@ -55,8 +56,9 @@ fired under whoever set them, so the node-offline timer ran under the node's own
    checkpoint.
 6. **DSL.** Timers are effect descriptions that handlers return,
    `setTimer({ key, at or after, invoke, input })` and `cancelTimer(key)`, in place of the earlier
-   `ctx.timers.set` and `ctx.timers.cancel` calls (amended by ADR 0025; decision 50a; the exact
-   contract is specified in the pure-handlers section);
+   `ctx.timers.set` and `ctx.timers.cancel` calls (amended by ADR 0025 and ADR 0026; architecture.md
+   section 7.9.5 specifies the kernel effects, `enqueue` among them, and the executors of external
+   effects);
    `defineSchedule(base, { every, invoke, scope })` parts, mounted under the module literal's
    `schedules` keyed by schedule id and contributing to the core's `schedules` extension point;
    `async: { queue, key, ordering, group, priority, cost, retry, onGiveUp }` on asynchronous

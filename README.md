@@ -26,7 +26,8 @@ identity.
 
 - [Brief](docs/brief.md): the requirements, the source of truth. It is appended, never rewritten.
 - [Architecture](docs/architecture.md): the specification. Sections 1 to 13 cover the kernel, the
-  configuration model, actions, authorization, execution and the toolchain; sections 14 to 16 the
+  configuration model, actions (with the pure handlers and the effect interpreter of section 7.9),
+  authorization, execution and the toolchain; sections 14 to 16 the
   data layer, events and sync, live updates, transports and the CLI; section 17 the accounts and
   authentication modules and both platforms; sections 18 to 20 versioning, rollouts and feature
   flags; section 21 nodes, capacity and autoscaling; section 23 the project layout; section 26 the
@@ -35,7 +36,8 @@ identity.
   given and where they apply.
 - [Architecture decision records](docs/adr/): why each significant choice was made, starting with
   [ADR 0001](docs/adr/0001-record-architecture-decisions.md).
-- [API sketch](docs/api-sketch.ts): the DSL as an application author would write it.
+- [API sketch](docs/api-sketch.ts): the DSL as an application author would write it, with every
+  handler pure.
 - [Research](docs/research/): the prior-art surveys behind the decisions:
   [module systems](docs/research/module-systems.md),
   [authorization](docs/research/authorization.md),
@@ -45,7 +47,8 @@ identity.
   [versioning, rollouts and flags](docs/research/versioning-rollouts-flags.md),
   [project layout](docs/research/project-layout.md),
   [jobs, nodes and autoscaling](docs/research/jobs-nodes-autoscaling.md),
-  [encrypted queries](docs/research/encrypted-queries.md).
+  [encrypted queries](docs/research/encrypted-queries.md),
+  [pure handlers](docs/research/pure-handlers.md).
 - [Roadmap](docs/roadmap.md): milestones from the repository toolchain (M0) to the deployment
   platform (M3) and the mail server (M5 and M6), with exit criteria.
 

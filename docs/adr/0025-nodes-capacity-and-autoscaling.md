@@ -6,7 +6,9 @@ Date: 2026-10-25
 
 Proposed. Amends ADR 0015 (decisions 3, 6 and 7). The queue implementation is decision point 6 for
 Jens (architecture.md section 26.1); this ADR assumes the recommended kernel queue. Singleton leases
-stay with ADR 0018, the executor contract with ADR 0026 (decision 50a). The command name, the
+stay with ADR 0018, the executor contract with
+[ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) (decision 50a, architecture.md section
+7.9.5). The command name, the
 release of automatic scaling and the docker provider are decision points 62 to 64. Architecture.md
 sections 9.5 and 21 specify the design.
 

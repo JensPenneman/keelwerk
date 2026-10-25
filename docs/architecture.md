@@ -4,8 +4,9 @@ Date: 2026-10-25 (first version 2026-10-08, consolidated 2026-10-11). Status: sp
 consolidated draft awaiting Jens's approval. Authors: the core architect and the data, interfaces
 and platforms designers; consolidated with the review findings of 2026-10-11 by the synthesis
 editor; the versioning and project-layout designs of addendum 3 and Jens's decisions of 2026-10-24
-merged by the integration editor on 2026-10-24; the jobs, nodes and autoscaling design and the
-design of encrypted personal data (decision 7b) merged by the merge editor on 2026-10-25.
+merged by the integration editor on 2026-10-24; the jobs, nodes and autoscaling design, the
+design of encrypted personal data (decision 7b) and the pure-handler design (decision 50a, section
+7.9) merged by the merge editor on 2026-10-25.
 
 This document is the design contract of the framework. [brief.md](brief.md) is the requirements
 source of truth; this document says how those requirements are met and must not drop or
@@ -13,8 +14,9 @@ reinterpret any of them. Where it chooses between alternatives, an Architecture 
 [adr/](adr/) records why, and [roadmap.md](roadmap.md) orders the work into milestones. The
 research notes under [research/](research/) are the evidence base.
 
-It is one specification. Sections 1 to 13 define the kernel, the configuration model, actions,
-authorization, execution and the toolchain; sections 14 to 16 the data layer, events and sync, live
+It is one specification. Sections 1 to 13 define the kernel, the configuration model, actions
+(with the pure handlers and the effect interpreter of section 7.9), authorization, execution and the
+toolchain; sections 14 to 16 the data layer, events and sync, live
 updates, and the transports and CLI; section 17 the shared accounts and authentication modules and
 the two proof platforms; sections 18 to 20 versioning, rollouts and feature flags; section 21 nodes,
 capacity and autoscaling; sections 22 and 23 the repository and the project layout; sections 24 to
@@ -86,9 +88,9 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
    Nothing depends on the position of a module in the tuple except deterministic tie-breaking of
    lifecycle order.
 7. **Fail closed.** A condition an adapter cannot express, a missing requirement, a drifted
-   schema, an action whose module is disabled for a backend, a repository operation the module
-   may not perform: each is an error, never a wider filter, a narrowed result, a loose type or a
-   silent no-op.
+   schema, an action whose module is disabled for a backend, a load or a draft the module may not
+   perform: each is an error, never a wider filter, a narrowed result, a loose type or a silent
+   no-op.
 8. **Nothing is deleted; everything is appended.** Live entities are an append-only event chain
    with a materialised current state. Deletion is an archive event that a restore event can
    undo. Erasure of personal data is crypto-shredding, which keeps the chain intact.
@@ -99,6 +101,13 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
     editor sees, with no language-service plugin and no generator in the type path. Module and
     app values carry named types, so declaration emit stays proportional to each package
     (section 13.11). One generated file exists for convenience and is checked for drift in CI.
+11. **Handlers are pure; the kernel performs every effect.** Every part a module author writes is a
+    function of its parameters and of the answers the kernel gives to the requests it yields, and
+    everything it produces is in its return value: events, effect descriptions and a result.
+    Imperative code exists only in the kernel, the deployment's infrastructure entries, transport
+    and listener modules and effect executors. The kernel performs every effect and records it with
+    its outcome, linked to the command and events that caused it, so the database and a full
+    logbook rebuild from the chain (decision 50a, section 7.9).
 
 ## 2. Glossary
 
@@ -116,12 +125,19 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 | **Module service principal** | The service principal `<module>.system` under which a module's reactions, timers and schedules run; governed by rules like any principal (section 8.4). |
 | **Module** | A unit of composition with a string id. Owns entities, actions, policies, services, reactions and extension points; declares requirements, optional dependencies, contracts it provides, contributions and conditional parts. Written as a module base and a module literal, `defineModule(base, { ... })` (section 4.1). |
 | **Module base** | A module's declaration literal, `defineModuleBase({ ... })` in `base.ts`: identity, dependencies, configuration, extension points, entities, streams, flags and the data of contributions and conditional parts, against which parts are typed (sections 4.1 and 23.5). |
-| **Part** | The one definition a source file exports (an action, a policy, a reaction, a service, a fill, a schedule, ...), typed against a module base and mounted by an assembly file (sections 4.1 and 23.3). |
+| **Part** | The one definition a source file exports (an action, a policy, a reaction, a service, a fill, a schedule, an effect, an effect executor, ...), typed against a module base and mounted by an assembly file (sections 4.1 and 23.3). |
 | **Contract** | A named capability with a typed interface (`live`, `blobs`, `httpHost`) that modules list in `requires` or `optional` instead of a concrete implementation; a module or an infrastructure entry declares that it `provides` it (section 5.2). |
 | **Entity** | A data structure owned by a module: fields, relations, indexes, events and the actions mounted on it. |
 | **Field** | A typed column declared with the `field.*` builders. Emits a validator, a JSON Schema, a GraphQL type and a column definition. |
 | **Action** | A named unit of behaviour mounted on an entity, a module or the app: a `query`, a `command` or a `subscription`. |
 | **Action reference** | The dotted path of an action: `accounts.profile.deactivate`, `auth.login`, `app.health`. |
+| **Request** | A plain value a pure handler yields with `yield*` and the kernel answers: a load (`ctx.load...`), an `ask` of a dependency's query, a flag, a new id, random bytes, the issue, reveal or verification of a secret, a computation, or, in `prepare` only, an inline effect. Answers the chain cannot reproduce are kept in the decision record (section 7.9.3). |
+| **Effect** | A description of something to happen outside the decision, returned in a decision's `effects`: a kernel effect (`invoke`, `enqueue`, `setTimer`, `cancelTimer`, `settle`, scope-key claims) performed in the unit or at its commit, or an external effect declared with `defineEffect` and performed after commit, at least once, with its effect id as idempotency key. Every external effect has a `core.effect` record with its outcome (section 7.9.5). |
+| **Effect executor** | The imperative code that performs one external effect, `defineEffectExecutor(base, effect, options)` under `src/executors/`: no data access, egress only, an output or a taxonomy error per attempt; the only imperative code a module author writes (section 7.9.5). |
+| **External performer** | A program outside pennestack that performs the effects of a `performer: 'external'` declaration: it holds a subscription over its pending effects and settles each through an action of the owning module, within a deadline; Launchway's agent is one (sections 7.9.5 and 17.3.4). |
+| **Effect job** | The job that runs an external effect's executor after the requesting unit commits, on a process that advertises the executor's capabilities (sections 9.5 and 21.2). |
+| **Continuation** | The own command an effect names with `then`: the kernel invokes it under the module's service principal with the effect's outcome as input (`outcomeOf(effect)`), so outcomes re-enter pure code as input (section 7.9.5). |
+| **Decision record** | What the kernel stores in the meta of each event about the decision that produced it: the part, the input digest, the snapshot position of every load, the recorded answers (ids, random values, the public parts of issued secrets) and the requested effect ids; with the chain it reproduces and explains every decision (section 7.9.6). |
 | **Contribution** | Fields, relations, actions, policies or extension-point values a module adds to another module, active only when the target (and any extra `when` modules) are selected. |
 | **Conditional part** | Fields, actions, reactions or policies a module adds to itself only when other modules are selected. |
 | **Extension point** | A typed slot a module declares so that other modules can fill it without the owner importing them. The kernel's app-level extension points are how transports, resolvers and live carriers plug in; deployment-level points hold the infrastructure. |
@@ -130,7 +146,7 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 | **Registry** | The runtime index built by `defineApp`: modules, entities, actions, policies, extension points, keyed by ids and references. |
 | **API surface** | The serialisable description of one app's public interface, derived by the core from the registry; every transport, the CLI and every generated document read it (section 16.2). |
 | **Field node** | The serialisable form of a field-model node inside the surface: kind, modifiers, constraints and access. |
-| **Invoker** | The one in-process entry point that runs an action through the pipeline. Transports call it; so do the CLI, tests and modules calling each other. |
+| **Invoker** | The one in-process entry point that runs an action through the pipeline. Transports call it; so do listeners, the CLI, tests and the kernel when it performs the `invoke` effects modules return. |
 | **Session** | The scope and principal the invoker resolved once for a transport request or a long-lived connection (`InvocationSession`, section 16.3.4). |
 | **Carrier** | The transport-neutral description of where a request came from (host, path, headers, token, connection), used for scope and principal resolution. Handlers see a redacted form without credentials. |
 | **Transport module** | A module that contributes a `TransportAdapter` to the kernel's `transports` extension point; a mount is one adapter attached to the HTTP host for one app. |
@@ -140,10 +156,14 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 | **Namespace** | One event log, one set of framework tables and one copy of one app's tables on a placement: one per app on a shared-tables placement, one per tenant otherwise (section 14.2). |
 | **Unit** | One transaction on one namespace, opened for one storage scope (section 14.3.2). |
 | **Position** | A commit-ordered integer that orders the events of one scope inside a namespace; stream tokens, JMAP states and IMAP `MODSEQ` are positions (section 15.1.4). |
-| **Live source** | What a subscription reads: an entity's changes, pokes, command receipts, stream records, a topic or a custom iterable (section 15.4.2). |
+| **Live source** | What a subscription reads, built by its `source` as a description: an entity's changes, pokes, command receipts, stream records, a topic or the pending effects of an external performer; custom iterables exist only in kernel and listener code (section 15.4.2). |
 | **Stream token** | The resume token every resumable emitted item carries: `v1.<epoch>.<position>.<scope>.<check>` (section 15.2.6). |
 | **Control store** | The deployment-level database that holds backends, tenants, the scope directory, placements, namespaces, wrapped keys and migration history. |
 | **Placement** | Where a tenant's data lives: an adapter binding plus a strategy (shared tables with a tenant key, a schema per tenant, a database per tenant, a different adapter). |
+| **Node** | A host that runs pennestack processes (a machine, a virtual machine, a Docker engine), recorded as `core.node` (section 21.1); not a Launchway node, which is tenant data (section 21.8). |
+| **Named process** | An entry of `defineDeployment({ processes })`: roles, declared capabilities, slots per queue, placements, a provider and scaling limits, whose replicas the scaler counts (section 21.1). |
+| **Lane** | The unit of fairness of the kernel job queue: one per scope, queue, capability set and priority class, with a cap, a weight and a virtual time (sections 9.5.2 and 9.5.3). |
+| **Blind index** | The equality tag of a personal field: an HMAC of the normalised value under a field key derived from the tenant's index root key (or a per-subject key), stored beside the sealed column so that equality lookups and unique indexes work without decrypting; prefix, trigram, token and order tags extend the idea to the other declared capabilities (sections 14.7.9.2 and 14.7.9.6). |
 | **Operator endpoint** | The deployment-level entry (operator Unix socket and operator host names) where deployment-scope actions are served. |
 | **Receiver** | A mapping from an inbound webhook request (path, raw body, headers) to an action, filled into `transport-webhooks` (section 16.5.8). |
 
@@ -162,17 +182,22 @@ no business module. It provides:
   contract (section 9.5), the app-level extension points through which transports, resolvers and
   live carriers plug in, and the deployment-level extension points that hold the infrastructure
   (section 5.6);
-- the kernel write path: repositories, `decide` and `evolve`, merge rules, receipts and tokens,
-  written once against the data adapter contract (section 14.3);
+- the kernel write path, written once against the data adapter contract (section 14.3):
+  kernel-internal repositories, the interpreter that drives pure handlers and answers their
+  requests, kernel effects, `evolve`, merge rules, receipts, decision records and tokens; effect
+  records with their effect jobs and continuations; and a computation pool that runs Argon2id off the
+  event loop (section 7.9);
 - the implicit `core` module, which owns the control entities (`core.backend`, `core.tenant`,
   `core.domain`, `core.placement`, `core.namespace`, `core.operatorToken`, for versioning, rollouts
   and flags `core.process`, `core.rollout`, `core.flag`, `core.suspension` and `core.apiUsage`, and
   for nodes and scaling `core.node` and `core.scaleDecision`, with `core.process` also recording
   each process's provider, instance, slots, reserved connections, drain and interruption, section
-  21), the command receipts (`core.commandReceipt`), and the operator and client actions
-  (`core.introspect`, `core.me`, `core.capabilities`, `core.subjects.erase`, `core.retention.*`,
-  `core.tenant.enter`, `core.tenant.move`, `core.tenant.setApiVersion`, and `core.flag.*`:
-  `evaluate`, `restoreRules` and the operator actions behind `pennestack flags`; sections 18 to 20).
+  21), the command receipts (`core.commandReceipt`), the effect records (`core.effect`, one stream
+  per effect, with the attempt stream `core.effectAttempt`; section 7.9.6), and the operator and
+  client actions (`core.introspect`, `core.me`, `core.capabilities`, `core.subjects.erase`,
+  `core.retention.*`, `core.tenant.enter`, `core.tenant.move`, `core.tenant.setApiVersion`, and
+  `core.flag.*`: `evaluate`, `restoreRules` and the operator actions behind `pennestack flags`;
+  sections 18 to 20).
 
 Everything else is a module or an infrastructure entry in its own package. The two proof apps are
 compositions of such packages (section 17).
@@ -188,8 +213,8 @@ compositions of such packages (section 17).
   sees real client addresses on port 25, a host with a clean address for outbound mail, a process on
   the edge host), slots per queue, placements, a provider and scaling limits (section 21; gap G9
   keeps the singleton leases). A `work` process runs action jobs for the queues it slots, and effect
-  jobs only for executors whose capabilities it advertises (decision 50a; the exact contract is
-  specified in the pure-handlers section).
+  jobs only for executors whose capabilities it advertises (decision 50a; section 7.9.5 specifies
+  effects and their executors).
 - Processes share no memory. Coordination goes through the control store and the job queue, so
   any number of processes on any number of nodes can run the same role.
 - A process serves every backend of the deployment. Which backends exist, which app each runs,
@@ -205,10 +230,10 @@ The lifecycle is explicit and the same for every module. Phases run in this orde
 | Phase | Who runs | What happens |
 |---|---|---|
 | `compose` | `defineApp`, pure | Validates the module tuple at the type level and again at runtime (missing requirements and contracts, duplicate and reserved ids, conflicting fields, unknown contribution targets, dangling references, unknown execution overrides, identifier collisions), orders modules topologically by `requires` with tuple order as tie-break, applies contributions and conditional parts, builds the registry and derives the API surface. No I/O. |
-| `setup` | Each module, in order | Receives the final registry and its own resolved definition; may register derived artefacts (projections, indexes, schedules). Transports run their `check` against the surface. Runs before any adapter connects. |
+| `setup` | Kernel, for each module in order | Registers what each module declares against the final registry: projections, indexes, schedules, effects and their executors. Module code does not run: modules only declare parts (section 7.9.1). Transports run their `check` against the surface. Runs before any adapter connects. |
 | `connect` | Kernel | Opens the infrastructure listed in `defineDeployment` (data adapters, the control store, blob stores, secret providers, the ledger sink), verifies that it provides every deployment-level contract the apps require, then opens the placements the enabled backends need and validates adapter capabilities against the modules' data needs (section 14.3.3). Replays the erasure ledger and checks namespace epochs (section 14.7.6). Registers the process in `core.process` and compares its build manifest with `core.rollout`: it joins the finalized revision or the target, or refuses to start with `buildTooOld` or `targetConflict` (section 19.1). Runs the capability probes of its named process (section 21.2) and reserves its connection pool from each placement's budget, refusing to start with `connectionBudget` when a budget is spent (section 21.3). |
 | `migrate` | Kernel | In development: plans and applies the schema diff per namespace, confirming destructive steps. In production: verifies that the applied history matches the committed migration files and refuses to start on drift. |
-| `start` | Each module, in order | Starts background work (queue workers, the reaction dispatcher, projections, schedules). Runs after data is available and before any listener accepts traffic. |
+| `start` | Kernel, for each module in order | Starts the background work the modules declared: queue workers for their queues and executors, the reaction dispatcher, projections, schedules. Runs after data is available and before any listener accepts traffic. |
 | `listen` | Kernel | The HTTP host mounts each app's transports and the invocation protocol; listener modules start on the ports the deployment binds. The process reports ready and is marked `ready` in `core.process`. |
 | `stop` | Reverse order | The drain of section 21.6: the process is marked `draining` with a deadline (`processes.<name>.drainSeconds`, default 60, or a termination notice's if sooner) and stops taking jobs; listeners stop accepting, live streams end with `going_away`, consumer and singleton leases are released, and in-flight invocations and running jobs continue; at the deadline unfinished jobs are released; modules stop in reverse order, infrastructure closes, and the process deregisters and exits with code 0. |
 
@@ -217,45 +242,57 @@ stops (section 19.1).
 
 Two runtime hooks exist beside the process lifecycle, because backends and tenants are created
 while the process runs: `onBackendCreated(backend)` and `onTenantCreated(tenant)` (and their
-`...Retired` counterparts). They run as reactions of the module's service principal. A module uses
-them to provision per-tenant data (a mailbox root, a default team), never to run migrations:
-tenant creation is a data operation, the schema is already there.
+`...Retired` counterparts). They are pure reactions (`defineHook`, section 7.9.2) that run under the
+module's service principal and return a decision: events that provision per-tenant data (a mailbox
+root, a default team) and effects the kernel performs, never migrations: tenant creation is a data
+operation, the schema is already there.
 
 ### 3.4 Wiring: explicit, no container
 
 There is no dependency-injection container, no decorators and no reflection. A module's code
-reaches what it needs through the typed **context** (section 7.6), and that context is computed
-from the module alone: `ActionContext<M>` depends on the module's own definition, its `requires`
-and `optional` lists and the contracts it declares, never on an app. Module packages are compiled
-and type-checked once, before any app that selects them exists, and several apps share them; a
-handler type that depended on the app would need an import of the app from the module package,
-which is a cycle. Concretely, the context is computed from the module base (section 4.1), the
-value every part is typed against.
+reaches what it needs through the typed **context** parameter (section 7.6), and that context is
+computed from the module alone: `DecideContext<M>` and its query, source and executor siblings
+depend on the module's own definition, its `requires` and `optional` lists and the contracts it
+declares, never on an app. Module packages are compiled and type-checked once, before any app that
+selects them exists, and several apps share them; a handler type that depended on the app would need
+an import of the app from the module package, which is a cycle. Concretely, the context is computed
+from the module base (section 4.1), the value every part is typed against. Handlers are pure
+(section 7.9): in a decision every member of `ctx` is a value, a pure function or a request or draft
+constructor, and the kernel performs what the handler yields and returns.
 
-- `ctx.data.<module>.<entity>`: repositories for the module's own entities (full rows, with the
-  module's own authority), and read access to the entities of modules it `requires` (typed as
-  present) or lists as `optional` (typed as possibly undefined). Writes to another module's
-  entity are limited to the fields this module contributed to it; anything else goes through that
-  module's actions or services (section 8.4).
-- `ctx.services.<module>.<name>`: service functions of the module's dependencies, bound by the
-  kernel to the providing module's context (section 5.5); call sites pass no context. Parts are
-  typed against the module base, which holds no services, so a module's own code calls the `lib/`
+- `ctx.load.<module>.<entity>`: request constructors for loads of the module's own entities (full
+  rows, with the module's own authority) and of the entities of modules it `requires` (typed as
+  present) or lists as `optional` (typed as possibly undefined); `.forCaller()` narrows a load to
+  the caller's plan. `ctx.write.<module>.<entity>`: draft constructors for the module's own entities
+  and, on another module's entity, for the fields this module contributed to it; anything else goes
+  through that module's actions or services (section 8.4). Handlers yield loads and return drafts;
+  the kernel reads and writes (section 7.9.2).
+- `ctx.services.<module>.<name>`: pure service functions of the module's dependencies, bound by the
+  kernel to the providing module's context (section 5.5); they return values, requests or
+  generators that callers delegate to with `yield*`, and call sites pass no context. Parts are typed
+  against the module base, which holds no services, so a module's own code calls the `lib/`
   functions its services wrap.
 - `ctx.extensions.<name>`: the values other modules contributed to this module's extension points,
-  with behavioural values already bound to their contributor's context (section 5.5).
-- `ctx.invoke(action, input)`: actions of the module itself, passed by value as the part
-  (`ctx.invoke(revokeSubject, input)`), and actions of its required modules, named by reference
-  (`ctx.invoke('accounts.profile.get', input)`), run through the invoker under the current
-  principal with their declared execution mode, joining the current unit when they share its
-  scope; `ctx.enqueue` runs a command after commit and returns its receipt (section 7.6).
-- `ctx.flags`: the flags of the module and of the modules it requires (the `when` modules included
-  inside a conditional part), typed and read from one snapshot per invocation (section 20.3).
-- `ctx.live`, `ctx.blobs`: present when the module requires the `live` or `blobs` contract,
-  possibly undefined when it lists the contract as `optional`, absent otherwise (section 5.2).
+  with behavioural values already bound to their contributor's pure context (section 5.5).
+- Invocations are effects. A decision returns `invoke(action, input)` for actions of the module
+  itself, passed by value as the part (`invoke(revokeSubject, input)`), and for commands of its
+  required modules, named by reference (`invoke('accounts.profile.archive', input)`); the kernel
+  runs them through the invoker under the current principal with their declared execution mode, a
+  synchronous command of the same scope in a savepoint after the decision's events, and its result
+  does not return to the caller. `enqueue(action, input)` runs a command after commit, in any scope
+  (sections 7.6 and 7.9.5). A dependency's query is a request,
+  `ctx.ask('accounts.profile.get', input)`, answered inside the unit.
+- `ctx.flags`: flag requests for the flags of the module and of the modules it requires (the `when`
+  modules included inside a conditional part), typed, answered from one snapshot per invocation and
+  recorded in the envelope (section 20.3).
+- `ctx.live`: present in subscription sources when the module requires the `live` contract, possibly
+  undefined when it lists the contract as `optional`, absent otherwise; it builds source
+  descriptions (section 15.4). The `blobs` contract gives effect executors and listeners their blob
+  access (`ExecutorContext.blobs`); handlers hold `BlobRef` values (section 5.2, gap G5).
 
 Inside a conditional part, the `when` modules count as required, so a reaction typed with
-`within(authBase, whenAccounts)` sees `ctx.data.accounts` as present. Module ids with hyphens appear in
-lower camel case in the context (`ctx.data.mailStore`, `ctx.services.apiKeys`), while references
+`within(authBase, whenAccounts)` sees `ctx.load.accounts` as present. Module ids with hyphens appear in
+lower camel case in the context (`ctx.load.mailStore`, `ctx.services.apiKeys`), while references
 keep the id (`mail-store.email.get`); a camel-case collision between two selected modules is a
 compose error (section 5.1).
 
@@ -297,7 +334,8 @@ A module is written as object literals, never as a builder chain. Three kinds of
 - **parts**, one literal each, typed against the base: `defineCommand`, `defineQuery` and
   `defineSubscription` (section 4.3), `definePolicy` (section 4.4), `defineReaction` and
   `defineProcess` (section 7.7), `defineService` and `defineFill` (section 5.5), `defineSchedule`
-  (section 9.5), `defineTopic` (gap G6) and `defineHook` (section 3.3);
+  (section 9.5), `defineTopic` (gap G6), `defineHook` (section 3.3), and `defineEffect` and
+  `defineEffectExecutor` (section 7.9.5);
 - the **module literal**, `defineModule(base, { ... })`, which mounts the parts and is the module
   value apps select.
 
@@ -329,7 +367,7 @@ const authBaseDef = defineModuleBase({
 export interface AuthBase extends ModuleBaseType<typeof authBaseDef> {}
 export const authBase: AuthBase = authBaseDef
 
-// A part: one literal, typed against the base. ctx is ActionContext<AuthBase>; current is the credential row.
+// A part: one literal, typed against the base. ctx is DecideContext<AuthBase>; current is the credential row.
 export const revoke = defineCommand(authBase, credential, {
   input: shape({ reason: field.string().optional() }),
   decide: (input, current, ctx) => [ctx.events.revoked({ at: ctx.clock.now(), reason: input.reason })],
@@ -341,13 +379,15 @@ const authDef = defineModule(authBase, {
   entityActions: { credential: { revoke } },             // actions mounted on own entities
   policies: [credentialPolicy, loginPolicy],             // section 4.4
   reactions: {},                                         // event handlers; keys are reaction ids (section 7.7)
-  services: { verifyPassword, hashPassword },            // typed functions for dependants, section 5.5
+  services: { verifyPassword, hashPassword },            // pure, typed functions for dependants, section 5.5
   topics: {},                                            // gap G6
   contributes: { toAccounts: { entityActions: { profile: { changePassword } }, policies: [profilePolicy] } },   // section 5.3
   conditional: { whenAccounts: { reactions: { revokeOnDeactivation } } },                                      // section 5.4
   schedules: {},                                         // keys are schedule ids (section 9.5)
   lifecycle: { onTenantCreated },                        // hooks of section 3.3
   changes: {},                                           // version changes; keys are the ids the API ledger records (section 18.2)
+  effects: {},                                           // external effects the module declares; keys are effect names (section 7.9.5)
+  executors: {},                                         // their executors, keyed by effect name: the only imperative module code
 })
 
 // Every exported module value and its base have a named type (section 13.11): dependants' declaration
@@ -372,9 +412,10 @@ versions are a `defineApiVersions` value (section 18.2).
   literal accepts it only where both match: `entityActions: { session: { revoke } }` fails at
   compile time and at boot. `defineModule` records each part's reference, so the registry resolves
   the value `revoke` to `auth.credential.revoke`.
-- **Keys.** The keys of `actions`, `entityActions`, `reactions`, `schedules`, `topics` and `changes`
-  are ids: renaming an action changes the API, and reaction, schedule and version-change ids never
-  change once released. `policies` is an array, because a rule set is identified by its rules' ids.
+- **Keys.** The keys of `actions`, `entityActions`, `reactions`, `schedules`, `topics`, `changes`,
+  `effects` and `executors` are ids: renaming an action changes the API, and reaction, schedule,
+  effect and version-change ids never change once released (an effect's name is part of its
+  records, section 7.9.6). `policies` is an array, because a rule set is identified by its rules' ids.
 - **Contributions and conditional parts** have two halves under one key: the base's
   `contributions` and `conditions` hold the declarations with the data they add, and the module
   literal's `contributes` and `conditional` hold the behaviour. Entries that share a (target,
@@ -385,8 +426,9 @@ literals and never a builder chain. The first design used a chain because its ca
 handlers from sibling declarations, which a single object literal cannot do: TypeScript cannot type
 a property from its siblings. The base makes the chain unnecessary, because every part is typed
 against a value that exists before it: `defineCommand(authBase, credential, { ... })` takes
-`ctx.data`, `ctx.config`, `ctx.flags`, the row and the event constructors from `authBase` and
-`credential` alone, and the module literal only mounts values whose types are complete.
+`ctx.load`, `ctx.write`, `ctx.config`, the flag requests, the row and the event constructors from
+`authBase` and `credential` alone, and the module literal only mounts values whose types are
+complete.
 `defineModule(base, { ... })` normalises the base and the literal into the module shape of
 section 4.7, which is all `defineApp` ever sees; the type-level model is unchanged. Because the
 base holds no services, a part's `ctx.services` lists only its dependencies' services, and a
@@ -459,7 +501,7 @@ and columns. The core defines the kinds and the modifiers; section 14.5.1 maps t
 | `field.richText()` | `RichText` (an opaque document handle) | merge `richText`; an app needs a codec module (section 15.3.9) |
 | `field.binary()` | `Uint8Array` | small payloads; large ones are blobs |
 | `field.blob({ mediaType, maxBytes })` | `BlobRef` | a reference into a blob store; requires the `blobs` contract (gap G5) |
-| `field.secret()` | entity fields: `SecretRef` in process; action inputs: `string`; write-only at the boundary | entity fields are sealed per value and read only through `ctx.secrets.reveal` (section 6.6); input values are redacted from logs, traces, receipts and errors |
+| `field.secret()` | entity fields: `SecretRef` in process; action inputs: `string`; write-only at the boundary | entity fields are sealed per value and read only through a reveal request (`yield* ctx.secrets.reveal(ref, reason)`) or, in an effect executor, `ctx.secrets.reveal` (sections 6.6 and 7.9.3); input values are redacted from logs, traces, receipts and errors |
 | `field.verifier()` | `string`, hidden | a one-way verifier (password hash, token verifier); sealed per value in events (section 6.6) |
 
 Modifiers, all chainable and all reflected in the type: `.optional()`, `.default(value)`,
@@ -512,7 +554,7 @@ export const revoke = defineCommand(authBase, credential, {
 export const active = defineQuery(authBase, credential, {
   input: shape({ subject: field.subject() }),
   output: pageOf(credential),                            // a page of rows, cursor pagination
-  handle: (input, ctx) => ctx.target.query({             // the entity as the caller may read it under this action's rules
+  read: (input, ctx) => ctx.target.query({               // a query description over the entity as the caller may read it under this action's rules
     where: { subject: input.subject, revokedAt: { isNull: true } },
     sort: [{ field: 'createdAt', direction: 'desc' }],
   }),
@@ -525,11 +567,11 @@ export const login = defineCommand(authBase, {
   auth: { public: true },                                // no principal required; still scoped to a tenant
   execution: 'sync',
   hints: { http: { cookie: { set: { name: '__Host-pennestack_session', from: 'sessionToken', expiresFrom: 'expiresAt' }, omitFromBody: ['sessionToken'] } } },
-  handle: async (input, ctx) => { /* section 17.2 */ },
+  *decide(input, ctx) { /* a generator: yields the credential load, the Argon2id check, an id and a token; returns the session's events (section 7.9.8) */ },
 })
 
-// principalShape and summarise() are module-local helpers, not framework exports
-export const whoami = defineQuery(authBase, { output: principalShape, principal: 'user', handle: (_, ctx) => summarise(ctx.principal) })
+// principalShape and summarise() are module-local helpers, not framework exports; read returns the output itself
+export const whoami = defineQuery(authBase, { output: principalShape, principal: 'user', read: (_, ctx) => summarise(ctx.principal) })
 
 // The subscription exists only when a live module is selected: a part of the conditional part whenLive.
 export const sessionEvents = defineSubscription(within(authBase, whenLive), {
@@ -543,13 +585,16 @@ export const sessionEvents = defineSubscription(within(authBase, whenLive), {
 })
 ```
 
-`handle` is the imperative form (runs inside a transaction for commands; reads through `ctx.data`
-for queries). `decide` is the pure form for commands on chain-backed entities: it receives the
-full current row, returns events, and the kernel appends them, evolves the state and returns it.
-`source` builds a subscription's frames; `mapItems` changes items and keeps stream tokens and
-control frames, so the subscription stays resumable. `pageOf(entity)` and `rowOf(entity)` are the
-output shapes of entity rows, which the shape stage masks (section 8.4). Section 7 defines the full
-option set.
+Every handler is pure (section 7.9). A command's `decide` is a plain function or a generator: it
+yields requests with `yield*` (loads, flags, ids, computations) and returns a decision, events alone
+or `{ events, effects, result }`; mounted on an entity it also receives the full current row, and
+the kernel appends the events, evolves the state and returns the row. A synchronous command may add
+`prepare`, the only place for inline effects (section 7.9.4). A query's `read` returns a query
+description, which the kernel plans and runs, or the output itself, or is a generator that yields
+loads first. The imperative `handle` form no longer exists. `source` builds a subscription's source
+description; `mapItems` changes items and keeps stream tokens and control frames, so the
+subscription stays resumable. `pageOf(entity)` and `rowOf(entity)` are the output shapes of entity
+rows, which the shape stage masks (section 8.4). Section 7 defines the full option set.
 
 ### 4.4 Policies
 
@@ -596,9 +641,11 @@ export const whoamiPolicy = definePolicy(authBase, whoami, [{ effect: 'allow', p
 
 Entity rules carry a `where` condition over the row acted on (compiled to the data layer and
 interpreted in memory) and an optional `check` over the row an action produces; module-level
-rules carry a `when` predicate over context and input. An interpolated `null` or `undefined` never
-matches; null tests use `isNull` (section 8.3). Semantics and composition are in section 8. A
-contribution can add rules to another module's entities (section 5.3).
+rules carry a `when` predicate over context and input. Rule callbacks are plain pure functions of
+the principal context: they yield nothing, and the flags they read come from the invocation's
+snapshot (section 7.9.2). An interpolated `null` or `undefined` never matches; null tests use
+`isNull` (section 8.3). Semantics and composition are in section 8. A contribution can add rules to
+another module's entities (section 5.3).
 
 ### 4.5 `defineApp`
 
@@ -676,13 +723,17 @@ export default defineDeployment({
   rollout: { finalize: 'auto', graceSeconds: 600 },        // the defaults: finalization of rolling upgrades (section 19.4)
   processes: { home: { roles: ['serve', 'work'], slots: { '*': 4 } } },   // named processes (section 21.1)
   scaling: { maxProcesses: 8 },                            // the scaler's deployment-wide limits (section 21.4)
+  queues: { 'mail-delivery': { running: 4, slo: 'PT2M' } },   // job limits per queue; slo: an ISO 8601 duration (sections 9.5.5 and 21.4)
 })
 ```
 
 A deployment names the apps it can run; backends are rows in the control store that reference an
 app id. Creating a backend with a module selection that no app in the catalogue has means adding a
 `defineApp` line and deploying, which is a configuration change, not a kernel change. The
-alternative, selecting modules at runtime, cannot have exact types and is rejected (ADR 0003).
+alternative, selecting modules at runtime, cannot have exact types and is rejected (ADR 0003);
+Jens decided for the compiled catalogue on 2026-10-25 (decision point 1, section 26), on the
+condition that development always has the full, exact types of the app being built, which section
+4.5 guarantees per app.
 
 `defineDeployment` checks, at the type level and again at boot, that its infrastructure provides
 every deployment-level contract any app's modules require (`missingInfrastructure: 'blobs'`). The
@@ -693,7 +744,11 @@ declares its named processes (`processes.<name>` with `roles`, `capabilities`, `
 `maxProcesses`, `maxCostPerHour` and maxima per provider), the job limits per queue (`queues.<q>`:
 `running`, `queued` and `slo`) and each placement's connection budget
 (`placements.<name>.maxConnections`, default 80 percent of the server's `max_connections`); sections
-9.5.5, 21.1, 21.3 and 21.4 specify them. Secret providers default to the process environment. The
+9.5.5, 21.1, 21.3 and 21.4 specify them. `queues.<q>.slo` is the target wait of the queue's due
+jobs, from due to start, written as an ISO 8601 duration like every duration in this document's
+configuration (default `PT30S`): `queues: { 'mail-delivery': { slo: 'PT2M' } }` asks the scaler to
+start a due delivery within two minutes, and the scaler reads it in seconds (`sloSeconds`, section
+21.4). Secret providers default to the process environment. The
 conventional entry file is `pennestack.config.ts` with a default export; `--config` and
 `PENNESTACK_CONFIG` name another (section 16.9.1).
 
@@ -1159,7 +1214,7 @@ thing:
 | `Readable<R>` | a row as a transport or client receives it: maskable fields optional (section 8.1) |
 | `AppActionTree<App>` | module, then entity, then action: kind, input, output, errors, events and effective execution |
 | `ActionRef<App>` | the union of every action reference of an app |
-| `ActionContext<M>`, `DataOf<M>`, `InvokableRefs<M>`, `LiveQueries<M>`, `SqlTables<M>` | module-local types, independent of any app (section 7.6) |
+| `DecideContext<M>`, `ReadContext<M>`, `SourceContext<M>`, `ExecutorContext<M>`, `LoadsOf<M>`, `WritesOf<M>`, `InvokableRefs<M>`, `LiveQueries<M>`, `SqlTables<M>` | module-local types, independent of any app (sections 7.6 and 7.9.7) |
 | generated event names | `created`, `changed`, `archived`, `restored`, `erased`; `snapshot` and `imported` are kernel-only |
 | `version` | the stream version of a row |
 | position | the commit order of events within one scope of a namespace (section 15.1.4) |
@@ -1167,31 +1222,38 @@ thing:
 Spike checklist, to be run before any M1 code is written (roadmap M0):
 
 1. The module base and the parts typed against it: `defineCommand`, `defineQuery`,
-   `defineSubscription`, `definePolicy`, `defineReaction`, `defineService` and the other part
-   functions over a base, and `within(base, declaration)` for parts of contributions and
-   conditional parts, each handler typed with `ActionContext<Base>`; parts in separate files that
-   never import their module; `defineModule(base, { ... })` producing the same normalised module
-   type as the module written in one file; own actions invoked by value.
-2. Module-local contexts: `DataOf<M>` (own rows with hidden fields and `SecretRef`, dependency rows
-   without them, patches of contributed fields only), `InvokableRefs<M>`, `when` modules of a
-   conditional part treated as required, `ctx.live` and `ctx.blobs` from contracts, and a type
-   test that compiles each module with no app in scope.
-3. Self-typed field modifiers that preserve every flag: optional, default, unique and `exclusive`,
+   `defineSubscription`, `definePolicy`, `defineReaction`, `defineService`, `defineEffect`,
+   `defineEffectExecutor` and the other part functions over a base, and `within(base, declaration)`
+   for parts of contributions and conditional parts, each handler typed with its context over the
+   base (`DecideContext<Base>` and its siblings); parts in separate files that never import their
+   module; `defineModule(base, { ... })` producing the same normalised module type as the module
+   written in one file, with the `effects` and `executors` mounts; own actions invoked by value in
+   `invoke` effects.
+2. Module-local contexts: `LoadsOf<M>` (own rows with hidden fields and `SecretRef`, dependency rows
+   without them) and `WritesOf<M>` (drafts of own entities, patches of contributed fields only),
+   `InvokableRefs<M>`, `when` modules of a conditional part treated as required, `ctx.live` from
+   the contract in subscription sources, and a type test that compiles each module with no app in
+   scope.
+3. Pure handlers (section 7.9): generator handlers typed per request through `yield*` (each answer
+   typed by its request, a bare `yield` rejected), handler types that exclude promises (an `async`
+   `decide` is a compile error), `ctx.all` with `const` type parameters giving tuple answers, and
+   continuation inputs typed by `outcomeOf(effect, extra)`.
+4. Self-typed field modifiers that preserve every flag: optional, default, unique and `exclusive`,
    hidden, maskable, merge type, personal subject, `stateOnly`, tag.
-4. Own references in entities and in contributions, as the listing resolves them.
-5. The core module always prepended, with reserved ids.
-6. Generated actions computed from `generated`, the history mode and the closed template set
+5. Own references in entities and in contributions, as the listing resolves them.
+6. The core module always prepended, with reserved ids.
+7. Generated actions computed from `generated`, the history mode and the closed template set
    (`watch`, `history`), with `watch` typed as `EntityChange<Row>` per entity and gated on the
    filling module.
-7. `defineApp` with app actions, a `const` execution map validated against command references,
+8. `defineApp` with app actions, a `const` execution map validated against command references,
    and the authorization and policy options.
-8. `AppActionTree` with input, output, error and event types derived from field-model shapes;
+9. `AppActionTree` with input, output, error and event types derived from field-model shapes;
    `Insert`, `Patch`, `OfflinePatch` and `PatchValue`.
-9. Declaration emit of every example module and both proof apps under the pnpm layout:
-   `.d.ts` size per module, and no TS7056, TS2742 or TS4023.
-10. Instantiation budgets set on synthetic apps of 25 and 40 modules (the proof apps have 25 and
-    26 modules), with every part typed against its base, and the cost of that typing (one
-    `ActionContext<Base>` per part) compared with the same modules written in one file each.
+10. Declaration emit of every example module and both proof apps under the pnpm layout:
+    `.d.ts` size per module, and no TS7056, TS2742 or TS4023.
+11. Instantiation budgets set on synthetic apps of 25 and 40 modules (the proof apps have 25 and
+    26 modules), with every part typed against its base, and the cost of that typing (one context
+    type over the base per part) compared with the same modules written in one file each.
 
 Budget: measured on 2026-10-11 with this listing on synthetic apps in which every module has two
 entities of four fields, two entity actions, a module action, a contribution and a conditional
@@ -1267,12 +1329,13 @@ export const contracts = {
   httpHost: defineContract<TransportHost>('httpHost', 'deployment'),   // required by HTTP transport modules
 }
 
-defineModule({ id: 'mail-store', requires: [mailDomains, contracts.blobs], ... })   // ctx.blobs is present
+defineModule({ id: 'mail-store', requires: [mailDomains, contracts.blobs], ... })   // its executors and listeners get blobs; handlers hold BlobRefs
 defineModule({ id: 'live', provides: [contracts.live], ... })                       // the live module
 ```
 
 - A module lists contracts in `requires` or `optional` like modules; the context types the
-  matching member (`ctx.live`, `ctx.blobs`) as present, possibly undefined, or absent.
+  matching member as present, possibly undefined, or absent: `ctx.live` in subscription sources,
+  `blobs` in the module's effect executors and listeners (section 7.9.5).
 - App-level contracts are provided by a selected module that declares `provides`; `defineApp`
   reports an unprovided one as `missingModules`. Deployment-level contracts are provided by
   infrastructure entries; `defineDeployment` reports `missingInfrastructure` (section 4.7).
@@ -1281,14 +1344,16 @@ defineModule({ id: 'live', provides: [contracts.live], ... })                   
 - A contract provided by more than one selected module is a boot error unless the contract
   declares itself `set`-valued; this and empty required extension points are the cardinality
   checks of gap G14 (section 5.5).
-- The kernel's own capabilities (the job queue and timers, secrets, the key service, the clock)
-  are always present and need no contract.
+- The kernel's own capabilities (the job queue and timers, secrets, the key service, the clock,
+  the computation pool) are always present and need no contract; handlers reach them through
+  requests and kernel effects (section 7.9).
 
 Toggling: a module can be switched off on its own unless another selected module `requires` it;
 then both go together. This is how "any module can be selected or toggled independently" is met
 without typing absent things as present: soft influence uses `optional`, contributions and
-conditional parts, and only genuine needs use `requires`. Section 26 lists this reading as a
-decision point.
+conditional parts, and only genuine needs use `requires`. Jens accepted this reading on 2026-10-25
+(decision point 2, section 26): hard dependencies stay, and a module switches off together with its
+dependants.
 
 ### 5.3 Contributions to other modules
 
@@ -1368,13 +1433,12 @@ export const whenAccounts = defineCondition([accounts], {
   entities: { credential: { fields: { profileId: field.ref(accounts, 'profile').optional() } } },
 })
 // modules/auth/src/conditional/when-accounts/reactions/revoke-on-deactivation.ts
-// runs in the producing transaction, under auth's service principal auth.system (section 7.7)
+// decides in the producing unit, under auth's service principal auth.system (section 7.7); the kernel
+// runs the invocation in a savepoint of the same unit
 export const revokeOnDeactivation = defineReaction(within(authBase, whenAccounts), {
   on: 'accounts.profile.deactivated',
   timing: 'inline',
-  handle: async (event, ctx) => {
-    await ctx.invoke(revokeSubject, { subject: event.state.id, reason: 'profile deactivated' })   // an own action, by value
-  },
+  react: (event) => ({ effects: [invoke(revokeSubject, { subject: event.state.id, reason: 'profile deactivated' })] }),   // an own action, by value
 })
 // modules/auth/src/module.ts: conditional: { whenAccounts: { reactions: { revokeOnDeactivation } } }
 ```
@@ -1383,10 +1447,10 @@ With contributions (push: a module adds to another) and conditional parts (self-
 another is present), both directions of influence are expressible with a single direction of
 import. The rule: **the lower module publishes contracts (entities, events, extension points);
 the higher module imports it, contributes to it and adapts itself to it.** Inside a conditional
-part the `when` modules count as required, so the reaction above may read `ctx.data.accounts`
-and invoke accounts actions. Like a contribution, a conditional part has its declaration and data
-in the base and its behaviour in the module literal, under one key, merged by its `when`
-identity.
+part the `when` modules count as required, so the reaction above may load `ctx.load.accounts` and
+return `invoke` effects for accounts' commands. Like a contribution, a conditional part has its
+declaration and data in the base and its behaviour in the module literal, under one key, merged by
+its `when` identity.
 
 For the accounts and authentication pair, accounts is lower (a directory of people needs no
 login; a credential store needs no profiles). Section 17.2 specifies both modules.
@@ -1409,14 +1473,14 @@ declaration merging. [api-sketch.ts](api-sketch.ts) shows the pair in full.
 ```ts
 import { extensionPoint } from '@pennestack/core'
 
-interface IdentityProvider { readonly id: string; readonly label: string; listFor(profileId: Id<'accounts.profile'>): Promise<readonly IdentitySummary[]> }
+interface IdentityProvider { readonly id: string; readonly label: string; listFor(profileId: Id<'accounts.profile'>): Gen<readonly IdentitySummary[]> }
 
 // Declared by accounts:
 extensionPoints: { identityProviders: extensionPoint<IdentityProvider>({ mode: 'set' }) }
-// Read by accounts, typed as readonly IdentityProvider[]:
+// Read by accounts, typed as readonly IdentityProvider[]; a query's read delegates with yield* p.listFor(id):
 ctx.extensions.identityProviders
 // Filled by auth, without accounts importing auth. A value that carries behaviour is a factory of
-// the contributor's own context, so listFor reads auth.credential with auth's authority:
+// the contributor's own pure context, so listFor loads auth.credential with auth's authority:
 export const identityProvidersFill = defineFill(within(authBase, toAccounts), 'identityProviders', (own) => [passwordProvider(own), passkeyProvider(own)])
 // mounted in auth's module literal: contributes: { toAccounts: { extensionPoints: { identityProviders: identityProvidersFill } } }
 // A filler typed outside defineFill names the value type through the declaring module's type:
@@ -1432,22 +1496,26 @@ is a TypeScript type; a value-level schema is optional and used when the filler 
 rather than code.
 
 Binding (gap G16): a filler that carries behaviour is a factory `(own) => value`. The kernel
-instantiates it per invocation with a context derived for the contributing module: the same
-scope, principal, unit, trace and clock, with the contributor's data authority, services,
-configuration and secrets. The declaring module sees ready instances. Plain data values (labels,
-menu entries) stay plain values.
+instantiates it per invocation with the contributor's pure context: the same scope, principal,
+trace and invocation time, with the contributor's load authority, write boundary, configuration,
+services and secret requests, and no unit of its own. A bound value returns values, requests or
+generators, never promises: its requests are answered in the invocation's unit, and its drafts and
+effects join the caller's decision (section 7.9.2). The declaring module sees ready instances. Plain
+data values (labels, menu entries) stay plain values.
 
-Services follow the same rule. `defineService(base, fn)` declares a function a module offers to
+Services follow the same rule. `defineService(base, fn)` declares a pure function a module offers to
 its dependants, mounted under the module literal's `services`; the kernel binds each to the
-providing module's context, so a service reads the provider's tables with the provider's
-authority and the provider's configuration, never the caller's. Call sites pass no context:
+providing module's context, so a service loads the provider's tables with the provider's authority
+and reads the provider's configuration, never the caller's, and returns a value, a request or a
+generator (drafts and effects included) for the caller's decision. Call sites pass no context and
+delegate with `yield*`:
 
 ```ts
-// modules/auth/src/services/verify-password.ts: wraps lib/verify-argon2id.ts
-export const verifyPassword = defineService(authBase, async (own, verifier: string, password: string) => verifyArgon2id(verifier, password))
+// modules/auth/src/services/verify-password.ts: Argon2id is a computation of the core, answered off the event loop (section 7.9.3)
+export const verifyPassword = defineService(authBase, (own, verifier: string | undefined, password: string) => own.compute.argon2idVerify(verifier ?? DUMMY_VERIFIER, password))
 // modules/auth/src/module.ts: services: { verifyPassword }
-// in a dependant:
-const ok = await ctx.services.auth.verifyPassword(cred.verifier, input.password)
+// in a dependant's generator decide:
+const ok = yield* ctx.services.auth.verifyPassword(cred?.verifier, input.password)
 ```
 
 A module's own parts do not see its services, because the base they are typed against does not
@@ -1456,7 +1524,7 @@ hold them; they call the `lib/` function a service wraps (section 23.5). The cor
 declaring module's type, so module packages need no subpath exports for contract types.
 
 Binding never widens the principal: a bound service or filler runs under the caller's principal,
-so actions it invokes are gated as the caller's, and the data authority it uses is the
+so the `invoke` effects it returns are gated as the caller's, and the load authority it uses is the
 provider's authority over the provider's own entities (section 8.4).
 
 ### 5.6 Kernel and deployment extension points
@@ -1486,14 +1554,14 @@ and a placement serves every app it hosts.
 | app | `liveHub` | `LiveHub` (section 15.4.11); provides `contracts.live` | single | `live` |
 | app | `liveCarriers` | `LiveCarrier` (SSE, WebSocket) | set | `live` |
 | app | `entityActionGenerators` | a template from the core's closed set (`watch`) added to every entity | set | `live` |
-| app | `principalResolvers` | `PrincipalResolver` | ordered | core (operator, receivers), `auth` (sessions, passkeys), `api-keys` |
-| app | `principalEnrichers` | `PrincipalEnricher` (roles, memberships) | set | `accounts`, `members` |
-| app | `invocationMiddleware` | `Middleware` around the pipeline stages | ordered | rate limiting, audit, request logging |
-| app | `ruleSources` | `RuleSource` (runtime-defined policy rules) | set | a later tenant-admin module |
+| app | `principalResolvers` | `PrincipalResolver`: from module fillers a pure generator over the carrier that yields loads and secret verifications and returns the principal (section 17.2.4) | ordered | core (operator, receivers), `auth` (sessions, passkeys), `api-keys` |
+| app | `principalEnrichers` | `PrincipalEnricher` (roles, memberships): a pure generator of loads | set | `accounts`, `members` |
+| app | `invocationMiddleware` | `AdmissionRule`: a pure function or generator run at `admit` that returns the token buckets to consume, or a refusal (section 12.2); module code never wraps pipeline stages | ordered | `auth` (login rate limits, section 17.2.6), `api-keys`; request logging and telemetry are kernel code |
+| app | `ruleSources` | `RuleSource` (runtime-defined policy rules): a pure generator of loads returning rules | set | a later tenant-admin module |
 | app | `crdtCodecs` | `CrdtCodec` (section 15.3.9) | set | `crdt-loro` |
 | app | `schedules` | `Schedule` (section 9.5) | set | modules through the `schedules` key of their module literal |
-| app | `flagContextEnrichers` | `FlagContextEnricher`: attributes for flag rules, once per session (section 20.3) | set | modules; bound to their contributor (gap G16) |
-| app | `flagObservers` | `FlagObserver`: sees each flag evaluation of an invocation (section 20.5) | set | `experiments`; bound to its contributor (gap G16) |
+| app | `flagContextEnrichers` | `FlagContextEnricher`: a pure generator of loads returning attributes for flag rules, once per session (section 20.3) | set | modules; bound to their contributor (gap G16) |
+| app | `flagObservers` | `FlagObserver`: a pure function of an invocation's flag evaluations that returns the drafts to record (section 20.5) | set | `experiments`; bound to its contributor (gap G16) |
 
 ```ts
 export const graphql = defineTransportModule({ id: 'graphql', requires: [contracts.httpHost], transport: graphqlAdapter })
@@ -1507,13 +1575,24 @@ selects its transports by listing those modules in its tuple, exactly like any o
 event store is part of the data adapter's unit, so there is no separate event-store extension
 point (section 14.3.1).
 
+Purity decides what each point may hold (section 7.9.1). Kernel points that ordinary modules fill
+take pure values: resolvers and enrichers are generators of loads (and of secret verifications),
+admission rules return the buckets to consume, flag observers return drafts, and the kernel
+answers and applies what they return. Imperative values stay where imperative code is allowed:
+the deployment-level infrastructure points (`dataAdapters`, `queue`, `blobStores`, `httpHost`,
+`secretProviders`, `ledgerSinks`, `flagProviders`, `capabilityProbes`, `nodeProviders`) and the
+app-level points that transport and listener modules fill (`transports`, `listeners`, `liveHub`,
+`liveCarriers`).
+
 ### 5.7 Module configuration and secrets
 
 `config: shape({...})` declares what a backend must provide to run the module. Values are stored
 in the control store per backend, optionally overridden per tenant, validated at creation and at
 change, and exposed as `ctx.config` (typed). Fields declared with `field.secret()` are sealed by the
 key service under the backend's key (or the tenant's, for tenant overrides) and are readable only
-through `ctx.secrets.reveal` (section 6.6); no action returns them.
+through a reveal request, `yield* ctx.secrets.reveal(ref, reason)`, whose plaintext the decision
+record never holds, or through `ctx.secrets.reveal` in the module's effect executors (sections 6.6
+and 7.9.3); no action returns them.
 
 A module may declare `configAccess: { level: 'tenant', edit: 'policy' }` (gap G10): the core then
 generates `<module>.config.get` and `<module>.config.set` actions governed by ordinary rules, and
@@ -1595,8 +1674,10 @@ Projections:
   until Node 26 is the baseline, after which it becomes `Temporal.Instant` behind the same
   builder (decision point in section 26.1). `createdAt` and `updatedAt` are set by the kernel,
   never by database defaults.
-- The system clock used for `createdAt`, hybrid logical clocks and tokens is `ctx.clock`, which
-  tests can control.
+- `ctx.clock.now()` is the invocation's fixed time, taken once when execution begins (for jobs,
+  when the job runs) and kept across retries; it is recorded as the events' `recordedAt` and is the
+  time behind `createdAt`, hybrid logical clocks and tokens. Tests set it as an input (section
+  7.9.3).
 
 ### 6.5 Schema library choice and validation
 
@@ -1625,7 +1706,7 @@ History modes:
 | `chain` (default) | the entity's event chain; the state table is an inline projection | events through commands | chain events |
 | `state` | the table; an explicit opt-out for derived or ephemeral data (sessions, presence, outbox rows), with a `reason` | rows are updated in place and may be purged by retention | transient change records (section 15.1.10) |
 | `projection` | the event log of other entities; an asynchronous read model written only by its projector | none through actions | transient change records |
-| `external` | a table the framework maps but does not own (section 14.8.4) | direct writes through `ctx.data` | transient records for framework writes only |
+| `external` | a table the framework maps but does not own (section 14.8.4) | direct writes from the drafts of `ctx.write` | transient records for framework writes only |
 
 Deletion through any generated or custom action is an `archived` event; `restored` undoes it;
 reads hide archived rows unless the query asks for them and the policy allows it. `retire` of a
@@ -1636,13 +1717,16 @@ rules of section 14.7.1, whose defaults Jens accepted on 2026-10-24 (decision po
 
 Hidden, secret and credential data:
 
-- `.hidden()`: absent from the API surface, from every transport, from other modules' rows and
-  from rule field lists. The owning module's repositories (and `ctx.asSystem`) return the field.
-  Hidden fields are left out of the before-images of events unless the field opts in with
-  `.hidden({ history: true, reason })`.
+- `.hidden()`: absent from the API surface, from every transport, from other modules' rows and from
+  rule field lists. Loads with the owning module's authority return the field, as do actions the
+  owning module invokes as the system principal (`invoke(action, input, { as: system(reason) })`,
+  section 7.9.5). Hidden fields are left out of the before-images of events unless the field opts in
+  with `.hidden({ history: true, reason })`.
 - `field.secret()`: in process the value reads as an opaque `SecretRef`; the only way to the
-  plaintext is `ctx.secrets.reveal(ref, reason)`, available to the owning module's code (which
-  includes its bound services and extension values), logged with the reason (gap G4).
+  plaintext is a reveal request, `yield* ctx.secrets.reveal(ref, reason)`, available to the owning
+  module's handlers (which includes its bound services and extension values) and, as
+  `ctx.secrets.reveal`, to its effect executors, logged with the reason and never recorded (gap G4,
+  section 7.9.3).
 - `field.verifier()`: a one-way verifier (an Argon2id password hash, the verifier of a token
   issued once) that only the owning module reads.
 - Credential material (secret and verifier values) never appears in plaintext in event payloads
@@ -1705,9 +1789,9 @@ transport.
 
 | Kind | Side effects | Execution modes | Result | Transport shape |
 |---|---|---|---|---|
-| `query` | none; runs in a read-only unit | always sync | value | GET, GraphQL query, RPC query, CLI command |
-| `command` | writes; runs in a transaction; appends events; may enqueue jobs | `sync`, `async`, `either` | value (sync) or receipt (async) | POST/PUT/PATCH/DELETE, mutation, RPC mutation |
-| `subscription` | none; observes the live feed | long-lived | frames: items with stream tokens, and control frames | SSE, WebSocket, GraphQL subscription |
+| `query` | none: `read` returns a request (a query description) or a value; the kernel reads in a read-only unit | always sync | value | GET, GraphQL query, RPC query, CLI command |
+| `command` | none in the handler: `decide` returns events and effects, which the kernel appends, performs and enqueues in one unit (section 7.9.4) | `sync`, `async`, `either` | value (sync) or receipt (async), with the ids of deferred effects | POST/PUT/PATCH/DELETE, mutation, RPC mutation |
+| `subscription` | none: `source` returns a description over the live feed | long-lived | frames: items with stream tokens, and control frames | SSE, WebSocket, GraphQL subscription |
 
 The query/command split is the CQRS the brief asks for: a query never writes and a command never
 returns data it did not produce. Reads after writes are consistent for the entity's own state
@@ -1746,40 +1830,52 @@ interface ActionOptions<I, O> {
   description?: string
   deprecated?: { reason: string; at?: string; sunset?: string }   // dates; from `at`, responses carry Deprecation and Sunset (section 18.5)
   gate?: BooleanFlagKey                         // a boolean flag of the module; the action runs only while it is true (section 20.6)
+  trace?: { input: 'sealed'; retention?: string } // commands only: keep the input, sealed, in the decision record for re-decides; default: its digest only (section 7.9.6)
+  prepare?: PrepareHandler<I>                   // execution 'sync' only: runs before the unit, the only place for inline effects (section 7.9.4)
 }
+// The handler member sits beside the options: decide (commands), read (queries) or source (subscriptions);
+// section 7.9.2 types every member, prepare included.
 ```
 
-The handler is one of:
+The handler is one of the forms of section 7.9.2, a plain function or a generator, never a
+promise:
 
-- `handle(input, ctx) => Promise<O>`: queries, module and app commands, commands on
-  `history: 'state'` entities. Commands run inside a transaction that also records the
-  field-level events of every `ctx.data` write.
-- `decide(input, current, ctx) => Event[] | { events: Event[]; result?: O }`: commands on
-  chain-backed entities. Pure apart from `ctx.clock`, `ctx.ids` and reads; the kernel loads the
-  target with its expected version, appends the events, evolves the state, runs the item check
-  and the entity invariant on the post-image and returns the row (masked for the caller) or
+- `decide(input, current, ctx)` on entity instances, `decide(input, ctx)` otherwise: every command,
+  on any entity history mode, on a module or on the app. It yields requests with `yield*` (section
+  7.9.3) and returns a `Decision`: events alone, or `{ events, effects, result }`. The kernel loads
+  the target with its expected version, drives the handler and answers its requests, evolves and
+  appends the events, runs the item check and the entity invariant on the post-image, performs the
+  kernel effects, records the external ones and returns the row (masked for the caller) or
   `result`.
-- `source(input, ctx, resume?: StateToken) => AsyncIterable<LiveFrame<E>>`: subscriptions. A
-  source built on `ctx.live` passes `resume` as `after` and yields frames that carry stream
-  tokens, so the subscription is resumable; `mapItems(frames, fn)` maps items and keeps tokens and
-  control frames. A source that wraps a plain iterable with `unresumable(iterable)` declares that
-  it cannot resume. The surface's `resumable` flag is derived from that type, not declared.
+- `prepare(input, ctx)`, optional, on `execution: 'sync'` commands only: runs before the unit, is the
+  only place for inline effects (`ctx.perform`), and passes its value to `decide` as `ctx.prepared`
+  (section 7.9.4).
+- `read(input, ctx)`: queries. It returns a request (a query description, which the kernel plans
+  over personal fields, section 14.7.9.5, and runs in a read-only unit), the output itself, or a
+  generator that yields loads first.
+- `source(input, ctx, resume?: StateToken)`: subscriptions. It returns a live source description
+  built with `ctx.live` (entity changes, streams, topics, the pending effects of an external
+  performer), which passes `resume` as `after`, so the subscription is resumable;
+  `mapItems(source, fn)` maps items with a pure or generator function and keeps tokens and control
+  frames. Custom iterables, and the `unresumable` marker for sources that cannot resume, exist only
+  in kernel and listener code: a custom stream is a topic that a listener or an executor feeds. The
+  surface's `resumable` flag is derived from the description, not declared.
 
-Actions never declare a `capability`, which belongs to effect executors and listeners (decision
-50a; the exact contract is specified in the pure-handlers section). Query descriptions carry a scan
-option (`scan: { limit, partial }`) and a search request form, and the encryption planner that
-rewrites them over personal fields (section 14.7.9.5) is kernel code, never handler code (decision
-50a; the exact contract is specified in the pure-handlers section).
+Actions never declare a `capability`, which belongs to effect executors and listeners (section
+7.9.5). Query descriptions carry a scan option (`scan: { limit, partial }`) and a search request
+form, and the encryption planner that rewrites them over personal fields (section 14.7.9.5) is
+kernel code, never handler code (sections 7.9.1 and 7.9.2).
 
 For entity-mounted instance commands the kernel adds `id: Id<entity>` and an optional
 `ifVersion` to the input and loads the target with the action's plan (section 8.4): a row the
-plan's `where` does not select is `not_found`. `decide` (as `current`) and `handle` (as
-`ctx.target`) always receive the full row, typed with the module's row type; field masks never
-apply to the write path, because a decision made on a masked row would depend on the caller's
-mask and replay would stop being deterministic. Entity-mounted queries receive `ctx.target` as
-the entity read through the action's own plan (the caller's view).
+plan's `where` does not select is `not_found`. `decide` always receives the full row as `current`,
+typed with the module's row type; field masks never apply to the write path, because a decision
+made on a masked row would depend on the caller's mask and replay would stop being deterministic.
+Entity-mounted queries receive `ctx.target`, the load constructor of the entity read through the
+action's own plan (the caller's view).
 
-`offline: true` requires `decide`, `execution: 'sync'` and `auth: 'policy'`, checked at
+`offline: true` requires `execution: 'sync'` and `auth: 'policy'` and forbids `prepare`, random
+values and issued secrets (its ids are the ones the pushed mutation carries), checked at
 `defineApp`, and types the `decide` result as `OfflineEvents<E>` (section 15.3.5). The kernel's
 `sync.push` action is declared with `transaction: 'per-item'`, an option reserved for kernel
 actions: each item runs as an independent invocation in its own unit, as the invocation
@@ -1796,11 +1892,13 @@ levels, the most specific wins:
 3. for `either`, the caller's preference per invocation (`prefer: 'async'`, which transports map
    from `Prefer: respond-async`, a GraphQL argument, an RPC option or a CLI flag).
 
-The app's map decides how external callers (transports, the CLI, clients, listeners) are
-answered. Module code that calls `ctx.invoke` gets the action's declared mode, because the
-calling module was compiled without knowing any app: a `sync` action returns its output, an
-`async` action returns a receipt, and an `either` action runs synchronously unless the caller
-passes `prefer: 'async'`. The types of `ctx.invoke` are therefore exact without an app in scope.
+The app's map decides how external callers (transports, the CLI, clients, listeners) are answered.
+Module code invokes through effects and gets the action's declared mode, because the calling module
+was compiled without knowing any app: `invoke(action, input)` of a `sync` command runs in the unit
+after the decision's events (in a savepoint, section 14.3.6), an `async` one is enqueued with the
+unit, and an `either` one runs synchronously unless the effect passes `prefer: 'async'`. Its result
+does not return to the decision that requested it, which reads what it needs beforehand or reacts to
+the events afterwards, so the types of `invoke` are exact without an app in scope (section 7.9.5).
 
 A synchronous command returns its result. An asynchronous command is validated and authorized
 synchronously (gate stage), recorded as an `accepted` receipt in the same unit as its job, and
@@ -1821,8 +1919,10 @@ receipt per `(scope, commandId)` with a fingerprint of the input and the outcome
 
 - The receipt is inserted as `pending` by the first statement of the command's unit, which holds
   its row lock until commit. A concurrent duplicate waits on that lock briefly and then answers
-  `conflict` with code `core.command_in_progress` (retryable), so the handler and its external
-  calls never run twice concurrently. The receipt is completed at commit.
+  `conflict` with code `core.command_in_progress` (retryable). Handlers make no external calls: the
+  pending receipt keeps a decision from running twice concurrently, and effect ids, derived from
+  the command id, keep the external calls its effects cause idempotent (section 7.9.5). The receipt
+  is completed at commit.
 - A retry with the same id and fingerprint returns the recorded outcome; the same id with a
   different fingerprint is `conflict` with code `core.idempotency_mismatch`.
 - Receipts expire after the action's window (`idempotency: { window }`, default 24 hours, at most
@@ -1835,86 +1935,95 @@ table. Queries are idempotent by definition.
 
 ### 7.6 The context object
 
-`ActionContext<M>` is computed from the module base alone (section 3.4): `M` is the base a part is
-typed against. In a part typed with `within(base, declaration)` it is `ActionContext<M, W>`, where
-the target and `when` modules `W` count as required.
+The context is computed from the module base alone (section 3.4): `M` is the base a part is typed
+against, and in a part typed with `within(base, declaration)` the target and `when` modules `W`
+count as required. Every handler receives it as a parameter. Under decision 50a each member is a
+value, a pure function, or a request or draft constructor; logging and tracing are the only
+capabilities, and they are write-only (section 7.9.7). There is one context per handler form:
+
+- `DecideContext<M, W, P>` for `decide`, `prepare` and `react`, listed in section 7.9.7: scope,
+  principal, ability, configuration, the invocation's clock, request metadata, `prepared`, `load`,
+  `write`, `events`, flag requests, bound services and extensions, secret requests, computations,
+  `newId`, `random`, `ask`, `all`, `log` and `trace`; in `prepare` it also has `perform`.
+- `ReadContext<M, W>` for `read`: the same without the write side (`write`, `events`, `prepared`),
+  ids, random values and issued secrets, plus `target` in entity queries; the registry refuses at
+  compose a query that requests ids, random values, issued secrets or effects.
+- `SourceContext<M, W>` for `source`: what a subscription needs to describe its source, `live` above
+  all; its item maps may yield loads and reveals.
+- `ExecutorContext<M>` for effect executors (section 7.9.5): the only context with `egress`,
+  `blobs`, `signal` and a promise-returning `secrets.reveal`, and no data access at all.
 
 ```ts
-interface ActionContext<M extends AnyModuleBase, W extends readonly AnyModule[] = []> {
-  readonly scope: Scope                                  // { level: 'tenant', backendId, tenantId } | { level: 'backend', backendId } | { level: 'deployment' }
-  readonly principal: Principal                          // never undefined; narrowed by the action's `principal` option
-  readonly ability: Ability                              // can(), plan(), explain() for this principal, section 8
-  readonly data: DataOf<M, W>                            // own entities with the module's authority; dependencies read-only (section 8.4)
-  readonly services: ServicesOf<M, W>                    // the dependencies' services, bound to their providing modules (section 5.5)
-  readonly extensions: ExtensionsOf<M>                   // behavioural values bound to their contributors
-  readonly config: ConfigOf<M>
-  readonly flags: FlagsOf<M, W>                          // one snapshot per invocation: ctx.flags.checkout.newFlow (section 20.3)
-  flagDetails(key: FlagKeyOf<M, W>): FlagResolution<unknown>   // value, variant, reason, rule version, provider
-  readonly events: EventEmitters<M>                      // entity parts: typed constructors for the entity's domain events
-  readonly secrets: Secrets                              // reveal, seal, issue (section 6.6, gap G4)
-  readonly timers: Timers                                // keyed durable timers, set in this unit (section 9.5)
-  readonly scopeKeys: ScopeKeys                          // claim and release deployment-wide scope keys (gap G2)
-  readonly egress: Egress                                // outbound fetch and connect with private ranges denied (section 12.3)
-  readonly clock: Clock                                  // now(), hlc()
-  readonly ids: IdFactory                                // newId('auth.credential')
-  readonly log: Logger
-  readonly trace: Span
-  readonly signal: AbortSignal
-  readonly request: RequestInfo                          // id, transport, command id, preference, connection metadata, user agent; never credentials
-  invoke<A extends OwnActionPart<M>>(action: A, input: PartInput<A>, options?: { prefer?: 'sync' | 'async' }): Promise<PartResult<A>>   // an own action, by value
-  invoke<R extends InvokableRefs<M, W>>(ref: R, input: InputOf<M, R>, options?: { prefer?: 'sync' | 'async' }): Promise<ResultOf<M, R>>    // a dependency's action, by reference
-  enqueue<A extends OwnCommandPart<M>>(action: A, input: PartInput<A>, options?: { commandId?: string; runAt?: Date }): Promise<CommandReceipt>
-  enqueue<R extends CommandRefsOf<M, W>>(ref: R, input: InputOf<M, R>, options?: { commandId?: string; runAt?: Date }): Promise<CommandReceipt>
-  asSystem(reason: string): SystemContext<M, W>          // invokes actions as the system principal; logged with the reason
+interface ReadContext<M extends AnyModuleBase, W extends readonly AnyModule[] = []>
+  extends Omit<DecideContext<M, W>, 'write' | 'events' | 'prepared' | 'newId' | 'random' | 'secrets'> {
+  readonly secrets: Pick<SecretRequests, 'reveal' | 'verify'>
+  readonly target: TargetLoads<M>                        // entity queries: the entity through the action's own plan (the caller's view)
 }
-// Present only when the module declares them: ctx.live (contracts.live), ctx.blobs (contracts.blobs),
-// ctx.sql (data need { sql: dialect }, section 14.3.8). Optional contracts type them as possibly undefined.
+interface SourceContext<M extends AnyModuleBase, W extends readonly AnyModule[] = []> {
+  readonly scope: Scope
+  readonly principal: Principal                          // narrowed by the action's `principal` option
+  readonly ability: Ability
+  readonly config: ConfigOf<M>
+  readonly request: RequestInfo
+  readonly flags: FlagRequestsOf<M, W>
+  readonly live: LiveQueries<M>                          // source descriptions (section 15.4.11); present with contracts.live
+  readonly target: TargetRowOf<M>                        // subscriptions on an entity instance: the row, loaded through the action's plan
+  readonly log: Logger
+}
+// Present only when the module declares them: ctx.load.sql (data need { sql: dialect }, section 14.3.8), ctx.live
+// (contracts.live, in sources); blobs only in ExecutorContext. Optional contracts type them as possibly undefined.
 ```
 
-- `ctx.data` runs with the module's own authority (section 8.4): reads of its own entities and of
+- `ctx.load` runs with the module's own authority (section 8.4): loads of its own entities and of
   its dependencies are never narrowed by the caller's plan, so uniqueness checks, quotas and
-  existence checks see the truth. The caller's view is explicit: `ctx.data.<m>.<e>.forCaller()`
-  returns a read-only repository narrowed by the caller's read plan, and entity-mounted queries
-  get it as `ctx.target`.
-- Writes go to the module's own entities, and to another module's entity only for the fields this
-  module contributed to it; the type of the patch says so, and a denied write throws `forbidden`.
-  Everything else goes through the owning module's actions or services.
-- `ctx.invoke` accepts the module's own actions, including those its contributions and
-  conditional parts mount, as part values (`ctx.invoke(revokeSubject, input)`), which the registry
-  resolves to their references, and the actions of required modules (and of `W`) by reference.
-  The same holds for `ctx.enqueue`, `ctx.timers.set({ invoke })`, `async.onGiveUp` and schedules;
-  inside a module, its own actions are never named by string. A command of the same scope joins
-  the current unit as a savepoint; a query of the same or a wider scope reads in its own read-only
-  unit when the scope differs. Commands of another scope are not invokable inline: `ctx.enqueue`
-  runs them after commit and returns their receipt, so atomicity never depends on whether two
-  scopes happen to share a database (section 12.3).
+  existence checks see the truth. The caller's view is explicit: `ctx.load.<m>.<e>.forCaller()`
+  builds loads narrowed by the caller's read plan, and entity-mounted queries get it as
+  `ctx.target`.
+- Drafts from `ctx.write` and `ctx.events` go to the module's own entities, and to another module's
+  entity only for the fields this module contributed to it; the type of the draft says so, and a
+  draft outside that boundary fails the decision with `forbidden`. Everything else goes through the
+  owning module's actions or services.
+- Kernel effects accept the module's own actions, including those its contributions and
+  conditional parts mount, as part values (`invoke(revokeSubject, input)`), which the registry
+  resolves to their references, and the commands of required modules (and of `W`) by reference.
+  The same holds for `enqueue`, `setTimer({ invoke })`, `async.onGiveUp`, continuations (`then`)
+  and schedules; inside a module, its own actions are never named by string. A synchronous command
+  of the same scope runs in a savepoint of the current unit after the decision's events; a query of
+  the same or a wider scope is a request, `ctx.ask(ref, input)`, answered in its own read-only
+  snapshot when the scope differs. Commands of another scope are never invoked inline: `enqueue`
+  runs them after commit, so atomicity never depends on whether two scopes happen to share a
+  database (section 12.3). No invocation hands a result back to the decision that requested it.
 - `ctx.services` lists the services of the module's dependencies only: parts are typed against the
   base, which does not hold the module's own services, so a module's own code calls the `lib/`
   functions its services wrap (section 5.5).
-- `ctx.flags` is synchronous and typed from the base's flags and those of the modules it requires
-  (and of `W`): a boolean flag reads as `boolean`, a variant flag as the union of its variants;
-  `flagDetails` returns the resolution with its reason (section 20.3).
+- `ctx.flags` is typed from the base's flags and those of the modules it requires (and of `W`): a
+  boolean flag request answers `boolean`, a variant flag the union of its variants, from the
+  invocation's snapshot, and the envelope records what was read; `ctx.flagDetails(key)` is a
+  request answered with the resolution and its reason (section 20.3).
 - `ctx.request` exposes request metadata only; credentials (the `Authorization` and `Cookie`
   headers, SASL secrets, tokens) stay inside the principal resolvers.
-- `asSystem(reason)` invokes actions under the system principal, for work the caller may not do
-  itself; every call is logged with the reason and the calling action, which replaces the silent
-  "override access" default of other frameworks. A GritQL rule rejects an empty reason.
-- Under decision 50a, `ctx.timers.set`, `ctx.timers.cancel` and `ctx.enqueue` become effect
-  descriptions the handler returns (`setTimer`, `cancelTimer` and an enqueue description), which the
-  kernel writes in the unit as jobs (section 9.5.1), and `ctx.egress` is used by effect executors
-  only (decision 50a; the exact contract is specified in the pure-handlers section).
+- `asSystem` is now the `as` option of the invoke effect:
+  `invoke(action, input, { as: system(reason) })` runs an action under the system principal, for
+  work the caller may not do itself; every such effect is logged with the reason and the calling
+  action, which replaces the silent "override access" default of other frameworks. A GritQL rule
+  rejects an empty reason.
+- Timers and enqueued commands are effects as well (`setTimer`, `cancelTimer`, `enqueue`), which
+  the kernel writes in the unit as jobs (section 9.5.1), and egress belongs to effect executors
+  only. Section 7.9 specifies the requests, the effects and the interpreter that answers and
+  performs them.
 
 ### 7.7 Reactions
 
 Reactions are a module's event handlers: one `defineReaction` or `defineProcess` literal per file,
 typed against the base (or with `within(base, declaration)` in a conditional part), mounted under
-the module literal's `reactions` or a conditional part's `reactions`:
+the module literal's `reactions` or a conditional part's `reactions`. Their member is `react`, a
+pure function or generator that returns a decision (section 7.9.2), which the kernel applies:
 
 ```ts
 export const revokeOnDeactivation = defineReaction(within(authBase, whenAccounts), {
   on: 'accounts.profile.deactivated',
-  timing: 'inline',                                          // in the producing unit, before commit
-  handle,
+  timing: 'inline',                                          // decides in the producing unit, before commit
+  react,                                                     // (event, ctx) => Decision: an invoke effect (section 5.4)
 })
 export const dispatchNextForProject = defineReaction(deploymentsBase, {
   on: 'deployments.deployment.changed',                      // the module's own events, by reference
@@ -1924,10 +2033,10 @@ export const dispatchNextForProject = defineReaction(deploymentsBase, {
   coalesce: false,                                           // true: a newer event for the same key replaces a pending job
   concurrency: 4,                                            // a group per reaction and scope: jobs running at once (section 9.5.5)
   retry: { delays: ['30s', '2m', '10m'], giveUpAfter: 'PT6H' },
-  handle,
+  react,                                                     // its decision applies in the job's own unit
 })
-// stateful process manager, in a module that requires accounts and auth:
-export const onboarding = defineProcess(onboardingBase, { on: ['accounts.profile.created', 'auth.credential.created'], decide, evolve })
+// stateful process manager, in a module that requires accounts and auth: react(event, state, ctx) and evolve(state, event)
+export const onboarding = defineProcess(onboardingBase, { on: ['accounts.profile.created', 'auth.credential.created'], react, evolve })
 
 // modules/deployments/src/module.ts: the keys are reaction ids (deployments.dispatchNextForProject)
 reactions: { dispatchNextForProject },
@@ -1943,22 +2052,25 @@ command id are recorded as the causation of whatever the reaction does. The core
 default rule: a module's service principal may invoke the actions of its own module; anything
 else needs a rule like any other principal.
 
-- **Inline** reactions run in the producing command's unit after the owner's own `evolve`, in
-  module order; a failure rolls the command back.
+- **Inline** reactions decide in the producing command's unit after the owner's own `evolve`, in
+  module order and up to a depth of 8 (beyond it `internal`, `core.reaction_depth`); the kernel
+  applies their decisions in the same unit, and a failure rolls the command back.
 - **Async** reactions have two tiers. The kernel's reaction dispatcher is a consumer of the event
   log (section 15.2.3) that does only short work: for each matching event it enqueues one keyed job
   per reaction in a tenant-scope unit and advances its checkpoint for that scope in the same unit.
-  The job runs in the lanes of its queue like any action job (section 9.5.2), and the handler in its
-  own tenant-scope unit with the reaction's key, ordering, coalescing, concurrency (a group per
-  reaction and scope) and retry options (section 9.5). A failing handler is retried by the
-  queue and never blocks the checkpoint; a job that exhausts its retries is parked as a dead
-  letter, which is a metric, an alert and a line in `pennestack doctor`. Delivery is at least once;
-  a handler is idempotent by `(reaction id, event id)`. Module code never receives a
-  namespace-scope unit.
+  The job runs in the lanes of its queue like any action job (section 9.5.2), and the reaction
+  decides in its own tenant-scope unit, where the kernel applies the decision, with the reaction's
+  key, ordering, coalescing, concurrency (a group per reaction and scope) and retry options (section
+  9.5). A failing reaction is retried by the queue and never blocks the checkpoint; a job that
+  exhausts its retries is parked as a dead letter, which is a metric, an alert and a line in
+  `pennestack doctor`. Delivery is at least once; a reaction is idempotent by
+  `(reaction id, event id)`, from which the ids of its effects derive (section 7.9.5). Module code
+  never receives a namespace-scope unit.
 - **Processes** are async reactions with their own state stream per instance, keyed and ordered
-  FIFO per instance.
+  FIFO per instance: `react(event, state, ctx)` decides over the state that `evolve(state, event)`
+  folds from the process's stream, and its decision may hold events for that stream.
 
-Handlers receive a `ReactionEvent`: decrypted, upcast to the current schema, with typed data.
+`react` receives a `ReactionEvent`: decrypted, upcast to the current schema, with typed data.
 
 ```ts
 interface ReactionEventBase<Name extends string, Data, R> {
@@ -1985,6 +2097,498 @@ interface AsyncReactionEvent<Name extends string, Data, R> extends ReactionEvent
 
 An action declares the domain errors it may throw (`errors: [...]`); the pipeline maps undeclared
 exceptions to `internal` with the message redacted. Section 10 defines the taxonomy.
+
+### 7.9 Pure handlers and the effect interpreter
+
+Decision 50a of the register (decided 2026-10-25): fully strict. Handlers never perform effects;
+commands yield load requests and return events plus effect descriptions; queries return query
+descriptions; the kernel answers every request, performs every effect and records each effect with
+its outcome, linked to the command and events that caused it. Jens: "fully strict, the safest
+option; this way I can trace each cause and effect and rebuild a full database and logbook from
+them"; option c, the split model, is the fallback. This subsection replaced the imperative `handle`
+form and the imperative members of `ctx` that sections 4.3, 7.3 and 7.6 specified before
+2026-10-25; those sections, and every sketch in this document, now use its forms. Its decision
+points are 73 to 80 of the register (section 26.1);
+[ADR 0026](adr/0026-pure-handlers-and-the-effect-interpreter.md) records it and
+[research/pure-handlers.md](research/pure-handlers.md) is the evidence.
+
+#### 7.9.1 The rule
+
+A part is pure when its result is a function of its parameters and of the answers the kernel gave
+to the requests it yielded, and everything it produces is in its return value. Every part a module
+author writes is pure. Code that awaits, or touches a database, the network, the file system, a
+clock or a random source, lives only in:
+
+- the kernel (the invoker and its interpreter, the queue, the key service);
+- the infrastructure entries of `defineDeployment` (adapters, blob stores, the HTTP host, providers,
+  probes, ledger sinks);
+- transport and listener modules (`adapter.ts`, `listener.ts` and their `lib/`);
+- effect executors (`defineEffectExecutor`, under `src/executors/`).
+
+The kernel's own decisions are pure functions inside an imperative shell too: the scaler's plan
+(section 21.4), the encryption planner (section 14.7.9.5), merge resolution, rule evaluation.
+
+#### 7.9.2 Handler forms
+
+| Part | Member | Yields | Returns |
+|---|---|---|---|
+| command | `decide(input, current, ctx)` on instances, `decide(input, ctx)` otherwise | loads, flags, ids, random values, secret and compute requests | a `Decision` |
+| command, `execution: 'sync'` only | `prepare(input, ctx)`, optional | the same, plus inline effects | a value, seen by `decide` as `ctx.prepared` |
+| query | `read(input, ctx)` | loads, flags, secret reveals, compute | a request whose answer is the output, or the output |
+| subscription | `source(input, ctx, resume)` | nothing; its item maps may yield loads and reveals | a live source description |
+| reaction, lifecycle hook | `react(event, ctx)` | as `decide` | a `Decision` |
+| process manager | `react(event, state, ctx)` and `evolve(state, event)` | as `decide` | a `Decision` for its own stream |
+| schedule | `defineSchedule(base, { every, invoke, input? })` | nothing | data; `input(tick)` is pure |
+| service, fill | `(own, ...args)`, bound to the provider (section 5.5, gap G16) | loads with the provider's authority | a value, which may hold drafts |
+| policy rule, flag targeting, version change, merge rule, `evolve`, normaliser, upcast | a plain function | nothing | a value |
+
+Each member is a plain function or a generator function. `handle` is removed everywhere: it named
+the imperative form, and keeping it for pure queries would let old examples look valid. Commands
+decide, events evolve, reactions react (the decider vocabulary).
+
+```ts
+type Decision<O = void> =
+  | readonly Draft[]                                                  // events only
+  | { readonly events?: readonly Draft[]; readonly effects?: readonly EffectDraft[]; readonly result?: O }
+type Gen<T> = Generator<Request<unknown>, T, unknown>
+interface Request<T> { readonly kind: RequestKind; [Symbol.iterator](): Generator<Request<T>, T, unknown> }
+// decide: (input: I, current: R, ctx: DecideContext<M, W, P>) => Decision<O> | Gen<Decision<O>>, never a Promise
+```
+
+- `events` holds what the unit appends: chain events, transient change records of `history:
+  'state'` entities and stream records, as drafts from `ctx.events` (the target's events) and
+  `ctx.write.<module>.<entity>` (`create`, `update`, `archive`, `restore`, a domain event by name,
+  `append` on streams). The module boundary of section 8.4 types them: own entities and contributed
+  fields. A draft built from a loaded row carries that row's version as its expected version.
+- `effects` holds kernel and external effects, in order; `result` is the output of commands that do
+  not return their target row. A thrown declared error ends the invocation and nothing applies.
+- A query description is the request that `ctx.target.query(...)` or `ctx.load.<m>.<e>.query(...)`
+  builds: the entity, `where`, `sort`, `page`, the scan option `scan: { limit, partial }` and the
+  search form `search: { index, text, subject? }`, whose tags only the kernel computes (section
+  14.7.9).
+
+#### 7.9.3 Requests
+
+A request is a plain value the kernel answers. It implements `[Symbol.iterator]` as a one-step
+generator, so `yield*` types each answer (as in Effect); a bare `yield` is a lint error.
+
+| Request | Where | Answered by | Recorded |
+|---|---|---|---|
+| `ctx.load.<m>.<e>.byId(id)`, `.one({ where })`, `.many({ where, sort, limit })` (limit at most 1,000), `.count(where)`, `.exists(where)`, `.query(q)`, `.history(id, { asOf })` | decide, prepare, read, react, services | the unit, with module authority (decision 4a) | each load's snapshot position |
+| `.forCaller()` variants; `ctx.target` in entity queries | as above | narrowed by the caller's read plan, masked | as loads |
+| `ctx.ask(ref, input)` | as above | a dependency's query action inside the unit, gated as the current principal | as loads |
+| `ctx.load.sql(build)` (M7) | as above | a Kysely query built without a connection, scoped as in section 14.3.8 | as loads |
+| `ctx.all([...requests])` | as above | answered together, batched where the adapter can | its members |
+| `ctx.flags.<m>.<flag>`, `ctx.flagDetails(key)` | every handler | the invocation's flag snapshot (section 20.3) | the envelope's `flags` |
+| `ctx.newId(entity)`, `ctx.random(bytes)` | decide, prepare, react | the kernel: UUIDv7, a CSPRNG | the answers |
+| `ctx.secrets.issue({ prefix })` | decide | the key service | public id and verifier, never the plaintext |
+| `ctx.secrets.reveal(ref, reason)`, `ctx.secrets.verify(token, verifier)` | decide, read, react, services | the key service, logged with the reason | no |
+| `ctx.compute.argon2idHash(password, salt)`, `.argon2idVerify(verifier, password)` | decide, read | a kernel worker pool, off the event loop (14 ms per hash at OWASP's minimum) | no: reproducible |
+| `ctx.perform(effectDraft)` | prepare only | the effect's inline executor | the effect's record |
+
+- Requests never throw into a generator: an infrastructure failure aborts the invocation (retried
+  where the taxonomy allows), and an inline effect's outcome is answered as a value,
+  `{ ok: true, value } | { ok: false, error }`.
+- The clock is not a request: `ctx.clock.now()` returns the invocation's time, taken once when
+  execution begins (for jobs, when the job runs), kept across retries, and recorded as the events'
+  `recordedAt`.
+- Pure helpers need no request: modules call their `lib/` functions, and the core exports pure
+  primitives that need `node:*` (`@pennestack/core/crypto`: `sha256`, `hmacSha256`,
+  `timingSafeEqual`).
+- Queries may not request ids, random values, issued secrets or effects (a compose error). Offline
+  commands may not request random values, issued secrets or inline effects; their ids are answered
+  from the ids the pushed mutation carries.
+
+#### 7.9.4 Phases of a command invocation
+
+1. **Admission**: the pipeline of section 9.2 up to `authorize`; rules read the flag snapshot.
+2. **Prepare**, for sync commands that declare it, outside any unit. Loads read read-only
+   snapshots, never open while an inline effect runs. Each `ctx.perform` records `requested` in a short
+   unit, runs the inline executor within its timeout without retries, and records `settled`; the
+   outcome is the answer.
+3. **Unit**: the read-write unit of the scope opens; its first statement inserts the pending
+   receipt (section 15.1.7).
+4. **Target**: an instance command loads its target through the plan's `where` (`not_found`
+   outside it), locked where the adapter has row locks.
+5. **Decide**: the kernel drives `decide` and answers each request in the unit, tagging every load
+   with the scope position its snapshot saw (the counter read in the same statement). `ctx.perform`
+   here fails with `internal`, `core.effect_in_unit`.
+6. **Apply**: drafts are evolved with before-images, encrypted, item-checked and chained (section
+   15.1.6, steps 5 to 9); inline reactions to the new events decide in turn (pure, in module order,
+   up to depth 8, else `core.reaction_depth`). Then the kernel effects run in order (`invoke` as a
+   nested decision in a savepoint, timers, enqueued commands), and each external effect writes its
+   `requested` record and its effect job. Each decision's record joins the meta of its events.
+7. **Commit**: the receipt completes, the commit tail assigns positions, the unit commits. On a
+   version conflict, serialization failure or deadlock the kernel repeats phases 3 to 7 up to three
+   times with jitter, for every command, since no decision performed anything; prepare is not
+   repeated.
+8. **Respond**: wake-ups go out, the shape stage checks and masks the output (section 8.4), and the
+   response carries the head token and the ids of the deferred effects.
+9. **Perform**: workers advertising the executor's capabilities run each effect job outside any
+   unit, at least once, with the effect id as idempotency key; each attempt is recorded, and the
+   outcome is written as `settled` in a short unit that enqueues the continuation (section 9.5.6).
+10. **Continue**: the continuation is a command job, invoked under the module's service principal
+    with the outcome as input: phases 1 to 9 again.
+
+Asynchronous commands pass phase 1 at acceptance and run phases 3 to 9 in their job. A query's
+`read` runs after phase 1 in a read-only unit (section 14.3.6): a returned request is planned
+(section 14.7.9.5) and answered, a generator is driven, then the shape stage runs. Queries record
+nothing.
+
+#### 7.9.5 Effects
+
+Kernel effects are constructed by functions of `@pennestack/core` and performed in the unit or at
+its commit:
+
+| Effect | Performed |
+|---|---|
+| `invoke(action, input, { as?: system(reason), prefer? })` | a command of the same scope, in a savepoint after this decision's events (an asynchronous one, or an `either` one with `prefer: 'async'`, is enqueued); its result does not return to the caller; `as` replaces `ctx.asSystem`, logged with the reason |
+| `enqueue(action, input, { runAt?, key?, commandId? })` | a command job committed with the unit, any scope (section 12.3) |
+| `setTimer({ key, at or after, invoke, input })`, `cancelTimer(key)` | keyed timer jobs (section 9.5.1) |
+| `settle(effect, outcome)` | the `settled` record of an effect with an external performer, and its continuation |
+| `claimScopeKey(key, owner, { then })`, `releaseScopeKey(key, owner)` | after commit, in the control store; the effect record is the outbox, settling gap G2's open choice |
+
+External effects are declared once and constructed by value:
+
+```ts
+// modules/mail-delivery/src/effects/smtp-deliver.ts
+export const smtpDeliver = defineEffect(mailDeliveryBase, {
+  input: smtpDeliveryShape,       // versioned; personal fields sealed; secrets as references, never plaintext
+  output: smtpRepliesShape,
+  performer: 'executor',          // the default; 'external': an outside program pulls and settles it
+})
+// in a decision: smtpDeliver(input, { then: recordAttempt, with: { id, domain }, key?, runAt?, deadline? })
+```
+
+`defineEffectExecutor(base, effect, options)` is the only imperative module code; the name that
+section 9.5.1 first used provisionally is confirmed, and the effect is its second argument.
+
+```ts
+interface EffectExecutorOptions<M, I, O> {
+  readonly queue?: string                                                  // default 'effects'
+  readonly capability?: readonly string[] | ((c: { config: ConfigOf<M>; input: I }) => readonly string[])   // section 21.2
+  readonly inline?: boolean                                                // may run in prepare; never with a capability
+  readonly timeout?: string                                                // one attempt; inline: '10s', at most '30s'
+  readonly group?: (c: { config: ConfigOf<M>; input: I }) => JobGroup      // section 9.5.5
+  readonly retry?: JobRetry                                                // mechanical, by the error taxonomy (section 9.5.4)
+  run(input: I, ctx: ExecutorContext<M>): Promise<O>
+}
+interface ExecutorContext<M> {
+  readonly scope: Scope
+  readonly effect: { readonly id: string; readonly type: string; readonly attempt: number }   // the id is the idempotency key
+  readonly config: ConfigOf<M>
+  readonly secrets: { reveal(ref: SecretRef, reason: string): Promise<string> }
+  readonly egress: Egress                                                  // section 12.3
+  readonly blobs: ExecutorBlobs                                            // read by reference; new blobs return as references
+  readonly extensions: ExecutorExtensionsOf<M>                             // executor-side values (DNS provider adapters)
+  readonly log: Logger
+  readonly trace: Span
+  readonly signal: AbortSignal
+}
+```
+
+- Executors have no data access (no repositories, SQL or `invoke`): the input states what the
+  effect does, so its record is complete, and what the executor learns returns in its output.
+- An executor returns its output or throws a taxonomy error: `unavailable`, `rate_limited` (with
+  `retryAfter`) and retryable `conflict` are retried by `retry`; any other kind settles the effect
+  as `failed`. A lease lost after the destination may have acted, or an inline run cut by a crash,
+  settles it as `abandoned` (`core.effect_outcome_unknown`).
+- Effect ids are UUIDv8 derived from the scope, the cause (a command id, or a reaction id and event
+  id) and the effect's index, so a repeated decision requests the same ids and idempotent
+  destinations deduplicate.
+- Outcomes reach module code through the continuation (`then`, an own command by value, typed by
+  `outcomeOf(effect, extra)`; entity continuations get the target id through `with`) and the effect
+  record (`core.effect.get` and `watch`, readable by the principal whose command caused it).
+- An effect with `performer: 'external'` has no executor: a program outside pennestack holds a
+  subscription over `ctx.live.effects(effect, { where })` (its pending effects, resumable), performs
+  them, and calls an action of the owning module whose decision returns `settle(...)`; `deadline`
+  settles an unsettled one as failed (`core.effect_deadline`). Launchway's agent is such a performer.
+
+**Sync invocations never await a deferred effect.** The response lists the effect ids; a client that
+needs the outcome watches `core.effect.watch` or the entity the continuation changes
+(`--wait-effects` in the CLI, `waitForEffects` in the typed client). An effect is inline only when
+the caller needs the answer inside the request, its executor needs no capability and the call is
+bounded: OAuth and OpenID Connect code exchanges, GitHub's manifest conversion, connection tests. So
+testing the SMTP connection (an open question of the jobs design, answered here) is
+`mail-delivery.testRelay`, a sync command whose `prepare` performs the inline effect `smtpProbe`
+(EHLO, STARTTLS, AUTH and QUIT against the configured relay, 10 seconds, no retries) and whose
+`decide` records the result; whether port 25 is reachable for direct delivery is the `smtp-out`
+capability probe of section 21.2, not a command.
+
+**Executor retries or a state machine.** Executor retries cover failures without domain meaning,
+where the attempt either did not happen or cannot have a different outcome: a lost lease, a refused
+connection, a 5xx or 429 from an API that honours the idempotency key (a DNS upsert). Everything with
+domain meaning is a state machine in the module: one effect per attempt and a timer between attempts.
+Mail delivery is a state machine, for four reasons: an SMTP transaction succeeds per recipient, so
+retrying the whole effect would deliver twice to recipients already accepted; delay notices and the
+bounce after five days (RFC 3464; RFC 5321 section 4.5.4.1) are decisions about the submission;
+JMAP's per-recipient `deliveryStatus` and an operator's "retry now" need the attempts as state; and
+each attempt then has its own record and continuation: the trace Jens asked for. A 4xx reply is an
+output (`deferred`), not an error; the executor retries only infrastructure failures, twice.
+
+#### 7.9.6 The logbook
+
+| What | Recorded |
+|---|---|
+| a decision | each event's envelope (actor, command id, action, causation, writer, flags; section 15.1.3) and a decision record in `meta.decision`, hashed with the event (section 15.1.8) |
+| command inputs | the input's digest (the receipt's fingerprint); the input itself only for actions that opt in with `trace: { input: 'sealed', retention }` (decision point 79): sealed under a value key the retention worker destroys after `retention`, personal fields under the subject's key, `field.secret()` inputs stripped |
+| load answers | not stored: `asOf` reads at the recorded snapshot positions reproduce them (`history: 'state'` entities within the feed horizon only) |
+| ids, random values, issued secrets | in the decision record; issued secrets by public id and verifier only |
+| reveals, verifications, computations | nothing: reproducible while their keys exist |
+| an effect | its stream `core.effect/<id>` (kernel entity, chain, tenancy `invocation`): `requested` in the requesting unit (type; input, personal fields sealed, secrets as references; command id; the ids of the events it accompanied; continuation, key, deadline) and `settled` (`succeeded`, `failed` or `abandoned`; output up to 64 KiB, else a blob reference; error; attempts; timings; SHA-256 digest of the canonical output) |
+| attempts | records of the stream `core.effectAttempt` keyed by effect id (gap G6: process, build, start, end, error), kept 90 days |
+| a continuation | its own decision, whose causation is the effect id |
+| logs, traces | not recorded; correlated by scope, command, effect and trace ids |
+
+```ts
+interface DecisionRecord {
+  readonly part: string                                                    // 'auth.login'; a reaction id for reactions
+  readonly inputDigest: string                                             // the receipt's fingerprint
+  readonly input?: SealedValue                                             // only with trace: { input: 'sealed' } (decision point 79)
+  readonly reads: readonly { readonly scope?: 'backend'; readonly at: Position }[]   // per load, in yield order
+  readonly answers: readonly Answer[]                                      // ids, random values, issued secrets' public parts
+  readonly effects: readonly string[]                                      // requested effect ids, inline ones included
+}
+```
+
+**Rebuilding.** The database is the fold of the chain: state rows per stream (section 15.2.4) and
+effect state per `core.effect` stream. After a rebuild or restore, every effect `requested` and not
+`settled` is enqueued again (at least once across restores; idempotency keys absorb repeats).
+Receipts and job rows are operational and not rebuilt. The logbook is a projection of the same chain:
+per command its decision record, events, effects with outcomes and the continuations they caused;
+`pennestack explain --trace <command, event or effect id>` prints that tree, and a projection entity
+can materialise it from M7.
+
+**What replay means.**
+
+- Re-decide: `pennestack explain --redecide <command id>` runs a recorded decision with the current
+  build, answering loads `asOf` the recorded positions and ids from the record, and compares events
+  and effects without committing; the input comes from the decision record when the action keeps it
+  sealed, else from the receipt within its window, else `--input`. Time travel is this, `--trace`
+  and the `asOf` reads of decision 8a: the past is read and re-decided, never rewritten.
+- Sync ingest: the server runs a pushed mutation's `decide` against current state with the
+  mutation's ids and clock (section 15.3.6); a different outcome is the rebase the client journal
+  reports (section 15.3.8).
+- Tests: state in, events out, no mocks. `@pennestack/testing` drives a handler with answers as data,
+  or runs it on the in-memory adapter from given rows (`load`, `newId` and `created` are its
+  helpers):
+
+```ts
+const run = drive(register, { input: { displayName: 'Jens', email: 'jens@acme.example' }, config: { allowSelfRegistration: true } })
+run.expect(load.accounts.profile.exists({ email: 'jens@acme.example' })).answer(false)
+run.expect(newId(profile)).answer('prof_01j9...')
+run.returns({ events: [created(profile, { id: 'prof_01j9...', displayName: 'Jens', email: 'jens@acme.example' })], result: { profileId: 'prof_01j9...' } })
+```
+
+- Dry run: `pennestack explain <ref> --input ... --dry-run [--as <principal>]` runs admission,
+  `prepare` (an inline effect stops as "would perform" unless `--answer <effect>=<json>` gives its
+  outcome) and `decide` in a unit that rolls back, and prints events with before-images, effects with
+  ids and continuations, the result and the decision record.
+
+**Determinism rules**, enforced by types and by the lint preset (section 13.9):
+
+- Handler types exclude promises, so `async` and `await` in pure parts are type errors;
+  `no-await-in-parts.grit` says so readably.
+- `pure-parts.grit` (replacing `pure-deciders.grit`) flags `Date.now()`, `new Date()` without
+  arguments, `Math.random()`, `performance.now()`, `crypto.*`, `setTimeout`, `setInterval`,
+  `queueMicrotask`, `fetch` and a bare `yield` of a request in module sources outside
+  `src/executors/`.
+- Biome's `noNodejsModules` and `noRestrictedImports` keep `node:*`, adapters, drivers, `kysely` and
+  HTTP or SMTP clients out of module packages except under `src/executors/`.
+- `no-module-state.grit` flags top-level `let` and `var` and calls that mutate a top-level binding
+  (`push`, `set`, `delete`, property assignment).
+- `noProcessEnv`, `noProcessGlobal` and `noGlobalAssign` hold everywhere except `pennestack.config.ts`.
+- The registry refuses at compose a query requesting ids, random values or effects, `prepare` on an
+  asynchronous or offline command, and an inline executor with a capability.
+
+#### 7.9.7 What the context still carries
+
+`ctx` stays a parameter; in a decide each member is a value, a pure function or a request
+constructor.
+
+```ts
+interface DecideContext<M extends AnyModuleBase, W extends readonly AnyModule[] = [], P = undefined> {
+  readonly scope: Scope
+  readonly principal: Principal
+  readonly ability: Ability                                // pure over the rules
+  readonly config: ConfigOf<M>                             // secrets as references
+  readonly clock: { now(): Date }                          // the invocation's time
+  readonly request: RequestInfo
+  readonly prepared: P
+  readonly load: LoadsOf<M, W>                             // request constructors
+  readonly write: WritesOf<M, W>                           // draft constructors
+  readonly events: EventDraftsOf<M>                        // the target's events
+  readonly flags: FlagRequestsOf<M, W>
+  flagDetails<K extends FlagKeyOf<M, W>>(key: K): Request<FlagResolution<FlagValueOf<M, W, K>>>   // value, variant, reason, rule version, provider
+  readonly services: ServicesOf<M, W>                      // pure, bound to their providers
+  readonly extensions: ExtensionsOf<M>                     // pure, bound to their contributors
+  readonly secrets: SecretRequests                         // reveal, verify, issue
+  readonly compute: CoreComputations
+  newId<E extends OwnEntity<M>>(entity: E): Request<Id<E>>
+  random(bytes: number): Request<Uint8Array>
+  ask<R extends QueryRefsOf<M, W>>(ref: R, input: InputOf<M, R>): Request<ResultOf<M, R>>
+  all<const T extends readonly Request<unknown>[]>(requests: T): Request<AnswersOf<T>>
+  readonly log: Logger
+  readonly trace: Span
+}
+```
+
+- Removed: `data`, `egress`, `sql`, `blobs`, `timers`, `scopeKeys`, `streams`, `invoke`, `enqueue`,
+  `asSystem` and `signal`. Subscription sources keep `ctx.live`, which builds descriptions. Executors
+  alone see `egress`, `blobs` and `signal`; only the kernel holds repositories.
+- Logging and tracing are the only capabilities: write-only (`void`), unable to influence a result,
+  and not part of the logbook; a re-decide or dry run marks its lines `replay`.
+
+#### 7.9.8 Worked examples
+
+`accounts.register`: a uniqueness load, then events.
+
+```ts
+export const register = defineCommand(accountsBase, {
+  input: shape({ displayName: field.string(), email: field.string({ format: 'email' }) }),
+  output: shape({ profileId: field.ref.own('profile') }),
+  errors: [emailTaken],
+  auth: { public: true },
+  *decide(input, ctx) {
+    if (!ctx.config.allowSelfRegistration) throw errors.forbidden('Self-registration is disabled.')
+    if (yield* ctx.load.accounts.profile.exists({ email: input.email })) throw emailTaken({ email: input.email })   // module authority
+    const id = yield* ctx.newId(profile)
+    return { events: [ctx.write.accounts.profile.create({ id, displayName: input.displayName, email: input.email })], result: { profileId: id } }
+  },
+})
+```
+
+A concurrent registration of the same address fails the unique blind index at commit; the repeated
+unit sees the row and throws `emailTaken`.
+
+`auth.login`: a credential load, verification as computation, events for the session, no effect.
+
+```ts
+*decide(input, ctx) {
+  const cred = yield* ctx.load.auth.credential.one({ where: { identifier: input.identifier, kind: 'password', revokedAt: { isNull: true } } })
+  const ok = yield* ctx.compute.argon2idVerify(cred?.verifier ?? DUMMY_VERIFIER, input.password)
+  if (!cred || !ok) throw invalidCredentials()
+  const now = ctx.clock.now()
+  const id = yield* ctx.newId(session)
+  const token = yield* ctx.secrets.issue({ prefix: 'pss' })                      // recorded without its plaintext
+  const idleExpiresAt = addMinutes(now, ctx.config.sessionIdleMinutes)           // lib/: pure date arithmetic
+  return {
+    events: [
+      ctx.write.auth.session.create({ id, subject: cred.subject, credentialId: cred.id, publicId: token.publicId, tokenVerifier: token.verifier,
+        authenticatedAt: now, idleExpiresAt, absoluteExpiresAt: addDays(now, ctx.config.sessionAbsoluteDays) }),
+      ctx.write.auth.credential.update(cred, { lastUsedAt: now }),
+    ],
+    result: { sessionToken: token.plain, sessionId: id, expiresAt: idleExpiresAt },
+  }
+}
+```
+
+`deployments.deployment.run`: an effect the agent performs, with a continuation. `nodes` declares
+`agentCommand` with `performer: 'external'`; `nodes.channel` becomes
+`ctx.live.effects(agentCommand, { where: { nodeId } })` and `nodes.ack` settles, replacing the
+`nodes.command` rows of the earlier design (section 17.3.4 now specifies the channel this way).
+
+```ts
+export const run = defineCommand(deploymentsBase, deployment, {             // invoked by the dispatch reaction keyed by project
+  *decide(_input, current, ctx) {
+    const node = yield* ctx.load.nodes.node.byId(current.nodeId)
+    if (current.status !== 'queued' || node?.status !== 'online') return []    // wakeLanesOfNode dispatches again
+    return {
+      events: [ctx.events.dispatched({ at: ctx.clock.now() })],
+      effects: [ctx.services.nodes.send(current.nodeId, { type: 'deploy', payload: { deploymentId: current.id } }, { then: dispatchSettled, with: { id: current.id }, deadline: '60s' })],
+    }
+  },
+})
+export const dispatchSettled = defineCommand(deploymentsBase, deployment, {   // progress and results: reportPhase, reportResult
+  input: outcomeOf(agentCommand),
+  decide: (input, current, ctx) =>
+    input.outcome.ok && input.outcome.value.accepted ? []
+      : current.retryCount < 3 ? [ctx.events.requeued({ reason: 'dispatch', at: ctx.clock.now() })]
+      : [ctx.events.failed({ reason: 'lost', at: ctx.clock.now() })],
+})
+```
+
+Mail submission and delivery: one effect per attempt and domain; the state machine decides retries.
+
+```ts
+export const smtpDeliverExecutor = defineEffectExecutor(mailDeliveryBase, smtpDeliver, {
+  queue: 'mail-delivery',
+  capability: ({ config }) => (config.relay ? [] : ['smtp-out']),
+  group: ({ config, input }) => ({ id: `mx:${input.domain}`, concurrency: config.connectionsPerDomain, rate: '60/1m' }),
+  retry: { delays: ['30s', '2m'], giveUpAfter: 'PT10M' },                  // infrastructure only; SMTP replies are output
+  run: (input, ctx) => deliverOverSmtp(input, ctx),                         // executors/lib/: MX, MTA-STS, STARTTLS, one transaction
+})
+// submit: creates the submission with a status per recipient, then per domain:
+//   smtpDeliver({ submissionId, domain, recipients, message, dkim }, { then: recordAttempt, with: { id, domain } })
+export const recordAttempt = defineCommand(mailDeliveryBase, submission, {
+  input: outcomeOf(smtpDeliver, shape({ domain: field.string() })),
+  decide: (input, current, ctx) => {
+    const step = nextDeliveryStep(current, input, ctx.clock.now(), ctx.config.delivery)   // lib/: 5 min, backing off to 4 h, 5 days
+    return {
+      events: [ctx.events.attempted(step.attempt)],
+      effects: [
+        ...(step.retryAt ? [setTimer({ key: `retry:${current.id}:${input.domain}`, at: step.retryAt, invoke: retryDomain, input: { id: current.id, domain: input.domain } })] : []),
+        ...(step.notice ? [invoke(bounce, { id: current.id, kind: step.notice })] : []),   // delayed or failed: RFC 3464
+      ],
+    }
+  },
+})
+```
+
+`retryDomain`, the timer's command, requests a new `smtpDeliver` for the recipients still deferred.
+
+DNS record creation: a provider API effect with a continuation.
+
+```ts
+export const applyRecordExecutor = defineEffectExecutor(dnsBase, applyRecord, {
+  queue: 'dns',
+  group: ({ input }) => ({ id: `dns:${input.accountId}`, concurrency: 1, rate: '60/1m' }),
+  retry: { delays: 'exponential', maxDelay: '10m', giveUpAfter: 'PT6H' },   // 429 and 5xx: the upsert is idempotent
+  run: async (input, ctx) => ctx.extensions.providers.for(input.kind).upsert(ctx.egress, await ctx.secrets.reveal(input.token, 'dns apply'), input),
+})
+// dns.ensure, a service, returns record drafts plus applyRecord(input, { then: applied, with: { id } }) for its caller's decision
+export const applied = defineCommand(dnsBase, record, {
+  input: outcomeOf(applyRecord),
+  decide: (input, _current, ctx) => input.outcome.ok
+    ? [ctx.events.applied({ externalId: input.outcome.value.externalId, at: ctx.clock.now() })]
+    : [ctx.events.failed({ code: input.outcome.error.code, at: ctx.clock.now() })],
+})
+```
+
+#### 7.9.9 Fit with the rest of the specification
+
+- Pipeline (section 9.2): `execute` is the interpreter (phases 3 to 7); a stage `prepare` sits
+  between `authorize` and `execute`, outside any unit; `complete` adds the effect ids to the outcome.
+- Jobs (sections 9.4 and 9.5): effect records and jobs commit with the unit and run after commit with
+  the executor's `capability`, `group` and `retry` as job options; continuations are action jobs.
+- Authorization (section 8.4): loads carry the module's authority, `forCaller()` and `ctx.target` the
+  caller's plan, the shape stage checks every row leaving the invoker, and drafts obey the write
+  boundary. Effects need no rules: the action was authorized as a whole, and egress bounds executors.
+- Layout (section 23): `src/effects/<effect>.ts` exports one `defineEffect`, `src/executors/<effect>.ts`
+  exports `<effect>Executor`, imperative helpers sit in `src/executors/lib/`, and `src/lib/` stays
+  pure. Effects are parts: the module literal mounts `effects` and `executors`, keyed by effect name;
+  `pennestack new effect|executor` scaffolds them.
+- Versioning (sections 18 and 19): effect inputs and outputs are versioned like action inputs;
+  workers take effect jobs at or below their revision; version changes are pure transforms.
+- Flags (section 20): handlers read flags as requests, recorded in the envelope; rules read the
+  snapshot; flag providers are infrastructure.
+- Kernel extension points that modules fill (resolvers, enrichers, middleware) take pure values
+  (section 5.6); a session's idle extension becomes an `enqueue` effect (section 17.2.3).
+
+#### 7.9.10 Traceability
+
+| Requirement | Subsections |
+|---|---|
+| Brief addendum 4: "Everything runs on pure functions." | 7.9.1 (the rule), 7.9.2 (handler forms) |
+| "inputs are kept within its parameters and its outputs are only ever returned through its return value" | 7.9.2 (handler forms), 7.9.3 (requests), 7.9.7 (what the context still carries) |
+| "nothing flows through global state, module-level state, ambient context or any other hidden channel" | 7.9.6 (determinism rules), 7.9.7 (what the context still carries) |
+| "a hard requirement for the framework itself and for the code written on it" | 7.9.1 (the rule), 7.9.6 (determinism rules) |
+| "Where the outside world must be touched (databases, networks, clocks, randomness)" | 7.9.3 (requests), 7.9.5 (effects) |
+| "which parts perform effects" | 7.9.1 (the rule), 7.9.5 (effects) |
+| "how effects enter and leave pure code" | 7.9.3 (requests), 7.9.4 (phases), 7.9.5 (effects and continuations) |
+| "and how the rule is enforced by tooling" | 7.9.6 (determinism rules), sections 13.9 and 23.12 |
+| Jens, 2026-10-25: "trace each cause and effect" | 7.9.6 (the logbook) |
+| "rebuild a full database and logbook from them" | 7.9.6 (the logbook: rebuilding) |
 
 ## 8. Authorization
 
@@ -2014,7 +2618,8 @@ interface Rule<E> {
   readonly reason?: string                     // required for deny rules
 }
 // The callbacks' PrincipalContext carries the principal, the scope and `flags`, the flags of the rule's
-// module typed as in ActionContext, so rules may read flags (section 20.6).
+// module typed as in the decide context, read as values from the invocation's snapshot, so rules may read
+// flags (section 20.6) and stay plain functions (section 7.9.2).
 ```
 
 Policies are written as arrays of these objects, one `definePolicy(base, target, [...])` per target
@@ -2032,8 +2637,8 @@ Fields and maskability:
   field lists of runtime rule sources; `defineApp` and the rule-source loader reject anything
   else. A maskable field is shown when an allow rule that selected the row lists it (or lists no
   fields at all) and no deny rule that matches the row lists it.
-- For write actions, `fields` lists the fields the write may change; for `decide` commands, the
-  fields the resulting events change. A write that changes another field is `forbidden`
+- For write actions, `fields` lists the fields the write may change; for custom commands, the
+  fields the events of their decision change. A write that changes another field is `forbidden`
   (`authorization.mode: 'strip'` drops it instead).
 - `Readable<R>`, the type of rows that transports and clients receive, makes exactly the maskable
   fields optional; every other field keeps its declared type. Inside the invoker, the write path
@@ -2092,7 +2697,7 @@ Authors write the object form (`{ ownerId: ctx.principal.subject }`,
 interpreters, are fixed in section 14.3.4: two-valued logic, null-safe `ne` and `nin`, code-point
 string comparison, membership for `contains` on sets and lists.
 
-Null in conditions written in code (rules, repository queries, live options): a comparison whose
+Null in conditions written in code (rules, load queries, live options): a comparison whose
 value is `null` or `undefined` is false, and testing for absence needs `{ isNull: true }`. An
 anonymous or service principal whose subject is absent therefore never matches a rule written as
 `{ ownerId: ctx.principal.subject }`, even on rows whose owner is unset; rules fail closed on
@@ -2120,30 +2725,31 @@ the invoker:
 |---|---|---|
 | gate | may this principal perform this action here at all (action rules, principal kinds, scope level)? | boolean; cheap; denial ends the pipeline with `forbidden` and the matched rule ids |
 | plan | which rows may the action select, which rows may it produce, which maskable fields may the caller see? | `always`, `never`, or `conditional { where, check, fields }`, memoised per invocation |
-| target | for instance commands: does the plan's `where` select the target? | outside it, `not_found`; the handler then receives the full row |
+| target | for instance commands: does the plan's `where` select the target? | outside it, `not_found`; `decide` then receives the full row |
 | item check | does the post-image (for creates, the new row) pass the rules of section 8.2 and the entity invariant? | failure rolls the unit back with `forbidden` |
 | shape | which rows and fields leave the invoker? | every entity row in the output is checked against the caller's read plan and masked by its fields; a row the plan does not select is an `internal` error (`core.row_outside_plan`) in development and tests, and in production it is dropped from the output and logged |
 
 Inside a handler, data access follows the module boundary, not the caller's rules:
 
-- Repository calls run with the module's own authority over its own entities, and read access to
-  the entities of its declared dependencies. The action was authorized as a whole; the module is
-  trusted code that implements it. Reads are never narrowed silently by the caller's plan, so a
-  uniqueness check, a quota count or an existence test never gives a wrong answer.
-- Reads on behalf of the caller are explicit: `ctx.data.<m>.<e>.forCaller()` (and `ctx.target`
-  in entity-mounted queries) return what the caller's read plan selects, masked by its fields.
+- Loads (`ctx.load.<m>.<e>`) run with the module's own authority over its own entities, and read
+  access to the entities of its declared dependencies. The action was authorized as a whole; the
+  module is trusted code that implements it. Reads are never narrowed silently by the caller's
+  plan, so a uniqueness check, a quota count or an existence test never gives a wrong answer.
+- Reads on behalf of the caller are explicit: `ctx.load.<m>.<e>.forCaller()` (and `ctx.target`
+  in entity-mounted queries) answer what the caller's read plan selects, masked by its fields.
   List and search actions use them.
-- Writes reach the module's own entities, and another module's entity only for the fields this
-  module contributed to it. A write outside that boundary is a type error and, at runtime,
-  `forbidden`; it is never ignored. Other modules' data changes through their actions and
-  services.
-- Services and behavioural extension values run with their providing module's authority over the
+- Writes are drafts (`ctx.write`, `ctx.events`) checked against the same boundary: the module's
+  own entities, and another module's entity only for the fields this module contributed to it. A
+  draft outside that boundary is a type error and, at runtime, `forbidden`; it is never ignored.
+  Other modules' data changes through their actions and services.
+- Services and behavioural extension values load with their providing module's authority over the
   provider's own entities, under the caller's principal (section 5.5).
 - Reactions, timers and schedules run under the module service principal `<module>.system`, never
   under the principal that triggered them, with the triggering actor recorded as causation. A
   deactivation by an operator therefore still revokes the subject's credentials, because
   `auth.system` may invoke auth's own actions.
-- `ctx.asSystem(reason)` invokes actions as the system principal and is logged with the reason.
+- `invoke(action, input, { as: system(reason) })` invokes an action as the system principal and is
+  logged with the reason (section 7.9.5).
 - The shape stage is the backstop of module authority (decision point 4, decided 2026-10-24): a
   handler that returns a row it read with the module's authority, which the caller may not read,
   never discloses it. Every entity row node leaving the invoker (outputs, pages, `EntityChange`
@@ -2257,15 +2863,17 @@ unit per tenant.
 ### 9.1 Overview
 
 ```
-transport ──Carrier──▶ Invoker.open ──▶ session ──Invocation──▶ pipeline ──▶ handler ──▶ unit (rows, events, jobs)
+transport ──Carrier──▶ Invoker.open ──▶ session ──Invocation──▶ pipeline ──▶ interpreter ⇄ handler ──▶ unit (rows, events, effect records, jobs)
    ▲                                                                            │
    └──────────── Outcome | AsyncIterable<LiveFrame> ◀───────────────────────────┘
                      live hub ◀── change feed (event log, wake-ups after commit) ◀── commit
+                     effect executors ◀── effect jobs (after commit, at least once) ◀── commit
 ```
 
-The invoker is the single entry point. It is used by transports, listeners, the CLI, tests and
-`ctx.invoke`. Sections 14 to 16 specify the implementations behind the interfaces of this section;
-the interfaces themselves are fixed here.
+The invoker is the single entry point. It is used by transports, listeners, the CLI, tests and the
+kernel itself when it performs `invoke` effects and runs jobs; the interpreter inside it drives the
+pure handlers and answers their requests (section 7.9.4). Sections 14 to 16 specify the
+implementations behind the interfaces of this section; the interfaces themselves are fixed here.
 
 ### 9.2 The pipeline
 
@@ -2275,20 +2883,23 @@ the interfaces themselves are fixed here.
 | `resolvePrincipal` | carrier, scope | `unauthenticated` for invalid bearer tokens and API keys; an invalid cookie session counts as absent (section 16.4.10) | `principalResolvers`, `principalEnrichers` |
 | `resolveVersion` | the request's version, else the credential's, the tenant's pin, the backend's default (section 18.3) | `validation` (`core.api_version_invalid`, `core.api_version_unknown`), `not_found` (`core.api_version_retired`); on an older process during a rollout, `unavailable` (`core.rollout_in_progress`) | |
 | `locate` | action ref (an older reference mapped to the head's), scope | `not_implemented` when the backend's app lacks the module or the action; `forbidden` when the action's scope level does not match; `unavailable` (`core.rollout_in_progress`) on an older process during a rollout | registry |
-| `admit` | tenant quotas, rate limits, kill switches and `core.suspension` rows (sections 12.2 and 20.7) | `rate_limited`, `unavailable` (`core.feature_suspended`) | `invocationMiddleware` |
+| `admit` | tenant quotas, rate limits, kill switches and `core.suspension` rows (sections 12.2 and 20.7) | `rate_limited`, `unavailable` (`core.feature_suspended`) | `invocationMiddleware` (admission rules) |
 | `validate` | input against the action's schema at the session's API version, in wire or in-process form | `validation` with Standard Schema issues | |
 | `translate` | input transforms of the version changes the session's version lacks, oldest first (section 18.2) | `internal` (`core.version_change_failed`) | version changes |
 | `authorize` | gate (section 8.4), including flag gates | `forbidden` with rule ids; `core.feature_disabled` for a gate | engine, `ruleSources` |
-| `execute` | handler inside a unit (read-write for commands, read-only for queries); target selection and item check inside; every appended event records its writer and the flags read | domain errors, `conflict` on version mismatch | data layer, job queue |
+| `prepare` | synchronous commands that declare `prepare`: outside any unit, loads in read-only snapshots and inline effects, each recorded before and after it runs (section 7.9.4) | an undeclared throw is `internal`; an inline effect's failure is an answer, not an error | effect executors marked `inline` |
+| `execute` | the interpreter, phases 3 to 7 of section 7.9.4: the unit (read-write for commands, read-only for queries), target selection, the handler driven and its requests answered, the drafts evolved and item-checked, the kernel effects performed and the external ones recorded with their effect jobs; every appended event records its writer, the flags read and its decision record | domain errors, `conflict` on version mismatch after the automatic retries | data layer, job queue |
 | `shape` | the row check against the caller's plan, output masks, output validation in development | `internal` | |
 | `translate` | output, error and item transforms, newest first | `internal` (`core.version_change_failed`) | version changes |
-| `complete` | telemetry, decision log, receipt; flushes API usage counters, flag counters and exposures | | `invocationMiddleware`, `flagObservers` |
+| `complete` | telemetry, decision log, receipt; flushes API usage counters, flag counters and exposures; adds the ids of the deferred effects to the outcome | | `flagObservers` |
 
 `resolveScope`, `resolvePrincipal` and `resolveVersion` run once per transport request or
 connection, in `Invoker.open`, which returns an `InvocationSession` (section 16.3.4); invocations
 reuse it.
-Middleware wraps stages (an onion) and is contributed through `invocationMiddleware`; it can
-observe and short-circuit, never skip `authorize`.
+Admission rules contributed through `invocationMiddleware` run at `admit` as pure values: they
+return the token buckets to consume or a refusal, which the kernel applies, so nothing a module
+contributes wraps or skips a stage (section 5.6); observing the stages is kernel instrumentation
+(section 11).
 
 ```ts
 interface Invocation<I> {
@@ -2303,7 +2914,7 @@ interface Invocation<I> {
   readonly traceparent?: string
   readonly signal: AbortSignal
 }
-type Outcome<O> = { ok: true; value: O; receipt?: CommandReceipt } | { ok: false; error: PennestackError }
+type Outcome<O> = { ok: true; value: O; receipt?: CommandReceipt; effects?: readonly string[] } | { ok: false; error: PennestackError }   // effects: deferred effect ids (section 7.9.5)
 
 interface Invoker {
   open(carrier: Carrier, options?: { readonly signal?: AbortSignal }): Promise<Outcome<InvocationSession>>
@@ -2316,10 +2927,10 @@ interface Invoker {
 
 ```ts
 interface CommandBus {
-  dispatch<R extends string>(ref: R, input: unknown, ctx: ActionContext<AnyModule>, options?: { prefer?: 'sync' | 'async'; commandId?: string }): Promise<Outcome<unknown>>
+  dispatch<R extends string>(ref: R, input: unknown, ctx: KernelInvocationContext, options?: { prefer?: 'sync' | 'async'; commandId?: string }): Promise<Outcome<unknown>>
 }
 interface QueryBus {
-  ask<R extends string>(ref: R, input: unknown, ctx: ActionContext<AnyModule>): Promise<Outcome<unknown>>
+  ask<R extends string>(ref: R, input: unknown, ctx: KernelInvocationContext): Promise<Outcome<unknown>>
 }
 interface EventBus {
   /** Called inside the command's unit; events are durable at commit. */
@@ -2329,22 +2940,24 @@ interface EventBus {
 }
 ```
 
-The buses are internal to the invoker; a module never calls them directly, it uses `ctx.invoke`,
-`ctx.enqueue`, `ctx.events.*` and reactions.
+The buses are internal to the invoker, and their context parameter (`KernelInvocationContext`:
+scope, principal, unit, causation and trace) is kernel-internal. A module never calls them: it
+returns `invoke` and `enqueue` effects and drafts from `ctx.write` and `ctx.events`, yields `ask`
+requests, and declares reactions; the interpreter turns those into bus calls (section 7.9.4).
 
 ### 9.4 Transactions and the event chain
 
 A synchronous command runs in one unit on the namespace of its scope (section 14.2): insert the
-pending receipt, load the target with its version, decide, buffer the events (expected version),
-evolve and store the state, run inline reactions, enqueue jobs and timers in the same unit,
-complete the receipt, assign positions at the commit tail, commit. The unit also commits the effect
-records of the effect descriptions the handler returned, written as effect jobs, and the external
-effects run after commit through their executors, as section 9.5.2 describes (decision 50a; the
-exact contract is specified in the pure-handlers section). The events table is the outbox: nothing
-outside the unit observes anything before commit, and wake-ups are sent after commit (section
-15.2.5). Section 15.1 specifies the event store within these constraints: one stream per entity
-instance, expected-version appends, commit-ordered positions per scope, a hybrid logical clock per
-event, the actor and command id in the envelope.
+pending receipt, load the target with its version, drive the decision and answer its requests,
+buffer the events (expected version), evolve and store the state, let inline reactions decide,
+perform the kernel effects (invocations in savepoints, jobs and timers in the same unit), complete
+the receipt, assign positions at the commit tail, commit. The unit also commits the effect records
+of the effect descriptions the handler returned, written as effect jobs, and the external effects
+run after commit through their executors, as section 9.5.2 describes (phases 6 to 9 of section
+7.9.4). The events table is the outbox: nothing outside the unit observes anything before commit,
+and wake-ups are sent after commit (section 15.2.5). Section 15.1 specifies the event store within
+these constraints: one stream per entity instance, expected-version appends, commit-ordered
+positions per scope, a hybrid logical clock per event, the actor and command id in the envelope.
 
 ### 9.5 Asynchronous work: jobs, timers and schedules
 
@@ -2356,9 +2969,8 @@ row-level security and needs no relay. Under decision 50a no worker runs code th
 an action job (an asynchronous command, reaction, timer, schedule or continuation) is invoked
 through the invoker and returns events and effect descriptions; an external effect (an SMTP
 dialogue, a Docker Engine request) becomes an effect job in the same unit, run by its declared
-executor where the executor's capabilities are advertised (decision 50a; the exact contract is
-specified in the pure-handlers section). Section 21 places and scales the work
-([research/jobs-nodes-autoscaling.md](research/jobs-nodes-autoscaling.md)).
+executor where the executor's capabilities are advertised (section 7.9.5). Section 21 places and
+scales the work ([research/jobs-nodes-autoscaling.md](research/jobs-nodes-autoscaling.md)).
 
 #### 9.5.1 Jobs and the queue interface
 
@@ -2395,21 +3007,22 @@ interface JobQueue {
   explain(job: JobId): Promise<JobExplanation>                // why it waits: due time, cap, group, rate, key, capability, revision
 }
 
-// nodes.node.heartbeat (section 17.3.4), decision 50a: the timer's job row commits in this unit and fires under
-// the module's service principal; cancelTimer(key) is the inverse.
+// nodes.node.heartbeat (section 17.3.4), a kernel effect (section 7.9.5): the timer's job row commits in this
+// unit and fires under the module's service principal; cancelTimer(key) is the inverse.
 return {
   events: [ctx.events.heartbeat({ active: input.active })],
   effects: [setTimer({ key: `node-offline:${input.id}`, after: '45s', invoke: markOffline, input: { id: input.id } })],
 }
 export const refreshPublicAddressSchedule = defineSchedule(dnsBase, { every: '5m', invoke: refreshPublicAddress, scope: 'each-tenant', jitter: '30s' })
 // modules/dns/src/module.ts: schedules: { refreshPublicAddress: refreshPublicAddressSchedule }   (the key is the schedule id; schedules contribute to the core's `schedules` extension point)
-// An effect executor's job options; the executor contract is decision 50a's and its name provisional:
-export const smtpSend = defineEffectExecutor(mailDeliveryBase, {
+// An effect executor's job options (section 7.9.5): the effect is its second argument, and its retries are
+// mechanical; the five-day delivery schedule belongs to the submission's state machine (section 17.4.7).
+export const smtpDeliverExecutor = defineEffectExecutor(mailDeliveryBase, smtpDeliver, {
   queue: 'mail-delivery',
   capability: ({ config }) => (config.relay ? [] : ['smtp-out']),
-  group: ({ effect, config }) => ({ id: `mx:${effect.domain}`, concurrency: config.connectionsPerDomain, rate: '60/1m' }),
-  retry: { delays: ['5m', '15m', '30m', '1h', '2h'], maxDelay: '4h', giveUpAfter: 'P5D' },   // section 17.4.7
-  run,                                                        // imperative: the SMTP dialogue through the egress service
+  group: ({ config, input }) => ({ id: `mx:${input.domain}`, concurrency: config.connectionsPerDomain, rate: '60/1m' }),
+  retry: { delays: ['30s', '2m'], giveUpAfter: 'PT10M' },     // infrastructure failures only; SMTP replies are output
+  run: (input, ctx) => deliverOverSmtp(input, ctx),           // imperative: the SMTP dialogue through the egress service (src/executors/lib/)
 })
 ```
 
@@ -2434,7 +3047,7 @@ Asynchronous actions and async reactions set the same job options, `capability` 
   writes history, a retryable failure schedules the next attempt, and the key's next `waiting` job
   becomes `available`.
 - A job's unit runs the kernel's loads, then writes events, effect records, receipt and completion
-  at its tail (decision 50a). No handler waits on the network inside a unit, so no long write
+  at its tail (section 7.9.4). No handler waits on the network inside a unit, so no long write
   transaction pins PostgreSQL's MVCC horizon. Database effects commit with the completion,
   effectively once; effect jobs run after commit, at least once, passing the effect id as
   idempotency key where the destination accepts one. Each outcome is recorded on its effect record,
@@ -2480,7 +3093,8 @@ select j.* from picked p cross join share s cross join lateral (
 - Retries follow the error taxonomy, in which executors report too: `unavailable`, `rate_limited`
   (honouring `retryAfter`, and blocking the job's group until then) and `conflict` with `retryable`
   are retried by the job's policy, with full jitter; every other kind fails the job at once. Domain
-  waits (an image that does not exist yet) are state machines with timers, not job retries.
+  waits (an image that does not exist yet, a deferred mail delivery) are state machines with timers,
+  not job retries (section 7.9.5, decision point 75).
 - The worker renews its running jobs' leases every `heartbeatSeconds`, one statement per namespace;
   a lease lasts three heartbeats. The next take reclaims an expired one: the job returns to
   `available`, the attempt counted as `unavailable`, `core.job_lease_lost`. Renewal and completion
@@ -2632,8 +3246,13 @@ horizon with `core.history_compacted` (`not_found`, section 14.7.1). The job que
 `core.queue_full` (`rate_limited` with `retryAfter`, section 9.5.5), `core.job_lease_lost` (an
 attempt counted as `unavailable`, section 9.5.4) and `core.capability_unplaceable` (`unsupported`,
 section 21.2); queries over encrypted personal fields add `core.personal_operator`,
-`core.personal_needle_short` and `core.scan_limit` (all `unsupported`, section 14.7.9). The taxonomy
-itself is unchanged.
+`core.personal_needle_short` and `core.scan_limit` (all `unsupported`, section 14.7.9). The effect
+interpreter adds `core.effect_in_unit` (an inline effect requested inside the unit) and
+`core.reaction_depth` (inline reactions nested deeper than 8), both `internal`, and
+`core.effect_outcome_unknown` (an effect settled as `abandoned`, whose destination may have acted)
+and `core.effect_deadline` (an external effect settled as `failed` at its deadline), both
+`unavailable`, not retried by an executor and handed to the continuation as the outcome's error
+(section 7.9). The taxonomy itself is unchanged.
 
 Declared errors become typed unions in GraphQL, typed results of `attempt` in the typed client,
 documented responses in OpenAPI and exit codes in the CLI. Error codes are part of the public
@@ -2721,15 +3340,17 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
   isolation suite covers these cases (section 14.10).
 - A tenant command reads backend-level entities in a separate read-only snapshot, never inside its
   own transaction, whether or not the backend's home namespace is co-located with the tenant's.
-  A command of another scope runs only after commit through `ctx.enqueue`, returning a receipt.
-  Snapshot and atomicity semantics are therefore the same on every placement.
-- Modules that connect to hosts named by tenants or by DNS (MX targets, MTA-STS policy hosts,
-  outbound webhooks) use the core's egress service (`ctx.egress.fetch`, `ctx.egress.connect`). It
-  resolves the name, refuses loopback, private (RFC 1918 and RFC 4193), link-local and other
-  special-purpose addresses unless the deployment allowlists them, pins the checked address for the
-  connection, and records the destination on the span. A home installation that hosts PostgreSQL,
-  Caddy's admin API and other services on its LAN is otherwise one tenant-supplied host name away
-  from them.
+  A command of another scope runs only after commit, through an `enqueue` effect; no receipt
+  returns to the decision, which names the command id (`enqueue(action, input, { commandId })`)
+  when someone must follow it (section 7.9.5). Snapshot and atomicity semantics are therefore the
+  same on every placement.
+- Effect executors that connect to hosts named by tenants or by DNS (MX targets, MTA-STS policy
+  hosts, outbound webhooks) use the core's egress service (`ctx.egress.fetch`, `ctx.egress.connect`
+  of the executor context, section 7.9.5); handlers connect nowhere. The egress service resolves the
+  name, refuses loopback, private (RFC 1918 and RFC 4193), link-local and other special-purpose
+  addresses unless the deployment allowlists them, pins the checked address for the connection, and
+  records the destination on the span. A home installation that hosts PostgreSQL, Caddy's admin API
+  and other services on its LAN is otherwise one tenant-supplied host name away from them.
 
 ## 13. Types and toolchain
 
@@ -2975,12 +3596,13 @@ its formatter defaults. The preset enables these rules as errors:
 | `noEnum`, `noNamespace`, `noParameterProperties` (style) | erasable syntax only, for Node's type stripping |
 | `useImportType`, `useExportType` (style) | `verbatimModuleSyntax` |
 | `useNodejsImportProtocol` (style) | `node:` specifiers for built-ins |
-| `noProcessEnv` (style) | configuration comes from `ctx.config`, secrets from `field.secret()`, deployment values from `env()` |
+| `noProcessEnv` (style), `noProcessGlobal` (correctness), `noGlobalAssign` (suspicious), everywhere except `pennestack.config.ts` | configuration comes from `ctx.config`, secrets from `field.secret()`, deployment values from `env()`; no hidden channel through the process or a global (section 7.9.6) |
+| `noNodejsModules` (correctness), in module packages outside `src/executors/` | `node:*` modules perform effects or need the event loop; handlers yield requests instead, and the core's pure primitives come from `@pennestack/core/crypto` (section 7.9.3) |
 | `noNonNullAssertion` (style) | `noUncheckedIndexedAccess` results are meant to be handled |
 | `noDefaultExport` (style) | named exports everywhere except `pennestack.config.ts` (an override) |
 | `useImportExtensions` (correctness) | relative imports carry `.ts`, as Node and `rewriteRelativeImportExtensions` need |
 | `noUnusedImports`, `noPrivateImports` (correctness) | hygiene; `@private` internals stay private |
-| `noFloatingPromises`, `noMisusedPromises` (nursery) | unawaited work escapes the transaction and the span; the exact Biome version is pinned, so nursery behaviour does not drift |
+| `noFloatingPromises`, `noMisusedPromises` (nursery) | in the imperative code that remains (kernel, executors, transports, listeners), unawaited work escapes its span and its abort signal; the exact Biome version is pinned, so nursery behaviour does not drift |
 | `noRestrictedImports` (style) | the package-kind boundaries below, and per-directory patterns of the layout (section 23.12) |
 | `useFilenamingConvention` (style), `filenameCases: ["kebab-case"]`, `requireAscii` | file names are `kebab()` of their export (section 23.4) |
 | `useNamingConvention` (style), `strictCase` | identifiers without consecutive capitals, so the name mapping reads back |
@@ -2994,8 +3616,11 @@ generated paths from the naming rule, and scripts and tests from the import-effe
 Package-kind boundaries, as `overrides` with `includes`:
 
 - module packages may not import adapters, transports, database drivers (`pg`, `mysql2`,
-  `better-sqlite3`), `kysely` or `drizzle-orm`: handlers reach data through `ctx.data`, and the SQL
-  escape hatch comes from an adapter capability, not from an import;
+  `better-sqlite3`), `kysely` or `drizzle-orm`: handlers reach data through `ctx.load` and
+  `ctx.write`, and the SQL escape hatch is a read request over an adapter capability (section
+  14.3.8), not an import; outside `src/executors/` they may not import `node:*` modules or HTTP and
+  SMTP clients either (`noNodejsModules` and `noRestrictedImports` overrides), while executors and
+  their `src/executors/lib/` may;
 - transport packages may not import module packages, adapters or the data package: transports see
   only the surface and the invoker;
 - the core imports nothing from the workspace.
@@ -3007,23 +3632,26 @@ GritQL plugins shipped in the same package, each with tests:
 | `no-selection-augmentation.grit` | `declare module '@pennestack/...'` and `declare global` in module and app packages (principle 2) |
 | `named-module-types.grit` | an exported `defineModuleBase(...)`, `defineModule(...)` or `defineApp(...)` value without a named type annotation (section 4.1), in `base.ts`, `module.ts` and `app.ts` |
 | `no-null-in-conditions.grit` | a literal `null` as a comparison value in a rule's `where` or `check` (section 8.3) |
-| `as-system-reason.grit` | `ctx.asSystem()` without a reason or with an empty string |
-| `pure-deciders.grit` | `Date.now()`, `new Date()` without arguments, `Math.random()`, `crypto.randomUUID()` and `performance.now()` inside `decide` and `evolve` (use `ctx.clock` and `ctx.ids`) |
+| `as-system-reason.grit` | `system()` without a reason or with an empty string, as in `invoke(action, input, { as: system('') })` |
+| `pure-parts.grit` (replaces `pure-deciders.grit`) | `Date.now()`, `new Date()` without arguments, `Math.random()`, `performance.now()`, `crypto.*`, `setTimeout`, `setInterval`, `queueMicrotask`, `fetch` and a bare `yield` of a request, in module sources outside `src/executors/` (use `ctx.clock`, `ctx.newId`, `ctx.random`, `yield*` and effects; section 7.9.6) |
+| `no-module-state.grit` | top-level `let` and `var`, and calls that mutate a top-level binding (`push`, `set`, `delete`, property assignment), in module sources |
+| `no-await-in-parts.grit` | `async` and `await` in pure parts outside `src/executors/`: handler types already exclude promises, and this rule says so readably |
 | `error-code-format.grit` | `defineError` codes that do not match `<module>.<snake_case>` |
 | `one-export.grit` | a second exported value in a source file, outside assembly files, library entries and tests (section 23.3) |
 | `no-import-effects.grit` | top-level expression statements, `await` and bare imports, outside tests and scripts |
 | `wiring-only-assembly.grit` | a function or arrow function in `base.ts`, `module.ts`, `app.ts` or `modules.ts` |
 
-The last three are scoped with `includes`, because GritQL cannot read the file path; checks that
-need paths belong to the layout pass of `pennestack doctor` (section 23.13). Modules are object
-literals (section 4.1), so no rule guards a chain of steps.
+The last three, like `pure-parts`, `no-module-state` and `no-await-in-parts` (module sources, minus
+`src/executors/` where the rule says so), are scoped with `includes`, because GritQL cannot read the
+file path; checks that need paths belong to the layout pass of `pennestack doctor` (section 23.13).
+Modules are object literals (section 4.1), so no rule guards a chain of steps.
 
 ```grit
 or {
-  `$ctx.asSystem()`,
-  `$ctx.asSystem($reason)` where { $reason <: or { `""`, `''` } }
+  `system()`,
+  `system($reason)` where { $reason <: or { `""`, `''` } }
 } as $call where {
-  register_diagnostic(span = $call, message = "asSystem() needs a reason: it is written to the audit log.", severity = "error")
+  register_diagnostic(span = $call, message = "system() needs a reason: it is written to the audit log.", severity = "error")
 }
 ```
 
@@ -3038,10 +3666,10 @@ error-code prefixes against the declaring module, unique TypeID prefixes) run at
   `expectTypeOf`; a check on 2026-10-10 confirmed that Vitest's type checker runs on TypeScript
   7.0.2 and reports failing assertions (Appendix B).
 - The core's suite contains the fourteen cases of section 4.7, the context rules of section 7.6
-  (each module compiles with no app in scope; `ctx.data.accounts` is `| undefined` under
+  (each module compiles with no app in scope; `ctx.load.accounts` is `| undefined` under
   `optional` and present in a part typed with `within(base, whenAccounts)`; `ctx.live` follows the
   contract; parts in separate files produce the module type of the same module written in one
-  file),
+  file; an `async` handler fails to compile; generator answers are typed per request),
   the policy typing (a condition cannot name a field or relation that the rule's modules do not
   provide; read rules list only maskable fields; `principal: 'user'` narrows the subject), and the
   generated file's exports.
@@ -3194,7 +3822,7 @@ deployment
 
 | Layer | Package | Responsibility |
 |---|---|---|
-| Kernel repositories and write path | `@pennestack/core` | `ctx.data.<module>.<entity>`: typed reads with the module's authority or the caller's view (section 8.4), writes as events, `decide` and `evolve`, merge rules, item checks, receipts, sealing of credential material and encryption of personal fields, the kernel job queue. Written once, against the contract. |
+| Kernel repositories and write path | `@pennestack/core` | kernel-internal repositories behind the requests and drafts of section 7.9 (`ctx.load.<module>.<entity>` with the module's authority or the caller's view, section 8.4; `ctx.write` drafts written as events), the interpreter, `evolve`, merge rules, item checks, receipts, decision and effect records, sealing of credential material and encryption of personal fields, the kernel job queue. Written once, against the contract. |
 | Contract | `@pennestack/core` (types only) | `DataAdapterFactory`, `DataAdapter`, `Unit`, `RowStore`, `EventStore`, `ReceiptStore`, `JobStore`, `ConsumerStore`, `TombstoneStore`, `StreamRecordStore`, `UsageStore`, `SubjectKeyStore`, `SchemaOperations`, `ChangeFeedSource`, descriptors, positions. The core declares them because its extension points are typed by them. |
 | SQL family | `@pennestack/data` | The Kysely-based implementation shared by SQL adapters: descriptor-to-table mapping, condition and cursor compilers, value codecs, the scoping plugin, DDL rendering through Kysely's schema builder, catalogue introspection, the migration planner, the in-memory adapter and the conformance kit. |
 | Dialect adapters | `@pennestack/adapter-*` | Driver, dialect codecs and quirks, change-feed wake-ups, row-level security, capability declaration. |
@@ -3552,16 +4180,17 @@ result set.
   `REPEATABLE READ` on inserts) and under `BEGIN IMMEDIATE` on SQLite. Writers of one row queue on its
   row lock where the adapter has row locks (section 15.1.6); the versioned state update and the unique
   stream version remain the guard on every adapter.
-- Nested units are savepoints: a command invoked through `ctx.invoke` inside a command runs in a
-  savepoint so the caller can catch its error and continue.
-- Retries: on a version conflict, a serialization failure or a deadlock, `decide` commands and the
-  generated `set` are retried up to three times with jitter (they are pure apart from reads);
-  `handle` commands return `conflict` with `retryable: true`, because a handler may have called a
-  service whose effects are not idempotent. A `set` with `ifInState` or `ifVersion` never retries.
+- Nested units are savepoints: a command requested with an `invoke` effect runs after the decision
+  that requested it, in a savepoint of the same unit, and its failure fails the unit (the decision
+  saw no result to catch; section 7.9.5).
+- Retries: on a version conflict, a serialization failure or a deadlock, every command, the
+  generated `set` included, is retried up to three times with jitter (phases 3 to 7 of section
+  7.9.4), because no decision performed anything; `prepare` is not repeated. A `set` with
+  `ifInState` or `ifVersion` never retries.
 - A unit spans one namespace and one scope. A tenant command reads backend-level entities in a
   separate read-only snapshot, always, even when the backend's home namespace is the tenant's;
   backend-level entities change only through backend-scope actions, which a tenant command reaches
-  with `ctx.enqueue` after commit (section 12.3). Control data is reached through core actions and
+  with an `enqueue` effect after commit (section 12.3). Control data is reached through core actions and
   services, never joined. A backend-scope or deployment-scope unit refuses tenant-tenancy
   entities.
 - Invariants across rows that a concurrent insert could break (at most ten previews per project)
@@ -3660,24 +4289,27 @@ conformance kit adds the unsealing oracle ("unseal and evaluate") as the referen
 
 #### 14.3.8 The SQL escape hatch (M7)
 
-`ctx.sql` exists when a module declares the data need `{ sql: <dialect> }` and the placement's
-adapter has that dialect; tenants are only created on, and moved to, placements that satisfy it
-(section 14.3.3). It is a Kysely instance bound to the current unit and typed by `SqlTables<M>`
-for the declared dialect (section 14.8.2), with logical table names (`'accounts.profile'`) and
-field names. Plugins on that instance (Kysely's `transformQuery` hook):
+`ctx.load.sql(build)` exists when a module declares the data need `{ sql: <dialect> }` and the
+placement's adapter has that dialect; tenants are only created on, and moved to, placements that
+satisfy it (section 14.3.3). It is a read request (section 7.9.3): `build` receives a Kysely query
+builder without a connection, typed by `SqlTables<M>` for the declared dialect (section 14.8.2),
+with logical table names (`'accounts.profile'`) and field names, and returns a select query, which
+the kernel runs in the current unit and positions like any load. Handlers have no SQL writes:
+writes are drafts. Plugins on the kernel's instance (Kysely's `transformQuery` hook):
 
 - map logical names to physical tables and columns of the namespace;
 - scope every table reference: reads see a derived table filtered by the unit's scope, updates and
   deletes get the scope predicate, inserts get the scope value (a different value is an error);
-- reject writes to `chain` and `projection` tables, whose only writer is the kernel;
+- reject every statement but a select, since writes are drafts and the kernel is the only writer of
+  `chain` and `projection` tables;
 - on PostgreSQL, row-level security repeats the scope;
 - type personal columns as `Sealed`, hide their index columns and refuse writes to both; the hatch
   offers no predicates on personal fields in the first release (section 14.7.9.11).
 
 Raw SQL strings cannot be scoped by inspection, so `sql.raw` and table references inside `sql`
-template fragments are available only on `ctx.asSystem(reason).sql`, which is logged. Kysely is
-pre-1.0; the hatch exposes its types to module authors, which is accepted for an escape hatch and
-pinned to an exact version.
+template fragments are available only in a request that names a reason,
+`ctx.load.sql(build, { as: system(reason) })`, which is logged. Kysely is pre-1.0; the hatch exposes
+its types to module authors, which is accepted for an escape hatch and pinned to an exact version.
 
 #### 14.3.9 The job store
 
@@ -3982,8 +4614,9 @@ export interface MigrationFile {
   readonly upcast?: Readonly<Record<string, (data: unknown, eventName: string) => unknown>>
   /** The reverse: while a rollout target runs, the target writes the finalized track version through it (section 19.2). */
   readonly downcast?: Readonly<Record<string, (data: unknown, eventName: string) => unknown>>
-  /** A dialect-neutral data step through repositories, run per tenant in batches under the system principal. */
-  readonly data?: (ctx: MigrationContext) => Promise<void>
+  /** A dialect-neutral data step: a pure per-row transform the kernel applies per tenant in batches under the
+   *  system principal; data from external systems would come through an executor (an open question, section 26.3). */
+  readonly data?: { readonly entity: string; readonly where?: ConditionInput; readonly transform: (row: unknown, ctx: MigrationStepContext) => RowPatch | null }
 }
 ```
 
@@ -4112,8 +4745,12 @@ The defaults govern operational buffers, not history, and the operator can chang
 accepted them on 2026-10-24 (decision point 8, section 26). Compaction also bounds point-in-time
 reads: `asOf` on `get` and `history` (sections 6.7 and 14.8.1) reaches back to the stream's
 compaction horizon, and an earlier instant is `not_found`, code `core.history_compacted`, because
-the snapshot event does not say what the row looked like before it. The worker runs in `work` processes, one tenant-scope unit at a
-time per scope and batch, outside peak hours when the operator configures a window.
+the snapshot event does not say what the row looked like before it. The kernel also reads streams
+`asOf` a position, the snapshot position a decision record holds for each load, which re-decides
+need (section 7.9.6); the generated actions offer instants only, and whether they should accept
+positions as well is an open question (section 26.3). Compaction bounds both forms. The worker runs
+in `work` processes, one tenant-scope unit at a time per scope and batch, outside peak hours when
+the operator configures a window.
 
 #### 14.7.2 Tombstones
 
@@ -4232,7 +4869,7 @@ which is self-service account deletion; the platforms decide). The worker:
    `remove` with reason `erased`.
 6. Completes the receipt.
 
-History reads after erasure (`ctx.data.<module>.<entity>.history`) return `{ redacted: true }` for
+History reads after erasure (`ctx.load.<module>.<entity>.history`) return `{ redacted: true }` for
 values whose key is gone, so a personal field in a history entry is typed `T | Redacted`. The same
 subject index can later serve access requests (an export action); that is not part of the first
 release.
@@ -4258,6 +4895,11 @@ positions from before and after the restore. Three mechanisms keep both true:
   (`pg_restore`, PITR, a volume snapshot). The kernel then bumps the epoch of every affected scope
   and moves its counters past the recorded marks, so tokens of the old epoch get `reset`, positions
   and UIDs are never reused under an old epoch, and the mail server announces a new `uidValidity`.
+- **Effects across a restore.** A restore or a rebuild folds the `core.effect` streams like any
+  chain entity, and the kernel then enqueues again every effect that is `requested` and not
+  `settled`: external effects are at least once across restores as well, and their idempotency keys
+  (the effect ids) absorb the repeats (section 7.9.6). Effects settled after the backup was taken
+  run again unless their destination deduplicates; the operations guide states it.
 - **Blobs outlive backups.** The blob collector removes bytes only after the deployment's declared
   backup retention, so a restored row never references bytes that are gone. A backup of a
   deployment is a database snapshot of the control store and the placements plus a snapshot of the
@@ -4422,14 +5064,14 @@ Live filters, item checks and offline ingestion evaluate on unsealed rows in mem
 and accept the same operators.
 
 ```ts
-// accounts.profile.search: displayName is plaintext, email declares 'prefix'; a description, not rows (decision 50a)
-handle: (input, ctx) => ctx.target.query({
+// accounts.profile.search: displayName is plaintext, email declares 'prefix'; a description, not rows (section 7.9.2)
+read: (input, ctx) => ctx.target.query({
   where: { or: [{ displayName: { contains: input.text } }, { email: { startsWith: input.text } }] },
   sort: [{ field: 'displayName', direction: 'asc' }],
 })
 
 // A bounded scan: one account's identities, sorted by a personal field without 'order'
-handle: (input, ctx) => ctx.data.mailStore.identity.query({
+read: (input, ctx) => ctx.load.mailStore.identity.query({
   where: { accountId: input.accountId },
   sort: [{ field: 'name', direction: 'asc' }],
   scan: { limit: 200 },
@@ -4623,10 +5265,9 @@ searchText: field.text().hidden().personal({ queries: ['search'] }).stateOnly(),
 Unchanged: the plaintext fields (`receivedAt`, `size`, `mailboxIds`, `keywords`, `threadId`,
 `messageId`), hence listings, threading, flags, quotas and positional paging. Changed: subject,
 sender and body searches become word searches through the per-account token index, sorting by sender
-or subject is refused, and `preview` and `mimeTree` are only shown. The api-sketch profile
-search sends `'Je'`, below the prefix minimum of three: the action must require three characters, or
-the field declares `prefix: { min: 2 }` and accepts a shallower prefix tree (an open question of
-section 26.3).
+or subject is refused, and `preview` and `mimeTree` are only shown. The api-sketch's profile search
+requires three characters (`minLength: 3`) and sends `'Jen'`, the prefix minimum, which answers the
+question whether the field should declare `prefix: { min: 2 }` instead.
 
 ### 14.8 Live types
 
@@ -4699,15 +5340,22 @@ type HistoryEntry<R> = {
 }
 ```
 
-`ctx.data.<module>.<entity>` is a module-local repository (`DataOf<M>`, section 7.6):
+`Repository` is kernel-internal: the interpreter answers loads with it and writes drafts through it
+(section 7.9.4), and its `get` and `history` also read `asOf` a position for re-decides (section
+14.7.1). Module code sees request and draft constructors instead, `LoadsOf<M>` behind
+`ctx.load.<module>.<entity>` and `WritesOf<M>` behind `ctx.write.<module>.<entity>` (sections 7.6
+and 7.9.3):
 
-- for the module's own entities, `Repository<Row, Insert, Patch>` with the full row, hidden fields
-  included and secret fields typed as `SecretRef`, under the module's authority (section 8.4);
-- for entities of required and optional modules, the read half, with rows that exclude the other
-  module's hidden fields, plus `update` limited to the fields this module contributed;
-- `forCaller()` on any of them returns the read half narrowed by the caller's read plan, typed
+- for the module's own entities, loads of the full row (`byId`, `one`, `many`, `count`, `exists`,
+  `query`, `history`), hidden fields included and secret fields typed as `SecretRef`, under the
+  module's authority (section 8.4), and drafts typed by `Insert` and `Patch` (`create`, `update`,
+  `archive`, `restore`, domain events by name, `append` on streams);
+- for entities of required and optional modules, the loads, with rows that exclude the other
+  module's hidden fields, plus `update` drafts limited to the fields this module contributed;
+- `forCaller()` on any of them gives the loads narrowed by the caller's read plan, typed
   `Readable<R>` because the caller's mask may hide maskable fields;
-- projection and external entities expose the read half only.
+- projection and external entities offer loads only, apart from the owning module's drafts on an
+  external entity (section 14.8.4).
 
 `Where<R>` is the object form of the condition AST over the fields the repository can read; a
 comparison with `null` or `undefined` never matches (section 8.3). The row types a module sees
@@ -4725,14 +5373,14 @@ Adapters convert between domain values and columns with per-dialect codecs (`Dat
 type ever reaches a module. The escape hatch is typed by the definitions as well:
 
 ```ts
-/** Kysely database type of `ctx.sql`: logical table names, field names, domain value types, for the module's dialect. */
+/** Kysely database type of the builder `ctx.load.sql` passes: logical table names, field names, domain value types, for the module's dialect. */
 type SqlTables<M extends AnyModule> = {
   readonly [Ref in EntityRefsVisibleTo<M>]: { [K in keyof ModuleRow<M, Ref>]-?: SqlColumn<ModuleRow<M, Ref>[K], DialectOf<M>> }
 }
 ```
 
 `EntityRefsVisibleTo` holds the module's own entities and those of the modules it requires or
-optionally uses, the same presence rules as `ctx.data`; `DialectOf<M>` is the dialect the module
+optionally uses, the same presence rules as `ctx.load`; `DialectOf<M>` is the dialect the module
 declares in its data needs. No introspection codegen is involved.
 
 #### 14.8.3 What the dev server regenerates
@@ -4811,7 +5459,8 @@ export const customer = defineEntity({
 - **External** entities map tables the framework does not own: no system fields beyond the mapped id
   (with optional `createdAt` and `updatedAt` mappings); `deployment` or `backend` tenancy, or `tenant`
   with a `source.tenantColumn` holding pennestack tenant ids; generated `get` and `query` only;
-  custom commands write through `ctx.data` (direct writes plus transient records); no migrations; the
+  custom commands of the owning module write through `ctx.write` drafts (direct writes plus transient
+  records); no migrations; the
   drift check compares the mapping with the live catalogue. A native key that is not a UUID is
   rendered at the boundary as `<prefix>_<value>`; TypeIDs apply only to the framework's UUIDv7 ids.
 - **Adopt** turns existing tables into framework-owned chain entities: the definitions are written as
@@ -4966,7 +5615,8 @@ create table <root>.ps_events (
   data            jsonb           not null,             -- personal fields encrypted per subject, credential material sealed
   before          jsonb,                                -- previous values of the fields this event changed
   meta            jsonb           not null,             -- actor, command, action, causation, correlation, client, merge, trace,
-                                                        -- writer { build, revision }, flags [{ key, variant, reason, ruleVersion }]
+                                                        -- writer { build, revision }, flags [{ key, variant, reason, ruleVersion }],
+                                                        -- decision { part, inputDigest, input?, reads, answers, effects } (section 7.9.6)
   hlc             text            not null,
   recorded_at     timestamptz(3)  not null,
   transient       boolean         not null default false,
@@ -5013,6 +5663,7 @@ export interface EventEnvelope<Type extends string = string, Data = unknown> {
   readonly merge: MergeReport | null           // what lost an lww comparison (M8)
   readonly writer: { readonly build: string; readonly revision: number }   // the build and revision that appended it (section 19.1)
   readonly flags: readonly FlagRead[]          // the flags the invocation read (section 20.5)
+  readonly decision: DecisionRecord | null     // the decision that produced the event (section 7.9.6); null for kernel work
   readonly transient: boolean
   readonly prevHash: string | null             // hexadecimal SHA-256
   readonly hash: string | null
@@ -5030,8 +5681,11 @@ export interface FlagRead { readonly key: string; readonly variant: string; read
 The envelope meets the constraints of section 9.4 (one stream per entity instance,
 expected-version appends, commit-ordered positions per scope, a clock, the actor and the command
 id, the hash chain, the trace context) and adds `before`, `partition`, `client`, `merge`,
-`writer`, `flags`, `transient` and `shape`. All of them are written from M1, so the stored format
-is final then.
+`writer`, `flags`, `decision`, `transient` and `shape`. All of them are written from M1, so the
+stored format is final then. `decision` is the decision record of section 7.9.6: the part, the input
+digest (and, for actions that opt in, the sealed input), the snapshot position of every load in
+yield order, the recorded answers (ids, random values, the public parts of issued secrets) and the
+ids of the effects requested; every event of one decision carries the same record.
 
 #### 15.1.4 Positions, partitions and serials
 
@@ -5113,7 +5767,7 @@ export interface SerialStore {
 | Event | Written by | `data` | Evolve |
 |---|---|---|---|
 | `created` | the first event of every stream | `{ values }`: every field after defaults, except `stateOnly` fields; credential material sealed; CRDT fields as initial updates | the new row |
-| `changed` | `ctx.data` writes, generated `set` updates, `decide` returning field operations | `FieldOps` | the generic evolve, with merge rules when the entity has merge state |
+| `changed` | `ctx.write` update drafts, generated `set` updates, field operations in a decision | `FieldOps` | the generic evolve, with merge rules when the entity has merge state |
 | `archived` | archive through any action | `{ reason? }` | `archivedAt` set (an `lww` field ordered by clock) |
 | `restored` | restore | `{}` | `archivedAt` cleared |
 | `erased` | erasure (section 14.7.5) | `{ subject, fields, ledgerId }` | the subject's personal fields cleared; rows whose data subject is the subject itself become erased tombstones |
@@ -5143,15 +5797,16 @@ explanation computed at append, never an input to evolve.
 
 #### 15.1.6 The write path
 
-For a command on a chain entity written with `decide`:
+For a command on a chain entity (every command is written with `decide`, section 7.9):
 
 1. The invoker resolves the scope's namespace and opens a read-write unit on it; the first statement
    inserts the pending receipt (section 15.1.7).
 2. The target row is selected by the action's plan (`not_found` outside it), locked where the
    adapter supports it, and handed to `decide` as the full row.
 3. The clock receives `ps_last_hlc` and the field clocks of the merge state (section 14.5.3).
-4. `decide(input, current, ctx)` returns events; offline mutations stamp them with the client's
-   clock (section 15.3).
+4. The kernel drives `decide(input, current, ctx)` and answers its requests in the unit, tagging
+   each load with the snapshot position it saw; the decision's drafts become events (offline
+   mutations stamp them with the client's clock, section 15.3), and its record joins their meta.
 5. Each event is evolved in order (the generic evolve for `changed`, the author's `evolve` for
    domain events); the kernel diffs the row before and after each event and stores the previous
    values of the changed fields as `before` (CRDT, hidden, `stateOnly` and credential fields
@@ -5164,16 +5819,19 @@ For a command on a chain entity written with `decide`:
 8. The hash is chained from `ps_last_hash` (section 15.1.8).
 9. The events are appended with the loaded version as expected version, and the state row is
    updated with `expectedVersion` (new version, `ps_last_hlc`, `ps_last_hash`, merge state).
-10. Inline reactions run in module order (section 7.7).
-11. Jobs and timers are enqueued in the unit (section 9.5) and the receipt is completed.
+10. Inline reactions decide in module order (section 7.7), and their drafts take steps 5 to 9.
+11. Kernel effects run in order (`invoke` as a nested decision in a savepoint), jobs, timers and the
+    `requested` records and effect jobs of external effects are written in the unit (section 9.5),
+    and the receipt is completed.
 12. The commit tail assigns the scope's positions, inserts the events and commits.
 13. After commit, the notifier and the local live hub are woken, the output is shaped, and the
     response's state token is the head (section 15.2.6).
 
-A `handle` command performs steps 2 to 9 for every row it writes through `ctx.data` (selection by
-the module's authority instead of the action's plan, section 8.4); a create uses expected
-version 0 and inserts the row. A `history: 'state'` write updates the row and appends a
-transient record instead of a chain event (section 15.1.10).
+Every draft goes through steps 5 to 9, whatever command returned it: a draft built from a loaded
+row carries that row's version as its expected version (the row was selected with the module's
+authority, section 8.4), and a create uses expected version 0 and inserts the row. A `history:
+'state'` write updates the row and appends a transient record instead of a chain event (section
+15.1.10).
 
 Rows loaded for a write are locked where the adapter has row locks (PostgreSQL and MySQL; SQLite and
 the in-memory adapter have a single writer), so concurrent writers of one row queue instead of
@@ -5200,11 +5858,13 @@ delivery id) call `core.commandReceipt.get` with it. Command ids are stored as t
 
 - The first statement of every command's unit inserts the receipt as `pending` and holds its row
   lock until commit, so a concurrent duplicate gets `core.command_in_progress` instead of running
-  the handler a second time; the receipt is completed (or, for an asynchronous command, set to
+  the decision a second time; the receipt is completed (or, for an asynchronous command, set to
   `accepted`) in the same unit.
 - The outcome of an entity command is a reference (`{ entity, id, version }`): a replay re-reads the
   row at the receipt's API version and masks it for the caller. Other commands store their
-  serialised output.
+  serialised output. The outcome of a command that requested deferred effects also lists their
+  ids, so a client can watch `core.effect` until they settle (section 7.9.5); a replay returns the
+  same ids.
 - Receipts expire after their action's idempotency window (default 24 hours, section 7.5). They are
   operational records, outside the "nothing deleted" rule. Receipts of sync mutations are kept until
   the client acknowledges them (section 15.3.6).
@@ -5232,10 +5892,11 @@ export interface ReceiptStore {
 - Every chain event stores `hash = SHA-256(prevHash ‖ JCS(content))`, where JCS is the JSON
   Canonicalization Scheme of RFC 8785 and `content` holds the event id, stream id, version, local
   event name, schema version, `data` (with ciphertext for personal values), `before`, clock,
-  recorded time, actor, writer, flags, command id and client fields (the writer and flags as the
-  actor is, a recommendation listed in section 26.3). The state row keeps `ps_last_hash`, so chaining
-  costs no read. The canonicaliser lives in the core; `canonicalize` 5.1.0 (Apache-2.0) serves as an
-  independent implementation in tests.
+  recorded time, actor, writer, flags, the decision record, command id and client fields (the writer
+  and flags as the actor is, a recommendation listed in section 26.3; the decision record because
+  the logbook of section 7.9.6 must be as tamper-evident as the events it explains). The state row
+  keeps `ps_last_hash`, so chaining costs no read. The canonicaliser lives in the core;
+  `canonicalize` 5.1.0 (Apache-2.0) serves as an independent implementation in tests.
 - The chain survives crypto-shredding (the ciphertext does not change) and module renames (the
   module id is not hashed).
 - Retention compaction writes a `snapshot` event whose `anchor` is the hash of the last removed
@@ -5356,7 +6017,7 @@ versions).
 #### 15.2.2 Projection entities (M7)
 
 Cross-entity read models are entities with `history: 'projection'`: maintained asynchronously by a
-consumer, read through `ctx.data` like any entity, governed by policies, served by the generated
+consumer, read through `ctx.load` like any entity, governed by policies, served by the generated
 `get`, `query`, `changes` and `queryChanges`, and rebuildable at any time. Nothing but their
 projector writes them.
 
@@ -5400,8 +6061,8 @@ export interface ConsumerSpec {
   readonly id: string                            // stable: 'core.reactions', 'reports.stat'
   readonly selector: EventSelector
   readonly start: 'beginning' | 'now'            // projections: beginning; the reaction dispatcher: now for reactions added later
-  /** Runs in one tenant-scope unit together with the checkpoint advance of that scope. */
-  readonly handle: (events: readonly EventEnvelope[], unit: Unit) => Promise<void>
+  /** Kernel code: runs in one tenant-scope unit together with the checkpoint advance of that scope. */
+  readonly consume: (events: readonly EventEnvelope[], unit: Unit) => Promise<void>
   readonly maxAttempts?: number                  // before the stream is parked; default 5
 }
 ```
@@ -5418,8 +6079,9 @@ export interface ConsumerSpec {
   checkpoint or a failure with another's.
 - Delivery: at least once. Effects inside the namespace commit with the scope's checkpoint, so they
   happen effectively once.
-- Work: the reaction dispatcher only enqueues keyed jobs (section 9.5); network calls, retries and
-  backoff happen in jobs, so a slow GitHub call or a failing handler never holds a checkpoint.
+- Work: the reaction dispatcher only enqueues keyed jobs (section 9.5); decisions, retries and
+  backoff happen in jobs and network calls in effect jobs, so a slow GitHub call or a failing
+  reaction never holds a checkpoint.
   Projections evolve rows, which is short and local.
 - Ordering and failures: events of one stream are handled in order. A failing event is retried a few
   times; after `maxAttempts` its stream is parked for that consumer and scope, later events of that
@@ -5438,6 +6100,10 @@ export interface ConsumerSpec {
   catches up, takes the exclusive lock briefly for the final catch-up, swaps names, and the old table
   is dropped after a grace period. Projection entities switch the same way, without a writer lock.
 - Rebuilds wait for the finalization of a running rollout (sections 19.2 and 19.4).
+- A rebuild, like a restore, folds the `core.effect` streams too (they are chain streams of the
+  core), so effect states come back with the state rows, and the kernel enqueues again every effect
+  that is `requested` and not `settled` (at least once across restores, section 7.9.6). The logbook
+  is a projection of the same chain and rebuilds the same way.
 - Triggers: `rebuild` and `enableMergeState` migration steps. The snapshot stores a hash of each
   `evolve` source text; when it changes, `pennestack db generate` asks whether the change alters
   results (a formatting change does not) and writes a `rebuild` step if it does.
@@ -5589,7 +6255,7 @@ merge rule would have kept it.
 |---|---|---|
 | Generated set operations with `generated: { set: { offline: true } }`: create with a client id, update of mergeable fields, archive, restore | yes | field semantics are generic |
 | A custom command with `offline: true` whose `decide` returns only field operations on mergeable fields, `archived` or `restored` | yes | replayable and mergeable |
-| A command with `handle` | no | it can read anything and call services |
+| A command with `prepare`, or one that requests random values or issued secrets | no | inline effects and fresh secrets are decisions of the server at one moment; an offline command's ids are the ones its pushed mutation carries (section 7.9.3) |
 | A command whose `decide` returns domain events with an author `evolve` | no | an opaque transition cannot be merged |
 | Writes to unique or `exclusive` fields (slugs, host names, mail addresses, mailbox names) | no | uniqueness needs one authority at one moment |
 | Authentication, sessions, tokens, credentials, secrets shown once | no | issuance is a decision of the server |
@@ -5597,8 +6263,10 @@ merge rule would have kept it.
 | Invariants across entities (quotas, limits, capacity) | no | the check needs every entity at one moment |
 | `execution: 'async'` commands, backend- and deployment-scoped actions | no | the push is already the deferral; offline mutations are tenant-scoped |
 
-An `offline: true` command must use `decide`, `execution: 'sync'` and `auth: 'policy'`; `defineApp`
+An `offline: true` command must be synchronous with `auth: 'policy'`, may not declare `prepare` or
+request random values or issued secrets, and takes its ids from the pushed mutation; `defineApp`
 checks this, and the type of its `decide` result is restricted to `OfflineEvents<E>` (section 14.8.1).
+At ingest the server runs its `decide` against current state (section 7.9.6).
 Section 17.6.3 expects no offline authorship in Launchway and offline `set` merges for mail keywords,
 mailbox membership and drafts, which fit this table.
 
@@ -5811,7 +6479,8 @@ and `invoker.subscribe` on a custom subscription fails with `not_implemented` (c
 | command receipts | the generated `watch` of the core's command receipt entity | receipt states until a terminal state | yes |
 | stream records | `ctx.live.stream(module, stream, { key, from })` in a subscription's source (G6, deployment logs) | the stream's records | yes, by the per-key serial |
 | topics | `ctx.live.topic(module, topic, { key })` (G6, container logs) | the topic's records; never stored | no; a `gap` frame marks dropped records |
-| custom | a subscription action's `source(input, ctx, resume)` | the action's declared item | when built on `ctx.live` (with `mapItems` to change items); not when it wraps a plain iterable with `unresumable` (section 7.3) |
+| pending effects | `ctx.live.effects(effect, { where })`: the unsettled effects of a `performer: 'external'` declaration, for its performer (section 7.9.5; Launchway's agent channel) | effect records with their inputs | yes, by position |
+| custom | a subscription action's `source(input, ctx, resume)` | the action's declared item | yes: module sources are descriptions only, built from the sources above with `mapItems` and pure or generator maps; custom iterables, and `unresumable` for those that cannot resume, exist only in kernel and listener code (section 7.3) |
 
 The data layer's own sync protocol (`sync.register`, `sync.push`, `sync.pull`, `sync.poke` and
 `sync.crdt`, section 15.3.6) consists of ordinary actions of the `sync` module and travels over every
@@ -6101,20 +6770,25 @@ export interface CarrierOptions {
   readonly maxDurationMs: number
 }
 
-/** `ctx.live` for modules that require the `live` contract (or list it as optional, then possibly undefined).
- *  Module-local like ctx.data: the entities are the module's own and its dependencies'. In-process names follow ctx.data: `where`. */
+/** `ctx.live` in the sources of modules that require the `live` contract (or list it as optional, then possibly
+ *  undefined). Module-local like ctx.load: the entities are the module's own and its dependencies'. In-process names
+ *  follow ctx.load: `where`. Every member returns a description, which the live hub runs (section 7.9.2). */
 export interface LiveQueries<M extends AnyModule> {
   entity<R extends EntityRefsVisibleTo<M>>(
     module: ModuleOf<R>, entity: EntityOf<R>,
     options?: { readonly where?: Where<ModuleRow<M, R>>; readonly ids?: readonly string[]; readonly fields?: readonly string[]; readonly includeArchived?: boolean; readonly from?: 'now' | 'beginning'; readonly after?: StateToken },
-  ): AsyncIterable<LiveFrame<EntityChange<ModuleRow<M, R>>>>
-  stream<S extends StreamRefsVisibleTo<M>>(module: ModuleOf<S>, stream: StreamOf<S>, options: { readonly key: StreamKeyOf<M, S>; readonly from: 'start' | 'now'; readonly after?: string }): AsyncIterable<LiveFrame<StreamRecordOf<M, S>>>
-  topic<T extends TopicRefsVisibleTo<M>>(module: ModuleOf<T>, topic: TopicOf<T>, options: { readonly key: TopicKeyOf<M, T> }): AsyncIterable<LiveFrame<TopicRecordOf<M, T>>>
+  ): LiveSource<EntityChange<ModuleRow<M, R>>>
+  stream<S extends StreamRefsVisibleTo<M>>(module: ModuleOf<S>, stream: StreamOf<S>, options: { readonly key: StreamKeyOf<M, S>; readonly from: 'start' | 'now'; readonly after?: string }): LiveSource<StreamRecordOf<M, S>>
+  topic<T extends TopicRefsVisibleTo<M>>(module: ModuleOf<T>, topic: TopicOf<T>, options: { readonly key: TopicKeyOf<M, T> }): LiveSource<TopicRecordOf<M, T>>
+  /** The pending effects of an own `performer: 'external'` effect, for its performer; resumable (section 7.9.5). */
+  effects<E extends OwnExternalEffect<M>>(effect: E, options?: { readonly where?: Where<EffectInputOf<E>>; readonly after?: StateToken }): LiveSource<PendingEffect<E>>
 }
 
-/** Maps items and keeps stream tokens and control frames, so a custom subscription stays resumable. */
-export declare function mapItems<A, B>(frames: AsyncIterable<LiveFrame<A>>, fn: (item: A) => B | undefined): AsyncIterable<LiveFrame<B>>   // undefined drops the item
-/** Declares a source that cannot resume; the surface then reports `resumable: false`. */
+/** Maps items with a pure function or a generator (which may yield loads and reveals) and keeps stream tokens and
+ *  control frames, so a custom subscription stays resumable. */
+export declare function mapItems<A, B>(source: LiveSource<A>, fn: (item: A) => B | undefined | Gen<B | undefined>): LiveSource<B>   // undefined drops the item
+/** Kernel and listener code only (`@pennestack/live/internal`): declares an iterable source that cannot resume; the
+ *  surface then reports `resumable: false`. Module code feeds such data through a topic instead. */
 export declare function unresumable<E>(items: AsyncIterable<E>): AsyncIterable<LiveFrame<E>>
 ```
 
@@ -6233,7 +6907,7 @@ export interface SurfaceAction {
   readonly execution: 'sync' | 'async' | 'either'        // effective, after defineApp({ execution }); queries are 'sync'
   readonly idempotent: boolean
   readonly offline: boolean
-  readonly resumable: boolean                            // derived from the source's type (section 7.3): built on ctx.live, or not
+  readonly resumable: boolean                            // derived from the source description (section 7.3); only kernel and listener sources can be unresumable
   readonly page?: PageSpec
   readonly timeoutMs?: number
   readonly hints: TransportHints
@@ -6729,7 +7403,7 @@ export const search = defineQuery(accountsBase, profile, {
   input: shape({ text: field.string({ maxLength: 80 }) }),
   output: pageOf(profile),
   hints: { graphql: { field: 'searchProfiles' }, cli: { aliases: ['find'] } },
-  handle: (input, ctx) => ctx.data.accounts.profile.query({ where: { displayName: { contains: input.text } } }),
+  read: (input, ctx) => ctx.load.accounts.profile.forCaller().query({ where: { displayName: { contains: input.text } } }),   // a query description
 })
 ```
 
@@ -6882,6 +7556,12 @@ module's receipt source and answers with the result when the command completes i
 with the receipt. Without the live module, `wait` is ignored and not listed in
 `Preference-Applied`.
 
+A command's response never waits for the external effects it requested: it lists their ids
+(section 7.9.5), REST in the `Pennestack-Effects` header and every other transport in the outcome.
+A client that needs an outcome follows `core.effect.watch` (or the entity the continuation
+changes): `--wait-effects[=<seconds>]` in the CLI and `waitForEffects` in the typed client do it for
+the caller.
+
 #### 16.4.8 Idempotency
 
 Every command carries a command id (section 7.5): REST `Idempotency-Key`, a `commandId`
@@ -6937,7 +7617,7 @@ export const login = defineCommand(authBase, {
     http: { cookie: { set: { name: '__Host-pennestack_session', from: 'sessionToken', expiresFrom: 'expiresAt' }, omitFromBody: ['sessionToken'] } },
     cli: { login: { tokenField: 'sessionToken' } },
   },
-  handle: async (input, ctx) => { /* section 17.2 */ },
+  *decide(input, ctx) { /* a credential load, an Argon2id check, an id and a token (sections 7.9.8 and 17.2) */ },
 })
 ```
 
@@ -7142,11 +7822,16 @@ export interface ReceiverRequest {
   on the carrier when scope resolution runs, on any host name; a path whose scope key disagrees with
   a tenant resolved from the host name is `not_found` (section 16.3.3).
 - Verification comes before any principal: the receiver names a principal resolver of the owning
-  module (`github.webhookSignature`), bound to that module's context like any behavioural extension
-  value (section 5.5). It reads the connection's secret with `ctx.secrets.reveal`, checks the
-  signature over the raw body in constant time, and only then resolves the receiver's service
-  principal. Until it succeeds the request is anonymous, so an unsigned request from the internet
-  reaches nothing that is not public. The action's rules must allow the service principal.
+  module (`github.webhookSignature`), a pure generator bound to that module's context like any
+  behavioural extension value (section 5.5). It loads the connection, yields a reveal request for
+  its secret (`yield* own.secrets.reveal(connection.webhookSecret, 'webhook signature')`, never
+  recorded), computes the signature over the raw body with `hmacSha256` and compares it with
+  `timingSafeEqual`, the pure primitives of `@pennestack/core/crypto` (section 7.9.3), and only then
+  resolves the receiver's service principal. Until it succeeds the request is anonymous, so an
+  unsigned request from the internet reaches nothing that is not public. The action's rules must
+  allow the service principal, and the receiving command repeats the check in its own `decide` with
+  the same reveal request and primitives (as `github.ingest` does, section 17.3.13), so the
+  decision verifies what it records and a re-decide checks it again.
 - The command id makes a replayed delivery return the recorded outcome. The response is the
   action's outcome: 202 for an asynchronous action (the usual choice, because senders expect a fast
   answer), 200 or 204 otherwise, problem details on errors. Receivers appear in the composition
@@ -7473,6 +8158,8 @@ export interface AppClient<App> {
   subscribe<R extends SubscriptionRef<App>>(
     ref: R, input: InputOf<App, R>, options?: { readonly after?: StateToken; readonly signal?: AbortSignal },
   ): AsyncIterable<LiveFrame<EventOf<App, R>>>
+  /** Waits until the deferred effects an outcome listed have settled (through core.effect.watch), or the timeout passes. */
+  waitForEffects(effectIds: readonly string[], options?: { readonly timeoutMs?: number; readonly signal?: AbortSignal }): Promise<readonly EffectOutcome[]>
   /** A client bound to another backend, tenant or credential. */
   as(selector: { readonly backend?: string; readonly tenant?: string; readonly token?: string }): AppClient<App>
   surface(): Promise<ApiSurface>
@@ -7481,6 +8168,7 @@ export interface AppClient<App> {
 export interface InvokeOptions<P extends Prefer> {
   readonly prefer?: P
   readonly commandId?: string                            // generated per call when omitted, and reused for retries
+  readonly waitEffects?: boolean | { readonly timeoutMs: number }   // resolve after the requested effects settle (section 7.9.5)
   readonly signal?: AbortSignal
 }
 
@@ -7574,10 +8262,11 @@ prompt without echo or from `--<name>-stdin`. `--input <json|@file|->` supplies 
 (or the parts that flags do not), and explicit flags win. The assembled input is validated by the
 action's schema in the pipeline, like every other transport's input.
 
-Common flags on every action command: `--profile`, `--backend`, `--tenant`, `--output`
-(`text`, `table`, `json`, `yaml`, `ndjson`), `--fields`, `--async`, `--wait[=<seconds>]`,
-`--command-id`, `--if-version`, `--explain` (operator and development: prints the pipeline stages,
-the plan and the matched rule ids) and `--trace` (prints the trace id).
+Common flags on every action command: `--profile`, `--backend`, `--tenant`, `--output` (`text`,
+`table`, `json`, `yaml`, `ndjson`), `--fields`, `--async`, `--wait[=<seconds>]`,
+`--wait-effects[=<seconds>]` (waits until the deferred effects the command requested settle, section
+16.4.7), `--command-id`, `--if-version`, `--explain` (operator and development: prints the pipeline
+stages, the plan and the matched rule ids) and `--trace` (prints the trace id).
 
 #### 16.9.5 Output and exit codes
 
@@ -7639,7 +8328,7 @@ the plan and the matched rule ids) and `--trace` (prints the trace id).
 | `pennestack backend ...`, `tenant ...`, `domain ...` | operator socket or remote operator | aliases of the `core` action commands |
 | `pennestack call <ref> [--input ...]` | any | invokes any action by reference, for scripts that should not depend on routes |
 | `pennestack watch <ref> [--input ...]` | any | subscribes to any subscription by reference |
-| `pennestack explain <ref> [--input ...] [--as <principal>]` | operator socket, development | shows the authorization decision without executing (section 8.6); what `--as` may do is decision point 17 (section 26.1) |
+| `pennestack explain <ref> [--input ...] [--as <principal>] [--dry-run]`, `explain --trace <command, event or effect id>`, `explain --redecide <command id>` | operator socket, development | shows the authorization decision without executing (section 8.6); `--dry-run` runs admission, `prepare` and `decide` in a unit that rolls back and prints events, effects and the decision record; `--trace` prints a command's events, effects with outcomes and the continuations they caused; `--redecide` re-runs a recorded decision with the current build and compares (section 7.9.6); what `--as` may do is decision point 17 (section 26.1) |
 | `pennestack doctor` | any | the checks of section 13.12, then `app.health` and `app.ready` |
 | `pennestack login\|logout\|profile ...` | remote | profiles and credentials |
 | `pennestack completion bash\|zsh\|fish` | none | prints a completion script |
@@ -7648,8 +8337,9 @@ the plan and the matched rule ids) and `--trace` (prints the trace id).
 
 `pennestack new <kind> <reference>` scaffolds one part, located by its reference (section 23.14),
 for the kinds `module`, `entity`, `action`, `flag`, `policy`, `reaction`, `service`, `error`,
-`schedule`, `stream`, `topic`, `contribution`, `condition`, `version-change`, `lib`, `shape`, `app`
-and `script`; `pennestack module new` stays as an alias of `pennestack new module`.
+`schedule`, `stream`, `topic`, `effect`, `executor`, `contribution`, `condition`, `version-change`,
+`lib`, `shape`, `app` and `script`; `pennestack module new` stays as an alias of
+`pennestack new module`.
 `pennestack new module <id> [--kind domain|transport|adapter] [--requires a,b] [--optional c]`
 creates a package that already compiles, tests and type-tests:
 
@@ -7907,8 +8597,8 @@ records the decisions of this section.
 |---|---|
 | `accounts.profile` | chain entity, `dataSubject: 'id'`: `displayName`, `email` (unique, personal), `locale`, `deactivatedAt`; domain event `deactivated` |
 | `accounts.register` | creates a profile; public only when the backend's configuration `allowSelfRegistration` is on, otherwise operators and administrators |
-| `accounts.profile.deactivate` | a `decide` command; deny rule `frozen` on the pre-image keeps deactivated profiles read-only |
-| `accounts.profile.search` | an entity query over the caller's view (`ctx.target`) |
+| `accounts.profile.deactivate` | an entity command with a plain `decide`; deny rule `frozen` on the pre-image keeps deactivated profiles read-only |
+| `accounts.profile.search` | an entity query whose `read` returns a query description over the caller's view (`ctx.target`) |
 | `accounts.identities` | reads the `identityProviders` extension point, whose values are bound to their contributors (section 5.5) |
 | subjects | with `accounts` selected, a user's auth subject is a profile id; principals carry `subjectRef: 'accounts.profile'`, so `ctx.principal.subjectAs('accounts.profile')` yields a branded profile id |
 
@@ -7921,17 +8611,23 @@ records the decisions of this section.
 | `auth.credential` | chain, `dataSubject: 'subject'`, generated set off | `subject`, `kind` (`password` or `passkey`), `identifier` (the normalised e-mail address of a password credential; unique among active password credentials), `verifier` (an Argon2id hash of the password; for passkeys the public key in a hidden field), passkey metadata (credential id, sign counter, transports), `label`, `lastUsedAt` (maskable), `revokedAt` |
 | `auth.session` | state, `dataSubject: 'subject'` | `subject`, `credentialId`, `publicId` (unique), `tokenVerifier` (`field.verifier()`), `authenticatedAt` (the last full authentication), `lastSeenAt`, `idleExpiresAt`, `absoluteExpiresAt`, `revokedAt`, `rotatedFrom`, client metadata (user agent and address, personal) |
 
-- **Tokens are not ids.** A session token is issued once by the key service (`ctx.secrets.issue`,
-  gap G4): `pss_<public id>_<secret>`, with a 128-bit public id and a 256-bit secret. The row stores
+- **Tokens are not ids.** A session token is issued once by the key service, through the request
+  `yield* ctx.secrets.issue({ prefix: 'pss' })`, which the decision record keeps without its
+  plaintext (gap G4, section 7.9.3): `pss_<public id>_<secret>`, with a 128-bit public id and a
+  256-bit secret. The row stores
   the public id and an HMAC-SHA-256 verifier of the secret under a key of the key service; the
   token itself is stored nowhere. Session ids appear in events, receipts, logs and
   `auth.sessionEvents`; they authenticate nothing. API keys, app passwords (`api-keys.key`) and node
   credentials use the same format with their own prefixes.
-- **Passwords** are hashed with Argon2id through `node:crypto` (`crypto.argon2`, which runs on Node
-  24.21.0 without an experimental warning, checked on 2026-10-11), with at least OWASP's current
-  minimum parameters (19 MiB of memory, two passes, one lane). The parameters are part of the stored
-  hash, and a successful login rehashes with the current parameters. Verification of an unknown
-  identifier runs against a dummy hash, so timing does not reveal which identifiers exist.
+- **Passwords** are hashed with Argon2id, a computation of the core that module code requests
+  (`yield* ctx.compute.argon2idHash(password, salt)` and `argon2idVerify(verifier, password)`, the
+  salt a recorded random value): the core runs `node:crypto`'s `crypto.argon2` (which runs on Node
+  24.21.0 without an experimental warning, checked on 2026-10-11) in a worker pool off the event
+  loop, about 14 ms per hash, so `auth` imports no `node:*` module (section 7.9.3). The parameters
+  are at least OWASP's current minimum (19 MiB of memory, two passes, one lane). The parameters are
+  part of the stored hash, and a successful login rehashes with the current parameters. Verification
+  of an unknown identifier runs against a dummy hash, so timing does not reveal which identifiers
+  exist.
 - **Passkeys** use `@simplewebauthn/server` (14.0.3) for registration and authentication ceremonies;
   the challenge lives in a short-lived row of the session or of the pending registration, never in
   process memory, so any process can finish a ceremony.
@@ -7943,7 +8639,10 @@ records the decisions of this section.
 
 - Sessions expire after an idle period (default 12 hours) and an absolute lifetime (default 30
   days), both configurable per backend and tenant. `lastSeenAt` and `idleExpiresAt` are extended at
-  most every five minutes, so active sessions do not write on every request.
+  most every five minutes, so active sessions do not write on every request: when the resolver sees
+  a session last extended more than five minutes ago, it returns, beside the principal, an `enqueue`
+  effect of an `auth` command that writes the new times, keyed by session so that concurrent
+  requests coalesce (section 7.9.5).
 - Every login creates a new session; a session is never reused across logins. Changing the password
   revokes every other session of the subject and rotates the current one; a privilege elevation
   (a role or membership granted, observed at revalidation) rotates a cookie session on the next
@@ -7959,18 +8658,24 @@ records the decisions of this section.
 
 #### 17.2.4 The resolver's read path
 
-The session resolver is a principal resolver of `auth`, bound to auth's context (section 5.5). It
-runs in `resolvePrincipal`, after `resolveScope` has fixed the tenant:
+The session resolver is a principal resolver of `auth`, a pure generator bound to auth's context
+(section 5.5) that yields loads and returns the principal. It runs in `resolvePrincipal`, after
+`resolveScope` has fixed the tenant:
 
-1. It reads the token from the `__Host-pennestack_session` cookie or from `Authorization: Bearer`.
-2. It looks up the session by public id in a read-only unit of the resolved tenant, with auth's
-   module authority, and compares the HMAC of the secret with the stored verifier in constant
-   time.
-3. It checks revocation and both expiries and builds a `UserPrincipal` whose `ref` names the
-   resolver, the subject and the session, and whose `expiresAt` is the earlier expiry.
-4. Validated sessions are cached per process for at most 30 seconds, keyed by public id, and the
-   cache entry is dropped when the change feed reports a change record for that session, so a
-   revocation applies within the wake-up latency (and within a second if a wake-up is lost).
+1. It reads the token from the `__Host-pennestack_session` cookie or from `Authorization: Bearer`
+   in the carrier it receives as a parameter.
+2. It yields a load of the session by public id, which the kernel answers in a read-only unit of
+   the resolved tenant with auth's module authority, and a verification request
+   (`ctx.secrets.verify(token, session.tokenVerifier)`), which compares the HMAC of the secret with
+   the stored verifier in constant time.
+3. It checks revocation and both expiries against the invocation's time and returns a
+   `UserPrincipal` whose `ref` names the resolver, the subject and the session, and whose
+   `expiresAt` is the earlier expiry, together with the idle extension due, if any (section
+   17.2.3).
+4. The kernel caches validated sessions per process for at most 30 seconds, keyed by public id (the
+   resolver itself keeps no state), and drops a cache entry when the change feed reports a change
+   record for that session, so a revocation applies within the wake-up latency (and within a second
+   if a wake-up is lost).
 
 Session tokens are looked up in the tenant the carrier already names (host name, header or the CLI
 profile's tenant). Long-lived credentials that must work without a tenant host (API keys, node
@@ -7997,8 +8702,9 @@ an invalid bearer token fails with `unauthenticated` (section 16.3.4).
 
 #### 17.2.6 Rate limits and abuse
 
-`auth` contributes `invocationMiddleware` that runs at `admit`: token buckets per remote address
-(after trusted-proxy rules) and per identifier for `auth.login`, the passkey ceremonies,
+`auth` contributes to `invocationMiddleware` a pure admission rule that runs at `admit` and returns
+the token buckets to consume, which the kernel takes: buckets per remote address (after
+trusted-proxy rules) and per identifier for `auth.login`, the passkey ceremonies,
 `auth.reauthenticate`, `auth.requestPasswordReset` and `auth.resetPassword` (defaults: 10 attempts
 per minute per address, 5 failed attempts per 15 minutes per identifier, configurable). Buckets are
 the shared buckets of the quota model (section 12.2), so the limits hold across processes. Failures
@@ -8064,7 +8770,7 @@ framework; the agent and the UI become clients of the generated interfaces.
 | App, EnvVar | `projects.project`, `projects.envVar` (the UI keeps the word "app"; section 17.6.5) |
 | Deployment and its log lines | `deployments.deployment` (chain) and the stream `deployments.log` (G6) |
 | Preview | `previews.preview` |
-| Node, join token, node credential | `nodes.node`, `nodes.credential`, `nodes.presence`, `nodes.command` |
+| Node, join token, node credential | `nodes.node`, `nodes.credential`, `nodes.presence`; messages to a node are `agentCommand` effects that its agent performs (section 17.3.4) |
 | DnsProviderAccount, DnsZone | `dns.providerAccount`, `dns.zone`, `dns.record` (shared) |
 | Domain, Route | `domains.domain`, `domains.route` |
 | Setting (singleton row) | module configuration per tenant (section 17.3.12, G10) |
@@ -8085,16 +8791,16 @@ framework; the agent and the UI become clients of the generated interfaces.
 | `auth` | shared | `credential` (password, passkey), `session` | | `accounts` | `accounts.profile` | `principalResolvers` |
 | `api-keys` | shared | `key` (verifier hash, scopes, expiry, last use) | | `accounts` | | `principalResolvers` |
 | `members` | shared, new | `membership` (subject, role), `invitation` | | `accounts`, `auth` | | `principalEnrichers` |
-| `audit` | shared | `entry` | | observes every module (G12) | | `invocationMiddleware` |
-| `dns` | shared, new | `providerAccount`, `zone`, `record` | | | | declares `providers` |
+| `audit` | shared | `entry` | | observes every module (G12) | | none: an `observes: 'all'` reaction and the receipts' request metadata (G12) replace the earlier middleware |
+| `dns` | shared, new | `providerAccount`, `zone`, `record`; the effect `applyRecord` with its executor | | | | declares `providers` (executor-side provider adapters) |
 | `dns-cloudflare`, `dns-manual` | shared, new | | `dns` | | | `dns.providers` |
 | `projects` | Launchway | `project`, `envVar` | | | | declares `gitProviders` |
-| `nodes` | Launchway | `node`, `credential`, `presence`, `command` | `live` (contract) | | | `principalResolvers`; claims node-credential scope keys (G2); declares `heartbeatObservers` |
-| `deployments` | Launchway | `deployment`, stream `log` | `projects`, `nodes` | | | `nodes.heartbeatObservers` (bound to deployments, G16) |
+| `nodes` | Launchway | `node`, `credential`, `presence`; the external effect `agentCommand` (performed by the agent) | `live` (contract) | | | `principalResolvers`; claims node-credential scope keys (G2); declares `heartbeatObservers` and `commandResolvers` |
+| `deployments` | Launchway | `deployment`, stream `log` | `projects`, `nodes` | | | `nodes.heartbeatObservers` and `nodes.commandResolvers` (bound to deployments, G16) |
 | `agent-gateway` | Launchway | | `nodes`, `deployments` | | | `transports` (protocol v1) |
 | `domains` | Launchway | `domain`, `route` | `projects` | `dns` | | |
 | `edge` | Launchway | `render` (last applied configuration) | `domains`, `deployments`, `nodes` | | | |
-| `github` | Launchway | `connection` | `projects`, `deployments` | `webhooks` | `projects.project`, `deployments.deployment` | `projects.gitProviders` (bound to github, G16), `webhooks.receivers` |
+| `github` | Launchway | `connection`; effects with executors for GitHub's API (the status mirror, release reads, the manifest conversion) | `projects`, `deployments` | `webhooks` | `projects.project`, `deployments.deployment` | `projects.gitProviders` (bound to github, G16), `webhooks.receivers` |
 | `previews` | Launchway | `preview` | `projects`, `deployments`, `domains` | `github` | `projects.project`, `deployments.deployment` | |
 
 Infrastructure modules in the app: `live` and the transports `transport-rest`,
@@ -8146,38 +8852,44 @@ additions in ADR 0009):
 | upgrade with `Authorization: Bearer <join token or node credential>` | agent to server | `invoker.open` (section 16.3.4) with the token in the carrier; the `nodes` resolver yields a `service` principal (`via: 'nodes.credential'` or `'nodes.join'`) |
 | `hello` | agent to server | `nodes.join` (join token: returns the node credential once) or `nodes.node.connect` (protocol and agent version, Docker facts) |
 | `hello.ok` | server to agent | the result of `join` or `connect` |
-| `heartbeat` (every 15 s, active deployment ids) | agent to server | `nodes.node.heartbeat`: writes `nodes.presence`, resets the offline timer, calls `heartbeatObservers` |
+| `heartbeat` (every 15 s, active deployment ids) | agent to server | `nodes.node.heartbeat`: a presence draft, a `setTimer` effect that resets the offline timer, and the decisions of the `heartbeatObservers` |
 | `deployment.progress` | agent to server | `deployments.deployment.reportPhase` |
 | `deployment.log` | agent to server | `deployments.deployment.appendLog` (batched stream append, G6) |
 | `deployment.result` | agent to server | `deployments.deployment.reportResult` |
 | `app.status` | agent to server | `deployments.deployment.reportRuntime` |
 | `logs.chunk`, `logs.end` | agent to server | publish to the topic `nodes.containerLogs` (G6) |
-| `deploy`, `stop`, `remove`, `status`, `logs.start`, `logs.stop`, `deployment.cancel` | server to agent | rows of `nodes.command`, emitted by the subscription `nodes.channel`, acknowledged with `nodes.command.ack` |
+| `deploy`, `stop`, `remove`, `status`, `logs.start`, `logs.stop`, `deployment.cancel` | server to agent | `agentCommand` effects with the agent as their external performer (section 7.9.5), emitted by the subscription `nodes.channel` and settled with `nodes.ack` |
 | `error` | both | a `PennestackError` rendered as `{ code, message, retryable }` |
 
 The command channel is the part that changes most:
 
-- A module that must tell a node something calls `ctx.services.nodes.send(nodeId, command)`. The
-  service is bound to `nodes` (section 5.5) and inserts a `nodes.command` row with nodes' authority
-  in the caller's unit, so a state change and the message to the node commit together (the outbox
-  comes for free).
-- The agent holds one subscription, `nodes.channel`, whose source is the live feed over
-  `nodes.command` rows of its own node that are not acknowledged yet, in position order and
-  resumable. Any process can hold the socket: the change feed wakes whichever process serves the
-  subscription. Launchway's single-instance limitation goes away.
-- Delivery is at least once. Commands carry their row id; the agent ignores ids it has already
-  handled, and unacknowledged commands are emitted again after a reconnect.
-- Secrets never sit in a command row. The `deploy` row holds references (deployment, project,
-  environment variable ids). At emit time, `nodes.channel` asks its `commandResolvers` extension
-  point, which `deployments` fills with a value bound to its own context (G16): it checks that the
-  deployment is assigned to the subscribing node and calls `ctx.services.projects.environmentFor`,
-  a service of `projects` that reveals its own secret fields (`ctx.secrets.reveal`, logged with the
-  deployment id as the reason, G4).
+- A module that must tell a node something returns, from its decision, what the pure service
+  `ctx.services.nodes.send(nodeId, command, { then, with, deadline })` builds: an `agentCommand`
+  effect, which `nodes` declares with `performer: 'external'` (decision point 80). Its `requested`
+  record commits in the caller's unit, so a state change and the message to the node commit
+  together, and the effect record is the outbox.
+- The agent holds one subscription, `nodes.channel`, whose source is
+  `ctx.live.effects(agentCommand, { where: { nodeId } })`: the pending effects of its own node, in
+  position order and resumable. Any process can hold the socket: the change feed wakes whichever
+  process serves the subscription. Launchway's single-instance limitation goes away.
+- Delivery is at least once. Commands carry their effect id; the agent ignores ids it has already
+  handled, and unsettled effects are emitted again after a reconnect. The agent settles each
+  through `nodes.ack`, whose decision returns `settle(...)`; the requesting module's continuation
+  receives the outcome, and an effect left unsettled past its `deadline` is settled as failed
+  (`core.effect_deadline`), so every command to a node has one record with its outcome and its
+  follow-up.
+- Secrets never sit in an effect's input. The `deploy` command holds references (deployment,
+  project, environment variable ids). At emit time, the generator item map of `nodes.channel`
+  delegates to its `commandResolvers` extension point, which `deployments` fills with a generator
+  bound to its own context (G16): it loads the deployment to check that it is assigned to the
+  subscribing node and delegates to `ctx.services.projects.environmentFor`, a service of `projects`
+  that reveals its own secret fields with reveal requests (logged with the deployment id as the
+  reason and never recorded, G4).
 - Presence: the session's open and close hooks call `nodes.node.connected` and
-  `nodes.node.disconnected` (G1). Each heartbeat replaces a keyed durable timer
-  `node-offline:<id>` set 45 seconds ahead; when it fires, `nodes.node.markOffline` runs under the
-  service principal `nodes.system`, not under the node's credential (section 9.5). This also covers
-  a crashed process, which never calls the close hook.
+  `nodes.node.disconnected` (G1). Each heartbeat returns a `setTimer` effect that replaces the keyed
+  durable timer `node-offline:<id>` set 45 seconds ahead; when it fires, `nodes.node.markOffline`
+  runs under the service principal `nodes.system`, not under the node's credential (section 9.5).
+  This also covers a crashed process, which never calls the close hook.
 - Join tokens are single use, expire after 15 minutes and are stored as verifiers (section 17.2.2);
   the bundled local agent of the installer gets a bootstrap token issued by the operator.
 - Versions: the agent's `hello` carries `protocol` and `agentVersion`, `nodes.node` records both,
@@ -8201,8 +8913,11 @@ The command channel is the part that changes most:
 - Dispatch is event-driven instead of a 15-second loop. An async reaction keyed by project
   (`ordering: 'fifo-per-key'`, section 7.7) runs when a deployment is created or finishes, when a
   node comes online and when a retry timer fires. It picks the oldest due deployment of the
-  project whose node is online, moves it to `dispatched` and sends `deploy` to the node in the same
-  transaction. One build per project at a time (Launchway's dispatch lane) is the key's FIFO order.
+  project whose node is online and invokes `deployments.deployment.run`, which returns the
+  `dispatched` event and the `agentCommand` effect `deploy` with the continuation `dispatchSettled`
+  and a 60-second deadline, in one unit (section 7.9.8): a refusal or silence requeues the
+  deployment, up to three retries, and then fails it. One build per project at a time (Launchway's
+  dispatch lane) is the key's FIFO order.
 - Durable timers (G3) carry every waiting rule of Launchway:
   - a deployment for an offline node fails after 10 minutes (`deployment-node-offline:<id>`);
   - an automatic deployment whose image does not exist yet returns to `queued` and waits 1, 2, 4,
@@ -8223,9 +8938,9 @@ The command channel is the part that changes most:
   `--follow`.
 - Container logs on demand (`GET /apps/{id}/logs?follow=true` in Launchway v0.3.0) are an
   ephemeral topic `nodes.containerLogs` that is never stored. The first subscriber triggers
-  `logs.start` to the node and the last one leaving triggers `logs.stop`, which needs subscriber
-  lifecycle hooks on topics (G6). Slow subscribers lose lines with a gap marker rather than
-  holding the agent back.
+  `logs.start` to the node and the last one leaving triggers `logs.stop`: the topic's subscriber
+  lifecycle hooks (G6) are pure and return `agentCommand` effects, which the kernel records and the
+  agent performs. Slow subscribers lose lines with a gap marker rather than holding the agent back.
 
 #### 17.3.7 Domains and the edge
 
@@ -8240,13 +8955,15 @@ The command channel is the part that changes most:
   `mail-domains.mailDomain` is an e-mail domain of a mail tenant (section 17.4.4).
 - `edge` owns only a small state entity, `render` (the last applied configuration and its hash).
   Its reconciler renders the complete Caddyfile from the routes, domains, deployments and nodes of
-  the tenant (a pure function, as in Launchway v0.3.0), validates it with Caddy's `/adapt`, loads
-  it with `/load`, and marks verified domains `active`. It runs as a keyed, coalescing job
+  the tenant (a pure function, as in Launchway v0.3.0) and returns the apply as an effect, which
+  validates it with Caddy's `/adapt` and loads it with `/load` (below); the effect's continuation
+  marks verified domains `active`. It runs as a keyed, coalescing job
   triggered by route, domain, deployment and configuration changes (G3, G10), plus a drift-repair
   schedule every 10 minutes, and never twice at the same time for one tenant (G9).
 - Applying the file needs either the Caddy admin socket, which only a process on the edge host can
-  open (a process capability, G9), or a new agent message `edge.apply` that the edge node's agent
-  executes locally (a decision point in section 26.1).
+  open (an executor with a process capability, G9), or a new agent message `edge.apply`, an
+  `agentCommand` effect that the edge node's agent performs locally (decision point 24 of section
+  26.1).
 - `edge.rendered` (query) returns the rendered file with the reason above each placeholder site,
   replacing `GET /edge/config`.
 - The pennestack deployment's own HTTP host sits behind this edge: `external` routes in the
@@ -8258,15 +8975,21 @@ The command channel is the part that changes most:
 - `dns.providerAccount` holds the provider kind and its credentials as `field.secret()` values
   (G4); `dns.zone` is discovered from the account; `dns.record` holds the desired record, its
   owner (`module`, `entity`, `id`), the provider's external id and the applied status.
-- Providers fill the extension point `dns.providers` with a factory and a credentials `shape()`;
-  the walkable field model yields the JSON Schema the UI renders as a form, which Launchway does
-  with Zod in v0.3.0. The provider contract grows from Launchway's `A`, `AAAA`, `CNAME` and `TXT` to
-  `MX` and `SRV` for the mail server, with `CAA` and `TLSA` later.
-- Other modules call services instead of writing records: `ctx.services.dns.ensure(owner, records)`
-  and `ctx.services.dns.release(owner)`. A keyed job per record applies changes with retries and
-  respects provider rate limits (G3).
-- The public-address schedule (every 5 minutes, two independent services must agree) updates the
-  anchor `A` record and every record marked `followPublicAddress`. The mail server needs the
+- Providers fill the extension point `dns.providers` with an executor-side provider adapter and a
+  credentials `shape()`: the adapter is imperative, and only the `applyRecord` executor uses it
+  (`ExecutorContext.extensions`, section 7.9.5); the walkable field model yields the JSON Schema the
+  UI renders as a form, which Launchway does with Zod in v0.3.0. The provider contract grows from
+  Launchway's `A`, `AAAA`, `CNAME` and `TXT` to `MX` and `SRV` for the mail server, with `CAA` and
+  `TLSA` later.
+- Other modules call pure services instead of writing records:
+  `ctx.services.dns.ensure(owner, records)` and `ctx.services.dns.release(owner)` return the record
+  drafts and one `applyRecord` effect per changed record, with the continuation
+  `dns.record.applied`, for the caller's decision. The executor applies a change with mechanical
+  retries (429 and 5xx: the upsert is idempotent) in a group per provider account that respects the
+  provider's rate limits (G3), and `applied` marks the record applied or failed (section 7.9.8).
+- The public-address schedule (every 5 minutes, two independent services must agree; the lookups
+  are an effect whose continuation decides) updates the anchor `A` record and every record marked
+  `followPublicAddress`. The mail server needs the
   latter: an MX target must be an address record, never an alias (RFC 2181 section 10.3), so
   `mail.jenspenneman.com` cannot be a `CNAME` to the anchor.
 - The module only modifies records it created (stored external ids, plus a comment tag where the
@@ -8279,13 +9002,15 @@ The command channel is the part that changes most:
   and the private key, client secret, webhook secret or personal access token as secrets (G4).
 - The manifest flow is two actions with redirect results (G8): `github.startManifest`
   answers with a redirect to GitHub carrying a `state`, and `github.completeManifest`
-  receives the `code`, converts it and stores the secrets. The installation callback works the
-  same way.
+  receives the `code`, converts it through an inline effect in its `prepare` (GitHub returns the
+  App's secrets once, inside the request; section 7.9.4) and seals the secrets in its decision. The
+  installation callback works the same way.
 - Webhooks arrive through a receiver of `transport-webhooks` at `/hooks/github/<connection id>`
   (G8). The deployment's carrier enricher turns the path into the scope key before scope
-  resolution; the receiver's verification resolver, bound to `github`, checks
-  `X-Hub-Signature-256` with the connection's webhook secret in constant time over the raw body,
-  and only then does the request act as `github.webhook` (section 16.5.8). `X-GitHub-Delivery` is
+  resolution; the receiver's verification resolver, a pure generator bound to `github`, checks
+  `X-Hub-Signature-256` with the connection's webhook secret (a reveal request) in constant time over
+  the raw body (`hmacSha256` and `timingSafeEqual` of `@pennestack/core/crypto`), and only then does
+  the request act as `github.webhook` (section 16.5.8). `X-GitHub-Delivery` is
   the command id (receipts drop replays; the deliveries table goes away), and `github.ingest`
   parses the payload and appends domain events to the connection's chain: `releasePublished`,
   `pushed`, `pullRequestChanged`, `installationChanged`.
@@ -8296,15 +9021,18 @@ The command channel is the part that changes most:
   a delivery GitHub repeats weeks later never deploys twice.
 - The deployment mirror is an asynchronous reaction to `deployments.deployment` events, keyed by
   deployment and coalescing (G3), so steps of one deployment run one at a time and GitHub converges
-  on the latest status. A refusal pauses the connection for 5 minutes (`refusedUntil` on the
-  connection); rate-limited answers are `rate_limited` errors with `retryAfter`, which the queue
-  honours.
-- Release polling for token connections is a schedule every 5 minutes per tenant (G3).
+  on the latest status. The reaction returns an effect whose executor calls GitHub's API;
+  rate-limited answers are `rate_limited` errors with `retryAfter`, which the executor's mechanical
+  retries honour. A refusal settles the effect as failed, and its continuation sets `refusedUntil`
+  on the connection, pausing it for 5 minutes.
+- Release polling for token connections is a schedule every 5 minutes per tenant (G3); each run
+  requests a GitHub read as an effect whose continuation records the new releases.
 - Contributions: `projects.project` gains `githubConnectionId`, `repository`,
   `autoDeployReleases`, `autoDeployPrereleases`, `autoDeployBranch` and `githubDeployments`;
   `deployments.deployment` gains `githubDeploymentId`; `projects.gitProviders` receives the
   GitHub implementation of `GitProvider` (`listRepos`, `listReleases`, `resolveRef`,
-  `cloneCredentials`, `getPullRequest`).
+  `cloneCredentials`, `getPullRequest`), whose calls to GitHub are effects; how a user interface
+  reads them (the repository picker) is an open question of section 26.3.
 - Libraries: `@octokit/app` 16.1.4, `@octokit/rest` 22.0.1 and `@octokit/webhooks` 14.2.0 (all
   MIT).
 
@@ -8410,7 +9138,7 @@ principal needs no rule on other deployments.
   `where: () => ({ role: 'owner' })` and a reason; ownership moves through a dedicated command.
 - Session cookies, origin checks (`Origin` and `Sec-Fetch-Site`) and trusted proxies for the client
   address are concerns of the HTTP host (sections 16.3.3 and 16.4.10); rate limits on login,
-  passkey and token actions are `auth`'s middleware at `admit` (section 17.2.6).
+  passkey and token actions are `auth`'s admission rule at `admit` (section 17.2.6).
 - Passkeys stay on `@simplewebauthn/server` (14.0.3, MIT) inside `auth` (section 17.2.2).
 - The home node that runs pennestack and PostgreSQL is itself a Launchway node, and its agent
   controls Docker. A project with `trustedMounts` could mount pennestack's volumes or the Docker
@@ -8471,7 +9199,7 @@ export const modules = [
 ] as const
 
 // examples/launchway/src/actions/health.ts
-export const health = defineQuery(modules, { auth: { public: true }, scope: 'backend', output: shape({ ok: field.boolean() }), handle: async () => ({ ok: true }) })
+export const health = defineQuery(modules, { auth: { public: true }, scope: 'backend', output: shape({ ok: field.boolean() }), read: () => ({ ok: true }) })
 
 // examples/launchway/src/app.ts
 import { defineApp, type AppType, type Row } from '@pennestack/core'
@@ -8496,24 +9224,25 @@ export type Project = Row<Launchway, 'projects.project'>
 ```
 
 The `nodes` module shows the agent channel, the heartbeat timer and the extension point through
-which the higher `deployments` module observes heartbeats without `nodes` importing it:
+which the higher `deployments` module observes heartbeats without `nodes` importing it; every part
+is pure, and the agent is the external performer of the `agentCommand` effect (section 7.9.5):
 
 ```ts
 // examples/launchway/modules/nodes/src/extension-points/heartbeat-observers.ts
 export interface HeartbeatObserver {
   readonly id: string
-  observe(nodeId: Id<'nodes.node'>, activeDeploymentIds: readonly string[]): Promise<void>     // bound to the contributor (G16)
+  observe(nodeId: Id<'nodes.node'>, activeDeploymentIds: readonly string[]): Gen<Decision>    // pure, bound to the contributor (G16); joins the heartbeat's decision
 }
 export const heartbeatObservers = extensionPoint<HeartbeatObserver>({ mode: 'set' })
 
 // examples/launchway/modules/nodes/src/extension-points/command-resolvers.ts
 export interface CommandResolver {
   readonly types: readonly AgentCommand['type'][]
-  resolve(nodeId: Id<'nodes.node'>, command: AgentCommandRow): Promise<AgentCommandPayload>   // bound to the contributor (G16)
+  resolve(nodeId: Id<'nodes.node'>, command: PendingEffect<typeof agentCommand>): Gen<AgentCommandPayload>   // pure, bound to the contributor (G16)
 }
 export const commandResolvers = extensionPoint<CommandResolver>({ mode: 'set' })
 
-// examples/launchway/modules/nodes/src/entities/node.ts, credential.ts, presence.ts and command.ts
+// examples/launchway/modules/nodes/src/entities/node.ts, credential.ts and presence.ts
 export const node = defineEntity({
   prefix: 'node',
   fields: {
@@ -8544,17 +9273,6 @@ export const presence = defineEntity({
   history: 'state',
   reason: 'A heartbeat every 15 seconds is liveness, not history.',
 })
-export const command = defineEntity({
-  prefix: 'ncmd',
-  fields: {
-    nodeId: field.ref.own('node').index(),
-    type: field.enum(['deploy', 'stop', 'remove', 'status', 'logs.start', 'logs.stop', 'deployment.cancel', 'edge.apply']),
-    payload: field.json(agentCommandPayload),           // references only; secrets are revealed at emit time
-    ackedAt: field.instant().optional(),
-  },
-  history: 'state',
-  reason: 'An outbox row per message; acknowledged rows are purged by retention (G11).',
-})
 
 // examples/launchway/modules/nodes/src/config.ts
 export const config = shape({
@@ -8569,34 +9287,51 @@ const nodesBaseDef = defineModuleBase({
   requires: [contracts.live],                          // the agent channel is a live subscription
   config,
   extensionPoints: { heartbeatObservers, commandResolvers },
-  entities: { node, credential, presence, command },
+  entities: { node, credential, presence },
   contributions: { toCore },                           // contributions/to-core/contribution.ts: defineContribution(core, {})
 })
 export interface NodesBase extends ModuleBaseType<typeof nodesBaseDef> {}
 export const nodesBase: NodesBase = nodesBaseDef
 
+// examples/launchway/modules/nodes/src/effects/agent-command.ts: one record per message, with its outcome (decision point 80)
+export const agentCommand = defineEffect(nodesBase, {
+  input: shape({
+    nodeId: field.ref.own('node'),
+    type: field.enum(['deploy', 'stop', 'remove', 'status', 'logs.start', 'logs.stop', 'deployment.cancel', 'edge.apply']),
+    payload: field.json(agentCommandPayload),           // references only; secrets are revealed at emit time
+  }),
+  output: shape({ accepted: field.boolean(), message: field.string().optional() }),
+  performer: 'external',                                // the agent pulls and settles it; no executor
+})
+
 // examples/launchway/modules/nodes/src/actions/node/heartbeat.ts
 export const heartbeat = defineCommand(nodesBase, node, {
   input: shape({ activeDeploymentIds: field.list(field.string()) }),
   execution: 'sync',
-  handle: async (input, ctx) => {
-    await ctx.data.nodes.presence.update({ where: { nodeId: ctx.target.id }, patch: { lastSeenAt: ctx.clock.now(), activeDeploymentIds: input.activeDeploymentIds } })
-    await ctx.timers.set({                                                          // keyed; replaces the previous timer; fires as nodes.system
-      key: `node-offline:${ctx.target.id}`,
-      at: new Date(ctx.clock.now().getTime() + ctx.config.heartbeatTimeoutSeconds * 1000),
-      invoke: markOffline,                                                          // an own action part, by value
-      input: { id: ctx.target.id },
-    })
-    for (const observer of ctx.extensions.heartbeatObservers) await observer.observe(ctx.target.id, input.activeDeploymentIds)
+  *decide(input, current, ctx) {
+    const presence = yield* ctx.load.nodes.presence.one({ where: { nodeId: current.id } })
+    const own: Decision = {
+      events: [ctx.write.nodes.presence.update(presence, { lastSeenAt: ctx.clock.now(), activeDeploymentIds: input.activeDeploymentIds })],
+      effects: [setTimer({                                                          // keyed; replaces the previous timer; fires as nodes.system
+        key: `node-offline:${current.id}`,
+        after: `${ctx.config.heartbeatTimeoutSeconds}s`,
+        invoke: markOffline,                                                        // an own action part, by value
+        input: { id: current.id },
+      })],
+    }
+    const observed = []
+    for (const observer of ctx.extensions.heartbeatObservers) observed.push(yield* observer.observe(current.id, input.activeDeploymentIds))   // bound to deployments (G16)
+    return combine(own, ...observed)                                                // lib/combine.ts: concatenates events and effects
   },
 })
 
-// examples/launchway/modules/nodes/src/actions/node/mark-offline.ts
-export const markOffline = defineCommand(nodesBase, node, { execution: 'sync', handle: async (_input, ctx) => { /* status 'offline'; event for dispatch and the UI */ } })
+// examples/launchway/modules/nodes/src/actions/node/mark-offline.ts: the change event drives dispatch and the UI
+export const markOffline = defineCommand(nodesBase, node, { execution: 'sync', decide: (_input, current, ctx) => (current.status === 'offline' ? [] : [ctx.write.nodes.node.update(current, { status: 'offline' })]) })
 
 // examples/launchway/modules/nodes/src/actions/join.ts
-export const join = defineCommand(nodesBase, { output: shape({ nodeId: field.ref.own('node'), credential: field.string() }), execution: 'sync', handle: async (_input, ctx) => {
-  /* consume the join token; issue the node credential with ctx.secrets.issue and claim its public id as a scope key (G2) */
+export const join = defineCommand(nodesBase, { output: shape({ nodeId: field.ref.own('node'), credential: field.string() }), execution: 'sync', *decide(_input, ctx) {
+  /* load and consume the join token; yield* ctx.secrets.issue({ prefix: 'nodecred' }) for the node credential (recorded without its
+     plaintext); return the credential's draft and claimScopeKey for its public id with a continuation (G2) */
 } })
 
 // examples/launchway/modules/nodes/src/actions/channel.ts
@@ -8606,23 +9341,37 @@ export const channel = defineSubscription(nodesBase, {
   source: (_input, ctx, resume) => {
     const nodeId = ctx.principal.idAs('nodes.node')
     if (nodeId === null) throw errors.forbidden('Only a node may hold its command channel.')
-    const commands = ctx.live.entity('nodes', 'command', { where: { nodeId, ackedAt: { isNull: true } }, from: 'beginning', after: resume })   // G6: live feed over a state entity
-    return mapItems(commands, async (change) => change.type === 'removed' ? undefined : resolvePayload(ctx.extensions.commandResolvers, nodeId, change.row))
+    const pending = ctx.live.effects(agentCommand, { where: { nodeId }, after: resume })   // this node's unsettled commands, resumable (section 7.9.5)
+    return mapItems(pending, function* (effect) {                                   // a generator map: reveals at emit time through deployments' resolver (G16)
+      return yield* resolvePayload(ctx.extensions.commandResolvers, nodeId, effect)
+    })
   },
 })
 
+// examples/launchway/modules/nodes/src/actions/ack.ts: the agent settles a command (protocol v1 maps its acknowledgement here)
+export const ack = defineCommand(nodesBase, {
+  input: shape({ effectId: field.string(), accepted: field.boolean(), message: field.string().optional() }),
+  principal: 'service',
+  execution: 'sync',
+  decide: (input, ctx) => ({
+    effects: [settle({ effect: agentCommand, id: input.effectId, where: { nodeId: ctx.principal.idAs('nodes.node') } },   // only a pending command of this node
+      { ok: true, value: { accepted: input.accepted, message: input.message } })],
+  }),
+})
+
 // examples/launchway/modules/nodes/src/services/send.ts
-// bound to nodes: inserts with nodes' authority in the caller's unit; callers write ctx.services.nodes.send(nodeId, command)
-export const send = defineService(nodesBase, async (own, nodeId: Id<'nodes.node'>, command: AgentCommand) => own.data.nodes.command.create({ nodeId, ...command }))
+// pure, bound to nodes: returns the effect for the caller's decision; callers write ctx.services.nodes.send(nodeId, command, { then, with, deadline })
+export const send = defineService(nodesBase, (_own, nodeId: Id<'nodes.node'>, command: AgentCommand, options: EffectOptions) => agentCommand({ nodeId, ...command }, options))
 
 // examples/launchway/modules/nodes/src/contributions/to-core/fills/principal-resolvers.ts
 export const principalResolversFill = defineFill(within(nodesBase, toCore), 'principalResolvers', [nodeCredentialResolver])
 
 // examples/launchway/modules/nodes/src/module.ts
 const nodesDef = defineModule(nodesBase, {
-  actions: { join, channel },
+  actions: { join, channel, ack },
   entityActions: { node: { heartbeat, markOffline } },
   services: { send },
+  effects: { agentCommand },                           // performed by the agent: no executor
   contributes: { toCore: { extensionPoints: { principalResolvers: principalResolversFill } } },
 })
 export interface Nodes extends ModuleType<typeof nodesDef> {}
@@ -8679,22 +9428,23 @@ const imageRetryMinutes = [1, 2, 4, 8, 15, 15, 15] as const          // Launchwa
 export const reportResult = defineCommand(deploymentsBase, deployment, {
   input: shape({ outcome: field.enum(['succeeded', 'failed', 'cancelled']), reason: field.string().optional(), message: field.string().optional() }),
   execution: 'sync',
-  handle: async (input, ctx) => {
-    const d = ctx.target
+  *decide(input, d, ctx) {                                        // d: the full current row
     const waitMinutes = imageRetryMinutes[d.retryCount]
     if (input.outcome === 'failed' && input.reason === 'image-not-found' && d.trigger !== 'manual' && waitMinutes !== undefined) {
       const at = new Date(ctx.clock.now().getTime() + waitMinutes * 60_000)
-      await ctx.data.deployments.deployment.update({ where: { id: d.id }, patch: { status: 'queued', retryCount: d.retryCount + 1, nextAttemptAt: at, failureReason: 'image-not-found' } })
-      await ctx.timers.set({ key: `deployment-retry:${d.id}`, at, invoke: retryDue, input: { id: d.id } })   // fires as deployments.system
-      return
+      return {
+        events: [ctx.write.deployments.deployment.update(d, { status: 'queued', retryCount: d.retryCount + 1, nextAttemptAt: at, failureReason: 'image-not-found' })],
+        effects: [setTimer({ key: `deployment-retry:${d.id}`, at, invoke: retryDue, input: { id: d.id } })],   // fires as deployments.system
+      }
     }
     if (input.outcome === 'succeeded') {                          // deployments' own authority: the node needs no rule on other deployments
-      const previous = await ctx.data.deployments.deployment.findOne({ where: { projectId: d.projectId, environment: d.environment, status: 'running' } })
-      if (previous) await ctx.data.deployments.deployment.update({ where: { id: previous.id }, patch: { status: 'superseded' } })
-      await ctx.data.deployments.deployment.update({ where: { id: d.id }, patch: { status: 'running' } })
-      return
+      const previous = yield* ctx.load.deployments.deployment.one({ where: { projectId: d.projectId, environment: d.environment, status: 'running' } })
+      return [
+        ...(previous ? [ctx.write.deployments.deployment.update(previous, { status: 'superseded' })] : []),
+        ctx.write.deployments.deployment.update(d, { status: 'running' }),
+      ]
     }
-    await ctx.data.deployments.deployment.update({ where: { id: d.id }, patch: { status: input.outcome === 'failed' ? 'failed' : 'cancelled' } })
+    return [ctx.write.deployments.deployment.update(d, { status: input.outcome === 'failed' ? 'failed' : 'cancelled' })]
   },
 })
 
@@ -8705,23 +9455,23 @@ export const dispatchNextForProject = defineReaction(deploymentsBase, {
   timing: 'async',
   key: (event) => event.current?.projectId ?? event.stream.id,
   ordering: 'fifo-per-key',
-  handle: async (event, ctx) => { /* dispatch the project's next queued deployment to its node */ },
+  *react(event, ctx) { /* load the project's oldest due deployment whose node is online; return invoke(run, { id }) (section 7.9.8) */ },
 })
 
 // examples/launchway/modules/deployments/src/reactions/wake-lanes-of-node.ts
 export const wakeLanesOfNode = defineReaction(deploymentsBase, {
   on: 'nodes.node.changed',
   timing: 'inline',
-  handle: async (event, ctx) => { /* a node came online: wake the lanes waiting for it */ },
+  *react(event, ctx) { /* a node came online: return the invocations that wake the lanes waiting for it */ },
 })
 
 // examples/launchway/modules/deployments/src/contributions/to-nodes/fills/heartbeat-observers.ts and command-resolvers.ts
-export const heartbeatObserversFill = defineFill(within(deploymentsBase, toNodes), 'heartbeatObservers', (own) => [reconcileActiveDeployments(own)])   // G16: bound to deployments' context
-export const commandResolversFill = defineFill(within(deploymentsBase, toNodes), 'commandResolvers', (own) => [deployCommandResolver(own)])          // checks the assignment, calls projects.environmentFor
+export const heartbeatObserversFill = defineFill(within(deploymentsBase, toNodes), 'heartbeatObservers', (own) => [reconcileActiveDeployments(own)])   // G16: generators bound to deployments' context
+export const commandResolversFill = defineFill(within(deploymentsBase, toNodes), 'commandResolvers', (own) => [deployCommandResolver(own)])          // loads the assignment, delegates to projects.environmentFor
 
-// examples/launchway/modules/deployments/src/module.ts (excerpt)
+// examples/launchway/modules/deployments/src/module.ts (excerpt); run and dispatchSettled are section 7.9.8's
 const deploymentsDef = defineModule(deploymentsBase, {
-  entityActions: { deployment: { reportResult, retryDue } },
+  entityActions: { deployment: { reportResult, retryDue, run, dispatchSettled } },
   reactions: { dispatchNextForProject, wakeLanesOfNode },
   contributes: { toNodes: { extensionPoints: { heartbeatObservers: heartbeatObserversFill, commandResolvers: commandResolversFill } } },
 })
@@ -8780,7 +9530,12 @@ const githubBaseDef = defineModuleBase({
 export const ingest = defineCommand(githubBase, {
   input: shape({ connectionId: field.ref.own('connection'), event: field.string(), signature: field.string(), rawBody: field.text() }),
   execution: 'sync',                  // verify and record before answering GitHub; reactions run asynchronously
-  handle: async (input, ctx) => { /* constant-time HMAC check with the revealed webhook secret, then append domain events */ },
+  *decide(input, ctx) {
+    const connection = yield* ctx.load.github.connection.byId(input.connectionId)
+    const secret = connection?.webhookSecret ? yield* ctx.secrets.reveal(connection.webhookSecret, 'webhook signature') : undefined   // never recorded
+    if (!secret || !timingSafeEqual(input.signature, `sha256=${hmacSha256(secret, input.rawBody)}`)) throw errors.unauthenticated('Invalid signature.')   // @pennestack/core/crypto
+    return parseDelivery(input.event, input.rawBody, connection, ctx.write.github.connection)   // lib/: drafts of releasePublished, pushed, pullRequestChanged, installationChanged
+  },
 })
 
 // examples/launchway/modules/github/src/reactions/mirror-to-github.ts, deploy-on-release.ts and deploy-on-push.ts
@@ -8789,19 +9544,22 @@ export const mirrorToGitHub = defineReaction(githubBase, {
   timing: 'async',
   key: (event) => event.stream.id,
   coalesce: true,                                             // a keyed, coalescing job per deployment
-  handle: async (event, ctx) => { /* create or update the GitHub deployment and its status */ },
+  *react(event, ctx) { /* skip while the connection's refusedUntil lies ahead; else return the mirrorStatus effect (create or update the
+                          GitHub deployment and its status) with a continuation that records githubDeploymentId or sets refusedUntil */ },
 })
-export const deployOnRelease = defineReaction(githubBase, { on: 'github.connection.releasePublished', timing: 'async', handle: createAutomaticDeployment })
-export const deployOnPush = defineReaction(githubBase, { on: 'github.connection.pushed', timing: 'async', handle: createAutomaticDeployment })   // lib/create-automatic-deployment.ts
+export const deployOnRelease = defineReaction(githubBase, { on: 'github.connection.releasePublished', timing: 'async', react: createAutomaticDeployment })
+export const deployOnPush = defineReaction(githubBase, { on: 'github.connection.pushed', timing: 'async', react: createAutomaticDeployment })   // lib/create-automatic-deployment.ts: returns the invoke effect
 
 // examples/launchway/modules/github/src/schedules/poll-releases.ts
 export const pollReleasesSchedule = defineSchedule(githubBase, { every: '5m', invoke: pollReleases, scope: 'each-tenant' })   // G3
 
 // examples/launchway/modules/github/src/module.ts (excerpt)
 const githubDef = defineModule(githubBase, {
-  actions: { ingest, startManifest, completeManifest, pollReleases },
+  actions: { ingest, startManifest, completeManifest, pollReleases },   // completeManifest converts the code in prepare, an inline effect (section 17.3.9)
   reactions: { mirrorToGitHub, deployOnRelease, deployOnPush },
   schedules: { pollReleases: pollReleasesSchedule },
+  effects: { mirrorStatus, listReleases, convertManifest },              // src/effects/: GitHub's API, each call one record with its outcome
+  executors: { mirrorStatus: mirrorStatusExecutor, listReleases: listReleasesExecutor, convertManifest: convertManifestExecutor },   // mechanical retries honouring retryAfter
   contributes: {
     toProjects: { extensionPoints: { gitProviders: gitProvidersFill } },   // fills/git-providers.ts: (own) => [githubProvider(own)], G16
     toWebhooks: { extensionPoints: { receivers: receiversFill } },         // fills/receivers.ts: [githubReceiver], verified by github's own resolver
@@ -8852,7 +9610,7 @@ export const syncPreview = defineReaction(within(previewsBase, whenGithub), {
   on: 'github.connection.pullRequestChanged',
   timing: 'async',
   key: (event) => `${event.data.repository}#${event.data.number}`,   // G3
-  handle: async (event, ctx) => { /* open, update or close the preview of the pull request */ },
+  *react(event, ctx) { /* open, update or close the preview of the pull request: drafts and invoke effects */ },
 })
 
 // examples/launchway/modules/previews/src/module.ts (excerpt)
@@ -8894,7 +9652,7 @@ network forces it (a relay with a clean address).
 | Part | Where | Why |
 |---|---|---|
 | SMTP protocol for receiving and submission | listener modules `smtp-in` and `smtp-submission` on `smtp-server` 3.19.21 (MIT-0) | the library handles the protocol (STARTTLS, implicit TLS, SNI, PROXY protocol, SIZE, 8BITMIME, SMTPUTF8, DSN, REQUIRETLS, AUTH PLAIN, LOGIN and XOAUTH2) and accepts sockets handed to it (`connect(socket)`), so the deployment can own the port; recipients, scope and storage are actions |
-| Outbound delivery | module `mail-delivery` with the SMTP client of Nodemailer 10.1.0 (MIT-0) and jobs on the kernel queue | retries, per-domain concurrency and delivery status are jobs and entities |
+| Outbound delivery | module `mail-delivery` with the SMTP client of Nodemailer 10.1.0 (MIT-0) in an effect executor, on effect jobs of the kernel queue | the SMTP dialogue is one effect per attempt; retries and delivery status are the submission's state machine, per-domain concurrency a group |
 | SPF, DKIM, DMARC, ARC, MTA-STS policy parsing | module `sender-auth` on `mailauth` 7.3.0 (MIT) | a maintained library that covers all of them, including Ed25519 DKIM |
 | MIME parsing and indexing | inside `mail-store`, on `mailparser` 3.9.38 (MIT), `libmime` 5.4.7 (MIT) and `mailsplit` 5.4.6 (MIT or EUPL-1.1+, used under MIT) | byte offsets of MIME parts must be recorded for IMAP sections and JMAP body parts |
 | Mailbox storage | entities of `mail-store` plus the blob store (G5) | one store for JMAP, IMAP, live updates and authorization |
@@ -8918,7 +9676,7 @@ network forces it (a relay with a clean address).
 | `spam` | mail | | `mail-store` | `mail-delivery` | `mail-store.email`, `mail-store.inbound` (score, verdict, symbols) | `mail-store.inboundChecks`, `mail-delivery.outboundChecks`; declares `scanners` |
 | `antivirus` (optional, later) | mail | | `spam` | | | `spam.scanners` |
 | `smtp-in` | mail | | `mail-store`, `mail-domains` | | | `listeners` (G1) |
-| `mail-delivery` | mail | `submission`, stream `attempt` | `mail-store` | | | declares `signers`, `outboundChecks` |
+| `mail-delivery` | mail | `submission`; the effects `smtpDeliver` and `smtpProbe` with their executors | `mail-store` | | | declares `signers`, `outboundChecks` |
 | `smtp-submission` | mail | | `mail-store`, `mail-delivery` | | | `listeners` (G1) |
 | `imap` | mail | | `mail-store` | | | `listeners` (G1) |
 | `mta-sts` | mail | | `mail-domains` | `dns` | | raw HTTP endpoint (G8) |
@@ -8977,8 +9735,8 @@ no submission types at all.
 | `mail-store.thread` | `accountId` | chain | threading by `Message-ID`, `In-Reply-To`, `References` |
 | `mail-store.inbound` | envelope, staged blob, client address and HELO, status | state | a transient hand-over record; the email chain is the history; envelope and client fields are personal |
 | `mail-store.vacationResponse` | `accountId`, `isEnabled`, `fromDate`, `toDate`, `subject`, `textBody` | chain | JMAP singleton per account |
-| `mail-delivery.submission` | `accountId`, `identityId`, `emailId`, envelope, `sendAt`, `deliveryStatus` per recipient | chain | JMAP EmailSubmission |
-| `mail-delivery.attempt` | stream keyed by submission: recipient domain, MX host, reply, TLS details | stream (G6) | records are personal (the reply quotes addresses); erasure purges them with the submission's owner |
+| `mail-delivery.submission` | `accountId`, `identityId`, `emailId`, envelope, `sendAt`, `deliveryStatus` per recipient | chain | JMAP EmailSubmission; its `attempted` events record each delivery attempt (recipient domain, outcome per recipient, next try) |
+| `core.effect` of type `mail-delivery.smtpDeliver`, with `core.effectAttempt` | one effect per attempt: input (domain, recipients, message reference), output (replies per recipient, MX host, policy, TLS details), attempts | chain stream per effect; attempt records kept 90 days (section 7.9.6) | personal: the replies quote addresses, so inputs and outputs are sealed under the submission owner's key and shredded with it |
 | `sender-auth.dkimKey` | `domainId`, `selector`, `algorithm`, `privateKey` (secret), `publicKey`, `state` | chain | `pending`, `published`, `active`, `retiring`, `retired` |
 
 How the protocols' requirements map onto the core model:
@@ -9033,18 +9791,24 @@ How the protocols' requirements map onto the core model:
    tenant. Senders retry for days, longer than any receipt window, so the deduplication of record
    is a unique key on the `inbound` row (the content hash per mail account and envelope), not the
    receipt: a retry days later finds the row and is answered as accepted without storing the
-   message twice. The action runs the `inboundChecks`
-   that selected modules contributed (`sender-auth`: SPF from the client address, `MAIL FROM` and
-   HELO, DKIM, DMARC, ARC; `spam`: the score), applies the tenant's policy (reject above the
-   reject score, reject on DMARC `p=reject` failure), adopts the staged blob and writes the
-   `inbound` row. `mail-store` imports neither module: they fill its extension point (G16).
+   message twice. The action's `prepare` collects the effect drafts that the `inboundChecks`
+   fills of the selected modules return (`sender-auth`: the SPF lookups for the client address,
+   `MAIL FROM` and HELO, and the DKIM, DMARC and ARC lookups; `spam`: rspamd's score) and performs
+   them as inline effects, about two effect records per message and tenant; whether the SMTP
+   listener should run these checks before invoking the command instead is an open question
+   (section 26.3). Its `decide` applies the tenant's policy to their outcomes (reject above the
+   reject score, reject on DMARC `p=reject` failure) and writes the `inbound` row. The kernel adopts
+   the staged blob into the tenant's namespace before the unit, so no row references a missing blob
+   (G5). `mail-store` imports neither module: they fill its extension point (G16).
 6. The listener answers `250` when at least one tenant accepted and none failed transiently,
    `550` when every tenant rejected, and `451 4.3.0` when any tenant failed transiently; the
    sender then retries and the receipts make the retry idempotent.
-7. An asynchronous reaction `mail-store.inbound.file` per `inbound` row expands aliases, sends a
-   vacation reply when one applies (RFC 3834 rules, through `mail-delivery`), files into Junk
-   above the junk score, allocates UIDs, threads, extracts search text and creates the `email` and
-   `mailboxEntry` rows. The live feed then reaches IMAP `IDLE` sessions and JMAP push connections.
+7. An asynchronous reaction `mail-store.inbound.file` per `inbound` row expands aliases, requests a
+   vacation reply when one applies (RFC 3834 rules, an invocation of `mail-delivery`), files into
+   Junk above the junk score, allocates UIDs, threads, extracts search text and creates the `email`
+   and `mailboxEntry` rows. MIME parsing and the extraction need the blob's bytes: whether they
+   become a module-defined computation or an executor with a continuation is an open question
+   (section 26.3). The live feed then reaches IMAP `IDLE` sessions and JMAP push connections.
 
 Forwarding to external addresses (aliases with external targets) goes through `mail-delivery` and
 needs sender rewriting (SRS) and, later, ARC sealing, so that the receiving side's SPF and DMARC
@@ -9063,16 +9827,21 @@ Submission:
 3. `DATA` is streamed into the tenant's blob namespace and `mail-delivery.submit` runs
    synchronously: it signs through the `signers` that `sender-auth` contributes (once at
    submission, so retries reuse the signature and rotation overlaps cover queued mail), records
-   the submission with a status per recipient and enqueues one delivery job per recipient domain.
-   The client gets `250` only after commit. JMAP `EmailSubmission/set` calls the same action.
+   the submission with a status per recipient and requests one `smtpDeliver` effect per recipient
+   domain, with the continuation `recordAttempt`. The signer needs the message bytes and the
+   private key; whether signing becomes a core computation over a blob and a key reference, a first
+   `dkimSign` effect with a continuation, or a step of the executor at each attempt is an open
+   question (section 26.3). The client gets `250` only after commit. JMAP `EmailSubmission/set`
+   calls the same action.
 
-Delivery (one job per submission and recipient domain, G3):
+Delivery (one `smtpDeliver` effect per attempt, submission and recipient domain, G3; section 7.9.8
+shows the code):
 
-- Under decision 50a the SMTP dialogue is the `smtpSend` effect executor (section 9.5.1): it
+- The SMTP dialogue is the executor of the `smtpDeliver` effect (sections 7.9.5 and 9.5.1): it
   requires the capability `smtp-out` in direct mode (none in relay mode), runs in the group
-  `mx:<domain>` with two connections per destination domain by default, and carries the retry policy
-  below; MX and MTA-STS lookups are effects too (decision 50a; the exact contract is specified in
-  the pure-handlers section).
+  `mx:<domain>` with two connections per destination domain by default, and retries only
+  infrastructure failures, twice. The MX and MTA-STS lookups are part of that one effect, whose
+  output records the MX host and the policy used (decision point 75).
 - Direct mode resolves MX records, applies the domain's MTA-STS policy (fetched and cached per its
   `max_age`), requires STARTTLS where the policy enforces it, and delivers with Nodemailer's SMTP
   client. Relay mode sends every external delivery to the configured relay with authentication;
@@ -9080,14 +9849,24 @@ Delivery (one job per submission and recipient domain, G3):
   the relay) goes through the egress service, which refuses loopback, private and link-local
   destinations unless the deployment allowlists them (section 12.3), so an MX record pointing into
   the home LAN reaches nothing there.
-- A `2xx` reply marks the recipients delivered. A `4xx` reply or a timeout is a retryable error:
-  the first retry follows after 5 minutes, because greylisting usually clears by then, backing off
-  to a 4-hour maximum and giving up after 5 days (RFC 5321 section 4.5.4.1 sets the give-up time at
-  4 to 5 days at least). A `5xx` reply or giving up produces a delivery status notification
-  (RFC 3464) delivered to the sender through `mail-store.acceptInbound` in the same tenant.
-- Every attempt is a record in the stream `mail-delivery.attempt`; `submission.deliveryStatus`
-  changes are live, so JMAP clients see them pushed.
-- Future sending (`sendAt`) is a delayed job (G3).
+- The effect's output holds the reply per recipient, because an SMTP transaction succeeds per
+  recipient. A `2xx` reply marks the recipients delivered. A `4xx` reply or a timeout is the output
+  `deferred`, not an error: the submission's state machine decides the next try per recipient
+  domain (`recordAttempt`, then a timer whose command `retryDomain` requests a new `smtpDeliver` for
+  the recipients still deferred), the first after 5 minutes, because greylisting usually clears by
+  then, backing off to a 4-hour maximum and giving up after 5 days (RFC 5321 section 4.5.4.1 sets
+  the give-up time at 4 to 5 days at least), with a delay notice on the way. A `5xx` reply or
+  giving up produces a delivery status notification (RFC 3464, `bounce`) delivered to the sender
+  through `mail-store.acceptInbound` in the same tenant.
+- Every attempt is an `attempted` event on the submission's chain, beside the effect's `core.effect`
+  record and its `core.effectAttempt` records (section 7.9.6); `submission.deliveryStatus` changes
+  are live, so JMAP clients see them pushed, and an operator's "retry now" is a command of the
+  state machine.
+- Future sending (`sendAt`) is an `smtpDeliver` effect with `runAt` (G3).
+- `mail-delivery.testRelay` checks the configured relay from the administration API: a synchronous
+  command whose `prepare` performs the inline effect `smtpProbe` (EHLO, STARTTLS, AUTH and QUIT, 10
+  seconds, no retries) and whose `decide` records the result; whether port 25 is reachable for
+  direct delivery is the `smtp-out` capability probe of section 21.2 (section 7.9.5).
 - Outbound rate limits per principal (messages per hour) and an outbound spam check catch
   compromised app passwords; suspending a key is a deny rule with a reason.
 
@@ -9156,12 +9935,16 @@ section 26.1):
 - At `DATA` time: rspamd scores the message through its HTTP interface (`/checkv2`) with the
   envelope, client address and HELO. `sender-auth` computes the stored Authentication-Results
   with `mailauth` and enforces DMARC; rspamd evaluates the same mechanisms for its score, which
-  costs a few duplicate DNS lookups that the local resolver caches.
+  costs a few duplicate DNS lookups that the local resolver caches. Both are inline effects of
+  `acceptInbound`'s `prepare`, whose executors make the lookups and the HTTP call (section
+  17.4.6).
 - Policy per tenant in `spam.config`: reject above `rejectScore`, file into Junk above
   `junkScore`, add headers in between. The check reaches `mail-store` through its `inboundChecks`
-  extension point; the verdict and symbols are fields contributed to `mail-store.email`.
+  extension point, whose fill returns the effect draft; the verdict and symbols are fields
+  contributed to `mail-store.email`.
 - Learning: an asynchronous reaction to `mail-store.email` changes moves into and out of the
-  mailbox with the Junk role and tells rspamd's controller to learn spam or ham.
+  mailbox with the Junk role and returns an effect that tells rspamd's controller to learn spam or
+  ham.
 - Outbound: per-principal rate limits and an rspamd check of submitted mail.
 - `antivirus` fills `spam.scanners` with a ClamAV client when selected; DMARC aggregate reports
   arrive by mail and are parsed by `dmarc-reports` later.
@@ -9317,7 +10100,7 @@ export const mailboxEntry = defineEntity({
 export const whenAccounts = defineCondition([accounts], { entities: { mailAccount: { fields: { profileId: field.ref(accounts, 'profile').optional() } } } })
 
 // examples/mail/modules/mail-store/src/extension-points/inbound-checks.ts
-export const inboundChecks = extensionPoint<InboundCheck>({ mode: 'ordered' })   // filled by sender-auth and spam (G16)
+export const inboundChecks = extensionPoint<InboundCheck>({ mode: 'ordered' })   // filled by sender-auth and spam (G16): pure fills returning effect drafts
 
 // examples/mail/modules/mail-store/src/config.ts
 export const config = shape({
@@ -9343,22 +10126,25 @@ export const mailStoreBase: MailStoreBase = mailStoreBaseDef
 export const resolveAddress = defineQuery(mailStoreBase, {
   input: shape({ address: field.string({ format: 'email' }) }),
   output: shape({ deliverable: field.boolean() }),                                  // rate-limited at admit
-  handle: async (input, ctx) => ({ deliverable: (await expandAddress(ctx.data.mailStore, input.address)).length > 0 }),   // lib/expand-address.ts, which the expand service wraps
+  *read(input, ctx) {
+    return { deliverable: (yield* expandAddress(ctx.load.mailStore, input.address)).length > 0 }   // lib/expand-address.ts, a generator of loads that the expand service wraps
+  },
 })
 export const acceptInbound = defineCommand(mailStoreBase, {
   input: shape({ staged: field.blob(), envelope: field.json(envelopeShape), client: field.json(clientShape) }),
   output: shape({ verdict: field.enum(['accepted', 'rejected']), reply: field.string().optional() }),
   execution: 'sync',                                   // durable before the SMTP 250
-  handle: async (input, ctx) => { /* run ctx.extensions.inboundChecks, apply policy, adopt the blob, write `inbound` */ },
+  *prepare(input, ctx) { /* perform, as inline effects, the drafts the inboundChecks fills return (SPF, DKIM, DMARC and ARC lookups; rspamd's score) */ },
+  *decide(input, ctx) { /* apply the tenant's policy to ctx.prepared and write `inbound`; the kernel adopted the staged blob before the unit */ },
 })
-export const importEmail = defineCommand(mailStoreBase, { execution: 'sync', handle: async (input, ctx) => { /* IMAP APPEND, JMAP Email/import; returns the UID */ } })
+export const importEmail = defineCommand(mailStoreBase, { execution: 'sync', *decide(input, ctx) { /* IMAP APPEND, JMAP Email/import; returns the UID */ } })
 
 // examples/mail/modules/mail-store/src/actions/inbound/file.ts
-export const file = defineCommand(mailStoreBase, inbound, { execution: 'sync', handle: async (_input, ctx) => { /* aliases, vacation, Junk, UIDs, thread, search text; runs in the reaction's job */ } })
+export const file = defineCommand(mailStoreBase, inbound, { execution: 'sync', *decide(_input, current, ctx) { /* aliases, vacation, Junk, UIDs, thread, search text; runs in the reaction's job */ } })
 
 // examples/mail/modules/mail-store/src/actions/mailbox/select.ts, fetch.ts and idle.ts
-export const select = defineQuery(mailStoreBase, mailbox, { output: selectStateShape, handle: async (_input, ctx) => { /* uidValidity, uidNext, highestModseq, counts */ } })
-export const fetch = defineQuery(mailStoreBase, mailbox, { input: shape({ uids: field.string(), items: field.list(field.string()) }), output: fetchRowsShape, handle: async (input, ctx) => { /* rows by UID set */ } })
+export const select = defineQuery(mailStoreBase, mailbox, { output: selectStateShape, *read(_input, ctx) { /* uidValidity, uidNext, highestModseq, counts */ } })
+export const fetch = defineQuery(mailStoreBase, mailbox, { input: shape({ uids: field.string(), items: field.list(field.string()) }), output: fetchRowsShape, read: (input, ctx) => { /* a query description: rows by UID set */ } })
 export const idle = defineSubscription(mailStoreBase, mailbox, {   // IMAP IDLE; `watch` is the generated name, reserved per entity
   event: mailboxChangeShape,
   source: (_input, ctx, resume) => mapItems(ctx.live.entity('mail-store', 'mailboxEntry', { where: { mailboxId: ctx.target.id }, after: resume }), toMailboxChange),
@@ -9379,7 +10165,7 @@ export const mxListenerPolicy = definePolicy(mailStoreBase, [resolveAddress, acc
 export const fileInbound = defineReaction(mailStoreBase, {
   on: 'mail-store.inbound.created',
   timing: 'async',
-  handle: (event, ctx) => ctx.invoke(file, { id: event.stream.id }),
+  react: (event) => ({ effects: [invoke(file, { id: event.stream.id })] }),
 })
 
 // examples/mail/modules/mail-store/src/module.ts (excerpt)
@@ -9453,15 +10239,14 @@ export const listener = (kit: ListenerKit) => {
 }
 ```
 
-Delivery is a job per submission and destination domain, with the queue options this needs:
+Delivery is one `smtpDeliver` effect per attempt, submission and destination domain, with the
+executor options this needs, and a state machine on the submission that decides every retry
+(section 7.9.8 shows `recordAttempt`):
 
 ```ts
 // examples/mail/modules/mail-delivery/src/extension-points/signers.ts and outbound-checks.ts
 export const signers = extensionPoint<MessageSigner>({ mode: 'ordered' })                // sender-auth: DKIM (G16)
 export const outboundChecks = extensionPoint<OutboundCheck>({ mode: 'ordered' })         // spam: outbound scoring (G16)
-
-// examples/mail/modules/mail-delivery/src/streams/attempt.ts
-export const attempt = defineStream({ key: field.ref.own('submission'), record: attemptShape, retention: { maxAge: '90d' } })   // G6
 
 // examples/mail/modules/mail-delivery/src/base.ts
 const mailDeliveryBaseDef = defineModuleBase({
@@ -9473,32 +10258,47 @@ const mailDeliveryBaseDef = defineModuleBase({
     relay: field.json(relayShape).optional(),               // { host, port, tls: 'implicit' | 'starttls', username }
     relayPassword: field.secret().optional(),               // G4
     connectionsPerDomain: field.integer({ min: 1 }).default(2),
-    giveUpAfterHours: field.integer({ min: 96 }).default(120),
+    giveUpAfterHours: field.integer({ min: 96 }).default(120),   // the state machine's horizon (RFC 5321 section 4.5.4.1)
   }),
   entities: { submission },
-  streams: { attempt },
 })
 
-// examples/mail/modules/mail-delivery/src/actions/submit.ts
-export const submit = defineCommand(mailDeliveryBase, { execution: 'sync', handle: async (input, ctx) => { /* outbound checks, signers, submission row, one job per domain */ } })
+// examples/mail/modules/mail-delivery/src/effects/smtp-deliver.ts and smtp-probe.ts: one attempt; a relay test
+export const smtpDeliver = defineEffect(mailDeliveryBase, { input: smtpDeliveryShape, output: smtpRepliesShape })   // replies per recipient, MX host, policy, TLS
+export const smtpProbe = defineEffect(mailDeliveryBase, { input: relayProbeShape, output: relayProbeResultShape })   // EHLO, STARTTLS, AUTH, QUIT
 
-// examples/mail/modules/mail-delivery/src/actions/submission/deliver.ts
-export const deliver = defineCommand(mailDeliveryBase, submission, {
-  input: shape({ domain: field.string({ format: 'hostname' }) }),
-  execution: 'async',
-  async: {                                                                      // G3: job options of an asynchronous action
-    group: (input) => ({ id: `mx:${input.domain}`, concurrency: (ctx) => ctx.config.connectionsPerDomain }),
-    retry: { schedule: ['5m', '15m', '30m', '1h', '2h', '4h'], thenEvery: '4h', giveUpAfter: (ctx) => `${ctx.config.giveUpAfterHours}h` },
-    onGiveUp: bounce,                                                           // an own action part, by value
-  },
-  handle: async (input, ctx) => { /* relay or MX, MTA-STS, STARTTLS, Nodemailer's SMTP client; a 4xx reply throws a retryable error */ },
+// examples/mail/modules/mail-delivery/src/executors/smtp-deliver.ts and smtp-probe.ts: the module's only imperative code
+export const smtpDeliverExecutor = defineEffectExecutor(mailDeliveryBase, smtpDeliver, {
+  queue: 'mail-delivery',
+  capability: ({ config }) => (config.relay ? [] : ['smtp-out']),               // G9: direct mode needs a host with a clean address
+  group: ({ config, input }) => ({ id: `mx:${input.domain}`, concurrency: config.connectionsPerDomain, rate: '60/1m' }),
+  retry: { delays: ['30s', '2m'], giveUpAfter: 'PT10M' },                       // infrastructure only; a 4xx reply is the output `deferred`
+  run: (input, ctx) => deliverOverSmtp(input, ctx),                              // executors/lib/: relay or MX, MTA-STS, STARTTLS, Nodemailer's SMTP client
+})
+export const smtpProbeExecutor = defineEffectExecutor(mailDeliveryBase, smtpProbe, { inline: true, timeout: '10s', run: (input, ctx) => probeRelay(input, ctx) })
+
+// examples/mail/modules/mail-delivery/src/actions/submit.ts and test-relay.ts
+export const submit = defineCommand(mailDeliveryBase, { execution: 'sync', *decide(input, ctx) {
+  /* outbound checks, signers, the submission with a status per recipient, one smtpDeliver effect per domain with the continuation recordAttempt */
+} })
+export const testRelay = defineCommand(mailDeliveryBase, {
+  output: relayProbeResultShape,
+  execution: 'sync',
+  *prepare(_input, ctx) { return yield* ctx.perform(smtpProbe({ relay: ctx.config.relay, password: ctx.config.relayPassword })) },   // inline: the caller waits; recorded, never retried
+  decide: (_input, ctx) => ({ result: ctx.prepared.ok ? ctx.prepared.value : { ok: false, error: ctx.prepared.error.code } }),
 })
 
-// examples/mail/modules/mail-delivery/src/actions/submission/bounce.ts
-export const bounce = defineCommand(mailDeliveryBase, submission, { execution: 'async', handle: async (_input, ctx) => { /* RFC 3464 report to the sender through mail-store.acceptInbound */ } })
+// examples/mail/modules/mail-delivery/src/actions/submission/record-attempt.ts, retry-domain.ts and bounce.ts: the state machine
+// recordAttempt: section 7.9.8; retryDomain, the retry timer's command, requests a new smtpDeliver for the recipients still deferred
+export const bounce = defineCommand(mailDeliveryBase, submission, { execution: 'async', *decide(input, current, ctx) { /* RFC 3464 report to the sender: an invoke of mail-store.acceptInbound */ } })
 
 // examples/mail/modules/mail-delivery/src/module.ts (excerpt)
-const mailDeliveryDef = defineModule(mailDeliveryBase, { actions: { submit }, entityActions: { submission: { deliver, bounce } } })
+const mailDeliveryDef = defineModule(mailDeliveryBase, {
+  actions: { submit, testRelay },
+  entityActions: { submission: { recordAttempt, retryDomain, bounce } },
+  effects: { smtpDeliver, smtpProbe },
+  executors: { smtpDeliver: smtpDeliverExecutor, smtpProbe: smtpProbeExecutor },
+})
 ```
 
 The IMAP listener maps commands onto the store's actions under one session per connection, and
@@ -9702,10 +10502,10 @@ Launchway:
 | `domains.domain.set` (create) | host name unique per tenant |
 | `domains.route.set` | one route per domain; proxy aliases unique across projects |
 | `deployments.create` | resolves the ref to a commit and returns the id; deduplicates automatic triggers per tag or commit |
-| `deployments.deployment.cancel`, `.stop` | the state change is visible at once; the node message follows through the outbox |
+| `deployments.deployment.cancel`, `.stop` | the state change is visible at once; the node message follows as an `agentCommand` effect, whose record is the outbox |
 | `deployments.deployment.report*`, `nodes.node.heartbeat` | node reports must be ordered with the state machine |
 | `previews.open` | limits per project and in total (cross-entity invariant) |
-| `github.completeManifest` | GitHub returns the App's secrets once |
+| `github.completeManifest` | GitHub returns the App's secrets once, to the inline effect of its `prepare` |
 | `github.ingest` | signature check and receipt before GitHub gets its answer |
 | `<module>.config.set` (G10) | settings apply to the next request |
 
@@ -9726,9 +10526,11 @@ Mail:
 | `mail-store.email.setKeywords` from IMAP `STORE` | IMAP clients receive the new MODSEQ (CONDSTORE) |
 | `api-keys.create` (app passwords) | a secret is shown exactly once |
 | `sender-auth.createKey` | the private key is generated and sealed; publication follows asynchronously |
+| `mail-delivery.testRelay` | the operator waits for the relay's answer: an inline effect in `prepare` (section 17.4.7) |
 
-Asynchronous by design: `mail-store.inbound.file`, `mail-delivery.submission.deliver` and
-`.bounce`, DNS publication, spam learning, DKIM rotation steps and retention purges.
+Asynchronous by design: `mail-store.inbound.file`, the `smtpDeliver` effects with their
+continuation `mail-delivery.submission.recordAttempt`, `.retryDomain` and `.bounce`, DNS
+publication, spam learning, DKIM rotation steps and retention purges.
 
 #### 17.6.3 Offline authorship and live updates
 
@@ -9791,7 +10593,7 @@ the roadmap schedules before the milestone that first needs them ([roadmap.md](r
 |---|---|---|---|---|
 | G1 | Connection-oriented listeners and invoker sessions | Launchway agents; SMTP, IMAP, JMAP | sessions specified; listener contract proposed, ADR before M4 | sections 9.2 and 16.3.4; proposal below |
 | G2 | Scope directory for keys other than host names | tokens, node credentials, webhook paths, mail domains | proposed, ADR before M3 | proposal below |
-| G16 | Extension values bound to their contributor's context | git providers, heartbeat observers, DKIM signers, inbound checks | specified (ADR 0003) | section 5.5 |
+| G16 | Extension values bound to their contributor's context | git providers, heartbeat observers, DKIM signers, inbound checks | specified (ADR 0003; pure values since ADR 0026) | sections 5.5 and 7.9.2 |
 | G3 | Jobs, durable timers and schedules | both platforms throughout | specified (ADRs 0015 and 0025) | sections 7.7, 9.5, 14.3.9 and 21 |
 | G4 | Secrets and a key hierarchy | Launchway environments and credentials; DKIM keys, relay password, certificates | key service and sealing specified; the `ctx.secrets` interface proposed, ADR before M3 | sections 6.6 and 14.7.4; proposal below |
 | G5 | Blob storage | messages, attachments, uploads; later log archives | proposed, ADR before M4 | section 5.2 (the `blobs` contract); proposal below |
@@ -9896,14 +10698,14 @@ Proposal:
 
 ```ts
 type ScopeKey = { kind: 'hostname' | 'mail-domain' | 'webhook-endpoint' | 'node-credential' | 'api-key' | (string & {}); value: string }
-interface ScopeDirectory {
+interface ScopeDirectory {                        // kernel-internal: module code returns the effects below
   /** Unique across the deployment; `conflict` when another scope holds the key. */
   claim(key: ScopeKey, owner: { module: string; entity: string; id: string }): Promise<void>
   release(key: ScopeKey, owner: { module: string; entity: string; id: string }): Promise<void>
   /** Cached per process and invalidated by the control store's change feed. */
   resolve(key: ScopeKey): Promise<{ backendId: string; tenantId: string } | undefined>
 }
-// module code:   await ctx.scopeKeys.claim({ kind: 'mail-domain', value: 'jenspenneman.com' }, owner)
+// module code:   claimScopeKey({ kind: 'mail-domain', value: 'jenspenneman.com' }, owner, { then: claimed })   // a kernel effect after commit (section 7.9.5)
 // resolver:      byScopeKey()  reads carrier.scopeKey, set by listeners, receivers and token parsers
 ```
 
@@ -9911,8 +10713,13 @@ interface ScopeDirectory {
 - Tokens carry a public id (`<prefix>_<public id>_<secret>`, section 17.2.2); the public id is the scope
   key, the secret is verified against the hash in the tenant's data.
 - The claim lives in the control store and the owning row in the tenant's placement, so the two
-  cannot share a transaction. The ADR must choose between claim first with a compensating release
-  on rollback, or an outbox with a reconciler that removes orphaned claims.
+  cannot share a transaction. Decision 50a settles the choice the ADR had to make (claim first with
+  a compensating release on rollback, or an outbox with a reconciler) as the outbox:
+  `claimScopeKey` and `releaseScopeKey` are kernel effects whose `requested` records commit with the
+  owning row and which the kernel performs after commit in the control store. The continuation
+  (`then`) receives the outcome, so a `conflict` (another scope holds the key) becomes a decision of
+  the owning module, such as marking the mail domain rejected; an effect left unsettled after a
+  crash is performed again, and claims are idempotent per owner (section 7.9.5).
 - Release and claim of security-sensitive kinds (mail domains, webhook endpoints) need care because
   the directory is cached per process and invalidated asynchronously: a released key stays
   quarantined for longer than the cache staleness before another scope may claim it, or the
@@ -9930,10 +10737,11 @@ deployment rows, the DKIM signer of `sender-auth` could not reach its keys, and 
 context, so a provider ran with the caller's configuration and data view.
 
 Status: specified in section 5.5 and ADR 0003. Behavioural fillers are factories
-`(own) => value` that the kernel binds per invocation to the contributor's context (same scope,
-principal, unit and trace; the contributor's data authority, services, configuration and secrets);
-services are bound to their provider the same way, and call sites pass no context. The principal
-never widens.
+`(own) => value` that the kernel binds per invocation to the contributor's pure context (same
+scope, principal and trace; the contributor's load authority, write boundary, services,
+configuration and secret requests; no unit of its own); behavioural values return values or
+generators, never promises (section 7.9.2). Services are bound to their provider the same way, and
+call sites pass no context. The principal never widens.
 
 #### G3. Jobs, durable timers and schedules
 
@@ -9969,16 +10777,19 @@ the owning module reads its secrets are specified in sections 6.6 and 14.7.4. Th
 interface below is a proposal; its ADR lands before M3 (roadmap).
 
 ```ts
-interface Secrets {
-  /** The only read path for a `field.secret()` value: the owning module's code (and its bound services and extension values); logged with the reason. */
-  reveal(value: SecretRef, reason: string): Promise<string>
-  /** Seals a value with a fresh value key bound to (entity, id, field); the previous value's key is destroyed by the kernel. */
-  seal(plain: string, binding: { entity: string; id: string; field: string }): Promise<SecretRef>
-  /** One-time secrets: the plain token goes to the caller once; only the public id and the verifier are stored. */
-  issue(options: { prefix: string; bytes?: number }): { plain: string; publicId: string; verifier: string }
+interface SecretRequests {                         // ctx.secrets in handlers: requests the key service answers (section 7.9.3)
+  /** The only read path for a `field.secret()` value: the owning module's handlers (and its bound services and extension values); logged with the reason, never recorded. */
+  reveal(value: SecretRef, reason: string): Request<string>
+  /** One-time secrets: the plain token goes to the caller once; the decision record keeps only the public id and the verifier. */
+  issue(options: { prefix: string; bytes?: number }): Request<{ plain: string; publicId: string; verifier: string }>
   /** Constant-time comparison of a presented token with a stored verifier. */
-  verify(presented: string, verifier: string): Promise<boolean>
+  verify(presented: string, verifier: string): Request<boolean>
 }
+interface ExecutorSecrets {                        // ctx.secrets in effect executors only (section 7.9.5)
+  reveal(value: SecretRef, reason: string): Promise<string>
+}
+// Sealing is no call: a draft that sets a `field.secret()` field carries the plain value, and the kernel seals it at append
+// with a fresh value key bound to (entity, id, field), destroying the previous value's key.
 ```
 
 - Verifier-only secrets (API keys, app passwords, join tokens, node credentials, session tokens)
@@ -10005,7 +10816,7 @@ M4 (roadmap).
 // field kind; the value is a reference
 raw: field.blob({ mediaType: 'message/rfc822', maxBytes: 64 * 1024 * 1024 })      // BlobRef { id, size, sha256, mediaType }
 
-interface Blobs {                                                                  // ctx.blobs, for modules that require contracts.blobs
+interface Blobs {                                                                  // ExecutorContext.blobs and the listener kit, for modules that require contracts.blobs
   put(body: ReadableStream<Uint8Array>, options: { mediaType: string; maxBytes: number }): Promise<BlobRef>
   get(ref: BlobRef, options?: { range?: { start: number; end?: number } }): Promise<ReadableStream<Uint8Array>>
   adopt(staged: StagedBlobRef): Promise<BlobRef>                                   // from the deployment staging area
@@ -10025,6 +10836,10 @@ interface BlobStore {                                                           
 - A blob belongs to the rows that reference it; reading it is reading that field, so field masks
   and plans apply. Transports project blob inputs as uploads and blob outputs as downloads with
   range support. Blob bytes count towards the tenant's storage quota (section 12.2).
+- Handlers hold `BlobRef` values and never read bytes: effect executors and listeners use `Blobs`
+  (section 7.9.5), and adopting a staged blob is a kernel step before the unit of the command that
+  references it, so no row references a missing blob (section 17.4.6; whether it should be a
+  deferred kernel effect instead is an open question of section 26.3).
 - Stores: a file system first (`blobs-fs`), an S3-compatible API second (`blobs-s3`).
 
 #### G6. Streams, topics and a live feed for state entities
@@ -10046,14 +10861,14 @@ const log = defineStream({
   retention: { maxAge: '30d', maxPerKey: 50_000 },
   readAs: 'deployment',                                       // may read the stream when it may `get` the keyed row
 })
-await ctx.streams.deployments.log.append(deploymentId, records)                 // batch append
-ctx.live.stream('deployments', 'log', { key: deploymentId, from: 'start' })     // tail and follow, resumable
+ctx.write.deployments.log.append(deploymentId, records)                         // a draft: a batch append in the decision's unit
+ctx.live.stream('deployments', 'log', { key: deploymentId, from: 'start' })     // a source description: tail and follow, resumable
 
 const containerLogs = defineTopic({                           // never stored
   key: shape({ projectId: field.string(), service: field.string() }),
   record: logLineShape,
-  onFirstSubscriber: (key, ctx) => startContainerLogs(ctx, key),
-  onLastSubscriberLeft: (key, ctx) => stopContainerLogs(ctx, key),
+  onFirstSubscriber: (key, ctx) => startContainerLogs(ctx, key),       // pure: returns the agentCommand effect logs.start (section 17.3.6)
+  onLastSubscriberLeft: (key, ctx) => stopContainerLogs(ctx, key),     // and logs.stop
 })
 ```
 
@@ -10140,7 +10955,7 @@ needs the request's remote address and user agent.
 
 Status: the request metadata on the receipt is specified (sections 11 and 15.1.7). Proposal for the
 rest: a module declares `observes: 'all'` in its base, which allows `defineReaction(base, { on:
-'all', timing: 'async', handle })` (an async reaction to every event, dispatched like any other,
+'all', timing: 'async', react })` (an async reaction to every event, dispatched like any other,
 section 7.7) and is listed in the registry and by `pennestack doctor`. It lands with `audit` in M2
 and needs no ADR beyond ADR 0015. The experiments module (section 20.8) observes all events too,
 which costs one job per event per tenant; the proposal must bound that cost, possibly with a
@@ -10174,7 +10989,7 @@ produces (SASL for IMAP and submission) must have at least one principal resolve
 #### G15. Hyphenated module ids in the context types
 
 Status: specified in sections 3.4 and 5.1. Module ids keep their hyphens in references
-(`mail-store.email.get`) and appear in lower camel case in the context (`ctx.data.mailStore`,
+(`mail-store.email.get`) and appear in lower camel case in the context (`ctx.load.mailStore`,
 `ctx.services.apiKeys`); ids that camel-case to the same name cannot be selected together.
 
 ## 18. Versioning and compatibility
@@ -10517,8 +11332,8 @@ base, so every part is typed against them.
 ### 20.3 Evaluation
 
 ```ts
-// ActionContext<M, W> (section 7.6) has `flags: FlagsOf<M, W>`: ctx.flags.checkout.newFlow is a boolean,
-// ctx.flags.checkout.layout is 'control' | 'compact', ctx.flagDetails(key) a FlagResolution.
+// DecideContext<M, W> (sections 7.6 and 7.9.7) has `flags: FlagRequestsOf<M, W>`: yield* ctx.flags.checkout.newFlow
+// answers a boolean, yield* ctx.flags.checkout.layout 'control' | 'compact', yield* ctx.flagDetails(key) a FlagResolution.
 export interface FlagContext {
   readonly scope: Scope
   readonly principal: { readonly kind: PrincipalKind; readonly id: string | null; readonly roles: readonly string[] }
@@ -10549,10 +11364,12 @@ export interface FlagProvider {             // deployment-level ordered extensio
   provider (`@openfeature/server-sdk` 1.23.0, checked 2026-10-24); `env`
   (`PENNESTACK_FLAG_CHECKOUT_NEW_FLOW=true`, development and tests only). The first resolution
   wins, else the default with `DEFAULT`.
-- `ctx.flags` is synchronous: synchronous providers resolve a flag on first read, and with an
-  asynchronous one the kernel resolves every flag the invoked module can read before `authorize`.
-  One invocation sees one snapshot; `core.targeting` keeps all targeting in memory, refreshed from
-  the control store's change feed within about a second.
+- Handlers read flags as requests, answered from the invocation's snapshot and recorded in the
+  envelope's `flags` (section 7.9.3); rules read the same snapshot as values (section 20.6).
+  Building the snapshot is a kernel concern before `authorize`: synchronous providers resolve a flag
+  on first use, and with an asynchronous one the kernel resolves every flag the invoked module can
+  read before `authorize`. One invocation sees one snapshot; `core.targeting` keeps all targeting in
+  memory, refreshed from the control store's change feed within about a second.
 - An error never fails an invocation: the default is served with `ERROR` and counted, so the
   default must keep established behaviour.
 - An anonymous principal has a targeting key only when the client sends `Pennestack-Client-Id`;
@@ -10580,10 +11397,11 @@ Every event a command appends records, in the `meta` column of `ps_events` (sect
 writer's build and revision and the key, variant, reason and rule version of each flag the
 invocation read; the envelope exposes them as `writer` and `flags`. Spans carry `pennestack.flags`;
 `pennestack.flags.evaluations` counts by flag, variant and reason. The experiments module fills the
-app-level extension point `flagObservers` (mode `set`, bound to its contributor, gap G16) and
-records each targeting key's first exposure per phase of a running experiment: in the command's
-unit for commands, otherwise through a per-process buffer flushed every second, so a crash loses at
-most a second of exposures, alike for every variant.
+app-level extension point `flagObservers` (mode `set`, bound to its contributor, gap G16) with a
+pure observer that returns the drafts of each targeting key's first exposure per phase of a running
+experiment; the kernel writes them in the command's unit for commands, otherwise through a
+per-process buffer flushed every second, so a crash loses at most a second of exposures, alike for
+every variant.
 
 ### 20.6 What flags may gate
 
@@ -10597,8 +11415,9 @@ most a second of exposures, alike for every variant.
   visibility resets tokens.
 - Modules: a base with `flags: { enabled }` and `gate: 'enabled'` gates every action the module
   mounts, contributed ones included; reactions and schedules keep running. Configuration keeps
-  durable settings (decision point 1 of section 26.1), flags temporary or targeted variation with an
-  owner and an expiry; runtime module selection stays rejected.
+  durable settings (decision point 1, decided 2026-10-25: the compiled catalogue, section 26), flags
+  temporary or targeted variation with an owner and an expiry; runtime module selection stays
+  rejected.
 - Transports: a rule over a transport subject (gap G13) whose `when` reads a flag.
 
 ### 20.7 Kill switches and stale flags
@@ -10705,7 +11524,8 @@ export interface NodeRecord {                         // core.node, deployment s
 - Only listeners and effect executors require capabilities (`smtp-public` for the port 25 listener,
   `smtp-out` for direct delivery). Every other job runs a pure handler (decision 50a) on any work
   process slotting its queue. A synchronous caller never waits for an effect job: the invoker never
-  forwards a request.
+  forwards a request. The only outside calls inside a request are the inline effects of `prepare`,
+  whose executors need no capability and run in the invoking process (section 7.9.4).
 - Unplaceable work fails closed: a static capability that no named process declares is refused at
   boot (`unplaceableCapability`), a computed one at enqueue (`unsupported`,
   `core.capability_unplaceable`). Declared but not live: jobs wait in their lane while the scaler
@@ -10742,7 +11562,7 @@ export interface WorkClassStats {                     // JobQueue.stats per queu
   readonly meanRunSeconds: number
   readonly running: number
   readonly nextDueAt: Date | null
-  readonly sloSeconds: number                         // queues.<q>.slo, target wait from due to start; default 30
+  readonly sloSeconds: number                         // queues.<q>.slo (an ISO 8601 duration, default 'PT30S') in seconds: target wait from due to start
 }
 export interface ScaleLimits {                        // processes.<name>.scale
   readonly min: number                                // 0 allows scale-to-zero, except for the scaler's own process
@@ -10885,7 +11705,7 @@ attribute, `tenant` only where a backend opts in.
 | "an arbitrary number of nodes in the future" | 21.1 (nodes, processes and named processes), 21.2 (capabilities and placement), 21.3 (capacity and the connection budget), 21.7 (failure modes) |
 | "they should all scale automatically" | 21.4 (the scaler), 21.5 (node providers), 21.6 (scale-down is a drain) |
 | "with limits" | 9.5.5 (limits, priorities and backpressure), 21.4 (`ScaleLimits` and the deployment's `scaling`), 21.3 (the connection budget) |
-| Brief addendum 4 and decision 50a | 9.5.2 (where jobs live), 9.5.6 (workers, scopes and schedules), 21.2 (capabilities and placement), 21.4 (the scaler) |
+| Brief addendum 4 and decision 50a | 7.9 (pure handlers and the effect interpreter), 9.5.2 (where jobs live), 9.5.6 (workers, scopes and schedules), 21.2 (capabilities and placement), 21.4 (the scaler) |
 
 ## 22. Repository layout and package plan
 
@@ -10895,8 +11715,10 @@ pennestack/
   docs/                      brief, architecture (this document), roadmap, adr/, research/, api-sketch.ts
   packages/
     core/                    @pennestack/core: DSL, registry, invoker and sessions, authorization, condition AST, errors,
-                             field model, surface derivation, kernel write path, key service, job queue, core module,
-                             subpaths /wire (dependency-free codecs for clients) and /ledger (the file ledger sink)
+                             field model, surface derivation, kernel write path with the effect interpreter (section 7.9),
+                             key service, computation pool, job queue, core module, subpaths /wire (dependency-free codecs
+                             for clients), /ledger (the file ledger sink) and /crypto (pure primitives: sha256, hmacSha256,
+                             timingSafeEqual)
     data/                    @pennestack/data: the Kysely SQL family, migration planner with tracks, introspection,
                              the in-memory and PGlite adapters, the adapter conformance kit
     adapter-postgres/        @pennestack/adapter-postgres
@@ -10926,7 +11748,8 @@ pennestack/
     module-dns/              @pennestack/module-dns, with dns-cloudflare/ and dns-manual/
     module-certificates/     @pennestack/module-certificates (M4)
     module-experiments/      @pennestack/module-experiments (after M3, section 20.8)
-    testing/                 @pennestack/testing: harness, local client, policy matchers, conformance suites, type helpers
+    testing/                 @pennestack/testing: harness, local client, policy matchers, conformance suites, type helpers,
+                             `drive` for pure handlers with answers as data (section 7.9.6)
     biome-config/            @pennestack/biome-config: the Biome preset, the GritQL plugins and their fixtures
   examples/
     portal/                  the accounts and authentication app of the M1 slice (roadmap.md)
@@ -11028,7 +11851,7 @@ module-auth/
     extension-points/<point>.ts     the point and its contract type
     errors/invalid-credentials.ts   defineError('auth.invalid_credentials', ...)
     shapes/<shape>.ts               a shape used by several parts
-    lib/verify-argon2id.ts          one function
+    lib/add-minutes.ts              one pure function; no node:* import (Argon2id is ctx.compute, section 7.9.3)
     actions/login.ts  logout.ts  revoke-subject.ts     module-level actions
     actions/credential/revoke.ts    an action mounted on credential
     policies/credential.ts  login.ts                   the rules over one entity or one module-level action
@@ -11038,6 +11861,9 @@ module-auth/
     topics/<topic>.ts               defineTopic with its subscriber hooks (G6)
     lifecycle/on-tenant-created.ts  one hook
     versions/<change>.ts            one defineVersionChange
+    effects/<effect>.ts             defineEffect: one external effect (section 7.9.5)
+    executors/<effect>.ts           defineEffectExecutor for that effect: the only imperative code of a module
+    executors/lib/<helper>.ts       imperative helpers of the executors (node:*, HTTP and SMTP clients)
     contributions/to-accounts/
       contribution.ts               the target and the fields and relations added to accounts.profile
       actions/profile/change-password.ts
@@ -11059,6 +11885,9 @@ module-auth/
   reviewed as one definition. Event data that other parts use goes to `shapes/`.
 - A policy file holds every rule over one target, an entity or a module-level action, so allows and
   denies are reviewed together (decision point 60 of section 26.1).
+- `src/lib/` stays pure. Imperative code sits only under `src/executors/`: an executor per effect,
+  named after it, and its helpers in `src/executors/lib/`, the only place a module may import
+  `node:*` modules or HTTP and SMTP clients (sections 7.9.6 and 13.9).
 
 ### 23.3 The single-purpose rule
 
@@ -11132,8 +11961,8 @@ both object literals (section 4.1):
   config, data, extensionPoints, entities, streams, flags, contributions, conditions })`. Every type
   a part needs exists once the base does.
 - `module.ts` holds the module literal, `defineModule(base, { actions, entityActions, policies,
-  reactions, services, topics, contributes, conditional, schedules, lifecycle, changes })`, which
-  mounts the behaviour parts.
+  reactions, services, topics, contributes, conditional, schedules, lifecycle, changes, effects,
+  executors })`, which mounts the behaviour parts.
 
 ```ts
 // modules/auth/src/base.ts
@@ -11171,7 +12000,7 @@ export const revoke = defineCommand(authBase, credential, {
   input: shape({ reason: field.string().optional() }),
   errors: [alreadyRevoked],
   execution: 'sync',
-  decide: (input, current, ctx) => {          // current: the credential row; ctx: ActionContext<AuthBase>
+  decide: (input, current, ctx) => {          // current: the credential row; ctx: DecideContext<AuthBase>
     if (current.revokedAt) throw alreadyRevoked({ id: current.id })
     return [ctx.events.revoked({ at: ctx.clock.now(), reason: input.reason })]
   },
@@ -11211,8 +12040,9 @@ export const auth: Auth = authDef
 
 The part functions of section 4.1 (`defineCommand`, `defineQuery`, `defineSubscription`,
 `definePolicy`, `defineReaction`, `defineProcess`, `defineService`, `defineFill`, `defineSchedule`,
-`defineTopic`, `defineHook`) take the base as their first argument, or `within(base, declaration)`
-for parts inside a contribution or conditional part. At runtime they return plain objects. An
+`defineTopic`, `defineHook`, `defineEffect`, `defineEffectExecutor`) take the base as their first
+argument, or `within(base, declaration)` for parts inside a contribution or conditional part; an
+executor takes its effect as the second. At runtime they return plain objects. An
 app's own parts take the selection instead, `defineQuery(modules, { ... })`. Version changes and
 flags (`defineVersionChange`, `defineFlag`) need no base.
 
@@ -11232,23 +12062,27 @@ a part value to `auth.credential.revoke`.
 | actions | `actions: {...}`, `entityActions: { <entity>: {...} }` of the module literal |
 | policies | `policies: [...]` |
 | reactions, schedules, services, topics, hooks, version changes | `reactions: {...}`, `schedules: {...}`, `services: {...}`, `topics: {...}`, `lifecycle: {...}`, `changes: {...}` |
+| effects, executors | `effects: {...}`, `executors: {...}` of the module literal, keyed by effect name; effects are parts typed against the base, so the base does not list them (section 7.9.5) |
 | behaviour of a contribution or condition | `contributes: { toAccounts: {...} }`, `conditional: { whenAccounts: {...} }`, under the base's key |
 
 Object keys are ids: entity and action names (renaming one is an API change), the reaction id
-that idempotency uses (section 7.7), the schedule id, and the version change id the API ledger
-records; the last three never change once released. Name clashes in `module.ts` (two entities
+that idempotency uses (section 7.7), the schedule id, the version change id the API ledger
+records, and the effect name that effect records carry (section 7.9.6); the last four never change
+once released. Name clashes in `module.ts` (two entities
 with a `revoke` action) are resolved with an import alias, the only place aliases are allowed.
 
 Typing parts against the base means:
 
-- Parts invoke their own module's actions by value, `ctx.invoke(revokeSubject, input)`, and pass
-  them by value to timers, `async.onGiveUp` and schedules; other modules' actions keep string
-  references.
+- Parts invoke their own module's actions by value in effects, `invoke(revokeSubject, input)`, and
+  pass them by value to timers (`setTimer({ invoke })`), continuations (`then`), `async.onGiveUp`
+  and schedules; other modules' actions keep string references.
 - `ctx.services` in a part lists the dependencies' services; a module's own code calls the `lib/`
   function its service wraps.
 - Imports inside a package run one way: declaration files (`config.ts`, `entities/`, `streams/`,
   `flags/`, `extension-points/`, `errors/`, `shapes/`, `contribution.ts`, `condition.ts`) import
-  neither `base.ts` nor parts, `lib/` imports no part, and only tests import `module.ts`.
+  neither `base.ts` nor parts, `lib/` imports no part, an executor imports its effect and
+  `executors/lib/` while nothing outside `src/executors/` imports an executor, and only tests import
+  `module.ts`.
 - Parts depend on the base, not on the module type, so editing one re-checks it, its importers and
   `module.ts`. The type-model spike measures the cost (roadmap M0).
 
@@ -11300,7 +12134,7 @@ of section 26.1).
 
 ```
 packages/
-  core/src/index.ts  wire/index.ts  ledger/index.ts  entry files: named re-exports only
+  core/src/index.ts  wire/index.ts  ledger/index.ts  crypto/index.ts   entry files: named re-exports only
   core/src/dsl/  registry/  invoker/  authorization/  errors/  fields/  surface/  ...
                                     subsystems: one function, class or type per file
   core/src/core-module/             the core module in the module layout
@@ -11328,9 +12162,10 @@ examples/launchway/                 @launchway/app-launchway
       src/policies/project.ts  env-var.ts             read, manage, admin-fields, archive; read-env
       src/services/environment-for.ts
     nodes/                          requires contracts.live
-      src/entities/node.ts  credential.ts  presence.ts  command.ts
+      src/entities/node.ts  credential.ts  presence.ts
+      src/effects/agent-command.ts                    performer 'external': the agent; no executor
       src/extension-points/heartbeat-observers.ts  command-resolvers.ts
-      src/actions/join.ts  channel.ts                 channel: the agent's subscription
+      src/actions/join.ts  channel.ts  ack.ts         channel: the agent's subscription; ack settles a command
       src/actions/node/heartbeat.ts  mark-offline.ts
       src/services/send.ts
       src/topics/container-logs.ts                    hooks send logs.start and logs.stop
@@ -11339,6 +12174,7 @@ examples/launchway/                 @launchway/app-launchway
       src/entities/deployment.ts  src/streams/log.ts
       src/actions/create-automatic.ts
       src/actions/deployment/report-phase.ts  report-result.ts  report-runtime.ts  append-log.ts  logs.ts
+      src/actions/deployment/run.ts  dispatch-settled.ts   the dispatch and its continuation (section 7.9.8)
       src/reactions/dispatch-next-for-project.ts  wake-lanes-of-node.ts
       src/contributions/to-nodes/contribution.ts  fills/heartbeat-observers.ts
     agent-gateway/                  transport module: src/module.ts, src/adapter.ts, src/lib/
@@ -11354,6 +12190,8 @@ examples/launchway/                 @launchway/app-launchway
     github/                         requires projects, deployments; optional webhooks
       src/entities/connection.ts                      with GitHub's four domain events
       src/actions/ingest.ts  start-manifest.ts  complete-manifest.ts  poll-releases.ts
+      src/effects/mirror-status.ts  list-releases.ts  convert-manifest.ts
+      src/executors/mirror-status.ts  list-releases.ts  convert-manifest.ts   GitHub's API
       src/reactions/mirror-to-github.ts  deploy-on-release.ts  deploy-on-push.ts
       src/lib/create-automatic-deployment.ts          shared by both deploy reactions
       src/schedules/poll-releases.ts
@@ -11397,9 +12235,12 @@ examples/mail/                      @mail/app-mail
       src/contributions/to-mail-store/contribution.ts  fills/inbound-checks.ts
       src/contributions/to-mail-delivery/contribution.ts  fills/outbound-checks.ts
     mail-delivery/                  requires mail-store
-      src/entities/submission.ts  src/streams/attempt.ts
+      src/entities/submission.ts
+      src/effects/smtp-deliver.ts  smtp-probe.ts
+      src/executors/smtp-deliver.ts  smtp-probe.ts  src/executors/lib/deliver-over-smtp.ts
       src/extension-points/signers.ts  outbound-checks.ts
-      src/actions/submit.ts  src/actions/submission/deliver.ts  bounce.ts
+      src/actions/submit.ts  test-relay.ts
+      src/actions/submission/record-attempt.ts  retry-domain.ts  bounce.ts   the delivery state machine
     smtp-in/  smtp-submission/  imap/                 listener modules: src/module.ts, src/listener.ts, src/lib/
     mta-sts/  autoconfig/           requires mail-domains; optional dns; one action per raw endpoint (G8)
 ```
@@ -11424,6 +12265,10 @@ layout pass.
 | `one-export.grit` | a second exported value | `**/src/**/*.ts` minus assembly files, library entries and tests |
 | `no-import-effects.grit` | top-level expression statements, `await`, bare imports | `**/src/**/*.ts` minus tests |
 | `wiring-only-assembly.grit` | a function or arrow function | `**/src/{base,module,app,modules}.ts` |
+| `pure-parts.grit`, `no-await-in-parts.grit` | clocks, randomness, timers, `fetch` and a bare `yield` in parts; `async` and `await` in parts (section 7.9.6) | module sources minus `src/executors/` |
+| `no-module-state.grit` | top-level `let` and `var`, mutation of a top-level binding | module sources |
+| `noNodejsModules` (correctness) and the executor override of `noRestrictedImports` | `node:*`, adapters, drivers, `kysely`, HTTP and SMTP clients in module packages | module sources minus `src/executors/` |
+| `noProcessEnv` (style), `noProcessGlobal` (correctness), `noGlobalAssign` (suspicious) | environment and process reads, global assignment | everywhere except `pennestack.config.ts` |
 | knip 6.43.0 | unused files (a forgotten mount), unused exports and types, unused or unlisted dependencies, duplicate exports | CI after `biome ci`; `pennestack init` writes `knip.json` with the entry files |
 | layout pass | conventions that need paths and several files | `pennestack doctor`, `build`, CI, and `dev`'s status line |
 
@@ -11434,8 +12279,9 @@ once they are stable in a pinned release, the name checks move into the editor.
 
 The layout pass of `pennestack doctor` reports:
 
-- placement: a file outside its kind's directory (a `defineEntity` outside `entities/`), an
-  unknown directory, a part built for another contribution or condition than its directory;
+- placement: a file outside its kind's directory (a `defineEntity` outside `entities/`, a
+  `defineEffectExecutor` outside `executors/`), an unknown directory, a part built for another
+  contribution or condition than its directory;
 - names: a file not named `kebab()` of its export; an assembly or role file whose export does not
   follow its directory; an error code, policy or schedule named against "Names"; a contribution
   or condition directory that differs from its declaration; a migration track without
@@ -11458,11 +12304,13 @@ pennestack new entity mail-store.mailboxEntry
 pennestack new action auth.credential.revoke --kind command
 pennestack new action accounts.profile.changePassword --from auth             # contributions/to-accounts/
 pennestack new flag checkout.newFlow --kind boolean --level tenant --purpose release --expires 2027-01-31
+pennestack new effect mail-delivery.smtpDeliver                                  # src/effects/smtp-deliver.ts
+pennestack new executor mail-delivery.smtpDeliver                                # src/executors/smtp-deliver.ts
 ```
 
-- Further kinds: `policy`, `reaction`, `service`, `error`, `schedule`, `stream`, `topic`,
-  `contribution`, `condition`, `version-change`, `lib`, `shape`, `app`, `script`; `--when <ids>`
-  places a part in a conditional part.
+- Further kinds: `policy`, `reaction`, `service`, `error`, `schedule`, `stream`, `topic`, `effect`,
+  `executor`, `contribution`, `condition`, `version-change`, `lib`, `shape`, `app`, `script`;
+  `--when <ids>` places a part in a conditional part.
 - A scaffold writes the part (with a test beside actions, policies and reactions) and inserts one
   import and one entry into the matching key of one assembly file. It edits nothing else, prints
   the two lines instead when that file is not in the canonical shape, and `--dry-run` shows the
@@ -11513,7 +12361,11 @@ conventions, a module base and tooling (ADR 0024); and the jobs, nodes and autos
 (2026-10-25) as a replacement of section 9.5 and the new section 21: kernel contracts, deployment
 configuration, two deployment-level extension points and one optional provider package (ADR 0025).
 Decision 7b landed in the data layer as field options, a kernel planner and adapter capabilities
-(section 14.7.9, ADR 0027).
+(section 14.7.9, ADR 0027). Addendum 4 (2026-10-24, pure functions) landed after decision 50a as
+section 7.9 and ADR 0026: a kernel change that the ADR records (the effect interpreter, decision
+and effect records, continuations, a computation pool), handler forms and two part kinds
+(`defineEffect`, `defineEffectExecutor`), lint rules and two layout directories, with every
+module-facing sketch of this document rewritten to the strict forms.
 
 ## 25. Requirements traceability
 
@@ -11525,9 +12377,9 @@ Decision 7b landed in the data layer as field options, a kernel planner and adap
 | Configuration system in TypeScript; app defined as a set of modules | 4.1, 4.5, 4.7 | |
 | A module owns entities | 5.1, 6.1 | |
 | Entities carry actions; actions on modules and the app | 6.7, 7.2 | |
-| Modules plug and play, toggled independently, the application still works | 4.7 (checks and tests), 5.2, 5.3, 5.4 | A module can be switched off on its own unless a selected module `requires` it; then both go together. Soft influence uses `optional`, contributions and conditional parts. Listed as decision point 2 in section 26.1. |
+| Modules plug and play, toggled independently, the application still works | 4.7 (checks and tests), 5.2, 5.3, 5.4 | A module can be switched off on its own unless a selected module `requires` it; then both go together. Soft influence uses `optional`, contributions and conditional parts. Jens accepted this reading on 2026-10-25 (decision point 2, section 26). |
 | Modules influence each other, explicit and typed, both still toggleable | 5.3, 5.4, 5.5, 17.2, api-sketch.ts | |
-| Multiple platforms from different selections | 4.5, 4.6, 17 | Selections are compiled apps; runtime module toggles are rejected (decision point in section 26.1). |
+| Multiple platforms from different selections | 4.5, 4.6, 17 | Selections are compiled apps; runtime module toggles are rejected (decision point 1, decided 2026-10-25 for the compiled catalogue, with exact types per app in development). |
 | CASL-style authorization in code, per action, with conditions; not plain RBAC | 8.1 to 8.4, 17.3.11 | The invoked action is the unit of authorization; rules have conditions on the row acted on and the row produced. |
 | Everything about authorization configurable | 8.7 | |
 | Transports as modules, several active together | 5.6, 16.3 | |
@@ -11569,6 +12421,9 @@ Decision 7b landed in the data layer as field options, a kernel planner and adap
 | Feature flags and A/B testing, at framework level (addendum 3, item 3) | 20, 20.1 | Flags are a kernel concept; experiments are the optional `experiments` module (decision points 51 and 57). |
 | Every file has a single purpose, in a structure designed for this framework and enforced by its tooling (addendum 3, item 4) | 23 (per sentence in 23.15) | One definition per file, a package per module, explicit assembly over a module base (decision points 58 to 61). |
 | Many nodes that scale automatically, with limits, on a job queue "thought out REALLY WELL" (Jens, 2026-10-23, with addendum 3) | 9.5, 21 (per phrase in 21.11) | Fair lanes with caps keep tenants apart on any number of processes; named processes, probed capabilities and connection budgets place the work; the scaler is a pure plan clamped by explicit limits, and scale-down is a drain (decision points 6 and 62 to 64). |
+| Everything runs on pure functions: inputs only through parameters, outputs only through the return value, nothing through global state, module-level state, ambient context or any other hidden channel; a hard requirement for the framework and for the code written on it (addendum 4, item 1) | 1 (principle 11), 3.4, 4.3, 5.5, 5.6, 7.3, 7.6, 7.9 (per phrase in 7.9.10), 13.9, 23.2 | Fully strict (decision 50a, 2026-10-25): every part a module author writes yields requests and returns a decision; only the kernel, the deployment's infrastructure entries, transport and listener modules and effect executors are imperative; handler types exclude promises, and lint rules ban clocks, randomness, timers, module state and environment reads (decision points 73 to 80). |
+| Where the outside world is touched: which parts perform effects, how effects enter and leave pure code, how tooling enforces the rule (addendum 4, item 2) | 7.9.1, 7.9.3 to 7.9.6, 9.5, 13.9, 23.12 | Answers enter pure code as the answers to yielded requests; effects leave it as descriptions that the kernel performs (kernel effects in the unit, external effects after commit, at least once, by executors or external performers), and outcomes come back as the input of continuations; only `prepare` performs inline effects (decision point 74). |
+| Trace each cause and effect, and rebuild a full database and logbook from them (Jens, 2026-10-25, with decision 50a) | 7.9.6, 14.7.6, 15.1.3, 15.1.8, 15.2.4, 16.9.7 | Decision records and one `core.effect` stream per effect live in the hashed chain (decision point 78); `pennestack explain --trace`, `--redecide` and `--dry-run` read them; rebuilds and restores fold the effect streams and enqueue unsettled effects again. |
 | Public repository on GitHub, every commit signed with the author's personal identity | 22 | The repository stays private until Jens approves the architecture and becomes public then. |
 | Best practice from first principles, no copied conventions | this document and the ADRs cite research, not older projects | |
 | The product name never references other companies' products | the working name and all package names are generic | |
@@ -11579,11 +12434,14 @@ Decided:
 
 | Number | Decision | Date |
 |---|---|---|
+| 1 | Runtime module selection: a backend's modules come from the apps compiled into the deployment (the catalogue), with per-backend variation through module configuration and feature flags; Jens's condition, that development always has the full, exact types of the app being built, holds per app (sections 4.5 and 4.6, ADR 0003) | 2026-10-25 |
+| 2 | Toggling with requirements: hard dependencies stay for genuine needs, and a module switches off together with the modules that `require` it; soft influence uses `optional`, contributions and conditional parts (section 5.2) | 2026-10-25 |
 | 3 | DSL shape: modules are object literals, a module base, parts typed against it and a module literal, never a builder chain (section 4.1) | 2026-10-24 |
 | 4 | Data access inside handlers: module authority with an explicit `forCaller()`, plus a shape-stage check of every entity row leaving the invoker against the caller's plan, an error in development and a dropped, logged row in production (section 8.4) | 2026-10-24 |
 | 5 | Deny rules: allow and deny rules, deny requiring a reason, default deny (section 8.2 as written) | 2026-10-24 |
 | 7 | Personal data in state tables: personal fields are encrypted in the state tables as well (sealed columns, blind indexes and query tokens per declared capability, fail-closed operators and explicit bounded scans; section 14.7.9, ADR 0027); its defaults are decision points 65 to 72 | 2026-10-25 |
 | 8 | Operational buffer defaults accepted (transient change records 7 days, receipts 24 hours, inactive sync clients 90 days), plus `asOf` on the generated `get` and `history` reads of chain entities (sections 6.7, 14.7.1 and 14.8.1) | 2026-10-24 |
+| 50 | How strict "pure" is: fully strict (option a). Handlers never perform effects; commands yield requests and return events and effect descriptions, queries return query descriptions, and the kernel performs every effect and records it with its outcome, linked to its cause, so the database and a full logbook rebuild from the chain; the split model (option c) is the fallback if strictness becomes a burden in practice (section 7.9, ADR 0026); its decision points are 73 to 80 | 2026-10-25 |
 
 The decision register ([decisions.md](decisions.md)) records each answer with the sections that
 apply it.
@@ -11591,20 +12449,9 @@ apply it.
 ### 26.1 Decision points for Jens
 
 Each changes the work; each has a recommendation, which the rest of this document assumes. The
-numbers are those of the decision register; points 3, 4, 5, 7 and 8 are decided (above).
+numbers are those of the decision register; points 1 to 5, 7, 8 and 50 are decided (above).
 
-1. **Runtime module selection.** Should a backend's modules be fixed by the apps compiled into the
-   deployment, or toggled per backend at runtime? Options: a catalogue of compiled apps, with
-   runtime variation through per-backend module configuration; runtime toggles, with types that
-   cannot follow the selection. Recommendation: the catalogue (section 4.6); a new combination is
-   one `defineApp` line and a deploy.
-2. **Toggling with requirements.** Is it acceptable that a module can only be switched off
-   together with the modules that `require` it? Options: accept it and keep hard dependencies for
-   genuine needs; make every dependency optional and type every cross-module access as possibly
-   absent. Recommendation: accept it (section 5.2); soft influence already uses `optional`,
-   contributions and conditional parts.
-
-Points 3, 4 and 5 are decided (above).
+Points 1 to 5 are decided (above).
 
 6. **Job queue.** Which queue carries asynchronous commands, reactions, timers, schedules and effect
    jobs on many nodes that scale automatically, with limits? Options: the kernel queue over every
@@ -11684,7 +12531,7 @@ Points 7 and 8 are decided (above).
     restore of either never brings back erased data.
 
 Points 51 to 61 came with addendum 3 on 2026-10-24 (the register's numbers 28 to 50 are the lead's
-flags, the spike questions, the questions by area and addendum 4):
+flags, the spike questions, the questions by area and addendum 4, whose question 50 is decided):
 
 51. **Where feature flags live.** In the framework core (`defineFlag`, typed `ctx.flags`, gates,
     provenance) with experiments as an optional module, in a flags module that other modules
@@ -11789,22 +12636,101 @@ Points 62 to 72 came with the designs of 2026-10-25: 62 to 64 with nodes, capaci
     sharper statistics for a thief); no `contains` on personal fields, word search only.
     Recommendation: the 12-bit defaults (sections 14.7.9.2 and 14.7.9.4).
 
+Points 73 to 80 came with the pure-handler design of 2026-10-25 (section 7.9, ADR 0026); they are
+the choices inside decision 50a:
+
+73. **How a handler gets its data.** Generators that yield typed requests, or loads declared before
+    the handler runs? Options: generators: `decide`, `read` and `react` yield requests with
+    `yield*`, dependent loads, services and extension values compose by delegation, plain functions
+    remain for handlers that need nothing, and `ctx.all` batches parallel loads; declared loads: a
+    `load(input, ctx)` member returns named load descriptions that the kernel answers before
+    `decide`, which becomes a plain function of (input, loaded, ctx), with a second stage for a load
+    that depends on an earlier answer and no loads in services; both, declared loads as the common
+    form and generators only for dependent loads (two forms to learn, type and test).
+    Recommendation: generators (sections 7.9.2 and 7.9.3); one form covers every case in Launchway
+    and the mail server (login loads a credential and then verifies it; `revokeSubject` loads two
+    sets at once), it is the shape Temporal, redux-saga and Effect users know, and declared loads
+    can be added later as sugar.
+74. **Inline effects in `prepare`.** May a synchronous command call outside and wait for the
+    answer? Options: yes, restricted: only in `prepare` of synchronous commands, only executors
+    marked `inline` that need no capability, at most 30 seconds, no retries, recorded before and
+    after the call; no: every effect is deferred and interactive flows take two steps (the command
+    returns the effect id and the client watches it), so an OAuth callback must answer with a page
+    that polls before the session cookie can be set. Recommendation: yes, restricted (sections 7.9.4
+    and 7.9.5); OAuth and OpenID Connect logins, GitHub's manifest conversion and "test SMTP
+    connection" need the answer inside the same request, and the effect records stay complete.
+75. **Who retries outside calls.** The executor's retry policy or the module's own state machine?
+    Options: the rule: executor retries only for failures without domain meaning (a lost lease, a
+    refused connection, a 429 or 5xx from an API that honours the idempotency key), and everything
+    with domain meaning, mail delivery included, is a state machine with timers and one effect per
+    attempt; executor retries for everything, mail included (less module code, but attempts exist
+    only as attempt records, and partial SMTP success needs one effect per recipient); no executor
+    retries at all (every retry, even after a dropped connection, is a domain event and a timer).
+    Recommendation: the rule (sections 7.9.5 and 17.4.7); an SMTP transaction succeeds per
+    recipient, so retrying a whole delivery would send twice to recipients already accepted, and
+    delay notices, the five-day bounce and JMAP's per-recipient delivery status need the attempts
+    as state.
+76. **Logging inside pure handlers.** Options: `ctx.log` and `ctx.trace` stay write-only
+    capabilities: they return nothing, cannot influence a result, are not part of the logbook and
+    carry the scope, command, effect and trace ids; logs as values that handlers return or yield
+    (strictly pure, but entries written before a throw need special handling and every helper must
+    pass them along); no logging in handlers, the kernel logging every decision and effect itself.
+    Recommendation: write-only capabilities (section 7.9.7); logs are observability, not causes or
+    effects, and the logbook already records everything that matters.
+77. **Clock, ids and randomness.** Requests or plain values? Options: the clock is the invocation's
+    fixed time (`ctx.clock.now()`, equal to the events' `recordedAt`), and ids and random values are
+    yielded requests whose answers the decision record keeps; all three recorded requests, each
+    `now()` a fresh reading; all three derived from a recorded per-invocation seed (Restate's
+    approach: no yields for ids, but derived values are predictable from the seed and never usable
+    for secrets). Recommendation: the fixed clock with recorded ids and random values (section
+    7.9.3); a decision happens at one moment, which the chain already stores, ids and random values
+    are few and cheap to record, and secrets come only from the key service and are never recorded
+    in plaintext.
+78. **Where effect records live.** Options: in the chain: one `core.effect` stream per effect
+    (`requested`, `settled`), positioned and hashed with the scope's other events, with attempts as
+    stream records kept 90 days; a separate `ps_effects` table per namespace with its own retention,
+    not hashed (cheaper, but a second log to rebuild, verify and correlate with the events).
+    Recommendation: in the chain (section 7.9.6); one log, one hash chain, one rebuild, and live
+    updates on effects for free, at the cost of two events per effect.
+79. **Command inputs in the logbook.** Options: the digest only (the receipt's fingerprint), so a
+    re-decide needs the input from the receipt within its window or from the operator; the digest by
+    default plus sealed inputs for actions that opt in (`trace: { input: 'sealed', retention }`),
+    personal fields under the subject's key; sealed inputs for every command (a full re-decide in
+    production, but every input shape must declare its personal fields or crypto-shredding misses
+    them, and secret fields must be stripped). Recommendation: the digest with an opt-in (sections
+    7.3 and 7.9.6); the events already record what changed, while inputs carry passwords and personal
+    data nobody marked, so keeping them is a choice per action.
+80. **Launchway's agents under the strict model.** Options: commands to agents are effects with an
+    external performer: the agent pulls pending `agentCommand` effects over `nodes.channel` and
+    settles them through `nodes.ack`, with a deadline and a continuation in the requesting module;
+    keep the earlier design's `nodes.command` rows and `nodes.command.ack` as module data, with no
+    effect records: the rows' events are the trace, and timeouts remain separate timers.
+    Recommendation: external performers (sections 7.9.5 and 17.3.4); each command to a node gets one
+    record with its outcome and its follow-up, which is the trace Jens asked for, and the same
+    mechanism serves any later remote worker.
+
 ### 26.2 Open for the spike (roadmap M0)
 
 1. The type-model checklist of section 4.7: the module base with parts typed against it in
-   separate files and the module literal that mounts them, module-local contexts, all field flags,
-   generated actions with typed `watch`, `defineApp` options, `AppActionTree` from the field model;
-   and `api-sketch.ts` compiled as the acceptance test of the DSL.
+   separate files and the module literal that mounts them (with the `effects` and `executors`
+   mounts), module-local contexts, all field flags, generated actions with typed `watch`,
+   `defineApp` options, `AppActionTree` from the field model; the pure handlers of section 7.9:
+   generator handlers typed per request through `yield*`, handler types that exclude promises (an
+   `async` `decide` fails to compile), `ctx.all` with `const` type parameters for tuple answers and
+   `outcomeOf` continuation inputs; and `api-sketch.ts`, strict and with its `hooks` module,
+   compiled as the acceptance test of the DSL.
 2. The instantiation budgets on synthetic apps of 25 and 40 modules, and the declaration-size
    budget per module under the pnpm layout.
 3. Whether the `Check` property form or a rest-parameter form gives the better editor message at
    `defineApp`.
-4. Whether `ctx.data` of optional modules is best typed `| undefined` or as a `Maybe` object with
+4. Whether `ctx.load` of optional modules is best typed `| undefined` or as a `Maybe` object with
    `.ifPresent()`, after writing the auth module against it.
 5. The write path on a networked PostgreSQL: concurrent writers in many tenants, the commit tail
    per scope, the notifier's coalescing, and the absence of cross-tenant waiting; and the fair take
    of section 9.5.3 (take p95 against the number of lanes and the batch size), whose result replaces
-   the planning figure of 2,000 jobs per second per placement (section 9.5.7).
+   the planning figure of 2,000 jobs per second per placement (section 9.5.7); and the
+   interpreter's costs (section 7.9.4): the scope-counter read that positions every load and the
+   overhead per request, against one `REPEATABLE READ` snapshot per decision.
 
 ### 26.3 Open questions by area
 
@@ -11839,17 +12765,39 @@ Data:
 - Not verified within the research cap: what Stalwart's full-text index holds for messages it
   encrypted at rest (its documentation, updated 2026-10-03, is silent), and which MongoDB server
   version made the substring queries of Queryable Encryption generally available.
+- Retention of the `core.effect` streams and the `core.effectAttempt` records: keep effect streams
+  forever like other chain entities, or give each effect type a default `compactHistory` rule,
+  since mail delivery attempts accumulate (section 7.9.6)?
+- Re-decides need `asOf` reads by position, while decision 8a gives the generated `get` and
+  `history` `asOf` by instant: expose `asOf` by position on those actions, or keep it
+  kernel-internal (sections 7.9.6 and 14.7.1)?
+- Migration data steps (section 14.6.2): pure per-row transforms only, or also an executor for
+  backfills that import data from external systems?
+- Offline commands (section 15.3.5) could return deferred effects that the server requests at
+  ingest: keep the rule that effects come only from asynchronous reactions to accepted events, or
+  allow that?
 
 Execution:
 
-- The effect executor contract (the name `defineEffectExecutor` is provisional), the effect
-  description constructors (`setTimer`, `cancelTimer`, enqueue) and the naming of continuations
-  are fixed by the decision 50a pass (ADR 0026); section 9.5 assumes that executors declare a queue,
-  a capability, a group, a retry policy and `run` (decision 50a; the exact contract is specified in
-  the pure-handlers section).
-- Can a synchronous invocation ever await an effect's outcome (a "test SMTP connection" action, for
-  example)? Sections 9.5 and 21.2 assume not: the invoker never forwards a request, and outcomes
-  arrive through receipts, events and continuations.
+- Answered by section 7.9 (ADR 0026): the effect executor contract
+  (`defineEffectExecutor(base, effect, options)` with a queue, a capability, a group, a retry policy
+  and `run`, the name confirmed), the kernel effect constructors (`setTimer`, `cancelTimer`,
+  `enqueue`) and continuations (`then`, `with`, `outcomeOf`) are specified in section 7.9.5; and a
+  synchronous invocation never awaits a deferred effect, while a bounded inline effect in `prepare`
+  answers within the request ("test SMTP connection" is `mail-delivery.testRelay`; decision point
+  74).
+- Module-defined computations off the event loop (MIME parsing for filing, search-text
+  extraction): a `defineComputation` part in its own directory, or executors with continuations?
+  Section 7.9.3 offers only the core's Argon2id computations.
+- Read positions of loads under `READ COMMITTED`: the design reads the scope counter in the same
+  statement as each load; the M0 write-path spike measures that subselect's cost against one
+  `REPEATABLE READ` snapshot per decision, which raises serialization retries on hot rows (section
+  26.2, item 5).
+- Blob adoption from the deployment staging area (gap G5): a kernel step before the unit, as
+  section 17.4.6 assumes so that no row references a missing blob, or a deferred kernel effect?
+- Rules read flags from the invocation's snapshot while handlers read them as requests: is the
+  plan's recording of the flags its rules read acceptable as kernel instrumentation, or should
+  rules declare the flags they read (sections 7.9.3 and 20.6)?
 - Does any pure job ever need a capability? Section 21.2 assumes not: placements handle data
   locality, and GPU work would be an effect.
 - The planning figure of 2,000 jobs per second per placement (section 9.5.7) is to be replaced by a
@@ -11878,9 +12826,8 @@ Interfaces:
 - The scaffold command shape: this design reserves one name, `pennestack new <kind> <reference>`
   (with `pennestack module new` kept as an alias); the alternative, `pennestack entity|action|flag
   new`, reserves three module ids.
-- The profile search of `docs/api-sketch.ts` sends a two-character prefix (`'Je'`), below the
-  default minimum of three: should the action require three characters, or should the field declare
-  `prefix: { min: 2 }` and accept a shallower prefix tree (section 14.7.9.13)?
+- Answered with the strict rewrite of `docs/api-sketch.ts`: the profile search requires three
+  characters and sends `'Jen'`, so the field keeps the default prefix minimum (section 14.7.9.13).
 
 Platforms:
 
@@ -11908,9 +12855,20 @@ Platforms:
   one more component on the home server (decision point 56)?
 - The example package scopes (`@launchway`, `@mail`) depend on decision 48 of the register, where
   Launchway's modules live.
-- Mail delivery's 5-day retry schedule: does it stay a retry policy of the `smtpSend` executor
-  (section 17.4.7), or become a domain state machine with timers, so that each attempt lands in the
-  `mail-delivery.attempt` stream through a continuation?
+- Answered by section 7.9.5 (decision point 75): mail delivery's five-day schedule is the
+  submission's state machine with timers, one `smtpDeliver` effect per attempt and the continuation
+  `recordAttempt`; the `mail-delivery.attempt` stream gives way to `attempted` events and
+  `core.effectAttempt` records (section 17.4.7).
+- DKIM signing at submission (section 17.4.7, step 3) needs the message bytes and the private key:
+  a core computation over a blob and a key reference (`ctx.compute`), a first `dkimSign` effect with
+  a continuation, or signing inside the `smtpDeliver` executor at each attempt?
+- The inbound checks of `mail-store.acceptInbound` (the SPF, DKIM and DMARC lookups of
+  `sender-auth`, rspamd's HTTP score of `spam`) touch the network: inline effects that its `prepare`
+  performs through the `inboundChecks` fills (about two effect records per message and tenant,
+  section 17.4.6), or checks the SMTP listener performs before invoking the command?
+- External reads for user interfaces (Launchway's GitHub repository picker): a command with an
+  inline effect, or a cache entity that a deferred effect's continuation refreshes and a query
+  reads (section 17.3.9)?
 - A relay node on a rented host needs a database connection to the home placement (a tunnel). Is a
   remote worker acceptable, or does decision point 21a (an external relay) make it moot?
 - Do the clients of the M6 matrix (Thunderbird, Apple Mail, iOS Mail) rely on substring semantics in
@@ -11928,7 +12886,7 @@ Toolchain and layout:
 - In Biome, GritQL has no semantic model and no file path. The patterns of `one-export.grit` and
   `no-import-effects.grit` still have to be proven against fixtures.
 - The M0 type-model spike must measure the instantiation cost of typing each part against the base
-  (one `ActionContext<Base>` per part) and compare it with one module written in a single file.
+  (one context type over the base per part) and compare it with one module written in a single file.
 - Topics (gap G6) carry subscriber hooks, so they are mounted in `module.ts`; whether subscriptions
   read them by value depends on G6's final DSL in M2.
 - For published module packages: should modules listed in `optional` be regular dependencies or
@@ -12081,6 +13039,21 @@ licences, by the merge editor the same day.
 | `@cipherstash/stack` / `@cipherstash/protect` / `@cipherstash/protect-ffi` | 1.2.1 / 12.0.1 / 0.33.0 | MIT | prior art for queries over encrypted columns; not used |
 | `ciphersweet-js` | 2.0.6 | ISC | prior art: blind indexes; not used |
 | `mongodb-client-encryption` | 7.2.1 | Apache-2.0 | prior art: Queryable Encryption; not used |
+
+### A.7 Added with the pure-handler design (2026-10-25)
+
+Versions checked with `npm view` by the pure-handlers designer on 2026-10-25, type definitions read
+from the npm tarballs where the research note says so
+([research/pure-handlers.md](research/pure-handlers.md)); licences not re-checked. Restate, DBOS and
+Temporal's client are in A.6.
+
+| Package | Version | Published | Use here |
+|---|---|---|---|
+| `effect` | 4.0.6 | 2026-10-22 | prior art: effect values implement `[Symbol.iterator]`, so `yield*` types each answer, as pennestack's requests do (section 7.9.3); not used |
+| `@temporalio/workflow` | 1.24.0 | 2026-09-15 | prior art: workflow code that schedules activities and is replayed from its event history; not used |
+| `@event-driven-io/emmett` | 0.42.4 | 2026-08-12 | prior art: deciders that return events, workflows that return their outputs as values; not used |
+| `redux-saga` / `@redux-saga/types` | 1.5.1 / 1.4.1 | 2026-07-26 / not recorded | prior art: generators that yield effect descriptions a middleware performs; not used |
+| `kysely` | 0.29.7 | 2026-10-17 | a newer patch than the 0.29.6 of A.1, which stays pinned until the M0 spike; the SQL read request builds its query without a connection (section 14.3.8) |
 
 ## Appendix B. Verified typing listing
 

@@ -1,10 +1,13 @@
 # 3. Module composition: a const tuple, hard requirements and contracts, soft contributions, extension points, deployment infrastructure
 
-Date: 2026-10-08 (revised 2026-10-11 and 2026-10-24)
+Date: 2026-10-08 (revised 2026-10-11, 2026-10-24 and 2026-10-25)
 
 ## Status
 
-Proposed
+Proposed. Jens decided decision points 1 (the compiled catalogue, with exact types per app in
+development) and 2 (hard dependencies stay; a module switches off with its dependants) on
+2026-10-25, as the consequences below state them. The module-local context of item 1 is the pure
+context of [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) since 2026-10-25.
 
 ## Context
 
@@ -64,8 +67,9 @@ reason, and the project layout (ADR 0024) needs parts in files of their own.
    exports; the `core` module is always prepended. Every derived type (`AppEntities`, `ActionRef`, `AppActionTree`) is a
    non-recursive mapped type over the union of module ids with `Extract` by id. Declaration merging
    is never used for anything that depends on the selection. Module types are computed from the
-   module alone where code runs inside a module (`ActionContext<M>`, ADR 0004); app types serve
-   clients, transports and the generated file.
+   module alone where code runs inside a module (`ActionContext<M>`, ADR 0004; since ADR 0026 the
+   pure `DecideContext<M>` and its siblings); app types serve clients, transports and the generated
+   file.
 2. Every exported module, module base and app value has a named type: `export interface Auth
    extends ModuleType<typeof authDef> {}` and `export const auth: Auth = authDef` (`ModuleBaseType`
    for the base), so declaration emit stays about one kilobyte per module (measured 2026-10-11 on
@@ -132,8 +136,9 @@ reason, and the project layout (ADR 0024) needs parts in files of their own.
   a missing hard dependency or contract is a compile error; nothing is typed that does not exist.
 - Mutual influence is expressible without import cycles, at the cost of deciding which module of
   a pair is lower; both still compile and run alone.
-- A module can be switched off on its own unless another selected module requires it; this reading
-  of "independently toggleable" is decision point 2 for Jens (architecture.md section 26.1).
+- A module can be switched off on its own unless another selected module requires it; Jens
+  accepted this reading of "independently toggleable" on 2026-10-25 (decision point 2,
+  architecture.md section 26).
 - A module costs two literals and a file per part instead of one chain; the base holds what parts
   are typed against, so a part never imports its module and editing one re-checks only it, its
   importers and the module literal.
@@ -146,6 +151,6 @@ reason, and the project layout (ADR 0024) needs parts in files of their own.
 - Contributions require a type of the target, so a module package depends on the packages it
   contributes to; this is explicit and desirable.
 - Runtime module selection is deliberately not supported; a new combination is a new `defineApp`
-  line and a deploy.
+  line and a deploy (decision point 1, decided 2026-10-25 for the compiled catalogue).
 - Infrastructure is configured once per deployment; an app's types never depend on which database
   or blob store a deployment uses, and modules that need a dialect declare it as a data need.

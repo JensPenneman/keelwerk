@@ -5,8 +5,13 @@ Date: 2026-10-25
 ## Status
 
 Proposed. Decision 50a of the register (2026-10-25): option a, fully strict; option c, the split
-model, is the fallback. Amends ADR 0004 (decisions 3 and 7) and gives ADR 0015 (decision 6) and ADR
-0025 (decision 4) their effect and executor contract.
+model, is the fallback. Amends [ADR 0004](0004-actions-as-the-unit-of-behaviour.md) (decisions 3
+and 7, and the mentions of `ctx.invoke` and `unresumable` in decisions 2 and 9) and gives
+[ADR 0015](0015-jobs-timers-and-schedules.md) (decision 6) and
+[ADR 0025](0025-nodes-capacity-and-autoscaling.md) (decision 4) their effect and executor contract;
+ADRs 0003, 0005, 0006, 0008, 0012 and 0013 carry notes of the forms it replaces. Architecture.md
+section 7.9 specifies the design; its decision points are 73 to 80 of the register, and the text
+assumes their recommendations (73a, 74a, 75a, 76a, 77a, 78a, 79b, 80a).
 
 ## Context
 
@@ -16,7 +21,7 @@ networks, clocks and randomness. The specification had `decide` (pure apart from
 reads) beside the imperative `handle`, services, fills, reactions and hooks. Jens chose strict: "fully
 strict, the safest option; this way I can trace each cause and effect and rebuild a full database
 and logbook from them". [research/pure-handlers.md](../research/pure-handlers.md) compares the prior
-art.
+art, and [architecture.md section 7.9](../architecture.md) is the specification.
 
 ## Decision
 
@@ -40,11 +45,12 @@ art.
    `prepare`, bounded, without capability or retries.
 5. Executor retries handle failures without domain meaning; anything else, mail delivery included,
    is a state machine with timers and one effect per attempt.
-6. The logbook is the chain: a decision record in each event's meta (the snapshot position of every
-   load; ids, random values and the public part of issued secrets; effect ids), and one `core.effect`
-   stream per effect (`requested`, `settled`), with attempts as stream records. Load answers are
-   reproduced from the chain, never stored. The database and the logbook rebuild from the chain, and
-   unsettled effects are enqueued again after a restore.
+6. The logbook is the chain: a decision record in each event's meta (the input's digest, and the
+   sealed input only for actions that opt in; the snapshot position of every load; ids, random
+   values and the public part of issued secrets; effect ids), and one `core.effect` stream per
+   effect (`requested`, `settled`), with attempts as stream records. Load answers are reproduced
+   from the chain, never stored. The database and the logbook rebuild from the chain, and unsettled
+   effects are enqueued again after a restore.
 7. Every command is retried on version conflicts, serialization failures and deadlocks, up to three
    times, because no decision performs anything.
 8. Enforcement: handler types exclude promises; GritQL plugins (`pure-parts`, `no-module-state`,

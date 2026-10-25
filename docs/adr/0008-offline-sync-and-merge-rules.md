@@ -1,10 +1,12 @@
 # 8. Offline sync: rows down, commands up, merge rules per field, Loro for collaborative fields
 
-Date: 2026-10-11 (revised after review the same day)
+Date: 2026-10-11 (revised after review the same day; amended 2026-10-25)
 
 ## Status
 
-Proposed
+Proposed. Item 5 is amended by [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md)
+(decision 50a): `handle` no longer exists, and offline commands may not use `prepare`, random values
+or issued secrets.
 
 ## Context
 
@@ -53,7 +55,8 @@ its own unit although an invocation has exactly one.
 5. **What runs offline.** The generated `set` when an entity opts in, and custom commands with
    `offline: true` whose `decide` returns only field operations on mergeable fields, `archived` or
    `restored`. Such commands use `decide`, synchronous execution and policy authorization, checked at
-   compose. Everything else is online: `handle` commands, domain events with an author `evolve`,
+   compose. Everything else is online: `handle` commands (since ADR 0026: commands with `prepare`,
+   random values or issued secrets), domain events with an author `evolve`,
    unique and `exclusive` fields, authentication and secrets, external side effects, invariants across
    entities, asynchronous and non-tenant actions.
 6. **Protocol.** The `sync` module (in `@pennestack/events`) provides `sync.register`, `sync.push`,

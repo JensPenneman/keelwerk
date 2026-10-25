@@ -12,12 +12,13 @@
  * against it, and a module literal that mounts them. In a project each part is a file of its own
  * (architecture.md section 23); the sketch keeps them in one file, as tests and spikes may.
  *
- * Every handler is pure (decision 50a, decided on 2026-10-25; the section "Pure handlers and the
- * effect interpreter"): a command's `decide` yields requests with `yield*` and returns a decision
- * (events, effects, result); a query's `read` returns a request or a value; reactions `react`;
- * services and fills return values or generators. Only effect executors (`defineEffectExecutor`)
- * run imperative code. The DSL is specified in architecture.md section 4, the type-level model in
- * section 4.7, authorization in section 8 and the authentication module in section 17.2.
+ * Every handler is pure (decision 50a, decided on 2026-10-25; architecture.md section 7.9, "Pure
+ * handlers and the effect interpreter"): a command's `decide` yields requests with `yield*` and
+ * returns a decision (events, effects, result); a query's `read` returns a request or a value;
+ * reactions `react`; services and fills return values or generators. Only effect executors
+ * (`defineEffectExecutor`) run imperative code. The DSL is specified in architecture.md section 4,
+ * the type-level model in section 4.7, authorization in section 8 and the authentication module in
+ * section 17.2.
  */
 
 import {

@@ -1,10 +1,12 @@
 # 12. Live updates: one module over the event log, SSE first and WebSocket second
 
-Date: 2026-10-11 (revised after review the same day)
+Date: 2026-10-11 (revised after review the same day; amended 2026-10-25)
 
 ## Status
 
-Proposed
+Proposed. Item 2's custom sources are amended by
+[ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) (decision 50a): a module's source is a
+description, and `unresumable` remains for kernel and listener code only.
 
 ## Context
 
@@ -55,7 +57,9 @@ consumer and as a reader in every process, that the generated change was named `
    name as `cause` but never its data. A custom source is `source(input, ctx, resume)`; built on
    `ctx.live` with `after: resume` and mapped with `mapItems`, it keeps stream tokens and control
    frames and is resumable; wrapped with `unresumable`, it is not. The surface derives `resumable`
-   from that. The `sync` actions are ordinary actions carried by every transport.
+   from that. Since ADR 0026, module sources are descriptions built with `ctx.live` (which adds the
+   pending effects of an external performer), maps are pure or generator functions, and only kernel
+   and listener code wraps iterables. The `sync` actions are ordinary actions carried by every transport.
 3. **Authorization per event, at current permissions.** The gate runs at subscribe time with the
    entity's read rules (the `read` alias covers `watch`). Per batch, the hub loads post-images once
    per scope and groups subscriptions by resolved plan: each distinct plan is evaluated once per

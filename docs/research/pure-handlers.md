@@ -1,7 +1,7 @@
 # Pure handlers: prior art for decision 50a
 
 Date: 2026-10-25. Status: research input for the section "Pure handlers and the effect interpreter"
-(`docs/sections/pure-handlers.md`) and [ADR 0026](../adr/0026-pure-handlers-and-the-effect-interpreter.md);
+(`docs/architecture.md section 7.9`) and [ADR 0026](../adr/0026-pure-handlers-and-the-effect-interpreter.md);
 it decides nothing by itself. Scope: how systems that keep decisions pure place, type, record and
 replay effects, and what pennestack takes under decision 50a (fully strict, decided 2026-10-25).
 Method: the specification, brief addendum 4 and the decision register; versions with `npm view` on

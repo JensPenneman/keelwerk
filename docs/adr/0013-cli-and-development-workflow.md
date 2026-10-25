@@ -1,14 +1,17 @@
 # 13. One `pennestack` CLI generated from the surface, and a generate-and-check development loop
 
 Date: 2026-10-11 (revised after review the same day, on 2026-10-24 for addendum 3 and on 2026-10-25
-for ADRs 0025 and 0027)
+for ADRs 0025, 0026 and 0027)
 
 ## Status
 
-Proposed. The reservation of framework command names as module ids (item 2) is decision point 16
-for Jens (architecture.md section 26.1); if action commands move under a verb instead, item 2
-changes before the ADR is accepted. Scaffold edits of assembly files (item 7) are decision point
-61, and the `fleet` command group is decision point 62.
+Proposed. The reservation of framework command names as module ids (item 2) is decision point 16 for
+Jens (architecture.md section 26.1); if action commands move under a verb instead, item 2 changes
+before the ADR is accepted. Scaffold edits of assembly files (item 7) are decision point 61, and the
+`fleet` command group is decision point 62.
+[ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) (decision 50a) adds lint rules and
+scaffold kinds to item 7 and `explain --dry-run`, `--trace` and `--redecide` to the framework
+commands.
 
 ## Context
 
@@ -96,22 +99,24 @@ Facts checked on 2026-10-10 and 2026-10-11:
    branch.
 7. **Toolchain rules.** `isolatedDeclarations` is enabled only in packages with explicitly typed
    exports; every package sets `rootDir`. Every exported module and app value has a named type
-   (`ModuleType`, `ModuleBaseType`, `AppType`; ADR 0003), which `pennestack new module` scaffolds and a GritQL rule
-   enforces; CI builds both proof apps under the pnpm layout and fails on TS7056, TS2742, TS4023 and
-   declaration sizes above the spike's budget. `@pennestack/biome-config` publishes a Biome 2.5.15 preset
-   (the rules above as errors, package-kind import boundaries through `overrides`) and GritQL
-   plugins for what syntax can catch: declaration merging on framework modules, exported module and
-   app values without a named type, literal `null` in rule conditions, `asSystem` without a reason,
-   impure deciders, malformed error codes, and for the layout of ADR 0024 a second exported value,
-   import side effects and functions in assembly files. Checks that need the registry run at
-   `defineApp` and boot; checks that need paths run in the layout pass of `pennestack doctor`.
-   Type tests use Vitest's type checker, and `@pennestack/testing/types` ships assertion helpers.
-   `pennestack new <kind> <reference>` scaffolds one part and inserts one import and one entry into
-   one assembly file, refusing files it does not recognise; `pennestack new module` writes a
-   package with `src/base.ts`, `src/module.ts` (the entry), `src/module.test-d.ts` with the
-   toggle-case type tests, and `test/`. `pennestack init` creates the canonical layout and
-   `knip.json`. `pennestack doctor` checks the environment, the TypeScript and package
-   configuration, artefact freshness, the layout and the deployment.
+   (`ModuleType`, `ModuleBaseType`, `AppType`; ADR 0003), which `pennestack new module` scaffolds
+   and a GritQL rule enforces; CI builds both proof apps under the pnpm layout and fails on TS7056,
+   TS2742, TS4023 and declaration sizes above the spike's budget. `@pennestack/biome-config`
+   publishes a Biome 2.5.15 preset (the rules above as errors, package-kind import boundaries
+   through `overrides`) and GritQL plugins for what syntax can catch: declaration merging on
+   framework modules, exported module and app values without a named type, literal `null` in rule
+   conditions, `asSystem` without a reason (since ADR 0026 `system()` without one), impure deciders
+   (since ADR 0026 `pure-parts`, `no-module-state` and `no-await-in-parts`, with Biome's
+   `noNodejsModules`, `noProcessEnv`, `noProcessGlobal` and `noGlobalAssign`), malformed error
+   codes, and for the layout of ADR 0024 a second exported value, import side effects and functions
+   in assembly files. Checks that need the registry run at `defineApp` and boot; checks that need
+   paths run in the layout pass of `pennestack doctor`. Type tests use Vitest's type checker, and
+   `@pennestack/testing/types` ships assertion helpers. `pennestack new <kind> <reference>`
+   scaffolds one part and inserts one import and one entry into one assembly file, refusing files it
+   does not recognise; `pennestack new module` writes a package with `src/base.ts`, `src/module.ts`
+   (the entry), `src/module.test-d.ts` with the toggle-case type tests, and `test/`. `pennestack
+   init` creates the canonical layout and `knip.json`. `pennestack doctor` checks the environment,
+   the TypeScript and package configuration, artefact freshness, the layout and the deployment.
 
 ## Consequences
 

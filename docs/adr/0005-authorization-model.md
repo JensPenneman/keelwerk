@@ -1,11 +1,13 @@
 # 5. Authorization: a typed-native engine with CASL vocabulary, the invoked action as the unit, and separate conditions for the row acted on and the row produced
 
-Date: 2026-10-08 (revised 2026-10-11 and 2026-10-24)
+Date: 2026-10-08 (revised 2026-10-11 and 2026-10-24; amended 2026-10-25)
 
 ## Status
 
-Proposed. Jens decided decision points 4 and 5 of architecture.md section 26 on 2026-10-24 as
-items 6 and 3 state them, adding the shape-stage row check of item 5.
+Proposed. Jens decided decision points 4 and 5 of architecture.md section 26 on 2026-10-24 as items
+6 and 3 state them, adding the shape-stage row check of item 5. Item 6 is amended by
+[ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) (decision 50a): loads and drafts
+replace repository calls, and the escalation is an effect.
 
 ## Context
 
@@ -83,7 +85,10 @@ The review of 2026-10-11 found that the first version of this decision failed it
    silently. Reactions, timers and schedules run under the module service principal
    `<module>.system`, governed by rules (a module may invoke its own actions by default), with the
    triggering actor recorded as causation. `asSystem(reason)` is the only escalation to the system
-   principal and is logged.
+   principal and is logged. Amended by ADR 0026: handlers yield loads (`ctx.load`, with the same
+   module authority and `forCaller()`) and return drafts checked against the same write boundary,
+   and the escalation is the effect `invoke(action, input, { as: system(reason) })`, logged with the
+   reason.
 7. Field masks govern only fields declared `.maskable()`; only those may appear in the field lists
    of read rules and of runtime rule sources, so every other field keeps its declared type in
    `Readable<R>` and in client types. Hidden fields never appear in rules.

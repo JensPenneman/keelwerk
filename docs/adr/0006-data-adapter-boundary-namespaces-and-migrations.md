@@ -1,10 +1,12 @@
 # 6. Data adapter boundary: units on namespaces, declared capabilities, Kysely for SQL, migrations in tracks
 
-Date: 2026-10-11 (revised after review the same day)
+Date: 2026-10-11 (revised after review the same day; amended 2026-10-25)
 
 ## Status
 
-Proposed
+Proposed. Item 5's SQL escape hatch is amended by
+[ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) (decision 50a): it is a read request,
+`ctx.load.sql(build)`, and handlers have no SQL writes.
 
 ## Context
 
@@ -70,7 +72,8 @@ plan runs CI on three databases.
    security, row locks, search, positional paging with a maximum offset, job taking, broadcast,
    SQL with its dialect, process model). They are checked at `connect`, at tenant creation and
    move, and when a plan or query is compiled; modules declare their data needs, including the SQL
-   dialect they write (`{ sql: 'postgres' }`), which types `ctx.sql`.
+   dialect they write (`{ sql: 'postgres' }`), which types `ctx.sql` (since ADR 0026 the builder of
+   the read request `ctx.load.sql`).
 6. **Conditions and pagination.** One semantics for both interpreters: two-valued logic,
    null-safe `ne` and `nin`, comparisons with `null` or `undefined` false (absence only through
    `isNull`), code-point string comparison over binary collations, membership for `contains` on

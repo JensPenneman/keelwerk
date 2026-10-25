@@ -1,8 +1,9 @@
 # pennestack roadmap
 
 Date: 2026-10-25 (first version 2026-10-11; addendum 3 and Jens's decisions of 2026-10-24
-merged; the jobs, nodes and autoscaling design and the design of encrypted personal data merged on
-2026-10-25). Status: proposal, awaiting Jens's approval together with the architecture.
+merged; the jobs, nodes and autoscaling design, the design of encrypted personal data and the
+pure-handler design of decision 50a merged on 2026-10-25). Status: proposal, awaiting Jens's
+approval together with the architecture.
 
 This document orders the work of [architecture.md](architecture.md) into milestones, from the
 repository toolchain (M0) to the first platform running (the Launchway backend ported, M3) and the
@@ -27,8 +28,8 @@ here: what comes after the mail server is listed under later milestones.
 | Gate | Before | What |
 |---|---|---|
 | Architecture approval | M1 | Jens approves the architecture and the ADRs (they become `Accepted`), after the M0 spikes; the repository then becomes public on GitHub (JensPenneman/pennestack). Until then it stays private. |
-| Decisions for M1 | M1 | Of the decision points in architecture.md section 26.1: 1 (app catalogue), 6 (job queue, with ADR 0025, because the job store is part of the adapter contract from M1 and its stored format is final there), 10 (before-images), 18 (protobuf tags), 19 (instants), 20 (licence, before the repository is public), 52 (dated API versions, because pins and the ledger ship in M1), 65 (equality indexes only where declared) and 66 (the default normaliser), because sealed state columns and blind indexes ship in M1; and the project-layout points of [decisions.md](decisions.md) section F: 58 (file naming), 59 (module assembly), 60 (policy granularity) and 61 (scaffold edits). Points 3 (DSL shape), 4 (handler data authority) and 5 (deny rules) were decided on 2026-10-24, and 7 (personal fields encrypted in state tables as well, ADR 0027) on 2026-10-25. |
-| Decisions for M2 | M2 | 51 (flags in the core) and 53 (the 12-month support window). |
+| Decisions for M1 | M1 | Of the decision points in architecture.md section 26.1: 6 (job queue, with ADR 0025, because the job store is part of the adapter contract from M1 and its stored format is final there), 10 (before-images), 18 (protobuf tags), 19 (instants), 20 (licence, before the repository is public), 52 (dated API versions, because pins and the ledger ship in M1), 65 (equality indexes only where declared) and 66 (the default normaliser), because sealed state columns and blind indexes ship in M1; 73 (generators for the handler forms), 76 (logging as a write-only capability), 77 (the fixed clock, recorded ids and random values), 78 (effect records in the chain) and 79 (command inputs as a digest, sealed only on opt-in), because the interpreter, the decision record in `ps_events.meta` and the `core.effect` format ship in M1 (ADR 0026); and the project-layout points of [decisions.md](decisions.md) section F: 58 (file naming), 59 (module assembly), 60 (policy granularity) and 61 (scaffold edits). Points 3 (DSL shape), 4 (handler data authority) and 5 (deny rules) were decided on 2026-10-24, and 1 (the compiled app catalogue), 2 (hard dependencies), 7 (personal fields encrypted in state tables as well, ADR 0027) and 50 (fully strict pure handlers, ADR 0026) on 2026-10-25. |
+| Decisions for M2 | M2 | 51 (flags in the core), 53 (the 12-month support window), 74 (inline effects in `prepare`), 75 (executor retries only without domain meaning) and 80 (external performers, which Launchway's agent uses from M3), because effect jobs, executors, continuations and external performers ship in M2. |
 | Decisions for M3 | M3 | 23 (Launchway compatibility), 24 (edge through the agent), 25 (node ownership), 26 (separate domain for untrusted apps), 27 (ledger and control store at home), 54 (automatic finalization), 55 (renames that keep their column), 62 (the `fleet` command group), 63 (when automatic scaling ships), 71 (bounded scans) and 72 (substring defaults). |
 | Decisions for M4 | M4 | 67 (server-side mail search), 68 (word matching) and 70 (the key scope of search indexes). |
 | Decisions for M5 | M5 | 21 (outbound relay), 56 (the mail listeners' own container), 64 (the docker provider) and the open platform questions on DMARC rollout, account sharing and Sieve (section 26.3). |
@@ -51,9 +52,13 @@ Packages and artefacts:
   `CONTRIBUTING.md`, release and changelog tooling.
 - `@pennestack/biome-config`: the preset with the layout rules of architecture.md section 13.9
   and the GritQL plugins `named-module-types`, `as-system-reason`, `no-null-in-conditions`,
-  `pure-deciders`, `error-code-format`, `no-selection-augmentation`, `one-export`,
-  `no-import-effects` and `wiring-only-assembly`, with fixtures. Modules are object literals
-  (decision 3 of 2026-10-24), so no plugin guards a builder chain.
+  `pure-parts` (replacing `pure-deciders`), `no-module-state`, `no-await-in-parts`,
+  `error-code-format`, `no-selection-augmentation`, `one-export`, `no-import-effects` and
+  `wiring-only-assembly`, with fixtures; Biome's `noNodejsModules` and `noRestrictedImports`
+  configured for module packages (allowed under `src/executors/`), and `noProcessEnv`,
+  `noProcessGlobal` and `noGlobalAssign` everywhere (allowed in `pennestack.config.ts`), with
+  fixtures (architecture.md section 7.9.6). Modules are object literals (decision 3 of
+  2026-10-24), so no plugin guards a builder chain.
 - The root workspace gets `knip.json`, and CI runs knip after `biome ci`.
 - Empty, building packages `@pennestack/core`, `@pennestack/data` and `@pennestack/testing`.
 - `spikes/composition-types`: the checklist of architecture.md section 4.7 (the module base and
@@ -62,6 +67,10 @@ Packages and artefacts:
   `AppActionTree` with input, output, error and event types from the field model, `Insert`,
   `Patch` and `OfflinePatch`), declaration emit under the pnpm layout, instantiation counts on
   synthetic apps of 25 and 40 modules, and `docs/api-sketch.ts` compiled as the acceptance test.
+  The checklist adds the pure handlers of architecture.md section 7.9: generator handlers typed per
+  request through `yield*`, a compile error for an `async` `decide`, `ctx.all` tuple answers with
+  `const` type parameters, `outcomeOf` continuation inputs and the `effects` and `executors` mounts;
+  `docs/api-sketch.ts`, now strict and with its `hooks` module, stays the acceptance test.
   The spike covers the base and module split: parts built with the part functions over the base in
   separate files, a module literal that mounts them and produces the same module type as the module
   written in one file, own actions invoked by value, and the instantiation cost of typing each part
@@ -70,7 +79,9 @@ Packages and artefacts:
 - `spikes/write-path`: the per-scope commit tail, the coalescing notifier and the job store's fair
   take (take p95 against the number of lanes and the batch size, to replace the planning figure of
   2,000 jobs per second per placement; architecture.md sections 9.5.3 and 9.5.7) on a networked
-  PostgreSQL 18 (testcontainers), with concurrent writers in many tenants.
+  PostgreSQL 18 (testcontainers), with concurrent writers in many tenants; and the interpreter's
+  costs (architecture.md section 7.9.4): the per-load scope-counter read that positions every load
+  and the overhead per request, against one `REPEATABLE READ` snapshot per decision.
 
 Exit criteria:
 
@@ -82,8 +93,9 @@ Exit criteria:
    change to architecture.md.
 4. The write-path measurement shows that writers of one tenant never wait on another tenant's
    commit tail, records the single-tenant ceiling on networked PostgreSQL, shows notifications
-   leaving writer transactions untouched, and records the fair take's p95 against the number of
-   lanes and the batch size.
+   leaving writer transactions untouched, records the fair take's p95 against the number of
+   lanes and the batch size, and records the cost of positioning every load against one snapshot
+   per decision.
 5. The architecture approval gate is passed.
 
 ### M1. Thin vertical slice
@@ -105,9 +117,13 @@ Packages and modules:
   normalisers for the `eq` family, `isNull` and uniqueness, and the kernel's encryption planner;
   architecture.md section 14.7.9), the kernel write path (repositories, `decide` and `evolve`, item
   checks, invariants, receipts with the pending row), inline reactions and module service
-  principals, the `core` module (backends, tenants, domains, placements, namespaces, command
-  receipts, operator tokens, `core.introspect`, `core.me`, `core.capabilities`), and the `wire` and
-  `ledger` subpaths.
+  principals, the interpreter of architecture.md section 7.9 (`decide`, `read` and `react` in plain
+  and generator forms, requests answered in the unit, kernel effects, automatic retries for every
+  command), decision records in `ps_events.meta` from M1 (a stored format final from M1, like
+  `writer` and `flags`), the `core.effect` entity in its final stored format, the `ctx.compute` pool
+  with Argon2id, `@pennestack/core/crypto`, and `pennestack explain --dry-run` and `--trace`, the
+  `core` module (backends, tenants, domains, placements, namespaces, command receipts, operator
+  tokens, `core.introspect`, `core.me`, `core.capabilities`), and the `wire` and `ledger` subpaths.
 - API versions in the core: `Pennestack-Version` resolution and pins per backend, tenant and
   credential, `defineApiVersions` with a first version, the ledger, and `pennestack surface diff`
   as CI step 9 (architecture.md sections 18.2, 18.3 and 18.6). The stored formats that must be
@@ -128,12 +144,14 @@ Packages and modules:
   insertion, and the layout pass of `pennestack doctor`, run by `pennestack build`, CI and
   `pennestack dev`; `pennestack init` creates the canonical layout (architecture.md section 23).
 - `@pennestack/module-accounts` and `@pennestack/module-auth` as specified in architecture.md
-  section 17.2, written in the module layout of section 23, with passwords, opaque session tokens, expiry and rotation, re-authentication,
+  section 17.2, written in the module layout of section 23 and in the strict forms of section 7.9,
+  with passwords, opaque session tokens, expiry and rotation, re-authentication,
   password resets and rate limits on the shared token buckets of the quota model (passkeys follow in
   M3; until the reaction dispatcher of M2 exists, `auth` sets `lastLoginAt` inline at login).
 - `@pennestack/testing`: the harness, the local client, policy matchers, the adapter and transport
   conformance suites (REST and the invocation protocol), dual evaluation (with the unsealing oracle
-  for personal fields) and the adversarial isolation suite.
+  for personal fields), the adversarial isolation suite, and `drive` and in-memory runs for pure
+  handlers, with answers as data (architecture.md section 7.9.6).
 - `examples/portal`: an app of `accounts`, `auth` and `rest` in the canonical layout, the
   end-to-end fixture.
 
@@ -154,6 +172,8 @@ Exit criteria:
 6. A dump of the test database contains no former password hash, no plaintext secret and no
    plaintext personal value.
 7. Type tests, declaration-emit checks and instantiation budgets pass in CI.
+8. Every handler of the M1 scenario re-runs in tests from its recorded answers (its decision record
+   and the chain) and reproduces its events.
 
 ### M2. Execution and live updates
 
@@ -166,8 +186,12 @@ Packages and modules:
   (ADRs 0015 and 0025): asynchronous commands, durable timers, schedules, the reaction dispatcher
   with keyed jobs and process managers, fair lanes with caps and weights, the queued cap with
   backpressure, groups with rates, priority classes, leases with (worker, attempt) fencing, dead
-  letters and `pennestack jobs` (with `stats`, `lanes`, `explain`, `pause` and `resume`). Effect
-  jobs land together with the decision 50a pass (ADR 0026).
+  letters and `pennestack jobs` (with `stats`, `lanes`, `explain`, `pause` and `resume`).
+- Effects (architecture.md section 7.9, ADR 0026): effect jobs with `defineEffect` and
+  `defineEffectExecutor` (capabilities, groups, retries), continuations, inline effects in
+  `prepare`, the `core.effectAttempt` stream, external performers (`ctx.live.effects`, `settle`,
+  deadlines), `pennestack explain --redecide`, and the re-enqueue of unsettled effects after a
+  restore.
 - `@pennestack/events`: consumers with per-scope checkpoints and parking, the retention worker for
   operational buffers, erasure (`core.subjects.erase`) with ledger sinks and restore detection at
   `connect`.
@@ -204,6 +228,9 @@ Exit criteria:
    no lane exceeds its cap.
 9. A worker killed mid-job loses its lease, the job is requeued within 30 seconds, and no database
    effect is duplicated.
+10. An executor killed mid-attempt is retried with the same idempotency key, or its effect is
+    settled as `abandoned`; a rebuild from the chain reproduces the state rows and the effect
+    states.
 
 ### M3. The deployment platform: Launchway's backend on pennestack
 
@@ -217,12 +244,16 @@ nodes and the scaler (section 5).
 Packages and modules:
 
 - `@pennestack/transport-webhooks` (gap G8) with receiver verification.
-- `@pennestack/module-dns`, `dns-cloudflare`, `dns-manual`; passkeys and the device authorization
-  flow in `auth`; the egress service; operator-adopted retention rules with suggested defaults.
+- `@pennestack/module-dns`, `dns-cloudflare`, `dns-manual` (the `applyRecord` effect with its
+  executor and the continuation `applied`); passkeys and the device authorization flow in `auth`;
+  the egress service; operator-adopted retention rules with suggested defaults.
 - Launchway modules as packages in `examples/launchway/modules/<id>/` (`@launchway/module-<id>`):
-  `projects`, `nodes` (with the agent channel), `agent-gateway` (protocol v1), `deployments` (with
-  the log stream), `domains`, `edge`, `github`, `previews`; the app gets `src/modules.ts` and
-  `src/app.ts`.
+  `projects`, `nodes` (with the agent channel; the agent is the external performer of
+  `agentCommand` effects, replacing the `nodes.command` rows, and the agent protocol v1 transport
+  maps its acknowledgements onto `nodes.ack`), `agent-gateway` (protocol v1), `deployments` (with
+  the log stream), `domains`, `edge`, `github` (the GitHub effects: the status mirror with
+  mechanical retries, release reads, and the manifest conversion inline in `prepare`), `previews`;
+  the app gets `src/modules.ts` and `src/app.ts`.
 - Rollouts (architecture.md section 19): the build manifest and revisions, the process registry,
   the N-1 rule, expand, data and contract steps gated by finalization (moved from M7),
   `pennestack rollout status|finalize|abort`, and blue-green on the home server.
@@ -275,7 +306,10 @@ Packages and modules:
   section 21.2), before the mail listeners.
 - `@pennestack/transport-jmap` (session resource, method calls, result references, push).
 - `@pennestack/module-certificates` (ACME DNS-01) and the certificate directory; `mail-domains` with
-  scope-key claims and quarantine.
+  scope-key claims (the `claimScopeKey` effect) and quarantine.
+- The effect-side choices the mail modules need before M5: where the inbound checks run (inline
+  effects in `acceptInbound`'s `prepare`, or listener steps) and how DKIM signing fits the strict
+  model (open questions of architecture.md section 26.3).
 
 Exit criteria:
 
@@ -295,7 +329,10 @@ Scope: a mail server for `jenspenneman.com` that a person can live on with JMAP 
 
 Packages and modules (packages in `examples/mail/modules/<id>/`, `@mail/module-<id>`):
 `mail-store`, `smtp-in`, `smtp-submission`, `mail-delivery` (relay mode, and direct mode for tests
-and later nodes), `sender-auth` (SPF, DKIM, DMARC, ARC with `mailauth`), `spam` (rspamd),
+and later nodes; the `smtpDeliver` effect with the submission's state machine of `recordAttempt`,
+`retryDomain`, the delay notice and `bounce`; `mail-delivery.testRelay` with the inline effect
+`smtpProbe`), `sender-auth` (SPF, DKIM, DMARC, ARC with `mailauth`, as inline effects or listener
+steps per the M4 choice), `spam` (rspamd),
 `mta-sts`, `autoconfig`; app passwords through `api-keys`; DNS records for the domain; the
 mail-store declarations of personal fields and the JMAP `unsupportedFilter` and `unsupportedSort`
 mapping (architecture.md sections 14.7.9.9 and 14.7.9.13); `@pennestack/provider-docker` (opt-in)
@@ -338,7 +375,7 @@ Nothing below is dropped; it follows the mail server unless Jens reorders it.
 
 | Milestone | Scope | Exit criterion |
 |---|---|---|
-| M7. Data breadth | `adapter-mysql`, `adapter-sqlite`, the Supabase preset; schema-per-tenant and database-per-tenant placements; tenant move; projection entities with online rebuilds; operator redaction; `pennestack db introspect` (external, adopt, Drizzle import); the SQL escape hatch with its dialect; index tables for personal fields on MySQL and SQLite; the ORE order capability on PostgreSQL, after a spike on operator-class installation and a review of the implementation; job groups with `scope: 'deployment'`; wake-ups through the control store for per-tenant namespaces | Both proof apps pass CI on PostgreSQL, MySQL and SQLite, queues included. |
+| M7. Data breadth | `adapter-mysql`, `adapter-sqlite`, the Supabase preset; schema-per-tenant and database-per-tenant placements; tenant move; projection entities with online rebuilds; operator redaction; `pennestack db introspect` (external, adopt, Drizzle import); the SQL escape hatch as the `ctx.load.sql` read request, with its dialect; index tables for personal fields on MySQL and SQLite; the ORE order capability on PostgreSQL, after a spike on operator-class installation and a review of the implementation; job groups with `scope: 'deployment'`; wake-ups through the control store for per-tenant namespaces | Both proof apps pass CI on PostgreSQL, MySQL and SQLite, queues included. |
 | M8. Offline sync | merge state, `lww`, `counter` and `set` merges, the `sync` module, `@pennestack/sync-client` | Property tests show convergence for permutations of concurrent offline mutations; rejected mutations are reported, never lost. |
 | M9. Collaborative fields | Loro codec protocols, presence, client-side prediction of custom offline commands | Two clients editing one rich-text field offline converge with each other and with the server. |
 | Experiments (after M3) | `@pennestack/module-experiments` (architecture.md section 20.8): experiments, metrics, exposures through `flagObservers`, tallies and fixed-horizon results | An experiment on a test app reports per-variant results with 95 % intervals, reads "inconclusive" before the planned sample size, and marks a planted sample ratio mismatch invalid. |
@@ -351,8 +388,8 @@ form of such fields is final from that moment.
 
 | ADR | Decision | Due before |
 |---|---|---|
-| 0016 | Scope directory: claims, release quarantine, atomicity between the control store and the owning row (gap G2) | M3 |
-| 0017 | The `ctx.secrets` interface: reveal, seal, issue, verify (gap G4) | M3 |
+| 0016 | Scope directory: claims, release quarantine, atomicity between the control store and the owning row (gap G2; decision 50a makes claims kernel effects whose records are the outbox, architecture.md section 7.9.5) | M3 |
+| 0017 | The `ctx.secrets` requests and the executors' reveal: reveal, issue, verify, sealing at append (gap G4) | M3 |
 | 0018 | Singleton leases with fencing epochs (gap G9); process capabilities moved to ADR 0025 | M3 |
 | 0019 | Listener contract, connection sessions, port bindings and the certificate directory (gap G1) | M4 |
 | 0020 | Blob storage: field kind, stores, staging, keys and collection (gap G5) | M4 |
@@ -372,10 +409,11 @@ ADRs written on 2026-10-25 (status `Proposed`), and the milestone each must be d
 | ADR | Decision | Due before |
 |---|---|---|
 | 0025 | Nodes, capacity and autoscaling over fair lanes of the kernel job queue (amends ADR 0015) | M1 (the job store format), M3 (nodes and the scaler), M4 (process capabilities) |
+| 0026 | Pure handlers and the effect interpreter (decision 50a; amends ADR 0004, gives ADRs 0015 and 0025 their effect contract; architecture.md section 7.9) | M1 (the interpreter, decision records, the `core.effect` format), M2 (effect jobs, continuations, external performers) |
 | 0027 | Encrypted personal data and queries: sealed state columns, declared capabilities (amends ADR 0009) | M1 |
 
-ADRs 0002 to 0015, 0021 to 0025 and 0027 exist and become `Accepted` at the architecture approval
-gate; ADR 0026 (decision 50a, pure functions) follows with the pure-handlers pass.
+ADRs 0002 to 0015 and 0021 to 0027 exist and become `Accepted` at the architecture approval
+gate.
 
 ## 6. Where the earlier plans went
 
