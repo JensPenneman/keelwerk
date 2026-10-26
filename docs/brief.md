@@ -139,6 +139,16 @@ deployment" below).
   architecture states how this is reconciled with the rule: which parts perform effects, how
   effects enter and leave pure code, and how the rule is enforced by tooling.
 
+### Datastore agnosticism (addendum 5, 2026-10-26)
+
+- Any database or datastore can be plugged in as an adapter; MySQL is one of them, not a special
+  case.
+- The features a datastore has or lacks never influence application code and never decide
+  whether an application can run: the adapter contract is the only coupling, and what a datastore
+  cannot do natively the framework provides itself, at a visible cost, never by refusing or by
+  changing behaviour. The one exception is code that deliberately opts into a dialect (the raw
+  SQL hatch), which declares that choice.
+
 ## Constraints
 
 - Public repository on GitHub, every commit signed with the author's personal identity.
@@ -154,3 +164,4 @@ deployment" below).
 - 2026-10-23, addendum 3: versioning everywhere, smooth rollouts and compatibility, feature
   flags and A/B testing, single-purpose files and project layout.
 - 2026-10-24, addendum 4: pure functions, explicit inputs and outputs, no global state.
+- 2026-10-26, addendum 5: datastore agnosticism.
