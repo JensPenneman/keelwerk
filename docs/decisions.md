@@ -101,8 +101,8 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
 18. **Protobuf field tags.** a) ★ allocate from day one; b) when the Connect transport arrives.
     Status: decided 2026-10-26: **a**, tags allocated from day one; applied (sections 4.2, 6.2).
 19. **Instants.** a) ★ `Date` now behind `field.instant()`, `Temporal.Instant` once Node 26 is
-    the baseline; b) Temporal with a polyfill from the start. Status: decided 2026-10-26: **b**, Temporal from the start with a polyfill until Node 26 is the
-    baseline. To apply: sections 4.2 (`field.instant()` is `Temporal.Instant`, `field.date()` a
+    the baseline; b) Temporal with a polyfill from the start. Status: decided 2026-10-26: **b**, Temporal from the start; with the Node 26 baseline of 28a no
+    polyfill is needed (verified 2026-10-27: Node 26.12.1 has `Temporal` natively). To apply: sections 4.2 (`field.instant()` is `Temporal.Instant`, `field.date()` a
     `Temporal.PlainDate`, `field.timeZone()`), 6.4, 7.9 (the fixed clock is a Temporal.Instant), 13.2
     (polyfill package and version, verified), Appendix A; see section K.
 20. **Licence.** a) ★ Apache-2.0; b) MIT. Due before the repository becomes public. Status: decided 2026-10-27: **a**, FSL-1.1-ALv2 (Functional Source License, Version 1.1, Apache-2.0
@@ -127,30 +127,39 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
 25. **Node ownership.** a) ★ tenant-owned nodes in the first release; b) operator-run shared
     pools (needs container isolation on shared Docker hosts). Status: decided 2026-10-27: **a**, tenant-owned nodes; applied (section 17.3).
 26. **A separate domain for untrusted apps and previews.** a) ★ a separate registrable domain;
-    b) subdomains of jenspenneman.com with cookie hardening only. Status: open.
+    b) subdomains of jenspenneman.com with cookie hardening only. Status: decided 2026-10-27: **b** for now, subdomains of jenspenneman.com with cookie hardening (no
+    extra spending); a separate domain stays the recommended future step and must remain a
+    configuration change (the preview base domain is a setting). To apply: section 17.5.2 (the
+    separate domain becomes 'recommended, not required'; the hardening list is mandatory); see section K.
 27. **Ledger and control store at home.** a) ★ two PostgreSQL instances plus the ledger file;
-    b) one instance plus the ledger file. Status: open.
-
+    b) one instance plus the ledger file. Status: decided 2026-10-27: **a**, two PostgreSQL instances plus the ledger file; applied
+    (section 17.5.2).
 ## B. Lead's own flags (not in section 26)
 
 28. **Toolchain baseline.** a) ★ TypeScript 7.0 and Node 24 type stripping (no decorators, no
     enums, `.ts` import extensions, no build step for sources); b) TypeScript 5.9/6 with a build
-    step and no syntax restrictions. Status: open.
+    step and no syntax restrictions. Status: decided 2026-10-27: **a**, with the baseline raised: always the latest and greatest, so
+    TypeScript 7 and **Node 26** (26.12.1 released 2026-10-21; LTS promotion due the last week of
+    October 2026) with type stripping; the baseline follows each new major; older runtimes or APIs
+    come back only through explicit backfills or polyfills. To apply: sections 13.2, 13.3, 22 and
+    Appendix A (Node 26 baseline, engines field); Node 26 ships Temporal natively, so 19b needs no polyfill;
+    see section K.
 29. **History default.** a) ★ `history: 'chain'` for every entity, opt-out with a reason;
-    b) `history: 'state'` by default, opt-in per entity. Status: open.
+    b) `history: 'state'` by default, opt-in per entity. Status: decided 2026-10-27: **a**, `chain` by default, `state` opt-out with a reason; applied
+    (section 6.6).
 30. **SQL family.** a) ★ Kysely underneath the SQL adapters; b) Drizzle underneath (overlaps
     with 13). Status: decided 2026-10-26: **a**, Kysely as internal plumbing of the SQL adapters, never visible to
     app code; applied (section 14.3).
 ## C. Spike questions (section 26.2; answers optional, the M0 spike decides the rest)
 
 31. **Composition error form.** a) ★ the `Check` property form (missing property with a literal
-    type); b) a rest-parameter form, if it reads better in the editor. Status: open.
+    type); b) a rest-parameter form, if it reads better in the editor. Status: decided 2026-10-27: **a**, the `Check` property form; the spike may still report if the
+    rest-parameter form reads better. Applied (section 4.7).
 32. **Optional modules in `ctx.data`.** a) ★ `| undefined`; b) a `Maybe` object with
-    `.ifPresent()`. Status: open.
-
-The other spike items (instantiation and declaration-size budgets, the write-path measurement)
-are measurements, not choices.
-
+    `.ifPresent()`. Status: decided 2026-10-27: **b** for now (Jens: not sold yet), a `Maybe`-style accessor for optional
+    modules; to be revisited after the M0 spike writes the auth module against it. To apply: sections
+    3.4, 7.6, 7.9.3 (the accessor must compose with `yield*`: `yield* ctx.load.accounts.ifPresent(a =>
+    a.profile.byId(id))` answering `Profile | undefined`), 26.2; see section K.
 ## D. Questions by area (section 26.3)
 
 Data:
@@ -159,23 +168,30 @@ Data:
     `email` and `mailboxEntry`; must mail search work on SQLite (fts5) or only on PostgreSQL?
     a) ★ PostgreSQL only for mail search; partitions decided per entity in M4. Status: parked 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
     option; the design stays in the architecture, the decision waits.
-34. **Clock-skew bound for offline clients.** a) ★ 5 minutes; b) another value. Status: open.
+34. **Clock-skew bound for offline clients.** a) ★ 5 minutes; b) another value. Status: decided 2026-10-27: **a**, 5 minutes; applied (section 15.3).
 35. **Hash-chain anchoring.** Anchor chain heads outside the database later? a) ★ not in the
-    first releases; revisit with the audit module. Status: open.
-
-Interfaces:
-
+    first releases; revisit with the audit module. Status: decided 2026-10-27: **b**, chain heads anchored from the start: per scope, the latest head
+    (position, hash) is appended to the deployment's ledger sinks (the ledger file and later sinks) at
+    a configurable cadence (default every commit batch of the notifier, at most once per second per
+    scope), and `pennestack db verify` compares heads with the anchors. To apply: sections 15.1.8,
+    14.7.6, 17.5.2, 16.9 (verify), ADR 0007; see section K.
 36. **GraphQL for operator work.** a) ★ operator work stays on the invocation protocol and the
-    CLI; b) also an operator GraphQL schema at the operator endpoint. Status: open.
+    CLI; b) also an operator GraphQL schema at the operator endpoint. Status: decided 2026-10-27: **a**, operator work on the invocation protocol and the CLI; applied
+    (section 16.8).
 37. **GraphQL operation limits.** a) ★ own validation rules; b) depend on graphql-armor (last
-    published 2025-12-29). Status: open.
+    published 2025-12-29). Status: decided 2026-10-27: **a**, own validation rules, with a first rule from Jens: an entity type
+    never appears twice on one selection path (no `project -> deployments -> project -> ...`); related
+    data is selected at the highest level where it is needed, or in a separate query. Siblings of the
+    same type at one level stay allowed. Applies to GraphQL selections and to REST `include`
+    expansions alike; configurable per backend; may change once the implementation goes deeper. To
+    apply: sections 16.4 (includes) and 16.5 (GraphQL rules: depth, aliases, batch, cost from the
+    surface, plus the no-repeat rule); see section K.
 38. **Blob uploads.** a) ★ resumable uploads plus JMAP's upload endpoint, designed with ADR 0020
-    (M4); b) multipart only. Status: open.
+    (M4); b) multipart only. Status: decided 2026-10-27: **a**, resumable uploads (JMAP's upload endpoint when mail comes);
+    designed with ADR 0020.
 39. **Connect transport.** When is the runtime-descriptor spike scheduled? a) ★ after M6, with
-    the Connect transport; b) earlier. Status: open.
-
-Platforms:
-
+    the Connect transport; b) earlier. Status: decided 2026-10-27: **a**, with the Connect transport, after M3 (mail parked); applied
+    (roadmap, later milestones).
 40. **ACME client.** a) ★ a small own client on `node:crypto` and `fetch` (RFC 8555 DNS-01 only);
     b) `acme-client` 5.4.0 (no commit since 2024-07-17); c) the `@certd/acme-client` fork.
     Status: parked 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
@@ -194,16 +210,30 @@ Platforms:
     webmail until pennestack has its own UI. Status: parked 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
     option; the design stays in the architecture, the decision waits.
 45. **One login for Launchway and mail.** a) ★ separate realms per tenant first, an OpenID
-    Connect provider module later; b) the provider module from the start. Status: open.
+    Connect provider module later; b) the provider module from the start. Status: decided 2026-10-27: **a**, separate realms by default, an optional OpenID Connect provider
+    module later; applied (section 17.2, roadmap 'Further').
 46. **DMARC rollout.** a) ★ `p=none` with reports, then `quarantine`, then `reject` after a clean
     month; b) `reject` from the start. Status: parked 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
     option; the design stays in the architecture, the decision waits.
 47. **Retention defaults.** 30 days for Trash, Junk and archived mail, 30 days for deployment
     logs, 7 days for closed previews, 90 days for delivery attempts. a) ★ accept; b) other
-    values. Status: open.
+    values. Status: decided 2026-10-27: **c**, keep all data forever (deployment records, logs, preview
+    records, analytics later; Jens wants to look back in five years); no purge suggestions for
+    Launchway data. Only runtime artefacts are reclaimed: the containers, images, volumes and build
+    caches of a closed preview or a superseded deployment go, their rows, events and logs stay. Mail
+    suggestions parked. To apply: sections 14.7.1 (no suggested rules for Launchway entities),
+    17.3.6 (preview teardown reclaims runtime only), roadmap M3; see section K.
 48. **Where Launchway's modules live.** a) ★ `examples/launchway` in this repository until the
     framework is public, then the Launchway repository; b) the Launchway repository from the
-    start. Status: open.
+    start. Status: decided 2026-10-27: **c**, neither: every app built on pennestack lives in its own
+    repository and depends only on the published packages (never on the pennestack repository); the
+    pennestack repository keeps a minimal example app for its own CI. Rules from Jens: nothing is
+    sequential (apps are rebuilt while the framework grows, on 0.x pre-releases pinned to exact
+    versions); the framework and every app stay in beta until Jens, and only Jens, declares them
+    stable; Trail is rebuilt first, Launchway second; the design documents are public from the
+    start, with the licence applied from the first commit. To apply: roadmap (M3 Trail in its own
+    repository, M4 Launchway in its own repository, mail parked after; a 'beta' section), sections
+    17 (Launchway modules no longer under examples/), 22, 24, README; see section K.
 49. **Outbound webhooks.** a) ★ part of Launchway's first pennestack release (M3); b) later.
     Status: open.
 
@@ -419,8 +449,9 @@ Project layout:
 83. **When the repository goes public.** a) at M0, as the brief's constraint says; b) ★ when the M1
     slice runs, with docs/architecture.md kept private until the code exists (publication is
     irreversible under every licence; the architecture gives the idea away more than the code);
-    c) only when Launchway runs on it. Status: decided 2026-10-27: **b**, public when the M1 slice runs, architecture document private
-    until code exists (consistent with Jens's no-publish rule); applied (section 22, README).
+    c) only when Launchway runs on it. Status: revised 2026-10-27: the code and the design documents may be public from the start, at a
+    moment Jens chooses, with the licence in every commit (history rewritten so LICENSE.md exists from
+    the first commit).
 84. **Trademark "pennestack".** a) ★ confirm the name is final, run a TMview check (a German
     "Pinestack GmbH" exists), file at BOIP in classes 9 and 42 (about €271); b) EU at EUIPO (about
     €900 for two classes); c) wait. pennestack.com, .be and .io were free on 2026-10-26; no
@@ -437,6 +468,9 @@ Project layout:
     (BUSL-1.1 or Elastic-2.0). Never looser than the framework. Status: decided 2026-10-27: **a**, the same FSL-1.1-ALv2 for the platforms and future modules.
 ## K. Edits to apply at the next editor pass (decisions taken after the merges)
 
+- 26b: section 17.5.2 makes the separate domain a recommendation, keeps the cookie hardening
+  (`__Host-` cookies, no domain-wide cookies, CSP, no credentials on preview hosts) mandatory, and
+  keeps the preview base domain a per-backend setting so the switch later is configuration only.
 - 82a: the edge module declares an `edgeProvider` extension point (desired state in, apply and
   status out); `edge-caddy` is the first provider; section 22 package list and roadmap M3 follow.
 - 23c: remove the agent-protocol v1 compatibility transport and its 30-day retirement from 17.3.4,
@@ -445,8 +479,25 @@ Project layout:
 - Mail server parked (2026-10-26): roadmap M4 to M6 marked 'parked until Jens chooses a stable,
   permanent deployment option'; M7 to M9 follow M3 directly; the gates for 21, 22 and the mail
   questions move with them; section 17's mail platform text stays as designed; README status line.
-- 19b: Temporal from the start (`temporal-polyfill` or `@js-temporal/polyfill`, the editor
-  verifies versions with npm view) behind `field.instant()`, `field.date()`, the fixed clock and the
+- 48c: roadmap reordered (M3 Trail on pennestack in the Trail repository, M4 Launchway in the
+  Launchway repository, later milestones unchanged, mail parked); a 'Beta policy' paragraph in the
+  roadmap and README (0.x pre-releases, exact pins, stable only when Jens says); section 17's
+  platform modules described as separate repositories consuming published packages; section 22
+  keeps `examples/portal` only; section 24 unchanged.
+- 47c: Launchway modules suggest no purge rules; preview teardown and deployment supersession
+  reclaim runtime artefacts only (containers, images, volumes, build caches) and keep rows, events
+  and logs; logs larger than a threshold move to the blob store instead of being purged.
+- 37a: sections 16.4 and 16.5 add the 'no repeated entity type on a selection path' rule as the
+  default limit beside depth, alias, batch and surface-cost rules; a transport conformance case.
+- 35b: chain-head anchoring to the ledger sinks from M1 (format: scope id, position, hash,
+  recorded time, writer), cadence setting in defineDeployment, verify compares, doctor warns on
+  missing anchors; sections 15.1.8, 14.7.6, 17.5.2, 16.9, ADR 0007.
+- 32b: optional-module loads get a `Maybe`-style accessor (`ifPresent`) that composes with `yield*`;
+  sections 3.4, 7.6, 7.9.3 and the spike checklist in 26.2 (compare both forms, report).
+- 28a (raised): Node 26 baseline everywhere (13.2, 13.3, 22, Appendix A, CI matrix, the Docker
+  image), policy sentence 'latest major of TypeScript and Node; backfills only for what the
+  baseline lacks'.
+- 19b: Temporal from the start, native on Node 26 (no polyfill), behind `field.instant()`, `field.date()`, the fixed clock and the
   adapters' codecs; drop the 'Date now, Temporal later' text in 4.2, 6.4 and 13.2.
 - 16b: the CLI's action commands move under one verb with the dotted action reference as the
   argument (`pennestack call deployments.deployment.run --project ...`, decision 81a); the reserved-name list

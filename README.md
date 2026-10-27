@@ -60,6 +60,8 @@ except offering it as a competing product; each version becomes Apache-2.0 two y
 release. Licensor: Jens Penneman. Decided on 2026-10-27 (decision 20 in
 [docs/decisions.md](docs/decisions.md)); a Belgian IP lawyer reviews the text before publication.
 
-The repository stays private until the M1 slice runs; the architecture document stays private
-until code exists. Outside contributions are not accepted until a contributor licence agreement
-exists; issues and discussions are welcome once the repository is public.
+The code and the design documents are public from the moment Jens chooses; the licence applies
+from the first commit. Everything stays in beta (0.x pre-releases, exact version pins in every
+app) until Jens declares it stable. Applications built on pennestack live in their own
+repositories and depend only on the published packages. Outside contributions are not accepted
+until a contributor licence agreement exists; issues and discussions are welcome.
