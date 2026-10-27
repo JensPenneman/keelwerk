@@ -54,5 +54,12 @@ identity.
 
 ## Licence
 
-Not chosen yet: Apache-2.0 or MIT is decision point 20 for Jens (architecture section 26.1), due before
-the repository becomes public.
+Functional Source License, Version 1.1, ALv2 Future License (FSL-1.1-ALv2): see
+[LICENSE.md](LICENSE.md). You may use, copy, modify and redistribute pennestack for any purpose
+except offering it as a competing product; each version becomes Apache-2.0 two years after its
+release. Licensor: Jens Penneman. Decided on 2026-10-27 (decision 20 in
+[docs/decisions.md](docs/decisions.md)); a Belgian IP lawyer reviews the text before publication.
+
+The repository stays private until the M1 slice runs; the architecture document stays private
+until code exists. Outside contributions are not accepted until a contributor licence agreement
+exists; issues and discussions are welcome once the repository is public.

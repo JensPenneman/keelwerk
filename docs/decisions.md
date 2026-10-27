@@ -105,12 +105,9 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
     baseline. To apply: sections 4.2 (`field.instant()` is `Temporal.Instant`, `field.date()` a
     `Temporal.PlainDate`, `field.timeZone()`), 6.4, 7.9 (the fixed clock is a Temporal.Instant), 13.2
     (polyfill package and version, verified), Appendix A; see section K.
-20. **Licence.** a) ★ Apache-2.0; b) MIT. Due before the repository becomes public. Status: open; researched 2026-10-26 by a Fable agent at maximum effort (docs/research/licensing.md,
-    3,383 words, primary sources). Options now (replacing a/b): a) ★ FSL-1.1-ALv2 (source-available,
-    non-compete, each version becomes Apache-2.0 after two years); b) BUSL-1.1 (production use allowed
-    unless competitive with Jens's products, four years, then MPL-2.0); c) AGPL-3.0-only plus a
-    commercial licence sold by Jens; d) Apache-2.0 open core. Honest limit: no licence protects the
-    idea; keep docs/architecture.md private until code exists. Briefed in chat 2026-10-26.
+20. **Licence.** a) ★ Apache-2.0; b) MIT. Due before the repository becomes public. Status: decided 2026-10-27: **a**, FSL-1.1-ALv2 (Functional Source License, Version 1.1, Apache-2.0
+    Future License), Licensor Jens Penneman; LICENSE.md added to the repository; applied (section 22,
+    README).
 21. **Outbound mail from the home connection.** a) ★ relay through an external host first (direct
     delivery is built anyway); b) a second pennestack process with the `smtp-out`
     capability on a host with a clean address; c) direct delivery from home. Status: parked 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
@@ -128,7 +125,7 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
     process on the edge host. Status: decided 2026-10-26: **a**, through the edge node's agent (an effect performed by the agent);
     applied (section 17.3.7), with the provider contract of 82a.
 25. **Node ownership.** a) ★ tenant-owned nodes in the first release; b) operator-run shared
-    pools (needs container isolation on shared Docker hosts). Status: open.
+    pools (needs container isolation on shared Docker hosts). Status: decided 2026-10-27: **a**, tenant-owned nodes; applied (section 17.3).
 26. **A separate domain for untrusted apps and previews.** a) ★ a separate registrable domain;
     b) subdomains of jenspenneman.com with cookie hardening only. Status: open.
 27. **Ledger and control store at home.** a) ★ two PostgreSQL instances plus the ledger file;
@@ -422,21 +419,22 @@ Project layout:
 83. **When the repository goes public.** a) at M0, as the brief's constraint says; b) ★ when the M1
     slice runs, with docs/architecture.md kept private until the code exists (publication is
     irreversible under every licence; the architecture gives the idea away more than the code);
-    c) only when Launchway runs on it. Status: open.
+    c) only when Launchway runs on it. Status: decided 2026-10-27: **b**, public when the M1 slice runs, architecture document private
+    until code exists (consistent with Jens's no-publish rule); applied (section 22, README).
 84. **Trademark "pennestack".** a) ★ confirm the name is final, run a TMview check (a German
     "Pinestack GmbH" exists), file at BOIP in classes 9 and 42 (about €271); b) EU at EUIPO (about
     €900 for two classes); c) wait. pennestack.com, .be and .io were free on 2026-10-26; no
-    @pennestack npm organisation exists yet. Status: open.
+    @pennestack npm organisation exists yet. Status: decided 2026-10-27: **c**, wait; Jens looks into trademarks when it comes to that.
 85. **Outside contributions.** a) ★ none for now (issues and discussions only) until a
     lawyer-reviewed CLA with an explicit right to relicense exists; b) DCO sign-off (contributors keep
     copyright; later relicensing needs their consent, which blocks dual licensing); c) CLA now,
-    automated. Status: open.
+    automated. Status: decided 2026-10-27: **a**, no outside contributions until a lawyer-reviewed CLA exists;
+    applied (README).
 86. **Who owns the IP.** a) ★ Jens personally for now; b) a company later with a written assignment
-    (WER XI.167) drafted by a lawyer; tax via the accountant. Status: open.
+    (WER XI.167) drafted by a lawyer; tax via the accountant. Status: decided 2026-10-27: **a**, Jens personally for now.
 87. **Licence of the platforms and future paid modules.** a) ★ the same FSL-1.1-ALv2 as the
     framework (or Launchway private until it ships); b) private until they ship; c) stricter
-    (BUSL-1.1 or Elastic-2.0). Never looser than the framework. Status: open.
-
+    (BUSL-1.1 or Elastic-2.0). Never looser than the framework. Status: decided 2026-10-27: **a**, the same FSL-1.1-ALv2 for the platforms and future modules.
 ## K. Edits to apply at the next editor pass (decisions taken after the merges)
 
 - 82a: the edge module declares an `edgeProvider` extension point (desired state in, apply and
