@@ -1,6 +1,6 @@
 # keelwerk
 
-keelwerk (a working name) is a backend framework written fully in TypeScript. An application is a
+keelwerk (named on 2026-10-28) is a backend framework written fully in TypeScript. An application is a
 set of modules that own entities and the actions on them; transports (REST, GraphQL, tRPC, a CLI,
 later others), authorization, live updates and data storage are all derived from those definitions,
 and one deployment hosts several backends with many tenants each.

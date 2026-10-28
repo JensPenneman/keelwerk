@@ -105,7 +105,7 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
     polyfill is needed (verified 2026-10-27: Node 26.12.1 has `Temporal` natively). To apply: sections 4.2 (`field.instant()` is `Temporal.Instant`, `field.date()` a
     `Temporal.PlainDate`, `field.timeZone()`), 6.4, 7.9 (the fixed clock is a Temporal.Instant), 13.2
     (polyfill package and version, verified), Appendix A; see section K.
-20. **Licence.** a) ★ Apache-2.0; b) MIT. Due before the repository becomes public. Status: decided 2026-10-27: **a**, FSL-1.1-ALv2 (Functional Source License, Version 1.1, Apache-2.0
+20. **Licence.** a) ★ Apache-2.0; b) MIT. Due before the repository becomes public. Status: decided 2026-10-27: **FSL-1.1-ALv2** (option a of the researched set; Functional Source License, Version 1.1, Apache-2.0
     Future License), Licensor Jens Penneman; LICENSE.md added to the repository; applied (section 22,
     README).
 21. **Outbound mail from the home connection.** a) ★ relay through an external host first (direct

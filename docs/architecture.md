@@ -4377,7 +4377,7 @@ result set.
 | In-memory | `@keelwerk/data` | none | in-process | the interpreter | not applicable | shared-tables | M1 |
 | MySQL | `adapter-mysql` | Kysely `MysqlDialect`, `mysql2` 3.24.5, MySQL 8.4 LTS | `poll` and in-process wake | none (scoping plugin and tests) | prefix in one database | shared-tables, database-per-tenant | M5 |
 | SQLite | `adapter-sqlite` | Kysely `SqliteDialect` over `node:sqlite` (SQLite 3.53.4 in Node 24.21.0, checked again on Node 26 in M0); `better-sqlite3` 13.0.3 as fallback | in-process; `poll` across processes of one host | none | prefix in one file | shared-tables, database-per-tenant (a file per tenant) | M5 |
-| Supabase | `adapter-supabase` | the PostgreSQL adapter with a preset | `notify` over a session connection | forced row-level security, nothing granted to `anon` and `authenticated` | schema `ps_<app>` | shared-tables, schema-per-tenant | M5 |
+| Supabase | `adapter-supabase` | the PostgreSQL adapter with a preset | `notify` over a session connection | forced row-level security, nothing granted to `anon` and `authenticated` | schema `kw_<app>` | shared-tables, schema-per-tenant | M5 |
 
 Positions use the same commit-tail counter per scope on every adapter (section 15.1.4), and every
 adapter implements the job store (section 14.3.9). Milestones refer to [roadmap.md](roadmap.md).
@@ -4422,7 +4422,7 @@ Kysely 0.29.6's `SqliteDialect` expects a `prepare()` whose statements expose `r
 one host can share a file; never several nodes. Database-per-tenant is a file per tenant.
 
 **Supabase.** The PostgreSQL adapter with a preset: the pool may use the transaction-mode pooler,
-while the `LISTEN` connection and migrations use a session; namespace roots default to `ps_<app>`
+while the `LISTEN` connection and migrations use a session; namespace roots default to `kw_<app>`
 and the adapter refuses roots that collide with schemas Supabase manages (`auth`, `storage`,
 `realtime`, `extensions`, `vault` and the others it creates); tables are not exposed through
 Supabase's data API unless the operator adds the schema, and the adapter warns if that happens;
@@ -4548,11 +4548,11 @@ home namespace, chosen when the backend is created.
 
 - **Root.** A PostgreSQL schema, a MySQL database or name prefix, or a SQLite file or name prefix.
   The default root of a shared namespace is the app id with `-` mapped to `_` (`launchway`);
-  `adapter-supabase` defaults to `ps_<app>`; `naming.root` overrides it per placement.
+  `adapter-supabase` defaults to `kw_<app>`; `naming.root` overrides it per placement.
 - **Module tables.** `<module>__<entity>`, with `-` mapped to `_`. Module and entity ids cannot
   contain `_`, so the mapping is injective. Auxiliary tables of an entity (an FTS5 side table, for
   example) are `<module>__<entity>__<suffix>`.
-- **Framework tables.** `ps_<name>` (a single underscore, so never equal to a module table).
+- **Framework tables.** `kw_<name>` (a single underscore, so never equal to a module table).
 - **Columns.** Field names in snake case (`displayName` becomes `display_name`). Physical names
   always equal the derived names (decision 55b, 2026-10-28): a renamed field gets the column of its
   new name through the expand, dual-write, backfill and contract steps of section 14.6.4, and the
@@ -12909,7 +12909,7 @@ module-facing sketch of this document rewritten to the strict forms.
 | Trace each cause and effect, and rebuild a full database and logbook from them (Jens, 2026-10-25, with decision 50a) | 7.9.6, 14.7.6, 15.1.3, 15.1.8, 15.2.4, 16.9.7 | Decision records and one `core.effect` stream per effect live in the hashed chain (decision 78a), attempts included and kept (47c); `keelwerk explain --trace`, `--redecide` and `--dry-run` read them; rebuilds and restores fold the effect streams and enqueue unsettled effects again; anchors outside the database make a rewritten chain detectable (35b). |
 | Public repository on GitHub, every commit signed with the author's personal identity | 22 | The code and the design documents may be public from the start, at a moment Jens chooses, with the licence (FSL-1.1-ALv2) in every commit (decisions 20 and 83, revised 2026-10-27). |
 | Best practice from first principles, no copied conventions | this document and the ADRs cite research, not older projects | |
-| The product name never references other companies' products | the working name and all package names are generic | The name stays a working name until Jens settles it (decision 84c). |
+| The product name never references other companies' products | keelwerk (decision 91, 2026-10-28) and all package names are generic | Trademark registration waits (decision 84c). |
 | Any database or datastore can be plugged in as an adapter; MySQL is one of them, not a special case (addendum 5, item 1, 2026-10-26) | 5.6, 14.3.2, 14.3.7 | The adapter contract is the only coupling; MySQL ships in M5 beside SQLite and the Supabase preset (decision 12a). |
 | A datastore's features never influence application code or decide whether an app can run; what it lacks the framework provides at a visible cost; only code that opts into a dialect, the raw SQL hatch, declares that choice (addendum 5, item 2) | 1 (principle 7), 4.1, 12.1, 13.12, 14.3.3, 14.3.4, 14.3.8, 14.7.9.10, 17.6.4 | Capabilities are accelerations: each one an adapter lacks has a kernel path with its cost shown by `explain` and `keelwerk doctor`; `data: { needs }` keeps only `{ sql: dialect }`, and `connect` refuses only that dialect's absence (decision 12a). |
 | Jens, 2026-10-27 (decision 35b): anchor the chain heads outside the database from the start | 4.6, 13.12, 14.7.6, 15.1.8, 16.9.7, 17.5.2 | Per scope, the latest head goes to every ledger sink at a configurable cadence; `keelwerk db verify` compares heads with anchors, and `doctor` warns about missing ones. |
@@ -13003,7 +13003,7 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 81 | The verb is `keelwerk call <module.entity.action>`, with the dotted reference everyone already uses | 2026-10-26 | 16.9.2, 16.9.7, ADR 0013 |
 | 82 | The edge behind an `edgeProvider` contract owned by the `edge` module, `edge-caddy` first; a custom `edge-native` listener module, Traefik or Envoy later | 2026-10-26 | 17.3.2, 17.3.7, 17.3.12, 17.6.1, 22, 23.10, roadmap M4 |
 | 83 | The code and the design documents may be public from the start, at a moment Jens chooses, with the licence in every commit (the history rewritten so that `LICENSE.md` exists from the first commit) | 2026-10-27 (revised) | 22, 25, README, roadmap section 2 |
-| 84 | Trademark: wait; Jens looks into it when it comes to that, and the name stays a working name | 2026-10-27 | README |
+| 84 | Trademark: wait; Jens looks into it when it comes to that (the name itself is settled, decision 91) | 2026-10-27 | README |
 | 85 | No outside contributions until a lawyer-reviewed contributor licence agreement exists; issues and discussions are welcome | 2026-10-27 | 22, README |
 | 86 | The intellectual property belongs to Jens personally for now | 2026-10-27 | none needed |
 | 87 | The platforms and later modules carry the same FSL-1.1-ALv2 as the framework | 2026-10-27 | 22 |
