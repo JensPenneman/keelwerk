@@ -1,11 +1,12 @@
 # 21. Dated API versions served by translation, with compatibility enforced in CI
 
-Date: 2026-10-24
+Date: 2026-10-24 (revised in place on 2026-10-28 for decisions 52a, 53 and 23c)
 
 ## Status
 
-Proposed. Dated versions instead of integer majors, and the 12-month support window, are decision
-points 52 and 53 for Jens (architecture.md section 26.1).
+Proposed. Jens decided on 2026-10-28 for dated versions with version-change transforms (decision
+52a) and for the support window of item 5 (decision 53): 12 months of deprecation, then retirement
+regardless of use, without the zero-use condition first proposed.
 
 ## Context
 
@@ -48,15 +49,20 @@ continuous evolution and JMAP's capability negotiation (RFC 8620).
    the floor rise. Typed clients send the head they were compiled with.
 5. **Deprecation and retirement.** Deprecated versions and actions send `Deprecation` (RFC 9745),
    `Sunset` (RFC 8594) and a `deprecation` link, and usage is counted per tenant and version. A
-   version stays supported at least 12 months after a newer one exists. The floor rises only after
-   the version's sunset, with a major in the app's changelog and `pennestack surface retire`, which
-   refuses unless 30 days of usage are zero or `--force` carries a logged reason; then the version
-   is `not_found`, `core.api_version_retired` (REST 410).
+   version is deprecated the day a newer one exists, and its sunset is 12 months later (decision
+   53). After the sunset it is retired regardless of use: there is no zero-use gate and no
+   `--force`. The floor rises only after the version's sunset, with a major in the app's changelog
+   (the CI check is unchanged) and `pennestack surface retire`, which records the retirement and
+   refuses only before the sunset; usage counters stay as information, so that remaining callers
+   can be told before the sunset. Then the version is `not_found`, `core.api_version_retired` (REST
+   410).
 6. **Enforcement.** `pennestack surface diff` replaces `introspect diff` in CI: it derives every
    version's surface on both sides and fails on a breaking difference, and each changed module
    package's own surface and declaration files must fit its semantic version bump.
 7. **Protocols** keep integer majors, negotiated through `core.capabilities`; a new major runs
-   beside the old until 30 days without use.
+   beside the old until 30 days without use. Launchway's agent has no protocol of its own since
+   decision 23c: it is a typed client of the live carrier pinned to an API version, so its majors
+   start at the new protocol and Launchway v0.3.0's protocol v1 is not served.
 8. **No implicit version.** Whatever crosses a process boundary or outlives its writer names its
    version and is refused without one; new error codes fit existing kinds.
 
@@ -66,7 +72,9 @@ continuous evolution and JMAP's capability negotiation (RFC 8620).
   edge.
 - Every breaking change costs a version change with fixtures, and requests at old versions pay for
   translation; the chain of changes grows until the floor rises.
-- Tenants and integrations upgrade independently, visible in usage counters.
+- Tenants and integrations upgrade independently, visible in usage counters, within a predictable
+  window: a client that does not move within 12 months of a deprecation stops working at the
+  sunset, which the calendar decides, not the counters.
 - CI no longer lets a breaking change through with a changelog line, and module versions follow
   semantic versioning.
 - Each supported version costs memory per mount.

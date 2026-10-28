@@ -498,66 +498,43 @@ Versioning, rollouts and flags:
 87. **Licence of the platforms and future paid modules.** a) ★ the same FSL-1.1-ALv2 as the
     framework (or Launchway private until it ships); b) private until they ship; c) stricter
     (BUSL-1.1 or Elastic-2.0). Never looser than the framework. Status: decided 2026-10-27: **a**, the same FSL-1.1-ALv2 for the platforms and future modules.
-## K. Edits to apply at the next editor pass (decisions taken after the merges)
+## K. Edits applied
 
-- 26b: section 17.5.2 makes the separate domain a recommendation, keeps the cookie hardening
-  (`__Host-` cookies, no domain-wide cookies, CSP, no credentials on preview hosts) mandatory, and
-  keeps the preview base domain a per-backend setting so the switch later is configuration only.
-- 82a: the edge module declares an `edgeProvider` extension point (desired state in, apply and
-  status out); `edge-caddy` is the first provider; section 22 package list and roadmap M3 follow.
-- 23c: remove the agent-protocol v1 compatibility transport and its 30-day retirement from 17.3.4,
-  17.5 and the roadmap; M3's cutover redeploys the agent and the UI together; the old Launchway
-  installation stays as rollback until the new one is verified.
-- Mail server parked (2026-10-26): roadmap M4 to M6 marked 'parked until Jens chooses a stable,
-  permanent deployment option'; M7 to M9 follow M3 directly; the gates for 21, 22 and the mail
-  questions move with them; section 17's mail platform text stays as designed; README status line.
-- 78a + 47c: the 90-day default for `core.effectAttempt` stream records becomes 'kept until a
-  retention rule is adopted' (consistent with keep-everything); section 7.9.6, 14.7.1.
-- 50a spike item: section 26.2 adds 'prepare member versus inline-before-first-load in decide',
-  both prototyped on Trail's ingest and the GitHub connection flow.
-- 60b: policies become one rule per file under policies/<target>/, rule id = module.target.file;
-  sections 23.2, 23.5, 8.1, 8.6 (explain shows the file), ADR 0024.
-- 59b: section 23.5 to 23.9 switch assembly to the generated `module.generated.ts` (conventions in,
-  module literal out), the dev server regenerates on change, CI checks drift, references derive
-  from file name and mount directory, scaffolds only create files (23.14, 16.9.8); 13.1 lists the
-  generated files; ADR 0024 revised; the trace-budget note in 13.11 covers the generated literal.
-- 55b: reverse 'a renamed field keeps its physical column' in 14.4.2, 14.6.2, 14.6.4 and 19;
-  renames become the four-step expand, dual write, backfill, contract procedure; the snapshot keeps
-  no column aliases.
-- 53: section 18.6 and ADR 0021: sunset = deprecation + 12 months, retirement at sunset regardless
-  of use (no zero-use gate, no --force), CI check unchanged.
-- 48c: roadmap reordered (M3 Trail on pennestack in the Trail repository, M4 Launchway in the
-  Launchway repository, later milestones unchanged, mail parked); a 'Beta policy' paragraph in the
-  roadmap and README (0.x pre-releases, exact pins, stable only when Jens says); section 17's
-  platform modules described as separate repositories consuming published packages; section 22
-  keeps `examples/portal` only; section 24 unchanged.
-- 47c: Launchway modules suggest no purge rules; preview teardown and deployment supersession
-  reclaim runtime artefacts only (containers, images, volumes, build caches) and keep rows, events
-  and logs; logs larger than a threshold move to the blob store instead of being purged.
-- 37a: sections 16.4 and 16.5 add the 'no repeated entity type on a selection path' rule as the
-  default limit beside depth, alias, batch and surface-cost rules; a transport conformance case.
-- 35b: chain-head anchoring to the ledger sinks from M1 (format: scope id, position, hash,
-  recorded time, writer), cadence setting in defineDeployment, verify compares, doctor warns on
-  missing anchors; sections 15.1.8, 14.7.6, 17.5.2, 16.9, ADR 0007.
-- 32b: optional-module loads get a `Maybe`-style accessor (`ifPresent`) that composes with `yield*`;
-  sections 3.4, 7.6, 7.9.3 and the spike checklist in 26.2 (compare both forms, report).
-- 28a (raised): Node 26 baseline everywhere (13.2, 13.3, 22, Appendix A, CI matrix, the Docker
-  image), policy sentence 'latest major of TypeScript and Node; backfills only for what the
-  baseline lacks'.
-- 19b: Temporal from the start, native on Node 26 (no polyfill), behind `field.instant()`, `field.date()`, the fixed clock and the
-  adapters' codecs; drop the 'Date now, Temporal later' text in 4.2, 6.4 and 13.2.
-- 16b: the CLI's action commands move under one verb with the dotted action reference as the
-  argument (`pennestack call deployments.deployment.run --project ...`, decision 81a); the reserved-name list
-  of 16.9.3 and ADR 0013 disappears for module ids (framework commands and module ids no longer
-  share a level); completion and docs follow.
-- 15b: section 16 gains the oRPC transport (projection of the surface, typed client, its OpenAPI
-  handler compared with the own emitter), ADR 0011 reversed on this point, roadmap M2 ships
-  `@pennestack/transport-orpc` with GraphQL and tRPC.
-- 13a: section 14.3.7 and roadmap M7 drop the Drizzle adapter option; `db introspect --drizzle`
-  becomes an optional later item.
-- 12a + addendum 5: section 14.3.3 adapter capabilities become optional accelerations, each with
-  its kernel fallback (search: the keyed token index on every adapter; rowLocks: expected
-  versions; positionPaging and countBefore: bounded scans; broadcast and notify: polling;
-  encryptedQueries.order: bounded scans); `data: { needs }` stays only for `{ sql: dialect }`;
-  `connect` never refuses for a missing acceleration; `pennestack doctor` lists fallbacks in use
-  and their cost; sections 12 and 26 and ADR 0006 follow; brief traceability row in section 25.
+All 21 items of this section were applied by the editor pass of 2026-10-28 (architecture, 18 ADRs,
+roadmap, README, api-sketch.ts). Milestone numbers changed in that pass: the register's references
+to M8 (offline sync), M9 (collaborative fields) and M7 (data breadth, ORE) now read M6, M7 and M5;
+roadmap section 6 maps old to new.
+
+## L. Questions raised by applying the decisions (2026-10-28)
+
+88. **Where the edge module lives** (consequence of 82a). `@pennestack/edge-caddy` is a pennestack
+    package, and a pennestack package cannot fill an extension point of a module that lives in
+    Launchway's repository. a) ★ the `edge` module becomes a shared pennestack module
+    (`@pennestack/module-edge`: sites, routes, certificates policy, the `edgeProvider` extension
+    point, `edge.apply` performed by the edge node's agent); Launchway's `domains` declares the
+    sites it needs; b) the edge module stays in Launchway and the Caddy provider lives there too (no
+    shared package; a second platform wanting an edge copies it). Status: open.
+89. **Anchor content** (consequence of 35b; a stored format, needed before M1). a) ★ an anchor
+    carries the scope's latest position and hash only; b) also a digest of every stream head in the
+    scope, so a rewrite of one stream's history is detectable from the anchor alone, at the cost of
+    larger anchors per scope. Status: open.
+90. **Where a deployment definition lives now that every app has its own repository.** a) ★ each app
+    repository carries its own `pennestack.config.ts` and runs as its own deployment until
+    Launchway is rebuilt (M4), after which one deployment can host several apps from published
+    packages; b) one separate deployment repository from the start, importing the apps as packages.
+    Status: open.
+
+## J2. More editorial items (2026-10-28 editor pass; names to confirm or rename)
+
+`defineRule`; ids of contributed rules (`auth.accounts.profile.self`); multi-action rules in
+`policies/<rule>.ts` with the id `<module>.<rule>`; `open` instead of `public` in rule names (a
+reserved word); `ifPresent`; `offload: { afterPerKey }`; `anchors: { every }`; `edge.site`,
+`edge.apply`, `edge.channel`, `edge.ack`, `edge.reconcile`, `edge.config.performer`;
+`nodes.node.publishLogs`; `OrpcRouterOf`; `serializer: 'json'`; the migration file's `renames` entry
+and `copyColumn` step; the manifest format `pennestack.module/1`. Roadmap choices proposed by the
+editor: Trail (M3) scope and exit criteria; passkeys, outbound webhooks, the egress service and
+package publication in M3; ADR due dates; `blobs-fs` in M4 for the log offload; the docker provider
+in M5. 12a fallback table additions (serializable → one unit at a time per scope, unsupported
+operators evaluated by the kernel, SQLite sort-key column). 19b: instants keep millisecond
+precision (finer digits rounded down at validate). Appendix B's typing listing still types instants
+as `Date` with a note.

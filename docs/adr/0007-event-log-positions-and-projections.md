@@ -1,10 +1,12 @@
 # 7. One event log per namespace with commit-ordered positions per scope; entity state as inline projections; async reactions as keyed jobs
 
-Date: 2026-10-11 (revised after review the same day)
+Date: 2026-10-11 (revised after review the same day; revised in place on 2026-10-28 for decision
+35b)
 
 ## Status
 
-Proposed
+Proposed. Item 13 follows decision 35b (2026-10-27): chain heads are anchored outside the
+database from the start, instead of being left to a later audit module.
 
 ## Context
 
@@ -94,7 +96,8 @@ exercise lock waits.
    decrypted, upcast `ReactionEvent` with the post-image (inline) or the current row (async). New
    reactions start at the head, projections at the beginning. Module code never receives a
    namespace-scope unit.
-10. **Rebuilds.** Offline per entity in M1; blue/green with a short final lock in M7; triggered by
+10. **Rebuilds.** Offline per entity in M1; blue/green with a short final lock in M5 (M7 before the
+    roadmap's renumbering of 2026-10-28); triggered by
     migration steps, with a prompt when an `evolve` source changes. Rebuilds pass through the values
     of fields whose track is inactive.
 11. **Feed.** Wake-ups only, never inside a writer's transaction: on PostgreSQL a notifier
@@ -111,9 +114,16 @@ exercise lock waits.
     a `validation` error. A change report names an id only if the principal could read the row at
     the token's position (reconstructed from before-images) or can read it now; when that cannot be
     decided, the client is told to resynchronise.
-13. **Hash chain.** Always on for chain events: SHA-256 over the previous hash and the RFC 8785
-    canonical form of the content, excluding the module id; compaction keeps an anchor; operator
-    redaction keeps the stored hash and records why.
+13. **Hash chain and anchors.** Always on for chain events: SHA-256 over the previous hash and the
+    RFC 8785 canonical form of the content, excluding the module id; compaction keeps an anchor;
+    operator redaction keeps the stored hash and records why. From M1 the kernel also appends each
+    scope's chain head to every ledger sink of the deployment, outside the placement and its
+    backups (decision 35b): an anchor holds the scope id, the position and hash of the scope's
+    latest event, the recorded time and the writer, at a cadence set in `defineDeployment`
+    (`anchors.every`, by default every commit batch of the notifier and at most once per second per
+    scope). `pennestack db verify` compares the chain with the anchors, `connect` treats a head
+    below the newest anchor as a rewind, and `pennestack doctor` warns about missing anchors
+    (architecture.md section 15.1.8).
 14. **Upcasting.** Per track, using the shape each event records: renames and removals
     automatically, type changes through upcasters in migration files; stored events are never
     rewritten.
@@ -123,6 +133,10 @@ exercise lock waits.
 - Consumers never skip, tokens are exact, `MODSEQ` is a position, a long transaction delays only
   itself, tenants neither wait on nor observe each other, and all adapters share one scheme and one
   conformance test.
+- A chain rewritten or rewound inside the placement, even with consistent links, is found against
+  the anchors, at the cost of one ledger append per scope and cadence; an anchor pins the stream
+  that held the scope's head, and whether anchors should also digest every stream head of a scope
+  is an open question of architecture.md section 26.3.
 - Appending units of one tenant serialise for the length of their commit tail, which caps a single
   tenant at roughly one appending transaction per write-ahead-log flush. High-volume records belong
   in streams; the sequencer remains available.

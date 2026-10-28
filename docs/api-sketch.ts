@@ -1,16 +1,22 @@
 /**
  * pennestack public API sketch, as seen by an application author.
- * Date: 2026-10-25 (first version 2026-10-08; rewritten in the literal form on 2026-10-24 and in the
- * strict model of decision 50a on 2026-10-25). Status: target for the spike of roadmap M0, which
- * type-checks it as the acceptance test of the DSL; it does not compile against anything yet.
+ * Date: 2026-10-28 (first version 2026-10-08; rewritten in the literal form on 2026-10-24, in the
+ * strict model of decision 50a on 2026-10-25, and for the decisions of 2026-10-26 to 2026-10-28:
+ * one rule per file (60b), the generated manifest (59b), the Maybe accessor (32b) and Temporal
+ * instants (19b)). Status: target for the spike of roadmap M0, which type-checks it as the
+ * acceptance test of the DSL; it does not compile against anything yet.
  *
  * It shows: an accounts module, an authentication module that contributes to accounts and adapts
  * itself when accounts (or a live module) is present, a small module with an external effect, two
  * apps composing the first two, a deployment, rules with conditions on the row acted on and the row
  * produced, commands, queries and a subscription, and how the derived types are consumed. Every
  * module is object literals (decision point 3, decided on 2026-10-24): a module base, parts typed
- * against it, and a module literal that mounts them. In a project each part is a file of its own
- * (architecture.md section 23); the sketch keeps them in one file, as tests and spikes may.
+ * against it, and a module literal that mounts them. In a project each part is a file of its own,
+ * every rule too (decision 60b: policies/<target>/<rule>.ts, whose path gives the rule id), and the
+ * generator writes the module literal as module.generated.ts from the directories (decision 59b;
+ * architecture.md section 23); the sketch keeps everything in one file and writes the module
+ * literals by hand, as tests and spikes may, under the keys the generator would derive from the
+ * paths. Instants are Temporal.Instant values (decision 19b): Node 26 ships Temporal natively.
  *
  * Every handler is pure (decision 50a, decided on 2026-10-25; architecture.md section 7.9, "Pure
  * handlers and the effect interpreter"): a command's `decide` yields requests with `yield*` and
@@ -36,9 +42,9 @@ import {
   defineHook,
   defineModule,
   defineModuleBase,
-  definePolicy,
   defineQuery,
   defineReaction,
+  defineRule,
   defineService,
   defineSubscription,
   env,
@@ -81,7 +87,7 @@ export interface IdentityProvider {
   readonly id: string
   readonly label: string
   /** A pure generator, bound to its contributor's context (gap G16): auth loads its own credentials here. */
-  listFor(profileId: Id<'accounts.profile'>): Gen<ReadonlyArray<{ kind: string; label: string; createdAt: Date }>>
+  listFor(profileId: Id<'accounts.profile'>): Gen<ReadonlyArray<{ kind: string; label: string; createdAt: Temporal.Instant }>>
 }
 
 export const emailTaken = defineError('accounts.email_taken', {
@@ -127,7 +133,7 @@ export interface AccountsBase extends ModuleBaseType<typeof accountsBaseDef> {}
 export const accountsBase: AccountsBase = accountsBaseDef
 
 // A command on a chain-backed entity: a plain function of the input, the full current row and ctx.
-// ctx.clock.now() is the invocation's time, recorded as the events' recordedAt.
+// ctx.clock.now() is the invocation's time, a Temporal.Instant recorded as the events' recordedAt.
 const deactivate = defineCommand(accountsBase, profile, {
   input: shape({ reason: field.string().optional() }),
   errors: [],
@@ -182,37 +188,35 @@ const identities = defineQuery(accountsBase, {
   },
 })
 
-const profilePolicy = definePolicy(accountsBase, profile, [
-  { effect: 'allow', actions: ['*'], id: 'operator', principal: 'operator' },
-  {
-    effect: 'allow',
-    actions: ['read', 'search'],
-    id: 'directory',
-    where: (ctx) => ctx.principal.roles.includes('directory'),
-    fields: [], // reveals no maskable field: e-mail addresses stay hidden from the directory role
-  },
-  // A deny rule without `check` tests the row before the action: deactivated profiles are frozen,
-  // and an active profile can still be deactivated (section 8.2).
-  {
-    effect: 'deny',
-    actions: ['deactivate', 'update'],
-    id: 'frozen',
-    where: () => ({ deactivatedAt: { isNull: false } }),
-    reason: 'A deactivated profile is read-only.',
-  },
-])
-const registerPolicy = definePolicy(accountsBase, register, [{ effect: 'allow', public: true }])
-const identitiesPolicy = definePolicy(accountsBase, identities, [{ effect: 'allow', principal: 'user' }])
+// Rules, one per file in a project: policies/profile/operator.ts is the rule accounts.profile.operator.
+const operator = defineRule(accountsBase, profile, { effect: 'allow', actions: ['*'], principal: 'operator' })
+const directoryRole = defineRule(accountsBase, profile, {
+  effect: 'allow',
+  actions: ['read', 'search'],
+  where: (ctx) => ctx.principal.roles.includes('directory'),
+  fields: [], // reveals no maskable field: e-mail addresses stay hidden from the directory role
+})
+// A deny rule without `check` tests the row before the action: deactivated profiles are frozen,
+// and an active profile can still be deactivated (section 8.2).
+const frozen = defineRule(accountsBase, profile, {
+  effect: 'deny',
+  actions: ['deactivate', 'update'],
+  where: () => ({ deactivatedAt: { isNull: false } }),
+  reason: 'A deactivated profile is read-only.',
+})
+const registerOpen = defineRule(accountsBase, register, { effect: 'allow', public: true }) // policies/register/open.ts
+const identitiesSignedIn = defineRule(accountsBase, identities, { effect: 'allow', principal: 'user' }) // policies/identities/signed-in.ts
 
 // Bound to accounts (section 5.5): a pure service returning a request; callers write
 // `yield* ctx.services.accounts.findByEmail(email)`.
 const findByEmail = defineService(accountsBase, (own, email: string) => own.load.accounts.profile.one({ where: { email } }))
 
-// The module literal: mounts the parts under keys that are ids.
+// The module literal: mounts the parts under keys that are ids. In a project the generator writes it as
+// module.generated.ts from the directories; here it is written by hand under the same keys.
 const accountsDef = defineModule(accountsBase, {
   entityActions: { profile: { deactivate, search } },
   actions: { register, identities },
-  policies: [profilePolicy, registerPolicy, identitiesPolicy],
+  policies: { profile: { operator, directory: directoryRole, frozen }, register: { open: registerOpen }, identities: { signedIn: identitiesSignedIn } },
   services: { findByEmail },
 })
 
@@ -335,12 +339,12 @@ const login = defineCommand(authBase, {
     const now = ctx.clock.now()
     const id = yield* ctx.newId(session)
     const token = yield* ctx.secrets.issue({ prefix: 'pss' }) // { plain, publicId, verifier }: recorded without the plaintext
-    const idleExpiresAt = addMinutes(now, ctx.config.sessionIdleMinutes)
+    const idleExpiresAt = now.add({ minutes: ctx.config.sessionIdleMinutes }) // Temporal.Instant arithmetic, no helper
     return {
       events: [
         ctx.write.auth.session.create({
           id, subject: cred.subject, credentialId: cred.id, publicId: token.publicId, tokenVerifier: token.verifier,
-          authenticatedAt: now, idleExpiresAt, absoluteExpiresAt: addDays(now, ctx.config.sessionAbsoluteDays),
+          authenticatedAt: now, idleExpiresAt, absoluteExpiresAt: now.add({ hours: 24 * ctx.config.sessionAbsoluteDays }), // an Instant adds hours, not days
         }),
         ctx.write.auth.credential.update(cred, { lastUsedAt: now }), // the loaded row's version is the expected version
       ],
@@ -377,24 +381,33 @@ const revokeSubject = defineCommand(authBase, {
   },
 })
 
-const loginPolicy = definePolicy(authBase, login, [{ effect: 'allow', public: true }])
-const logoutPolicy = definePolicy(authBase, logout, [{ effect: 'allow', principal: 'user' }])
-const credentialPolicy = definePolicy(authBase, credential, [
-  {
-    effect: 'allow',
-    actions: ['read'],
-    id: 'self',
-    principal: 'user',
-    where: (ctx) => ({ subject: ctx.principal.subject }),
-    fields: ['lastUsedAt'],
-    reason: 'A user sees their own credentials.',
+// An optional module through the Maybe accessor (decision 32b): accounts may be absent, so its loads are
+// reached through ifPresent, a request that answers undefined when accounts is not selected.
+const whoami = defineQuery(authBase, {
+  output: shape({ subject: field.subject(), displayName: field.string().optional() }),
+  principal: 'user',
+  *read(_input, ctx) {
+    const profileId = profileIdOf(ctx.principal.subject)
+    const row = profileId ? yield* ctx.load.accounts.ifPresent((a) => a.profile.byId(profileId)) : undefined // Profile | undefined
+    return { subject: ctx.principal.subject, displayName: row?.displayName }
   },
-  { effect: 'allow', actions: ['revoke'], id: 'self-revoke', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) },
-  { effect: 'deny', actions: ['revoke'], id: 'already-revoked', where: () => ({ revokedAt: { isNull: false } }), reason: 'This credential is already revoked.' },
-])
-const sessionPolicy = definePolicy(authBase, session, [
-  { effect: 'allow', actions: ['read'], id: 'self-sessions', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) },
-])
+})
+
+// Rules, one per file: policies/login/open.ts is auth.login.open, policies/credential/self.ts is auth.credential.self.
+const loginOpen = defineRule(authBase, login, { effect: 'allow', public: true })
+const logoutSignedIn = defineRule(authBase, logout, { effect: 'allow', principal: 'user' })
+const whoamiSignedIn = defineRule(authBase, whoami, { effect: 'allow', principal: 'user' })
+const credentialSelf = defineRule(authBase, credential, {
+  effect: 'allow',
+  actions: ['read'],
+  principal: 'user',
+  where: (ctx) => ({ subject: ctx.principal.subject }),
+  fields: ['lastUsedAt'],
+  reason: 'A user sees their own credentials.',
+})
+const selfRevoke = defineRule(authBase, credential, { effect: 'allow', actions: ['revoke'], principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) })
+const alreadyRevoked = defineRule(authBase, credential, { effect: 'deny', actions: ['revoke'], where: () => ({ revokedAt: { isNull: false } }), reason: 'This credential is already revoked.' })
+const selfSessions = defineRule(authBase, session, { effect: 'allow', actions: ['read'], principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) })
 
 // Services for dependants: pure, returning requests or generators that callers delegate to with yield*.
 // The random salt is an answer recorded in the caller's decision record, so the hash is reproducible.
@@ -425,34 +438,30 @@ const changePassword = defineCommand(within(authBase, toAccounts), 'profile', {
   },
 })
 
-// "Own profile" only means something when a login exists; the fragment lives here, typed against profile.
-const accountsProfilePolicy = definePolicy(within(authBase, toAccounts), 'profile', [
-  {
-    effect: 'allow',
-    actions: ['read'],
-    id: 'self',
-    principal: 'user',
-    where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }), // null never matches (section 8.3)
-    fields: ['email', 'lastLoginAt'], // read rules list maskable fields only
-  },
-  {
-    effect: 'allow',
-    actions: ['update'],
-    id: 'self-edit',
-    principal: 'user',
-    where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }),
-    fields: ['displayName', 'locale'], // the fields a user may change
-  },
-  { effect: 'allow', actions: ['changePassword'], id: 'self-password', principal: 'user', where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }) },
-  // A relation contributed above is usable in the same contribution.
-  {
-    effect: 'allow',
-    actions: ['read'],
-    id: 'shared-credential',
-    principal: 'user',
-    where: (ctx) => ({ credentials: { some: { subject: ctx.principal.subject } } }),
-  },
-])
+// "Own profile" only means something when a login exists; the rules live here, typed against profile, in
+// contributions/to-accounts/policies/profile/: auth.accounts.profile.self, .self-edit, .self-password, .shared-credential.
+const profileSelf = defineRule(within(authBase, toAccounts), 'profile', {
+  effect: 'allow',
+  actions: ['read'],
+  principal: 'user',
+  where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }), // null never matches (section 8.3)
+  fields: ['email', 'lastLoginAt'], // read rules list maskable fields only
+})
+const profileSelfEdit = defineRule(within(authBase, toAccounts), 'profile', {
+  effect: 'allow',
+  actions: ['update'],
+  principal: 'user',
+  where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }),
+  fields: ['displayName', 'locale'], // the fields a user may change
+})
+const profileSelfPassword = defineRule(within(authBase, toAccounts), 'profile', { effect: 'allow', actions: ['changePassword'], principal: 'user', where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }) })
+// A relation contributed above is usable in the same contribution.
+const profileSharedCredential = defineRule(within(authBase, toAccounts), 'profile', {
+  effect: 'allow',
+  actions: ['read'],
+  principal: 'user',
+  where: (ctx) => ({ credentials: { some: { subject: ctx.principal.subject } } }),
+})
 
 // A factory of auth's own context: listFor is a generator that loads auth.credential with auth's authority.
 const identityProvidersFill = defineFill(within(authBase, toAccounts), 'identityProviders', (own) => [passwordProvider(own)])
@@ -488,7 +497,7 @@ const sessionEvents = defineSubscription(within(authBase, whenLive), {
       (change) => (change.type === 'removed' ? undefined : { sessionId: change.id, kind: change.type === 'created' ? 'created' : 'revoked' }),
     ),
 })
-const sessionEventsPolicy = definePolicy(within(authBase, whenLive), sessionEvents, [{ effect: 'allow', principal: 'user' }])
+const sessionEventsSignedIn = defineRule(within(authBase, whenLive), sessionEvents, { effect: 'allow', principal: 'user' })
 
 // A lifecycle hook is a reaction: pure, returning a decision. Logging is the one capability in ctx:
 // write-only, never part of the decision.
@@ -497,22 +506,29 @@ const onTenantCreated = defineHook(authBase, 'onTenantCreated', (tenant, ctx) =>
   return []
 })
 
+// Written by hand here; in a project the generator writes it from the directories, aliasing the clashing names.
 const authDef = defineModule(authBase, {
   entityActions: { credential: { revoke } },
-  actions: { login, logout, revokeSubject },
-  policies: [loginPolicy, logoutPolicy, credentialPolicy, sessionPolicy],
+  actions: { login, logout, revokeSubject, whoami },
+  policies: {
+    login: { open: loginOpen },
+    logout: { signedIn: logoutSignedIn },
+    whoami: { signedIn: whoamiSignedIn },
+    credential: { self: credentialSelf, selfRevoke, alreadyRevoked },
+    session: { selfSessions },
+  },
   services: { verifyPassword, hashPassword },
   // the behaviour of the contribution and the conditional parts declared in the base, under the same keys
   contributes: {
     toAccounts: {
       entityActions: { profile: { changePassword } },
-      policies: [accountsProfilePolicy],
+      policies: { profile: { self: profileSelf, selfEdit: profileSelfEdit, selfPassword: profileSelfPassword, sharedCredential: profileSharedCredential } },
       extensionPoints: { identityProviders: identityProvidersFill },
     },
   },
   conditional: {
     whenAccounts: { reactions: { revokeOnDeactivation, recordLogin } },
-    whenLive: { actions: { sessionEvents }, policies: [sessionEventsPolicy] },
+    whenLive: { actions: { sessionEvents }, policies: { sessionEvents: { signedIn: sessionEventsSignedIn } } },
   },
   lifecycle: { onTenantCreated },
 })
@@ -522,7 +538,7 @@ export const auth: Auth = authDef
 
 // ============================================================================
 // 2b. hooks: an external effect with its executor, a continuation and an inline test (decision 50a).
-//     Outbound webhooks (decision point 49), reduced to one endpoint per backend. The module compiles
+//     Outbound webhooks (decision 49a: they ship with Launchway's rebuild), reduced to one endpoint per backend. The module compiles
 //     on its own (section 3.4); the apps below do not select it.
 // ============================================================================
 
@@ -620,13 +636,13 @@ const testEndpoint = defineCommand(hooksBase, {
   decide: (_input, ctx) => ({ result: ctx.prepared.ok ? { status: ctx.prepared.value.status } : { error: ctx.prepared.error.code } }),
 })
 
-const notifyPolicy = definePolicy(hooksBase, notify, [{ effect: 'allow', principal: 'operator' }])
-const testEndpointPolicy = definePolicy(hooksBase, testEndpoint, [{ effect: 'allow', principal: 'operator' }])
+const notifyOperator = defineRule(hooksBase, notify, { effect: 'allow', principal: 'operator' }) // policies/notify/operator.ts
+const testEndpointOperator = defineRule(hooksBase, testEndpoint, { effect: 'allow', principal: 'operator' })
 
 const hooksDef = defineModule(hooksBase, {
   actions: { notify, testEndpoint },
   entityActions: { delivery: { recordOutcome } }, // hooks.system may invoke its own actions (section 7.7)
-  policies: [notifyPolicy, testEndpointPolicy],
+  policies: { notify: { operator: notifyOperator }, testEndpoint: { operator: testEndpointOperator } },
   effects: { post },
   executors: { post: postExecutor },
 })
@@ -668,9 +684,9 @@ export const portal: Portal = portalDef
 
 // Derived types are exact per app and need no generator.
 export type PortalProfile = Row<Portal, 'accounts.profile'>
-//   { id: Id<'accounts.profile'>; displayName: string; email: string; locale: string; deactivatedAt?: Date | undefined;
-//     lastLoginAt?: Date | undefined; emailVerifiedAt?: Date | undefined;   <- contributed by auth
-//     createdAt: Date; updatedAt: Date; archivedAt?: Date | undefined; version: number }
+//   { id: Id<'accounts.profile'>; displayName: string; email: string; locale: string; deactivatedAt?: Temporal.Instant | undefined;
+//     lastLoginAt?: Temporal.Instant | undefined; emailVerifiedAt?: Temporal.Instant | undefined;   <- contributed by auth
+//     createdAt: Temporal.Instant; updatedAt: Temporal.Instant; archivedAt?: Temporal.Instant | undefined; version: number }
 export type DirectoryProfile = Row<Directory, 'accounts.profile'>
 //   the same without lastLoginAt and emailVerifiedAt; `credentials` and `changePassword` do not exist.
 export type PortalCredential = Row<Portal, 'auth.credential'>
@@ -686,7 +702,7 @@ export default defineDeployment({
   infrastructure: [
     postgresAdapter(),
     httpHost({ listen: [{ port: 3000 }] }), // provides contracts.httpHost; serves the invocation protocol for every app
-    ledgerFile({ path: '/var/lib/pennestack-ledger/erasure.log' }),
+    ledgerFile({ path: '/var/lib/pennestack-ledger/erasure.log' }), // erasures and chain anchors (decision 35b)
   ],
   control: { adapter: 'postgres', url: env('PENNESTACK_CONTROL_URL') }, // env() and secret() read the environment here only
   placements: {
@@ -734,8 +750,6 @@ export async function example(operator: AppClient<Portal>, client: AppClient<Por
 // Pure helpers live in a module's lib/; signHmacSha256 is an executor helper (src/executors/lib/),
 // the only place a module may use node:crypto.
 declare const DUMMY_VERIFIER: string
-declare function addMinutes(at: Date, minutes: number): Date
-declare function addDays(at: Date, days: number): Date
 declare function passwordProvider(own: unknown): IdentityProvider
 declare function isRecentlyAuthenticated(ctx: unknown): Gen<boolean>
 declare function revokeOtherSessions(ctx: unknown): Gen<readonly Draft[]>

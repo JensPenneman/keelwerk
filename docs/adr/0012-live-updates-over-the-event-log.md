@@ -86,11 +86,12 @@ consumer and as a reader in every process, that the generated change was named `
    end`, heartbeat comments) for the invocation protocol and REST; a WebSocket subprotocol
    `pennestack.live.v1` (first-message `hello` with credentials, multiplexed `subscribe` and
    `unsubscribe`, `invoke` for commands on the same connection, ephemeral `presence` from milestone
-   M9, close codes aligned with the error table). Every WebSocket upgrade and every
-   cookie-authenticated SSE request passes the host's origin check. Browsers that use `EventSource`
+   M7 (M9 before the roadmap's renumbering of 2026-10-28), close codes aligned with the error
+   table). Every WebSocket upgrade and every cookie-authenticated SSE request passes the host's
+   origin check. Browsers that use `EventSource`
    authenticate with cookies or a single-use stream ticket valid for 60 seconds, never with a
    long-lived token in the URL. The WebSocket carrier with the typed client also serves Launchway's
-   agent protocol v2.
+   new agent, which since decision 23c has no protocol of its own (a clean break with protocol v1).
 7. **Per transport.** GraphQL subscriptions over GraphQL-over-SSE (Yoga) and graphql-ws 6.3.0,
    returning a union of the item and the control types, with a `state` field and an `after`
    argument; tRPC subscriptions over `httpSubscriptionLink` with `tracked()` ids as stream tokens
@@ -101,7 +102,8 @@ consumer and as a reader in every process, that the generated change was named `
    the adapter's wake-ups (sent after commit, coalesced, with polling as the fallback) and reading
    everything committed after its position; one post-image load per batch, fanned out in memory by
    selector. Topics and presence cross processes through the data adapter's `broadcast` capability
-   where it exists. Admission at subscribe time limits subscriptions per tenant, connections per
+   where it exists, and through the kernel's polling where it does not (brief addendum 5, decision
+   12a). Admission at subscribe time limits subscriptions per tenant, connections per
    principal and subscriptions per WebSocket, counted deployment-wide.
 
 ## Consequences
@@ -117,7 +119,7 @@ consumer and as a reader in every process, that the generated change was named `
 - Delivery is at least once, not exactly once; clients must deduplicate by `(id, version)`.
 - Resumption depends on the data layer's tokens and disclosure rule; a change to the token form
   would need a change of ADR 0007 as well.
-- Topics and presence need the `broadcast` capability to work across processes; a single process
-  works without it.
+- Without the `broadcast` capability, topics and presence still cross processes, through polling,
+  at up to one polling interval of extra delay, which `pennestack doctor` reports.
 - WebSocket support means one more protocol to secure (origin checks, first-message authentication,
   close codes, limits); SSE remains sufficient for clients with few subscriptions or with HTTP/2.

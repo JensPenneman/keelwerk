@@ -73,10 +73,12 @@ fired under whoever set them, so the node-offline timer ran under the node's own
 ## Consequences
 
 - The same queue works in development, in tests and on every production adapter, with one
-  conformance suite; the M7 promise of the proof apps on MySQL and SQLite holds.
+  conformance suite; the M5 promise (M7 before the renumbering of 2026-10-28) of the platforms on
+  MySQL and SQLite holds.
 - Queued work stops at once when its principal loses its credential, and system work is attributable
   to a module.
 - The project owns a queue (a few hundred lines plus tests) instead of depending on pg-boss's maturity;
-  pg-boss remains a possible infrastructure entry, and the choice is a decision point for Jens.
+  pg-boss remains a possible infrastructure entry; Jens decided for the kernel queue on 2026-10-26
+  (decision 6a, ADR 0025).
 - On SQLite and PGlite, one writer bounds queue throughput; those adapters serve development, tests
   and single-process deployments.

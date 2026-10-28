@@ -73,4 +73,5 @@ credential-scope gaps (G1, G4, G13) depend on them.
 - Every request with a session costs a lookup in the tenant's namespace, softened by a short cache
   that revocation invalidates.
 - Long-lived credentials that must work without a tenant host name (API keys, node credentials)
-  depend on the scope directory of gap G2, whose ADR lands before M3.
+  depend on the scope directory of gap G2, whose ADR lands before M4 (Launchway's rebuild; M3 before
+  the roadmap's reorder of 2026-10-28).

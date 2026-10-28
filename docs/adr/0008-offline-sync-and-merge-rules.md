@@ -60,7 +60,7 @@ its own unit although an invocation has exactly one.
    unique and `exclusive` fields, authentication and secrets, external side effects, invariants across
    entities, asynchronous and non-tenant actions.
 6. **Protocol.** The `sync` module (in `@pennestack/events`) provides `sync.register`, `sync.push`,
-   `sync.pull`, `sync.poke` (built on the live module's pokes) and, in M9, `sync.crdt`; every
+   `sync.pull`, `sync.poke` (built on the live module's pokes) and, in M7, `sync.crdt`; every
    transport can carry them. The per-client inbox is the client row's `lastClientSeq` plus the
    command receipts, kept until the client acknowledges them with `ackUpTo` on a later push;
    `sync.pull` is a query and writes nothing. `sync.push` is declared `transaction: 'per-item'`, a
@@ -76,14 +76,14 @@ its own unit although an invocation has exactly one.
    extension point so the core carries no WebAssembly. Documents are stored in the row, each accepted
    update in its event. Online whole-value writes are turned into operations (a minimal text diff)
    from the first collaborative field, so the stored form never changes; incremental CRDT sync by version vector, real-time
-   batching and ephemeral presence arrive in M9. Yjs can become a second codec per field.
+   batching and ephemeral presence arrive in M7. Yjs can become a second codec per field.
 9. **Reference client.** `@pennestack/sync-client`: local storage behind an interface (memory,
    IndexedDB, SQLite), the clock, the pending queue, optimistic application of generated `set`
    operations, rebase, the rejected journal and typed local queries, over the app's typed client.
-10. **Milestones.** M8 delivers the protocol with `lww`, `counter` and `set`; M9 the collaborative
-    fields and client-side prediction of custom offline commands (roadmap). The Loro codec ships
-    earlier if an app declares a collaborative field before M9, so the stored form is final from the
-    first such field.
+10. **Milestones** (numbered as the roadmap since 2026-10-28; M8 and M9 before). M6 delivers the
+    protocol with `lww`, `counter` and `set`; M7 the collaborative fields and client-side prediction
+    of custom offline commands (roadmap). The Loro codec ships earlier if an app declares a
+    collaborative field before M7, so the stored form is final from the first such field.
 
 ## Consequences
 

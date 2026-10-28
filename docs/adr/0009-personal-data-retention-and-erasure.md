@@ -1,12 +1,13 @@
 # 9. Personal data, credential material, retention and erasure: crypto-shredding in the chain, scrubbed projections, operator-chosen retention, restores that never resurrect
 
-Date: 2026-10-11 (revised after review the same day; amended 2026-10-25)
+Date: 2026-10-11 (revised after review the same day; amended 2026-10-25; note of 2026-10-28)
 
 ## Status
 
 Proposed. Decision 2's plaintext state tables, and the consequence about plaintext in backups of
 state tables, are superseded by [ADR 0027](0027-encrypted-personal-data-and-queries.md) (decision 7b
-of 2026-10-25).
+of 2026-10-25). Item 7 follows decision 47c (2026-10-27): Launchway's modules suggest no rules, and
+streams such as effect attempts and deployment logs keep their records unless a rule is adopted.
 
 ## Context
 
@@ -74,13 +75,15 @@ and the key hierarchy had no keys for secrets that are not tenant data.
    positions and UIDs are never reused under an old epoch. The blob collector keeps bytes for at
    least the backup retention.
 7. **Retention.** Rule kinds: compact history into a snapshot event, purge archived rows (leaving a
-   purge tombstone), purge rows of `state` entities by condition, shallow CRDT history, and expiry of
-   transient change records, receipts, sync clients and stream records. Rules are adopted by the
+   purge tombstone), purge rows of `state` entities by condition, shallow CRDT history, and expiry
+   of transient change records, receipts, sync clients and stream records. Rules are adopted by the
    operator per backend with per-tenant overrides, stored in the control store, and every run is
-   recorded. Modules may suggest rules; suggestions have no effect until adopted. Only operational
-   buffers have defaults (7 days for transient records, each action's idempotency window for
-   receipts, 90 days for inactive sync clients). Rows still referenced by live rows are not purged; a
-   purge removes blob keys in the same unit.
+   recorded. Modules may suggest rules; suggestions have no effect until adopted, and Launchway's
+   modules suggest none (decision 47c: everything is kept, and closed previews and superseded
+   deployments reclaim only runtime artefacts). Only operational buffers have defaults (7 days for
+   transient records, each action's idempotency window for receipts, 90 days for inactive sync
+   clients); stream records, effect attempts included, are kept unless a rule is adopted. Rows still
+   referenced by live rows are not purged; a purge removes blob keys in the same unit.
 8. **Compaction** replaces old events of a stream with one snapshot event that keeps versions and
    positions and anchors the hash chain.
 9. **Operator redaction** (rare, deployment scope, reason required) rewrites stored values that are

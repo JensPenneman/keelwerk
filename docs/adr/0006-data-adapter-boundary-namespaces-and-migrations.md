@@ -1,12 +1,17 @@
-# 6. Data adapter boundary: units on namespaces, declared capabilities, Kysely for SQL, migrations in tracks
+# 6. Data adapter boundary: units on namespaces, capabilities as accelerations, Kysely for SQL, migrations in tracks
 
-Date: 2026-10-11 (revised after review the same day; amended 2026-10-25)
+Date: 2026-10-11 (revised after review the same day; amended 2026-10-25; revised in place on
+2026-10-28 for brief addendum 5 and decisions 12a, 13a and 55b)
 
 ## Status
 
 Proposed. Item 5's SQL escape hatch is amended by
 [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) (decision 50a): it is a read request,
-`ctx.load.sql(build)`, and handlers have no SQL writes.
+`ctx.load.sql(build)`, and handlers have no SQL writes. Item 5 follows brief addendum 5 (datastore
+agnosticism, 2026-10-26) and decision 12a (2026-10-26): capabilities are accelerations with kernel
+fallbacks, and the raw-SQL dialect is the only thing a module may require of a datastore. Item 7
+follows decision 13a (no Drizzle-backed adapter) and item 3 decision 55b (renames rename the
+column).
 
 ## Context
 
@@ -34,6 +39,13 @@ inside a MySQL database. Writing the specification exposed five problems the out
   agree on nulls, collation and relations;
 - how tables the framework does not own get types without a second mechanism.
 
+Brief addendum 5 (2026-10-26) sharpened the requirement: any datastore can be plugged in, MySQL is
+one of them and not a special case, and what a datastore has or lacks may never influence
+application code or decide whether an app can run; what a datastore cannot do natively the
+framework provides itself, at a visible cost, and only code that opts into a dialect, the raw SQL
+hatch, declares that choice. The first draft refused, at `connect`, an adapter that lacked a
+capability a module declared as a data need, which that sentence rules out.
+
 The review of 2026-10-11 added four: the unit had no operations for the framework's own tables
 (consumers, tombstones, stream records), so the kernel could not implement them against the
 contract; JMAP clients page by position, which keyset-only pagination cannot serve; a tenant
@@ -57,9 +69,11 @@ plan runs CI on three databases.
    data operation.
 3. **Physical names.** `<root>.<module>__<entity>` for module tables and `<root>.ps_<name>` for
    framework tables, snake-case columns, truncation with a hash suffix, every name recorded in the
-   module snapshot. The root is a schema per app on PostgreSQL (`ps_<app>` on Supabase), a database
-   or prefix on MySQL, a file or prefix on SQLite. A schema per module is an option on self-hosted
-   PostgreSQL, not the default.
+   module snapshot. Physical names always equal the derived names: a field rename renames its column
+   through expand, dual write, backfill and contract (decision 55b, ADR 0022), and the snapshot
+   keeps no column aliases. The root is a schema per app on PostgreSQL (`ps_<app>` on Supabase), a
+   database or prefix on MySQL, a file or prefix on SQLite. A schema per module is an option on
+   self-hosted PostgreSQL, not the default.
 4. **Scope below everything.** The adapter adds the scope predicate to every statement and event
    read; primary and foreign keys include the scope; PostgreSQL row-level security is enabled and
    forced on every scoped table as a backstop; adversarial isolation tests run on every adapter. A
@@ -67,13 +81,23 @@ plan runs CI on three databases.
    tenant-tenancy entities; namespace-scope units are kernel-only and never append events. Tenant
    commands read backend-level entities in a separate snapshot and reach other scopes' commands
    only after commit, so semantics never depend on placement.
-5. **Capabilities.** Adapters declare capabilities (event store, savepoints, transactional DDL,
-   placements, naming, unsupported conditions, partial indexes, change-feed level, row-level
-   security, row locks, search, positional paging with a maximum offset, job taking, broadcast,
-   SQL with its dialect, process model). They are checked at `connect`, at tenant creation and
-   move, and when a plan or query is compiled; modules declare their data needs, including the SQL
-   dialect they write (`{ sql: 'postgres' }`), which types `ctx.sql` (since ADR 0026 the builder of
-   the read request `ctx.load.sql`).
+5. **Capabilities as accelerations.** Adapters declare capabilities (event store, savepoints,
+   transactional DDL, isolation levels, placements, naming, unsupported conditions, partial indexes,
+   change-feed level, row-level security, row locks, search, positional paging with a maximum
+   offset, job taking, broadcast, encrypted queries, SQL with its dialect, process model). Each
+   capability an adapter may lack has a kernel path that gives the same results at a cost
+   (architecture.md section 14.3.3): search through the keyed token index on every adapter, row
+   locks through expected versions and counter rows, positional paging and `countBefore` through
+   bounded scans, broadcast and notifications through polling, order on personal fields through
+   bounded scans, partial indexes through generated columns, serializable isolation through units
+   run one at a time per scope. `pennestack explain` names the path a plan takes, and `pennestack
+   doctor` lists the fallbacks in use per placement with their cost. The event store and savepoints
+   are required parts of the contract that every adapter provides, natively or inside the adapter.
+   `data: { needs }` keeps one form, the SQL dialect a module writes (`{ sql: 'postgres' }`), which
+   types `ctx.sql` (since ADR 0026 the builder of the read request `ctx.load.sql`) and is the
+   module's one declared non-portability: `connect`, tenant creation and moves refuse only a
+   placement whose adapter lacks that dialect, besides `richText` fields without a codec module and
+   a multi-process deployment on a single-process adapter, which are not datastore features.
 6. **Conditions and pagination.** One semantics for both interpreters: two-valued logic,
    null-safe `ne` and `nin`, comparisons with `null` or `undefined` false (absence only through
    `isNull`), code-point string comparison over binary collations, membership for `contains` on
@@ -82,9 +106,12 @@ plan runs CI on three databases.
    `countBefore` exist as a capability for the transports that request it (JMAP), bounded by a
    maximum offset and covered by the conformance suite.
 7. **Substrate.** Kysely 0.29.6 carries the SQL family: PostgreSQL (with PGlite 0.5.8 for tests and
-   `pennestack dev`) in M1; MySQL, SQLite on `node:sqlite` and the Supabase preset in M7 (roadmap).
-   The in-memory adapter is the reference semantics. A Drizzle-based adapter is permitted and deferred
-   until Drizzle 1.0; existing Drizzle schemas are imported by `pennestack db introspect --drizzle`.
+   `pennestack dev`) in M1; MySQL, SQLite on `node:sqlite` and the Supabase preset in M5 (roadmap,
+   renumbered on 2026-10-28; M7 before). The in-memory adapter is the reference semantics. No
+   Drizzle-backed adapter is planned (decision 13a): Drizzle was a passing thought, not a
+   requirement, and the brief's mention reads as "a schema an ORM defines can be imported", which
+   `pennestack db introspect --drizzle` may offer later as an optional convenience; the contract
+   still permits such an adapter, as it permits any datastore.
 8. **Columns.** Field kinds map to columns per dialect as architecture.md section 14.5.1 lists;
    decimals are exact strings, floats binary, integers 64-bit with safe-integer validation, unique
    fields unique among non-archived rows, and indexes may be partial.
@@ -110,9 +137,12 @@ plan runs CI on three databases.
 
 ## Consequences
 
-- Every database meets one contract, and application code never sees placements, strategies or
-  physical names. Tenancy is enforced below the repositories and repeated by the database where it
-  can be.
+- Every database meets one contract, and application code never sees placements, strategies,
+  physical names or capabilities. Tenancy is enforced below the repositories and repeated by the
+  database where it can be.
+- A missing capability costs performance, never correctness or the ability to run: the kernel's
+  paths are part of the core and of the conformance suite, which runs every scenario with the
+  accelerations switched off as well, and `doctor` makes their cost visible.
 - Apps sharing a placement cannot collide, and toggling a module or a contribution preserves data.
   The price is a namespace per app on every placement (empty tables where an app has no tenants,
   limited by the placement's `apps` list) and a migration planner with tracks that the project must

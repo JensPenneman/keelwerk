@@ -1,16 +1,17 @@
 # 25. Nodes, capacity and autoscaling over fair lanes of the kernel job queue
 
-Date: 2026-10-25
+Date: 2026-10-25 (notes of 2026-10-28)
 
 ## Status
 
-Proposed. Amends ADR 0015 (decisions 3, 6 and 7). The queue implementation is decision point 6 for
-Jens (architecture.md section 26.1); this ADR assumes the recommended kernel queue. Singleton leases
-stay with ADR 0018, the executor contract with
+Proposed. Amends ADR 0015 (decisions 3, 6 and 7). Jens decided for the kernel queue on 2026-10-26
+(decision 6a), as this ADR assumes. Singleton leases stay with ADR 0018, the executor contract with
 [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) (decision 50a, architecture.md section
-7.9.5). The command name, the
-release of automatic scaling and the docker provider are decision points 62 to 64. Architecture.md
-sections 9.5 and 21 specify the design.
+7.9.5). On 2026-10-28 Jens decided the command name `pennestack fleet` (62a), the scaler with the
+static provider first and the docker provider one milestone later, with a Kubernetes provider as a
+named later milestone (63a), and the opt-in docker provider behind a verb-limited socket proxy
+(64a); with the roadmap's reorder that is M4 for the scaler and M5 for the docker provider.
+Architecture.md sections 9.5 and 21 specify the design.
 
 ## Context
 
@@ -54,8 +55,10 @@ engines) and autoscaling prior art; KEDA's backlog-only Temporal scaler scales i
 7. **Providers and drains.** `static` in the core, `docker` as an opt-in package behind a socket
    proxy, Kubernetes and cloud providers later. Scale-down is a drain with a deadline (60 seconds by
    default) that releases unfinished jobs.
-8. **Commands.** `pennestack fleet` (nodes, processes, scaling) becomes a reserved name (decision
-   point 62); `pennestack jobs` gains `stats`, `lanes` and `explain`.
+8. **Commands.** `pennestack fleet` (nodes, processes, scaling) is the framework's command group
+   (decision 62a); since action commands sit under `pennestack call` (decision 16b, ADR 0013) it
+   reserves no module id, and Launchway's `nodes` module keeps its id. `pennestack jobs` gains
+   `stats`, `lanes` and `explain`.
 9. **Upgrade path.** `JobQueue`, `JobStore`, `JobSpec` and the conformance suite stay fixed: more
    placements, partitioned `ps_jobs` and a pooler, then a dispatch tier on NATS JetStream.
 

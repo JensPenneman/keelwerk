@@ -1,6 +1,6 @@
 # 26. Pure handlers and the effect interpreter
 
-Date: 2026-10-25
+Date: 2026-10-25 (notes of 2026-10-28)
 
 ## Status
 
@@ -10,8 +10,15 @@ and 7, and the mentions of `ctx.invoke` and `unresumable` in decisions 2 and 9) 
 [ADR 0015](0015-jobs-timers-and-schedules.md) (decision 6) and
 [ADR 0025](0025-nodes-capacity-and-autoscaling.md) (decision 4) their effect and executor contract;
 ADRs 0003, 0005, 0006, 0008, 0012 and 0013 carry notes of the forms it replaces. Architecture.md
-section 7.9 specifies the design; its decision points are 73 to 80 of the register, and the text
-assumes their recommendations (73a, 74a, 75a, 76a, 77a, 78a, 79b, 80a).
+section 7.9 specifies the design; its decision points are 73 to 80 of the register, which Jens
+decided on 2026-10-28 as the text assumed (73a, 74a, 75a, 76a, 77a, 78a, 79b, 80a), with a
+reservation on 74: he is not sold on the phase restrictions, which the M0 spike and Trail's rebuild
+test, with option c as the agreed fallback. On 2026-10-28 he also reopened and confirmed 50a and
+asked the M0 spike to prototype one variant: no separate `prepare`, `decide` performing inline
+effects only before its first load, the kernel opening the unit there and refusing later inline
+effects (architecture.md section 26.2). With decision 47c, attempt records are kept until a
+retention rule is adopted (item 6), and with decision 19b the invocation's clock is a
+`Temporal.Instant` (item 3).
 
 ## Context
 
@@ -35,7 +42,7 @@ art, and [architecture.md section 7.9](../architecture.md) is the specification.
 3. Requests are yielded with `yield*` and typed one by one: loads with module authority and
    `forCaller()`, `ask`, flags, ids, random values, secret issuance, reveals and verification,
    computations (Argon2id off the event loop) and, in `prepare` only, inline effects. Requests never
-   throw into a generator. The clock is the invocation's time, not a request.
+   throw into a generator. The clock is the invocation's time, a `Temporal.Instant`, not a request.
 4. Effects: kernel effects (`invoke`, `enqueue`, `setTimer`, `cancelTimer`, `settle`, scope-key
    claims) run in the unit or at its commit. External effects are declared with `defineEffect` and
    performed after commit, at least once, with the effect id as idempotency key, by a
@@ -48,7 +55,8 @@ art, and [architecture.md section 7.9](../architecture.md) is the specification.
 6. The logbook is the chain: a decision record in each event's meta (the input's digest, and the
    sealed input only for actions that opt in; the snapshot position of every load; ids, random
    values and the public part of issued secrets; effect ids), and one `core.effect` stream per
-   effect (`requested`, `settled`), with attempts as stream records. Load answers are reproduced
+   effect (`requested`, `settled`), with attempts as stream records, kept until a retention rule is
+   adopted (decision 47c). Load answers are reproduced
    from the chain, never stored. The database and the logbook rebuild from the chain, and unsettled
    effects are enqueued again after a restore.
 7. Every command is retried on version conflicts, serialization failures and deadlocks, up to three
@@ -56,8 +64,8 @@ art, and [architecture.md section 7.9](../architecture.md) is the specification.
 8. Enforcement: handler types exclude promises; GritQL plugins (`pure-parts`, `no-module-state`,
    `no-await-in-parts`); Biome's `noNodejsModules` and `noRestrictedImports` outside
    `src/executors/`, `noProcessEnv` outside `pennestack.config.ts`; compose checks.
-9. Layout: `src/effects/`, `src/executors/` and `src/executors/lib/`; the module literal mounts
-   `effects` and `executors`.
+9. Layout: `src/effects/`, `src/executors/` and `src/executors/lib/`; the module literal, which the
+   generator writes since decision 59b (ADR 0024), mounts `effects` and `executors`.
 
 ## Consequences
 
@@ -72,5 +80,6 @@ art, and [architecture.md section 7.9](../architecture.md) is the specification.
   pool), and each effect costs two chain events plus attempt records.
 - Launchway's `nodes.command` rows become effects with an external performer, mail delivery becomes
   a state machine, and gap G2's outbox choice is made.
-- If strictness becomes a burden in practice (friction reported in M1 to M3), option c keeps this
+- If strictness becomes a burden in practice (friction reported in M1 to M4, Trail's and Launchway's
+  rebuilds included), option c keeps this
   design for everything that decides and allows awaited capabilities in queries and services.

@@ -1,11 +1,13 @@
 # 22. Rolling upgrades: build revisions, a process registry, the N-1 rule and gated contract steps
 
-Date: 2026-10-24
+Date: 2026-10-24 (revised in place on 2026-10-28 for decisions 54a and 55b)
 
 ## Status
 
-Proposed. Automatic finalization, renames that keep their column and the mail listeners' own
-container are decision points 54 to 56 for Jens (architecture.md section 26.1).
+Proposed. Jens decided automatic finalization after the grace period (decision 54a, 2026-10-28)
+and reversed the rename rule of item 4 (decision 55b, 2026-10-28): a rename renames the column
+through expand, dual write, backfill and contract, and physical names always equal the derived
+names. The mail listeners' own container (item 7, question 56) is parked with the mail server.
 
 ## Context
 
@@ -44,9 +46,13 @@ cannot be rolled back and starts only when every live node runs the new version.
    retry under the same command id.
 4. **Gated contract steps.** `db apply --contract` and rewrites of stored configuration refuse with
    `conflict`, `core.rollout_not_finalized`, unless the finalized revision covers them and no live
-   process is below it. A field rename keeps its physical column; a type change or split is a new
-   column written beside the old one, a backfill after finalization, reads moving per namespace
-   once the backfill is recorded, and a contract drop, for one process or many.
+   process is below it. A field rename, a type change or a split is a new column written beside
+   the old one (for a rename, the column of the new derived name, written through the migration
+   file's `renames` entry), a backfill after finalization, reads moving per namespace once the
+   backfill is recorded, and a contract drop, for one process or many (decision 55b). This item
+   first kept a renamed field's physical column, recorded in the snapshot, so that renames never
+   waited; Jens chose that physical names always equal the derived names, and the snapshot keeps no
+   column aliases.
 5. **Finalization and rollback.** `pennestack rollout finalize` raises the finalized revision when
    every live process runs at the target revision; with `finalize: 'auto'`, the default, a
    singleton finalizer does so once that has held for the grace period (600 seconds).
@@ -58,14 +64,17 @@ cannot be rolled back and starts only when every live node runs the new version.
    `version_retired`.
 7. **Strategies.** Rolling replacement is the default; blue-green and canary are edge routing under
    the same rule; release flags (ADR 0023) separate releasing from deploying. On the home server the
-   mail listeners get their own container, because two containers cannot publish one host port.
+   mail listeners get their own container, because two containers cannot publish one host port
+   (question 56, parked with the mail server).
 
 ## Consequences
 
-- No deploy interrupts clients or queued work, and renames never wait; a type change takes several
-  steps, and the target writes some data twice until finalization.
+- No deploy interrupts clients or queued work. A rename, like a type change, takes several steps,
+  and the target writes some data twice until finalization; in return the database's column names
+  always say what the fields are called.
 - Rollback is cheap until finalization and a restore afterwards.
 - An outdated build can neither start nor keep running.
 - One rollout at a time serialises deploys; the registry is shared with the leases of ADR 0018.
-- Multi-process renames move from M7 to M3; the mail listeners drop connections for seconds per
-  upgrade.
+- Multi-process renames and type changes arrive with the rollouts of Launchway's rebuild (M4 since
+  the roadmap's reorder of 2026-10-28; M3 when this ADR was written, and M7 before it); the mail
+  listeners drop connections for seconds per upgrade.

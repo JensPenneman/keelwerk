@@ -1,13 +1,18 @@
 # 5. Authorization: a typed-native engine with CASL vocabulary, the invoked action as the unit, and separate conditions for the row acted on and the row produced
 
-Date: 2026-10-08 (revised 2026-10-11 and 2026-10-24; amended 2026-10-25)
+Date: 2026-10-08 (revised 2026-10-11 and 2026-10-24; amended 2026-10-25; notes of 2026-10-28)
 
 ## Status
 
 Proposed. Jens decided decision points 4 and 5 of architecture.md section 26 on 2026-10-24 as items
 6 and 3 state them, adding the shape-stage row check of item 5. Item 6 is amended by
 [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) (decision 50a): loads and drafts
-replace repository calls, and the escalation is an effect.
+replace repository calls, and the escalation is an effect. Since decision 60b (2026-10-28, ADR
+0024) every rule is a file of its own, `defineRule(base, target, { ... })` in
+`policies/<target>/<rule>.ts`, and its id comes from that path (`auth.credential.self`); the rules
+still compose as one order-independent set (item 3). Since brief addendum 5 and decision 12a
+(2026-10-26) an operator an adapter cannot compile is evaluated by the kernel rather than refused
+(item 4; architecture.md section 14.3.3).
 
 ## Context
 
@@ -67,8 +72,10 @@ The review of 2026-10-11 found that the first version of this decision failed it
    the data layer, the live feed and the sync protocol, with two-valued, null-safe semantics. In
    conditions written in code, a comparison with `null` or `undefined` is false and absence is
    tested only with `isNull`; the client filter format's bare `null` shorthand is normalised at the
-   boundary. Adapters compile the AST; the engine interprets it in memory. An adapter that cannot
-   express a shape fails with `unsupported`, never a wider filter.
+   boundary. Adapters compile the AST; the engine interprets it in memory. A filter is never
+   widened: an operator an adapter cannot compile is evaluated by the kernel over the rows the rest
+   of the condition selects (brief addendum 5), and only what the field model does not allow (an
+   undeclared operator on a personal field, a restricted kind) fails with `unsupported`.
 5. The invoked action is the unit of authorization. Stages inside the invoker: the gate (action
    rules, principal kinds, scope level), the plan (`always`, `never` or `conditional { where,
    check, fields }`), target selection by the plan's `where` for instance commands (outside it,

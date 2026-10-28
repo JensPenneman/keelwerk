@@ -1,12 +1,14 @@
 # pennestack architecture
 
-Date: 2026-10-25 (first version 2026-10-08, consolidated 2026-10-11). Status: specification,
-consolidated draft awaiting Jens's approval. Authors: the core architect and the data, interfaces
+Date: 2026-10-28 (first version 2026-10-08, consolidated 2026-10-11). Status: specification,
+complete: every question of the decision register is decided or, for the mail server, parked;
+awaiting Jens's approval and the final name. Authors: the core architect and the data, interfaces
 and platforms designers; consolidated with the review findings of 2026-10-11 by the synthesis
 editor; the versioning and project-layout designs of addendum 3 and Jens's decisions of 2026-10-24
 merged by the integration editor on 2026-10-24; the jobs, nodes and autoscaling design, the
 design of encrypted personal data (decision 7b) and the pure-handler design (decision 50a, section
-7.9) merged by the merge editor on 2026-10-25.
+7.9) merged by the merge editor on 2026-10-25; brief addendum 5 and Jens's decisions of 2026-10-25
+to 2026-10-28 (section 26.1) applied by the editor on 2026-10-28.
 
 This document is the design contract of the framework. [brief.md](brief.md) is the requirements
 source of truth; this document says how those requirements are met and must not drop or
@@ -20,9 +22,10 @@ toolchain; sections 14 to 16 the data layer, events and sync, live
 updates, and the transports and CLI; section 17 the shared accounts and authentication modules and
 the two proof platforms; sections 18 to 20 versioning, rollouts and feature flags; section 21 nodes,
 capacity and autoscaling; sections 22 and 23 the repository and the project layout; sections 24 to
-26 the procedure for new requirements, traceability and the open questions.
+26 the procedure for new requirements, traceability, and the decisions with the questions that
+remain open.
 
-Every library named here was checked against the npm registry between 2026-10-08 and 2026-10-25;
+Every library named here was checked against the npm registry between 2026-10-08 and 2026-10-28;
 the version in parentheses is the one checked, and Appendix A lists them. Type-level claims name
 the compiler versions that checked them.
 
@@ -53,7 +56,7 @@ Contents:
 23. Project layout and the single-purpose rule
 24. How a new requirement lands
 25. Requirements traceability
-26. Open questions
+26. Decisions and open questions
 
 Appendix A. Versions checked. Appendix B. Verified typing listing.
 
@@ -87,10 +90,11 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
    OR-ed, deny rules override, the default is deny. Contributions are a set keyed by module id.
    Nothing depends on the position of a module in the tuple except deterministic tie-breaking of
    lifecycle order.
-7. **Fail closed.** A condition an adapter cannot express, a missing requirement, a drifted
-   schema, an action whose module is disabled for a backend, a load or a draft the module may not
-   perform: each is an error, never a wider filter, a narrowed result, a loose type or a silent
-   no-op.
+7. **Fail closed.** A missing requirement, a drifted schema, an action whose module is disabled
+   for a backend, a load or a draft the module may not perform: each is an error, never a wider
+   filter, a narrowed result, a loose type or a silent no-op. What a datastore lacks is not such a
+   failure: the framework provides it itself, at a cost it reports, and never widens a filter or
+   refuses to run because of the adapter (brief addendum 5, section 14.3.3).
 8. **Nothing is deleted; everything is appended.** Live entities are an append-only event chain
    with a materialised current state. Deletion is an archive event that a restore event can
    undo. Erasure of personal data is crypto-shredding, which keeps the chain intact.
@@ -98,9 +102,12 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
    configuration. The kernel exposes extension points so that even transports and data adapters
    are modules. A kernel change requires an ADR.
 10. **The compiler is the judge.** `tsc`, Biome and the test runner must see the same types the
-    editor sees, with no language-service plugin and no generator in the type path. Module and
-    app values carry named types, so declaration emit stays proportional to each package
-    (section 13.11). One generated file exists for convenience and is checked for drift in CI.
+    editor sees, with no language-service plugin. Module and app values carry named types, so
+    declaration emit stays proportional to each package (section 13.11). The generated files in
+    the type path, each module's manifest `module.generated.ts` (section 23.5) and the app's
+    `pennestack.generated.ts` (section 13.7), are plain committed TypeScript: the dev server
+    rewrites them on every change, `tsc` checks them like hand-written code, and CI fails on drift
+    (decision 59b).
 11. **Handlers are pure; the kernel performs every effect.** Every part a module author writes is a
     function of its parameters and of the answers the kernel gives to the requests it yields, and
     everything it produces is in its return value: events, effect descriptions and a result.
@@ -123,10 +130,12 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 | **Operator** | The person administering the deployment (Jens). A principal kind with deployment scope. |
 | **Principal** | Who is acting: anonymous, user, service, operator or system, with the scope it belongs to, claims, roles and memberships (section 8.5). |
 | **Module service principal** | The service principal `<module>.system` under which a module's reactions, timers and schedules run; governed by rules like any principal (section 8.4). |
-| **Module** | A unit of composition with a string id. Owns entities, actions, policies, services, reactions and extension points; declares requirements, optional dependencies, contracts it provides, contributions and conditional parts. Written as a module base and a module literal, `defineModule(base, { ... })` (section 4.1). |
+| **Module** | A unit of composition with a string id. Owns entities, actions, policies, services, reactions and extension points; declares requirements, optional dependencies, contracts it provides, contributions and conditional parts. Written as a module base and a module literal, `defineModule(base, { ... })`, which the generator assembles from the module's directories as `module.generated.ts` (sections 4.1 and 23.5). |
 | **Module base** | A module's declaration literal, `defineModuleBase({ ... })` in `base.ts`: identity, dependencies, configuration, extension points, entities, streams, flags and the data of contributions and conditional parts, against which parts are typed (sections 4.1 and 23.5). |
-| **Part** | The one definition a source file exports (an action, a policy, a reaction, a service, a fill, a schedule, an effect, an effect executor, ...), typed against a module base and mounted by an assembly file (sections 4.1 and 23.3). |
+| **Part** | The one definition a source file exports (an action, a rule, a reaction, a service, a fill, a schedule, an effect, an effect executor, ...), typed against a module base and mounted by the generated manifest under the reference its file name and directory give (sections 4.1, 23.3 and 23.5). |
+| **Generated manifest** | A module's `module.generated.ts`: the module literal that `pennestack generate` and the dev server write from the module's directory conventions, mounting every part under the reference its path gives; committed and checked for drift in CI, while `base.ts` stays hand-written (decision 59b, section 23.5). |
 | **Contract** | A named capability with a typed interface (`live`, `blobs`, `httpHost`) that modules list in `requires` or `optional` instead of a concrete implementation; a module or an infrastructure entry declares that it `provides` it (section 5.2). |
+| **Maybe accessor** | The form in which a part reaches a module it lists as `optional`: `ctx.load.accounts.ifPresent((a) => a.profile.byId(id))` is a request answered with the inner request's answer, or `undefined` when the module is not selected, and composes with `yield*` like every request (decision 32b, sections 3.4 and 7.9.3). |
 | **Entity** | A data structure owned by a module: fields, relations, indexes, events and the actions mounted on it. |
 | **Field** | A typed column declared with the `field.*` builders. Emits a validator, a JSON Schema, a GraphQL type and a column definition. |
 | **Action** | A named unit of behaviour mounted on an entity, a module or the app: a `query`, a `command` or a `subscription`. |
@@ -141,7 +150,7 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 | **Contribution** | Fields, relations, actions, policies or extension-point values a module adds to another module, active only when the target (and any extra `when` modules) are selected. |
 | **Conditional part** | Fields, actions, reactions or policies a module adds to itself only when other modules are selected. |
 | **Extension point** | A typed slot a module declares so that other modules can fill it without the owner importing them. The kernel's app-level extension points are how transports, resolvers and live carriers plug in; deployment-level points hold the infrastructure. |
-| **Policy** | A set of rules for an entity's or a module's actions: allow or deny, with a `where` condition on the row acted on, an optional `check` on the row produced, a field list and a reason. |
+| **Policy** | The set of rules for an entity's or a module's actions, one rule per file under `policies/<target>/` (decision 60b): allow or deny, with a `where` condition on the row acted on, an optional `check` on the row produced, a field list and a reason; a rule's id is `<module>.<target>.<file>` (sections 4.4 and 8.1). |
 | **Condition** | A serialisable, typed filter AST over an entity's fields and relations, shared by authorization, the data layer and the live feed. |
 | **Registry** | The runtime index built by `defineApp`: modules, entities, actions, policies, extension points, keyed by ids and references. |
 | **API surface** | The serialisable description of one app's public interface, derived by the core from the registry; every transport, the CLI and every generated document read it (section 16.2). |
@@ -153,6 +162,7 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 | **Invocation protocol** | The canonical JSON wire over HTTP and the operator Unix socket, served by the host for every app and used by the CLI, the typed client and tests (section 16.8). |
 | **Artefact** | A file derived from the surface: the surface JSON, an OpenAPI document, a GraphQL SDL, the CLI manifest, a type fragment. |
 | **Chain** | The append-only event log of an entity instance; "the chain" of the brief. |
+| **Anchor** | A chain head written per scope to the deployment's ledger sinks outside the placement (scope id, position, hash, recorded time, writer), against which `pennestack db verify` checks the chain (decision 35b, section 15.1.8). Not to be confused with a compaction snapshot's `anchor` (the hash of the last removed event, section 14.7.3), the DNS anchor host name (section 17.3.8) or JMAP's paging anchor (section 14.3.5). |
 | **Namespace** | One event log, one set of framework tables and one copy of one app's tables on a placement: one per app on a shared-tables placement, one per tenant otherwise (section 14.2). |
 | **Unit** | One transaction on one namespace, opened for one storage scope (section 14.3.2). |
 | **Position** | A commit-ordered integer that orders the events of one scope inside a namespace; stream tokens, JMAP states and IMAP `MODSEQ` are positions (section 15.1.4). |
@@ -166,6 +176,7 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 | **Blind index** | The equality tag of a personal field: an HMAC of the normalised value under a field key derived from the tenant's index root key (or a per-subject key), stored beside the sealed column so that equality lookups and unique indexes work without decrypting; prefix, trigram, token and order tags extend the idea to the other declared capabilities (sections 14.7.9.2 and 14.7.9.6). |
 | **Operator endpoint** | The deployment-level entry (operator Unix socket and operator host names) where deployment-scope actions are served. |
 | **Receiver** | A mapping from an inbound webhook request (path, raw body, headers) to an action, filled into `transport-webhooks` (section 16.5.8). |
+| **Edge provider** | The filler of the shared `edge` module's `providers` extension point: it renders the provider-neutral desired state of an edge (sites with their routes, upstreams and certificates) into its own configuration and maps the outcome of applying it to a status per site; `edge-caddy` is the first (decision 82a, section 17.3.7). |
 
 ## 3. Kernel
 
@@ -231,7 +242,7 @@ The lifecycle is explicit and the same for every module. Phases run in this orde
 |---|---|---|
 | `compose` | `defineApp`, pure | Validates the module tuple at the type level and again at runtime (missing requirements and contracts, duplicate and reserved ids, conflicting fields, unknown contribution targets, dangling references, unknown execution overrides, identifier collisions), orders modules topologically by `requires` with tuple order as tie-break, applies contributions and conditional parts, builds the registry and derives the API surface. No I/O. |
 | `setup` | Kernel, for each module in order | Registers what each module declares against the final registry: projections, indexes, schedules, effects and their executors. Module code does not run: modules only declare parts (section 7.9.1). Transports run their `check` against the surface. Runs before any adapter connects. |
-| `connect` | Kernel | Opens the infrastructure listed in `defineDeployment` (data adapters, the control store, blob stores, secret providers, the ledger sink), verifies that it provides every deployment-level contract the apps require, then opens the placements the enabled backends need and validates adapter capabilities against the modules' data needs (section 14.3.3). Replays the erasure ledger and checks namespace epochs (section 14.7.6). Registers the process in `core.process` and compares its build manifest with `core.rollout`: it joins the finalized revision or the target, or refuses to start with `buildTooOld` or `targetConflict` (section 19.1). Runs the capability probes of its named process (section 21.2) and reserves its connection pool from each placement's budget, refusing to start with `connectionBudget` when a budget is spent (section 21.3). |
+| `connect` | Kernel | Opens the infrastructure listed in `defineDeployment` (data adapters, the control store, blob stores, secret providers, the ledger sink), verifies that it provides every deployment-level contract the apps require, then opens the placements the enabled backends need, checks the modules' declared raw-SQL dialects against their adapters and records the fallbacks the apps will use (section 14.3.3). Replays the erasure ledger and checks namespace epochs (section 14.7.6). Registers the process in `core.process` and compares its build manifest with `core.rollout`: it joins the finalized revision or the target, or refuses to start with `buildTooOld` or `targetConflict` (section 19.1). Runs the capability probes of its named process (section 21.2) and reserves its connection pool from each placement's budget, refusing to start with `connectionBudget` when a budget is spent (section 21.3). |
 | `migrate` | Kernel | In development: plans and applies the schema diff per namespace, confirming destructive steps. In production: verifies that the applied history matches the committed migration files and refuses to start on drift. |
 | `start` | Kernel, for each module in order | Starts the background work the modules declared: queue workers for their queues and executors, the reaction dispatcher, projections, schedules. Runs after data is available and before any listener accepts traffic. |
 | `listen` | Kernel | The HTTP host mounts each app's transports and the invocation protocol; listener modules start on the ports the deployment binds. The process reports ready and is marked `ready` in `core.process`. |
@@ -262,11 +273,11 @@ constructor, and the kernel performs what the handler yields and returns.
 
 - `ctx.load.<module>.<entity>`: request constructors for loads of the module's own entities (full
   rows, with the module's own authority) and of the entities of modules it `requires` (typed as
-  present) or lists as `optional` (typed as possibly undefined); `.forCaller()` narrows a load to
-  the caller's plan. `ctx.write.<module>.<entity>`: draft constructors for the module's own entities
-  and, on another module's entity, for the fields this module contributed to it; anything else goes
-  through that module's actions or services (section 8.4). Handlers yield loads and return drafts;
-  the kernel reads and writes (section 7.9.2).
+  present) or lists as `optional` (reached through the Maybe accessor below); `.forCaller()` narrows
+  a load to the caller's plan. `ctx.write.<module>.<entity>`: draft constructors for the module's
+  own entities and, on another module's entity, for the fields this module contributed to it;
+  anything else goes through that module's actions or services (section 8.4). Handlers yield loads
+  and return drafts; the kernel reads and writes (section 7.9.2).
 - `ctx.services.<module>.<name>`: pure service functions of the module's dependencies, bound by the
   kernel to the providing module's context (section 5.5); they return values, requests or
   generators that callers delegate to with `yield*`, and call sites pass no context. Parts are typed
@@ -290,11 +301,19 @@ constructor, and the kernel performs what the handler yields and returns.
   descriptions (section 15.4). The `blobs` contract gives effect executors and listeners their blob
   access (`ExecutorContext.blobs`); handlers hold `BlobRef` values (section 5.2, gap G5).
 
+A module listed as `optional` is reached through a Maybe accessor (decision 32b, 2026-10-27):
+`ctx.load.accounts` has one member, `ifPresent(f)`, a request that answers what `f`'s request
+answers when `accounts` is selected and `undefined` when it is not, without touching the unit, so
+`yield* ctx.load.accounts.ifPresent((a) => a.profile.byId(id))` is `Profile | undefined` and composes
+with `yield*` like every other request (section 7.9.3). `ctx.services.<module>` of an optional
+module has the same form. Jens chose it for now and is not sold yet: the M0 spike writes the auth
+module against it and against the `| undefined` form and reports (section 26.2).
+
 Inside a conditional part, the `when` modules count as required, so a reaction typed with
-`within(authBase, whenAccounts)` sees `ctx.load.accounts` as present. Module ids with hyphens appear in
-lower camel case in the context (`ctx.load.mailStore`, `ctx.services.apiKeys`), while references
-keep the id (`mail-store.email.get`); a camel-case collision between two selected modules is a
-compose error (section 5.1).
+`within(authBase, whenAccounts)` sees `ctx.load.accounts` as present, without the accessor. Module
+ids with hyphens appear in lower camel case in the context (`ctx.load.mailStore`,
+`ctx.services.apiKeys`), while references keep the id (`mail-store.email.get`); a camel-case
+collision between two selected modules is a compose error (section 5.1).
 
 App-level types (`AppEntities<App>`, `AppActionTree<App>`, `AppClient<App>`) exist for what is
 genuinely per app: app actions, clients, transports and the generated file (section 13.1).
@@ -332,12 +351,13 @@ A module is written as object literals, never as a builder chain. Three kinds of
   needs, extension points, entities, streams, flags and the declarations of contributions and
   conditional parts, which is everything a handler's types depend on;
 - **parts**, one literal each, typed against the base: `defineCommand`, `defineQuery` and
-  `defineSubscription` (section 4.3), `definePolicy` (section 4.4), `defineReaction` and
+  `defineSubscription` (section 4.3), `defineRule` (section 4.4), `defineReaction` and
   `defineProcess` (section 7.7), `defineService` and `defineFill` (section 5.5), `defineSchedule`
   (section 9.5), `defineTopic` (gap G6), `defineHook` (section 3.3), and `defineEffect` and
   `defineEffectExecutor` (section 7.9.5);
 - the **module literal**, `defineModule(base, { ... })`, which mounts the parts and is the module
-  value apps select.
+  value apps select; the generator writes it as `module.generated.ts` from the module's directories
+  (decision 59b, section 23.5).
 
 ```ts
 import { contracts, defineCommand, defineModule, defineModuleBase, extensionPoint, field, shape, type ModuleBaseType, type ModuleType } from '@pennestack/core'
@@ -349,12 +369,12 @@ const authBaseDef = defineModuleBase({
   id: 'auth',                       // literal; permanent; grammar and reserved ids in section 5.1
   version: '0.1.0',                 // the package's semantic version, enforced by `pennestack surface diff` (section 18.6)
   requires: [],                     // hard dependencies: module values or contracts; compile-time and boot-time checked
-  optional: [accounts, contracts.live], // soft dependencies: typed as possibly undefined in the context
+  optional: [accounts, contracts.live], // soft dependencies: reached through ifPresent in the context (section 3.4)
   provides: [],                     // contracts this module implements (the live module provides contracts.live)
   config: shape({                   // per-backend configuration, validated when a backend is created
     sessionIdleMinutes: field.integer({ min: 5 }).default(720),
   }),
-  data: { needs: [] },              // adapter capabilities: 'search', 'rowLocks', { sql: 'postgres' }, ... (section 14.3.3)
+  data: { needs: [] },              // only a raw-SQL dialect, { sql: 'postgres' }: the one declared non-portability (section 14.3.3)
   extensionPoints: {                // typed slots other modules may fill (section 5.5)
     identityProviders: extensionPoint<IdentityProvider>({ mode: 'set' }),
   },
@@ -373,15 +393,16 @@ export const revoke = defineCommand(authBase, credential, {
   decide: (input, current, ctx) => [ctx.events.revoked({ at: ctx.clock.now(), reason: input.reason })],
 })
 
-// The module literal: mounts the parts under keys that are ids.
+// The module literal, which the generator writes as module.generated.ts from the directories
+// (section 23.5): it mounts the parts under keys that are ids.
 const authDef = defineModule(authBase, {
   actions: { login, logout, revokeSubject },             // module-level actions, section 4.3
   entityActions: { credential: { revoke } },             // actions mounted on own entities
-  policies: [credentialPolicy, loginPolicy],             // section 4.4
+  policies: { credential: { self, selfRevoke, alreadyRevoked }, login: { open } },   // one rule per file; the key path is the rule id (section 4.4)
   reactions: {},                                         // event handlers; keys are reaction ids (section 7.7)
   services: { verifyPassword, hashPassword },            // pure, typed functions for dependants, section 5.5
   topics: {},                                            // gap G6
-  contributes: { toAccounts: { entityActions: { profile: { changePassword } }, policies: [profilePolicy] } },   // section 5.3
+  contributes: { toAccounts: { entityActions: { profile: { changePassword } }, policies: { profile: { self: profileSelf } } } },   // section 5.3; the generator aliases clashing names
   conditional: { whenAccounts: { reactions: { revokeOnDeactivation } } },                                      // section 5.4
   schedules: {},                                         // keys are schedule ids (section 9.5)
   lifecycle: { onTenantCreated },                        // hooks of section 3.3
@@ -396,11 +417,12 @@ export interface Auth extends ModuleType<typeof authDef> {}
 export const auth: Auth = authDef
 ```
 
-Section 23 puts the base in `base.ts`, each part in a file of its own and the module literal in
-`module.ts`; tests, spikes and the API sketch may write all three in one file. Flags and version
-changes are declarations that need no base: `defineFlag` (section 20.2), listed by the base's
-`flags`, and `defineVersionChange`, listed by the module literal's `changes`; an app's dated API
-versions are a `defineApiVersions` value (section 18.2).
+Section 23 puts the base in `base.ts` and each part in a file of its own, and the generator writes
+the module literal as `module.generated.ts` from the directories (decision 59b, 2026-10-28); tests,
+spikes and the API sketch may write all three in one file, the module literal then by hand. Flags
+and version changes are declarations that need no base: `defineFlag` (section 20.2), listed by the
+base's `flags`, and `defineVersionChange`, listed by the module literal's `changes`; an app's dated
+API versions are a `defineApiVersions` value (section 18.2).
 
 - **Mounts.** An own entity is passed by value (`defineCommand(authBase, credential, { ... })`);
   another module's entity is named, inside a contribution: `defineCommand(within(authBase,
@@ -415,7 +437,10 @@ versions are a `defineApiVersions` value (section 18.2).
 - **Keys.** The keys of `actions`, `entityActions`, `reactions`, `schedules`, `topics`, `changes`,
   `effects` and `executors` are ids: renaming an action changes the API, and reaction, schedule,
   effect and version-change ids never change once released (an effect's name is part of its
-  records, section 7.9.6). `policies` is an array, because a rule set is identified by its rules' ids.
+  records, section 7.9.6). `policies` is keyed the same way, by target and then by rule, so the key
+  path is the rule id (`policies.credential.self` is `auth.credential.self`); a rule over several
+  actions or over a selector sits at the top level under its own name (section 4.4). With the
+  generated manifest every key comes from a file or directory name (section 23.5).
 - **Contributions and conditional parts** have two halves under one key: the base's
   `contributions` and `conditions` hold the declarations with the data they add, and the module
   literal's `contributes` and `conditional` hold the behaviour. Entries that share a (target,
@@ -490,8 +515,9 @@ and columns. The core defines the kinds and the modifiers; section 14.5.1 maps t
 | `field.decimal({ precision, scale })` | `string` | an exact canonical decimal; never a binary float |
 | `field.float()` | `number` | IEEE 754 double, for measurements and introspected `real` columns |
 | `field.boolean()` | `boolean` | |
-| `field.instant()` | `Date` now; `Temporal.Instant` once Node 26 is the baseline | UTC only; RFC 3339 at the boundary |
-| `field.date()`, `field.timeZone()` | `string` | ISO calendar date; IANA zone name |
+| `field.instant()` | `Temporal.Instant` | UTC; millisecond precision as stored, finer digits rounded down at `validate`; RFC 3339 at the boundary (decision 19b, section 6.4) |
+| `field.date()` | `Temporal.PlainDate` | ISO calendar date |
+| `field.timeZone()` | `string` | an IANA zone name, validated against the runtime's time-zone database |
 | `field.enum([...])` | union of the literals | |
 | `field.json(schema)` | the schema's output type | any Standard Schema; stored as JSON |
 | `field.ref(module, entity)`, `field.ref.own(entity)` | `Id<'module.entity'>` | a typed reference; where it may point is section 6.3; `own` names an entity of the declaring or contributing module |
@@ -536,7 +562,7 @@ between the base and the literal mounts the action on that entity: an own entity
 target's entity by name inside a contribution.
 
 ```ts
-// One part per file (section 23); module.ts mounts them:
+// One part per file (section 23); the generated module.generated.ts mounts them, from their paths:
 //   entityActions: { credential: { revoke, active } }, actions: { login, whoami },
 //   conditional: { whenLive: { actions: { sessionEvents } } }
 export const revoke = defineCommand(authBase, credential, {
@@ -598,45 +624,52 @@ rows, which the shape stage masks (section 8.4). Section 7 defines the full opti
 
 ### 4.4 Policies
 
-A policy is a literal array of rules over one target, typed against the base: an own entity, an
-own module-level action (or a list of them), or a selector across modules (gap G13). Each rule is
-an object with the members of section 8.1.
+A policy is the set of rules over one target: an own entity, an own module-level action, a list
+of own module-level actions, or a selector across modules (gap G13). Each rule is a file of its
+own (decision 60b, 2026-10-28), one `defineRule(base, target, { ... })` literal typed against the
+base, with the members of section 8.1. A rule over one entity or one action lives in
+`policies/<target>/<rule>.ts`, and its id is the module id, the target and the file name
+(`policies/credential/self.ts` of `auth` is `auth.credential.self`); a rule over several actions or
+over a selector lives in `policies/<rule>.ts` with the id `<module>.<rule>`. The generated manifest
+mounts every rule file under that key path (section 23.5); because rules compose as a set (section
+8.2), neither their order nor their split over files changes a decision, and allows and denies over
+one target are still read together, as the files of one directory.
 
 ```ts
-// modules/auth/src/policies/credential.ts
-export const credentialPolicy = definePolicy(authBase, credential, [
-  {
-    effect: 'allow',
-    actions: ['read'],                                     // 'read' covers get, query, changes, queryChanges, watch, history
-    id: 'self',                                            // becomes auth.credential.self
-    principal: 'user',                                     // narrows ctx.principal: subject is a SubjectId, never null
-    where: (ctx) => ({ subject: ctx.principal.subject }),  // typed condition over credential
-    fields: ['lastUsedAt'],                                // the maskable fields this rule reveals
-    reason: 'A user may see their own credentials.',
-  },
-  { effect: 'allow', actions: ['revoke'], id: 'self-revoke', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) },
-  {
-    effect: 'deny',                                        // without `check`, a deny rule tests the row before the action
-    actions: ['revoke'],
-    id: 'already-revoked',
-    where: () => ({ revokedAt: { isNull: false } }),
-    reason: 'This credential is already revoked.',
-  },
-])
-// modules/auth/src/policies/login.ts and whoami.ts: module-level actions
-export const loginPolicy = definePolicy(authBase, login, [{ effect: 'allow', public: true }])
-export const whoamiPolicy = definePolicy(authBase, whoami, [{ effect: 'allow', principal: 'user' }])
+// modules/auth/src/policies/credential/self.ts: the rule auth.credential.self
+export const self = defineRule(authBase, credential, {
+  effect: 'allow',
+  actions: ['read'],                                     // 'read' covers get, query, changes, queryChanges, watch, history
+  principal: 'user',                                     // narrows ctx.principal: subject is a SubjectId, never null
+  where: (ctx) => ({ subject: ctx.principal.subject }),  // typed condition over credential
+  fields: ['lastUsedAt'],                                // the maskable fields this rule reveals
+  reason: 'A user may see their own credentials.',
+})
 
-// A transition, in the members module's policy over invitation: members may move an invitation from
-// pending to withdrawn, and to nothing else.
-{
+// modules/auth/src/policies/credential/self-revoke.ts: auth.credential.self-revoke
+export const selfRevoke = defineRule(authBase, credential, { effect: 'allow', actions: ['revoke'], principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) })
+
+// modules/auth/src/policies/credential/already-revoked.ts: auth.credential.already-revoked
+export const alreadyRevoked = defineRule(authBase, credential, {
+  effect: 'deny',                                        // without `check`, a deny rule tests the row before the action
+  actions: ['revoke'],
+  where: () => ({ revokedAt: { isNull: false } }),
+  reason: 'This credential is already revoked.',
+})
+
+// modules/auth/src/policies/login/open.ts and policies/whoami/signed-in.ts: rules over module-level actions
+export const open = defineRule(authBase, login, { effect: 'allow', public: true })
+export const signedIn = defineRule(authBase, whoami, { effect: 'allow', principal: 'user' })
+
+// modules/members/src/policies/invitation/withdraw.ts: a transition; members may move an invitation
+// from pending to withdrawn, and to nothing else.
+export const withdraw = defineRule(membersBase, invitation, {
   effect: 'allow',
   actions: ['update'],
-  id: 'withdraw',
   principal: 'user',
   where: (ctx) => ({ status: 'pending', invitedBy: ctx.principal.subject }),   // the row acted on
   check: () => ({ status: 'withdrawn' }),                                      // the row produced
-}
+})
 ```
 
 Entity rules carry a `where` condition over the row acted on (compiled to the data layer and
@@ -709,7 +742,7 @@ export default defineDeployment({
     postgresAdapter(),                                     // data adapter factory 'postgres' (section 14.3.7)
     httpHost({ listen: [{ port: 3000 }] }),                // provides contracts.httpHost; serves the invocation protocol for every app
     blobsFs({ root: '/var/lib/pennestack/blobs' }),        // provides contracts.blobs (gap G5)
-    ledgerFile({ path: '/var/lib/pennestack-ledger/erasure.log' }),   // erasure-ledger sink outside placement backups (section 14.7.6)
+    ledgerFile({ path: '/var/lib/pennestack-ledger/erasure.log' }),   // ledger sink outside placement backups: erasures and chain anchors (sections 14.7.6 and 15.1.8)
   ],
   control: { adapter: 'postgres', url: env('PENNESTACK_CONTROL_URL') },
   placements: {                                            // where tenant data may live; chosen per tenant at creation
@@ -721,6 +754,7 @@ export default defineDeployment({
   keys: { masterKey: secret('PENNESTACK_MASTER_KEY') },    // root of the key service (section 14.7.4)
   telemetry: { otlp: env('OTEL_EXPORTER_OTLP_ENDPOINT') },
   rollout: { finalize: 'auto', graceSeconds: 600 },        // the defaults: finalization of rolling upgrades (section 19.4)
+  anchors: { every: 'batch' },                             // the default: each scope's chain head to every ledger sink per notifier batch (section 15.1.8)
   processes: { home: { roles: ['serve', 'work'], slots: { '*': 4 } } },   // named processes (section 21.1)
   scaling: { maxProcesses: 8 },                            // the scaler's deployment-wide limits (section 21.4)
   queues: { 'mail-delivery': { running: 4, slo: 'PT2M' } },   // job limits per queue; slo: an ISO 8601 duration (sections 9.5.5 and 21.4)
@@ -744,7 +778,10 @@ declares its named processes (`processes.<name>` with `roles`, `capabilities`, `
 `maxProcesses`, `maxCostPerHour` and maxima per provider), the job limits per queue (`queues.<q>`:
 `running`, `queued` and `slo`) and each placement's connection budget
 (`placements.<name>.maxConnections`, default 80 percent of the server's `max_connections`); sections
-9.5.5, 21.1, 21.3 and 21.4 specify them. `queues.<q>.slo` is the target wait of the queue's due
+9.5.5, 21.1, 21.3 and 21.4 specify them. `anchors.every` sets how often each scope's chain head is
+appended to the ledger sinks: `'batch'`, the default, with every commit batch of the notifier and at
+most once per second per scope, or an ISO 8601 duration such as `PT1M` (decision 35b, section
+15.1.8). `queues.<q>.slo` is the target wait of the queue's due
 jobs, from due to start, written as an ISO 8601 duration like every duration in this document's
 configuration (default `PT30S`): `queues: { 'mail-delivery': { slo: 'PT2M' } }` asks the scaler to
 start a due delivery within two minutes, and the scaler reads it in seconds (`sloSeconds`, section
@@ -758,7 +795,9 @@ The derived types operate on the normalised module shape below, which `defineMod
 produces from the module base and the module literal (section 4.1). The listing was checked on 2026-10-11 with TypeScript 7.0.2 and 5.9.3
 (`--strict --exactOptionalPropertyTypes --noUncheckedIndexedAccess`) together with the fourteen
 groups of positive and negative cases listed after it: every positive case holds, and every
-negative case fails with the named check. The file with its cases costs 61,042 type
+negative case fails with the named check. The listing types instants as `Date`, as it was checked;
+the DSL types them as `Temporal.Instant` (decision 19b, section 6.4), which no composition check
+reads. The file with its cases costs 61,042 type
 instantiations on TypeScript 7.0.2 (57,242 on 5.9.3).
 
 The listing models the composition fold, not the whole DSL: its `defineModule(m)` takes the
@@ -1222,18 +1261,20 @@ thing:
 Spike checklist, to be run before any M1 code is written (roadmap M0):
 
 1. The module base and the parts typed against it: `defineCommand`, `defineQuery`,
-   `defineSubscription`, `definePolicy`, `defineReaction`, `defineService`, `defineEffect`,
+   `defineSubscription`, `defineRule`, `defineReaction`, `defineService`, `defineEffect`,
    `defineEffectExecutor` and the other part functions over a base, and `within(base, declaration)`
    for parts of contributions and conditional parts, each handler typed with its context over the
    base (`DecideContext<Base>` and its siblings); parts in separate files that never import their
    module; `defineModule(base, { ... })` producing the same normalised module type as the module
-   written in one file, with the `effects` and `executors` mounts; own actions invoked by value in
-   `invoke` effects.
+   written in one file, with the `effects` and `executors` mounts, also when the generator writes
+   it as `module.generated.ts` from a fixture module's directories (decision 59b); own actions
+   invoked by value in `invoke` effects.
 2. Module-local contexts: `LoadsOf<M>` (own rows with hidden fields and `SecretRef`, dependency rows
    without them) and `WritesOf<M>` (drafts of own entities, patches of contributed fields only),
-   `InvokableRefs<M>`, `when` modules of a conditional part treated as required, `ctx.live` from
-   the contract in subscription sources, and a type test that compiles each module with no app in
-   scope.
+   `InvokableRefs<M>`, `when` modules of a conditional part treated as required, optional modules
+   through the Maybe accessor `ifPresent` and, for comparison, as `| undefined` (decision 32b,
+   section 26.2), `ctx.live` from the contract in subscription sources, and a type test that
+   compiles each module with no app in scope.
 3. Pure handlers (section 7.9): generator handlers typed per request through `yield*` (each answer
    typed by its request, a bare `yield` rejected), handler types that exclude promises (an `async`
    `decide` is a compile error), `ctx.all` with `const` type parameters giving tuple answers, and
@@ -1249,8 +1290,9 @@ Spike checklist, to be run before any M1 code is written (roadmap M0):
    and the authorization and policy options.
 9. `AppActionTree` with input, output, error and event types derived from field-model shapes;
    `Insert`, `Patch`, `OfflinePatch` and `PatchValue`.
-10. Declaration emit of every example module and both proof apps under the pnpm layout:
-    `.d.ts` size per module, and no TS7056, TS2742 or TS4023.
+10. Declaration emit of every example module, the portal example and the synthetic apps under the
+    pnpm layout: `.d.ts` size per module, and no TS7056, TS2742 or TS4023; the platforms run the same
+    checks in their own repositories (decision 48c).
 11. Instantiation budgets set on synthetic apps of 25 and 40 modules (the proof apps have 25 and
     26 modules), with every part typed against its base, and the cost of that typing (one context
     type over the base per part) compared with the same modules written in one file each.
@@ -1288,8 +1330,10 @@ camel-case to the same name (`mail-2fa` and `mail2fa`) cannot be selected togeth
 
 Reserved names, checked at `defineModule` and `defineApp`:
 
-- module ids: `core` (the kernel's own module), `app` (actions mounted on the app), and the
-  framework command names of the CLI (section 16.9.3), frozen per major version;
+- module ids: `core` (the kernel's own module) and `app` (actions mounted on the app), because
+  action references start with them, and nothing else: no id is reserved because of the CLI, an
+  integration, a plugin or another module, since action commands sit under `pennestack call`
+  (decision 16b, section 16.9.3);
 - entity, action, field, relation and event names match `[a-z][a-zA-Z0-9]*`; entity names and
   module-level action names share one namespace per module, contributed actions included;
 - per entity, the generated action names `get`, `query`, `changes`, `queryChanges`, `set`,
@@ -1378,27 +1422,25 @@ export const toAccounts = defineContribution(accounts, {
 // Parts of the contribution are typed with within(): accounts counts as required, profile rows include the fields above.
 export const whoami = defineQuery(within(authBase, toAccounts), { /* mounted as accounts.whoami */ })
 export const changePassword = defineCommand(within(authBase, toAccounts), 'profile', { /* accounts.profile.changePassword */ })
-export const profilePolicy = definePolicy(within(authBase, toAccounts), 'profile', [
-  {
-    effect: 'allow',
-    actions: ['read', 'update'],
-    id: 'self',
-    principal: 'user',
-    where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }),
-    fields: ['displayName', 'locale'],
-  },
-])
+// modules/auth/src/contributions/to-accounts/policies/profile/self.ts: the rule auth.accounts.profile.self
+export const self = defineRule(within(authBase, toAccounts), 'profile', {
+  effect: 'allow',
+  actions: ['read', 'update'],
+  principal: 'user',
+  where: (ctx) => ({ id: ctx.principal.subjectAs('accounts.profile') }),
+  fields: ['displayName', 'locale'],
+})
 // modules/auth/src/base.ts: contributions: { toAccounts, toProjectsWhenTeams }, where
 // toProjectsWhenTeams = defineContribution(projects, { when: [teams] })
-// modules/auth/src/module.ts: the behaviour, under the declarations' keys
+// modules/auth/src/module.generated.ts: the behaviour, under the declarations' keys, as the generator writes it
 contributes: {
   toAccounts: {
     actions: { whoami },
     entityActions: { profile: { changePassword } },
-    policies: [profilePolicy],
-    extensionPoints: { profileCards: [{ id: 'auth.security', title: 'Security' }] },
+    policies: { profile: { self } },
+    extensionPoints: { profileCards: profileCardsFill },   // fills/profile-cards.ts: [{ id: 'auth.security', title: 'Security' }]
   },
-  toProjectsWhenTeams: { policies: [teamProjectsPolicy] },   // rules that reference projects.team.members
+  toProjectsWhenTeams: { policies: { project: { teamMembers } } },   // a rule that references projects.team.members
 },
 ```
 
@@ -1440,7 +1482,7 @@ export const revokeOnDeactivation = defineReaction(within(authBase, whenAccounts
   timing: 'inline',
   react: (event) => ({ effects: [invoke(revokeSubject, { subject: event.state.id, reason: 'profile deactivated' })] }),   // an own action, by value
 })
-// modules/auth/src/module.ts: conditional: { whenAccounts: { reactions: { revokeOnDeactivation } } }
+// modules/auth/src/module.generated.ts: conditional: { whenAccounts: { reactions: { revokeOnDeactivation } } }
 ```
 
 With contributions (push: a module adds to another) and conditional parts (self-adaptation when
@@ -1513,7 +1555,7 @@ delegate with `yield*`:
 ```ts
 // modules/auth/src/services/verify-password.ts: Argon2id is a computation of the core, answered off the event loop (section 7.9.3)
 export const verifyPassword = defineService(authBase, (own, verifier: string | undefined, password: string) => own.compute.argon2idVerify(verifier ?? DUMMY_VERIFIER, password))
-// modules/auth/src/module.ts: services: { verifyPassword }
+// modules/auth/src/module.generated.ts: services: { verifyPassword }
 // in a dependant's generator decide:
 const ok = yield* ctx.services.auth.verifyPassword(cred?.verifier, input.password)
 ```
@@ -1670,14 +1712,19 @@ Projections:
   specification 0.3.0 as implemented by `typeid-js` 1.2.0, used as the reference, not a
   dependency) and parsed back; the type `Id<'accounts.profile'>` is branded so an id of one entity
   cannot be passed for another.
-- Instants are UTC. `field.instant()` is a `Date` in process and an RFC 3339 string on the wire
-  until Node 26 is the baseline, after which it becomes `Temporal.Instant` behind the same
-  builder (decision point in section 26.1). `createdAt` and `updatedAt` are set by the kernel,
-  never by database defaults.
-- `ctx.clock.now()` is the invocation's fixed time, taken once when execution begins (for jobs,
-  when the job runs) and kept across retries; it is recorded as the events' `recordedAt` and is the
-  time behind `createdAt`, hybrid logical clocks and tokens. Tests set it as an input (section
-  7.9.3).
+- Instants are UTC and `Temporal` from the start (decision 19b, 2026-10-26): `field.instant()` is
+  a `Temporal.Instant` in process and an RFC 3339 string on the wire, `field.date()` a
+  `Temporal.PlainDate`, and `field.timeZone()` an IANA zone name. Node 26, the baseline (section
+  13.2), ships `Temporal` natively, so no polyfill is needed on the server; a client on a runtime
+  without it loads a polyfill of its own choice before the `@pennestack/core/wire` codecs, as the
+  baseline rule of section 13.2 says. Instants keep millisecond precision, the precision every
+  adapter stores (section 14.5.1): `validate` rounds finer digits down, so a value reads back
+  equal. The adapters' codecs convert between `Temporal` values and their columns. `createdAt` and
+  `updatedAt` are set by the kernel, never by database defaults.
+- `ctx.clock.now()` is the invocation's fixed time, a `Temporal.Instant` taken once when execution
+  begins (for jobs, when the job runs) and kept across retries; it is recorded as the events'
+  `recordedAt` and is the time behind `createdAt`, hybrid logical clocks and tokens. Tests set it
+  as an input (section 7.9.3).
 
 ### 6.5 Schema library choice and validation
 
@@ -1690,8 +1737,8 @@ GraphQL converter, with a `JSON` scalar fallback for shapes GraphQL cannot expre
 dependency of examples, never a dependency of a framework package. ADR 0002 records this.
 
 Validation runs once, in the pipeline (section 9.2), before authorization. The `validate` stage
-accepts a value in wire form or in in-process form (an RFC 3339 string or a `Date` for an
-instant; a decimal string or a `bigint` for a wide integer) and produces the in-process form, so
+accepts a value in wire form or in in-process form (an RFC 3339 string or a `Temporal.Instant` for
+an instant; a decimal string or a `bigint` for a wide integer) and produces the in-process form, so
 transports pass decoded JSON straight to the invoker; `toWire` and `fromWire` per field node live
 in the dependency-free subpath `@pennestack/core/wire` that clients share (section 16.4.2).
 Output is validated in development and in tests, and only shaped (masked) in production, so a
@@ -1971,8 +2018,15 @@ interface SourceContext<M extends AnyModuleBase, W extends readonly AnyModule[] 
   readonly log: Logger
 }
 // Present only when the module declares them: ctx.load.sql (data need { sql: dialect }, section 14.3.8), ctx.live
-// (contracts.live, in sources); blobs only in ExecutorContext. Optional contracts type them as possibly undefined.
+// (contracts.live, in sources); blobs only in ExecutorContext. Optional contracts type them as possibly undefined;
+// optional modules are reached through the Maybe accessor (ctx.load.accounts.ifPresent(...), section 3.4).
 ```
+
+- Loads and services of a module listed as `optional` go through the Maybe accessor (decision 32b,
+  2026-10-27): `ctx.load.accounts.ifPresent((a) => a.profile.byId(id))` is a request answered with
+  `Profile | undefined`, `undefined` when `accounts` is not selected, and composes with `yield*`
+  like every other request (section 7.9.3). The M0 spike compares it with the `| undefined` form on
+  the auth module before the form is final (section 26.2).
 
 - `ctx.load` runs with the module's own authority (section 8.4): loads of its own entities and of
   its dependencies are never narrowed by the caller's plan, so uniqueness checks, quotas and
@@ -2038,7 +2092,7 @@ export const dispatchNextForProject = defineReaction(deploymentsBase, {
 // stateful process manager, in a module that requires accounts and auth: react(event, state, ctx) and evolve(state, event)
 export const onboarding = defineProcess(onboardingBase, { on: ['accounts.profile.created', 'auth.credential.created'], react, evolve })
 
-// modules/deployments/src/module.ts: the keys are reaction ids (deployments.dispatchNextForProject)
+// modules/deployments/src/module.generated.ts: the keys are reaction ids from the file names (deployments.dispatchNextForProject)
 reactions: { dispatchNextForProject },
 ```
 
@@ -2083,7 +2137,7 @@ interface ReactionEventBase<Name extends string, Data, R> {
   readonly before: Partial<R> | null                     // previous values of the changed fields (hidden fields excluded)
   readonly actor: ActorRef                               // who caused it
   readonly commandId: string | null
-  readonly at: Date                                      // acceptance time
+  readonly at: Temporal.Instant                                      // acceptance time
 }
 interface InlineReactionEvent<Name extends string, Data, R> extends ReactionEventBase<Name, Data, R> {
   readonly state: R                                      // the row right after this event
@@ -2108,7 +2162,9 @@ option; this way I can trace each cause and effect and rebuild a full database a
 them"; option c, the split model, is the fallback. This subsection replaced the imperative `handle`
 form and the imperative members of `ctx` that sections 4.3, 7.3 and 7.6 specified before
 2026-10-25; those sections, and every sketch in this document, now use its forms. Its decision
-points are 73 to 80 of the register (section 26.1);
+points are 73 to 80 of the register, decided on 2026-10-28 as this subsection assumed (section
+26.1); Jens reopened and confirmed 50a the same day, and the M0 spike tests one ergonomic variant
+(section 7.9.4);
 [ADR 0026](adr/0026-pure-handlers-and-the-effect-interpreter.md) records it and
 [research/pure-handlers.md](research/pure-handlers.md) is the evidence.
 
@@ -2176,8 +2232,9 @@ generator, so `yield*` types each answer (as in Effect); a bare `yield` is a lin
 |---|---|---|---|
 | `ctx.load.<m>.<e>.byId(id)`, `.one({ where })`, `.many({ where, sort, limit })` (limit at most 1,000), `.count(where)`, `.exists(where)`, `.query(q)`, `.history(id, { asOf })` | decide, prepare, read, react, services | the unit, with module authority (decision 4a) | each load's snapshot position |
 | `.forCaller()` variants; `ctx.target` in entity queries | as above | narrowed by the caller's read plan, masked | as loads |
+| `ctx.load.<optional module>.ifPresent(f)`, `ctx.services.<optional module>.ifPresent(f)` | as above | `f`'s request when the module is selected, else `undefined` without touching the unit (decision 32b) | as `f`'s request |
 | `ctx.ask(ref, input)` | as above | a dependency's query action inside the unit, gated as the current principal | as loads |
-| `ctx.load.sql(build)` (M7) | as above | a Kysely query built without a connection, scoped as in section 14.3.8 | as loads |
+| `ctx.load.sql(build)` (M5) | as above | a Kysely query built without a connection, scoped as in section 14.3.8 | as loads |
 | `ctx.all([...requests])` | as above | answered together, batched where the adapter can | its members |
 | `ctx.flags.<m>.<flag>`, `ctx.flagDetails(key)` | every handler | the invocation's flag snapshot (section 20.3) | the envelope's `flags` |
 | `ctx.newId(entity)`, `ctx.random(bytes)` | decide, prepare, react | the kernel: UUIDv7, a CSPRNG | the answers |
@@ -2189,9 +2246,13 @@ generator, so `yield*` types each answer (as in Effect); a bare `yield` is a lin
 - Requests never throw into a generator: an infrastructure failure aborts the invocation (retried
   where the taxonomy allows), and an inline effect's outcome is answered as a value,
   `{ ok: true, value } | { ok: false, error }`.
-- The clock is not a request: `ctx.clock.now()` returns the invocation's time, taken once when
-  execution begins (for jobs, when the job runs), kept across retries, and recorded as the events'
-  `recordedAt`.
+- The clock is not a request: `ctx.clock.now()` returns the invocation's time as a
+  `Temporal.Instant` (decision 19b), taken once when execution begins (for jobs, when the job runs),
+  kept across retries, and recorded as the events' `recordedAt`.
+- The Maybe accessor of an optional module composes like any request: `yield*
+  ctx.load.accounts.ifPresent((a) => a.profile.byId(id))` delegates to the inner request when
+  `accounts` is selected and answers `undefined` otherwise, so a part reads `Profile | undefined`
+  in one step; `ctx.all` accepts it among its members.
 - Pure helpers need no request: modules call their `lib/` functions, and the core exports pure
   primitives that need `node:*` (`@pennestack/core/crypto`: `sha256`, `hmacSha256`,
   `timingSafeEqual`).
@@ -2234,6 +2295,13 @@ Asynchronous commands pass phase 1 at acceptance and run phases 3 to 9 in their 
 `read` runs after phase 1 in a read-only unit (section 14.3.6): a returned request is planned
 (section 14.7.9.5) and answered, a generator is driven, then the shape stage runs. Queries record
 nothing.
+
+Jens reopened and confirmed the strict model on 2026-10-28 (decision 50a, keep a) and asked for one
+ergonomic variant to be tested: no separate `prepare` member, `decide` performing inline effects
+only before its first load, the kernel opening the unit at that first load and refusing a later
+inline effect with a clear error. The M0 spike prototypes both forms on Trail's ingest and on
+GitHub's connection flow (section 26.2); until it reports, phase 2 stays as written, and decision
+74's restrictions keep the split model of 50c as the agreed fallback.
 
 #### 7.9.5 Effects
 
@@ -2336,7 +2404,7 @@ output (`deferred`), not an error; the executor retries only infrastructure fail
 | ids, random values, issued secrets | in the decision record; issued secrets by public id and verifier only |
 | reveals, verifications, computations | nothing: reproducible while their keys exist |
 | an effect | its stream `core.effect/<id>` (kernel entity, chain, tenancy `invocation`): `requested` in the requesting unit (type; input, personal fields sealed, secrets as references; command id; the ids of the events it accompanied; continuation, key, deadline) and `settled` (`succeeded`, `failed` or `abandoned`; output up to 64 KiB, else a blob reference; error; attempts; timings; SHA-256 digest of the canonical output) |
-| attempts | records of the stream `core.effectAttempt` keyed by effect id (gap G6: process, build, start, end, error), kept 90 days |
+| attempts | records of the stream `core.effectAttempt` keyed by effect id (gap G6: process, build, start, end, error), kept until the operator adopts a `streamRecords` rule for them: like everything else, nothing is purged by default (decisions 78a and 47c, section 14.7.1) |
 | a continuation | its own decision, whose causation is the effect id |
 | logs, traces | not recorded; correlated by scope, command, effect and trace ids |
 
@@ -2357,7 +2425,7 @@ effect state per `core.effect` stream. After a rebuild or restore, every effect 
 Receipts and job rows are operational and not rebuilt. The logbook is a projection of the same chain:
 per command its decision record, events, effects with outcomes and the continuations they caused;
 `pennestack explain --trace <command, event or effect id>` prints that tree, and a projection entity
-can materialise it from M7.
+can materialise it from M5.
 
 **What replay means.**
 
@@ -2389,9 +2457,9 @@ run.returns({ events: [created(profile, { id: 'prof_01j9...', displayName: 'Jens
 
 - Handler types exclude promises, so `async` and `await` in pure parts are type errors;
   `no-await-in-parts.grit` says so readably.
-- `pure-parts.grit` (replacing `pure-deciders.grit`) flags `Date.now()`, `new Date()` without
-  arguments, `Math.random()`, `performance.now()`, `crypto.*`, `setTimeout`, `setInterval`,
-  `queueMicrotask`, `fetch` and a bare `yield` of a request in module sources outside
+- `pure-parts.grit` (replacing `pure-deciders.grit`) flags `Temporal.Now.*`, `Date.now()`, `new
+  Date()` without arguments, `Math.random()`, `performance.now()`, `crypto.*`, `setTimeout`,
+  `setInterval`, `queueMicrotask`, `fetch` and a bare `yield` of a request in module sources outside
   `src/executors/`.
 - Biome's `noNodejsModules` and `noRestrictedImports` keep `node:*`, adapters, drivers, `kysely` and
   HTTP or SMTP clients out of module packages except under `src/executors/`.
@@ -2412,7 +2480,7 @@ interface DecideContext<M extends AnyModuleBase, W extends readonly AnyModule[] 
   readonly principal: Principal
   readonly ability: Ability                                // pure over the rules
   readonly config: ConfigOf<M>                             // secrets as references
-  readonly clock: { now(): Date }                          // the invocation's time
+  readonly clock: { now(): Temporal.Instant }                          // the invocation's time
   readonly request: RequestInfo
   readonly prepared: P
   readonly load: LoadsOf<M, W>                             // request constructors
@@ -2564,10 +2632,10 @@ export const applied = defineCommand(dnsBase, record, {
 - Authorization (section 8.4): loads carry the module's authority, `forCaller()` and `ctx.target` the
   caller's plan, the shape stage checks every row leaving the invoker, and drafts obey the write
   boundary. Effects need no rules: the action was authorized as a whole, and egress bounds executors.
-- Layout (section 23): `src/effects/<effect>.ts` exports one `defineEffect`, `src/executors/<effect>.ts`
-  exports `<effect>Executor`, imperative helpers sit in `src/executors/lib/`, and `src/lib/` stays
-  pure. Effects are parts: the module literal mounts `effects` and `executors`, keyed by effect name;
-  `pennestack new effect|executor` scaffolds them.
+- Layout (section 23): `src/effects/<effect>.ts` exports one `defineEffect`,
+  `src/executors/<effect>.ts` exports `<effect>Executor`, imperative helpers sit in
+  `src/executors/lib/`, and `src/lib/` stays pure. Effects are parts: the generated manifest mounts
+  `effects` and `executors`, keyed by effect name; `pennestack new effect|executor` scaffolds them.
 - Versioning (sections 18 and 19): effect inputs and outputs are versioned like action inputs;
   workers take effect jobs at or below their revision; version changes are pure transforms.
 - Flags (section 20): handlers read flags as requests, recorded in the envelope; rules read the
@@ -2606,7 +2674,7 @@ type RuleSubject =
   | { readonly kinds?: readonly ActionKind[]; readonly transports?: readonly string[] }   // rules across modules (gap G13)
 
 interface Rule<E> {
-  readonly id: string                          // stable, module-prefixed: 'auth.credential.self'
+  readonly id: string                          // from the rule's path: 'auth.credential.self' is policies/credential/self.ts
   readonly effect: 'allow' | 'deny'
   readonly subject: RuleSubject
   readonly actions: readonly string[]          // action names, set operations, the aliases 'read' and 'write', or '*'
@@ -2622,8 +2690,15 @@ interface Rule<E> {
 // flags (section 20.6) and stay plain functions (section 7.9.2).
 ```
 
-Policies are written as arrays of these objects, one `definePolicy(base, target, [...])` per target
-(section 4.4); `definePolicy` fills in `subject` from the target and prefixes the ids.
+Rules are written one per file, `defineRule(base, target, { ... })` without an `id` (section 4.4,
+decision 60b of 2026-10-28); `defineRule` fills in `subject` from the target, and the id comes from
+where the rule is mounted: the module id, the target and the file name. An own target is written
+by its name (`auth.credential.self`), another module's target, in a contribution, by its reference
+(`auth.accounts.profile.self`), and a rule over several actions or over a selector has the module
+id and its file name only (`auth.public-actions`, `api-keys.read-only-key`). The id is therefore
+stable as long as the file keeps its name and directory; renaming or moving a rule file renames the
+rule, so `defineApp` refuses a `policies.disable` entry that names no rule of the selection
+(section 8.7), and a rename cannot silently re-enable a rule an app had switched off.
 
 Action names: a rule names custom actions, the set operations `create`, `update`, `archive` and
 `restore`, the batch `set`, or the aliases `read` (`get`, `query`, `changes`, `queryChanges`, and
@@ -2778,7 +2853,7 @@ interface PrincipalBase {
   readonly memberships: readonly Membership[]
   readonly via: string                                    // resolver id: 'auth.session', 'api-keys.key', 'core.operator', 'core.module'
   readonly ref: PrincipalRef | null                       // what jobs and receipts store: resolver id, principal id, credential id
-  readonly expiresAt?: Date                               // when the presented credential stops being valid
+  readonly expiresAt?: Temporal.Instant                               // when the presented credential stops being valid
   readonly apiVersion?: string                            // from the credential: an API key created with a version (section 18.3)
 }
 interface UserPrincipal extends PrincipalBase {
@@ -2814,7 +2889,10 @@ job runs (section 7.4).
 ### 8.6 Explainability, logging, tests
 
 Every decision returns the matched rule ids and effects; `forbidden` errors carry the reason of
-the deciding deny rule or the ids of the rules that would have had to allow. A decision-log hook
+the deciding deny rule or the ids of the rules that would have had to allow. Because a rule is a
+file (decision 60b), `pennestack explain` prints each matched rule with its file
+(`@pennestack/module-auth`, `src/policies/credential/self.ts`), so the reader lands on the one
+literal to change. A decision-log hook
 receives every decision (`authorization.decisionLog: 'denials' | 'all' | 'none'`), and the audit
 module can write it to the chain. `ability.explain(plan)` renders the resolved condition for
 support work, and `pennestack explain` evaluates a decision without executing (section 16.9.7).
@@ -2826,7 +2904,8 @@ query on every adapter, compare row by row with the in-memory decision, for `whe
 
 ### 8.7 Configurability
 
-- app level: `authorization.mode`, `decisionLog`, `policies.disable` (by rule id), `policies.add`
+- app level: `authorization.mode`, `decisionLog`, `policies.disable` (by rule id; an id that names
+  no rule of the selection is a compose error), `policies.add`
   (extra rules written in the app), `policies.replace` (a module's rule set, for a platform that
   wants a different model for one module);
 - runtime: the `ruleSources` extension point lets a module load rules in CASL raw-rule shape
@@ -2985,7 +3064,7 @@ interface JobSpec {
   readonly causation: { readonly eventId?: string; readonly commandId?: string; readonly actor?: ActorRef }
   readonly build: { readonly id: string; readonly revision: number }   // the enqueuer's build (section 19.2)
   readonly apiVersion?: string                                // external callers: the input as sent, at this API version
-  readonly runAt?: Date
+  readonly runAt?: Temporal.Instant
   readonly priority?: 'high' | 'normal' | 'low'               // set by module code, never by input
   readonly cost?: number                                      // fair-share units; default 1
   readonly key?: { readonly value: string; readonly onConflict: 'keep' | 'replace' | 'coalesce' }
@@ -3001,7 +3080,7 @@ interface JobQueue {
   readonly capabilities: QueueCapabilities                    // keys, groups, fifoPerKey, heartbeat, schedules, fairLanes
   enqueue(job: JobSpec, unit: Unit): Promise<JobId>
   cancel(queue: string, key: string, unit: Unit): Promise<number>
-  work(queue: string, handler: (job: Job) => Promise<void>, options: { readonly slots: number; readonly capabilitySets: readonly string[]; readonly revision: number }): Promise<{ drain(deadline: Date): Promise<number> }>
+  work(queue: string, handler: (job: Job) => Promise<void>, options: { readonly slots: number; readonly capabilitySets: readonly string[]; readonly revision: number }): Promise<{ drain(deadline: Temporal.Instant): Promise<number> }>
   schedule(id: string, expression: string, job: Omit<JobSpec, 'runAt' | 'scope' | 'principal'>, fanOut: 'backend' | 'each-tenant'): Promise<void>
   stats(selector: { readonly queue?: string; readonly backendId?: string }): Promise<readonly WorkClassStats[]>   // section 21.4
   explain(job: JobId): Promise<JobExplanation>                // why it waits: due time, cap, group, rate, key, capability, revision
@@ -3014,7 +3093,7 @@ return {
   effects: [setTimer({ key: `node-offline:${input.id}`, after: '45s', invoke: markOffline, input: { id: input.id } })],
 }
 export const refreshPublicAddressSchedule = defineSchedule(dnsBase, { every: '5m', invoke: refreshPublicAddress, scope: 'each-tenant', jitter: '30s' })
-// modules/dns/src/module.ts: schedules: { refreshPublicAddress: refreshPublicAddressSchedule }   (the key is the schedule id; schedules contribute to the core's `schedules` extension point)
+// modules/dns/src/module.generated.ts: schedules: { refreshPublicAddress: refreshPublicAddressSchedule }   (the key, from the file name, is the schedule id; schedules contribute to the core's `schedules` extension point)
 // An effect executor's job options (section 7.9.5): the effect is its second argument, and its retries are
 // mechanical; the five-day delivery schedule belongs to the submission's state machine (section 17.4.7).
 export const smtpDeliverExecutor = defineEffectExecutor(mailDeliveryBase, smtpDeliver, {
@@ -3117,7 +3196,7 @@ The job side of the quota model (section 12.2):
 | queued jobs per tenant and queue | `queues.<q>.queued`, default 10,000; backend and tenant overrides | the enqueue's commit tail | commands: `rate_limited` (`core.queue_full`, `retryAfter`); the reaction dispatcher pauses the scope until the lane is below 90 percent; timers and schedules are bounded by keys |
 | share | weight per backend and tenant, default 1, operator only | the take's order | |
 | priority | module code: `high` for liveness timers, `low` for bulk work | the take's order | lower classes wait; their age drives the scaler |
-| destination concurrency and rate | `group` options of executors and actions, from module configuration | the take, under the group's row lock; `scope: 'deployment'` groups (M7) through control-store permits | jobs wait for a slot or a token |
+| destination concurrency and rate | `group` options of executors and actions, from module configuration | the take, under the group's row lock; `scope: 'deployment'` groups (M5) through control-store permits | jobs wait for a slot or a token |
 | process slots | `processes.<name>.slots` (section 21.1) | the worker | |
 
 Without a cap the take is work-conserving: one tenant may fill idle slots, and the fair order gives
@@ -3130,7 +3209,7 @@ configuration cannot reach them); `pennestack jobs lanes` and `pennestack doctor
   take effect jobs only for executors whose capabilities the process advertises (section 21.2). One
   fetcher per queue promotes due jobs and takes batches for the slots, woken after commit by the
   notifier of section 14.3.7 (channel `ps_jobs`) and by a jittered poll every second. With
-  per-tenant namespaces (M7), wake-ups pass through the control store, and each process sweeps the
+  per-tenant namespaces (M5), wake-ups pass through the control store, and each process sweeps the
   namespaces that rendezvous hashing over the live registry gives it.
 - An action job runs through the invoker after the worker sets the scope and resolves the principal,
   so the gate and the item check run again against current state. An effect job runs its executor
@@ -3143,14 +3222,15 @@ configuration cannot reach them); `pennestack jobs lanes` and `pennestack doctor
 
 #### 9.5.7 Implementations and the upgrade path
 
-Decision point 6 was re-examined for many nodes against four families (research note): this kernel
-queue; a PostgreSQL queue library (pg-boss 12.38.0); a broker (NATS JetStream or Redis Streams)
-behind `JobQueue`; a durable execution engine. Only the kernel queue gives transactional enqueue on
-every adapter, row-level security on payloads and one semantics in development, tests and
-production. pg-boss now has groups, FIFO per key, heartbeats, Kysely enqueue and PGlite, but no
-MySQL, SQLite or in-memory store, no scope predicate and no fair shares. Brokers need an outbox
-relay and carry payloads out of the database; engines keep a second record of every step beside the
-event log, which records every effect under decision 50a. The kernel queue stays.
+Decision point 6 was re-examined for many nodes against four families (research note): this
+kernel queue; a PostgreSQL queue library (pg-boss 12.38.0); a broker (NATS JetStream or Redis
+Streams) behind `JobQueue`; a durable execution engine. Jens decided for the kernel queue on
+2026-10-26 (decision 6a). Only the kernel queue gives transactional enqueue on every adapter, row-level
+security on payloads and one semantics in development, tests and production. pg-boss now has groups,
+FIFO per key, heartbeats, Kysely enqueue and PGlite, but no MySQL, SQLite or in-memory store, no
+scope predicate and no fair shares. Brokers need an outbox relay and carry payloads out of the
+database; engines keep a second record of every step beside the event log, which records every
+effect under decision 50a. The kernel queue stays.
 
 - Ceiling: graphile-worker 0.18's benchmark reaches about 15,600 trivial jobs per second unbatched
   and 184,000 batched on one machine; Hatchet's maintainers reported that bursts above 5,000 tasks
@@ -3208,7 +3288,7 @@ section 16.4.6):
 | `rate_limited` | admission or a write denied by a rate or a quota (section 12.2) | yes for rates, with `retryAfter`; no for an exhausted quota (code `core.quota_exceeded`) |
 | `not_implemented` | module or action not part of this backend's app | no |
 | `unavailable` | backend suspended, placement unreachable, shutting down, timeout | yes |
-| `unsupported` | an adapter cannot express a condition or capability (fail closed) | no |
+| `unsupported` | a plan the field model does not allow (an operator a personal field did not declare, a restricted kind), a bounded scan past its limit, or a raw-SQL dialect the placement lacks; never a capability the adapter lacks, which the kernel provides (section 14.3.3) | no |
 | `internal` | anything undeclared; message redacted outside development | no |
 
 ```ts
@@ -3300,7 +3380,7 @@ The brief makes this cross-cutting; this section collects the statements of each
 |---|---|
 | Kernel | Control entities `core.backend`, `core.tenant`, `core.domain`, `core.placement` and `core.namespace` (tenancy `deployment`) and the scope directory; API version pins per backend, tenant and credential (section 18.3); the process registry `core.process` (section 19.1); `core.commandReceipt` with tenancy `invocation` (rows carry their command's scope); operator actions with `scope: 'deployment'`; runtime creation without restart; per-backend module configuration and per-tenant overrides; `onBackendCreated` and `onTenantCreated` hooks for provisioning; a change feed over the control store keeps every process's directory current. |
 | Pipeline | `resolveScope` runs first on every request or connection, followed by `resolvePrincipal` and `resolveVersion`, using the deployment-ordered tenant resolvers (host name, path prefix, header, scope key from tokens, receivers and listeners such as the SMTP recipient domain); the same resolvers serve every transport, the CLI and non-HTTP listeners; actions declare the scope level they accept and the gate rejects a mismatch. |
-| Data layer | Placement per tenant (shared tables with a tenant key, schema per tenant, database per tenant, or a different adapter), chosen at tenant creation and changeable by a move; the adapter injects the scope predicate into every statement; PostgreSQL row-level security as a backstop; positions, consumer checkpoints and usage counters per scope; migrations per namespace; application code never sees the strategy (section 14.9). |
+| Data layer | Placement per tenant (shared tables with a tenant key, schema per tenant, database per tenant, or a different adapter), chosen at tenant creation and changeable by a move; the adapter injects the scope predicate into every statement; PostgreSQL row-level security as a backstop; positions, consumer checkpoints and usage counters per scope; migrations per namespace; application code never sees the strategy (section 14.9), nor the adapter's capabilities: what an adapter lacks the kernel provides at a cost `pennestack doctor` reports, so a tenant can be placed on any adapter, a module's declared raw-SQL dialect being the one condition (section 14.3.3, brief addendum 5). |
 | Authorization | Scope is applied before and outside policies (section 8.8); the operator principal and explicit, logged tenant entry; no rule can widen a scope. |
 | Execution | Jobs, events, receipts, subscriptions and checkpoints carry the scope; workers adopt it and resolve the principal again before running; quotas, and lane caps and queued caps per tenant and queue (sections 9.7 and 12.2). |
 | Transports | Fill the carrier and never resolve tenants themselves; the HTTP host routes by the resolved app; cookies, CORS and CSRF checks follow the tenant's origins; generated documents are per app, served per backend (section 16.12). |
@@ -3354,31 +3434,38 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
 
 ## 13. Types and toolchain
 
-### 13.1 Live types without a generator
+### 13.1 Live types and generated files
 
 The types of what is in the database are inferred from the entity definitions through
 `AppEntities<App>` and the module-local types of section 7.6; the editor, `tsc`, Biome and Vitest
-see the same types with no generation step in the path. A TypeScript language-service plugin is
+see the same types, and no row type is ever generated. A TypeScript language-service plugin is
 not used: plugins never run under `tsc`, and TypeScript 7.0 ships no plugin API (research:
 data-layer.md section 6, interfaces-and-devx.md section 5.4).
 
-One generated file exists for convenience and for the things that must be files:
-`pennestack.generated.ts` next to the app re-exports `AppEntities`, `Row`, `ActionRef`,
-`AppActionTree` and the typed client for that app, so application code imports from one place and
-the app-level fold is instantiated once (section 13.7). Module packages never import it: their
-handler types are module-local. The dev server (`pennestack dev`) rewrites it on change;
-`pennestack generate --check` fails CI when it, the migrations, the OpenAPI document, the SDL or
-the CLI manifest drift from the definitions. Tables the framework does not own are described by
-entity definitions that `pennestack db introspect` writes (section 14.8.4), so there is one type
+Two kinds of TypeScript file are generated, both committed, both rewritten by the dev server
+(`pennestack dev`) on every change and both checked by `tsc` like hand-written code:
+
+- each module's manifest, `src/module.generated.ts`: the module literal that mounts every part of
+  the module's directories under the reference its path gives, and the module's package entry
+  (decision 59b of 2026-10-28, section 23.5);
+- next to each app, `pennestack.generated.ts`, which re-exports `AppEntities`, `Row`, `ActionRef`,
+  `AppActionTree` and the typed client for that app, so application code imports from one place
+  and the app-level fold is instantiated once (section 13.7). Module packages never import it:
+  their handler types are module-local.
+
+`pennestack generate --check` fails CI when either kind, the migrations, the OpenAPI document, the
+SDL or the CLI manifest drift from the definitions. Tables the framework does not own are described
+by entity definitions that `pennestack db introspect` writes (section 14.8.4), so there is one type
 mechanism; their drift against the live catalogue is checked at `connect`, in `pennestack dev` and
 by `pennestack db introspect --check`.
 
 ### 13.2 Toolchain
 
-| Tool | Version checked (2026-10-08 to 2026-10-11) | Role |
+| Tool | Version checked (2026-10-08 to 2026-10-28) | Role |
 |---|---|---|
-| TypeScript | 7.0.2 (builds and checks); 6.0.3 pinned only for tools that need the compiler API; 5.9.3 used for cross-checks | `tsc -b` with project references |
-| Node.js | 24 (active LTS; 24.21.0 locally) | runs `.ts` sources directly through type stripping; `node:crypto` provides Argon2id and AES-256-GCM |
+| TypeScript | 7.0.2 (builds and checks; still the latest on 2026-10-28, with `lib.es2025` and `lib.esnext.temporal` bundled); 6.0.3 pinned only for tools that need the compiler API; 5.9.3 used for cross-checks | `tsc -b` with project references |
+| Node.js | 26 (26.12.1 of 2026-10-21; promotion to LTS due in the last week of October 2026; checked by the lead on 2026-10-27) | runs `.ts` sources directly through type stripping; ships `Temporal` natively, so no polyfill (decision 19b); `node:crypto` provides Argon2id and AES-256-GCM |
+| `@types/node` | 26.6.5 (2026-10-09, checked 2026-10-28) | the Node 26 declarations that `"types": ["node"]` loads |
 | pnpm | 11.21.0 locally | workspace |
 | Biome | 2.5.15 | the only formatter and linter |
 | Vitest | 5.0.3 with `--typecheck`; expect-type 1.4.0 | unit, integration and type tests |
@@ -3388,6 +3475,16 @@ by `pennestack db introspect --check`.
 Compiler options are in section 13.3. Consequences the DSL respects: no enums, no namespaces, no
 parameter properties, no decorators; relative imports carry `.ts`.
 
+**Baseline policy** (decision 28a, raised on 2026-10-27): the latest major of TypeScript and of
+Node, always; the baseline follows each new major, and backfills or polyfills exist only for what
+the baseline lacks, never as a lower target. Today the baseline is TypeScript 7 and Node 26. Every
+package declares `"engines": { "node": ">=26" }`, CI runs on Node 26 only (the matrix has one
+runtime entry), and the deployment image (the `pennestack` container of section 17.5.2) is built on
+a Node 26 base image. Node 26 ships `Temporal`, so instants are `Temporal.Instant` from the start
+with no polyfill (decision 19b, section 6.4). The checks this document records on Node 24.21.0
+(sections 13.4, 14.3.7, 14.7.9.3 and 17.2.2, Appendix B) were made before the baseline moved; the
+M0 spike runs them again on Node 26 and records the results here.
+
 ### 13.3 TypeScript configuration and project references
 
 `tsconfig.base.json`, shared by every package:
@@ -3395,8 +3492,8 @@ parameter properties, no decorators; relative imports carry `.ts`.
 ```json
 {
   "compilerOptions": {
-    "target": "es2024",
-    "lib": ["es2024"],
+    "target": "es2025",
+    "lib": ["es2025", "esnext.temporal"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "types": ["node"],
@@ -3418,6 +3515,10 @@ parameter properties, no decorators; relative imports carry `.ts`.
 }
 ```
 
+- `target` and `lib` follow the newest yearly edition the baseline runs, `es2025` on Node 26, and
+  `lib` adds `esnext.temporal`, the `Temporal` declarations TypeScript 7.0.2 bundles
+  (`lib.esnext.temporal.d.ts`, checked in an installed 7.0.2 on 2026-10-28), because `Temporal` is
+  not yet part of a yearly library.
 - Every package's `tsconfig.json` extends it and sets `rootDir: "src"` and `outDir: "dist"`
   explicitly (TypeScript 6 and 7 require an explicit `rootDir` when the common source directory
   differs, error TS5011), lists its `references`, and excludes tests.
@@ -3464,19 +3565,21 @@ published, through one export condition:
   `node_modules`, where type stripping is allowed. Node refuses type stripping for files under
   `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), so the published manifest must not
   carry the source condition; pnpm's `publishConfig.exports` replaces `exports` at pack time. Both
-  behaviours were checked with Node 24.21.0 (Appendix B).
+  behaviours were checked with Node 24.21.0 (Appendix B); the M0 spike checks them again on Node 26
+  (section 13.2).
 - Production runs the JavaScript that `tsc -b` emits (`pennestack start` runs `dist`), so production
   does not depend on type stripping at all.
 - Library packages such as `@pennestack/core` keep `src/index.ts` (and subpath entries such as
   `src/wire/index.ts`) as curated entry files of named re-exports. Module packages point `"."` at
-  `src/module.ts`, the module literal, instead of `src/index.ts`, and have no other entry
-  (section 23.7).
+  `src/module.generated.ts`, the generated module literal, instead of `src/index.ts`, and have no
+  other entry (sections 23.5 and 23.7).
 
 ### 13.5 Project layout
 
-The framework repository follows section 22; `examples/launchway` and `examples/mail` are apps
-whose modules are packages under their `modules/` directories. An application repository built on
-pennestack has the layout of section 23.1: `pennestack.config.ts`, one package per app under
+The framework repository follows section 22 and keeps one example app, `examples/portal`, for its
+own CI; every platform built on pennestack lives in its own repository and depends only on the
+published packages (decision 48c, 2026-10-27). An application repository built on pennestack has
+the layout of section 23.1: `pennestack.config.ts`, one package per app under
 `apps/<id>/` with `src/modules.ts` (the selection) and `src/app.ts` (`defineApp` with its named
 type), every module a package under `modules/<id>/` in the module layout of section 23.2,
 `scripts/` with one task per file, and `knip.json` beside `biome.json` at the root. Section 23
@@ -3491,7 +3594,10 @@ also states the single-purpose rule, the names and the tooling that keeps them.
    types, but `pennestack build` refuses them.
 2. **The probe**: a short-lived Node process that imports `pennestack.config.ts`, composes every
    app, derives the surfaces and asks every producer for its artefacts. A fresh process runs after
-   each change, because an ECMAScript module graph cannot be unloaded. It writes only the artefacts
+   each change, because an ECMAScript module graph cannot be unloaded. Before it starts, the
+   supervisor rewrites the manifest of every module whose directories changed (section 23.5): a
+   scan of file names, directories and each part's export that imports nothing, so a new, moved or
+   deleted part is mounted or unmounted within the same cycle. The probe writes only the artefacts
    whose content changed (atomic rename), so the type checker and the editor see new types within
    one cycle and no watch loop starts. Module definition files must be free of I/O at import time;
    the probe has a 10-second limit and names the import that hung.
@@ -3501,17 +3607,19 @@ also states the single-purpose rule, the names and the tooling that keeps them.
    in the terminal, section 14.6.4).
 
 The supervisor watches the workspace with recursive `fs.watch` (ignoring `node_modules`, `dist`,
-`generated`, `.pennestack` and `pennestack.generated.ts`), debounces changes for 100 milliseconds,
-then runs the probe, the database synchronisation and a restart of the app (stop phase with a
-2-second deadline). The target is a restart under one second for the proof apps, to be measured.
-It prints one line per invocation from the explain stream, for example
-`POST /api/accounts/register → accounts.register 201 12 ms allow accounts.register.public`. Only in
-development do transports serve GraphiQL, the API reference page and verbose problem details.
+`generated`, `.pennestack` and the `*.generated.ts` files it writes itself), debounces changes for
+100 milliseconds, then rewrites the changed module manifests and runs the probe, the database
+synchronisation and a restart of the app (stop phase with a 2-second deadline). The target is a
+restart under one second for the proof apps, to be measured. It prints one line per invocation from
+the explain stream, for example `POST /api/accounts/register → accounts.register 201 12 ms allow
+accounts.register.open`. Only in development do transports serve GraphiQL, the API reference page
+and verbose problem details.
 
 ### 13.7 Generated artefacts
 
 | Artefact | Producer | Written by | Committed | Checked by | At runtime |
 |---|---|---|---|---|---|
+| `src/module.generated.ts` (every module package) | core: the module literal from the directory conventions (section 23.5) | `dev` on change, `generate` | yes | `generate --check` | the package entry: the module value apps import |
 | `src/pennestack.generated.ts` | core, plus type fragments from transports | `dev` on change, `generate` | yes | `generate --check` | not loaded (types only) |
 | `generated/api-surface/<app>/<api version>.json` | core | `dev`, `generate` | yes | `generate --check`, `surface diff` | recomputed in memory; the hash is compared at boot (warning in development, configurable in production) |
 | `generated/api-surface/<app>/ledger.json` | core | `surface version new` (explicit) | yes | `generate --check` against `defineApiVersions`; `surface diff` keeps released entries unchanged | read at `compose` for module version changes (section 18.2) |
@@ -3546,12 +3654,12 @@ Rules for every artefact: LF line endings, a trailing newline, sorted keys, two-
 indentation, no timestamps, a header naming the producer and its version, the format, the API
 version and the surface hash. Documents derived from the surface exist once per supported API
 version (section 18.2). Biome excludes
-generated paths from linting and formatting (`"!**/generated"`, `"!**/pennestack.generated.ts"`)
-but keeps them indexed for type-aware rules.
+generated paths from linting and formatting (`"!**/generated"`, `"!**/*.generated.ts"`) but keeps
+them indexed for type-aware rules.
 
 ### 13.8 `pennestack build` and CI
 
-CI runs, in order:
+CI runs, in order, on Node 26 (the baseline of section 13.2):
 
 1. `pnpm install --frozen-lockfile`;
 2. `biome ci` (formatting and linting, no writes), then `knip` (unused files, which are forgotten
@@ -3559,11 +3667,12 @@ CI runs, in order:
    section 23.13);
 3. `tsc -b` with TypeScript 7.0.2 (checks every project and emits `dist`);
 4. `vitest run` with type checking (unit, integration and type tests);
-5. `pennestack generate --check`;
+5. `pennestack generate --check` (the module manifests, the apps' generated files and every artefact
+   of section 13.7);
 6. `pennestack db check` (section 14.8.5);
 7. the transport conformance suite of section 16.3.8, the adapter conformance suite of section
    14.10 and the dual-evaluation suite of section 8.6 on every adapter the milestone ships
-   (PostgreSQL, PGlite and in-memory from M1; MySQL and SQLite from M7, roadmap.md);
+   (PostgreSQL, PGlite and in-memory from M1; MySQL and SQLite from M5, roadmap.md);
 8. the type budgets of section 13.11: instantiation counts per app with
    `tsc -p <app> --extendedDiagnostics` (and `--generateTrace` for diagnosis; both work on
    TypeScript 7.0.2, Appendix B), declaration size per module package, and no TS7056, TS2742 or
@@ -3630,16 +3739,16 @@ GritQL plugins shipped in the same package, each with tests:
 | Plugin | Flags |
 |---|---|
 | `no-selection-augmentation.grit` | `declare module '@pennestack/...'` and `declare global` in module and app packages (principle 2) |
-| `named-module-types.grit` | an exported `defineModuleBase(...)`, `defineModule(...)` or `defineApp(...)` value without a named type annotation (section 4.1), in `base.ts`, `module.ts` and `app.ts` |
+| `named-module-types.grit` | an exported `defineModuleBase(...)`, `defineModule(...)` or `defineApp(...)` value without a named type annotation (section 4.1), in `base.ts`, `app.ts` and hand-written module literals of tests and spikes; the generator writes the named type into every `module.generated.ts` |
 | `no-null-in-conditions.grit` | a literal `null` as a comparison value in a rule's `where` or `check` (section 8.3) |
 | `as-system-reason.grit` | `system()` without a reason or with an empty string, as in `invoke(action, input, { as: system('') })` |
-| `pure-parts.grit` (replaces `pure-deciders.grit`) | `Date.now()`, `new Date()` without arguments, `Math.random()`, `performance.now()`, `crypto.*`, `setTimeout`, `setInterval`, `queueMicrotask`, `fetch` and a bare `yield` of a request, in module sources outside `src/executors/` (use `ctx.clock`, `ctx.newId`, `ctx.random`, `yield*` and effects; section 7.9.6) |
+| `pure-parts.grit` (replaces `pure-deciders.grit`) | `Temporal.Now.*`, `Date.now()`, `new Date()` without arguments, `Math.random()`, `performance.now()`, `crypto.*`, `setTimeout`, `setInterval`, `queueMicrotask`, `fetch` and a bare `yield` of a request, in module sources outside `src/executors/` (use `ctx.clock`, `ctx.newId`, `ctx.random`, `yield*` and effects; section 7.9.6) |
 | `no-module-state.grit` | top-level `let` and `var`, and calls that mutate a top-level binding (`push`, `set`, `delete`, property assignment), in module sources |
 | `no-await-in-parts.grit` | `async` and `await` in pure parts outside `src/executors/`: handler types already exclude promises, and this rule says so readably |
 | `error-code-format.grit` | `defineError` codes that do not match `<module>.<snake_case>` |
-| `one-export.grit` | a second exported value in a source file, outside assembly files, library entries and tests (section 23.3) |
+| `one-export.grit` | a second exported value in a source file, outside assembly files (`base.ts`, `app.ts`, `modules.ts`), generated files, library entries and tests (section 23.3) |
 | `no-import-effects.grit` | top-level expression statements, `await` and bare imports, outside tests and scripts |
-| `wiring-only-assembly.grit` | a function or arrow function in `base.ts`, `module.ts`, `app.ts` or `modules.ts` |
+| `wiring-only-assembly.grit` | a function or arrow function in `base.ts`, `app.ts` or `modules.ts` |
 
 The last three, like `pure-parts`, `no-module-state` and `no-await-in-parts` (module sources, minus
 `src/executors/` where the rule says so), are scoped with `includes`, because GritQL cannot read the
@@ -3656,7 +3765,8 @@ or {
 ```
 
 The patterns above are sketches; the package finalises them against fixtures. Checks that need
-the registry rather than syntax (module ids against the reserved list, camel-case collisions,
+the registry rather than syntax (module ids against the grammar and the two reserved ids `core` and
+`app`, camel-case collisions,
 error-code prefixes against the declaring module, unique TypeID prefixes) run at `defineModule`,
 `defineApp` and boot.
 
@@ -3666,13 +3776,13 @@ error-code prefixes against the declaring module, unique TypeID prefixes) run at
   `expectTypeOf`; a check on 2026-10-10 confirmed that Vitest's type checker runs on TypeScript
   7.0.2 and reports failing assertions (Appendix B).
 - The core's suite contains the fourteen cases of section 4.7, the context rules of section 7.6
-  (each module compiles with no app in scope; `ctx.load.accounts` is `| undefined` under
-  `optional` and present in a part typed with `within(base, whenAccounts)`; `ctx.live` follows the
-  contract; parts in separate files produce the module type of the same module written in one
-  file; an `async` handler fails to compile; generator answers are typed per request),
-  the policy typing (a condition cannot name a field or relation that the rule's modules do not
-  provide; read rules list only maskable fields; `principal: 'user'` narrows the subject), and the
-  generated file's exports.
+  (each module compiles with no app in scope; `ctx.load.accounts` is reached through `ifPresent`
+  under `optional` and present in a part typed with `within(base, whenAccounts)`; `ctx.live` follows
+  the contract; parts in separate files, mounted by the generated manifest, produce the module type
+  of the same module written in one file; an `async` handler fails to compile; generator answers are
+  typed per request), the policy typing (a condition cannot name a field or relation that the rule's
+  modules do not provide; read rules list only maskable fields; `principal: 'user'` narrows the
+  subject), and the generated file's exports.
 - `@pennestack/testing/types` exports assertion helpers for application authors:
   `ExpectValidApp<A>` (no `defineApp` check properties), `HasEntity<App, 'accounts.profile'>`,
   `HasAction<App, 'accounts.profile.changePassword'>`, and the client types `InputOf`, `ResultOf`
@@ -3685,7 +3795,9 @@ error-code prefixes against the declaring module, unique TypeID prefixes) run at
 
 ### 13.11 Type budgets and declaration emit
 
-Two costs grow with the number of modules and are guarded in CI for both proof apps.
+Two costs grow with the number of modules and are guarded in CI: in this repository on the portal
+example and the synthetic apps of the M0 spike, and in each platform's own repository on its app,
+with the same checks from the published preset (decision 48c).
 
 **Declaration emit.** Every package is `composite`, so `tsc -b` must write a `.d.ts` for every
 exported value. Module values have inferred types, and `requires`, `optional` and
@@ -3704,20 +3816,30 @@ which requires `mail-store`, which requires `mail-domains`). Rules:
   `pennestack new module` and enforced by `named-module-types.grit`;
 - every type that can appear in a DSL value's type is exported by `@pennestack/core`, or emit fails
   with TS4023 or TS2742;
-- CI builds both proof apps under the pnpm layout and fails on TS7056, TS2742 or TS4023, and when a
-  module's `.d.ts` exceeds the budget the spike sets (a few kilobytes per module).
+- CI builds the portal example and the synthetic apps here, and each platform repository builds its
+  app, under the pnpm layout and fails on TS7056, TS2742 or TS4023, and when a module's `.d.ts`
+  exceeds the budget the spike sets (a few kilobytes per module).
 
-**Instantiations.** CI runs `tsc -p <app> --extendedDiagnostics` on `examples/launchway` and
-`examples/mail` and fails when the instantiation count exceeds the budget the spike establishes on
+**Instantiations.** CI runs `tsc -p <app> --extendedDiagnostics` on the portal example and the
+synthetic apps here, and on Trail's, Launchway's and later the mail server's app in their own
+repositories, and fails when the instantiation count exceeds the budget the spike establishes on
 synthetic apps of 25 and 40 modules with parts typed against their bases (section 4.7 gives the fold's own
 figures: 195,783 and 408,543 on TypeScript 7.0.2). attest benchmarks guard the composition types in
 `@pennestack/core`.
+
+**The generated manifest in the budget.** `tsc` sees `module.generated.ts` as written, so the
+budgets and traces measure the generated literal itself: one import and one entry per part, the
+same shape as the hand-written literal it replaces (decision 59b). The spike's synthetic modules
+are produced by the generator, so the recorded budgets include its output, and `--generateTrace`
+attributes check time to the manifest's mounts like any other file; a generator change that grows
+the manifest's type cost fails the budget like any other change.
 
 ### 13.12 `pennestack doctor`
 
 Checks the environment and the project, then the running backends:
 
-- Node 24 or later; TypeScript 7.0 for builds (and 6.0 only where attest runs); the pnpm version;
+- Node 26 or later (the baseline, section 13.2); TypeScript 7.0 for builds (and 6.0 only where
+  attest runs); the pnpm version;
   the Biome version the preset expects;
 - every `tsconfig.json`: the options of section 13.3, an explicit `rootDir`, `customConditions`
   with the source condition, `isolatedDeclarations` only where it can work;
@@ -3727,7 +3849,8 @@ Checks the environment and the project, then the running backends:
 - artefacts fresh (`generate --check`);
 - named types on exported module, module base and app values, and declaration sizes within budget;
 - the layout pass (`--layout` runs it alone): placement of files in their kind's directory, names
-  derived from exports, mounts in `base.ts` and `module.ts`, and the package shape (section 23.13);
+  derived from exports, the generated manifests up to date and every declaration listed in
+  `base.ts`, and the package shape (section 23.13);
 - flags past their expiry or otherwise stale, and release or experiment flags expiring more than
   40 days after their first build (section 20.7);
 - the personal-data pass (section 14.7.9.12): each personal field's capabilities, leaks, key scope
@@ -3739,7 +3862,11 @@ Checks the environment and the project, then the running backends:
   control store on a different database cluster than the placements or an erasure-ledger sink
   configured (section 14.7.6), external-table drift, dead letters and parked streams, queued caps
   above 80 percent, capped lanes and unplaceable work (sections 9.5.5 and 21.2); then `app.health`
-  and `app.ready` per backend.
+  and `app.ready` per backend;
+- the data layer's fallbacks: per placement, every capability its adapter lacks that a selected app
+  uses, the kernel path that replaces it and its cost (section 14.3.3, brief addendum 5);
+- chain anchors: a scope whose newest anchor is older than its cadence, and a ledger sink that
+  refused an append (section 15.1.8).
 
 ## 14. Data layer
 
@@ -3874,10 +4001,10 @@ export interface EntityDescriptor {
   readonly relations: Readonly<Record<string, RelationDescriptor>>
   readonly indexes: readonly IndexDescriptor[]          // including partial unique indexes
   readonly partition: string | null        // field whose value partitions change tokens (section 15.1.4)
-  readonly mergeState: boolean             // an offline-capable command can write this entity (M8)
-  readonly searchIndexes: readonly SearchIndexDescriptor[]   // capability `search` (M4); over personal fields, keyed token indexes with `keys` and `languages` (section 14.7.9.9)
+  readonly mergeState: boolean             // an offline-capable command can write this entity (M6)
+  readonly searchIndexes: readonly SearchIndexDescriptor[]   // capability `search` or the kernel's token index (section 14.3.3; with the mail foundations, parked); over personal fields, keyed token indexes with `keys` and `languages` (section 14.7.9.9)
   readonly derivedIndexes: Readonly<Record<string, DerivedIndexField>>   // index fields of personal fields, kinds 'binary', 'tagSet' and 'ore'; the encryption planner rewrites conditions onto them (section 14.7.9.5)
-  readonly external: ExternalMapping | null                 // history 'external' only (M7)
+  readonly external: ExternalMapping | null                 // history 'external' only (M5)
 }
 
 export interface FieldDescriptor {
@@ -3968,7 +4095,7 @@ export interface Unit {
   afterCommit(fn: () => void): void
 }
 
-/** Keyed by field name; domain values (Date, bigint, Uint8Array, ReadonlySet); system fields included. */
+/** Keyed by field name; domain values (Temporal.Instant, Temporal.PlainDate, bigint, Uint8Array, ReadonlySet); system fields included. */
 export type StorageRow = Readonly<Record<string, unknown>>
 
 export interface RowStore {
@@ -4043,11 +4170,11 @@ export interface ConsumerStore {
 export interface TombstoneStore {
   add(stream: StreamRef, position: Position): Promise<void>
   since(type: string, after: Position, limit: number): Promise<readonly { readonly stream: StreamRef; readonly position: Position }[]>
-  expire(type: string, before: Date, limit: number): Promise<number>
+  expire(type: string, before: Temporal.Instant, limit: number): Promise<number>
 }
 export interface StreamRecordStore {
   append(stream: string, key: string, records: readonly unknown[]): Promise<{ readonly firstSeq: bigint }>
-  read(stream: string, key: string, afterSeq: bigint | null, limit: number): Promise<readonly { readonly seq: bigint; readonly at: Date; readonly data: unknown }[]>
+  read(stream: string, key: string, afterSeq: bigint | null, limit: number): Promise<readonly { readonly seq: bigint; readonly at: Temporal.Instant; readonly data: unknown }[]>
   expire(stream: string, policy: { readonly maxAge?: string; readonly maxPerKey?: number }, limit: number): Promise<number>
   purgeKeys(stream: string, keys: readonly string[]): Promise<number>          // erasure and retention
 }
@@ -4076,29 +4203,60 @@ export interface AdapterCapabilities {
   readonly changeFeed: 'poll' | 'notify' | 'stream'
   readonly rowLevelSecurity: boolean
   readonly rowLocks: false | { readonly skipLocked: boolean; readonly noWait: boolean }
-  readonly search: false | 'tsvector' | 'fulltext' | 'fts5' | 'naive'   // plaintext search indexes only (section 14.7.9.9)
+  readonly search: false | 'tsvector' | 'fulltext' | 'fts5' | 'naive'   // native plaintext search; false: the keyed token index serves it (section 14.7.9.9)
   readonly positionPaging: false | { readonly maxOffset: number }   // JMAP position and anchor (section 14.3.5)
   readonly jobs: 'skip-locked' | 'single-writer'      // how workers take jobs (section 14.3.9)
   readonly broadcast: boolean                          // topics and presence across processes
-  readonly sql: false | { readonly dialect: 'postgres' | 'mysql' | 'sqlite' }
+  readonly sql: false | { readonly dialect: 'postgres' | 'mysql' | 'sqlite' }   // the raw-SQL hatch: the one capability a module may require (section 14.3.8)
   readonly processes: 'single' | 'host' | 'network'   // in-memory: single; SQLite file: host; servers: network
   readonly encryptedQueries: EncryptedQueryCapabilities   // personal fields: equality, tagSets, order, maxScan (section 14.7.9.10)
 }
 ```
 
-Capabilities are checked at three moments, always failing closed:
+The adapter contract of section 14.3.2 is the only coupling between application code and a
+datastore (brief addendum 5; decision 12a of 2026-10-26). A capability is an acceleration, never a
+condition for running: for every capability an adapter may lack, the kernel has a path that gives
+the same results at a cost. `pennestack explain` names the path a plan takes, and `pennestack
+doctor` lists per placement the fallbacks the selected apps use and their cost (section 13.12).
 
-- At `connect`, for every namespace of the placement: chain entities need `eventStore`;
-  `richText` and `sequence` fields need a codec module (section 15.3.9); a module that declares
-  data needs (`defineModule({ data: { needs: ['search', 'rowLocks', 'positionPaging', { sql: 'postgres' }] } })`)
-  needs them, including the SQL dialect it writes queries for; personal fields need the
-  `encryptedQueries` capabilities their declarations imply (section 14.7.9.10); a deployment with
-  several processes needs `processes` beyond `single`. A failure marks the backends of that
-  namespace `unavailable` and names the module and the capability; other namespaces start.
-- At `core.tenant.create` and `core.tenant.move`: the target placement must satisfy the app,
-  including every module's dialect, else `unsupported`.
-- When a plan or a query is compiled: an operator or field kind the adapter declares unsupported
-  fails with `unsupported`, never a wider filter.
+| Capability absent | Kernel path | Cost |
+|---|---|---|
+| `search` | the keyed token index of section 14.7.9.9, also for plaintext search indexes, in the adapter's ordinary tables | index rows and writes per indexed field; word matching without the database's ranking |
+| `rowLocks` | expected versions on the rows a unit would lock, plus a counter row per cross-row invariant (the preview limit of section 17.3.10), so that a conflicting unit repeats (section 7.9.4) | repeated units under contention |
+| `positionPaging`, `countBefore` | a bounded scan in key order, up to the adapter's `maxScan` (section 14.7.9.5) | reads that grow with the position; past `maxScan`, `core.scan_limit` |
+| `broadcast`, `changeFeed: 'notify'` | polling the heads, every second by default (section 14.3.7) | up to one polling interval of extra delay |
+| `encryptedQueries.order` | a bounded scan that unseals, filters and sorts in memory (section 14.7.9.5) | reads up to `maxScan`; past it, `core.scan_limit` |
+| `encryptedQueries.tagSets: 'array'` | index tables per entity (MySQL and SQLite, section 14.7.9.6) | one more table and join per query |
+| `partialIndexes` | a unique index over a generated column that is `NULL` outside the condition (MySQL) | one generated column per partial index |
+| `transactions.transactionalDdl` | migrations that record each applied step and resume at the failed one (section 14.6.3) | a failed file stops part-way and resumes |
+| `rowLevelSecurity` | the scope predicate alone, with the scoping plugin and the adversarial isolation suite (section 14.10) | no database-side backstop, which `doctor` states |
+| `jobs: 'skip-locked'` | `single-writer` takes (section 14.3.9) | one taker per namespace at a time |
+| `transactions.isolation` without `serializable` | an action that declares `isolation: 'serializable'` runs its units one at a time per scope behind a lock row (section 14.3.6) | no concurrency for that action within a scope |
+| an operator in `unsupportedConditions` | the kernel evaluates the operator in memory over the rows the rest of the condition selects, as a bounded scan; no adapter the framework ships needs it (section 14.3.4) | reads up to `maxScan` |
+
+`eventStore` and `transactions.savepoints` are required parts of the contract rather than
+accelerations: every adapter provides them, natively or inside the adapter (the in-memory adapter's
+savepoints are snapshots), and the conformance kit checks them. Two declarations concern the
+deployment rather than an app: `processes` (an in-memory store cannot be shared by two processes,
+so more processes on it are a layout error of the deployment) and `placements` (the strategies an
+adapter hosts, checked when the operator defines a placement).
+
+Checks run at three moments; none refuses for a missing acceleration:
+
+- At `connect`, for every namespace of the placement: the kernel records and logs the fallbacks its
+  apps will use. It refuses only a module whose declared raw-SQL dialect the adapter lacks
+  (`defineModule({ data: { needs: [{ sql: 'postgres' }] } })`, the one data need left, section
+  14.3.8), `richText` and `sequence` fields without a codec module (a module requirement, section
+  15.3.9), and a deployment with several processes on an adapter limited to `single`. A refusal
+  marks the backends of that namespace `unavailable` and names the module and the reason; other
+  namespaces start.
+- At `core.tenant.create` and `core.tenant.move`: the target placement must have every raw-SQL
+  dialect the app's modules declare, else `unsupported`; any other difference between adapters is a
+  fallback, which the response lists and `doctor` reports.
+- When a plan or a query is compiled: the planner takes the adapter's native form or the kernel's
+  path, and `explain` shows which. A filter is never widened, and nothing is refused because of the
+  adapter; a bounded scan that would pass its limit fails with `core.scan_limit`, a cost the plan
+  states before it runs.
 
 #### 14.3.4 Conditions: one AST, fixed semantics
 
@@ -4131,8 +4289,8 @@ Rules that keep the two interpreters equal:
 - Restricted kinds: `json`, `richText` and `list` with merge `sequence` support only `isNull`;
   `binary` supports `eq`, `ne` and `isNull`; `secret` supports nothing; `set` and `list` support
   `contains` and `isNull`; personal fields support only the operators their declared capabilities
-  allow (section 14.7.9.4); on SQLite, `decimal` values are stored as canonical text, so ordering
-  operators on `decimal` are unsupported there.
+  allow (section 14.7.9.4); on SQLite, `decimal` values are stored as canonical text with an
+  order-preserving sort key beside them (below).
 - Relation quantifiers are evaluated by the database in both directions. When the in-memory
   interpreter meets a quantifier (an item check on a post-image, a live event, an offline
   mutation), it asks the unit (`rows.matching`) to evaluate `EXISTS` for the row ids with the same
@@ -4141,10 +4299,13 @@ Rules that keep the two interpreters equal:
   rows, so the database sees the state the check is about. The in-memory adapter's quantifier
   implementation is the reference.
 
-Operators unsupported per adapter, beyond the kind restrictions above: PostgreSQL none, MySQL none,
-SQLite ordering on `decimal`, in-memory none; on personal fields, ordering on MySQL, SQLite and the
-Supabase preset, whose `encryptedQueries.order` is `false` (section 14.7.9.10). A Drizzle-based
-adapter, if written, declares its own.
+Operators unsupported per adapter, beyond the kind restrictions above: none (brief addendum 5).
+SQLite orders `decimal` values, which it stores as canonical text, through an order-preserving
+sort key in a second column (fixed width from precision and scale, negative values complemented);
+on personal fields, ordering on MySQL, SQLite and the Supabase preset, whose
+`encryptedQueries.order` is `false`, runs as a bounded scan (sections 14.3.3 and 14.7.9.10). An
+adapter written outside the framework that lists an operator in `unsupportedConditions` gets the
+kernel's in-memory evaluation of it (section 14.3.3).
 Absence is tested only with `isNull`; the wire filter's bare `null` shorthand is normalised to
 `isNull: true` at the boundary and never reaches the AST (section 16.4.4).
 
@@ -4165,8 +4326,9 @@ valid (section 14.7.9.5).
 Positional paging exists for JMAP, whose `/query` takes `position` (negative positions count from
 the end) and `anchor` with `anchorOffset`, and whose mail clients page by position. Adapters that
 declare `positionPaging` accept `page: { position, limit }` up to their `maxOffset` (10,000 by
-default on PostgreSQL) and implement `countBefore(id)` for anchors; a position beyond the maximum
-is a `validation` error, never a slow scan. The generated `query` exposes `position` and `anchor`
+default on PostgreSQL) and implement `countBefore(id)` for anchors; on an adapter without it, the
+kernel serves positions and anchors by a bounded scan in key order (section 14.3.3, brief addendum
+5). A position beyond the maximum is a `validation` error, never an unbounded scan. The generated `query` exposes `position` and `anchor`
 only on transports that request it in their surface options (`transport-jmap`), and the
 conformance suite has position cases, including negative positions and anchors that left the
 result set.
@@ -4197,8 +4359,9 @@ result set.
   cannot rely on expected versions, which only guard rows that exist. The pattern: lock a parent
   row (`lock` or `forUpdate` on the project) or bump its version in the same unit, so concurrent
   commands on the same parent queue; or declare `isolation: 'serializable'` on the action, which
-  runs the unit at `SERIALIZABLE` (with the same retries as below) where the adapter supports it
-  and fails at `connect` where it does not.
+  runs the unit at `SERIALIZABLE` (with the same retries as below) where the adapter supports it;
+  where it does not, the kernel runs that action's units one at a time per scope behind a lock row,
+  which is serializable by construction at the cost of concurrency (section 14.3.3).
 - Timeouts: the unit's timeout comes from the action's `timeoutMs`; PostgreSQL units set
   `statement_timeout` locally, and the adapter sets `idle_in_transaction_session_timeout` on its
   sessions.
@@ -4212,10 +4375,9 @@ result set.
 | PostgreSQL | `adapter-postgres` | Kysely 0.29.6 `PostgresDialect`, `pg` 8.23.1 | `notify` | forced row-level security | schema per app, prefixed tables | all three | M1 |
 | PGlite | `@pennestack/data` (tests, `pennestack dev`) | Kysely `PGliteDialect`, `@electric-sql/pglite` 0.5.8 (PostgreSQL 18.3) | `notify`, in-process | row-level security | as PostgreSQL | shared-tables | M1 |
 | In-memory | `@pennestack/data` | none | in-process | the interpreter | not applicable | shared-tables | M1 |
-| MySQL | `adapter-mysql` | Kysely `MysqlDialect`, `mysql2` 3.24.5, MySQL 8.4 LTS | `poll` and in-process wake | none (scoping plugin and tests) | prefix in one database | shared-tables, database-per-tenant | M7 |
-| SQLite | `adapter-sqlite` | Kysely `SqliteDialect` over `node:sqlite` (SQLite 3.53.4 in Node 24.21.0); `better-sqlite3` 13.0.3 as fallback | in-process; `poll` across processes of one host | none | prefix in one file | shared-tables, database-per-tenant (a file per tenant) | M7 |
-| Supabase | `adapter-supabase` | the PostgreSQL adapter with a preset | `notify` over a session connection | forced row-level security, nothing granted to `anon` and `authenticated` | schema `ps_<app>` | shared-tables, schema-per-tenant | M7 |
-| Drizzle-based | `adapter-drizzle-postgres` (not planned) | drizzle-orm 0.45.4 (1.0.0-rc.4 on the `rc` tag) | as PostgreSQL | as PostgreSQL | as PostgreSQL | as PostgreSQL | after Drizzle 1.0 |
+| MySQL | `adapter-mysql` | Kysely `MysqlDialect`, `mysql2` 3.24.5, MySQL 8.4 LTS | `poll` and in-process wake | none (scoping plugin and tests) | prefix in one database | shared-tables, database-per-tenant | M5 |
+| SQLite | `adapter-sqlite` | Kysely `SqliteDialect` over `node:sqlite` (SQLite 3.53.4 in Node 24.21.0, checked again on Node 26 in M0); `better-sqlite3` 13.0.3 as fallback | in-process; `poll` across processes of one host | none | prefix in one file | shared-tables, database-per-tenant (a file per tenant) | M5 |
+| Supabase | `adapter-supabase` | the PostgreSQL adapter with a preset | `notify` over a session connection | forced row-level security, nothing granted to `anon` and `authenticated` | schema `ps_<app>` | shared-tables, schema-per-tenant | M5 |
 
 Positions use the same commit-tail counter per scope on every adapter (section 15.1.4), and every
 adapter implements the job store (section 14.3.9). Milestones refer to [roadmap.md](roadmap.md).
@@ -4251,7 +4413,8 @@ collation. `GET_LOCK` provides the migration lock and `SKIP LOCKED` the row lock
 is not offered, because `CREATE SCHEMA` is a synonym for `CREATE DATABASE` in MySQL;
 database-per-tenant is the equivalent.
 
-**SQLite.** `node:sqlite` is built into Node 24 and runs without an experimental warning on 24.21.0;
+**SQLite.** `node:sqlite` is built into Node and ran without an experimental warning on 24.21.0 (the
+M0 spike checks it again on the Node 26 baseline, section 13.2);
 Kysely 0.29.6's `SqliteDialect` expects a `prepare()` whose statements expose `reader`, which
 `node:sqlite`'s `StatementSync` lacks, so the adapter wraps it in a shim of about twenty lines
 (deriving `reader` from `columns()`). WAL mode, `busy_timeout`, `foreign_keys = ON` per connection,
@@ -4269,15 +4432,17 @@ feed. Optional modules, outside the adapter: a live carrier that sends pokes ove
 Broadcast, a principal resolver for Supabase-issued tokens with `auth.users` mapped as an external
 entity, and a blob store on Supabase Storage.
 
-**Drizzle-based.** Permitted by the contract and not planned. It would build Drizzle table objects
-from descriptors when the adapter is created (as Payload's adapters do), compile conditions to
-Drizzle SQL expressions, use Drizzle's nested transactions for savepoints, implement the event
-store with the same tables and positions, and render migrations itself (drizzle-kit diffs Drizzle
-schemas, not pennestack snapshots). It is worth writing for Drizzle's driver range once Drizzle 1.0
-is released (1.0.0-rc.4 on 2026-10-10). The more common need, importing an existing Drizzle schema,
-is served by `pennestack db introspect --drizzle <file>`, which reads table objects through
-`getTableConfig` (exported by drizzle-orm 0.45.4's `pg-core`, `mysql-core` and `sqlite-core`) into
-entity definitions (section 14.8.4).
+**Drizzle.** No Drizzle-backed adapter is planned (decision 13a, 2026-10-26): Drizzle was a
+passing thought in the brief, not a requirement, and its mention there reads as "a schema an ORM
+defines can be imported". The contract still permits such an adapter, as it permits any datastore:
+it would build Drizzle table objects from descriptors when the adapter is created (as Payload's
+adapters do), compile conditions to Drizzle SQL expressions, use Drizzle's nested transactions for
+savepoints, implement the event store with the same tables and positions, and render migrations
+itself (drizzle-kit diffs Drizzle schemas, not pennestack snapshots). Importing an existing Drizzle
+schema stays an optional later convenience (roadmap, later milestones): `pennestack db introspect
+--drizzle <file>` would read table objects through `getTableConfig` (exported by drizzle-orm
+0.45.4's `pg-core`, `mysql-core` and `sqlite-core`; 1.0.0-rc.4 on 2026-10-10) into entity
+definitions (section 14.8.4).
 
 **In-memory.** The reference semantics: every mandatory operation, the event store, positions,
 receipts, jobs, keys and an in-process feed; serialisable units through a mutex and copy-on-write maps,
@@ -4287,15 +4452,18 @@ as the SQL adapters do, so tests exercise the encryption planner's rewrite; for 
 conformance kit adds the unsealing oracle ("unseal and evaluate") as the reference (section
 14.7.9.10).
 
-#### 14.3.8 The SQL escape hatch (M7)
+#### 14.3.8 The SQL escape hatch (M5)
 
-`ctx.load.sql(build)` exists when a module declares the data need `{ sql: <dialect> }` and the
-placement's adapter has that dialect; tenants are only created on, and moved to, placements that
-satisfy it (section 14.3.3). It is a read request (section 7.9.3): `build` receives a Kysely query
-builder without a connection, typed by `SqlTables<M>` for the declared dialect (section 14.8.2),
-with logical table names (`'accounts.profile'`) and field names, and returns a select query, which
-the kernel runs in the current unit and positions like any load. Handlers have no SQL writes:
-writes are drafts. Plugins on the kernel's instance (Kysely's `transformQuery` hook):
+`ctx.load.sql(build)` exists when a module declares the data need `{ sql: <dialect> }`, the one way
+module code opts into a datastore (brief addendum 5): the declaration states that the module is not
+portable to adapters of another dialect, the module's surface and `pennestack doctor` show it, and
+`connect` refuses a placement whose adapter lacks the dialect, the only refusal of section 14.3.3.
+Tenants are only created on, and moved to, placements that satisfy it. It is a read request (section
+7.9.3): `build` receives a Kysely query builder without a connection, typed by `SqlTables<M>` for
+the declared dialect (section 14.8.2), with logical table names (`'accounts.profile'`) and field
+names, and returns a select query, which the kernel runs in the current unit and positions like any
+load. Handlers have no SQL writes: writes are drafts. Plugins on the kernel's instance (Kysely's
+`transformQuery` hook):
 
 - map logical names to physical tables and columns of the namespace;
 - scope every table reference: reads see a derived table filtered by the unit's scope, updates and
@@ -4385,15 +4553,17 @@ home namespace, chosen when the backend is created.
   contain `_`, so the mapping is injective. Auxiliary tables of an entity (an FTS5 side table, for
   example) are `<module>__<entity>__<suffix>`.
 - **Framework tables.** `ps_<name>` (a single underscore, so never equal to a module table).
-- **Columns.** Field names in snake case (`displayName` becomes `display_name`). A renamed field
-  keeps the column recorded in the snapshot: a rename changes the field name and the rename history,
-  never the column (sections 14.6.4 and 19.3). System columns are
+- **Columns.** Field names in snake case (`displayName` becomes `display_name`). Physical names
+  always equal the derived names (decision 55b, 2026-10-28): a renamed field gets the column of its
+  new name through the expand, dual-write, backfill and contract steps of section 14.6.4, and the
+  snapshot keeps no column aliases. System columns are
   `id`, `tenant_id` or `backend_id`, `created_at`, `updated_at`, `archived_at` and `version`;
-  framework columns are `ps_last_hlc`, `ps_last_hash`, `ps_erased_at` and, from M8, `ps_merge`. A
+  framework columns are `ps_last_hlc`, `ps_last_hash`, `ps_erased_at` and, from M6, `ps_merge`. A
   field whose column name would collide with a system or framework column is a compose error.
 - **Length.** A name longer than the dialect's limit (63 bytes on PostgreSQL, 64 characters on
   MySQL) is truncated and suffixed with 8 hexadecimal characters of the SHA-256 of the full name.
-  Every physical name is recorded in the module snapshot, so it never changes once chosen.
+  Every physical name is recorded in the module snapshot and follows the derived name; only a
+  rename's steps change it.
 - **`naming.style: 'schema'`** (PostgreSQL, shared-tables only) gives each module of each app its
   own schema (`launchway_accounts.profile`). It is an option, not the default: it cannot combine
   with schema-per-tenant, and a module called `auth` would collide with a reserved schema on hosted
@@ -4428,7 +4598,7 @@ app is loaded, and a placement's adapter serves every app whose namespaces it ho
 `defineDeployment` therefore lists the adapter factories, and apps never list adapters. A module
 that writes dialect-specific SQL declares its dialect as a data need (section 14.3.8).
 
-#### 14.4.5 Moving a tenant (M7)
+#### 14.4.5 Moving a tenant (M5)
 
 `core.tenant.move` (operator, asynchronous; `pennestack tenant move <tenant> --to <placement>`):
 
@@ -4456,7 +4626,7 @@ complete.
 | `text` | `text COLLATE "C"` | `MEDIUMTEXT` `utf8mb4_bin` | `TEXT` | string |
 | `integer` | `bigint`, values limited to ±(2^53 − 1) | `BIGINT` | `INTEGER` | number |
 | `integer({ wide: true })` | `bigint`, read as `bigint` | `BIGINT` | `INTEGER` | decimal string |
-| `decimal({ precision, scale })` | `numeric(p, s)` | `DECIMAL(p, s)` | `TEXT`, canonical form | decimal string |
+| `decimal({ precision, scale })` | `numeric(p, s)` | `DECIMAL(p, s)` | `TEXT`, canonical form, plus an order-preserving sort key (section 14.3.4) | decimal string |
 | `float` | `double precision` | `DOUBLE` | `REAL` | number |
 | `boolean` | `boolean` | `BOOLEAN` | `INTEGER` 0 or 1 | boolean |
 | `instant` | `timestamptz(3)` | `DATETIME(3)` in a UTC session | `TEXT` `YYYY-MM-DDTHH:MM:SS.sssZ` | RFC 3339 string |
@@ -4524,8 +4694,9 @@ complete.
   past `ps_last_hlc` (and past every field clock in the merge state), so a server-authored event
   always carries a clock greater than every clock already in the stream. Online writes are therefore
   "last committed wins", and only offline-authored writes can lose an `lww` comparison (section 15.3).
-- The switch to `Temporal.Instant` behind `field.instant()` (decision point 19, section 26.1) changes
-  codecs, not storage.
+- Instants are `Temporal.Instant` behind `field.instant()` from the start (decision 19b): the
+  adapters' codecs convert them to and from the columns above at millisecond precision, and
+  `field.date()` values are `Temporal.PlainDate` in the same way.
 
 #### 14.5.4 Wire forms of merge-typed fields
 
@@ -4580,7 +4751,8 @@ packages/module-auth/migrations/
 A snapshot is the neutral description of the track's tables as of its last file: physical names, the
 track's version, fields (kind, column, constraints, tag, merge type, personal subject, capabilities,
 normaliser and parameters, hidden, maskable and `stateOnly` flags), indexes, foreign keys, the
-history mode, the merge-state flag, the rename history of every field, domain event shapes with
+history mode, the merge-state flag, the rename history of every field (which event payloads need
+for upcasting; columns follow the current names, section 14.4.2), domain event shapes with
 their versions, and a hash of each `evolve` source text (section 15.2.4). Column ownership is per
 track, so `pennestack db check` knows which module owns each column.
 
@@ -4600,9 +4772,10 @@ export type MigrationStep =
   | { readonly op: 'addColumn'; readonly entity: string; readonly field: string; readonly column: ColumnSpec }
   | { readonly op: 'dropColumn'; readonly entity: string; readonly field: string }          // contract step
   | { readonly op: 'alterColumn'; readonly entity: string; readonly field: string; readonly from: ColumnSpec; readonly to: ColumnSpec }
+  | { readonly op: 'copyColumn'; readonly entity: string; readonly from: string; readonly to: string }   // data step: a rename's or a split's backfill, batched after finalization
   | { readonly op: 'createIndex' | 'dropIndex'; readonly entity: string; readonly index: IndexSpec }
   | { readonly op: 'addForeignKey' | 'dropForeignKey'; readonly entity: string; readonly key: ForeignKeySpec }
-  | { readonly op: 'enableMergeState'; readonly entity: string }                             // M8: adds ps_merge, then a rebuild
+  | { readonly op: 'enableMergeState'; readonly entity: string }                             // M6: adds ps_merge, then a rebuild
   | { readonly op: 'rebuild'; readonly entity: string; readonly reason: string }              // re-project from the log
   | { readonly op: 'sql'; readonly statements: Readonly<Partial<Record<'postgres' | 'mysql' | 'sqlite', readonly string[]>>> }
 
@@ -4610,6 +4783,8 @@ export interface MigrationFile {
   readonly id: string                                     // '0002-profile-locale'
   readonly track: string                                  // 'accounts' | 'auth->accounts' | 'auth[accounts]'
   readonly steps: readonly MigrationStep[]
+  /** Field renames (decision 55b): the kernel writes both columns while the rollout runs and reads the old one until the backfill is recorded (section 19.3). */
+  readonly renames?: readonly { readonly entity: string; readonly from: string; readonly to: string }[]
   /** Event payloads written with the previous entity schema version, upgraded on read (section 15.1.9). */
   readonly upcast?: Readonly<Record<string, (data: unknown, eventName: string) => unknown>>
   /** The reverse: while a rollout target runs, the target writes the finalized track version through it (section 19.2). */
@@ -4645,8 +4820,13 @@ and fail closed on a dialect they do not cover.
   the terminal, `rebuild` steps after confirmation). `pennestack db generate <track> --name <name>`
   writes the file and updates the snapshot when the author is ready; when a field disappears and
   another appears in one entity, the planner asks whether it is a rename (as drizzle-kit and Gel do)
-  and records the answer in the file and the rename history. A rename keeps its column (section
-  14.4.2), so it needs no DDL.
+  and records the answer in the file and the rename history. A rename then follows the four steps
+  of every column change (decision 55b, 2026-10-28): expand (`addColumn` under the new name), dual
+  write while the rollout runs (the file's `renames` entry: the kernel writes both columns and reads
+  the old one), backfill (`copyColumn`, batched per namespace after finalization) and contract
+  (`dropColumn` of the old name), gated by finalization like every contract step (below and section
+  19.3). Events keep the name they were written with and are upcast on read through the rename
+  history. In development the steps run at once, the contract after the usual confirmation.
 - CI: `pennestack generate --check` fails when definitions and snapshots differ (a file is missing);
   `pennestack db check` migrates a scratch database and compares its catalogue with the snapshots.
 - Production: the `migrate` phase verifies the history against the files and refuses to start on
@@ -4658,10 +4838,10 @@ and fail closed on a dialect they do not cover.
   build of a rolling deploy both work against the schema; no expand step adds a constraint the
   older build's writes violate (a new required column gets a database default until a contract
   step). `--contract` refuses with `conflict`, `core.rollout_not_finalized`, until the finalized
-  revision covers the step and no live process is below it. A type change or a split column runs in
-  two phases gated by the process registry, for one process or many: a new column written beside
-  the old one, a backfill after finalization, reads moving per namespace, then the contract step
-  (section 19.3).
+  revision covers the step and no live process is below it. A rename, a type change or a split
+  column runs in two phases gated by the process registry, for one process or many: a new column
+  written beside the old one, a backfill after finalization, reads moving per namespace, then the
+  contract step (section 19.3).
 - Personal fields: a change of a field's declared capabilities, normaliser, parameters (`bits`,
   prefix bounds, languages) or index key version is planned as expand (shadow index columns), a
   backfill (a reindex job that unseals each row and writes the new tags while writers write both), a
@@ -4721,25 +4901,32 @@ per-tenant overrides, stored in the control store and changed through operator a
 (`core.retention.set`, `core.retention.list`); every run of the retention worker is recorded in the
 control store (the rule, who adopted it, what was removed, the new horizons). Modules may declare
 suggested rules on their entities (`retention: { suggest: [...] }`), which `pennestack doctor` lists;
-a suggestion has no effect until adopted.
+a suggestion has no effect until adopted. Launchway's modules suggest none (decision 47c,
+2026-10-27): deployment records, logs, preview records and the attempt records of effects are kept
+until Jens adopts a rule, so that they can be looked back on years later, and the mail server's
+suggestions wait with the mail server (section 26.1). What goes without a rule is runtime, not data:
+the containers, images, volumes and build caches of a closed preview or a superseded deployment
+are reclaimed on the node, while their rows, events and logs stay (section 17.3.6).
 
 ```ts
 export type RetentionRule =   // durations are ISO 8601; `entity` accepts 'module.*'
   | { readonly kind: 'compactHistory'; readonly entity: string; readonly olderThan: string; readonly keepLatest?: number }
   | { readonly kind: 'purgeArchived'; readonly entity: string; readonly archivedFor: string }
   | { readonly kind: 'purgeRows'; readonly entity: string; readonly where: ConditionInput; readonly olderThan: string }  // history 'state' only
-  | { readonly kind: 'shallowCrdt'; readonly entity: string; readonly field: string; readonly olderThan: string }          // M9
+  | { readonly kind: 'shallowCrdt'; readonly entity: string; readonly field: string; readonly olderThan: string }          // M7
   | { readonly kind: 'transientRecords'; readonly olderThan: string }    // default P7D
   | { readonly kind: 'receipts'; readonly olderThan: string }            // default: each action's idempotency window (PT24H unless declared)
-  | { readonly kind: 'syncClients'; readonly inactiveFor: string }       // default P90D (M8)
+  | { readonly kind: 'syncClients'; readonly inactiveFor: string }       // default P90D (M6)
   | { readonly kind: 'streamRecords'; readonly stream: string; readonly maxAge?: string; readonly maxPerKey?: number }  // gap G6
 ```
 
-Stream records (section 15.1.12) follow the retention their stream declares unless the operator
-sets a `streamRecords` rule. A row that references blobs carries their wrapped keys in its row and
-events; purging it (`purgeArchived`, `purgeRows`) removes those keys in the same unit that removes
-the row, and the blob store's collector removes the bytes later, never before the deployment's
-backup retention has passed (section 14.7.6; gaps G5 and G11).
+Stream records (section 15.1.12) follow the retention their stream declares unless the operator sets
+a `streamRecords` rule. A stream that declares none keeps its records, as `core.effectAttempt` does
+(decisions 78a and 47c), and a stream may move the older records of a long key into the blob store
+instead of purging them (`offload`, section 15.1.12). A row that references blobs carries their
+wrapped keys in its row and events; purging it (`purgeArchived`, `purgeRows`) removes those keys in
+the same unit that removes the row, and the blob store's collector removes the bytes later, never
+before the deployment's backup retention has passed (section 14.7.6; gaps G5 and G11).
 
 The defaults govern operational buffers, not history, and the operator can change them; Jens
 accepted them on 2026-10-24 (decision point 8, section 26). Compaction also bounds point-in-time
@@ -4763,7 +4950,7 @@ the operator configures a window.
   can send `remove`. A row still referenced by a live row's foreign key is skipped and reported, not
   purged. Tombstones older than a type's horizon are removed and the horizon moves forward, so older
   tokens get `cannotCalculateChanges`.
-- CRDT tombstones live inside Loro documents and go only through `shallowCrdt` (M9).
+- CRDT tombstones live inside Loro documents and go only through `shallowCrdt` (M7).
 
 #### 14.7.3 Compaction
 
@@ -4882,7 +5069,8 @@ positions from before and after the restore. Three mechanisms keep both true:
 - **The ledger outside the placement.** The erasure ledger and the tombstones of destroyed tenant
   and value keys are written to the control store and to every configured ledger sink, an
   append-only log a placement restore cannot rewind (a file on a separate volume, later object
-  storage with retention lock). At `connect`, and after any restore, the kernel replays the union:
+  storage with retention lock). The same sinks receive the chain anchors of section 15.1.8 from M1
+  (decision 35b). At `connect`, and after any restore, the kernel replays the union:
   it shreds every key the ledger has erased before the namespace serves traffic and runs steps 3 to
   5 of the erasure again, because a backup taken before an erasure lacks its `erased` events.
   `pennestack doctor` warns when the control store and a placement share a database cluster and no
@@ -4890,8 +5078,9 @@ positions from before and after the restore. Three mechanisms keep both true:
 - **Epochs from what a restore changes.** The control store records, per namespace, the database
   cluster's identity (on PostgreSQL the system identifier and the timeline) and, per scope, a
   high-water mark of positions and serials, updated every minute and at shutdown. At `connect` the
-  kernel compares them: a changed identity, a new timeline (point-in-time recovery) or a counter
-  below its high-water mark means the scope was rewound, whatever tool restored it
+  kernel compares them: a changed identity, a new timeline (point-in-time recovery), a counter
+  below its high-water mark or a head below the scope's newest anchor in the ledger sinks (section
+  15.1.8) means the scope was rewound, whatever tool restored it
   (`pg_restore`, PITR, a volume snapshot). The kernel then bumps the epoch of every affected scope
   and moves its counters past the recorded marks, so tokens of the old epoch get `reset`, positions
   and UIDs are never reused under an old epoch, and the mail server announces a new `uidValidity`.
@@ -4909,14 +5098,14 @@ What remains in old backup files is ciphertext, wrapped keys and index tags, rea
 master key and bounded by the operator's backup retention (section 14.7.9.8); the operations guide
 states it.
 
-#### 14.7.7 Operator redaction (M7)
+#### 14.7.7 Operator redaction (M5)
 
 `core.events.redact` (deployment scope, operator only, reason required) replaces given values in
 stored events with redaction markers, rebuilds the affected rows and writes a ledger entry with the
 original event hash. It exists for content that is not personal data but must go (a secret pasted
 into a title, unlawful content). By design it breaks content verification of that event while the
 links of the chain hold. Inside CRDT documents, redaction of a range of history uses Loro's
-`redactJsonUpdates` (M9).
+`redactJsonUpdates` (M7).
 
 #### 14.7.8 Limits
 
@@ -5032,7 +5221,7 @@ version, and `pennestack doctor` warns on a mismatch.
 | `startsWith` | prefix tags (64 bits) of `N(value)` for lengths `min` to `max`; a longer operand uses the `max` tag, then verification | the prefix tree with branch counts | `unsupported`; an operand shorter than `min`: `core.personal_needle_short` |
 | `contains` on strings | trigram tags truncated to `bits`, all of the operand's required, then verification | bucketed trigram statistics per row | `unsupported`; operands under 3 characters: `core.personal_needle_short` |
 | `contains` on personal sets and lists | element tags (`eq` on the element); exact | element equality classes | `unsupported` |
-| `lt`, `lte`, `gt`, `gte`, sort, keyset pagination | ORE tokens (`order`, M7 on PostgreSQL; decision point 69): exact for numbers, decimals, instants and dates; strings by their first `bytes`, ties refined after unsealing; a cursor carries the token sealed, never the value | the total order of all values | `unsupported`; `page.sortable` refuses the field; a bounded scan sorts in memory |
+| `lt`, `lte`, `gt`, `gte`, sort, keyset pagination | ORE tokens (`order`, M5 on PostgreSQL; decision point 69): exact for numbers, decimals, instants and dates; strings by their first `bytes`, ties refined after unsealing; a cursor carries the token sealed, never the value | the total order of all values | `unsupported`; `page.sortable` refuses the field; a bounded scan sorts in memory |
 | words of free text | the keyed token index (below) | per-row token sets; result sets | `unsupported` (JMAP: `unsupportedFilter`) |
 | case-insensitive matching, Unicode normalisation | the normaliser, before every tag and in the in-memory interpreter | coarser classes only | code points after NFC |
 | `some`, `none`, `every`, `is` | inner comparisons with exact capabilities only (`eq` family, `isNull`, prefix), because the database evaluates `EXISTS` | those of the inner capabilities | `unsupported` |
@@ -5095,7 +5284,7 @@ On PostgreSQL (physical names from the adapter, section 14.4.2):
 | `<field>__eq` | `bytea` (16) | the blind index tag | B-tree; unique and partial for unique fields |
 | `<field>__prefix` | `bigint[]` | prefix tags | GIN |
 | `<field>__ngram` | `smallint[]` | trigram tags | GIN |
-| `<field>__ore` | `ore` (M7) | the ORE token | B-tree through an operator class |
+| `<field>__ore` | `ore` (M5) | the ORE token | B-tree through an operator class |
 | `ps_search_<index>` | `bigint[]` | token tags of a search index | GIN |
 | `ps_search_<index>_counts` | `bytea` | token counts, sealed with the subject's data key | none |
 
@@ -5115,7 +5304,7 @@ key id`), because compaction rewrites event ciphertexts.
 
 An e-mail address with `eq` and `prefix` costs about 1 KB, mostly prefix GIN entries; a
 filed message with 300 distinct word forms 5 to 10 KB on PostgreSQL and 20 to 30 KB in an index
-table (estimates for M4 to measure).
+table (estimates for the mail foundations milestone to measure, parked with the mail server).
 
 ##### 14.7.9.7 Keys and rotation
 
@@ -5197,13 +5386,16 @@ readonly encryptedQueries: {
 
 | Adapter | equality | tagSets | order | Milestone |
 |---|---|---|---|---|
-| PostgreSQL, PGlite | yes | `array` (GIN) | `ore` through an operator class (needs a superuser) | M1 equality, M3 prefix and trigrams, M4 tokens, M7 order |
+| PostgreSQL, PGlite | yes | `array` (GIN) | `ore` through an operator class (needs a superuser) | M1 equality, M4 prefix and trigrams (Launchway's admin search), tokens with the mail foundations (parked), M5 order |
 | In-memory | yes | `table` (maps) | `ore` (the reference) | with each capability |
-| MySQL 8.4, SQLite | yes | `table` | false | M7 |
-| Supabase preset | yes | `array` | false (no operator class) | M7 |
+| MySQL 8.4, SQLite | yes | `table` | false | M5 |
+| Supabase preset | yes | `array` | false (no operator class) | M5 |
 
-A capability the placement's adapter lacks marks the namespace's backends `unavailable` at
-`connect` (section 14.3.3). The in-memory adapter stores sealed values and tags as SQL adapters do,
+A capability the placement's adapter lacks takes the kernel's path (section 14.3.3, brief addendum
+5): with `order: false`, order and ranges on a personal field run as a bounded scan that unseals,
+filters and sorts in memory up to `maxScan`, and with `tagSets: 'table'` the tags live in index
+tables; `pennestack doctor` lists the fields that use a fallback, and nothing refuses at
+`connect`. The in-memory adapter stores sealed values and tags as SQL adapters do,
 so tests exercise the rewrite. The reference semantics are "unseal and evaluate": the conformance
 kit's oracle unseals every row and evaluates the original condition with the core interpreter, and
 the dual-evaluation suite requires each adapter's rewritten, verified result to equal the oracle's
@@ -5274,7 +5466,8 @@ question whether the field should declare `prefix: { min: 2 }` instead.
 #### 14.8.1 From definitions to exact types
 
 The types of everything stored are computed from definitions by the model of section 4.7, with no
-generator in the type path and whatever database is connected; the adapter's duty is to keep the
+generated type (the module manifests of section 23.5 mount parts and define no type) and whatever
+database is connected; the adapter's duty is to keep the
 database equal to the definitions (migrations, the drift check at boot). Two families exist:
 module-local types, computed from one module and its declared dependencies, which handlers use;
 and app types, computed from the app value, which clients, transports and the generated file use
@@ -5284,9 +5477,9 @@ and app types, computed from the app value, which clients, transports and the ge
 // @pennestack/core, sketch. Each is wrapped in Prettify; App-parameterised types also exist module-locally (ModuleRow<M, Ref>, ...).
 interface SystemFields<Ref extends string> {
   readonly id: Id<Ref>
-  readonly createdAt: Date
-  readonly updatedAt: Date
-  readonly archivedAt?: Date | undefined
+  readonly createdAt: Temporal.Instant
+  readonly updatedAt: Temporal.Instant
+  readonly archivedAt?: Temporal.Instant | undefined
   readonly version: number
 }
 type Row<App, Ref extends EntityRef<App>> = Prettify<SystemFields<Ref> & RowOf<FieldsAt<App, Ref>>>
@@ -5315,7 +5508,7 @@ type OfflineEvents<F> =
 interface Repository<R extends { readonly id: unknown }, I, P> {
   get(id: R['id']): Promise<R | undefined>
   /** Chain entities only: the row as it was at `asOf`, folded from its events up to that instant. */
-  get(id: R['id'], options: { readonly asOf: Date }): Promise<AsOf<R> | undefined>
+  get(id: R['id'], options: { readonly asOf: Temporal.Instant }): Promise<AsOf<R> | undefined>
   findOne(q: { readonly where: Where<R>; readonly includeArchived?: boolean }): Promise<R | undefined>
   query(q: QueryOf<R>): Promise<Page<R>>                              // { items, pageInfo, total? }
   count(where?: Where<R>): Promise<number>
@@ -5324,7 +5517,7 @@ interface Repository<R extends { readonly id: unknown }, I, P> {
   archive(q: { readonly where: Where<R>; readonly reason?: string }): Promise<number>
   restore(q: { readonly where: Where<R> }): Promise<number>
   /** `asOf` (chain entities): the entries up to that instant. */
-  history(id: R['id'], range?: { readonly fromVersion?: number; readonly limit?: number; readonly asOf?: Date }): AsyncIterable<HistoryEntry<R>>
+  history(id: R['id'], range?: { readonly fromVersion?: number; readonly limit?: number; readonly asOf?: Temporal.Instant }): AsyncIterable<HistoryEntry<R>>
 }
 
 /** A row read at an instant: a personal value whose key is gone reads as Redacted, as in history entries. */
@@ -5334,7 +5527,7 @@ type AsOf<R> = { readonly [K in keyof R]: R[K] | Redacted }
 type HistoryEntry<R> = {
   readonly version: number
   readonly type: string
-  readonly at: Date
+  readonly at: Temporal.Instant
   readonly actor: { readonly kind: string; readonly id: string | null }
   readonly changes: { readonly [K in keyof R]?: { readonly before: R[K] | Redacted; readonly after: R[K] | Redacted } }
 }
@@ -5368,9 +5561,10 @@ again.
 
 #### 14.8.2 Types at the database edge
 
-Adapters convert between domain values and columns with per-dialect codecs (`Date` and `timestamptz`,
-`bigint` and `BIGINT`, `ReadonlySet` and JSON arrays, decimal strings and `numeric`), so no physical
-type ever reaches a module. The escape hatch is typed by the definitions as well:
+Adapters convert between domain values and columns with per-dialect codecs (`Temporal.Instant` and
+`timestamptz`, `Temporal.PlainDate` and `date`, `bigint` and `BIGINT`, `ReadonlySet` and JSON
+arrays, decimal strings and `numeric`), so no physical type ever reaches a module. The escape hatch
+is typed by the definitions as well:
 
 ```ts
 /** Kysely database type of the builder `ctx.load.sql` passes: logical table names, field names, domain value types, for the module's dialect. */
@@ -5399,7 +5593,7 @@ On every change of a definition, `pennestack dev`:
 `tsc -b --watch` runs beside it, so the compiler remains the judge. No database type file is
 generated: database types are definition types.
 
-#### 14.8.4 Introspecting an existing database into entity definitions (M7)
+#### 14.8.4 Introspecting an existing database into entity definitions (M5)
 
 ```
 pennestack db introspect --url <url> [--schema <name>] [--tables a,b] --module <id> --mode external|adopt
@@ -5495,7 +5689,7 @@ export const customer = defineEntity({
 | Keys | Deployment, backend and tenant keys under the master key; subject, value and index keys under them (section 14.7.9.7); retiring a tenant destroys its key. |
 | Migrations | Per namespace; tenant namespaces provisioned at creation and migrated with bounded parallelism; a lagging namespace is `unavailable`. |
 | Retention and erasure | Rules per backend with per-tenant overrides; erasure per tenant and subject; the ledger in the control store and the ledger sinks. |
-| Moves | `core.tenant.move` copies the chain with its positions (M7). |
+| Moves | `core.tenant.move` copies the chain with its positions (M5). |
 | Operator | Namespace-scope units exist only inside the kernel; cross-tenant work goes through deployment-scoped actions (section 8.8). |
 
 ### 14.10 Testing and conformance
@@ -5536,7 +5730,7 @@ Every adapter passes the conformance suite in `@pennestack/testing` before it is
 
 Property tests with fast-check 4.10.2: the inline projection equals a rebuild from the log for random
 command sequences; merge rules converge for random permutations of concurrent offline mutations
-(M8); CRDT fields converge (M9); the hash chain verifies after compaction, shredding and a module
+(M6); CRDT fields converge (M7); the hash chain verifies after compaction, shredding and a module
 rename; the disclosure rule never reports an id that was never readable (a model-based test with
 random rows and policies). Erasure tests search a dump of the test database for marker values of the
 erased subject, credential tests search it for former password hashes and secret values, and a dump
@@ -5562,9 +5756,9 @@ apps are the integration suites (section 22).
 | Schema-per-tenant migrations take long with many tenants. | Bounded parallelism, unavailable lagging namespaces, shared tables as the default. |
 | MySQL has no row-level security. | The scoping plugin and adversarial tests; PostgreSQL recommended for multi-tenant production. |
 | Module authors misread what the indexes of a personal field leak. | The leaks are part of the field's type, every capability beyond equality is opt-in, and the personal-data pass of `pennestack doctor` lists and warns (section 14.7.9). |
-| Indexes over personal fields grow: prefix, trigram and token tags cost storage and writes (5 to 10 KB per filed message on PostgreSQL, estimated). | Opt-in capabilities, index sizes per tenant in `pennestack doctor`, a measurement on a fixture mailbox in M4. |
+| Indexes over personal fields grow: prefix, trigram and token tags cost storage and writes (5 to 10 KB per filed message on PostgreSQL, estimated). | Opt-in capabilities, index sizes per tenant in `pennestack doctor`, a measurement on a fixture mailbox in the mail foundations milestone (parked). |
 | A Node upgrade changes the Unicode tables the normalisers follow. | Each index records its Unicode version, `pennestack doctor` warns on a mismatch and `pennestack db reindex` rebuilds (section 14.7.9.3). |
-| An own ORE implementation is flawed. | Order is opt-in, PostgreSQL only and M7, after a spike on operator-class installation and a review of the implementation; `pennestack doctor` warns on every `order` field. |
+| An own ORE implementation is flawed. | Order is opt-in, PostgreSQL only and M5, after a spike on operator-class installation and a review of the implementation; `pennestack doctor` warns on every `order` field. |
 
 ## 15. Events, sync and live updates
 
@@ -5653,14 +5847,14 @@ export interface EventEnvelope<Type extends string = string, Data = unknown> {
   readonly data: Data
   readonly before: Readonly<Record<string, unknown>> | null
   readonly hlc: Hlc                            // authoring time: the server's, or the client's for offline mutations
-  readonly recordedAt: Date                    // acceptance time on the server
+  readonly recordedAt: Temporal.Instant                    // acceptance time on the server
   readonly actor: { readonly kind: 'anonymous' | 'user' | 'service' | 'operator' | 'system'; readonly id: string | null; readonly via: string }
   readonly commandId: string | null            // null for kernel work: retention, erasure, imports
   readonly action: string | null               // 'accounts.profile.deactivate'
   readonly causationId: string | null          // the event or command that caused this one
   readonly correlationId: string
-  readonly client: { readonly id: string; readonly seq: number } | null   // offline-authored mutations (M8)
-  readonly merge: MergeReport | null           // what lost an lww comparison (M8)
+  readonly client: { readonly id: string; readonly seq: number } | null   // offline-authored mutations (M6)
+  readonly merge: MergeReport | null           // what lost an lww comparison (M6)
   readonly writer: { readonly build: string; readonly revision: number }   // the build and revision that appended it (section 19.1)
   readonly flags: readonly FlagRead[]          // the flags the invocation read (section 20.5)
   readonly decision: DecisionRecord | null     // the decision that produced the event (section 7.9.6); null for kernel work
@@ -5881,7 +6075,7 @@ export interface ReceiptStore {
   /** Inserts the receipt; `conflict` when the id exists with another fingerprint. */
   put(receipt: Receipt): Promise<void>
   complete(commandId: string, outcome: ReceiptOutcome): Promise<void>
-  /** Sync: outcomes of one client's mutations after a client sequence number (M8). */
+  /** Sync: outcomes of one client's mutations after a client sequence number (M6). */
   forClient(clientId: string, afterSeq: number, limit: number): Promise<readonly Receipt[]>
   acknowledge(clientId: string, uptoSeq: number): Promise<void>
 }
@@ -5905,6 +6099,19 @@ export interface ReceiptStore {
 - `pennestack db verify [--stream <ref>]` recomputes the chain. It could gain a state check that
   compares sealed state values with the fold of the chain, because an older ciphertext put back into
   a state column is invisible in the state table (section 14.7.9.1).
+- **Anchors** (decision 35b, 2026-10-27). From M1 the kernel appends each scope's chain head to every
+  ledger sink of the deployment (section 14.7.6), outside the placement and its backups: one record
+  of the scope id, the position and hash of the scope's latest event, the recorded time and the
+  writer (process and build). The cadence is a setting of `defineDeployment({ anchors: { every } })`:
+  by default every commit batch of the notifier, at most once per second per scope (section 4.6).
+  `pennestack db verify` compares the chain with the anchors: the event at each anchored position
+  must exist with the anchored hash, and the scope's head must be at or past its newest anchor, so a
+  chain rewritten or rewound inside the placement is found even when its links are consistent;
+  `connect` reads the newest anchor as one more rewind signal (section 14.7.6), and `pennestack
+  doctor` warns when a scope's newest anchor is older than its cadence, which means a sink is
+  missing or failing (section 13.12). An anchor pins the stream that held the scope's head at that
+  moment; whether anchors should also carry a digest over every stream head of the scope is open
+  (section 26.3).
 - Always on for chain entities: one SHA-256 per event is negligible next to the write itself.
   Transient records carry no hash.
 
@@ -5956,7 +6163,7 @@ export interface EventStore {
   // Kernel maintenance in the scope's unit:
   compact(stream: StreamRef, uptoVersion: number, snapshot: NewEvent): Promise<void>
   purgeStream(stream: StreamRef): Promise<number>
-  purgeTransient(before: Date, limit: number): Promise<number>
+  purgeTransient(before: Temporal.Instant, limit: number): Promise<number>
   redact(eventId: string, replacement: { readonly data: unknown; readonly before: unknown }): Promise<void>
 }
 
@@ -5974,7 +6181,7 @@ export interface NewEvent {
   readonly data: unknown                       // personal values already encrypted
   readonly before: unknown | null
   readonly hlc: Hlc
-  readonly recordedAt: Date
+  readonly recordedAt: Temporal.Instant
   readonly meta: EventMeta                     // actor, commandId, action, causationId, correlationId, client, merge, traceparent
   readonly transient: boolean
   readonly prevHash: string | null
@@ -5994,14 +6201,19 @@ export type StoredEvent = EventEnvelope<string, unknown>
 
 #### 15.1.12 Streams of records (G6)
 
-Deployment logs and delivery attempts are high-volume, append-only records keyed by an entity, with
-a short retention. They are not chain events: putting them in `ps_events` would put them on the
-commit-tail counter and in front of every consumer. Streams (`defineStream`, gap G6) store them in
-`ps_stream_records(scope_id, stream, key, seq, at, data)` through the unit's `StreamRecordStore`,
-with `seq` from a serial per key (section 15.1.4), the stream's own retention, the same scope
-predicate and wake-ups, and no hash, projection or offline sync. Live subscriptions read them by
-`(key, seq)`. Personal values in records are encrypted with the key of the subject that owns the
-keyed row, and erasure purges the records of every row the subject owns (section 14.7.5).
+Deployment logs and effect attempts are high-volume, append-only records keyed by an entity, kept
+like everything else unless a rule is adopted (decision 47c). They are not chain events: putting
+them in `ps_events` would put them on the commit-tail counter and in front of every consumer.
+Streams (`defineStream`, gap G6) store them in `ps_stream_records(scope_id, stream, key, seq, at,
+data)` through the unit's `StreamRecordStore`, with `seq` from a serial per key (section 15.1.4),
+the stream's own retention (none unless declared), the same scope predicate and wake-ups, and no
+hash, projection or offline sync. Live subscriptions read them by `(key, seq)`. A stream may declare
+`offload: { afterPerKey }`: once a key passes that many records, its older records move, in order,
+into blobs of the blob store (gap G5), one per batch, and the stream keeps a reference record for
+each, so reading the key from the start still returns every record and nothing is purged; deployment
+logs use it at 50,000 lines (decision 47c, section 17.3.6). Personal values in records are encrypted
+with the key of the subject that owns the keyed row, and erasure purges the records of every row the
+subject owns (section 14.7.5).
 
 ### 15.2 Projections, consumers and the change feed
 
@@ -6011,10 +6223,10 @@ The state table of a chain entity is its inline projection: updated in the same 
 so a command's own reads and the next request see the new state. It is also the snapshot: `decide`
 receives the row, so no stream is replayed on the write path and long streams cost nothing until a
 rebuild or a history read. Framework columns: `version` (the stream version), `ps_last_hlc`,
-`ps_last_hash`, `ps_erased_at` and, from M8, `ps_merge` (field clocks, set dots, CRDT document
+`ps_last_hash`, `ps_erased_at` and, from M6, `ps_merge` (field clocks, set dots, CRDT document
 versions).
 
-#### 15.2.2 Projection entities (M7)
+#### 15.2.2 Projection entities (M5)
 
 Cross-entity read models are entities with `history: 'projection'`: maintained asynchronously by a
 consumer, read through `ctx.load` like any entity, governed by policies, served by the generated
@@ -6096,7 +6308,7 @@ export interface ConsumerSpec {
 - M1, offline: `pennestack db rebuild <entity>` takes an exclusive per-entity lock (writers of that
   entity take it shared), clears the entity's rows in the namespace, replays its streams in version
   order, verifies their hashes and releases the lock. Writes to that entity wait meanwhile.
-- M7, online blue/green: the new table `<table>__r<n>` is built from the log while writers continue,
+- M5, online blue/green: the new table `<table>__r<n>` is built from the log while writers continue,
   catches up, takes the exclusive lock briefly for the final catch-up, swaps names, and the old table
   is dropped after a grace period. Projection entities switch the same way, without a writer lock.
 - Rebuilds wait for the finalization of a running rollout (sections 19.2 and 19.4).
@@ -6272,7 +6484,7 @@ mailbox membership and drafts, which fit this table.
 
 #### 15.3.6 The protocol
 
-The protocol is four actions of the `sync` module (in `@pennestack/events`), five from M9, so every
+The protocol is four actions of the `sync` module (in `@pennestack/events`), five from M7, so every
 transport can carry it; section 15.4.8 maps them onto carriers.
 
 ```ts
@@ -6322,7 +6534,7 @@ export type RowChange =
 /** sync.poke (subscription): a pull would return something new; built on the live module's pokes, filtered by the client's shapes. */
 export interface SyncPoke { readonly cursor: string }
 
-/** sync.crdt (query, M9): updates of one collaborative field since a version. */
+/** sync.crdt (query, M7): updates of one collaborative field since a version. */
 export interface CrdtPullInput { readonly entity: string; readonly id: string; readonly field: string; readonly since: string | null }
 export interface CrdtPullOutput { readonly codec: string; readonly update: string; readonly version: string }
 ```
@@ -6403,7 +6615,7 @@ export interface CrdtCodec {
   /** An online write of a whole value, turned into operations (for text, a minimal diff). */
   replace(document: Uint8Array, value: unknown, peer: bigint): CrdtResult
   updatesSince(document: Uint8Array, version: Uint8Array | null): Uint8Array
-  /** Drops history before a version (retention, M9). */
+  /** Drops history before a version (retention, M7). */
   shallow(document: Uint8Array, version: Uint8Array): Uint8Array
 }
 export interface CrdtResult {
@@ -6428,18 +6640,18 @@ export interface CrdtResult {
   with the version vector after it in the event's metadata, which `shallowCrdt` retention uses to find
   its cut. A rebuild re-imports the updates in version order.
 - **From the first app that declares one.** Online writes of a whole value go through `replace`, so
-  the stored form is a CRDT from the start and M9 only opens the protocols.
-- **Sync (M9).** A `put` carries the materialised value and the document version; the client fetches
+  the stored form is a CRDT from the start and M7 only opens the protocols.
+- **Sync (M7).** A `put` carries the materialised value and the document version; the client fetches
   `sync.crdt` updates since its own version and pushes local updates as `crdt` operations.
   Real-time typing pushes small updates batched every 250 ms through the same push. Presence
   (cursors, selections) is ephemeral, never stored, and travels through the live module.
 
-#### 15.3.10 The reference client (M8)
+#### 15.3.10 The reference client (M6)
 
 `@pennestack/sync-client` is framework-agnostic TypeScript: a local store behind a `SyncStorage`
 interface (memory, IndexedDB in browsers, SQLite elsewhere), the clock with offset correction, the
 pending queue with client sequences, optimistic application of generated `set` operations (and, in
-M9, of custom offline commands whose `decide` a module exports for clients), rebase after every pull,
+M7, of custom offline commands whose `decide` a module exports for clients), rebase after every pull,
 the rejected journal, typed local queries over the synced rows and a poke subscription that triggers
 pulls. It talks to the server through the app's typed client (`AppClient`), so it works over any
 transport that carries the `sync` actions.
@@ -6460,7 +6672,7 @@ The brief asks for live updates on everything, delivered by a module. `@pennesta
 
 and declares two module actions: `live.pokes` (subscription) and `live.ticket` (command). The hub
 also serves the stream records and ephemeral topics of G6 (whose DSL, `defineStream`
-and `defineTopic`, belongs to the core) and, from milestone M9, presence. Modules that build their
+and `defineTopic`, belongs to the core) and, from milestone M7, presence. Modules that build their
 own subscription sources list the `live` contract in `requires` (or `optional`, which types
 `ctx.live` as possibly undefined, or as a `when` condition of a conditional part), exactly like any
 other dependency (section 5.2).
@@ -6644,7 +6856,7 @@ export type ClientMessage =
   | { readonly type: 'subscribe'; readonly id: string; readonly action: string; readonly input?: unknown; readonly after?: string }
   | { readonly type: 'unsubscribe'; readonly id: string }
   | { readonly type: 'invoke'; readonly id: string; readonly request: InvokeRequest }
-  | { readonly type: 'presence'; readonly channel: string; readonly state: unknown }     // M9
+  | { readonly type: 'presence'; readonly channel: string; readonly state: unknown }     // M7
   | { readonly type: 'ping' }
 
 export type ServerMessage =
@@ -6681,15 +6893,16 @@ export interface PresencePeer {
   request per edit; results are the invocation protocol's responses.
 - Close codes: 1000 normal, 1001 going away, 1011 internal, 1013 try again later, 4000 protocol
   violation, and the 44xx codes of section 16.4.6 for errors that end the connection.
-- Presence (milestone M9) is ephemeral and never stored: a client joins a channel named by
+- Presence (milestone M7) is ephemeral and never stored: a client joins a channel named by
   a row and a field (`mail-store.email:<id>:body`) only if it may `get` that row, publishes small
   states (a cursor, a selection), and receives the peers of the channel within its own scope.
   States expire 30 seconds after their last update. Across processes, presence and topics travel
   through a broadcast capability of the data adapter (PostgreSQL `NOTIFY` with payloads below its
-  8,000-byte limit); without it they reach only subscribers on the same process (section 26.3).
-- The same carrier with `subscribe` and `invoke` on one connection is what Launchway's agent
-  protocol v2 needs (section 17.3.4): the agent holds `nodes.channel` and calls its actions with
-  the typed client, without oRPC.
+  8,000-byte limit); without it the kernel relays them by polling, with up to one polling interval
+  of extra delay (section 14.3.3).
+- The same carrier with `subscribe` and `invoke` on one connection is what Launchway's new agent
+  uses since decision 23c (section 17.3.4): it holds `nodes.channel` (and, on the edge node,
+  `edge.channel`) and calls its actions with the typed client.
 - The same carrier hosts JMAP's WebSocket subprotocol (RFC 8887) when the mail platform adds it.
 
 #### 15.4.8 Subscriptions per transport
@@ -6796,7 +7009,7 @@ export declare function unresumable<E>(items: AsyncIterable<E>): AsyncIterable<L
 
 This section specifies how pennestack is reached from outside its process: the API surface every
 interface reads, the transport adapter contract and the HTTP host, the rules every projection
-shares, REST with OpenAPI, GraphQL, tRPC, the invocation protocol and the typed client, the
+shares, REST with OpenAPI, GraphQL, tRPC and oRPC, the invocation protocol and the typed client, the
 `pennestack` CLI, how a later user interface plugs in, and the observability and tenancy of the
 interface layer. The live module is section 15.4; the development workflow is section 13. ADRs
 [0010](adr/0010-transports-project-a-derived-api-surface.md),
@@ -6807,7 +7020,8 @@ running the tools on 2026-10-10 and 2026-10-11 (Appendix B): a tRPC router type 
 can be derived from an action tree without code generation (TypeScript 7.0.2, `@trpc/server`
 11.19.0); `isolatedDeclarations` rejects the inferred exports of the configuration DSL; Vitest 5.0.3
 type tests run on TypeScript 7.0.2; and Node 24.21.0 runs a linked workspace package from its
-TypeScript source through an export condition but refuses the same files inside `node_modules`.
+TypeScript source through an export condition but refuses the same files inside `node_modules` (the
+M0 spike repeats this check on the Node 26 baseline, section 13.2).
 
 ### 16.1 Principles
 
@@ -6826,9 +7040,10 @@ TypeScript source through an export condition but refuses the same files inside 
 5. **Artefacts are deterministic and committed.** Generated documents are pure functions of the
    surface and of static transport options. They are committed and checked for drift in CI;
    production never generates anything.
-6. **Types without a generator in the type path.** TypeScript clients get their types by inference
-   from the app value (`AppClient<App>`, `TrpcRouterOf<App>`). The one generated TypeScript file only
-   re-exports those types.
+6. **Client types by inference.** TypeScript clients get their types by inference from the app
+   value (`AppClient<App>`, `TrpcRouterOf<App>`, `OrpcRouterOf<App>`). The app's generated file only
+   re-exports those types; the module manifests of section 23.5 are generated module literals that
+   `tsc` checks like hand-written code, not generated types.
 7. **The framework does not know its clients.** A user interface, a script or an SDK generator is a
    client of a transport and of the surface. No framework package names a frontend framework.
 8. **Fail closed at the edge.** An unknown host, an unresolvable tenant, a stale stream token, a
@@ -7030,8 +7245,8 @@ section 16.4.2):
 | `float` | `number` | number | `type: number` | `Float` | number parser |
 | `serial` | `number` | number | `type: integer`, `readOnly` | `SafeInt` | not an input |
 | `boolean` | `boolean` | boolean | `type: boolean` | `Boolean` | `--name` and `--no-name` |
-| `instant` | `Date` | RFC 3339 string in UTC with `Z` | `format: date-time` | `Instant` | RFC 3339 or `now` |
-| `date` | `string` | `YYYY-MM-DD` | `format: date` | `LocalDate` | `YYYY-MM-DD` |
+| `instant` | `Temporal.Instant` | RFC 3339 string in UTC with `Z` | `format: date-time` | `Instant` | RFC 3339 or `now` |
+| `date` | `Temporal.PlainDate` | `YYYY-MM-DD` | `format: date` | `LocalDate` | `YYYY-MM-DD` |
 | `timeZone` | `string` | IANA zone name | `type: string` | `TimeZone` | checked against `Intl.supportedValuesOf('timeZone')` |
 | `enum` | union of literals | string | `enum` | enum type, e.g. `AuthCredentialKind` | enumerated flag with completion |
 | `id`, `ref` | `Id<'module.entity'>` | TypeID string | `type: string`, pattern from the prefix | `ID` | TypeID with prefix check |
@@ -7275,7 +7490,7 @@ export interface InvocationSession {
   readonly principal: Principal                          // kind 'anonymous' when no credentials were presented
   readonly apiVersion: string                            // resolved by resolveVersion (section 18.3)
   readonly deprecation: { readonly at: string; readonly sunset?: string } | null   // when the session's version is deprecated
-  readonly expiresAt?: Date                              // when the presented credentials stop being valid
+  readonly expiresAt?: Temporal.Instant                              // when the presented credentials stop being valid
   /** Runs resolvePrincipal again from the retained carrier; used by long-lived connections. */
   revalidate(): Promise<Outcome<InvocationSession>>
 }
@@ -7332,9 +7547,10 @@ Listeners that do not speak HTTP (SMTP and IMAP for the mail platform) contribut
 protocol knows (for SMTP the connection, the TLS state and the recipient domain as a scope key),
 open a session per connection, per authentication or per recipient, invoke actions, and map
 outcomes with the error table of section 16.4.6 translated to their protocol's reply codes. A
-platform-specific WebSocket protocol, such as Launchway's agent gateway (protocol v1), is a
-transport module like any other: it registers an upgrade endpoint on the host, opens a session from
-the upgrade request and maps its messages onto actions.
+platform-specific WebSocket protocol is a transport module like any other: it registers an upgrade
+endpoint on the host, opens a session from the upgrade request and maps its messages onto actions.
+Launchway needs none: since decision 23c its agent is a typed client of the live module's WebSocket
+carrier (section 17.3.4).
 
 #### 16.3.8 Conformance suite
 
@@ -7343,12 +7559,13 @@ contribution and a conditional part, declared errors, a field mask, an `either` 
 command, a subscription and every generated entity action) and one scenario set run through every
 selected transport. Each scenario asserts the same decoded outcome everywhere: values, error kind
 and code, pagination traversal, masked fields, async receipts, idempotent replay, concurrent
-duplicates (`core.command_in_progress`), optimistic concurrency failures and stream resumption.
+duplicates (`core.command_in_progress`), optimistic concurrency failures, stream resumption, and the
+selection limits of section 16.4.12, among them a selection path that repeats an entity type.
 Browser scenarios run against the HTTP host: a cross-site page that tries to open the live
 WebSocket or an SSE stream with the user's cookie, a sibling subdomain that plants a `Domain`
 cookie, a request whose path names a scope key of another tenant on the same host, and a stale
 cookie on the login action. Every transport package runs it in its tests; CI runs it for REST,
-GraphQL, tRPC and the invocation protocol.
+GraphQL, tRPC, oRPC and the invocation protocol.
 
 ### 16.4 Shared projection rules
 
@@ -7418,10 +7635,10 @@ Every HTTP transport encodes values with the wire column of section 16.2.3. Furt
   Anywhere else it is a `validation` error. Conditions written in code have no such shorthand: there
   a `null` comparison never matches (section 8.3).
 - The pipeline's `validate` stage accepts the wire form or the in-process form and produces the
-  in-process form (an RFC 3339 string or a `Date` for an instant; a decimal string or a `bigint` for a
-  wide integer), so transports pass decoded JSON straight to the invoker. Outputs are serialised
-  with `toWire(node, value)` from `@pennestack/core/wire`, a dependency-free subpath that clients
-  share (section 6.5).
+  in-process form (an RFC 3339 string or a `Temporal.Instant` for an instant; a decimal string or a
+  `bigint` for a wide integer), so transports pass decoded JSON straight to the invoker. Outputs are
+  serialised with `toWire(node, value)` from `@pennestack/core/wire`, a dependency-free subpath that
+  clients share (section 6.5).
 - Patches use the core's patch object: scalar fields are replaced or cleared with `null`;
   merge-typed fields take the operations of section 14.5.4 (for example `{ "tags": { "add": ["x"] } }`
   for a `set` field). For scalar fields the patch object is compatible with JSON Merge Patch
@@ -7476,7 +7693,9 @@ interface RelationOps<Target> { readonly some?: Target; readonly none?: Target; 
 
 Rules, all enforced in the pipeline rather than in transports: `and`, `or` and `not` are reserved
 names (no field or relation may use them, section 5.1); a filter or sort on a field the principal's
-mask hides is `forbidden`; an operator the placement's adapter cannot express is `unsupported`;
+mask hides is `forbidden`; an operator the field model does not allow (an undeclared operator on a
+personal field, a restricted kind) is `unsupported`, while one the placement's adapter lacks takes
+the kernel's path (section 14.3.3);
 only fields in `page.sortable` sort, and the data layer appends `id` as the final tie-breaker.
 Filters on personal fields use `PersonalOps` instead of `FieldOps`, so only declared operators
 type-check; the GraphQL filter inputs and the OpenAPI document describe only those, and the CLI's
@@ -7654,6 +7873,27 @@ Cookie rules:
 - Batch sizes are bounded: GraphQL by the operation limits of section 16.6.6, tRPC batches and
   invocation-protocol batches by 20 invocations.
 
+#### 16.4.12 Selection limits
+
+Transports that follow relations inside one request share one set of limits: own validation rules,
+checked before execution and configurable per backend (decision 37a, 2026-10-27).
+
+- **No repeated entity type on a selection path.** An entity type appears at most once on a path
+  from the root of a selection to a leaf, so `project -> deployments -> project -> ...` is refused:
+  related data is selected at the highest level where it is needed, or in a separate query.
+  Siblings of the same type at one level stay allowed (`deployment { node }` beside
+  `preview { node }`). The rule is Jens's and the default; it may change once the implementation
+  goes deeper.
+- **Depth, aliases, batch and cost.** Beside it: a maximum depth, a maximum number of aliases, a
+  maximum number of operations per request, and a cost computed from the surface (1 per field, 10
+  per connection page), with the token limit of each wire format.
+- GraphQL applies them to every selection set (section 16.6.6). REST has no relation expansion: a
+  client reads related rows with separate requests, so no REST request has a path to check; an
+  `include` parameter, should REST gain one, follows the same rules. tRPC, oRPC and the invocation
+  protocol return the shapes actions declare and follow no relations.
+- A refused selection is a `validation` error that names the path and the limit; the transport
+  conformance suite has a case for each limit (section 16.3.8).
+
 ### 16.5 REST and OpenAPI
 
 `@pennestack/transport-rest` (module id `rest`) is pennestack's own projection on the shared host,
@@ -7704,6 +7944,9 @@ entity's action namespace.
   member comes from the body.
 - An id in a path must carry the entity's prefix; a wrong prefix is a `validation` error, not a
   `not_found`, so a client bug is distinguishable from a missing row.
+- REST reads follow no relations inside one request; an `include` expansion, should REST gain one,
+  takes the selection limits of section 16.4.12, the rule that no entity type appears twice on a
+  path first (decision 37a).
 
 #### 16.5.3 Responses
 
@@ -7933,11 +8176,11 @@ hand-written resolvers adds a dependency without adding safety (ADR 0011).
 
 #### 16.6.6 Limits and production settings
 
-- Operation limits, checked before execution: depth 12, aliases 30, tokens 5,000 and a cost limit
-  of 1,000 (1 per field, 10 per connection page), configurable per backend. The first
-  implementation uses the plugins of `@escape.tech/graphql-armor` 3.2.0 (max depth, max aliases,
-  max tokens, cost limit, field-suggestion blocking outside development); if that package stops
-  being maintained, the same limits are a few own validation rules.
+- Operation limits, checked before execution as own validation rules (decision 37a, 2026-10-27;
+  no dependency on `@escape.tech/graphql-armor`, last published 2025-12-29): no entity type twice on
+  one selection path (section 16.4.12), depth 12, aliases 30, at most 20 operations per request,
+  tokens 5,000 and a cost limit of 1,000 computed from the surface (1 per field, 10 per connection
+  page), configurable per backend; field suggestions are blocked outside development.
 - Introspection follows the backend's `introspection` setting of section 16.2.5. GraphiQL (built into
   Yoga) is served in development only.
 - Persisted operations are optional for user interfaces in production, through
@@ -7952,7 +8195,9 @@ hand-written resolvers adds a dependency without adding safety (ADR 0011).
 | `GraphQLSchema` | at `listen`, from the surface; its printed form must equal the committed SDL (a warning in development, a failure in CI) | memory |
 | client types | in client projects, from the committed SDL (gql.tada 1.11.4 or graphql-codegen) | the client's repository |
 
-### 16.7 tRPC
+### 16.7 tRPC and oRPC
+
+Subsections 16.7.1 to 16.7.6 specify the tRPC transport; section 16.7.7 the oRPC transport beside it.
 
 `@pennestack/transport-trpc` (module id `trpc`) serves tRPC 11.19.0, which the brief requires, at
 `/trpc` through tRPC's fetch adapter (`@trpc/server/adapters/fetch`) inside the host handler.
@@ -8049,10 +8294,11 @@ the precise per-call types. Subscription data is the item or a control frame (`S
 
 #### 16.7.3 Transformer
 
-`superjson` 2.2.6 is the default transformer, as tRPC's documentation recommends, so `Date`,
-`bigint`, `Set` and `Map` survive; `Uint8Array` is registered as a custom type. With the static
-option `transformer: 'json'`, the wire is the plain JSON encoding of section 16.4.2 and the router type
-sets `transformer: false`, so tRPC's own `Serialize` types show strings where dates were.
+`superjson` 2.2.6 is the default transformer, as tRPC's documentation recommends, so `bigint`,
+`Set` and `Map` survive; `Temporal.Instant`, `Temporal.PlainDate` and `Uint8Array` are registered as
+custom types (`registerCustom`). With the static option `transformer: 'json'`, the wire is the plain
+JSON encoding of section 16.4.2 and the router type sets `transformer: false`, so tRPC's own
+`Serialize` types show strings where instants were.
 
 #### 16.7.4 Errors
 
@@ -8074,6 +8320,44 @@ recommended, because they end up in logs, and stream tickets (section 15.4.6) co
 | What | When | Where |
 |---|---|---|
 | `TrpcRouter` type alias | `pennestack dev`, `pennestack generate` | a type fragment in `pennestack.generated.ts`, committed |
+| router value | at `listen`, from the surface | memory |
+
+#### 16.7.7 oRPC
+
+`@pennestack/transport-orpc` (module id `orpc`) serves oRPC (`@orpc/server` 1.16.1, published
+2026-10-22) at `/orpc` through its fetch handler inside the host handler. Jens included it in the
+first release on 2026-10-26 (decision 15b), to judge its implementation and quality on real use
+despite its youth; it ships in M2 beside GraphQL and tRPC, passes the same conformance suite
+(section 16.3.8), and like every transport it is a module an app may leave out.
+
+- **Projection of the surface.** As for tRPC, the router is built at `listen` from the surface: one
+  nested router per module and entity, one procedure per exposed action. Procedures pass the raw
+  input to the invoker, whose pipeline validates once, and outcomes map back through the error
+  table of section 16.4.6. Module ids are camel-cased in paths, since paths are property names.
+- **Typed client.** `OrpcRouterOf<App>` is derived from `AppActionTree<App>` in the same two
+  levels as `TrpcRouterOf` (section 16.7.2) and exported from the app's generated file as a type
+  fragment, so `@orpc/client` 1.16.1 gives a typed client with no router value and no code
+  generation. Declared errors become each procedure's typed error map, so a client narrows on the
+  error code per procedure, which tRPC cannot. That oRPC's client types accept the derived type at
+  a cost like the tRPC listing's (Appendix B) is checked when the transport is built in M2; it was
+  not verified within this pass.
+- **Wire.** oRPC's serialiser carries `bigint`, `Set`, `Map` and binary values; `Temporal.Instant`
+  and `Temporal.PlainDate` are registered as custom serialisers, and the static option
+  `serializer: 'json'` switches to the plain JSON of section 16.4.2, as tRPC's `transformer: 'json'`
+  does.
+- **Subscriptions** are oRPC event iterators over SSE: every item carries its stream token as the
+  event id, so a reconnecting client resumes from it, and control frames (`head`, `reset`, `gap`)
+  arrive as items, as in tRPC.
+- **Its OpenAPI handler, compared with the own emitter.** oRPC can serve the same procedures as
+  REST-style routes with a document of its own (`@orpc/openapi` 1.16.1). The transport offers that
+  handler as an option, and CI generates both documents for the conformance fixture app and reports
+  their differences from the own emitter of section 16.5.5 (problem details, pagination, execution
+  modes and receipts, version headers), so the comparison is measured rather than assumed.
+  `transport-rest` keeps its own emitter; the comparison is information for Jens, not a switch.
+
+| What | When | Where |
+|---|---|---|
+| `OrpcRouter` type alias | `pennestack dev`, `pennestack generate` | a type fragment in `pennestack.generated.ts`, committed |
 | router value | at `listen`, from the surface | memory |
 
 ### 16.8 The invocation protocol and the typed client
@@ -8191,7 +8475,8 @@ export function createRemoteClient<App>(options: {
 ```
 
 The remote client decodes values with the surface it fetched (or the committed surface artefact it
-was given), so `Date` and `bigint` arrive in their in-process form although the wire is plain JSON.
+was given), so `Temporal` values and `bigint` arrive in their in-process form although the wire is
+plain JSON.
 It retries network failures of queries, and of commands under the same command id (safe because of
 receipts), at most three times with jittered backoff.
 
@@ -8226,31 +8511,38 @@ project mode, otherwise from `GET /_pennestack/v1/surface`, cached by hash under
 ```
 pennestack
 ├── dev | build | start | generate | migrate | db | introspect | module | ...   framework commands (16.9.7)
-├── <module> <entity> <action>      accounts profile deactivate prof_01j9... --reason "left the company"
-├── <module> <action>               accounts register --display-name Jens --email jens@acme.example
-├── app <action>                    app health
-└── core <entity> <action>          core tenant create ...   (backend, tenant and domain are top-level aliases)
+├── call <module.entity.action>     call accounts.profile.deactivate prof_01j9... --reason "left the company"
+├── call <module.action>            call accounts.register --display-name Jens --email jens@acme.example
+├── call app.<action>               call app.health
+├── call core.<entity>.<action>     call core.tenant.create ...   (backend, tenant and domain are framework aliases)
+└── watch <subscription reference>  watch auth.sessionEvents      (call with --follow)
 ```
 
-- The tree contains exactly the actions of the selected backend's app: a command exists when the
-  action exists, and a module that is not selected has no commands.
-- Generated actions appear as `get <id>...`, `list`, `changes`, `query-changes`, `create`,
-  `update <id>`, `archive <id>`, `restore <id>`, `set` (a batch read from JSON) and `watch`.
+- Action commands sit under one verb, `call`, with the dotted action reference everyone already
+  uses as its argument (decisions 16b and 81a, 2026-10-26):
+  `pennestack call deployments.deployment.run --project ...`. The reference is written as code
+  writes it (`accounts.profile.changePassword`), and completion offers it segment by segment.
+- The references under `call` are exactly the actions of the selected backend's app: a reference
+  exists when the action exists, and a module that is not selected has none.
+- Generated actions take their reference names, the set operations included:
+  `call accounts.profile.get <id>...`, `.query`, `.changes`, `.queryChanges`, `.create`,
+  `.update <id>`, `.archive <id>`, `.restore <id>`, `.set` (a batch read from JSON) and `.watch`.
 - Instance commands take the id as the first positional argument; `cli.positional` names further
-  positional inputs; `cli.route` and `cli.aliases` rename.
+  positional inputs; `cli.aliases` adds shorter references under `call`.
 - There are no hand-written project commands: composition of actions belongs in a script with the
   typed client (section 16.8.4), and behaviour belongs in actions.
 
-#### 16.9.3 Reserved names
+#### 16.9.3 No reserved module ids
 
-Framework commands and action commands share the first level, so framework command names are
-reserved as module ids (section 5.1): `app`, `backend`, `build`, `call`, `completion`, `consumers`,
-`core`, `db`, `dev`, `doctor`, `domain`, `explain`, `fleet`, `flags`, `generate`, `help`, `init`,
-`introspect`, `jobs`, `keys`, `login`, `logout`, `migrate`, `module`, `new`, `operator`, `profile`,
-`rollout`, `start`, `surface`, `tenant`, `version`, `watch` and `x`: 34 names, of which `flags`,
-`rollout` and `surface` came with sections 18 to 20, `new` with section 23 and `fleet` with section
-21 (decision point 62), before the list is frozen. The list is frozen per major version; a new
-framework command lands under an existing group or under `x` until the next major version.
+Action commands sit under `pennestack call` (decisions 16b and 81a), so framework commands and
+module ids never share a level, and no name is reserved because of the CLI, an integration, a
+plugin or a module. The framework's commands (`backend`, `build`, `call`, `completion`,
+`consumers`, `db`, `dev`, `doctor`, `domain`, `explain`, `fleet`, `flags`, `generate`, `help`,
+`init`, `introspect`, `jobs`, `keys`, `login`, `logout`, `migrate`, `module`, `new`, `operator`,
+`profile`, `rollout`, `start`, `surface`, `tenant`, `version`, `watch` and `x`) are free choices of
+the CLI: a new framework command can arrive in a minor version, because it can never shadow an
+action, and a module may be called `fleet`, `new` or `surface`. The only reserved module ids are
+`core` and `app`, which action references themselves use (section 5.1).
 
 #### 16.9.4 Flags from field nodes
 
@@ -8275,7 +8567,7 @@ stages, the plan and the matched rule ids) and `--trace` (prints the trace id).
   the default is JSON. YAML output uses `yaml` 2.9.1.
 - `watch` and every subscription print NDJSON (`{"state":"...","item":{...}}` per line) and resume
   automatically from the last token after a disconnect. A subscription command stops at the `head`
-  frame unless `--follow` is given (`pennestack deployments deployment logs <id> --follow`, as
+  frame unless `--follow` is given (`pennestack call deployments.deployment.logs <id> --follow`, as
   section 17.3.6 expects); `watch` commands start at the present and always follow. Ctrl-C ends
   with exit code 130.
 - Errors go to standard error as one line per problem (`error[accounts.email_taken]: This e-mail
@@ -8315,20 +8607,20 @@ stages, the plan and the matched rule ids) and `--trace` (prints the trace id).
 | `pennestack start --role serve\|work\|all` | project (built) | runs a process with the role of section 3.2 |
 | `pennestack generate [--watch] [--check] [--only <producer>]` | project | writes or checks every artefact of section 13.7 |
 | `pennestack migrate` | project or operator socket | applies pending migration files (an alias of `db apply`) |
-| `pennestack db plan\|generate\|apply\|status\|check\|introspect\|retire\|rebuild\|verify\|restore\|reindex` | project or operator socket | the data layer's commands, with the semantics of sections 14.6.4, 15.2.4, 14.7.6, 14.7.9.7 and 14.8.4 |
+| `pennestack db plan\|generate\|apply\|status\|check\|introspect\|retire\|rebuild\|verify\|restore\|reindex` | project or operator socket | the data layer's commands, with the semantics of sections 14.6.4, 15.2.4, 14.7.6, 14.7.9.7 and 14.8.4; `verify` also compares the chain heads with the anchors in the ledger sinks (section 15.1.8) |
 | `pennestack consumers list\|unpark`, `pennestack jobs stats\|lanes\|list\|explain\|replay\|discard\|pause\|resume`, `pennestack keys rotate [--index]`, `pennestack tenant move` | operator socket | consumers and parked streams (section 15.2.3); statistics per queue and capability set, the busiest lanes, why a job waits, dead-letter jobs and pausing a queue (sections 9.5 and 21.9); key rotation, with `--index` a reindex (sections 14.7.4 and 14.7.9.7); tenant moves (section 14.4.5) |
 | `pennestack fleet [list\|show\|watch]`, `fleet cordon\|uncordon\|drain\|probe\|forget`, `fleet scale status\|explain\|history\|set\|pause\|resume` | operator socket or remote operator | nodes and processes with roles, capabilities, revision, state, slots and heartbeat; placement on nodes, drains with a deadline and probes; the scaler's plans, decisions and runtime limits within the deployment's (section 21.9) |
 | `pennestack operator token issue\|revoke\|list` | operator socket | short-lived operator tokens for remote operator profiles (section 3.5) |
 | `pennestack introspect [modules\|actions\|entity <ref>\|policies\|extensions\|diff]` | any | the surface and the composition report as a tree or JSON; `introspect diff` is an alias of `surface diff` |
-| `pennestack surface diff\|version new\|usage\|retire` | project; `usage` and `retire` on the operator socket | compatibility of every API version against a git base (section 18.6), a new API version in the ledger (section 18.2), usage per tenant and version, retirement below the floor (section 18.5) |
+| `pennestack surface diff\|version new\|usage\|retire` | project; `usage` and `retire` on the operator socket | compatibility of every API version against a git base (section 18.6), a new API version in the ledger (section 18.2), usage per tenant and version, retirement once the sunset has passed (section 18.5) |
 | `pennestack rollout status\|finalize\|abort` | operator socket | processes, revisions and pending contract steps; finalization and abort of a rollout (section 19.4) |
 | `pennestack flags list\|get\|set\|history\|explain\|stale` | operator socket or remote operator | aliases of the `core.flag` operator actions (section 20.9) |
-| `pennestack new <kind> <reference>` | project | scaffolds one part and mounts it in its assembly file (sections 16.9.8 and 23.14) |
+| `pennestack new <kind> <reference>` | project | creates one part's file where its reference puts it; the generated manifest mounts it (sections 16.9.8 and 23.14) |
 | `pennestack module new\|rename\|retire` | project; rename and retire also on the operator socket | `module new` is an alias of `new module` (section 16.9.8); the operator actions of sections 5.1 and 6.6 |
-| `pennestack backend ...`, `tenant ...`, `domain ...` | operator socket or remote operator | aliases of the `core` action commands |
-| `pennestack call <ref> [--input ...]` | any | invokes any action by reference, for scripts that should not depend on routes |
-| `pennestack watch <ref> [--input ...]` | any | subscribes to any subscription by reference |
-| `pennestack explain <ref> [--input ...] [--as <principal>] [--dry-run]`, `explain --trace <command, event or effect id>`, `explain --redecide <command id>` | operator socket, development | shows the authorization decision without executing (section 8.6); `--dry-run` runs admission, `prepare` and `decide` in a unit that rolls back and prints events, effects and the decision record; `--trace` prints a command's events, effects with outcomes and the continuations they caused; `--redecide` re-runs a recorded decision with the current build and compares (section 7.9.6); what `--as` may do is decision point 17 (section 26.1) |
+| `pennestack backend ...`, `tenant ...`, `domain ...` | operator socket or remote operator | aliases of `call core.backend...`, `core.tenant...` and `core.domain...` |
+| `pennestack call <ref> [--input ...]` | any | the action commands: invokes any action by its dotted reference, with flags from its input fields (sections 16.9.2 and 16.9.4) |
+| `pennestack watch <ref> [--input ...]` | any | `call <ref> --follow` for subscriptions |
+| `pennestack explain <ref> [--input ...] [--as <principal>] [--dry-run]`, `explain --trace <command, event or effect id>`, `explain --redecide <command id>` | operator socket, development | shows the authorization decision without executing (section 8.6); `--dry-run` runs admission, `prepare` and `decide` in a unit that rolls back and prints events, effects and the decision record; `--trace` prints a command's events, effects with outcomes and the continuations they caused; `--redecide` re-runs a recorded decision with the current build and compares (section 7.9.6); `--as` evaluates everywhere and executes only in development (decision 17a) |
 | `pennestack doctor` | any | the checks of section 13.12, then `app.health` and `app.ready` |
 | `pennestack login\|logout\|profile ...` | remote | profiles and credentials |
 | `pennestack completion bash\|zsh\|fish` | none | prints a completion script |
@@ -8336,7 +8628,7 @@ stages, the plan and the matched rule ids) and `--trace` (prints the trace id).
 #### 16.9.8 Module scaffolding
 
 `pennestack new <kind> <reference>` scaffolds one part, located by its reference (section 23.14),
-for the kinds `module`, `entity`, `action`, `flag`, `policy`, `reaction`, `service`, `error`,
+for the kinds `module`, `entity`, `action`, `flag`, `rule`, `reaction`, `service`, `error`,
 `schedule`, `stream`, `topic`, `effect`, `executor`, `contribution`, `condition`, `version-change`,
 `lib`, `shape`, `app` and `script`; `pennestack module new` stays as an alias of
 `pennestack new module`.
@@ -8345,31 +8637,36 @@ creates a package that already compiles, tests and type-tests:
 
 ```
 packages/module-<id>/                     (modules/<id>/ in an application repository)
-  package.json          name, "type": "module", exports "." to src/module.ts with the source condition, publishConfig.exports without it (section 13.4)
+  package.json          name, "type": "module", exports "." to src/module.generated.ts with the source condition, publishConfig.exports without it (section 13.4)
   tsconfig.json         extends the base configuration; composite; rootDir src; references to the packages it requires
   tsconfig.test.json    includes src/**/*.test*.ts and test/
   src/base.ts           const <camelId>BaseDef = defineModuleBase({ id: '<id>', version: '0.1.0', requires: [...], optional: [...] })
                         export interface <PascalId>Base extends ModuleBaseType<typeof <camelId>BaseDef> {}
                         export const <camelId>Base: <PascalId>Base = <camelId>BaseDef
-  src/module.ts         const <camelId>Def = defineModule(<camelId>Base, {}); the package entry
+  src/module.generated.ts  written by the generator, the package entry: const <camelId>Def = defineModule(<camelId>Base, {})
                         export interface <PascalId> extends ModuleType<typeof <camelId>Def> {}
                         export const <camelId>: <PascalId> = <camelId>Def
   src/module.test-d.ts  type tests: composes alone, composes with each optional module, conditional parts appear only then
   test/alone.test.ts    a test through createLocalClient against an app made of this module alone
 ```
 
-It adds the package to the root `tsconfig.json` references and, with `--app <id>`, adds the module
-to that app's `modules.ts`. A scaffold of any other kind writes the part (with a test beside
-actions, policies and reactions) and inserts one import and one entry into the matching key of one
-assembly file (`base.ts`, `module.ts`, `app.ts` or `modules.ts`). It edits nothing else, refuses a
-file it does not recognise as the canonical shape and prints the two lines instead, and
-`--dry-run` shows the plan (decision point 61 of section 26.1).
+Scaffolds create files only and never edit a source (question 61, closed by decision 59b on
+2026-10-28). `new module` runs the generator once, so the package compiles at once. A scaffold of
+any other kind writes the part where its reference puts it (with a test beside actions, rules and
+reactions), and the generator mounts it in `module.generated.ts` in the next `pennestack generate`
+or dev-server cycle; `--dry-run` lists the files. What only a hand-written file can hold, the
+scaffold prints for the author to add: a declaration the base lists (an entity, stream, flag,
+extension point, contribution or condition, in `base.ts`), an app-level part (in `app.ts`), the new
+package's reference in the root `tsconfig.json` and, with `--app <id>`, the module's import and
+tuple entry in that app's `modules.ts`. The layout pass reports any of them still missing (section
+23.13).
 
 #### 16.9.9 Completions and help
 
 `pennestack completion zsh` (or `bash`, `fish`) prints a script that calls back into the binary, and
 Stricli's `proposeCompletions` answers from the route map, which comes from the cached surface:
-route names, flag names and enumerations complete without a network call; TypeID values can
+framework commands, the action references after `call` (module, entity and action, segment by
+segment), flag names and enumerations complete without a network call; TypeID values can
 complete by calling the target entity's `query` within 500 milliseconds when a profile enables it.
 Help text comes from action and field descriptions (`.describe()`), with examples derived from the
 input shape. The CLI's artefact `generated/cli/<app>.json` (routes, flags, descriptions)
@@ -8388,7 +8685,7 @@ export interface CliContext extends CommandContext {
   readonly signal: AbortSignal
 }
 
-/** The action part of the route map; @pennestack/cli adds the framework commands. */
+/** The routes under `call`, one per action reference, from the surface; @pennestack/cli adds the framework commands. */
 export function buildActionRoutes(surface: ApiSurface, options?: { readonly listName?: string }): RouteMap<CliContext>
 
 /** A field node as a Stricli flag: parser, brief, optionality, variadic and enumeration. */
@@ -8520,14 +8817,16 @@ interface layer:
   as positional paging (section 14.3.5); JMAP is therefore a projection with its own paging option,
   not a renaming of the generated actions. Section 17.4.8 decides which entities the mail app
   exposes.
-- **Connect** (gRPC-compatible): needs stable field numbers (`.tag(n)`, a decision point of section
-  26.1). Descriptors would be built at runtime from field nodes with `@bufbuild/protobuf` 2.16.0
-  (`createFileRegistry`) and the `.proto` file emitted as an artefact; a runtime-descriptor spike
-  (section 26.3) decides whether `@connectrpc/connect` 2.2.0 accepts them.
-- **oRPC**: not in the first release (ADR 0011). A `transport-orpc` remains one more adapter if a
-  client needs oRPC's ecosystem.
+- **Connect** (gRPC-compatible): needs stable field numbers (`.tag(n)`, allocated from day one,
+  decision 18a). Descriptors would be built at runtime from field nodes with `@bufbuild/protobuf`
+  2.16.0 (`createFileRegistry`) and the `.proto` file emitted as an artefact; a runtime-descriptor
+  spike, scheduled with the Connect transport (decision 39a; roadmap, later milestones), decides
+  whether `@connectrpc/connect` 2.2.0 accepts them.
+- **oRPC** is no longer a later interface: it ships in the first release, section 16.7.7
+  (decision 15b).
 - **Outbound webhooks**: an `outbound-webhooks` module (distinct from the inbound `webhooks`
-  transport of section 16.5.8), not a transport. Endpoints are entities of the module;
+  transport of section 16.5.8), not a transport; it ships with Launchway's rebuild in M4 (decision
+  49a). Endpoints are entities of the module;
   deliveries are async reactions (a keyed job per endpoint and event, section 7.7), authorized per
   event under the endpoint owner's principal exactly like live deliveries; payloads are signed
   according to the Standard Webhooks specification with `standardwebhooks` 1.1.1 (`webhook-id`,
@@ -8546,7 +8845,11 @@ and where each one lands. Sources: Launchway's specification (release v0.3.0, 20
 ADRs 0003, 0004, 0006, 0009 to 0012 and 0017 to 0019; the RFCs named in the text. Libraries were
 checked with `npm view` and external components against their repositories on 2026-10-11
 (Appendix A). Code uses the DSL of section 4; anything that depends on an open gap carries a
-comment with its gap id (`// G3`); names of platform modules are proposals.
+comment with its gap id (`// G3`); names of platform modules are proposals. Each platform lives in
+its own repository and depends only on the published packages (decision 48c, 2026-10-27), so the
+paths of its code are relative to that repository, in the layout of section 23.1. The mail
+server's design stays as written while Jens has parked it (2026-10-26) until he has a stable,
+permanent deployment option; its open questions wait with it (section 26.1).
 
 ### 17.1 Findings in brief
 
@@ -8574,11 +8877,12 @@ comment with its gap id (`// G3`); names of platform modules are proposals.
   paging for JMAP and partitioned change tokens (G7).
   Queue locking stays inside the job store.
 - Launchway's limit of one API instance holding all agent connections (its ADR 0004) disappears:
-  commands to a node become rows of a node-scoped entity, delivered through a subscription over the
-  live feed, so any process can hold the agent's socket.
+  commands to a node become `agentCommand` effects that the agent performs (decision 80a), delivered
+  through a subscription over its pending effects, so any process can hold the agent's connection.
 - The residential connection constrains the mail server more than the framework does: outbound
   delivery needs a host with a static address and matching reverse DNS, and the MX host name must
-  be an address record that follows the dynamic public address (a decision point in section 26.1).
+  be an address record that follows the dynamic public address (question 21, parked with the mail
+  server, section 26.1).
 
 ### 17.2 Accounts and authentication
 
@@ -8719,30 +9023,27 @@ are counted in metrics and in the decision log.
 - **CLI.** `pennestack login` finds the actions with a `cli.login` hint in the surface: the password
   login prompts for the identifier and the password (without echo) and stores the token in the
   profile's credentials file (mode 0600). Passkey-only accounts use a device authorization flow
-  (`auth.device.start`, approval in a browser session, `auth.device.poll`), delivered with the
-  passkey work in M3.
+  (`auth.device.start`, approval in a browser session, `auth.device.poll`), delivered with
+  Launchway's rebuild in M4; passkeys themselves come in M3, because Trail signs in with passkeys
+  only.
 - **Protocols.** IMAP and SMTP submission use app passwords over TLS (section 17.4.9); the agent
   uses its node credential (section 17.3.4).
 
 #### 17.2.8 Rules
 
 ```ts
-// modules/auth/src/policies/public-actions.ts: one rule over several module-level actions, named after its rule id
-export const publicActionsPolicy = definePolicy(authBase, [login, requestPasswordReset, resetPassword], [{ effect: 'allow', id: 'public-actions', public: true }])
-// modules/auth/src/policies/passkey.ts: the passkey ceremony's actions
-export const passkeyPolicy = definePolicy(authBase, passkey, [{ effect: 'allow', actions: ['options', 'verify'], id: 'ceremony', public: true }])
-// modules/auth/src/policies/signed-in.ts
-export const signedInPolicy = definePolicy(authBase, [logout, reauthenticate], [{ effect: 'allow', id: 'signed-in', principal: 'user' }])
-// modules/auth/src/policies/credential.ts
-export const credentialPolicy = definePolicy(authBase, credential, [
-  { effect: 'allow', actions: ['read'], id: 'self', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }), fields: ['lastUsedAt'] },
-  { effect: 'allow', actions: ['revoke'], id: 'self-revoke', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) },
-  { effect: 'deny', actions: ['revoke'], id: 'already-revoked', where: () => ({ revokedAt: { isNull: false } }), reason: 'This credential is already revoked.' },
-])
-// modules/auth/src/policies/session.ts
-export const sessionPolicy = definePolicy(authBase, session, [
-  { effect: 'allow', actions: ['read', 'revoke'], id: 'self-sessions', principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) },
-])
+// modules/auth/src/policies/public-actions.ts: one rule over several module-level actions, the rule auth.public-actions
+export const publicActions = defineRule(authBase, [login, requestPasswordReset, resetPassword], { effect: 'allow', public: true })
+// modules/auth/src/policies/passkey/ceremony.ts: the passkey ceremony's actions
+export const ceremony = defineRule(authBase, passkey, { effect: 'allow', actions: ['options', 'verify'], public: true })
+// modules/auth/src/policies/signed-in.ts: auth.signed-in
+export const signedIn = defineRule(authBase, [logout, reauthenticate], { effect: 'allow', principal: 'user' })
+// modules/auth/src/policies/credential/self.ts, self-revoke.ts and already-revoked.ts
+export const self = defineRule(authBase, credential, { effect: 'allow', actions: ['read'], principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }), fields: ['lastUsedAt'] })
+export const selfRevoke = defineRule(authBase, credential, { effect: 'allow', actions: ['revoke'], principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) })
+export const alreadyRevoked = defineRule(authBase, credential, { effect: 'deny', actions: ['revoke'], where: () => ({ revokedAt: { isNull: false } }), reason: 'This credential is already revoked.' })
+// modules/auth/src/policies/session/self-sessions.ts
+export const selfSessions = defineRule(authBase, session, { effect: 'allow', actions: ['read', 'revoke'], principal: 'user', where: (ctx) => ({ subject: ctx.principal.subject }) })
 ```
 
 Each tenant is its own authentication realm: credentials and sessions are tenant rows, the same
@@ -8756,10 +9057,13 @@ later OpenID Connect module.
 
 Launchway's product model stays as specified: GitHub repositories are the source, Compose is the
 runtime contract, an agent per machine connects outbound over WebSocket and owns Docker there,
-Caddy is the edge and is configured through its admin API, DNS providers are plugins, pull
-requests get previews. What changes is the control plane: the hand-wired Hono and Drizzle API
-(`apps/api`) becomes a pennestack app. The agent, Docker, Caddy and the web UI stay outside the
-framework; the agent and the UI become clients of the generated interfaces.
+Caddy is the edge and is configured through its admin API (on pennestack, the first provider of the
+shared `edge` module, section 17.3.7), DNS providers are plugins, pull requests get previews. What
+changes is the control plane: the hand-wired Hono and Drizzle API (`apps/api`) becomes a pennestack
+app in the Launchway repository (decision 48c). The agent, Docker, Caddy and the web UI stay outside
+the framework; the agent and the UI become clients of the generated interfaces, rebuilt together and
+shipped at one cutover: a clean break, with no compatibility layer for the old agent protocol or the
+old API paths (decision 23c, 2026-10-26).
 
 | Launchway v0.3.0 | On pennestack |
 |---|---|
@@ -8777,9 +9081,9 @@ framework; the agent and the UI become clients of the generated interfaces.
 | AuditEvent | `audit.entry` (shared), projected from the chain, the receipts and the decision log |
 | Webhook deliveries table (replay protection) | command receipts keyed by the delivery id (G8) |
 | `startJob` loops (ADR 0012), the 15-second deployment worker | schedules, timers and event-driven dispatch (G3) |
-| Composition root with a deferred deployment sink (ADR 0010) | lifecycle phases; the cycle disappears because the agent gateway calls actions through the invoker |
+| Composition root with a deferred deployment sink (ADR 0010) | lifecycle phases; the cycle disappears because the agent calls actions through the invoker as a typed client |
 | SSE `GET /events` | subscriptions of the `live` module |
-| REST `/api/v1`, OpenAPI from Zod routes, RFC 9457 problems | `transport-rest` projection and the error taxonomy mapping of section 16.4.6 |
+| REST `/api/v1`, OpenAPI from Zod routes, RFC 9457 problems | `transport-rest` projection and the error taxonomy mapping of section 16.4.6, under the projection's own paths: the UI is rebuilt against them, and no `/api/v1` path is kept (decision 23c) |
 | TypeID prefixes (`dep_`, `node_`, ...) | the entity `prefix`; the same prefixes are kept |
 | AES-256-GCM secrets, HKDF subkeys, AAD per record (ADR 0009) | the secrets key hierarchy (G4) |
 
@@ -8797,14 +9101,15 @@ framework; the agent and the UI become clients of the generated interfaces.
 | `projects` | Launchway | `project`, `envVar` | | | | declares `gitProviders` |
 | `nodes` | Launchway | `node`, `credential`, `presence`; the external effect `agentCommand` (performed by the agent) | `live` (contract) | | | `principalResolvers`; claims node-credential scope keys (G2); declares `heartbeatObservers` and `commandResolvers` |
 | `deployments` | Launchway | `deployment`, stream `log` | `projects`, `nodes` | | | `nodes.heartbeatObservers` and `nodes.commandResolvers` (bound to deployments, G16) |
-| `agent-gateway` | Launchway | | `nodes`, `deployments` | | | `transports` (protocol v1) |
-| `domains` | Launchway | `domain`, `route` | `projects` | `dns` | | |
-| `edge` | Launchway | `render` (last applied configuration) | `domains`, `deployments`, `nodes` | | | |
+| `domains` | Launchway | `domain`, `route`; reactions that turn each route and the running deployment it points at into edge sites | `projects`, `deployments`, `nodes` | `dns`, `edge` | | |
+| `edge` | shared, new (decision 82a) | `site` (the desired state, with owners), `render` (the last applied configuration, its hash and the status per site); the external effect `apply` (performed on the edge host) | | | | declares `providers` (single) |
+| `edge-caddy` | shared, new | | `edge` | | | `edge.providers` (renders the Caddyfile) |
 | `github` | Launchway | `connection`; effects with executors for GitHub's API (the status mirror, release reads, the manifest conversion) | `projects`, `deployments` | `webhooks` | `projects.project`, `deployments.deployment` | `projects.gitProviders` (bound to github, G16), `webhooks.receivers` |
 | `previews` | Launchway | `preview` | `projects`, `deployments`, `domains` | `github` | `projects.project`, `deployments.deployment` | |
 
-Infrastructure modules in the app: `live` and the transports `transport-rest`,
-`transport-graphql`, `transport-trpc` and `transport-webhooks` (G8). The PostgreSQL adapter, the
+Infrastructure modules in the app: `live`, the transports `transport-rest`, `transport-graphql`,
+`transport-trpc` and `transport-webhooks` (G8), and the shared `outbound-webhooks` module, which
+ships with Launchway's rebuild (decision 49a, section 16.13). The PostgreSQL adapter, the
 HTTP host (which also serves the invocation protocol for the CLI) and the job queue are
 infrastructure of the deployment (section 17.5.1), not modules of the app.
 
@@ -8829,8 +9134,8 @@ What toggling does:
   tenant whose core domain is `deploy.jenspenneman.com`.
 - All Launchway entities are tenant data (`tenancy: 'tenant'`): nodes, projects, deployments,
   domains, DNS provider accounts, GitHub connections. Nodes and the edge belong to one tenant, so
-  containers of two tenants never share a Docker host or the proxy network (a decision point in
-  section 26.1).
+  containers of two tenants never share a Docker host or the proxy network (decision 25a,
+  2026-10-27).
 - Scope resolution per carrier, all through the pipeline's `resolveScope`:
   - the UI and REST clients: the host name (`core.domain`);
   - API tokens and node credentials: the token carries a public id that is a scope key (G2);
@@ -8844,34 +9149,41 @@ What toggling does:
 #### 17.3.4 Agents
 
 The agent remains a separate program (Node, the Docker CLI with Compose, git) that pennestack does
-not contain. Its protocol maps onto actions as follows (messages from Launchway's ADR 0004 and its
-additions in ADR 0009):
+not contain. Decision 23c (2026-10-26) makes the move a clean break: the agent and the UI are
+rebuilt against the generated interfaces and ship together at the cutover (roadmap M4); no
+compatibility transport serves Launchway's agent protocol v1, and no legacy path stays. The agent
+is a typed client (section 16.8.4) pinned to an API version and connected over the live module's
+WebSocket carrier (`pennestack.live.v1`, `subscribe` and `invoke` on one connection, section
+15.4.7): it holds its command channels as subscriptions and calls actions for everything it
+reports. What the agent did with the messages of Launchway's ADR 0004 and their additions in ADR
+0009 maps onto actions as follows:
 
-| Protocol v1 message | Direction | On pennestack |
+| The agent (the protocol v1 message it replaces) | Direction | On pennestack |
 |---|---|---|
-| upgrade with `Authorization: Bearer <join token or node credential>` | agent to server | `invoker.open` (section 16.3.4) with the token in the carrier; the `nodes` resolver yields a `service` principal (`via: 'nodes.credential'` or `'nodes.join'`) |
-| `hello` | agent to server | `nodes.join` (join token: returns the node credential once) or `nodes.node.connect` (protocol and agent version, Docker facts) |
-| `hello.ok` | server to agent | the result of `join` or `connect` |
-| `heartbeat` (every 15 s, active deployment ids) | agent to server | `nodes.node.heartbeat`: a presence draft, a `setTimer` effect that resets the offline timer, and the decisions of the `heartbeatObservers` |
-| `deployment.progress` | agent to server | `deployments.deployment.reportPhase` |
-| `deployment.log` | agent to server | `deployments.deployment.appendLog` (batched stream append, G6) |
-| `deployment.result` | agent to server | `deployments.deployment.reportResult` |
-| `app.status` | agent to server | `deployments.deployment.reportRuntime` |
-| `logs.chunk`, `logs.end` | agent to server | publish to the topic `nodes.containerLogs` (G6) |
-| `deploy`, `stop`, `remove`, `status`, `logs.start`, `logs.stop`, `deployment.cancel` | server to agent | `agentCommand` effects with the agent as their external performer (section 7.9.5), emitted by the subscription `nodes.channel` and settled with `nodes.ack` |
-| `error` | both | a `PennestackError` rendered as `{ code, message, retryable }` |
+| connects with `Authorization: Bearer <join token or node credential>` (the upgrade) | agent to server | `invoker.open` over the live carrier (section 16.3.4) with the token in the carrier; the `nodes` resolver yields a `service` principal (`via: 'nodes.credential'` or `'nodes.join'`) |
+| joins or reconnects (`hello`, `hello.ok`) | agent to server; the result back | `nodes.join` (join token: returns the node credential once) or `nodes.node.connect` (agent version, API version, Docker facts); the action's result is the answer |
+| sends a heartbeat every 15 s with its active deployment ids (`heartbeat`) | agent to server | `nodes.node.heartbeat`: a presence draft, a `setTimer` effect that resets the offline timer, and the decisions of the `heartbeatObservers` |
+| reports a phase (`deployment.progress`) | agent to server | `deployments.deployment.reportPhase` |
+| appends build output (`deployment.log`) | agent to server | `deployments.deployment.appendLog` (batched stream append, G6) |
+| reports the result (`deployment.result`) | agent to server | `deployments.deployment.reportResult` |
+| reports runtime state (`app.status`) | agent to server | `deployments.deployment.reportRuntime` |
+| streams container logs on demand (`logs.chunk`, `logs.end`) | agent to server | `nodes.node.publishLogs`, whose decision publishes the lines to the topic `nodes.containerLogs` (G6) |
+| performs commands (`deploy`, `stop`, `remove`, `status`, `logs.start`, `logs.stop`, `deployment.cancel`) | server to agent | `agentCommand` effects with the agent as their external performer (section 7.9.5), emitted by the subscription `nodes.channel` and settled with `nodes.ack` |
+| applies the edge configuration (the edge node's agent only) | server to agent | the `edge.apply` effect, emitted by the subscription `edge.channel` and settled with `edge.ack` (section 17.3.7) |
+| errors (`error`) | both | a `WireError` (`{ code, message, retryable }`) of the live carrier |
 
 The command channel is the part that changes most:
 
 - A module that must tell a node something returns, from its decision, what the pure service
   `ctx.services.nodes.send(nodeId, command, { then, with, deadline })` builds: an `agentCommand`
-  effect, which `nodes` declares with `performer: 'external'` (decision point 80). Its `requested`
+  effect, which `nodes` declares with `performer: 'external'` (decision 80a). Its `requested`
   record commits in the caller's unit, so a state change and the message to the node commit
   together, and the effect record is the outbox.
 - The agent holds one subscription, `nodes.channel`, whose source is
   `ctx.live.effects(agentCommand, { where: { nodeId } })`: the pending effects of its own node, in
-  position order and resumable. Any process can hold the socket: the change feed wakes whichever
-  process serves the subscription. Launchway's single-instance limitation goes away.
+  position order and resumable. Any process can hold the connection: the change feed wakes
+  whichever process serves the subscription. Launchway's single-instance limitation goes away. The
+  edge node's agent holds `edge.channel` beside it on the same connection.
 - Delivery is at least once. Commands carry their effect id; the agent ignores ids it has already
   handled, and unsettled effects are emitted again after a reconnect. The agent settles each
   through `nodes.ack`, whose decision returns `settle(...)`; the requesting module's continuation
@@ -8892,13 +9204,13 @@ The command channel is the part that changes most:
   This also covers a crashed process, which never calls the close hook.
 - Join tokens are single use, expire after 15 minutes and are stored as verifiers (section 17.2.2);
   the bundled local agent of the installer gets a bootstrap token issued by the operator.
-- Versions: the agent's `hello` carries `protocol` and `agentVersion`, `nodes.node` records both,
-  and `hello.ok` names the protocol spoken, or `error` carries `core.protocol_retired` with the
-  oldest accepted major (section 19.7).
-- Protocol v2, later: the agent uses the typed client over the live module's WebSocket carrier
-  (`pennestack.live.v1`, with `subscribe` and `invoke` on one connection), holding the same
-  subscription and calling the same actions (ADR 0011), pinned to an API version. The v1 transport
-  goes after 30 days without a v1 connection (decision point 23 of section 26.1).
+- Versions: the agent has no protocol of its own any more. Its compatibility is the app's dated API
+  version, which its typed client pins, and the live carrier's major (sections 18.7 and 19.7);
+  `nodes.node.connect` records `agentVersion` and `apiVersion`, and an agent pinned below the floor
+  gets `core.api_version_retired` (section 18.5).
+- Cutover (decision 23c): the existing v1 agents are redeployed with the new agent, not kept, and
+  the new UI ships with it; the old Launchway installation (v0.3.0) stays in place as the rollback
+  until the new one is verified on the home server (roadmap M4).
 
 #### 17.3.5 Deployments
 
@@ -8931,11 +9243,17 @@ The command channel is the part that changes most:
 
 #### 17.3.6 Logs
 
-- Deployment logs are a stream `deployments.log` keyed by deployment (G6): the agent gateway
-  appends batches, records are ordered per key, retention defaults to 30 days and 50,000 lines per
-  deployment, and `deployments.deployment.logs` is a subscription that tails from the start and
-  follows with a resume token. REST serves it as SSE, GraphQL as a subscription, the CLI as
-  `--follow`.
+- Deployment logs are a stream `deployments.log` keyed by deployment (G6): the agent appends
+  batches through `deployments.deployment.appendLog`, records are ordered per key and kept (decision
+  47c, 2026-10-27: Jens wants to look back on deployments years later), and a log longer than 50,000
+  lines moves its older lines into the blob store (`offload`, section 15.1.12) instead of being cut.
+  `deployments.deployment.logs` is a subscription that tails from the start, offloaded lines
+  included, and follows with a resume token. REST serves it as SSE, GraphQL as a subscription, the
+  CLI as `--follow`.
+- Runtime is reclaimed, data is kept (decision 47c). When a deployment is superseded or a preview
+  closes, the agent's `remove` command reclaims its containers, images, volumes and build caches on
+  the node; the deployment's or preview's row, its events and its log stay, and no Launchway module
+  suggests a purge rule (section 14.7.1).
 - Container logs on demand (`GET /apps/{id}/logs?follow=true` in Launchway v0.3.0) are an
   ephemeral topic `nodes.containerLogs` that is never stored. The first subscriber triggers
   `logs.start` to the node and the last one leaving triggers `logs.stop`: the topic's subscriber
@@ -8953,18 +9271,49 @@ The command channel is the part that changes most:
   `core.domain` maps a host name to a backend and tenant for pennestack's own HTTP host;
   `domains.domain` is a host name a Launchway tenant's edge serves for its projects;
   `mail-domains.mailDomain` is an e-mail domain of a mail tenant (section 17.4.4).
-- `edge` owns only a small state entity, `render` (the last applied configuration and its hash).
-  Its reconciler renders the complete Caddyfile from the routes, domains, deployments and nodes of
-  the tenant (a pure function, as in Launchway v0.3.0) and returns the apply as an effect, which
-  validates it with Caddy's `/adapt` and loads it with `/load` (below); the effect's continuation
-  marks verified domains `active`. It runs as a keyed, coalescing job
-  triggered by route, domain, deployment and configuration changes (G3, G10), plus a drift-repair
-  schedule every 10 minutes, and never twice at the same time for one tenant (G9).
-- Applying the file needs either the Caddy admin socket, which only a process on the edge host can
-  open (an executor with a process capability, G9), or a new agent message `edge.apply`, an
-  `agentCommand` effect that the edge node's agent performs locally (decision point 24 of section
-  26.1).
-- `edge.rendered` (query) returns the rendered file with the reason above each placeholder site,
+- The edge is a shared module with providers (decision 82a, 2026-10-26), built like `dns` (section
+  17.3.8): `edge` (`@pennestack/module-edge`) owns a provider-neutral desired state and declares
+  the `providers` extension point (`mode: 'single'`), and `edge-caddy` (`@pennestack/edge-caddy`)
+  is the first provider. A custom `edge-native` listener module, Traefik or Envoy can follow as
+  further providers without a change to `edge` or its callers. Both are pennestack packages,
+  because a provider package may depend only on published packages (decision 48c) and because any
+  app on pennestack may need an edge.
+- Desired state in. `edge.site` rows hold a host name, its owner (`module`, `entity`, `id`), the
+  upstreams or the redirect target, the TLS mode and the route options (`protected`, `compress`,
+  `hsts` and the admin-only `extraDirectives`). Other modules call pure services instead of writing
+  rows: `ctx.services.edge.ensure(owner, sites)` and `ctx.services.edge.release(owner)` return the
+  site drafts for the caller's decision. In Launchway, `domains` is the caller: its reactions to
+  route, domain, deployment and node changes turn each route and the running deployment it points
+  at into sites, a pure function as the render was in Launchway v0.3.0.
+- Apply and status out. `edge.render` (state) holds the last applied configuration, its hash and
+  the status per site. The reconciler, a keyed and coalescing job per tenant triggered by site and
+  configuration changes (G3, G10), plus a drift-repair schedule every 10 minutes and never twice at
+  the same time for one tenant (G9), asks the provider to render the complete desired state (pure:
+  for `edge-caddy` the complete Caddyfile, as Launchway v0.3.0 renders it) and, when the hash
+  differs, returns the `edge.apply` effect with the rendered configuration. Its continuation records
+  the outcome, and the provider maps it to a status per site; `domains`, reacting to those statuses
+  in a conditional part on `edge`, marks the verified domains whose sites are applied `active`.
+
+```ts
+// @pennestack/module-edge, src/extension-points/providers.ts
+export interface EdgeProvider {
+  readonly id: string                                                         // 'caddy'
+  render(desired: EdgeDesiredState): EdgeConfiguration                        // pure: the provider's configuration and its hash
+  status(outcome: EdgeApplyOutcome, desired: EdgeDesiredState): EdgeStatus    // pure: per site applied, pending or failed, with the reason
+}
+export const providers = extensionPoint<EdgeProvider>({ mode: 'single' })
+```
+
+- `edge.apply` is an external effect (decision 24a: through the edge node's agent). The program on
+  the edge host performs it: it holds the subscription `edge.channel` over the pending `apply`
+  effects of its tenant, checks the configuration with the provider's own validation (Caddy's
+  `/adapt`), loads it (`/load` on Caddy's admin socket, which only a process on that host can
+  open) and settles the effect through `edge.ack`. In Launchway, the edge node's agent is that
+  program, beside `nodes.channel` on the same connection (section 17.3.4); `edge.config.performer`
+  names the node principal that may hold the channel. No pennestack process has to run on the edge
+  host, and any number of pennestack processes can serve. An apply left unsettled past its 60-second
+  deadline fails, and the next reconcile tries again.
+- `edge.rendered` (query) returns the rendered configuration with the reason above each site,
   replacing `GET /edge/config`.
 - The pennestack deployment's own HTTP host sits behind this edge: `external` routes in the
   Launchway tenant point at the pennestack container with the `Host` header preserved, for
@@ -9052,9 +9401,10 @@ The command channel is the part that changes most:
   synchronize, labeled, unlabeled, closed), keyed by repository and pull request number (G3).
   Without `github`, previews are opened by hand through `previews.open`, which reads the pull
   request through the project's git provider.
-- Closing removes the route and domain through `domains` actions and sends `remove` to the node;
-  a step that cannot finish leaves the preview `closing` and a timer retries it (G3). Purging
-  closed previews after seven days is a retention rule (G11), not a worker.
+- Closing removes the route and domain through `domains` actions and sends `remove` to the node,
+  which reclaims the preview's containers, images, volumes and build caches; a step that cannot
+  finish leaves the preview `closing` and a timer retries it (G3). The closed preview's row, events
+  and logs are kept: nothing purges them unless Jens adopts a rule (decision 47c, section 14.7.1).
 
 #### 17.3.11 Accounts, authentication, tokens and roles
 
@@ -9063,71 +9413,65 @@ roles from the `members` enricher and combine them with conditions, which is the
 CASL-style engine over plain roles.
 
 ```ts
-// examples/launchway/modules/projects/src/policies/project.ts
-export const projectPolicy = definePolicy(projectsBase, project, [
-  {
-    effect: 'allow',
-    actions: ['read'],
-    id: 'read',
-    principal: 'user',
-    where: (ctx) => hasRole(ctx, 'viewer', 'member', 'admin', 'owner'),
-  },
-  {
-    effect: 'allow',
-    actions: ['create', 'update'],
-    id: 'manage',
-    principal: 'user',
-    where: (ctx) => hasRole(ctx, 'member', 'admin', 'owner'),
-    fields: ['name', 'slug', 'composeFiles', 'dockerfile', 'context', 'nodeId'],   // the fields members may change
-  },
-  {
-    effect: 'allow',
-    actions: ['create', 'update'],
-    id: 'admin-fields',
-    principal: 'user',
-    where: (ctx) => hasRole(ctx, 'admin', 'owner'),
-    fields: ['trustedMounts', 'proxyServices'],
-    reason: 'Bind mounts and proxy attachments change what a node and the edge expose.',
-  },
-  {
-    effect: 'allow',
-    actions: ['archive', 'restore'],                                    // members edit; only admins archive
-    id: 'archive',
-    principal: 'user',
-    where: (ctx) => hasRole(ctx, 'admin', 'owner'),
-  },
-])
+// modules/projects/src/policies/project/read.ts (Launchway repository): the rule projects.project.read
+export const read = defineRule(projectsBase, project, {
+  effect: 'allow',
+  actions: ['read'],
+  principal: 'user',
+  where: (ctx) => hasRole(ctx, 'viewer', 'member', 'admin', 'owner'),
+})
 
-// examples/launchway/modules/projects/src/policies/env-var.ts
-export const envVarPolicy = definePolicy(projectsBase, envVar, [
-  {
-    effect: 'allow',
-    actions: ['read'],
-    id: 'read-env',
-    principal: 'user',
-    where: (ctx) => hasRole(ctx, 'member', 'admin', 'owner'),          // viewers never see variables; `value` is a secret field (G4)
-  },
-])
+// modules/projects/src/policies/project/manage.ts
+export const manage = defineRule(projectsBase, project, {
+  effect: 'allow',
+  actions: ['create', 'update'],
+  principal: 'user',
+  where: (ctx) => hasRole(ctx, 'member', 'admin', 'owner'),
+  fields: ['name', 'slug', 'composeFiles', 'dockerfile', 'context', 'nodeId'],   // the fields members may change
+})
 
-// examples/launchway/modules/deployments/src/policies/deployment.ts (excerpt): a node reports only on its own work.
-{
+// modules/projects/src/policies/project/admin-fields.ts
+export const adminFields = defineRule(projectsBase, project, {
+  effect: 'allow',
+  actions: ['create', 'update'],
+  principal: 'user',
+  where: (ctx) => hasRole(ctx, 'admin', 'owner'),
+  fields: ['trustedMounts', 'proxyServices'],
+  reason: 'Bind mounts and proxy attachments change what a node and the edge expose.',
+})
+
+// modules/projects/src/policies/project/archive.ts: members edit; only admins archive
+export const archive = defineRule(projectsBase, project, {
+  effect: 'allow',
+  actions: ['archive', 'restore'],
+  principal: 'user',
+  where: (ctx) => hasRole(ctx, 'admin', 'owner'),
+})
+
+// modules/projects/src/policies/env-var/read-env.ts
+export const readEnv = defineRule(projectsBase, envVar, {
+  effect: 'allow',
+  actions: ['read'],
+  principal: 'user',
+  where: (ctx) => hasRole(ctx, 'member', 'admin', 'owner'),          // viewers never see variables; `value` is a secret field (G4)
+})
+
+// modules/deployments/src/policies/deployment/assigned-node.ts: a node reports only on its own work.
+export const assignedNode = defineRule(deploymentsBase, deployment, {
   effect: 'allow',
   actions: ['reportPhase', 'reportResult', 'reportRuntime', 'appendLog'],
-  id: 'assigned-node',
   principal: 'service',
   where: (ctx) => (ctx.principal.via === 'nodes.credential' ? { nodeId: ctx.principal.idAs('nodes.node') } : false),
   reason: 'A node reports only on deployments assigned to it.',
-}
+})
 
-// @pennestack/module-api-keys, src/policies/read-only-key.ts: read-only keys cannot run commands in any module.
-export const readOnlyKeyPolicy = definePolicy(apiKeysBase, { kinds: ['command'] }, [   // G13: a selector across modules
-  {
-    effect: 'deny',
-    id: 'read-only-key',
-    when: (ctx) => ctx.principal.via === 'api-keys.key' && !hasScope(ctx, 'write'),
-    reason: 'This API key has the read scope only.',
-  },
-])
+// @pennestack/module-api-keys, src/policies/read-only-key.ts: the rule api-keys.read-only-key;
+// read-only keys cannot run commands in any module.
+export const readOnlyKey = defineRule(apiKeysBase, { kinds: ['command'] }, {   // G13: a selector across modules
+  effect: 'deny',
+  when: (ctx) => ctx.principal.via === 'api-keys.key' && !hasScope(ctx, 'write'),
+  reason: 'This API key has the read scope only.',
+})
 ```
 
 The gate authorizes `reportResult` for the node; inside the handler, `deployments` reads and
@@ -9158,17 +9502,20 @@ under policies, with change events (G10).
 | `acmeEmail` | `edge.config.acmeEmail` |
 | `anchorHostname`, dynamic DNS on or off | `dns.config.anchor`, `dns.config.detectPublicAddress` |
 | `forwardAuthUrl`, `forwardAuthTarget` | `edge.config.gate` (a union of the two) |
-| `edgeNodeId` | `edge.config.edgeNodeId` |
+| `edgeNodeId` | `edge.config.performer`: the edge node's principal (its `nodes.credential` subject), which may hold `edge.channel` |
 | `previewBaseDomain`, `previewMaxPerApp`, `previewMaxTotal` | `previews.config.baseDomain`, `.maxPerProject`, `.maxTotal` |
 
 #### 17.3.13 The app definition
 
-The app is the package `@launchway/app-launchway` in `examples/launchway/`, and each of its own
-modules is a package in `examples/launchway/modules/<id>/` named `@launchway/module-<id>`, in the
-layout of section 23 (section 23.10 shows the trees).
+The app is the package `@launchway/app-launchway` in the Launchway repository (`apps/launchway/`),
+and each of its own modules is a package in `modules/<id>/` named `@launchway/module-<id>`, in the
+layout of section 23 (section 23.10 shows the trees). The repository depends only on the published
+`@pennestack/*` packages, pinned to exact 0.x versions (decision 48c); paths in the code below are
+relative to it, and each module's `src/module.generated.ts` is written by the generator (section
+23.5).
 
 ```ts
-// examples/launchway/src/modules.ts
+// apps/launchway/src/modules.ts
 import { accounts } from '@pennestack/module-accounts'
 import { auth } from '@pennestack/module-auth'
 import { apiKeys } from '@pennestack/module-api-keys'
@@ -9182,26 +9529,27 @@ import { rest } from '@pennestack/transport-rest'
 import { graphql } from '@pennestack/transport-graphql'
 import { trpc } from '@pennestack/transport-trpc'
 import { webhooks } from '@pennestack/transport-webhooks'                   // G8
+import { outboundWebhooks } from '@pennestack/module-outbound-webhooks'      // decision 49a
+import { edge } from '@pennestack/module-edge'                               // decision 82a
+import { edgeCaddy } from '@pennestack/edge-caddy'
 import { projects } from '@launchway/module-projects'
 import { nodes } from '@launchway/module-nodes'
-import { agentGateway } from '@launchway/module-agent-gateway'
 import { deployments } from '@launchway/module-deployments'
 import { domains } from '@launchway/module-domains'
-import { edge } from '@launchway/module-edge'
 import { github } from '@launchway/module-github'
 import { previews } from '@launchway/module-previews'
 
 export const modules = [
   accounts, auth, apiKeys, members, audit,
-  dns, dnsCloudflare, dnsManual,
-  projects, nodes, agentGateway, deployments, domains, edge, github, previews,
+  dns, dnsCloudflare, dnsManual, edge, edgeCaddy, outboundWebhooks,
+  projects, nodes, deployments, domains, github, previews,
   live, rest, graphql, trpc, webhooks,
 ] as const
 
-// examples/launchway/src/actions/health.ts
+// apps/launchway/src/actions/health.ts
 export const health = defineQuery(modules, { auth: { public: true }, scope: 'backend', output: shape({ ok: field.boolean() }), read: () => ({ ok: true }) })
 
-// examples/launchway/src/app.ts
+// apps/launchway/src/app.ts
 import { defineApp, type AppType, type Row } from '@pennestack/core'
 import { health } from './actions/health.ts'
 import { modules } from './modules.ts'
@@ -9228,21 +9576,21 @@ which the higher `deployments` module observes heartbeats without `nodes` import
 is pure, and the agent is the external performer of the `agentCommand` effect (section 7.9.5):
 
 ```ts
-// examples/launchway/modules/nodes/src/extension-points/heartbeat-observers.ts
+// modules/nodes/src/extension-points/heartbeat-observers.ts
 export interface HeartbeatObserver {
   readonly id: string
   observe(nodeId: Id<'nodes.node'>, activeDeploymentIds: readonly string[]): Gen<Decision>    // pure, bound to the contributor (G16); joins the heartbeat's decision
 }
 export const heartbeatObservers = extensionPoint<HeartbeatObserver>({ mode: 'set' })
 
-// examples/launchway/modules/nodes/src/extension-points/command-resolvers.ts
+// modules/nodes/src/extension-points/command-resolvers.ts
 export interface CommandResolver {
   readonly types: readonly AgentCommand['type'][]
   resolve(nodeId: Id<'nodes.node'>, command: PendingEffect<typeof agentCommand>): Gen<AgentCommandPayload>   // pure, bound to the contributor (G16)
 }
 export const commandResolvers = extensionPoint<CommandResolver>({ mode: 'set' })
 
-// examples/launchway/modules/nodes/src/entities/node.ts, credential.ts and presence.ts
+// modules/nodes/src/entities/node.ts, credential.ts and presence.ts
 export const node = defineEntity({
   prefix: 'node',
   fields: {
@@ -9251,7 +9599,7 @@ export const node = defineEntity({
     arch: field.enum(['amd64', 'arm64']).optional(),
     allowedBindRoots: field.list(field.string()).default([]),
     status: field.enum(['pending', 'online', 'offline']).default('pending'),
-    protocol: field.integer().optional(),               // the agent protocol major of its last hello (section 19.7)
+    apiVersion: field.string().optional(),              // the API version the agent's typed client pins (sections 17.3.4 and 19.7)
     agentVersion: field.string().optional(),
   },
 })
@@ -9274,13 +9622,13 @@ export const presence = defineEntity({
   reason: 'A heartbeat every 15 seconds is liveness, not history.',
 })
 
-// examples/launchway/modules/nodes/src/config.ts
+// modules/nodes/src/config.ts
 export const config = shape({
   heartbeatTimeoutSeconds: field.integer({ min: 15 }).default(45),
   joinTokenTtlSeconds: field.integer({ min: 60 }).default(900),
 })
 
-// examples/launchway/modules/nodes/src/base.ts
+// modules/nodes/src/base.ts
 const nodesBaseDef = defineModuleBase({
   id: 'nodes',
   version: '0.1.0',
@@ -9293,18 +9641,18 @@ const nodesBaseDef = defineModuleBase({
 export interface NodesBase extends ModuleBaseType<typeof nodesBaseDef> {}
 export const nodesBase: NodesBase = nodesBaseDef
 
-// examples/launchway/modules/nodes/src/effects/agent-command.ts: one record per message, with its outcome (decision point 80)
+// modules/nodes/src/effects/agent-command.ts: one record per message, with its outcome (decision point 80)
 export const agentCommand = defineEffect(nodesBase, {
   input: shape({
     nodeId: field.ref.own('node'),
-    type: field.enum(['deploy', 'stop', 'remove', 'status', 'logs.start', 'logs.stop', 'deployment.cancel', 'edge.apply']),
+    type: field.enum(['deploy', 'stop', 'remove', 'status', 'logs.start', 'logs.stop', 'deployment.cancel']),   // the edge's apply is edge.apply (section 17.3.7)
     payload: field.json(agentCommandPayload),           // references only; secrets are revealed at emit time
   }),
   output: shape({ accepted: field.boolean(), message: field.string().optional() }),
   performer: 'external',                                // the agent pulls and settles it; no executor
 })
 
-// examples/launchway/modules/nodes/src/actions/node/heartbeat.ts
+// modules/nodes/src/actions/node/heartbeat.ts
 export const heartbeat = defineCommand(nodesBase, node, {
   input: shape({ activeDeploymentIds: field.list(field.string()) }),
   execution: 'sync',
@@ -9325,16 +9673,16 @@ export const heartbeat = defineCommand(nodesBase, node, {
   },
 })
 
-// examples/launchway/modules/nodes/src/actions/node/mark-offline.ts: the change event drives dispatch and the UI
+// modules/nodes/src/actions/node/mark-offline.ts: the change event drives dispatch and the UI
 export const markOffline = defineCommand(nodesBase, node, { execution: 'sync', decide: (_input, current, ctx) => (current.status === 'offline' ? [] : [ctx.write.nodes.node.update(current, { status: 'offline' })]) })
 
-// examples/launchway/modules/nodes/src/actions/join.ts
+// modules/nodes/src/actions/join.ts
 export const join = defineCommand(nodesBase, { output: shape({ nodeId: field.ref.own('node'), credential: field.string() }), execution: 'sync', *decide(_input, ctx) {
   /* load and consume the join token; yield* ctx.secrets.issue({ prefix: 'nodecred' }) for the node credential (recorded without its
      plaintext); return the credential's draft and claimScopeKey for its public id with a continuation (G2) */
 } })
 
-// examples/launchway/modules/nodes/src/actions/channel.ts
+// modules/nodes/src/actions/channel.ts
 export const channel = defineSubscription(nodesBase, {
   event: agentCommandShape,
   principal: 'service',                                                           // node credentials resolve to a service principal
@@ -9348,7 +9696,7 @@ export const channel = defineSubscription(nodesBase, {
   },
 })
 
-// examples/launchway/modules/nodes/src/actions/ack.ts: the agent settles a command (protocol v1 maps its acknowledgement here)
+// modules/nodes/src/actions/ack.ts: the agent settles a command
 export const ack = defineCommand(nodesBase, {
   input: shape({ effectId: field.string(), accepted: field.boolean(), message: field.string().optional() }),
   principal: 'service',
@@ -9359,14 +9707,14 @@ export const ack = defineCommand(nodesBase, {
   }),
 })
 
-// examples/launchway/modules/nodes/src/services/send.ts
+// modules/nodes/src/services/send.ts
 // pure, bound to nodes: returns the effect for the caller's decision; callers write ctx.services.nodes.send(nodeId, command, { then, with, deadline })
 export const send = defineService(nodesBase, (_own, nodeId: Id<'nodes.node'>, command: AgentCommand, options: EffectOptions) => agentCommand({ nodeId, ...command }, options))
 
-// examples/launchway/modules/nodes/src/contributions/to-core/fills/principal-resolvers.ts
+// modules/nodes/src/contributions/to-core/fills/principal-resolvers.ts
 export const principalResolversFill = defineFill(within(nodesBase, toCore), 'principalResolvers', [nodeCredentialResolver])
 
-// examples/launchway/modules/nodes/src/module.ts
+// modules/nodes/src/module.generated.ts
 const nodesDef = defineModule(nodesBase, {
   actions: { join, channel, ack },
   entityActions: { node: { heartbeat, markOffline } },
@@ -9382,7 +9730,7 @@ The `deployments` module records results, schedules image retries and supersedes
 deployment; the lane is a FIFO key on the dispatch reaction:
 
 ```ts
-// examples/launchway/modules/deployments/src/entities/deployment.ts
+// modules/deployments/src/entities/deployment.ts
 import { nodes } from '@launchway/module-nodes'
 import { projects } from '@launchway/module-projects'
 
@@ -9403,14 +9751,14 @@ export const deployment = defineEntity({
   indexes: [{ fields: ['projectId', 'environment'], unique: true, where: { status: 'running' } }],   // G7: partial unique index
 })
 
-// examples/launchway/modules/deployments/src/streams/log.ts
+// modules/deployments/src/streams/log.ts
 export const log = defineStream({                                    // G6
   key: field.ref.own('deployment'),
   record: shape({ at: field.instant(), source: field.enum(['stdout', 'stderr', 'system']), line: field.text() }),
-  retention: { maxAge: '30d', maxPerKey: 50_000 },
+  offload: { afterPerKey: 50_000 },                                // kept; older lines move to the blob store (decision 47c)
 })
 
-// examples/launchway/modules/deployments/src/base.ts
+// modules/deployments/src/base.ts
 const deploymentsBaseDef = defineModuleBase({
   id: 'deployments',
   version: '0.1.0',
@@ -9422,7 +9770,7 @@ const deploymentsBaseDef = defineModuleBase({
 export interface DeploymentsBase extends ModuleBaseType<typeof deploymentsBaseDef> {}
 export const deploymentsBase: DeploymentsBase = deploymentsBaseDef
 
-// examples/launchway/modules/deployments/src/actions/deployment/report-result.ts
+// modules/deployments/src/actions/deployment/report-result.ts
 const imageRetryMinutes = [1, 2, 4, 8, 15, 15, 15] as const          // Launchway ADR 0019
 
 export const reportResult = defineCommand(deploymentsBase, deployment, {
@@ -9431,7 +9779,7 @@ export const reportResult = defineCommand(deploymentsBase, deployment, {
   *decide(input, d, ctx) {                                        // d: the full current row
     const waitMinutes = imageRetryMinutes[d.retryCount]
     if (input.outcome === 'failed' && input.reason === 'image-not-found' && d.trigger !== 'manual' && waitMinutes !== undefined) {
-      const at = new Date(ctx.clock.now().getTime() + waitMinutes * 60_000)
+      const at = ctx.clock.now().add({ minutes: waitMinutes })                 // a Temporal.Instant (decision 19b)
       return {
         events: [ctx.write.deployments.deployment.update(d, { status: 'queued', retryCount: d.retryCount + 1, nextAttemptAt: at, failureReason: 'image-not-found' })],
         effects: [setTimer({ key: `deployment-retry:${d.id}`, at, invoke: retryDue, input: { id: d.id } })],   // fires as deployments.system
@@ -9448,7 +9796,7 @@ export const reportResult = defineCommand(deploymentsBase, deployment, {
   },
 })
 
-// examples/launchway/modules/deployments/src/reactions/dispatch-next-for-project.ts
+// modules/deployments/src/reactions/dispatch-next-for-project.ts
 // One dispatcher per project lane: a keyed job per event, FIFO per key, so one build per project runs at a time.
 export const dispatchNextForProject = defineReaction(deploymentsBase, {
   on: 'deployments.deployment.changed',
@@ -9458,18 +9806,18 @@ export const dispatchNextForProject = defineReaction(deploymentsBase, {
   *react(event, ctx) { /* load the project's oldest due deployment whose node is online; return invoke(run, { id }) (section 7.9.8) */ },
 })
 
-// examples/launchway/modules/deployments/src/reactions/wake-lanes-of-node.ts
+// modules/deployments/src/reactions/wake-lanes-of-node.ts
 export const wakeLanesOfNode = defineReaction(deploymentsBase, {
   on: 'nodes.node.changed',
   timing: 'inline',
   *react(event, ctx) { /* a node came online: return the invocations that wake the lanes waiting for it */ },
 })
 
-// examples/launchway/modules/deployments/src/contributions/to-nodes/fills/heartbeat-observers.ts and command-resolvers.ts
+// modules/deployments/src/contributions/to-nodes/fills/heartbeat-observers.ts and command-resolvers.ts
 export const heartbeatObserversFill = defineFill(within(deploymentsBase, toNodes), 'heartbeatObservers', (own) => [reconcileActiveDeployments(own)])   // G16: generators bound to deployments' context
 export const commandResolversFill = defineFill(within(deploymentsBase, toNodes), 'commandResolvers', (own) => [deployCommandResolver(own)])          // loads the assignment, delegates to projects.environmentFor
 
-// examples/launchway/modules/deployments/src/module.ts (excerpt); run and dispatchSettled are section 7.9.8's
+// modules/deployments/src/module.generated.ts (excerpt); run and dispatchSettled are section 7.9.8's
 const deploymentsDef = defineModule(deploymentsBase, {
   entityActions: { deployment: { reportResult, retryDue, run, dispatchSettled } },
   reactions: { dispatchNextForProject, wakeLanesOfNode },
@@ -9482,7 +9830,7 @@ export const deployments: Deployments = deploymentsDef
 `github` and `previews` show contributions and a conditional part in the same app:
 
 ```ts
-// examples/launchway/modules/github/src/entities/connection.ts
+// modules/github/src/entities/connection.ts
 export const connection = defineEntity({
   prefix: 'gh',
   fields: {
@@ -9497,7 +9845,7 @@ export const connection = defineEntity({
   events: { releasePublished: releaseShape, pushed: pushShape, pullRequestChanged: pullRequestShape },
 })
 
-// examples/launchway/modules/github/src/contributions/to-projects/contribution.ts
+// modules/github/src/contributions/to-projects/contribution.ts
 export const toProjects = defineContribution(projects, {
   entities: {
     project: {
@@ -9512,11 +9860,11 @@ export const toProjects = defineContribution(projects, {
     },
   },
 })
-// examples/launchway/modules/github/src/contributions/to-deployments/contribution.ts and to-webhooks/contribution.ts
+// modules/github/src/contributions/to-deployments/contribution.ts and to-webhooks/contribution.ts
 export const toDeployments = defineContribution(deployments, { entities: { deployment: { fields: { githubDeploymentId: field.integer({ wide: true }).optional() } } } })
 export const toWebhooks = defineContribution(webhooks, {})     // G8; dropped when webhooks is absent
 
-// examples/launchway/modules/github/src/base.ts
+// modules/github/src/base.ts
 const githubBaseDef = defineModuleBase({
   id: 'github',
   version: '0.1.0',
@@ -9526,7 +9874,7 @@ const githubBaseDef = defineModuleBase({
   contributions: { toProjects, toDeployments, toWebhooks },
 })
 
-// examples/launchway/modules/github/src/actions/ingest.ts
+// modules/github/src/actions/ingest.ts
 export const ingest = defineCommand(githubBase, {
   input: shape({ connectionId: field.ref.own('connection'), event: field.string(), signature: field.string(), rawBody: field.text() }),
   execution: 'sync',                  // verify and record before answering GitHub; reactions run asynchronously
@@ -9538,7 +9886,7 @@ export const ingest = defineCommand(githubBase, {
   },
 })
 
-// examples/launchway/modules/github/src/reactions/mirror-to-github.ts, deploy-on-release.ts and deploy-on-push.ts
+// modules/github/src/reactions/mirror-to-github.ts, deploy-on-release.ts and deploy-on-push.ts
 export const mirrorToGitHub = defineReaction(githubBase, {
   on: 'deployments.deployment.changed',
   timing: 'async',
@@ -9550,10 +9898,10 @@ export const mirrorToGitHub = defineReaction(githubBase, {
 export const deployOnRelease = defineReaction(githubBase, { on: 'github.connection.releasePublished', timing: 'async', react: createAutomaticDeployment })
 export const deployOnPush = defineReaction(githubBase, { on: 'github.connection.pushed', timing: 'async', react: createAutomaticDeployment })   // lib/create-automatic-deployment.ts: returns the invoke effect
 
-// examples/launchway/modules/github/src/schedules/poll-releases.ts
+// modules/github/src/schedules/poll-releases.ts
 export const pollReleasesSchedule = defineSchedule(githubBase, { every: '5m', invoke: pollReleases, scope: 'each-tenant' })   // G3
 
-// examples/launchway/modules/github/src/module.ts (excerpt)
+// modules/github/src/module.generated.ts (excerpt)
 const githubDef = defineModule(githubBase, {
   actions: { ingest, startManifest, completeManifest, pollReleases },   // completeManifest converts the code in prepare, an inline effect (section 17.3.9)
   reactions: { mirrorToGitHub, deployOnRelease, deployOnPush },
@@ -9566,14 +9914,14 @@ const githubDef = defineModule(githubBase, {
   },
 })
 
-// examples/launchway/modules/previews/src/config.ts
+// modules/previews/src/config.ts
 export const config = shape({
   baseDomain: field.string({ format: 'hostname' }).optional(),
   maxPerProject: field.integer({ min: 0 }).default(10),
   maxTotal: field.integer({ min: 0 }).default(20),
 })
 
-// examples/launchway/modules/previews/src/contributions/to-projects/contribution.ts
+// modules/previews/src/contributions/to-projects/contribution.ts
 export const toProjects = defineContribution(projects, {
   entities: {
     project: {
@@ -9588,12 +9936,12 @@ export const toProjects = defineContribution(projects, {
     },
   },
 })
-// examples/launchway/modules/previews/src/contributions/to-deployments/contribution.ts
+// modules/previews/src/contributions/to-deployments/contribution.ts
 export const toDeployments = defineContribution(deployments, { entities: { deployment: { fields: { previewId: field.ref.own('preview').optional() } } } })
-// examples/launchway/modules/previews/src/conditional/when-github/condition.ts
+// modules/previews/src/conditional/when-github/condition.ts
 export const whenGithub = defineCondition([github], {})
 
-// examples/launchway/modules/previews/src/base.ts
+// modules/previews/src/base.ts
 const previewsBaseDef = defineModuleBase({
   id: 'previews',
   version: '0.1.0',
@@ -9605,7 +9953,7 @@ const previewsBaseDef = defineModuleBase({
   conditions: { whenGithub },
 })
 
-// examples/launchway/modules/previews/src/conditional/when-github/reactions/sync-preview.ts
+// modules/previews/src/conditional/when-github/reactions/sync-preview.ts
 export const syncPreview = defineReaction(within(previewsBase, whenGithub), {
   on: 'github.connection.pullRequestChanged',
   timing: 'async',
@@ -9613,7 +9961,7 @@ export const syncPreview = defineReaction(within(previewsBase, whenGithub), {
   *react(event, ctx) { /* open, update or close the preview of the pull request: drafts and invoke effects */ },
 })
 
-// examples/launchway/modules/previews/src/module.ts (excerpt)
+// modules/previews/src/module.generated.ts (excerpt)
 const previewsDef = defineModule(previewsBase, {
   actions: { open },
   entityActions: { preview: { close } },
@@ -9736,7 +10084,7 @@ no submission types at all.
 | `mail-store.inbound` | envelope, staged blob, client address and HELO, status | state | a transient hand-over record; the email chain is the history; envelope and client fields are personal |
 | `mail-store.vacationResponse` | `accountId`, `isEnabled`, `fromDate`, `toDate`, `subject`, `textBody` | chain | JMAP singleton per account |
 | `mail-delivery.submission` | `accountId`, `identityId`, `emailId`, envelope, `sendAt`, `deliveryStatus` per recipient | chain | JMAP EmailSubmission; its `attempted` events record each delivery attempt (recipient domain, outcome per recipient, next try) |
-| `core.effect` of type `mail-delivery.smtpDeliver`, with `core.effectAttempt` | one effect per attempt: input (domain, recipients, message reference), output (replies per recipient, MX host, policy, TLS details), attempts | chain stream per effect; attempt records kept 90 days (section 7.9.6) | personal: the replies quote addresses, so inputs and outputs are sealed under the submission owner's key and shredded with it |
+| `core.effect` of type `mail-delivery.smtpDeliver`, with `core.effectAttempt` | one effect per attempt: input (domain, recipients, message reference), output (replies per recipient, MX host, policy, TLS details), attempts | chain stream per effect; attempt records kept until a rule is adopted (section 7.9.6, decision 47c; the mail suggestions wait with the mail server) | personal: the replies quote addresses, so inputs and outputs are sealed under the submission owner's key and shredded with it |
 | `sender-auth.dkimKey` | `domainId`, `selector`, `algorithm`, `privateKey` (secret), `publicKey`, `state` | chain | `pending`, `published`, `active`, `retiring`, `retired` |
 
 How the protocols' requirements map onto the core model:
@@ -9990,11 +10338,13 @@ and TXT records coexist with it.
 
 #### 17.4.13 The app definition
 
-The app is the package `@mail/app-mail` in `examples/mail/`, and each of its own modules is a
-package in `examples/mail/modules/<id>/` named `@mail/module-<id>` (section 23.11 shows the trees).
+The app is the package `@mail/app-mail` in the mail server's own repository (`apps/mail/`), and
+each of its own modules is a package in `modules/<id>/` named `@mail/module-<id>` (section 23.11
+shows the trees); the repository and its scope are named when Jens unparks the mail server, and the
+paths in the code below are relative to it.
 
 ```ts
-// examples/mail/src/modules.ts
+// apps/mail/src/modules.ts
 import { accounts } from '@pennestack/module-accounts'
 import { auth } from '@pennestack/module-auth'
 import { apiKeys } from '@pennestack/module-api-keys'
@@ -10026,7 +10376,7 @@ export const modules = [
   live, rest, jmap,
 ] as const
 
-// examples/mail/src/app.ts, with src/actions/health.ts as in Launchway (section 17.3.13)
+// apps/mail/src/app.ts, with src/actions/health.ts as in Launchway (section 17.3.13)
 const mailDef = defineApp({
   id: 'mail',
   modules,
@@ -10052,7 +10402,7 @@ The store declares the protocol-facing structure; the conditional part links mai
 profiles only when `accounts` is selected:
 
 ```ts
-// examples/mail/modules/mail-store/src/entities/email.ts
+// modules/mail-store/src/entities/email.ts
 export const email = defineEntity({
   prefix: 'email',
   partition: 'accountId',                              // per-account JMAP state (section 15.1.4)
@@ -10079,14 +10429,14 @@ export const email = defineEntity({
   searchIndexes: [{ name: 'text', fields: ['subject', 'from', 'to', 'cc', 'searchText'], keys: 'subject', languages: ['nl', 'en'] }],   // G7: a per-account keyed token index (section 14.7.9.9)
 })
 
-// examples/mail/modules/mail-store/src/entities/address.ts (excerpt): RCPT TO resolves by equality; the tag joins a composite unique index
+// modules/mail-store/src/entities/address.ts (excerpt): RCPT TO resolves by equality; the tag joins a composite unique index
 localPart: field.string({ maxLength: 64 }).personal({ normalize: 'caseless' }),
 //   indexes: [{ fields: ['localPart', 'domainId'], unique: true }]
 
-// examples/mail/modules/mail-store/src/entities/identity.ts (excerpt): who may send as which address
+// modules/mail-store/src/entities/identity.ts (excerpt): who may send as which address
 email: field.string({ format: 'email' }).personal({ normalize: 'email', queries: ['eq'] }),
 
-// examples/mail/modules/mail-store/src/entities/mailbox-entry.ts
+// modules/mail-store/src/entities/mailbox-entry.ts
 export const mailboxEntry = defineEntity({
   prefix: 'mbe',
   fields: {
@@ -10096,19 +10446,19 @@ export const mailboxEntry = defineEntity({
   },
 })
 
-// examples/mail/modules/mail-store/src/conditional/when-accounts/condition.ts
+// modules/mail-store/src/conditional/when-accounts/condition.ts
 export const whenAccounts = defineCondition([accounts], { entities: { mailAccount: { fields: { profileId: field.ref(accounts, 'profile').optional() } } } })
 
-// examples/mail/modules/mail-store/src/extension-points/inbound-checks.ts
+// modules/mail-store/src/extension-points/inbound-checks.ts
 export const inboundChecks = extensionPoint<InboundCheck>({ mode: 'ordered' })   // filled by sender-auth and spam (G16): pure fills returning effect drafts
 
-// examples/mail/modules/mail-store/src/config.ts
+// modules/mail-store/src/config.ts
 export const config = shape({
   defaultQuotaBytes: field.integer({ wide: true }).default(10n * 1024n ** 3n),
   rejectUnknownRecipients: field.boolean().default(true),
 })
 
-// examples/mail/modules/mail-store/src/base.ts
+// modules/mail-store/src/base.ts
 const mailStoreBaseDef = defineModuleBase({
   id: 'mail-store',
   version: '0.1.0',
@@ -10122,7 +10472,7 @@ const mailStoreBaseDef = defineModuleBase({
 export interface MailStoreBase extends ModuleBaseType<typeof mailStoreBaseDef> {}
 export const mailStoreBase: MailStoreBase = mailStoreBaseDef
 
-// examples/mail/modules/mail-store/src/actions/resolve-address.ts, accept-inbound.ts and import-email.ts
+// modules/mail-store/src/actions/resolve-address.ts, accept-inbound.ts and import-email.ts
 export const resolveAddress = defineQuery(mailStoreBase, {
   input: shape({ address: field.string({ format: 'email' }) }),
   output: shape({ deliverable: field.boolean() }),                                  // rate-limited at admit
@@ -10139,10 +10489,10 @@ export const acceptInbound = defineCommand(mailStoreBase, {
 })
 export const importEmail = defineCommand(mailStoreBase, { execution: 'sync', *decide(input, ctx) { /* IMAP APPEND, JMAP Email/import; returns the UID */ } })
 
-// examples/mail/modules/mail-store/src/actions/inbound/file.ts
+// modules/mail-store/src/actions/inbound/file.ts
 export const file = defineCommand(mailStoreBase, inbound, { execution: 'sync', *decide(_input, current, ctx) { /* aliases, vacation, Junk, UIDs, thread, search text; runs in the reaction's job */ } })
 
-// examples/mail/modules/mail-store/src/actions/mailbox/select.ts, fetch.ts and idle.ts
+// modules/mail-store/src/actions/mailbox/select.ts, fetch.ts and idle.ts
 export const select = defineQuery(mailStoreBase, mailbox, { output: selectStateShape, *read(_input, ctx) { /* uidValidity, uidNext, highestModseq, counts */ } })
 export const fetch = defineQuery(mailStoreBase, mailbox, { input: shape({ uids: field.string(), items: field.list(field.string()) }), output: fetchRowsShape, read: (input, ctx) => { /* a query description: rows by UID set */ } })
 export const idle = defineSubscription(mailStoreBase, mailbox, {   // IMAP IDLE; `watch` is the generated name, reserved per entity
@@ -10150,29 +10500,26 @@ export const idle = defineSubscription(mailStoreBase, mailbox, {   // IMAP IDLE;
   source: (_input, ctx, resume) => mapItems(ctx.live.entity('mail-store', 'mailboxEntry', { where: { mailboxId: ctx.target.id }, after: resume }), toMailboxChange),
 })
 
-// examples/mail/modules/mail-store/src/policies/mx-listener.ts: one rule over two module-level actions
-export const mxListenerPolicy = definePolicy(mailStoreBase, [resolveAddress, acceptInbound], [
-  {
-    effect: 'allow',
-    id: 'mx-listener',
-    principal: 'service',
-    when: (ctx) => ctx.principal.via === 'smtp-in',                   // the listener's service principal (G1); never public
-    reason: 'Only the MX listener hands over inbound mail.',
-  },
-])
+// modules/mail-store/src/policies/mx-listener.ts: one rule over two module-level actions, mail-store.mx-listener
+export const mxListener = defineRule(mailStoreBase, [resolveAddress, acceptInbound], {
+  effect: 'allow',
+  principal: 'service',
+  when: (ctx) => ctx.principal.via === 'smtp-in',                   // the listener's service principal (G1); never public
+  reason: 'Only the MX listener hands over inbound mail.',
+})
 
-// examples/mail/modules/mail-store/src/reactions/file-inbound.ts: a job per row, as mail-store.system
+// modules/mail-store/src/reactions/file-inbound.ts: a job per row, as mail-store.system
 export const fileInbound = defineReaction(mailStoreBase, {
   on: 'mail-store.inbound.created',
   timing: 'async',
   react: (event) => ({ effects: [invoke(file, { id: event.stream.id })] }),
 })
 
-// examples/mail/modules/mail-store/src/module.ts (excerpt)
+// modules/mail-store/src/module.generated.ts (excerpt)
 const mailStoreDef = defineModule(mailStoreBase, {
   actions: { resolveAddress, acceptInbound, importEmail },
   entityActions: { inbound: { file }, mailbox: { select, fetch, idle } },
-  policies: [mxListenerPolicy],
+  policies: { mxListener },                            // policies/mx-listener.ts: a rule over two actions
   reactions: { fileInbound },
   services: { expand },                                // services/expand.ts, for dependants
 })
@@ -10184,7 +10531,7 @@ The receiving listener holds no domain logic: it resolves scopes per recipient, 
 message to staging and asks each tenant to accept it:
 
 ```ts
-// examples/mail/modules/smtp-in/src/module.ts
+// modules/smtp-in/src/module.ts: hand-written, as a listener module declared with the G1 sugar has no parts to assemble (section 23.5)
 import { defineListenerModule, field, shape } from '@pennestack/core'           // G1: sugar that contributes to core.listeners
 import { mailDomains } from '@mail/module-mail-domains'
 import { mailStore } from '@mail/module-mail-store'
@@ -10199,7 +10546,7 @@ export const smtpIn = defineListenerModule({
   listener,
 })
 
-// examples/mail/modules/smtp-in/src/listener.ts
+// modules/smtp-in/src/listener.ts
 import { SMTPServer } from 'smtp-server'
 import { smtpError } from './lib/smtp-error.ts'                                  // Object.assign(new Error(message), { responseCode: code })
 
@@ -10244,11 +10591,11 @@ executor options this needs, and a state machine on the submission that decides 
 (section 7.9.8 shows `recordAttempt`):
 
 ```ts
-// examples/mail/modules/mail-delivery/src/extension-points/signers.ts and outbound-checks.ts
+// modules/mail-delivery/src/extension-points/signers.ts and outbound-checks.ts
 export const signers = extensionPoint<MessageSigner>({ mode: 'ordered' })                // sender-auth: DKIM (G16)
 export const outboundChecks = extensionPoint<OutboundCheck>({ mode: 'ordered' })         // spam: outbound scoring (G16)
 
-// examples/mail/modules/mail-delivery/src/base.ts
+// modules/mail-delivery/src/base.ts
 const mailDeliveryBaseDef = defineModuleBase({
   id: 'mail-delivery',
   version: '0.1.0',
@@ -10263,11 +10610,11 @@ const mailDeliveryBaseDef = defineModuleBase({
   entities: { submission },
 })
 
-// examples/mail/modules/mail-delivery/src/effects/smtp-deliver.ts and smtp-probe.ts: one attempt; a relay test
+// modules/mail-delivery/src/effects/smtp-deliver.ts and smtp-probe.ts: one attempt; a relay test
 export const smtpDeliver = defineEffect(mailDeliveryBase, { input: smtpDeliveryShape, output: smtpRepliesShape })   // replies per recipient, MX host, policy, TLS
 export const smtpProbe = defineEffect(mailDeliveryBase, { input: relayProbeShape, output: relayProbeResultShape })   // EHLO, STARTTLS, AUTH, QUIT
 
-// examples/mail/modules/mail-delivery/src/executors/smtp-deliver.ts and smtp-probe.ts: the module's only imperative code
+// modules/mail-delivery/src/executors/smtp-deliver.ts and smtp-probe.ts: the module's only imperative code
 export const smtpDeliverExecutor = defineEffectExecutor(mailDeliveryBase, smtpDeliver, {
   queue: 'mail-delivery',
   capability: ({ config }) => (config.relay ? [] : ['smtp-out']),               // G9: direct mode needs a host with a clean address
@@ -10277,7 +10624,7 @@ export const smtpDeliverExecutor = defineEffectExecutor(mailDeliveryBase, smtpDe
 })
 export const smtpProbeExecutor = defineEffectExecutor(mailDeliveryBase, smtpProbe, { inline: true, timeout: '10s', run: (input, ctx) => probeRelay(input, ctx) })
 
-// examples/mail/modules/mail-delivery/src/actions/submit.ts and test-relay.ts
+// modules/mail-delivery/src/actions/submit.ts and test-relay.ts
 export const submit = defineCommand(mailDeliveryBase, { execution: 'sync', *decide(input, ctx) {
   /* outbound checks, signers, the submission with a status per recipient, one smtpDeliver effect per domain with the continuation recordAttempt */
 } })
@@ -10288,11 +10635,11 @@ export const testRelay = defineCommand(mailDeliveryBase, {
   decide: (_input, ctx) => ({ result: ctx.prepared.ok ? ctx.prepared.value : { ok: false, error: ctx.prepared.error.code } }),
 })
 
-// examples/mail/modules/mail-delivery/src/actions/submission/record-attempt.ts, retry-domain.ts and bounce.ts: the state machine
+// modules/mail-delivery/src/actions/submission/record-attempt.ts, retry-domain.ts and bounce.ts: the state machine
 // recordAttempt: section 7.9.8; retryDomain, the retry timer's command, requests a new smtpDeliver for the recipients still deferred
 export const bounce = defineCommand(mailDeliveryBase, submission, { execution: 'async', *decide(input, current, ctx) { /* RFC 3464 report to the sender: an invoke of mail-store.acceptInbound */ } })
 
-// examples/mail/modules/mail-delivery/src/module.ts (excerpt)
+// modules/mail-delivery/src/module.generated.ts (excerpt)
 const mailDeliveryDef = defineModule(mailDeliveryBase, {
   actions: { submit, testRelay },
   entityActions: { submission: { recordAttempt, retryDomain, bounce } },
@@ -10305,7 +10652,7 @@ The IMAP listener maps commands onto the store's actions under one session per c
 `sender-auth` rotates keys on a schedule:
 
 ```ts
-// examples/mail/modules/imap/src/module.ts
+// modules/imap/src/module.ts
 export const imap = defineListenerModule({
   id: 'imap',
   requires: [mailStore],
@@ -10313,7 +10660,7 @@ export const imap = defineListenerModule({
   listener,                                                                     // src/listener.ts, below
 })
 
-// examples/mail/modules/imap/src/listener.ts
+// modules/imap/src/listener.ts
 export const listener = (kit: ListenerKit) => imapServer({                      // own IMAP4rev2 and IMAP4rev1 implementation in src/lib/
   authenticate: (connection, sasl) =>
     kit.sessions.open({ connection, sasl, scopeKey: { kind: 'mail-domain', value: domainOf(sasl.authcid) } }),   // G1, G2
@@ -10323,10 +10670,10 @@ export const listener = (kit: ListenerKit) => imapServer({                      
   idle: (session, mailboxId, resume) => session.subscribe('mail-store.mailbox.idle', { id: mailboxId }, resume),
 })
 
-// examples/mail/modules/sender-auth/src/schedules/rotate-due.ts
+// modules/sender-auth/src/schedules/rotate-due.ts
 // G3: publish a new selector, switch after DNS propagation, retire the old one
 export const rotateDueSchedule = defineSchedule(senderAuthBase, { every: '1d', invoke: rotateDue, scope: 'each-tenant' })
-// examples/mail/modules/sender-auth/src/module.ts: schedules: { rotateDue: rotateDueSchedule }
+// modules/sender-auth/src/module.generated.ts: schedules: { rotateDue: rotateDueSchedule }
 ```
 
 ### 17.5 One deployment carrying both
@@ -10340,8 +10687,8 @@ import { ledgerFile } from '@pennestack/core/ledger'
 import { postgresAdapter } from '@pennestack/adapter-postgres'
 import { httpHost } from '@pennestack/transport-http'
 import { blobsFs } from '@pennestack/blobs-fs'
-import { launchway } from '@launchway/app-launchway'                            // examples/launchway, src/app.ts
-import { mail } from '@mail/app-mail'                                            // examples/mail, src/app.ts
+import { launchway } from '@launchway/app-launchway'                            // the Launchway repository, apps/launchway/src/app.ts
+import { mail } from '@mail/app-mail'                                            // the mail server's repository (parked), apps/mail/src/app.ts
 
 export default defineDeployment({
   apps: [launchway, mail],
@@ -10349,7 +10696,7 @@ export default defineDeployment({
     postgresAdapter(),
     httpHost({ listen: [{ port: 3000 }], trustedProxies: ['172.18.0.0/16'] }),   // behind the Launchway edge
     blobsFs({ root: '/var/lib/pennestack/blobs', keepDeletedFor: 'P35D' }),       // G5; longer than the backup retention
-    ledgerFile({ path: '/var/lib/pennestack-ledger/erasure.log' }),               // a separate volume, backed up off the host
+    ledgerFile({ path: '/var/lib/pennestack-ledger/erasure.log' }),               // a separate volume, backed up off the host: erasures and chain anchors
   ],
   control: { adapter: 'postgres', url: env('PENNESTACK_CONTROL_URL') },           // its own PostgreSQL instance (section 17.5.2)
   placements: {
@@ -10385,36 +10732,46 @@ Windows 11, residential connection with a dynamic public IPv4 address and no inb
 
 | Container | Ports | Role |
 |---|---|---|
-| `pennestack` (one image with both apps) | 3000 on the proxy network | process `home`, roles `serve` and `work`; during an upgrade a second container of the new build runs beside it (blue-green behind Caddy) |
+| `pennestack` (one image with the deployment's apps, on a Node 26 base image, section 13.2) | 3000 on the proxy network | process `home`, roles `serve` and `work`; during an upgrade a second container of the new build runs beside it (blue-green behind Caddy) |
 | `pennestack-mail` (the same image) | 25, 465, 587 and 993 published on the host | process `mail`, role `serve`, capability `smtp-public`: the mail listeners |
-| `postgres-control` (`postgres:18-alpine`) | internal | the control store, with the erasure ledger and the recorded high-water marks |
+| `postgres-control` (`postgres:18-alpine`) | internal | the control store, with the erasure ledger and the recorded high-water marks (decision 27a: an instance of its own) |
 | `postgres` (`postgres:18-alpine`) | internal | the default placement, with the job store |
-| `caddy` (`caddy:2-alpine`) | 80, 443 | the Launchway edge for every HTTP host of the deployment |
-| `launchway-agent` | none (outbound WebSocket) | the node agent of the home server |
+| `caddy` (`caddy:2-alpine`) | 80, 443 | the Launchway tenant's edge, through the `edge-caddy` provider (section 17.3.7), for every HTTP host of the deployment |
+| `launchway-agent` | none (outbound WebSocket) | the node agent of the home server, which also performs the edge's `apply` effects (decision 24a) |
 | `rspamd`, `valkey`, `unbound` | internal | deployed as a Launchway project from a small repository with a Compose file |
 
-- The control store runs in its own PostgreSQL instance, so restoring the placement never rewinds
-  the erasure ledger, and the ledger file on a separate volume covers a restore of both
-  (section 14.7.6). Backups snapshot both instances and the blob directory; blob bytes outlive the
-  backup retention.
+- The control store runs in its own PostgreSQL instance (decision 27a, 2026-10-27), so restoring
+  the placement never rewinds the erasure ledger, and the ledger file on a separate volume covers a
+  restore of both (section 14.7.6). The same file holds the chain anchors from M1 (decision 35b,
+  section 15.1.8), so after a restore of either instance `pennestack db verify` shows whether a
+  chain was rewound or rewritten. Backups snapshot both instances and the blob directory; blob bytes
+  outlive the backup retention.
 - The router forwards 25, 465, 587 and 993 to the home server, in addition to 80 and 443.
 - Upgrades (section 19.6): the HTTP container rolls blue-green behind Caddy (start the new
   container, wait for `/_pennestack/ready`, move the Caddy upstream, drain the old one). The mail
   listeners get their own container, a named process of gap G9, because two containers cannot
   publish ports 25, 465, 587 and 993 at once; it is replaced by stop and start within seconds, and
-  SMTP senders retry and IMAP clients reconnect (decision point 56 of section 26.1).
+  SMTP senders retry and IMAP clients reconnect (question 56, parked with the mail server).
 - External services: the DNS provider, GitHub, Let's Encrypt and, for outbound mail, the relay
-  (a decision point in section 26.1).
-- Two facts must be verified on the home server before it becomes the MX host (section 26.3): whether
+  (question 21, parked with the mail server).
+- Two facts must be verified on the home server before it becomes the MX host (question 41, parked
+  with the mail server): whether
   the connection allows inbound port 25 and outbound port 25 at all, and whether Docker Desktop's
   port publishing preserves the client's source address. SPF, DMARC, blocklists and rate limits all
   need the real address; if it is hidden, the listeners need host networking or another host.
-- Untrusted HTTP content lives on a separate registrable domain. Launchway serves tenant projects
-  and pull-request previews, which are code pennestack does not control; served as subdomains of
-  `jenspenneman.com`, they would be same-site with `deploy.jenspenneman.com` and
-  `mail.jenspenneman.com`, so `SameSite=Lax` would not stop them from sending the session cookie.
-  Deployed apps and previews therefore get a domain of their own (a decision point in section 26.1),
-  in addition to the `__Host-` cookies and origin checks of section 16.4.10.
+- Untrusted HTTP content. Launchway serves tenant projects and pull-request previews, which are
+  code pennestack does not control. For now they are subdomains of `jenspenneman.com` (decision 26b,
+  2026-10-27: no extra spending), which makes them same-site with `deploy.jenspenneman.com` and
+  `mail.jenspenneman.com`, so `SameSite=Lax` alone would not stop them from sending a session
+  cookie. The hardening is therefore mandatory: session cookies are `__Host-` cookies (no `Domain`
+  attribute, so no subdomain receives or plants one, section 16.4.10); no cookie is ever set for
+  the whole domain; pennestack's hosts send a strict Content Security Policy and enforce the origin
+  checks of section 16.4.10 (`Origin` and `Sec-Fetch-Site`); and project and preview hosts get no
+  credentials: pennestack issues no cookie or token for them, and its hosts refuse a credentialed
+  request whose origin is one of them. A separate registrable domain stays the recommended next
+  step, not a requirement: the preview base domain is a per-backend setting
+  (`previews.config.baseDomain`, section 17.3.12) and project host names are `domains.domain` rows,
+  so the switch is a configuration change with no code change.
 - The home server is also a Launchway node, and its agent controls Docker. On that node,
   `allowedBindRoots` excludes pennestack's volumes, the ledger volume and the Docker socket by
   default, and the admin role of the tenant that owns the node is treated as operator-equivalent in
@@ -10479,14 +10836,17 @@ const phone = await owner.invoke('api-keys.create', { label: 'Phone', scopes: ['
 | `members` (roles and invitations) | shared, new | yes | yes |
 | `dns`, `dns-cloudflare`, `dns-manual` | shared, new | yes | yes (`dns-manual` optional) |
 | `certificates` | shared, new | no (the edge obtains certificates) | yes |
-| `blobs`, `blobs-fs`, `blobs-s3` | shared, new (G5) | later (log archives) | yes |
+| `blobs`, `blobs-fs`, `blobs-s3` | shared, new (G5) | yes (long deployment logs, decision 47c) | yes |
 | `transport-webhooks` | shared, new (G8) | yes | no |
 | `transport-jmap` | shared, new | no | yes |
 | `adapter-postgres`, `transport-http` (with the invocation protocol), `blobs-fs` | infrastructure of the deployment | yes | yes |
 | `live`, `transport-rest` | shared modules | yes | yes |
 | `transport-graphql`, `transport-trpc` | shared infrastructure | yes | optional |
-| `projects`, `nodes`, `agent-gateway`, `deployments`, `domains`, `edge`, `github`, `previews` | Launchway | yes | no |
-| `mail-domains`, `mail-store`, `sender-auth`, `spam`, `smtp-in`, `smtp-submission`, `mail-delivery`, `imap`, `mta-sts`, `autoconfig`; later `sieve`, `antivirus`, `dmarc-reports` | mail | no | yes |
+| `transport-orpc` | shared infrastructure (decision 15b) | optional | optional |
+| `edge`, `edge-caddy` | shared, new (decision 82a) | yes | no (its HTTPS host names go through Launchway's edge, section 17.5.3) |
+| `outbound-webhooks` | shared, new (decision 49a) | yes | optional |
+| `projects`, `nodes`, `deployments`, `domains`, `github`, `previews` | Launchway, in the Launchway repository | yes | no |
+| `mail-domains`, `mail-store`, `sender-auth`, `spam`, `smtp-in`, `smtp-submission`, `mail-delivery`, `imap`, `mta-sts`, `autoconfig`; later `sieve`, `antivirus`, `dmarc-reports` | mail, in the mail server's repository (parked) | no | yes |
 
 #### 17.6.2 Commands that must stay synchronous
 
@@ -10552,10 +10912,10 @@ own client.
 The mail server does not force it. Mailbox search uses the keyed token index over personal text
 (section 14.7.9.9) combined with the authorization plan, UIDs use a per-partition serial, JMAP and
 IMAP synchronisation use partitioned, commit-ordered change positions and positional paging for JMAP
-(all G7), and queue locking lives inside the job store behind `JobQueue`. A `mail-store` that needs
-any of these on an adapter without the capability fails at `connect` with `unsupported`, as the core
-prescribes. The escape hatch remains useful for operator reports and DMARC aggregate statistics,
-which are optional modules.
+(all G7), and queue locking lives inside the job store behind `JobQueue`. On an adapter that lacks
+one of these capabilities, `mail-store` still runs: the kernel's paths of section 14.3.3 serve it at
+the cost `pennestack doctor` reports (brief addendum 5). The escape hatch remains useful for
+operator reports and DMARC aggregate statistics, which are optional modules.
 
 #### 17.6.5 Names that differ from the first draft
 
@@ -10574,13 +10934,15 @@ The first draft of this specification (2026-10-08) named the proof apps' modules
 #### 17.6.6 Where platform modules live
 
 Shared platform modules (`module-members`, `module-dns`, `dns-cloudflare`, `dns-manual`,
-`module-certificates`, `blobs-fs` and later `blobs-s3`, `transport-webhooks`, `transport-jmap`) are
-packages of this repository (section 22). Launchway's and the mail server's own modules are packages
-in `examples/launchway/modules/<id>/` (`@launchway/module-<id>`) and `examples/mail/modules/<id>/`
-(`@mail/module-<id>`) until they are stable, and the apps are the packages `examples/launchway` and
-`examples/mail` with `src/modules.ts` and `src/app.ts` (section 23.10 and 23.11). Whether
-Launchway's modules later move to the Launchway repository as its real backend is open (section
-26.3); moving a module changes its package name and nothing inside it.
+`module-edge`, `edge-caddy`, `module-outbound-webhooks`, `module-certificates`, `blobs-fs` and later
+`blobs-s3`, `transport-webhooks`, `transport-jmap`) are packages of this repository (section 22).
+Every app built on pennestack lives in its own repository and depends only on the published
+packages, never on this repository (decision 48c, 2026-10-27): Launchway's own modules are packages
+in the Launchway repository, `modules/<id>/` (`@launchway/module-<id>`), with the app in
+`apps/launchway/` (section 23.10); Trail's backend is rebuilt in the Trail repository first (roadmap
+M3); the mail server's modules get a repository of their own when Jens unparks it (section 23.11).
+This repository keeps `examples/portal` for its own CI. Moving a module between repositories changes
+its package name and nothing inside it.
 
 ### 17.7 Gaps for the core and where they land
 
@@ -10591,16 +10953,16 @@ the roadmap schedules before the milestone that first needs them ([roadmap.md](r
 
 | Id | Gap | Needed by | Status | Where |
 |---|---|---|---|---|
-| G1 | Connection-oriented listeners and invoker sessions | Launchway agents; SMTP, IMAP, JMAP | sessions specified; listener contract proposed, ADR before M4 | sections 9.2 and 16.3.4; proposal below |
-| G2 | Scope directory for keys other than host names | tokens, node credentials, webhook paths, mail domains | proposed, ADR before M3 | proposal below |
+| G1 | Connection-oriented listeners and invoker sessions | Launchway agents; SMTP, IMAP, JMAP | sessions specified; listener contract proposed, ADR before the mail foundations (parked) | sections 9.2 and 16.3.4; proposal below |
+| G2 | Scope directory for keys other than host names | tokens, node credentials, webhook paths, mail domains | proposed, ADR before M4 | proposal below |
 | G16 | Extension values bound to their contributor's context | git providers, heartbeat observers, DKIM signers, inbound checks | specified (ADR 0003; pure values since ADR 0026) | sections 5.5 and 7.9.2 |
 | G3 | Jobs, durable timers and schedules | both platforms throughout | specified (ADRs 0015 and 0025) | sections 7.7, 9.5, 14.3.9 and 21 |
 | G4 | Secrets and a key hierarchy | Launchway environments and credentials; DKIM keys, relay password, certificates | key service and sealing specified; the `ctx.secrets` interface proposed, ADR before M3 | sections 6.6 and 14.7.4; proposal below |
-| G5 | Blob storage | messages, attachments, uploads; later log archives | proposed, ADR before M4 | section 5.2 (the `blobs` contract); proposal below |
+| G5 | Blob storage | deployment logs past their offload threshold (decision 47c); messages, attachments, uploads | proposed, ADR before M4 | section 5.2 (the `blobs` contract); proposal below |
 | G6 | Streams, topics and a live feed for state entities | deployment logs, container logs, the agent channel, delivery attempts | storage and live delivery specified; the DSL lands in M2 | sections 15.1.10, 15.1.12 and 15.4 |
 | G7 | Change positions and data capabilities | IMAP and JMAP synchronisation, mail search, UIDs, Launchway's one-running-deployment rule | specified | sections 14.3.3, 14.3.5, 14.5.1, 14.7.9 and 15.1.4 |
 | G8 | HTTP ingress beyond JSON actions | GitHub webhooks and manifest flow; MTA-STS, autoconfig, JMAP downloads | specified | section 16.5.8 |
-| G9 | Process capabilities and singleton work | mail ports, the edge, reconcilers | named processes and capabilities specified (ADR 0025); singleton leases proposed, ADR 0018 before M3 | section 21; proposal below |
+| G9 | Process capabilities and singleton work | mail ports, the edge, reconcilers | named processes and capabilities specified (ADR 0025); singleton leases proposed, ADR 0018 before M4 | section 21; proposal below |
 | G10 | Tenant-editable configuration with change events | Launchway settings, mail policies | specified | section 5.7 |
 | G11 | Retention and purge | Trash and Junk, previews, logs, delivery queues, command rows | specified | section 14.7.1 |
 | G12 | Cross-cutting observers and request metadata | audit, later outbound webhooks and search indexers | request metadata specified; `observes: 'all'` proposed | sections 11 and 15.1.7; proposal below |
@@ -10611,7 +10973,8 @@ the roadmap schedules before the milestone that first needs them ([roadmap.md](r
 #### G1. Connection-oriented listeners and invoker sessions
 
 Status: sessions (`Invoker.open`, `InvocationSession`) are specified in sections 9.2 and 16.3.4; the
-listener contract below is a proposal, and its ADR lands before M4 (roadmap).
+listener contract below is a proposal, and its ADR lands before the mail foundations milestone
+(roadmap; parked with the mail server).
 
 Problem. The pipeline resolves scope and principal per invocation from a carrier. SMTP, IMAP and
 the agent WebSocket are long-lived connections: the scope is known only after `AUTHENTICATE` or
@@ -10629,7 +10992,7 @@ Proposal:
 ```ts
 interface Connection {
   readonly id: string
-  readonly listener: string                                   // 'smtp-in.mx', 'imap.imaps', 'agent-gateway.ws'
+  readonly listener: string                                   // 'smtp-in.mx', 'imap.imaps', 'smtp-submission.submission'
   readonly remote: { address: string; port: number }          // after PROXY protocol or trusted-proxy rules
   readonly local: { address: string; port: number }
   readonly tls?: { serverName?: string; protocol: string; cipher: string }
@@ -10645,7 +11008,7 @@ interface ListenerSpec {
   readonly id: string
   readonly ports: Readonly<Record<string, { default: number; tls: 'none' | 'starttls' | 'implicit'; proxyProtocol?: 'off' | 'optional' | 'required'; enabled?: boolean }>>
   readonly capability?: string                                // G9
-  start(kit: ListenerKit): Promise<{ accept(socket: Socket, port: string): void; updateCertificates(options: SecureContextOptions): void; drain(deadline: Date): Promise<void> }>
+  start(kit: ListenerKit): Promise<{ accept(socket: Socket, port: string): void; updateCertificates(options: SecureContextOptions): void; drain(deadline: Temporal.Instant): Promise<void> }>
 }
 interface ListenerKit {
   readonly hostname: string
@@ -10684,8 +11047,9 @@ interface BoundSession {
 
 #### G2. Scope directory for keys other than host names
 
-Status: proposal; its ADR lands before M3, the first milestone that resolves tenants from tokens and
-webhook paths (roadmap).
+Status: proposal; its ADR lands before M4, the first milestone whose app resolves tenants from
+tokens and webhook paths (Launchway's node credentials and GitHub's receiver paths; Trail, in M3, is
+one tenant resolved by its host name) (roadmap).
 
 Problem. `resolveScope` runs before any tenant data is reachable, and tenant data may live in
 another database (placements). Resolvers by host name work because `core.domain` lives in the
@@ -10810,7 +11174,8 @@ CLI.
 
 Status: the `blobs` contract (deployment level) and the `blobStores` deployment extension point
 are specified in sections 5.2 and 5.6; the interfaces below are a proposal whose ADR lands before
-M4 (roadmap).
+M4, where Launchway's long deployment logs move into the blob store (decision 47c), and the mail
+server then needs it for messages (roadmap).
 
 ```ts
 // field kind; the value is a reference
@@ -10858,7 +11223,7 @@ with the live module in M2 (roadmap).
 const log = defineStream({
   key: field.ref.own('deployment'),                           // ordered per key
   record: shape({ at: field.instant(), source: field.enum(['stdout', 'stderr', 'system']), line: field.text() }),
-  retention: { maxAge: '30d', maxPerKey: 50_000 },
+  offload: { afterPerKey: 50_000 },                           // older lines move to the blob store; nothing is purged (decision 47c)
   readAs: 'deployment',                                       // may read the stream when it may `get` the keyed row
 })
 ctx.write.deployments.log.append(deploymentId, records)                         // a draft: a batch append in the decision's unit
@@ -10890,8 +11255,8 @@ Status: specified. Positions come from a counter per scope (section 15.1.4); `pa
 and `field.serial` are in sections 15.1.4 and 14.5.1; the `search` and `positionPaging` capabilities
 and partial unique indexes are in sections 14.3.3, 14.3.5 and 14.5.1, and search over personal text
 through keyed token indexes in section 14.7.9.9; rows locked for writes make increments atomic and
-`update` returns the resulting row (section 15.1.6). Search ships in M4, before the mail server
-needs it (roadmap).
+`update` returns the resulting row (section 15.1.6). Search ships with the mail foundations
+milestone, before the mail server needs it (roadmap; parked with the mail server).
 
 #### G8. HTTP ingress beyond JSON actions
 
@@ -10912,8 +11277,8 @@ clean address. Reconcilers (edge, DNS) must run at most once per tenant at a tim
 processes.
 
 Status: named processes, capabilities, probes and placement are specified in section 21 (ADR 0025,
-before M4 for the mail listeners); the singleton lease remains a proposal, with ADR 0018 before M3
-(the edge and DNS reconcilers); roadmap.
+before the mail foundations for the mail listeners); the singleton lease remains a proposal, with
+ADR 0018 before M4 (the edge and DNS reconcilers); roadmap.
 
 Proposal for singleton work: a `singleton: true` option holds a lease with a fencing epoch per
 (action, scope) in the control store, so two processes never run the same reconciler for one
@@ -10921,8 +11286,8 @@ tenant, and a draining process hands its leases over (section 21.2). The process
 section 19.1 (`core.process`) already records each process's name, roles, capabilities and the
 singleton lease holders, so ADR 0018 builds on it. Named processes with a start flag, declared and
 probed capabilities, and the capabilities a process advertises are section 21's. With the edge
-configuration applied through the agent (a decision point in section 26.1), no process needs the
-Caddy admin socket.
+configuration applied through the edge node's agent (decision 24a, section 17.3.7), no pennestack
+process needs the Caddy admin socket.
 
 #### G10. Tenant-editable configuration with change events
 
@@ -10941,11 +11306,13 @@ Trash and Junk, archived emails, closed previews (purged after seven days in Lau
 deployment logs, delivery attempts and acknowledged node commands all need one.
 
 Status: specified in section 14.7.1. Rules are adopted by the operator per backend with
-per-tenant overrides; modules suggest defaults (30 days for Trash, Junk and archived mail, 30 days
-for deployment logs, seven days for closed previews, 90 days for delivery attempts); purges remove
-payloads, destroy per-record and blob keys in the same unit and drop projections such as search
-indexes, while the chain keeps tombstones; rules cover stream records and blobs. Retention ships in
-M3 (roadmap).
+per-tenant overrides. Launchway's modules suggest none and keep deployment records, logs, previews
+and effect attempts (decision 47c, 2026-10-27); only runtime artefacts of closed previews and
+superseded deployments are reclaimed (section 17.3.6). The mail modules' suggestions (30 days for
+Trash, Junk and archived mail, 90 days for delivery attempts) wait with the mail server. Purges,
+once a rule is adopted, remove payloads, destroy per-record and blob keys in the same unit and drop
+projections such as search indexes, while the chain keeps tombstones; rules cover stream records
+and blobs. Operator-adopted retention ships in M4 (roadmap).
 
 #### G12. Cross-cutting observers and request metadata
 
@@ -10971,12 +11338,9 @@ Status: specified in section 8.1 and ADR 0005: rule subjects that match action k
 across modules, evaluated at the gate with the usual explanation.
 
 ```ts
-export const readOnlyKeyPolicy = definePolicy(apiKeysBase, { kinds: ['command'] }, [
-  { effect: 'deny', id: 'read-only-key', when: (ctx) => isReadOnlyKey(ctx), reason: 'This API key has the read scope only.' },
-])
-export const appPasswordPolicy = definePolicy(apiKeysBase, { transports: ['imap', 'smtp-submission'] }, [
-  { effect: 'allow', id: 'app-password', when: (ctx) => keyAllowsTransport(ctx) },
-])
+// policies/read-only-key.ts and policies/app-password.ts of @pennestack/module-api-keys: rules over selectors
+export const readOnlyKey = defineRule(apiKeysBase, { kinds: ['command'] }, { effect: 'deny', when: (ctx) => isReadOnlyKey(ctx), reason: 'This API key has the read scope only.' })
+export const appPassword = defineRule(apiKeysBase, { transports: ['imap', 'smtp-submission'] }, { effect: 'allow', when: (ctx) => keyAllowsTransport(ctx) })
 ```
 
 #### G14. Extension-point cardinality and carrier coverage checks
@@ -11043,8 +11407,9 @@ export const displayName = defineVersionChange({
   errors: { 'accounts.display_name_invalid': 'accounts.name_invalid' },
   fixtures: [{ ref: 'accounts.profile.update', older: { id: 'prof_1', name: 'J' }, newer: { id: 'prof_1', displayName: 'J' } }],
 })
-// modules/accounts/src/module.ts: the module literal lists its changes beside the parts they refer to, which checks
-// them; the keys are the change ids the ledger records and never change once released.
+// modules/accounts/src/module.generated.ts: the generated module literal lists its changes (src/versions/) beside the
+// parts they refer to, which checks them; the keys, from the file names, are the change ids the ledger records and never
+// change once released.
 const accountsDef = defineModule(accountsBase, { entityActions: { profile: { update } }, changes: { displayName } })
 
 // apps/portal/src/api-versions.ts
@@ -11105,19 +11470,21 @@ rise. The typed client, the CLI and the Launchway agent also send
 
 ### 18.5 Deprecation, sunset and usage
 
-- `deprecated: { at, sunset? }` marks a version entry, and the action option `deprecated` gains
-  `at` and `sunset`. From `at`, responses carry `Deprecation: @<seconds>` (RFC 9745),
-  `Sunset: <HTTP-date>` (RFC 8594, never before `at`) and a `Link` with `rel="deprecation"`;
-  GraphQL adds `extensions.pennestack.deprecations`, the CLI warns on standard error, live
-  connections get a `notice` frame.
+- `deprecated: { at, sunset? }` marks a version entry (`sunset` is `at` plus 12 months unless it
+  says otherwise, and never earlier), and the action option `deprecated` gains `at` and `sunset`.
+  From `at`, responses carry `Deprecation: @<seconds>` (RFC 9745), `Sunset: <HTTP-date>` (RFC 8594,
+  never before `at`) and a `Link` with `rel="deprecation"`; GraphQL adds
+  `extensions.pennestack.deprecations`, the CLI warns on standard error, live connections get a
+  `notice` frame.
 - Processes count requests per day, backend, tenant, version and transport (per action or field
   for deprecated items) into `core.apiUsage`, read by `pennestack surface usage`.
-- A version stays supported at least 12 months after a newer one exists (decision point 53 of
-  section 26.1). The
-  floor rises when entries leave `defineApiVersions`, which CI accepts only after each removed
-  version's sunset and with a major in the app's changelog. Before that build is deployed,
-  `pennestack surface retire <version>` shows 30 days of usage per tenant, refuses unless it is
-  zero or `--force` carries a logged reason, and records the retirement. A retired version is then
+- Support window (decision 53, 2026-10-28): a version is deprecated the day a newer one exists, its
+  sunset is 12 months later, and after the sunset it is retired regardless of use; there is no
+  zero-use gate and no `--force`. The floor rises when entries leave `defineApiVersions`, which CI
+  accepts only after each removed version's sunset and with a major in the app's changelog (the CI
+  check is unchanged). `pennestack surface retire <version>` records the retirement and refuses only
+  before the sunset. Usage counters stay as information: `pennestack surface usage` shows who still
+  calls a version, so that they can be told before the sunset. A retired version is then
   `not_found`, `core.api_version_retired` (REST 410); tenants and credentials pinned below the
   floor are re-pinned to it by an event.
 - A module or core major never ends a pinned version: the app's next version adopts its changes,
@@ -11141,7 +11508,10 @@ ignore what they do not know; a new major runs beside the old until counters sho
 use. `core.capabilities` (public query, `GET /_pennestack/v1/capabilities`) lists, like a JMAP
 session object, the majors served and the API versions with status and dates; clients declare
 what they use, as JMAP's `using` does, and the server picks the highest common major or answers
-`not_found`, `core.protocol_retired`.
+`not_found`, `core.protocol_retired`. The Launchway agent has no protocol of its own since decision
+23c: it speaks the live carrier's protocol as a typed client pinned to an API version, so its majors
+start at the new protocol, `pennestack.live.v1`, and Launchway v0.3.0's agent protocol v1 is not
+served at all (section 19.7).
 
 ### 18.8 Pipeline stages and errors
 
@@ -11198,13 +11568,13 @@ export interface ProcessRecord {                         // core.process, in the
   readonly protocols: Readonly<Record<string, readonly number[]>>     // 'invocation', 'live', 'sync', module protocols
   readonly apiVersions: Readonly<Record<string, readonly string[]>>   // per app
   readonly state: 'starting' | 'ready' | 'draining' | 'stopped'
-  readonly heartbeatAt: Date                             // every 10 s; presumed gone after 30 s of silence
+  readonly heartbeatAt: Temporal.Instant                             // every 10 s; presumed gone after 30 s of silence
   // section 21.1 adds provider, instance, slots per queue, reserved connections, drain and interruption
 }
 export interface RolloutState {                          // core.rollout, chain-backed: its events are the history
   readonly finalizedRevision: number
   readonly finalizedContent: string                      // hash of the finalized compatibility content
-  readonly target: { readonly revision: number; readonly buildId: string; readonly startedAt: Date } | null
+  readonly target: { readonly revision: number; readonly buildId: string; readonly startedAt: Temporal.Instant } | null
 }
 // defineDeployment({ rollout: { finalize: 'auto' | 'manual', graceSeconds: 600 } }); 'auto' is the default
 ```
@@ -11233,13 +11603,16 @@ takes traffic), the data steps (idempotent, batched backfills) and the contract 
 stored configuration refuse with `conflict`, `core.rollout_not_finalized`, unless the finalized
 revision covers them and no live process is below it. For one process or many:
 
-- a field rename keeps its physical column, recorded in the snapshot (section 14.4.2), so nothing
-  waits (decision point 55 of section 26.1);
+- a field rename is a new column under the new derived name, which the target writes beside the
+  old one (the migration file's `renames` entry) while reading the old one, a backfill
+  (`copyColumn`) after finalization, reads moving to the new column per namespace once its backfill
+  is recorded, and a contract step dropping the old column (decision 55b, 2026-10-28): physical
+  names always equal the derived names, and the snapshot aliases no column;
 - a type change or a split column is a new column that the target writes beside the old one
   (through `downcast`) while reading the old one, a backfill through `upcast` after finalization,
   reads moving to the new column per namespace once its backfill is recorded, and a contract step
-  dropping the old column. This replaces the multi-process procedure that section 14.6.4 had
-  scheduled for M7.
+  dropping the old column. Both replace the multi-process procedure that section 14.6.4 had
+  scheduled for the data-breadth milestone.
 
 ### 19.4 Finalization and rollback
 
@@ -11268,7 +11641,7 @@ back until finalization, and a canary build uses weighted edge routes. On the ho
 17.5.2): start the new container, wait for `/_pennestack/ready`, move the Caddy upstream, drain the
 old one. Two containers cannot publish one host port, so the mail listeners (ports 25, 465, 587,
 993) get their own container, a named process of gap G9, replaced by stop and start within seconds;
-SMTP senders retry and IMAP clients reconnect (decision point 56 of section 26.1).
+SMTP senders retry and IMAP clients reconnect (question 56, parked with the mail server).
 
 Deploying and releasing are separate: new behaviour ships behind a tenant-level release flag, moves
 from canary tenants to a percentage and to everyone
@@ -11278,11 +11651,13 @@ leaves the code when the stale report asks.
 ### 19.7 Sync and agent protocols
 
 `sync.register` records the client's API version and sync major; push and pull run at the
-session's version; a cursor of an older format gets `reset: 'shapes'`. The Launchway agent's `hello`
-carries `protocol` and `agentVersion`, and `hello.ok` names the protocol spoken, or `error` carries
-`core.protocol_retired` with the oldest accepted major; `nodes.node` records both. The v1 transport
-goes after 30 days without a v1 connection (decision point 23 of section 26.1); v2 agents are typed
-clients pinned to an API version.
+session's version; a cursor of an older format gets `reset: 'shapes'`. The Launchway agent has no
+protocol of its own (decision 23c, 2026-10-26): it is a typed client pinned to an API version over
+the live carrier, so its compatibility is the app's dated API version and the carrier's major
+(`pennestack.live.v1`, section 18.7), and `nodes.node.connect` records its `agentVersion` and
+`apiVersion`. Launchway v0.3.0's agent protocol v1 is not served: the cutover redeploys every agent
+together with the new UI, and the old installation stays as the rollback until the new one is
+verified (roadmap M4).
 
 ### 19.8 Backends and tenants
 
@@ -11458,8 +11833,8 @@ switches and permission flags never go stale by age.
 New framework commands: `pennestack surface diff|version new|usage|retire` (project; `usage` and
 `retire` on the operator socket), `pennestack rollout status|finalize|abort` (operator socket) and
 `pennestack flags list|get|set|history|explain|stale` (aliases of `core.flag` actions for
-operators). `surface`, `rollout` and `flags` join the reserved names of section 16.9.3;
-`pennestack experiments ...` are the module's action commands.
+operators). `surface`, `rollout` and `flags` are framework commands that reserve no module id
+(section 16.9.3); the module's actions run as `pennestack call experiments...`.
 
 ### 20.10 Backends and tenants
 
@@ -11500,8 +11875,8 @@ export interface ProcessRecord {                      // core.process: the field
   readonly instance: string | null                    // the provider's handle
   readonly slots: Readonly<Record<string, { readonly total: number; readonly busy: number }>>   // per queue
   readonly connections: Readonly<Record<string, number>>                                       // pool reserved per placement
-  readonly drain: { readonly deadline: Date; readonly reason: string } | null
-  readonly interruption: Date | null                  // a provider's termination notice
+  readonly drain: { readonly deadline: Temporal.Instant; readonly reason: string } | null
+  readonly interruption: Temporal.Instant | null                  // a provider's termination notice
 }
 export interface NodeRecord {                         // core.node, deployment scope
   readonly id: string                                 // --node, PENNESTACK_NODE, the provider's, else the machine id
@@ -11510,7 +11885,7 @@ export interface NodeRecord {                         // core.node, deployment s
   readonly capabilities: readonly string[]            // probed on the host
   readonly maxProcesses: number
   readonly state: 'active' | 'cordoned' | 'draining' | 'gone'   // gone: no heartbeat for 5 minutes
-  readonly seenAt: Date
+  readonly seenAt: Temporal.Instant
 }
 ```
 
@@ -11561,7 +11936,7 @@ export interface WorkClassStats {                     // JobQueue.stats per queu
   readonly arrivalsPerSecond: number                  // smoothed over a minute
   readonly meanRunSeconds: number
   readonly running: number
-  readonly nextDueAt: Date | null
+  readonly nextDueAt: Temporal.Instant | null
   readonly sloSeconds: number                         // queues.<q>.slo (an ISO 8601 duration, default 'PT30S') in seconds: target wait from due to start
 }
 export interface ScaleLimits {                        // processes.<name>.scale
@@ -11573,7 +11948,7 @@ export interface ScaleLimits {                        // processes.<name>.scale
   readonly tolerance?: number                         // default 0.1
   readonly activationLead?: string                    // default '60s'
 }
-export declare function plan(inputs: ScalerInputs, scaling: DeploymentScaling, at: Date): ScalePlan   // scaling: maxProcesses, maxCostPerHour, per provider
+export declare function plan(inputs: ScalerInputs, scaling: DeploymentScaling, at: Temporal.Instant): ScalePlan   // scaling: maxProcesses, maxCostPerHour, per provider
 // ScalerInputs: class stats, named processes, provider offers, placements, recent decisions
 ```
 
@@ -11597,7 +11972,9 @@ export declare function plan(inputs: ScalerInputs, scaling: DeploymentScaling, a
 
 With `min: 0` a named process reaches zero after a down window without work and starts again for
 work due within the activation lead. With the static provider the plan is a recommendation in
-`pennestack fleet scale status`; when automatic scaling ships is decision point 63.
+`pennestack fleet scale status`; the scaler with the static provider ships with Launchway's rebuild
+in M4 and the opt-in docker provider one milestone later, in M5 (decision 63a), while a Kubernetes
+provider stays a named later milestone of the roadmap.
 
 ### 21.5 Node providers
 
@@ -11610,7 +11987,7 @@ export interface NodeProvider {
   offer(): Promise<ProviderOffer>                     // what it can start, its maximums, cost per process hour, startup time
   list(signal: AbortSignal): Promise<readonly ProviderInstance[]>   // { instance, node, process, state }: reconciliation after failover
   start(request: { readonly requestId: string; readonly process: string; readonly build: { readonly id: string; readonly revision: number } }, signal: AbortSignal): Promise<ProviderInstance>   // idempotent by request id
-  stop(instance: string, options: { readonly deadline: Date; readonly reason: string }, signal: AbortSignal): Promise<void>   // SIGTERM, removal after the deadline
+  stop(instance: string, options: { readonly deadline: Temporal.Instant; readonly reason: string }, signal: AbortSignal): Promise<void>   // SIGTERM, removal after the deadline
 }
 ```
 
@@ -11657,10 +12034,11 @@ export interface NodeProvider {
 
 ### 21.8 The Launchway agent in this model
 
-- The agent is not a pennestack node but the separate program of section 17.3.4, a client of the
-  agent-protocol transport (decision point 23). It runs the builds; pennestack runs the dispatch
+- The agent is not a pennestack node but the separate program of section 17.3.4, a typed client of
+  the live carrier and the generated interfaces (decision 23c: a clean break with protocol v1). It
+  runs the builds and performs `agentCommand` and `edge.apply` effects; pennestack runs the dispatch
   reaction keyed by project and its timers (section 17.3.5).
-- A Launchway node is tenant data running tenant code (decision point 25); a pennestack node holds
+- A Launchway node is tenant data running tenant code (decision 25a); a pennestack node holds
   database credentials and the master key of every tenant on its placements, so no tenant may run or
   host one. A docker provider and the agent may share an engine, never an identity. Launchway's
   `nodes` module keeps its id; the framework's command group is `fleet` (decision point 62).
@@ -11674,8 +12052,9 @@ export interface NodeProvider {
 | `pennestack fleet scale status\|explain\|history\|set\|pause\|resume` | desired and current per named process, the last plan, decisions, runtime limits within the deployment's |
 | `pennestack jobs stats\|lanes\|list\|explain\|replay\|discard\|pause\|resume` | statistics per queue and capability set, the busiest lanes, why a job waits, dead letters, pausing a queue |
 
-`fleet` joins the reserved names of section 16.9.3 (34 names; decision point 62); `jobs` is reserved
-already.
+`fleet` is the name of the framework's command group (decision 62a); because action commands sit
+under `pennestack call` (decision 16b), it reserves no module id, and Launchway's `nodes` module
+keeps its id (section 16.9.3).
 
 ```
 $ pennestack fleet scale explain worker
@@ -11712,65 +12091,79 @@ attribute, `tenant` only where a backend opts in.
 ```
 pennestack/
   README.md
-  docs/                      brief, architecture (this document), roadmap, adr/, research/, api-sketch.ts
+  LICENSE.md                 FSL-1.1-ALv2, Licensor Jens Penneman, present from the first commit (decision 20)
+  docs/                      brief, architecture (this document), decision register, roadmap, adr/, research/, api-sketch.ts
   packages/
     core/                    @pennestack/core: DSL, registry, invoker and sessions, authorization, condition AST, errors,
                              field model, surface derivation, kernel write path with the effect interpreter (section 7.9),
-                             key service, computation pool, job queue, core module, subpaths /wire (dependency-free codecs
-                             for clients), /ledger (the file ledger sink) and /crypto (pure primitives: sha256, hmacSha256,
-                             timingSafeEqual)
+                             key service, computation pool, job queue, core module, the module-manifest generator
+                             (section 23.5), subpaths /wire (dependency-free codecs for clients), /ledger (the file ledger
+                             sink) and /crypto (pure primitives: sha256, hmacSha256, timingSafeEqual)
     data/                    @pennestack/data: the Kysely SQL family, migration planner with tracks, introspection,
-                             the in-memory and PGlite adapters, the adapter conformance kit
+                             the in-memory and PGlite adapters, the kernel's fallbacks for absent capabilities
+                             (section 14.3.3), the adapter conformance kit
     adapter-postgres/        @pennestack/adapter-postgres
-    adapter-mysql/           @pennestack/adapter-mysql (M7)
-    adapter-sqlite/          @pennestack/adapter-sqlite (M7)
-    adapter-supabase/        @pennestack/adapter-supabase (M7): the PostgreSQL adapter with a preset
+    adapter-mysql/           @pennestack/adapter-mysql (M5)
+    adapter-sqlite/          @pennestack/adapter-sqlite (M5)
+    adapter-supabase/        @pennestack/adapter-supabase (M5): the PostgreSQL adapter with a preset
     events/                  @pennestack/events: consumers (projections, the reaction dispatcher), retention and erasure
-                             workers, process managers, the `sync` module (M8)
+                             workers, process managers, the `sync` module (M6)
     live/                    @pennestack/live: live hub, SSE and WebSocket carriers, watch generator, pokes, tickets
     transport-http/          @pennestack/transport-http: the HTTP host, the invocation protocol, the operator socket
     transport-rest/          @pennestack/transport-rest: REST projection, OpenAPI emitter, problem details
-    transport-graphql/       @pennestack/transport-graphql: schema derivation, Yoga, subscriptions
+    transport-graphql/       @pennestack/transport-graphql: schema derivation, Yoga, subscriptions, own operation limits
     transport-trpc/          @pennestack/transport-trpc: runtime router, TrpcRouterOf<App>
+    transport-orpc/          @pennestack/transport-orpc (M2, decision 15b): runtime router, OrpcRouterOf<App>, the optional
+                             OpenAPI handler for comparison (section 16.7.7)
     transport-webhooks/      @pennestack/transport-webhooks: receivers (gap G8)
-    transport-jmap/          @pennestack/transport-jmap (M5)
+    transport-jmap/          @pennestack/transport-jmap (mail, parked)
     client/                  @pennestack/client: AppClient, remote client, SSE and WebSocket clients
     cli/                     @pennestack/cli: the `pennestack` binary and the CLI manifest artefact
-    blobs-fs/                @pennestack/blobs-fs (M4); blobs-s3 later
-    provider-docker/         @pennestack/provider-docker (M5): the opt-in docker node provider (section 21.5)
+    blobs-fs/                @pennestack/blobs-fs (M4: long deployment logs, decision 47c); blobs-s3 later
+    provider-docker/         @pennestack/provider-docker (M5, one milestone after the scaler, decision 63a): the opt-in
+                             docker node provider (section 21.5)
     crdt-loro/               @pennestack/crdt-loro: the Loro codec, with the first app that declares a collaborative field
-    sync-client/             @pennestack/sync-client (M8)
+    sync-client/             @pennestack/sync-client (M6)
     module-accounts/         @pennestack/module-accounts
     module-auth/             @pennestack/module-auth
     module-api-keys/         @pennestack/module-api-keys
     module-members/          @pennestack/module-members
     module-audit/            @pennestack/module-audit
     module-dns/              @pennestack/module-dns, with dns-cloudflare/ and dns-manual/
-    module-certificates/     @pennestack/module-certificates (M4)
-    module-experiments/      @pennestack/module-experiments (after M3, section 20.8)
+    module-edge/             @pennestack/module-edge (M4, decision 82a): the desired state of an edge and its providers,
+                             with edge-caddy/ (@pennestack/edge-caddy, the first provider; section 17.3.7)
+    module-outbound-webhooks/ @pennestack/module-outbound-webhooks (M4, decision 49a): Standard Webhooks deliveries
+                             (section 16.13)
+    module-certificates/     @pennestack/module-certificates (mail, parked)
+    module-experiments/      @pennestack/module-experiments (after M4, section 20.8)
     testing/                 @pennestack/testing: harness, local client, policy matchers, conformance suites, type helpers,
                              `drive` for pure handlers with answers as data (section 7.9.6)
     biome-config/            @pennestack/biome-config: the Biome preset, the GritQL plugins and their fixtures
   examples/
-    portal/                  the accounts and authentication app of the M1 slice (roadmap.md)
-    launchway/               the deployment platform app; its modules are packages in modules/<id>/
-    mail/                    the mail server app; its modules are packages in modules/<id>/
+    portal/                  the accounts and authentication app of the M1 slice (roadmap.md), this repository's CI fixture
   spikes/                    throwaway verifications (the type-model spike, the write-path measurement, the Connect descriptor spike)
   biome.json  knip.json  pnpm-workspace.yaml  tsconfig.base.json  tsconfig.json  package.json
 ```
 
-Later packages: `transport-static`, `transport-connect`, `module-outbound-webhooks`, `blobs-s3`, a
-Kubernetes node provider and cloud providers, and possibly `transport-orpc` and `queue-pg` (a
-pg-boss queue behind `JobQueue`). Milestones refer to [roadmap.md](roadmap.md); packages without one
-belong to M0 to M3.
+Applications live elsewhere (decision 48c, 2026-10-27): every app built on pennestack has its own
+repository in the layout of section 23.1 and depends only on the published `@pennestack/*`
+packages, never on this repository. Trail's backend is rebuilt in the Trail repository (roadmap
+M3), Launchway's in the Launchway repository (M4), and the mail server gets a repository of its own
+when Jens unparks it; their modules are packages there, under their own scopes (`@launchway/...`).
+Nothing is sequential: the apps are rebuilt while the framework grows, on 0.x pre-releases pinned to
+exact versions.
+
+Later packages: `transport-static`, `transport-connect`, `blobs-s3`, a Kubernetes node provider and
+cloud providers, and possibly `queue-pg` (a pg-boss queue behind `JobQueue`). Milestones refer to
+[roadmap.md](roadmap.md); packages without one belong to M0 to M4.
 
 Rules:
 
 - pnpm workspace with TypeScript project references; `tsc -b` builds the graph; every package
-  compiles alone with the options of section 13.3. The workspace lists `packages/*`, `examples/*`
-  and `examples/*/modules/*`.
-- Inside packages, files follow section 23: module packages (`module-*`, and the modules of the
-  examples) have the module layout of section 23.2 with `src/module.ts` as their entry; library
+  compiles alone with the options of section 13.3. The workspace lists `packages/*` and
+  `examples/*`.
+- Inside packages, files follow section 23: module packages (`module-*`, and the example's modules)
+  have the module layout of section 23.2 with `src/module.generated.ts` as their entry; library
   packages have curated entry files of named re-exports (section 23.3); section 23.9 shows the
   framework's packages.
 - The dependency graph between packages is a DAG: `core` depends on nothing in the workspace;
@@ -11779,22 +12172,34 @@ Rules:
   depends on `core`'s types and its `wire` subpath; `cli` depends on `core`, `data` and `client`;
   examples depend on everything they select; `testing` depends on `core`, `data` and `client`.
 - Every exported module and app value has a named type (section 13.11).
-- The repository is private on GitHub (JensPenneman/pennestack) until Jens approves this
-  architecture; it becomes public after that approval, published under the `@pennestack` scope.
-  Every commit is signed with the author's personal identity; a `CONTRIBUTING.md` states both. The
-  licence is decision point 20 for Jens (section 26.1).
+- The baseline is the latest major of TypeScript and of Node (decision 28a): every package declares
+  `"engines": { "node": ">=26" }`, CI runs on Node 26 only, and the deployment image is built on a
+  Node 26 base image (section 13.2).
+- Publication (decisions 20, 83 and 85): the code and the design documents may be public on GitHub
+  (JensPenneman/pennestack) from the start, at a moment Jens chooses, with the licence in every
+  commit (the history is rewritten so that `LICENSE.md` exists from the first commit). Every commit
+  is signed with the author's personal identity; a `CONTRIBUTING.md` states it, and that outside
+  contributions wait for a lawyer-reviewed contributor licence agreement (issues and discussions are
+  welcome). The licence is FSL-1.1-ALv2 (Functional Source License, Version 1.1, Apache-2.0 Future
+  License), Licensor Jens Penneman, also for the platforms and later modules (decision 87).
+- Beta (decision 48c): the framework and every app stay in beta until Jens, and only Jens, declares
+  them stable. Packages are published as 0.x pre-releases, which an app pins to exact versions, so
+  an upgrade is always a deliberate change in the app's repository (roadmap section 1).
 - One `CHANGELOG.md` per package, kept by the release tooling; semantic versions; the `core`
   package's public types are a compatibility contract.
-- Examples are the integration tests: CI boots both apps against PostgreSQL (and the in-memory
-  adapter for fast suites; MySQL and SQLite from M7), runs the adversarial isolation suite, the
-  transport conformance suite, the dual-evaluation authorization suite, `generate --check`,
-  `db check`, the declaration-emit checks and the instantiation budgets (section 13.8).
+- The example is the integration test here: CI boots the portal app against PostgreSQL (and the
+  in-memory adapter for fast suites; MySQL and SQLite from M5), runs the adversarial isolation
+  suite, the transport conformance suite, the dual-evaluation authorization suite, `generate
+  --check`, `db check`, the declaration-emit checks and the instantiation budgets (section 13.8);
+  each platform's repository runs the same suites on its app against the published packages.
 
 ## 23. Project layout and the single-purpose rule
 
 Every file in a pennestack project defines one thing and is named after it; every module is a
-package; and a module's parts become the module value through explicit imports, never through
-discovery. It specifies the layouts, the rule, the assembly of parts with exact types, and the
+package; and a module's parts become the module value through a generated manifest,
+`module.generated.ts`, which the generator writes from the directory conventions and `tsc` checks
+like any source (decision 59b, 2026-10-28), never through discovery at runtime. It specifies the
+layouts, the rule, the assembly of parts with exact types, and the
 tooling that keeps them, refining sections 4.1, 13.5 and 16.9.8.
 [ADR 0024](adr/0024-project-layout-and-single-purpose-files.md) records the decisions and
 [research/project-layout.md](research/project-layout.md) the evidence.
@@ -11810,7 +12215,7 @@ my-platform/
     src/api-versions.ts             defineApiVersions, when the app versions its API
     src/actions/<action>.ts         app-level actions, one per file
     src/flags/<flag>.ts             app-level flags
-    src/policies/<target>.ts        rules the app adds
+    src/policies/<rule>.ts          rules the app adds, one per file
     src/versions/<change>.ts        version changes of app-level actions
     src/app.test-d.ts               ExpectValidApp, HasEntity and HasAction assertions
     src/pennestack.generated.ts     generated, committed (section 13.7)
@@ -11826,9 +12231,10 @@ my-platform/
 - The workspace lists `apps/*` and `modules/*`. Every package has the manifests of sections 13.3
   and 13.4 and references the packages it imports, so `tsc -b` enforces the module graph of
   section 5.2.
-- A module is a package wherever it lives: `modules/<id>/` in a project, `packages/module-<id>/`
-  in a shared repository, `examples/<app>/modules/<id>/` here. Moving it changes its package name
-  and nothing inside it.
+- A module is a package wherever it lives: `modules/<id>/` in an application repository,
+  `packages/module-<id>/` here and in any shared repository. Moving it changes its package name and
+  nothing inside it. Every application has its own repository and depends only on the published
+  packages (decision 48c).
 
 ### 23.2 Module layout
 
@@ -11836,12 +12242,12 @@ The tree shows `auth` where it has a part and a placeholder where it has none:
 
 ```
 module-auth/
-  package.json                      exports "." to src/module.ts (source condition) and dist/module.js
+  package.json                      exports "." to src/module.generated.ts (source condition) and dist/module.generated.js
   tsconfig.json  tsconfig.test.json
   migrations/own/  to-accounts/  when-accounts/    tracks with snapshot.json and NNNN-<name>.ts (section 14.6.1)
   src/
     base.ts                         the declaration; exports authBase and type AuthBase
-    module.ts                       the assembly; exports auth and type Auth; the package entry
+    module.generated.ts             the generated manifest: the module literal; exports auth and type Auth; the package entry
     module.test-d.ts                toggle type tests (section 13.10)
     config.ts                       shape({ sessionIdleMinutes, ... })
     entities/credential.ts          defineEntity: fields, relations, indexes, domain events with evolve, invariant
@@ -11854,7 +12260,9 @@ module-auth/
     lib/add-minutes.ts              one pure function; no node:* import (Argon2id is ctx.compute, section 7.9.3)
     actions/login.ts  logout.ts  revoke-subject.ts     module-level actions
     actions/credential/revoke.ts    an action mounted on credential
-    policies/credential.ts  login.ts                   the rules over one entity or one module-level action
+    policies/credential/self.ts  self-revoke.ts  already-revoked.ts   one rule per file over one entity (auth.credential.self)
+    policies/login/open.ts          a rule over one module-level action
+    policies/public-actions.ts      a rule over several module-level actions (auth.public-actions)
     reactions/<reaction>.ts         one reaction or process manager
     services/verify-password.ts     a service offered to dependants
     schedules/<action>.ts           the schedule of one action
@@ -11867,13 +12275,13 @@ module-auth/
     contributions/to-accounts/
       contribution.ts               the target and the fields and relations added to accounts.profile
       actions/profile/change-password.ts
-      policies/profile.ts
+      policies/profile/self.ts      auth.accounts.profile.self
       fills/identity-providers.ts
     conditional/when-accounts/
       condition.ts                  credential.profileId while accounts is selected
       reactions/revoke-on-deactivation.ts  record-login.ts
     conditional/when-live/
-      condition.ts  actions/session-events.ts  policies/session-events.ts
+      condition.ts  actions/session-events.ts  policies/session-events/signed-in.ts
   test/alone.test.ts  with-accounts.test.ts
   README.md  CHANGELOG.md
 ```
@@ -11883,8 +12291,11 @@ module-auth/
   names share one namespace per module (section 5.1).
 - Domain events stay in their entity's file: `evolve` is typed by the row, and the chain's shape is
   reviewed as one definition. Event data that other parts use goes to `shapes/`.
-- A policy file holds every rule over one target, an entity or a module-level action, so allows and
-  denies are reviewed together (decision point 60 of section 26.1).
+- A rule is a file (decision 60b, 2026-10-28): `policies/<target>/<rule>.ts` for a rule over one
+  entity or one module-level action, whose file name is the last segment of the rule id
+  (`auth.credential.self`), and `policies/<rule>.ts` for a rule over several actions or a selector.
+  The rules over one target are the files of one directory, read together in review, and the
+  generated manifest merges them as a set, whose order means nothing (section 8.2).
 - `src/lib/` stays pure. Imperative code sits only under `src/executors/`: an executor per effect,
   named after it, and its helpers in `src/executors/lib/`, the only place a module may import
   `node:*` modules or HTTP and SMTP clients (sections 7.9.6 and 13.9).
@@ -11905,8 +12316,9 @@ A source file has one purpose when:
 Forbidden in every package: files that re-export (barrels), `export * from`, `import * as`,
 exporting an imported binding, and default exports. Exceptions, each with its reason:
 
-- Assembly files (`base.ts`, `module.ts`, `app.ts`, `modules.ts`) import many parts and export a
-  value with its named type (section 4.1); they hold no function bodies.
+- Assembly files (`base.ts`, `app.ts`, `modules.ts`, and the generated `module.generated.ts`)
+  import many parts and export a value with its named type (section 4.1); they hold no function
+  bodies.
 - Role files (`config.ts`, `contribution.ts`, `condition.ts`, and `adapter.ts` or `listener.ts`
   in transport and listener modules) are named by role, because their directory is their identity.
 - The entry files of a framework library package (`src/index.ts`, subpath entries such as
@@ -11926,16 +12338,18 @@ exporting an imported binding, and default exports. Exceptions, each with its re
   function of section 16.4.1: `changePassword` lives in `change-password.ts`, also its CLI route
   and REST path segment. Identifiers are camelCase without consecutive capitals, so the mapping
   reads back.
-- Assembly and role files take their export's name from their directory: `module.ts` of
+- Assembly and role files take their export's name from their directory: `module.generated.ts` of
   `mail-store` exports `mailStore` with type `MailStore`, `base.ts` exports `mailStoreBase` with
   type `MailStoreBase`, `contribution.ts` in `to-accounts/` exports `toAccounts`, `condition.ts` in
   `when-accounts/` exports `whenAccounts`, `app.ts` the app id in camel case, `modules.ts`
   `modules`, `config.ts` `config`.
 - A file that attaches something to another part is named after that part, and its export adds
-  the kind, because the plain name belongs to the target: `policies/profile.ts` exports
-  `profilePolicy`, `schedules/poll-releases.ts` exports `pollReleasesSchedule` (an entity action's
-  schedule is `<entity>-<action>.ts`), `fills/identity-providers.ts` exports
-  `identityProvidersFill`. A policy over a selector is named after its rule id.
+  the kind, because the plain name belongs to the target: `schedules/poll-releases.ts` exports
+  `pollReleasesSchedule` (an entity action's schedule is `<entity>-<action>.ts`),
+  `fills/identity-providers.ts` exports `identityProvidersFill`. A rule is named after itself in the
+  directory of its target: `policies/credential/already-revoked.ts` exports `alreadyRevoked`, and a
+  rule over several actions or over a selector sits in `policies/` under its own name
+  (`policies/read-only-key.ts` exports `readOnlyKey`).
 - Error codes are the module id and the export's snake case: `errors/email-taken.ts` exports
   `emailTaken` with code `accounts.email_taken`.
 - Entity action directories carry the entity's kebab name. Contribution directories are
@@ -11952,17 +12366,21 @@ systems. The cost: Biome 2.5.15 cannot check a file's link to its export; the la
 
 ### 23.5 Assembly
 
-From file-based frameworks pennestack keeps one idea, a part's path mirroring its reference
-(`actions/credential/revoke.ts` is `auth.credential.revoke`), and drops discovery, reserved file
-names and private folders: a file counts only when mounted. A module is assembled in two files,
-both object literals (section 4.1):
+From file-based frameworks pennestack keeps the idea that a part's path is its reference
+(`actions/credential/revoke.ts` is `auth.credential.revoke`), and since decision 59b (2026-10-28)
+it keeps their generated manifest as well, without discovery at runtime, reserved file names or
+private folders. A module is assembled from two files, both object literals (section 4.1), one
+written by hand and one by the generator:
 
 - `base.ts` holds the module base, `defineModuleBase({ id, version, requires, optional, provides,
-  config, data, extensionPoints, entities, streams, flags, contributions, conditions })`. Every type
-  a part needs exists once the base does.
-- `module.ts` holds the module literal, `defineModule(base, { actions, entityActions, policies,
-  reactions, services, topics, contributes, conditional, schedules, lifecycle, changes, effects,
-  executors })`, which mounts the behaviour parts.
+  config, data, extensionPoints, entities, streams, flags, contributions, conditions })`, written by
+  hand. Every type a part needs exists once the base does.
+- `module.generated.ts` holds the module literal, `defineModule(base, { actions, entityActions,
+  policies, reactions, services, topics, contributes, conditional, schedules, lifecycle, changes,
+  effects, executors })`, which `pennestack generate` writes from the directory conventions and the
+  dev server rewrites on every file change (section 13.6). It is still a literal (decision 3b
+  holds), only written by a tool: committed, checked by `generate --check` in CI, never edited, and
+  nothing in a module needs registering by hand.
 
 ```ts
 // modules/auth/src/base.ts
@@ -11990,7 +12408,7 @@ export const authBase: AuthBase = authBaseDef
 ```
 
 ```ts
-// modules/auth/src/actions/credential/revoke.ts
+// modules/auth/src/actions/credential/revoke.ts: the action auth.credential.revoke, by its path
 import { defineCommand, field, shape } from '@pennestack/core'
 import { authBase } from '../../base.ts'
 import { credential } from '../../entities/credential.ts'
@@ -12008,7 +12426,8 @@ export const revoke = defineCommand(authBase, credential, {
 ```
 
 ```ts
-// modules/auth/src/module.ts (excerpt)
+// modules/auth/src/module.generated.ts (excerpt), as the generator writes it
+// Generated by pennestack 0.1.0 from the directories of src/. Do not edit. Format pennestack.module/1.
 import { defineModule, type ModuleType } from '@pennestack/core'
 import { revoke } from './actions/credential/revoke.ts'
 import { login } from './actions/login.ts'
@@ -12017,17 +12436,19 @@ import { authBase } from './base.ts'
 import { revokeOnDeactivation } from './conditional/when-accounts/reactions/revoke-on-deactivation.ts'
 import { changePassword } from './contributions/to-accounts/actions/profile/change-password.ts'
 import { identityProvidersFill } from './contributions/to-accounts/fills/identity-providers.ts'
-import { profilePolicy } from './contributions/to-accounts/policies/profile.ts'
-import { credentialPolicy } from './policies/credential.ts'
+import { self as accountsProfileSelf } from './contributions/to-accounts/policies/profile/self.ts'
+import { alreadyRevoked } from './policies/credential/already-revoked.ts'
+import { selfRevoke } from './policies/credential/self-revoke.ts'
+import { self as credentialSelf } from './policies/credential/self.ts'
 
 const authDef = defineModule(authBase, {
   actions: { login, revokeSubject },
   entityActions: { credential: { revoke } },
-  policies: [credentialPolicy],
+  policies: { credential: { self: credentialSelf, selfRevoke, alreadyRevoked } },
   contributes: {
     toAccounts: {                              // the behaviour of the contribution the base declares under this key
       entityActions: { profile: { changePassword } },
-      policies: [profilePolicy],
+      policies: { profile: { self: accountsProfileSelf } },
       extensionPoints: { identityProviders: identityProvidersFill },
     },
   },
@@ -12038,38 +12459,74 @@ export interface Auth extends ModuleType<typeof authDef> {}
 export const auth: Auth = authDef
 ```
 
+The conventions the generator reads, relative to `src/`:
+
+| Path | Mounted as |
+|---|---|
+| `actions/<action>.ts` | `actions.<action>`: a module-level action, reference `<module>.<action>` |
+| `actions/<entity>/<action>.ts` | `entityActions.<entity>.<action>`: reference `<module>.<entity>.<action>` |
+| `policies/<target>/<rule>.ts`, `policies/<rule>.ts` | `policies.<target>.<rule>`, `policies.<rule>`: the rule ids of section 4.4 |
+| `reactions/<reaction>.ts`, `schedules/<name>.ts`, `services/<service>.ts`, `topics/<topic>.ts`, `lifecycle/<hook>.ts`, `versions/<change>.ts` | `reactions`, `schedules`, `services`, `topics`, `lifecycle` and `changes`, keyed by the file name in camel case |
+| `effects/<effect>.ts`, `executors/<effect>.ts` | `effects.<effect>`, `executors.<effect>`, keyed by the effect name |
+| `contributions/<declaration>/...`, `conditional/<declaration>/...` | the same conventions inside, under `contributes.<key>` and `conditional.<key>`, the key being the declaration's export (`toAccounts`, `whenAccounts`); `fills/<point>.ts` mounts as `extensionPoints.<point>` |
+
+Each file's export follows from its file name (section 23.4: the camel-case name, plus the kind for
+a file that attaches something to another part, such as `pollReleasesSchedule` or
+`identityProvidersFill`), so the generator reads names and paths and imports nothing: it runs in
+milliseconds, before the dev server's probe. Name clashes
+between parts of one module (`self` over two targets) get import aliases that the generator writes;
+aliases appear nowhere else. Transport and listener modules declared with the sugar of gap G1
+(`defineListenerModule`, a declaration that holds its role file `listener.ts` or `adapter.ts` and
+has no parts to mount) keep a hand-written `src/module.ts` as their entry; every module with parts
+uses the generated manifest.
+
 The part functions of section 4.1 (`defineCommand`, `defineQuery`, `defineSubscription`,
-`definePolicy`, `defineReaction`, `defineProcess`, `defineService`, `defineFill`, `defineSchedule`,
+`defineRule`, `defineReaction`, `defineProcess`, `defineService`, `defineFill`, `defineSchedule`,
 `defineTopic`, `defineHook`, `defineEffect`, `defineEffectExecutor`) take the base as their first
 argument, or `within(base, declaration)` for parts inside a contribution or conditional part; an
-executor takes its effect as the second. At runtime they return plain objects. An
-app's own parts take the selection instead, `defineQuery(modules, { ... })`. Version changes and
-flags (`defineVersionChange`, `defineFlag`) need no base.
+executor takes its effect as the second. At runtime they return plain objects. An app's own parts
+take the selection instead, `defineQuery(modules, { ... })`, and are mounted by hand in `app.ts`,
+which also holds the app's configuration. Version changes and flags (`defineVersionChange`,
+`defineFlag`) need no base.
 
 An action file exports one action part: the definition literal, whose type also records the base
 it was built against and its mount (module level, an own entity, or inside a contribution or
 condition). The module literal accepts a part only where both match: `entityActions: { credential:
-{ revoke } }` rejects a part built for `session` or against another module's base. The literal's
-type adds every part's input, output, errors and events, so `Auth` equals the type of the same
-module written in one file. `defineModule` records each part's reference, so the registry resolves
-a part value to `auth.credential.revoke`.
+{ revoke } }` rejects a part built for `session` or against another module's base, so a part file in
+the wrong directory fails to compile in the generated manifest, and the layout pass names the move.
+The literal's type adds every part's input, output, errors and events, so `Auth` equals the type of
+the same module written in one file. `defineModule` records each part's reference, so the registry
+resolves a part value to `auth.credential.revoke`.
 
-| Part | Mounted by |
+| Part | Declared or mounted by |
 |---|---|
-| config, data needs, extension points | `config`, `data`, `extensionPoints` of the base |
+| config, data needs, extension points | `config`, `data`, `extensionPoints` of the hand-written base |
 | entities, streams, flags | `entities: {...}`, `streams: {...}`, `flags: {...}` of the base |
 | `contribution.ts`, `condition.ts` | `contributions: {...}`, `conditions: {...}` of the base, under the declaration's name |
-| actions | `actions: {...}`, `entityActions: { <entity>: {...} }` of the module literal |
-| policies | `policies: [...]` |
-| reactions, schedules, services, topics, hooks, version changes | `reactions: {...}`, `schedules: {...}`, `services: {...}`, `topics: {...}`, `lifecycle: {...}`, `changes: {...}` |
-| effects, executors | `effects: {...}`, `executors: {...}` of the module literal, keyed by effect name; effects are parts typed against the base, so the base does not list them (section 7.9.5) |
-| behaviour of a contribution or condition | `contributes: { toAccounts: {...} }`, `conditional: { whenAccounts: {...} }`, under the base's key |
+| actions | the generated `actions` and `entityActions` |
+| rules | the generated `policies`, by target and rule |
+| reactions, schedules, services, topics, hooks, version changes | the generated `reactions`, `schedules`, `services`, `topics`, `lifecycle`, `changes` |
+| effects, executors | the generated `effects` and `executors`, keyed by effect name; effects are parts typed against the base, so the base does not list them (section 7.9.5) |
+| behaviour of a contribution or condition | the generated `contributes.<key>` and `conditional.<key>`, under the base's key |
 
-Object keys are ids: entity and action names (renaming one is an API change), the reaction id
-that idempotency uses (section 7.7), the schedule id, the version change id the API ledger
-records, and the effect name that effect records carry (section 7.9.6); the last four never change
-once released. Name clashes in `module.ts` (two entities
-with a `revoke` action) are resolved with an import alias, the only place aliases are allowed.
+Object keys are ids, and in the generated manifest every key is a file or directory name: entity
+and action names (renaming or moving the file is an API change), the reaction id that idempotency
+uses (section 7.7), the schedule id, the version change id the API ledger records, the effect name
+that effect records carry (section 7.9.6) and the rule id. Reaction, schedule, version-change and
+effect ids never change once released, so their files never move.
+
+The trade-offs Jens accepted with decision 59b, and how the tooling bounds them:
+
+- **A generator in the type path.** The dev server rewrites a manifest within the cycle of the
+  change, before the type checker sees the new file (section 13.6), and CI fails on any drift, so
+  the editor, `tsc` and CI agree; outside the dev server, `pennestack generate` refreshes the
+  manifests. Principle 10 states the rule.
+- **A file's path decides its reference.** Moving or renaming a part file changes its reference,
+  and for an action that is an API change: `pennestack surface diff` reports it as breaking
+  (section 18.6), so it ships only with a new API version and its version change. The reference
+  stays reviewable, because it is the path.
+- **A new part is outside the types until the generator runs.** The dev server closes the gap on
+  save; in CI and in a fresh clone the committed manifest is current, or `generate --check` fails.
 
 Typing parts against the base means:
 
@@ -12082,15 +12539,15 @@ Typing parts against the base means:
   `flags/`, `extension-points/`, `errors/`, `shapes/`, `contribution.ts`, `condition.ts`) import
   neither `base.ts` nor parts, `lib/` imports no part, an executor imports its effect and
   `executors/lib/` while nothing outside `src/executors/` imports an executor, and only tests import
-  `module.ts`.
+  `module.generated.ts`.
 - Parts depend on the base, not on the module type, so editing one re-checks it, its importers and
-  `module.ts`. The type-model spike measures the cost (roadmap M0).
+  the manifest. The type-model spike measures the cost (roadmap M0).
 
-The alternative was a `module.generated.ts` that `pennestack generate` writes from the directory
-conventions and CI checks for drift. It saves two lines per part, but puts a generator in the type
-path (principle 10), lets a file's path decide an action's reference, so that moving a file could
-break the API, and leaves a new part out of the types until the generator runs (decision point 59
-of section 26.1).
+The alternative was explicit assembly: a hand-written `module.ts` importing every part and mounting
+it, with scaffolds inserting the import and the entry, the recommendation until 2026-10-28. It kept
+every generator out of the type path and let the API name be set in code, at the cost of two
+hand-written lines per part and a forgotten mount whenever a scaffold was not used; Jens chose the
+generated manifest, in which nothing needs registering by hand (decision 59b).
 
 ### 23.6 Contributions and conditional parts
 
@@ -12104,7 +12561,8 @@ of section 26.1).
 - Behaviour sits beside the declaration: `actions/`, `policies/`, `fills/<point>.ts`, and
   `reactions/` in conditional parts. Parts there are typed with `within(authBase, toAccounts)`:
   the target and `when` modules count as required, rows include the contributed fields, and the
-  part mounts only there, under the declaration's key of `contributes` or `conditional`. The base's
+  generator mounts the part only there, under the declaration's key of `contributes` or
+  `conditional`. The base's
   entry and the module literal's entry under one key form one contribution or conditional part;
   entries that share a (target, `when`) identity merge, because they are one migration track.
 - The import direction of section 5.4 is visible in the tree: only the higher module has a
@@ -12115,8 +12573,9 @@ of section 26.1).
 
 - Both have the module layout. App-specific modules are private packages that shared ones never
   import; no module imports an app.
-- A module package has one entry, `src/module.ts`. Dependants derive other types from the module
-  type through `@pennestack/core` helpers, such as a new `ExtensionValue<Accounts,
+- A module package has one entry, `src/module.generated.ts` (or the hand-written `src/module.ts` of
+  a transport or listener module declared with sugar, section 23.5). Dependants derive other types
+  from the module type through `@pennestack/core` helpers, such as a new `ExtensionValue<Accounts,
   'identityProviders'>` for fillers.
 - `package.json` lists every module named in `requires`, `optional`, contribution targets and
   `when` lists, and `tsconfig.json` references them.
@@ -12143,50 +12602,48 @@ packages/
   cli/src/commands/<group>/<command>.ts            one Stricli command per file
   module-*/                         the module layout
   biome-config/                     biome.json, plugins/<rule>.grit, plugins/fixtures/<rule>/
-examples/portal/  launchway/  mail/ app packages with their modules in modules/<id>/
+examples/portal/                  the example app, with its modules in modules/<id>/; platforms live in their own repositories
 ```
 
 ### 23.10 Worked example: the deployment platform
 
-Each module also has the package manifests, `src/base.ts`, `src/module.ts`,
-`src/module.test-d.ts`, `test/` and `migrations/`; shared modules come from `@pennestack/*`.
+In the Launchway repository (decision 48c), each module also has the package manifests,
+`src/base.ts`, the generated `src/module.generated.ts`, `src/module.test-d.ts`, `test/` and
+`migrations/`; shared modules come from the published `@pennestack/*` packages.
 
 ```
-examples/launchway/                 @launchway/app-launchway
-  src/modules.ts                    the 21 modules of section 17.3.13
-  src/app.ts  src/actions/health.ts  src/pennestack.generated.ts  generated/  test/
+<Launchway repository>/
+  apps/launchway/                   @launchway/app-launchway
+    src/modules.ts                  the 22 modules of section 17.3.13
+    src/app.ts  src/actions/health.ts  src/pennestack.generated.ts  generated/  test/
   modules/
     projects/                       @launchway/module-projects
       src/entities/project.ts  env-var.ts
       src/extension-points/git-providers.ts           GitProvider; min 1
-      src/policies/project.ts  env-var.ts             read, manage, admin-fields, archive; read-env
+      src/policies/project/read.ts  manage.ts  admin-fields.ts  archive.ts
+      src/policies/env-var/read-env.ts
       src/services/environment-for.ts
     nodes/                          requires contracts.live
       src/entities/node.ts  credential.ts  presence.ts
       src/effects/agent-command.ts                    performer 'external': the agent; no executor
       src/extension-points/heartbeat-observers.ts  command-resolvers.ts
       src/actions/join.ts  channel.ts  ack.ts         channel: the agent's subscription; ack settles a command
-      src/actions/node/heartbeat.ts  mark-offline.ts
+      src/actions/node/connect.ts  heartbeat.ts  mark-offline.ts  publish-logs.ts
       src/services/send.ts
       src/topics/container-logs.ts                    hooks send logs.start and logs.stop
       src/contributions/to-core/contribution.ts  fills/principal-resolvers.ts
     deployments/                    requires projects, nodes
-      src/entities/deployment.ts  src/streams/log.ts
+      src/entities/deployment.ts  src/streams/log.ts    the log offloads to the blob store past 50,000 lines
       src/actions/create-automatic.ts
       src/actions/deployment/report-phase.ts  report-result.ts  report-runtime.ts  append-log.ts  logs.ts
       src/actions/deployment/run.ts  dispatch-settled.ts   the dispatch and its continuation (section 7.9.8)
+      src/policies/deployment/assigned-node.ts
       src/reactions/dispatch-next-for-project.ts  wake-lanes-of-node.ts
-      src/contributions/to-nodes/contribution.ts  fills/heartbeat-observers.ts
-    agent-gateway/                  transport module: src/module.ts, src/adapter.ts, src/lib/
-    domains/                        requires projects; optional dns
+      src/contributions/to-nodes/contribution.ts  fills/heartbeat-observers.ts  command-resolvers.ts
+    domains/                        requires projects, deployments, nodes; optional dns, edge
       src/entities/domain.ts  route.ts
       src/actions/domain/verify.ts  src/schedules/domain-verify.ts
-    edge/                           requires domains, deployments, nodes
-      src/entities/render.ts
-      src/actions/apply.ts  rendered.ts
-      src/reactions/rerender.ts                       keyed and coalescing per tenant
-      src/schedules/apply.ts                          drift repair every 10 minutes
-      src/lib/render-caddyfile.ts                     the pure renderer
+      src/reactions/ensure-sites.ts                   routes and running deployments to edge sites (ctx.services.edge.ensure)
     github/                         requires projects, deployments; optional webhooks
       src/entities/connection.ts                      with GitHub's four domain events
       src/actions/ingest.ts  start-manifest.ts  complete-manifest.ts  poll-releases.ts
@@ -12206,11 +12663,29 @@ examples/launchway/                 @launchway/app-launchway
       src/conditional/when-github/condition.ts  reactions/sync-preview.ts
 ```
 
-### 23.11 Worked example: the mail server
+The edge and its first provider are shared packages of this repository (section 17.3.7):
 
 ```
-examples/mail/                      @mail/app-mail
-  src/modules.ts  src/app.ts  src/actions/health.ts  src/pennestack.generated.ts  generated/  test/
+packages/module-edge/               @pennestack/module-edge
+  src/entities/site.ts  render.ts
+  src/extension-points/providers.ts               EdgeProvider; single
+  src/effects/apply.ts                            performer 'external': the program on the edge host
+  src/services/ensure.ts  release.ts
+  src/actions/reconcile.ts  channel.ts  ack.ts  rendered.ts
+  src/reactions/rerender.ts                       keyed and coalescing per tenant; invokes reconcile
+  src/schedules/reconcile.ts                      drift repair every 10 minutes
+packages/edge-caddy/                @pennestack/edge-caddy
+  src/contributions/to-edge/contribution.ts  fills/providers.ts
+  src/lib/render-caddyfile.ts                     the pure renderer
+```
+
+### 23.11 Worked example: the mail server
+
+In the mail server's own repository, once Jens unparks it (decision 48c; the design is unchanged):
+
+```
+<mail repository>/
+  apps/mail/                        @mail/app-mail: src/modules.ts  src/app.ts  src/actions/health.ts  src/pennestack.generated.ts  generated/  test/
   modules/
     mail-domains/                   optional dns
       src/entities/mail-domain.ts
@@ -12261,15 +12736,16 @@ layout pass.
 | `noNamespaceImport` (performance) | `import * as` | everywhere |
 | `useExportsLast` (style) | a statement after an export | source files |
 | `noExcessiveLinesPerFile` (style), 300 non-blank lines, warning | a file long enough to hold two purposes | source files except tests |
-| `noRestrictedImports` (style), per directory | declaration files importing `base.ts`, `module.ts` or parts; `lib/` importing parts; any file importing `module.ts` | preset overrides, finalised against fixtures |
-| `one-export.grit` | a second exported value | `**/src/**/*.ts` minus assembly files, library entries and tests |
+| `noRestrictedImports` (style), per directory | declaration files importing `base.ts`, the manifest or parts; `lib/` importing parts; any file but a test importing `module.generated.ts` | preset overrides, finalised against fixtures |
+| `one-export.grit` | a second exported value | `**/src/**/*.ts` minus assembly files, generated files, library entries and tests |
 | `no-import-effects.grit` | top-level expression statements, `await`, bare imports | `**/src/**/*.ts` minus tests |
-| `wiring-only-assembly.grit` | a function or arrow function | `**/src/{base,module,app,modules}.ts` |
+| `wiring-only-assembly.grit` | a function or arrow function | `**/src/{base,app,modules}.ts`, and the `module.ts` of a transport or listener module declared with sugar |
 | `pure-parts.grit`, `no-await-in-parts.grit` | clocks, randomness, timers, `fetch` and a bare `yield` in parts; `async` and `await` in parts (section 7.9.6) | module sources minus `src/executors/` |
 | `no-module-state.grit` | top-level `let` and `var`, mutation of a top-level binding | module sources |
 | `noNodejsModules` (correctness) and the executor override of `noRestrictedImports` | `node:*`, adapters, drivers, `kysely`, HTTP and SMTP clients in module packages | module sources minus `src/executors/` |
 | `noProcessEnv` (style), `noProcessGlobal` (correctness), `noGlobalAssign` (suspicious) | environment and process reads, global assignment | everywhere except `pennestack.config.ts` |
 | knip 6.43.0 | unused files (a forgotten mount), unused exports and types, unused or unlisted dependencies, duplicate exports | CI after `biome ci`; `pennestack init` writes `knip.json` with the entry files |
+| `pennestack generate --check` | the module manifests against the directories, and every artefact of section 13.7 | CI and `pennestack build` |
 | layout pass | conventions that need paths and several files | `pennestack doctor`, `build`, CI, and `dev`'s status line |
 
 Biome 2.6.0 (2026-10-21) added JavaScript plugins, a developer preview that sees the file path;
@@ -12283,13 +12759,17 @@ The layout pass of `pennestack doctor` reports:
   `defineEffectExecutor` outside `executors/`), an unknown directory, a part built for another
   contribution or condition than its directory;
 - names: a file not named `kebab()` of its export; an assembly or role file whose export does not
-  follow its directory; an error code, policy or schedule named against "Names"; a contribution
+  follow its directory; an error code, rule or schedule named against "Names"; a contribution
   or condition directory that differs from its declaration; a migration track without
   a source directory, or the reverse; a package name that differs from the module id;
-- mounts: a part that `base.ts` or `module.ts` does not mount, with the import and entry to add,
-  or mounts elsewhere than its path says;
-- packages: a module package whose `exports` is not `src/module.ts`, a missing named type, a
-  missing reference to a module in `requires`, `optional`, a target or a `when` list.
+- mounts: a generated manifest that is out of date (`pennestack generate` fixes it), a file the
+  conventions cannot place and that would therefore stay unmounted, a declaration file (an entity,
+  stream, flag, extension point, contribution or condition) that `base.ts` does not list, and an
+  app-level part that `app.ts` does not mount, each with the import and entry to add;
+- packages: a module package whose `exports` is not its entry (`src/module.generated.ts`, or the
+  `src/module.ts` of a transport or listener module declared with sugar), a missing named type, a
+  missing reference to a module in `requires`, `optional`, a target or a `when` list, and a package
+  missing from the root `tsconfig.json` references.
 
 It parses sources with TypeScript 6.0.3 (section 13.2 pins it for compiler-API tools), compares
 them with the registry the probe composes, names a fix per finding and never edits.
@@ -12306,17 +12786,20 @@ pennestack new action accounts.profile.changePassword --from auth             # 
 pennestack new flag checkout.newFlow --kind boolean --level tenant --purpose release --expires 2027-01-31
 pennestack new effect mail-delivery.smtpDeliver                                  # src/effects/smtp-deliver.ts
 pennestack new executor mail-delivery.smtpDeliver                                # src/executors/smtp-deliver.ts
+pennestack new rule auth.credential.already-revoked --effect deny                # src/policies/credential/already-revoked.ts
 ```
 
-- Further kinds: `policy`, `reaction`, `service`, `error`, `schedule`, `stream`, `topic`, `effect`,
+- Further kinds: `rule`, `reaction`, `service`, `error`, `schedule`, `stream`, `topic`, `effect`,
   `executor`, `contribution`, `condition`, `version-change`, `lib`, `shape`, `app`, `script`;
   `--when <ids>` places a part in a conditional part.
-- A scaffold writes the part (with a test beside actions, policies and reactions) and inserts one
-  import and one entry into the matching key of one assembly file. It edits nothing else, prints
-  the two lines instead when that file is not in the canonical shape, and `--dry-run` shows the
-  plan (decision point 61 of section 26.1). `new module` writes the package of section 16.9.8 in this layout and, with
-  `--app <id>`, adds the module to that app's `modules.ts`.
-- `new` becomes a reserved framework command name (section 16.9.3).
+- A scaffold creates files and never edits a source (question 61, closed by decision 59b on
+  2026-10-28): it writes the part where its reference puts it (with a test beside actions, rules and
+  reactions), and the generated manifest mounts it. For what only a hand-written file holds (a
+  declaration in `base.ts`, an app-level part in `app.ts`, a module in an app's `modules.ts`, a
+  package reference in the root `tsconfig.json`) it prints the import and the entry to add;
+  `--dry-run` lists the files. `new module` writes the package of section 16.9.8 in this layout and
+  runs the generator once.
+- `new` is a framework command and reserves no module id (section 16.9.3).
 
 ### 23.15 Traceability of brief addendum 3, item 4
 
@@ -12372,7 +12855,7 @@ module-facing sketch of this document rewritten to the strict forms.
 | Brief requirement | Where it is met | How the text reads it |
 |---|---|---|
 | A backend framework fully in TypeScript; platforms assembled by selecting and toggling modules | 1, 4, 5 | |
-| The deployment platform (Launchway's backend re-architected) and a mail server for `jenspenneman.com`, from the start | 17.3, 17.4, roadmap M3 and M5 | |
+| The deployment platform (Launchway's backend re-architected) and a mail server for `jenspenneman.com`, from the start | 17.3, 17.4, roadmap M4 and the parked mail milestones | Both are designed in full. Each platform lives in its own repository on the published packages; Trail is rebuilt first (roadmap M3) and Launchway second (M4), and the mail server is parked until Jens has a stable, permanent deployment option, its design kept (decision 48c, 2026-10-27; 2026-10-26). |
 | All platforms run inside one deployment | 4.6, 17.5 | |
 | Configuration system in TypeScript; app defined as a set of modules | 4.1, 4.5, 4.7 | |
 | A module owns entities | 5.1, 6.1 | |
@@ -12390,13 +12873,13 @@ module-facing sketch of this document rewritten to the strict forms.
 | Each transport derives from the same definitions | 16.2 (one surface), 16.4 (one set of rules), 16.3.8 (conformance) | |
 | Authentication module in which users keep login information and sign in | 17.2 | |
 | Separate accounts module; mutual influence | 5.4, 17.2.1 | |
-| Pluggable databases: PostgreSQL, MySQL, a hosted service such as Supabase, Drizzle, anything fitting | 5.6, 14.3, 14.3.7 | PostgreSQL first (M1), MySQL, SQLite and the Supabase preset in M7; a Drizzle-based adapter waits for Drizzle 1.0, and existing Drizzle schemas are imported by `db introspect` (decision point in section 26.1). |
+| Pluggable databases: PostgreSQL, MySQL, a hosted service such as Supabase, Drizzle, anything fitting | 5.6, 14.3, 14.3.3, 14.3.7 | PostgreSQL first (M1); MySQL, SQLite and the Supabase preset in M5 (decision 12a keeps MySQL). "Drizzle" reads as "a schema an ORM defines can be imported": no Drizzle-backed adapter is planned, and the import stays an optional later convenience (decision 13a). Any datastore that fits the adapter contract can be plugged in (brief addendum 5, rows below). |
 | CQRS-like execution; requests handled asynchronously | 7.1, 7.4, 9.5 | |
 | Choose which requests are handled synchronously | 7.4, 16.4.7 | Declared per action; the app's map decides how external callers are answered. |
 | Live updates on everything, delivered by a module | 6.7, 9.6, 15.4 | |
-| Nothing truly deleted, everything appended to a chain | 6.6, 15.1, 14.7 | Chain entities are append-only; `state` entities, transient records, receipts and sync clients are operational data that retention purges, with defaults for the operational buffers, which Jens accepted on 2026-10-24 (decision point 8, section 26). History is removed only by rules the operator adopts. |
-| Multiple actors online and offline at the same time, handled gracefully | 15.3, 15.4.7 | Offline authorship ships in M8 and collaborative fields in M9 (decision point in section 26.1). |
-| Database types always live, generated by a TypeScript server or an equivalent, whatever the connection | 13.1, 14.8 | Types are inferred from definitions with no generator in the type path. Tables the framework does not own are described by introspected definitions, checked against the live catalogue at `connect`, in `pennestack dev` and in CI (decision point in section 26.1). |
+| Nothing truly deleted, everything appended to a chain | 6.6, 15.1, 14.7 | Chain entities are append-only; `state` entities, transient records, receipts and sync clients are operational data that retention purges, with defaults for the operational buffers, which Jens accepted on 2026-10-24 (decision 8a). History is removed only by rules the operator adopts; Launchway's modules suggest none and keep deployment records, logs, previews and effect attempts, reclaiming only runtime artefacts (decision 47c). |
+| Multiple actors online and offline at the same time, handled gracefully | 15.3, 15.4.7 | Offline authorship ships in M6 and collaborative fields in M7 (decisions 9a and 11a; numbers of the roadmap since 2026-10-28). |
+| Database types always live, generated by a TypeScript server or an equivalent, whatever the connection | 13.1, 14.8 | Row types are inferred from definitions and never generated; the generated TypeScript in the type path, the module manifests, mounts parts without defining a type, is rewritten by the dev server on every change and is checked for drift in CI (decision 59b). Tables the framework does not own are described by introspected definitions, checked against the live catalogue at `connect`, in `pennestack dev` and in CI (decision 14a). |
 | Compiler, linter and toolchain always know what to do | 13.2 to 13.12 | |
 | No frontend framework; everything works as an API and a backend framework | 16.5 to 16.8 | |
 | A later UI fully pluggable | 16.10 | |
@@ -12416,332 +12899,209 @@ module-facing sketch of this document rewritten to the strict forms.
 | Living brief: appended, never rewritten | brief.md changelog | |
 | New requirements land as module, adapter, policy or configuration; kernel changes need an ADR | 24, adr/0001 | |
 | A framework Jens can build on without thinking about the framework | 3.4, 7.6, 13 | |
-| Everything versioned, in every nook and cranny; a version is never implicit (addendum 3, item 1) | 18.1, 18.2, 18.3, 18.7 | Apps have dated API versions served from one head by translation; protocols keep integer majors; whatever crosses a process boundary or outlives its writer names its version (decision point 52). |
-| Smooth rollouts and roll-overs; compatibility until a major; a best-in-class mechanism (addendum 3, item 2) | 19, 18.5, 18.6 | Adjacent build revisions run side by side under the N-1 rule, and destructive steps wait for finalization; CI refuses a break of a supported version (decision points 53 to 56). |
-| Feature flags and A/B testing, at framework level (addendum 3, item 3) | 20, 20.1 | Flags are a kernel concept; experiments are the optional `experiments` module (decision points 51 and 57). |
-| Every file has a single purpose, in a structure designed for this framework and enforced by its tooling (addendum 3, item 4) | 23 (per sentence in 23.15) | One definition per file, a package per module, explicit assembly over a module base (decision points 58 to 61). |
-| Many nodes that scale automatically, with limits, on a job queue "thought out REALLY WELL" (Jens, 2026-10-23, with addendum 3) | 9.5, 21 (per phrase in 21.11) | Fair lanes with caps keep tenants apart on any number of processes; named processes, probed capabilities and connection budgets place the work; the scaler is a pure plan clamped by explicit limits, and scale-down is a drain (decision points 6 and 62 to 64). |
-| Everything runs on pure functions: inputs only through parameters, outputs only through the return value, nothing through global state, module-level state, ambient context or any other hidden channel; a hard requirement for the framework and for the code written on it (addendum 4, item 1) | 1 (principle 11), 3.4, 4.3, 5.5, 5.6, 7.3, 7.6, 7.9 (per phrase in 7.9.10), 13.9, 23.2 | Fully strict (decision 50a, 2026-10-25): every part a module author writes yields requests and returns a decision; only the kernel, the deployment's infrastructure entries, transport and listener modules and effect executors are imperative; handler types exclude promises, and lint rules ban clocks, randomness, timers, module state and environment reads (decision points 73 to 80). |
-| Where the outside world is touched: which parts perform effects, how effects enter and leave pure code, how tooling enforces the rule (addendum 4, item 2) | 7.9.1, 7.9.3 to 7.9.6, 9.5, 13.9, 23.12 | Answers enter pure code as the answers to yielded requests; effects leave it as descriptions that the kernel performs (kernel effects in the unit, external effects after commit, at least once, by executors or external performers), and outcomes come back as the input of continuations; only `prepare` performs inline effects (decision point 74). |
-| Trace each cause and effect, and rebuild a full database and logbook from them (Jens, 2026-10-25, with decision 50a) | 7.9.6, 14.7.6, 15.1.3, 15.1.8, 15.2.4, 16.9.7 | Decision records and one `core.effect` stream per effect live in the hashed chain (decision point 78); `pennestack explain --trace`, `--redecide` and `--dry-run` read them; rebuilds and restores fold the effect streams and enqueue unsettled effects again. |
-| Public repository on GitHub, every commit signed with the author's personal identity | 22 | The repository stays private until Jens approves the architecture and becomes public then. |
+| Everything versioned, in every nook and cranny; a version is never implicit (addendum 3, item 1) | 18.1, 18.2, 18.3, 18.7 | Apps have dated API versions served from one head by translation; protocols keep integer majors; whatever crosses a process boundary or outlives its writer names its version (decision 52a). |
+| Smooth rollouts and roll-overs; compatibility until a major; a best-in-class mechanism (addendum 3, item 2) | 19, 18.5, 18.6 | Adjacent build revisions run side by side under the N-1 rule, and destructive steps wait for finalization (decision 54a); renames and type changes run as expand, dual write, backfill and contract (decision 55b); CI refuses a break of a supported version, and a version is retired at its sunset, 12 months after its deprecation (decision 53); question 56 is parked with the mail server. |
+| Feature flags and A/B testing, at framework level (addendum 3, item 3) | 20, 20.1 | Flags are a kernel concept; experiments are the optional `experiments` module (decisions 51a and 57a). |
+| Every file has a single purpose, in a structure designed for this framework and enforced by its tooling (addendum 3, item 4) | 23 (per sentence in 23.15) | One definition per file, one rule per file, a package per module, and a generated manifest over a hand-written module base (decisions 58a, 59b and 60b; question 61 closed by 59b). |
+| Many nodes that scale automatically, with limits, on a job queue "thought out REALLY WELL" (Jens, 2026-10-23, with addendum 3) | 9.5, 21 (per phrase in 21.11) | Fair lanes with caps keep tenants apart on any number of processes; named processes, probed capabilities and connection budgets place the work; the scaler is a pure plan clamped by explicit limits, and scale-down is a drain (decisions 6a, 62a, 63a and 64a). |
+| Everything runs on pure functions: inputs only through parameters, outputs only through the return value, nothing through global state, module-level state, ambient context or any other hidden channel; a hard requirement for the framework and for the code written on it (addendum 4, item 1) | 1 (principle 11), 3.4, 4.3, 5.5, 5.6, 7.3, 7.6, 7.9 (per phrase in 7.9.10), 13.9, 23.2 | Fully strict (decision 50a, 2026-10-25, reopened and confirmed on 2026-10-28): every part a module author writes yields requests and returns a decision; only the kernel, the deployment's infrastructure entries, transport and listener modules and effect executors are imperative; handler types exclude promises, and lint rules ban clocks (`Temporal.Now` included), randomness, timers, module state and environment reads (decisions 73 to 80). |
+| Where the outside world is touched: which parts perform effects, how effects enter and leave pure code, how tooling enforces the rule (addendum 4, item 2) | 7.9.1, 7.9.3 to 7.9.6, 9.5, 13.9, 23.12 | Answers enter pure code as the answers to yielded requests; effects leave it as descriptions that the kernel performs (kernel effects in the unit, external effects after commit, at least once, by executors or external performers), and outcomes come back as the input of continuations; only `prepare` performs inline effects (decision 74a), and the M0 spike tests a variant without `prepare` (section 26.2). |
+| Trace each cause and effect, and rebuild a full database and logbook from them (Jens, 2026-10-25, with decision 50a) | 7.9.6, 14.7.6, 15.1.3, 15.1.8, 15.2.4, 16.9.7 | Decision records and one `core.effect` stream per effect live in the hashed chain (decision 78a), attempts included and kept (47c); `pennestack explain --trace`, `--redecide` and `--dry-run` read them; rebuilds and restores fold the effect streams and enqueue unsettled effects again; anchors outside the database make a rewritten chain detectable (35b). |
+| Public repository on GitHub, every commit signed with the author's personal identity | 22 | The code and the design documents may be public from the start, at a moment Jens chooses, with the licence (FSL-1.1-ALv2) in every commit (decisions 20 and 83, revised 2026-10-27). |
 | Best practice from first principles, no copied conventions | this document and the ADRs cite research, not older projects | |
-| The product name never references other companies' products | the working name and all package names are generic | |
+| The product name never references other companies' products | the working name and all package names are generic | The name stays a working name until Jens settles it (decision 84c). |
+| Any database or datastore can be plugged in as an adapter; MySQL is one of them, not a special case (addendum 5, item 1, 2026-10-26) | 5.6, 14.3.2, 14.3.7 | The adapter contract is the only coupling; MySQL ships in M5 beside SQLite and the Supabase preset (decision 12a). |
+| A datastore's features never influence application code or decide whether an app can run; what it lacks the framework provides at a visible cost; only code that opts into a dialect, the raw SQL hatch, declares that choice (addendum 5, item 2) | 1 (principle 7), 4.1, 12.1, 13.12, 14.3.3, 14.3.4, 14.3.8, 14.7.9.10, 17.6.4 | Capabilities are accelerations: each one an adapter lacks has a kernel path with its cost shown by `explain` and `pennestack doctor`; `data: { needs }` keeps only `{ sql: dialect }`, and `connect` refuses only that dialect's absence (decision 12a). |
+| Jens, 2026-10-27 (decision 35b): anchor the chain heads outside the database from the start | 4.6, 13.12, 14.7.6, 15.1.8, 16.9.7, 17.5.2 | Per scope, the latest head goes to every ledger sink at a configurable cadence; `pennestack db verify` compares heads with anchors, and `doctor` warns about missing ones. |
+| Jens, 2026-10-27 (decision 37a): an entity type never appears twice on one selection path | 16.3.8, 16.4.12, 16.6.6 | The default limit beside depth, aliases, batch and cost, configurable per backend, with a conformance case. |
+| Jens, 2026-10-27 (decision 47c): keep all data, to look back on it in five years | 7.9.6, 14.7.1, 15.1.12, 17.3.6, 17.3.10 | No purge suggestions for Launchway's data; only runtime artefacts are reclaimed; long logs move to the blob store. |
+| Jens, 2026-10-28 (decision 59b): nothing needs registering by hand | 1 (principle 10), 13.1, 13.6, 13.7, 13.11, 16.9.8, 23.5, 23.14 | The generated manifest `module.generated.ts` mounts every part from the directory conventions; the dev server rewrites it on change and CI checks drift. |
+| Jens, 2026-10-28 (decision 60b): one rule per file, the file name being the rule id | 4.4, 8.1, 8.6, 23.2, 23.4 | `defineRule` in `policies/<target>/<rule>.ts`; `explain` names the file of every matched rule. |
+| Jens, 2026-10-26 (decision 82a): the edge behind a provider contract | 17.3.2, 17.3.7, 22, 23.10 | The shared `edge` module owns the desired state and the `providers` extension point; `edge-caddy` is the first provider, and a custom edge can follow as another. |
 
-## 26. Open questions
+## 26. Decisions and open questions
 
-Decided:
+Every question of the decision register ([decisions.md](decisions.md)) now carries a decision or,
+for the mail server, is parked; the register keeps each answer with its date, Jens's reasoning and
+where it applies. Section 26.1 lists them, section 26.2 what the M0 spike still has to settle, and
+section 26.3 the technical questions that remain open by area. No decision point for Jens is open.
 
-| Number | Decision | Date |
-|---|---|---|
-| 1 | Runtime module selection: a backend's modules come from the apps compiled into the deployment (the catalogue), with per-backend variation through module configuration and feature flags; Jens's condition, that development always has the full, exact types of the app being built, holds per app (sections 4.5 and 4.6, ADR 0003) | 2026-10-25 |
-| 2 | Toggling with requirements: hard dependencies stay for genuine needs, and a module switches off together with the modules that `require` it; soft influence uses `optional`, contributions and conditional parts (section 5.2) | 2026-10-25 |
-| 3 | DSL shape: modules are object literals, a module base, parts typed against it and a module literal, never a builder chain (section 4.1) | 2026-10-24 |
-| 4 | Data access inside handlers: module authority with an explicit `forCaller()`, plus a shape-stage check of every entity row leaving the invoker against the caller's plan, an error in development and a dropped, logged row in production (section 8.4) | 2026-10-24 |
-| 5 | Deny rules: allow and deny rules, deny requiring a reason, default deny (section 8.2 as written) | 2026-10-24 |
-| 7 | Personal data in state tables: personal fields are encrypted in the state tables as well (sealed columns, blind indexes and query tokens per declared capability, fail-closed operators and explicit bounded scans; section 14.7.9, ADR 0027); its defaults are decision points 65 to 72 | 2026-10-25 |
-| 8 | Operational buffer defaults accepted (transient change records 7 days, receipts 24 hours, inactive sync clients 90 days), plus `asOf` on the generated `get` and `history` reads of chain entities (sections 6.7, 14.7.1 and 14.8.1) | 2026-10-24 |
-| 50 | How strict "pure" is: fully strict (option a). Handlers never perform effects; commands yield requests and return events and effect descriptions, queries return query descriptions, and the kernel performs every effect and records it with its outcome, linked to its cause, so the database and a full logbook rebuild from the chain; the split model (option c) is the fallback if strictness becomes a burden in practice (section 7.9, ADR 0026); its decision points are 73 to 80 | 2026-10-25 |
+### 26.1 Decided and parked
 
-The decision register ([decisions.md](decisions.md)) records each answer with the sections that
-apply it.
+Decided, by the register's number, with the date and the sections that apply each answer:
 
-### 26.1 Decision points for Jens
+| Number | Decision | Date | Applied in |
+|---|---|---|---|
+| 1 | Runtime module selection: a backend's modules come from the apps compiled into the deployment (the catalogue), varied per backend by module configuration and feature flags; development always has the full, exact types of the app being built | 2026-10-25 | 4.5, 4.6, ADR 0003 |
+| 2 | Toggling with requirements: hard dependencies stay for genuine needs, and a module switches off together with the modules that `require` it; soft influence uses `optional`, contributions and conditional parts | 2026-10-25 | 5.2, 25 |
+| 3 | DSL shape: modules are object literals (a module base, parts typed against it and a module literal), never a builder chain | 2026-10-24 | 4.1, 4.3 to 4.5, 4.7, 23.5, ADRs 0003, 0004, 0024, api-sketch.ts |
+| 4 | Data access inside handlers: module authority with an explicit `forCaller()`, plus a shape-stage check of every entity row leaving the invoker against the caller's plan (an error in development, a dropped and logged row in production) | 2026-10-24 | 8.4, 10, ADR 0005 |
+| 5 | Deny rules: allow and deny rules, deny requiring a reason, default deny | 2026-10-24 | 8.2, ADR 0005 |
+| 6 | Job queue: the kernel queue over every adapter's job store, with fair lanes, split counters, leases and effect jobs; transactional enqueue on every adapter, row-level security on payloads and one semantics everywhere; a pg-boss entry or a broker tier stays possible, not planned | 2026-10-26 | 9.5, 21, ADRs 0015 and 0025 |
+| 7 | Personal data in state tables: personal fields are encrypted in the state tables as well, with blind indexes and query tokens per declared capability, fail-closed operators and explicit bounded scans; its defaults are 65 to 72 | 2026-10-25 | 14.7.9, ADR 0027 |
+| 8 | Operational buffer defaults accepted (transient change records 7 days, receipts 24 hours, inactive sync clients 90 days), plus `asOf` on the generated `get` and `history` reads of chain entities for point-in-time reads | 2026-10-24 | 6.7, 14.7.1, 14.8.1 |
+| 9 | Offline multi-actor sync after the platforms: M6 (M8 before the renumbering of 2026-10-28), because neither platform needs offline authorship to launch and every event from M1 carries what sync needs; Jens delegated the pick to the lead | 2026-10-26 | roadmap M6 |
+| 10 | Before-images in every event from M1, because they cannot be added later for existing events and they make change reports exact | 2026-10-26 | 15.1.3 |
+| 11 | Collaborative fields stored as Loro documents from the first app that declares one, so M7 adds protocols and no data migration | 2026-10-26 | 15.3.9 |
+| 12 | MySQL kept (M5), with the rule of brief addendum 5: the framework is datastore-agnostic, every adapter capability is an acceleration with a kernel fallback at a visible cost, and `connect` refuses only a declared raw-SQL dialect the adapter lacks | 2026-10-26 | 1 (principle 7), 12.1, 14.3.3, 14.3.4, 14.3.8, 14.7.9.10, 13.12, 25, ADR 0006 |
+| 13 | Drizzle lowered: a passing thought, not a requirement; no Drizzle-backed adapter, and `pennestack db introspect --drizzle` is an optional later convenience | 2026-10-26 | 14.3.7, 25, roadmap later milestones |
+| 14 | External tables typed by introspected entity definitions with drift checks at `connect`, in `pennestack dev` and in CI: one type mechanism | 2026-10-26 | 14.8.4 |
+| 15 | oRPC in the first release beside tRPC (M2), so that Jens can judge its implementation and quality on real use | 2026-10-26 | 16.7.7, 22, ADR 0011, roadmap M2 |
+| 16 | CLI action commands under one verb; no name is ever reserved because of an integration, a plugin or a module (the verb is 81) | 2026-10-26 | 5.1, 13.9, 16.9.2, 16.9.3, 16.9.7, 20.9, 21.9, 23.14, ADR 0013 |
+| 17 | `pennestack explain --as <principal>` evaluates everywhere and executes only in development | 2026-10-26 | 16.9.7 |
+| 18 | Protobuf field tags allocated from day one: a number in a snapshot now instead of a migration of every entity later | 2026-10-26 | 4.2, 6.2 |
+| 19 | Instants are `Temporal` from the start, native on Node 26 with no polyfill (Node 26.12.1 has `Temporal`, verified by the lead on 2026-10-27): `field.instant()`, `field.date()`, the fixed clock and the adapters' codecs | 2026-10-26 | 4.2, 6.4, 6.5, 7.9.3, 7.9.7, 13.2, 13.3, 14.5, 16.2.3, 16.7.3, Appendix A |
+| 20 | Licence: FSL-1.1-ALv2 (Functional Source License, Version 1.1, with the Apache-2.0 future license), Licensor Jens Penneman; `LICENSE.md` is in the repository | 2026-10-27 | 22, README |
+| 23 | Launchway compatibility: a clean break at Launchway's rebuild; the new agent (an external performer, 80) and the new UI ship together; no compatibility transport for agent protocol v1 and no legacy paths; agents are redeployed, and the old installation stays as the rollback until the new one is verified | 2026-10-26 | 16.3.7, 17.3.1, 17.3.4, 18.7, 19.7, 21.8, roadmap M4 |
+| 24 | Edge configuration through the edge node's agent, as an effect the agent performs, with the provider contract of 82 | 2026-10-26 | 17.3.7, gap G9 |
+| 25 | Tenant-owned nodes and edges in the first release; operator-run shared pools would need container isolation on shared Docker hosts | 2026-10-27 | 17.3.3, 21.8 |
+| 26 | Untrusted apps and previews on subdomains of `jenspenneman.com` for now (no extra spending), with the cookie hardening mandatory; a separate registrable domain stays the recommended next step and is a configuration change | 2026-10-27 | 17.5.2 |
+| 27 | Two PostgreSQL instances on the home server (the control store and the placement) plus the ledger file, so a restore of either never brings back erased data | 2026-10-27 | 17.5.2 |
+| 28 | Toolchain: always the latest majors, TypeScript 7 and Node 26 (26.12.1 of 2026-10-21) with type stripping; the baseline follows each new major, and backfills or polyfills exist only for what it lacks | 2026-10-27 | 13.2, 13.3, 13.8, 13.12, 17.5.2, Appendix A |
+| 29 | History default: `chain` for every entity, `state` as an opt-out with a reason | 2026-10-27 | 6.6 |
+| 30 | Kysely as the internal plumbing of the SQL adapters, never visible to app code | 2026-10-26 | 14.3 |
+| 31 | Composition errors in the `Check` property form; the spike may still report that a rest-parameter form reads better | 2026-10-27 | 4.7, 26.2 |
+| 32 | Optional modules through a `Maybe`-style accessor (`ifPresent`) that composes with `yield*`, for now: Jens is not sold yet, and the M0 spike compares it with `\| undefined` on the auth module | 2026-10-27 | 2, 3.4, 4.7, 7.6, 7.9.3, 13.10, 26.2 |
+| 34 | Clock-skew bound for offline clients: 5 minutes | 2026-10-27 | 14.5.2, 15.3.3 |
+| 35 | Chain heads anchored outside the database from M1: per scope, the latest head (position and hash) goes to the ledger sinks at a configurable cadence, and `pennestack db verify` compares heads with anchors | 2026-10-27 | 4.6, 13.12, 14.7.6, 15.1.8, 16.9.7, 17.5.2, ADR 0007 |
+| 36 | Operator work stays on the invocation protocol and the CLI; no operator GraphQL schema | 2026-10-27 | 16.8 |
+| 37 | Operation limits as own validation rules, with Jens's first rule: no entity type twice on one selection path, for GraphQL selections and any REST `include` alike; siblings of one type stay allowed; configurable per backend | 2026-10-27 | 16.3.8, 16.4.12, 16.6.6, ADR 0011 |
+| 38 | Resumable uploads (JMAP's upload endpoint when mail comes), designed with ADR 0020 | 2026-10-27 | gap G5, roadmap section 5 (ADR 0020) |
+| 39 | The Connect runtime-descriptor spike runs with the Connect transport, a later milestone | 2026-10-27 | 16.13, roadmap later milestones |
+| 45 | Separate authentication realms per tenant by default; an optional OpenID Connect provider module later | 2026-10-27 | 17.2.8, roadmap later milestones |
+| 47 | Keep all data forever: no purge suggestions for Launchway's data (deployment records, logs, preview records, later analytics); only the runtime artefacts of a closed preview or a superseded deployment are reclaimed, and long logs move to the blob store; the mail suggestions wait with the mail server | 2026-10-27 | 7.9.6, 14.7.1, 15.1.12, 17.3.6, 17.3.10, gap G11, roadmap M4 |
+| 48 | Every app built on pennestack lives in its own repository and depends only on the published packages; this repository keeps a minimal example for its CI; nothing is sequential (0.x pre-releases, exact pins); everything stays in beta until Jens declares it stable; Trail is rebuilt first and Launchway second; the design documents are public from the start, with the licence from the first commit | 2026-10-27 | 13.5, 13.11, 17, 22, 23.1, 23.10, 23.11, roadmap, README |
+| 49 | Outbound webhooks ship with Launchway's rebuild (M4) | 2026-10-27 | 16.13, 17.3.2, 17.6.1, 22, roadmap M4 |
+| 50 | Fully strict pure handlers (option a): handlers never perform effects, and the kernel performs and records every effect with its cause, so the database and a full logbook rebuild from the chain; the split model (option c) is the fallback; reopened and confirmed on 2026-10-28, with one ergonomic variant for the spike (no `prepare`, inline effects only before the first load) | 2026-10-25, 2026-10-28 | 1 (principle 11), 7.9, 26.2, ADR 0026 |
+| 51 | Flags in the framework core, experiments as a module | 2026-10-28 | 20, ADR 0023 |
+| 52 | Dated API versions served from one head by version-change transforms; integer majors only for wire protocols | 2026-10-28 | 18, ADR 0021 |
+| 53 | Support window: a version is deprecated the day a newer one exists and retired at its sunset 12 months later, regardless of use; no zero-use gate and no `--force`; usage counters stay as information | 2026-10-28 | 16.9.7, 18.5, ADR 0021 |
+| 54 | Automatic finalization once every live process has run the target revision for the 600-second grace period, with a manual mode; contract steps stay manual | 2026-10-28 | 19.4, ADR 0022 |
+| 55 | Field renames rename the column through expand, dual write, backfill and contract, gated by finalization; physical names always equal the derived names | 2026-10-28 | 14.4.2, 14.6.1, 14.6.2, 14.6.4, 19.3, ADR 0022 |
+| 57 | Experiment statistics: fixed-horizon frequentist tests first; Bayesian, CUPED and sequential tests later | 2026-10-28 | 20.8 |
+| 58 | File and directory names in kebab-case derived from the export | 2026-10-28 | 23.4, ADR 0024 |
+| 59 | Module assembly by a generated manifest: `pennestack generate` and the dev server write `module.generated.ts` from the directory conventions; references come from file names and directories; `base.ts` stays hand-written; CI checks drift | 2026-10-28 | 1 (principle 10), 4.1, 13.1, 13.6, 13.7, 13.9, 13.11, 13.12, 16.9.8, 23, ADR 0024 |
+| 60 | One rule per file, `policies/<target>/<rule>.ts`, whose file name is the rule id; the generated manifest merges the rules as a set | 2026-10-28 | 4.4, 8.1, 8.6, 23.2, 23.4, 23.5, ADR 0024 |
+| 61 | Closed by 59: scaffolds create files only and never edit sources; the generated manifest does the wiring | 2026-10-28 | 16.9.8, 23.14, ADR 0024 |
+| 62 | The framework's command group for nodes, processes and scaling is `pennestack fleet`; with 16 it reserves no module id | 2026-10-28 | 16.9.3, 16.9.7, 21.9 |
+| 63 | The scaler with the static provider first (M4), the opt-in docker provider one milestone later (M5); a Kubernetes provider stays a named later milestone, with `nodeProviders` as the only coupling | 2026-10-28 | 21.4, 21.5, 22, roadmap |
+| 64 | The docker provider is opt-in per deployment, held only by the scaler's named process, through a socket proxy limited to container create, start, stop, inspect and list | 2026-10-28 | 21.5 |
+| 65 | Blind indexes only where a lookup is declared | 2026-10-28 | 14.7.9.2 |
+| 66 | NFC normalisation by default, `normalize: 'email'` for e-mail fields | 2026-10-28 | 14.7.9.3 |
+| 69 | Ordering on personal fields: bounded scans first, order-revealing tokens later (M5) as an opt-in on PostgreSQL | 2026-10-28 | 14.7.9.4, 14.7.9.10, roadmap M5 |
+| 70 | Keys of search indexes per data subject | 2026-10-28 | 14.7.9.9 |
+| 71 | Bounded scans in custom queries only, with an explicit limit, never through transports | 2026-10-28 | 14.7.9.5 |
+| 72 | Substring search: 12-bit trigram tags, a 3-character minimum, fields up to 1,024 characters | 2026-10-28 | 14.7.9.2, 14.7.9.4 |
+| 73 | Handlers get their data through generators with `yield*` | 2026-10-28 | 7.9.2, ADR 0026 |
+| 74 | Inline effects only in `prepare` of sync commands, restricted (inline executors without a capability, at most 30 seconds, no retries, recorded); Jens is not sold on the phase restrictions, which the M0 spike and Trail's rebuild test, with 50c as the agreed fallback | 2026-10-28 | 7.9.4, 26.2, ADR 0026 |
+| 75 | Executors retry mechanical failures; modules decide on answers with domain meaning, so mail delivery is a state machine | 2026-10-28 | 7.9.5, ADR 0026 |
+| 76 | `ctx.log` and `ctx.trace` stay write-only capabilities | 2026-10-28 | 7.9.7 |
+| 77 | A fixed clock per invocation; ids and random values as recorded requests | 2026-10-28 | 7.9.3 |
+| 78 | Effect records in the chain (`core.effect` streams); with 47, attempt records are kept until a rule is adopted | 2026-10-28 | 7.9.6, 14.7.1 |
+| 79 | Command inputs as a digest by default, sealed inputs by opt-in | 2026-10-28 | 7.3, 7.9.6 |
+| 80 | Launchway's agents are external performers of `agentCommand` effects | 2026-10-28 | 7.9.5, 17.1, 17.3.4, 21.8 |
+| 81 | The verb is `pennestack call <module.entity.action>`, with the dotted reference everyone already uses | 2026-10-26 | 16.9.2, 16.9.7, ADR 0013 |
+| 82 | The edge behind an `edgeProvider` contract owned by the `edge` module, `edge-caddy` first; a custom `edge-native` listener module, Traefik or Envoy later | 2026-10-26 | 17.3.2, 17.3.7, 17.3.12, 17.6.1, 22, 23.10, roadmap M4 |
+| 83 | The code and the design documents may be public from the start, at a moment Jens chooses, with the licence in every commit (the history rewritten so that `LICENSE.md` exists from the first commit) | 2026-10-27 (revised) | 22, 25, README, roadmap section 2 |
+| 84 | Trademark: wait; Jens looks into it when it comes to that, and the name stays a working name | 2026-10-27 | README |
+| 85 | No outside contributions until a lawyer-reviewed contributor licence agreement exists; issues and discussions are welcome | 2026-10-27 | 22, README |
+| 86 | The intellectual property belongs to Jens personally for now | 2026-10-27 | none needed |
+| 87 | The platforms and later modules carry the same FSL-1.1-ALv2 as the framework | 2026-10-27 | 22 |
 
-Each changes the work; each has a recommendation, which the rest of this document assumes. The
-numbers are those of the decision register; points 1 to 5, 7, 8 and 50 are decided (above).
+Parked on 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
+option. The design stays in this document (section 17.4), and these questions wait with it, each
+with the option the design assumes (★) and the alternatives:
 
-Points 1 to 5 are decided (above).
+- **21. Outbound mail from the home connection.** Residential addresses sit on policy blocklists and
+  their reverse DNS belongs to the provider. ★ Relay through an external host with a static address
+  first (direct delivery is built anyway and becomes the production path on a node with a clean
+  address); a second pennestack process with the `smtp-out` capability on such a host; direct
+  delivery from home.
+- **22. IMAP.** ★ An own IMAP listener after JMAP; JMAP only; an external IMAP server with its own
+  storage, which would split mailbox state from the store.
+- **33. Mail partitions and search.** Which mail entities declare `partition: 'accountId'` beyond
+  `email` and `mailboxEntry`? ★ Partitions decided per entity in the mail foundations, mail search on
+  the keyed token index (section 14.7.9.9), which works on every adapter, so `tsvector` and `fts5`
+  remain for plaintext search indexes only.
+- **40. ACME client.** ★ A small own client on `node:crypto` and `fetch` (RFC 8555, DNS-01 only);
+  `acme-client` 5.4.0 (MIT, complete, but no commit since 2024-07-17); the maintained fork
+  `@certd/acme-client` 1.45.0, with dependencies of its own.
+- **41. Home connection probes.** Does the connection allow inbound ports 25, 465, 587 and 993 and
+  outbound port 25, and does Docker Desktop's port publishing preserve client source addresses?
+  ★ The lead probes from the home server before the mail foundations; or Jens knows the provider's
+  policy.
+- **42. Shared mailboxes.** ★ One owner per mail account in the first release; account sharing
+  (RFC 9670) from the start.
+- **43. Sieve.** ★ Only the JMAP vacation response in the first release; Sieve and ManageSieve from
+  the start.
+- **44. Webmail before a user interface exists.** ★ A third-party JMAP web client is acceptable; no
+  webmail until pennestack has its own UI.
+- **46. DMARC rollout.** ★ `p=none` with reports, then `quarantine`, then `reject` after a clean
+  month; `reject` from the start.
+- **56. Mail listeners during upgrades.** ★ Their own container (a named process of gap G9),
+  replaced by stop and start in seconds: SMTP senders retry, IMAP clients reconnect, and the HTTP
+  container rolls blue-green behind Caddy; a TCP proxy in front that drains connections (no drops,
+  one more component); the single pennestack container with a restart.
+- **67. Server-side mail search over personal text.** ★ A per-account keyed token index over
+  subject, addresses and bodies (`search: 'full'`, switchable to `'headers'` or `'off'` per backend),
+  which works for every client and adapter and confines its injection leak to one account; header
+  fields only, bodies by bounded scans; no server-side search until pennestack has its own client.
+- **68. Mail search matching.** ★ Word and stem matching for JMAP and IMAP, a documented deviation
+  from IMAP's substring rule that gives the same results whatever the mailbox size; exact substring
+  matching through scans, only for mailboxes within the scan limit.
 
-6. **Job queue.** Which queue carries asynchronous commands, reactions, timers, schedules and effect
-   jobs on many nodes that scale automatically, with limits? Options: the kernel queue over every
-   adapter's job store, with fair lanes, split counters, leases and effect jobs (PostgreSQL, MySQL,
-   SQLite, PGlite, in memory); pg-boss 12.38.0 on PostgreSQL (and PGlite) only, behind `JobQueue`,
-   which now has groups, `key_strict_fifo`, Kysely enqueue and PGlite, but no MySQL, SQLite or
-   in-memory store, no scope predicate and no fair shares; a broker (NATS JetStream or Redis
-   Streams) behind `JobQueue`, with an outbox relay; a durable execution engine (Temporal, Restate,
-   DBOS, Inngest or Trigger.dev). Recommendation: the kernel queue (sections 9.5 and 21, ADR 0025);
-   only it gives transactional enqueue on every adapter, row-level security on payloads and one
-   semantics in development, tests and production. A pg-boss `queue-pg` entry stays possible but is
-   not planned, and a broker appears only as a later dispatch tier carrying job ids.
-
-Points 7 and 8 are decided (above).
-
-9. **Offline multi-actor sync.** When should it ship? Options: M8, after the mail server; earlier.
-   Recommendation: M8 (roadmap); neither proof app needs offline authorship to launch, and every
-   event from M1 already carries what sync needs.
-10. **Before-images.** Should every event carry the previous values of the fields it changes from
-    M1? Recommendation: yes (section 15.1.3); they cannot be added later for existing events, and
-    they make change reports exact.
-11. **Collaborative fields.** Store `richText` and `sequence` fields as Loro documents from the
-    first app that declares one, or as plain values until M9 and migrate then? Recommendation: Loro
-    from the start through the codec extension point (section 15.3.9), so M9 adds protocols and no
-    data migration.
-12. **MySQL.** Keep MySQL in the adapter set? Recommendation: keep it in M7 because the brief names
-    it, and recommend PostgreSQL for multi-tenant production (no row-level security on MySQL).
-13. **Drizzle.** Build a Drizzle-based adapter now on drizzle-orm 0.45, or wait for Drizzle 1.0
-    and import existing Drizzle schemas with `pennestack db introspect --drizzle`? Recommendation:
-    wait (section 14.3.7); the import covers the common need.
-14. **External tables.** Type tables the framework does not own by introspected entity
-    definitions with drift checks at `connect`, in `pennestack dev` and in CI, or by declaration
-    files generated from live introspection? Recommendation: introspected definitions (section
-    14.8.4); one type mechanism and no generator in the type path.
-15. **oRPC.** Include oRPC beside the required tRPC module in the first release? Recommendation:
-    defer it (ADR 0011); the invocation protocol and `AppClient` already give typed clients, and
-    oRPC remains one more adapter.
-16. **CLI namespace.** Should action commands sit at the top level beside framework commands, or
-    under a verb (`pennestack run <module> ...`)? Recommendation: top level with 34 reserved names
-    (section 16.9.3; `fleet` is decision point 62); daily commands stay short.
-17. **Operator impersonation.** What may `pennestack explain --as <principal>` do? Options: evaluate
-    only, everywhere; also execute, logged. Recommendation: evaluate everywhere, execute only in
-    development.
-18. **Protobuf tags.** Allocate `.tag(n)` field numbers from day one, or when the Connect transport
-    arrives? Recommendation: from day one; a number in a snapshot now, a migration of every entity
-    later.
-19. **Instants.** `Date` now and `Temporal.Instant` once Node 26 is the baseline, or Temporal from
-    the start with a polyfill? Recommendation: `Date` now behind `field.instant()`, so the switch
-    touches no application code.
-20. **Licence** for the repository once it is public. Options: Apache-2.0; MIT. Recommendation:
-    Apache-2.0 for its explicit patent grant; both fit every library named.
-21. **Outbound mail from the home connection.** Residential addresses sit on policy blocklists and
-    their reverse DNS belongs to the provider. Options: relay through an external host with a static
-    address; a second pennestack process with the `smtp-out` capability on such a host; direct
-    delivery from home. Recommendation: relay first; direct delivery is built anyway and becomes the
-    production path on a node with a clean address.
-22. **IMAP.** How does the mail server serve IMAP clients? Options: an own IMAP listener after
-    JMAP; JMAP only; an external IMAP server with its own storage. Recommendation: an own listener
-    after JMAP (M6); an external server would split mailbox state from the store.
-23. **Launchway compatibility.** How do deployed agents and the UI survive the migration?
-    Options: a compatibility transport for agent protocol v1 plus the generated API for the UI;
-    keep the `/api/v1` paths through hints; a clean break. Recommendation: the v1 transport plus
-    the generated API.
-24. **Edge configuration.** Apply Caddy's configuration through the edge node's agent, or through
-    a shared admin socket with a process on the edge host? Recommendation: through the agent; no
-    co-location rule, any number of pennestack processes.
-25. **Node ownership.** Do nodes and the edge belong to one tenant, or does the operator run shared
-    pools? Recommendation: tenant-owned for the first release; shared pools need container
-    isolation on shared Docker hosts.
-26. **A separate domain for untrusted apps.** Should Launchway serve tenant projects and previews
-    under a registrable domain other than `jenspenneman.com`? Options: a separate domain; subdomains
-    with cookie hardening only. Recommendation: a separate domain (section 17.5.2); same-site code
-    defeats `SameSite=Lax`.
-27. **Ledger and control store at home.** Run the control store in its own PostgreSQL instance
-    with the erasure ledger also written to a file on a separate volume, or keep one instance with
-    the ledger file only? Recommendation: two instances plus the ledger file (section 17.5.2), so a
-    restore of either never brings back erased data.
-
-Points 51 to 61 came with addendum 3 on 2026-10-24 (the register's numbers 28 to 50 are the lead's
-flags, the spike questions, the questions by area and addendum 4, whose question 50 is decided):
-
-51. **Where feature flags live.** In the framework core (`defineFlag`, typed `ctx.flags`, gates,
-    provenance) with experiments as an optional module, in a flags module that other modules
-    require or list as optional, or only in the apps built on the framework? Recommendation: the
-    core, with experiments as `@pennestack/module-experiments` (section 20.1); flags are needed in
-    rules, `admit`, transports, jobs and the kernel's own rollouts, and only the core reaches all
-    of them.
-52. **API version naming.** Dated versions pinned per request, credential, tenant and backend and
-    served from one head by version-change transforms; integer majors per app, each a separate
-    surface; or no versions, continuous evolution with deprecation only? Recommendation: dated
-    versions with transforms (section 18.2); integer majors only for wire protocols (section 18.7).
-53. **Support window.** At least 12 months after a newer version exists, then retirement only after
-    its sunset and 30 days of zero use (or a logged `--force`); 24 months, as GitHub promises; or
-    until usage reaches zero? Recommendation: 12 months plus the zero-use check (section 18.5); for
-    a personal deployment the usage counters matter more than the calendar.
-54. **Automatic finalization.** Finalize a rollout once every live process has run the target
-    revision for a 600-second grace period, with a manual mode per deployment, or always by hand
-    (`pennestack rollout finalize`)? Recommendation: automatic by default (section 19.4); contract
-    steps stay manual because they destroy data.
-55. **Field renames in production.** Keep the physical column recorded in the snapshot (a logical
-    rename, no DDL), or rename it through add, dual write, backfill and drop? Recommendation: keep
-    the column (sections 14.4.2 and 19.3); type changes and splits use the gated add, dual write,
-    backfill and contract procedure.
-56. **Mail listeners during upgrades.** Their own container (a named process of gap G9), replaced
-    by stop and start in seconds; a TCP proxy in front that drains connections; or the single
-    pennestack container with a restart? Recommendation: their own container (sections 17.5.2 and
-    19.6); SMTP senders retry and IMAP clients reconnect, and the HTTP container rolls blue-green
-    behind Caddy.
-57. **Experiment statistics.** Fixed-horizon frequentist tests (two-proportion z-test, Welch's
-    t-test, 95 % intervals) with a planned-size gate and a sample-ratio check, Bayesian analysis or
-    sequential testing from the start, or counts only? Recommendation: fixed-horizon first (section
-    20.8); Bayesian, CUPED and sequential tests later, each with its own validation.
-58. **File naming.** Kebab-case names derived from the export by `kebab()` (section 16.4.1), checked
-    by the layout pass until a Biome JavaScript plugin can do it in the editor, or the identifier's
-    own case (`changePassword.ts`), which Biome 2.5.15 checks in the editor? Recommendation:
-    kebab-case (section 23.4); it matches module ids, CLI routes and REST paths, and case-only
-    renames cannot slip past git on macOS and Windows.
-59. **Module assembly.** Explicit: `base.ts` holds the module base, parts are typed against it, and
-    `module.ts` imports every part and mounts it in the module literal; or generated: `pennestack
-    generate` writes `module.generated.ts` from directory conventions and CI checks it for drift?
-    Recommendation: explicit assembly over a module base (section 23.5); no generator sits in the
-    type path, and the API name is set in code.
-60. **Policy granularity.** One policy file per entity or module-level action holding all rules for
-    that target, or one rule per file? Recommendation: one file per target (section 23.2), so allows
-    and denies are reviewed together.
-61. **Scaffold edits.** May scaffolds insert one import and one entry into one assembly file,
-    refusing files not in the canonical shape and offering `--dry-run`, or only print the two lines?
-    Recommendation: narrow edits of assembly files only (sections 16.9.8 and 23.14).
-
-Points 62 to 72 came with the designs of 2026-10-25: 62 to 64 with nodes, capacity and autoscaling
-(section 21, ADR 0025), 65 to 72 with encrypted personal data (section 14.7.9, ADR 0027):
-
-62. **Fleet command name.** Launchway already has a module `nodes`, so the framework's command group
-    for nodes, processes and scaling needs another name. Options: `pennestack fleet` (list, show,
-    watch, cordon, uncordon, drain, probe, forget, scale ...), one more reserved name (34);
-    `pennestack nodes`, renaming Launchway's module; `pennestack x nodes` until the next major
-    version. Recommendation: `pennestack fleet` (sections 16.9.3 and 21.9).
-63. **When automatic scaling ships.** Options: M3 with the scaler as a pure plan and the static
-    provider (recommendations in `pennestack fleet scale status`), then the opt-in docker provider
-    for extra workers in M5; the docker provider already in M3; recommendations only until a
-    Kubernetes or cloud provider exists. Recommendation: M3, then M5 (sections 21.4 and 21.5).
-64. **Docker provider on the home server.** The Docker engine is root on that host. Options: opt-in
-    per deployment, held only by the scaler's named process, through a socket proxy limited to
-    container create, start, stop, inspect and list; never, extra workers being started by hand
-    through the static provider; on by default. Recommendation: opt-in behind the proxy (section
-    21.5).
-65. **Equality index by default.** When does a personal field get its blind index? Options: only
-    where a lookup is declared (`.unique()`, `.index()`, an entity index or `queries: ['eq']`),
-    other personal fields supporting `isNull` only; every scalar personal field, with `queries: []`
-    as the opt-out. Recommendation: only where declared (section 14.7.9.2); no equality leak without
-    a purpose, and existing lookups such as the profile's e-mail address and the credential
-    identifier keep working.
-66. **Default normaliser for personal strings.** Options: NFC, so composed and decomposed accents
-    compare equal, with `normalize: 'email'` on e-mail fields, which also makes their uniqueness
-    case-insensitive; exact code points, as for plaintext fields; caseless by default.
-    Recommendation: NFC (section 14.7.9.3).
-67. **Server-side mail search over personal text.** Options: a per-account keyed token index over
-    subject, addresses and bodies (`search: 'full'`, switchable to `'headers'` or `'off'` per
-    backend); header fields only, bodies by bounded scans; no server-side search until pennestack
-    has its own client. Recommendation: the token index (section 14.7.9.9); it works for every
-    client and every adapter, and the injection leak it states is confined to one account.
-68. **Mail search matching.** Options: word and stem matching for JMAP and IMAP, a documented
-    deviation from IMAP's substring rule; exact substring matching through scans, only for mailboxes
-    within the scan limit. Recommendation: words and stems (section 14.7.9.9), which give the same
-    results whatever the mailbox size.
-69. **Ordering and ranges on personal fields.** Options: bounded scans only until M7, then
-    order-revealing encryption tokens on PostgreSQL as an opt-in with a doctor warning; never,
-    bounded scans only; an order-preserving encoding on every adapter now (more leakage, no operator
-    class needed). Recommendation: scans until M7, then opt-in tokens (sections 14.7.9.4 and
-    14.7.9.10); neither proof platform sorts on a personal field, and order tokens leak the most.
-70. **Key scope of search indexes.** Options: per data subject (the mailbox owner), so tags of
-    different accounts never match and erasure destroys the key; per tenant, which allows operator
-    search across accounts but links words across accounts. Recommendation: per data subject
-    (section 14.7.9.9).
-71. **Bounded scans.** Where may the kernel unseal and evaluate in memory? Options: custom queries
-    only, with an explicit limit (default 2,000; at most the adapter's `maxScan`, proposed 10,000 on
-    PostgreSQL); also generated queries over transports, with a per-entity limit; nowhere.
-    Recommendation: custom queries only (section 14.7.9.5); a scan stays a visible decision in
-    module code, and clients cannot trigger one.
-72. **Substring search defaults.** Options: trigram tags truncated to 12 bits, operands of at least
-    3 characters, only fields with `maxLength` of at most 1,024; 16-bit tags (fewer false matches,
-    sharper statistics for a thief); no `contains` on personal fields, word search only.
-    Recommendation: the 12-bit defaults (sections 14.7.9.2 and 14.7.9.4).
-
-Points 73 to 80 came with the pure-handler design of 2026-10-25 (section 7.9, ADR 0026); they are
-the choices inside decision 50a:
-
-73. **How a handler gets its data.** Generators that yield typed requests, or loads declared before
-    the handler runs? Options: generators: `decide`, `read` and `react` yield requests with
-    `yield*`, dependent loads, services and extension values compose by delegation, plain functions
-    remain for handlers that need nothing, and `ctx.all` batches parallel loads; declared loads: a
-    `load(input, ctx)` member returns named load descriptions that the kernel answers before
-    `decide`, which becomes a plain function of (input, loaded, ctx), with a second stage for a load
-    that depends on an earlier answer and no loads in services; both, declared loads as the common
-    form and generators only for dependent loads (two forms to learn, type and test).
-    Recommendation: generators (sections 7.9.2 and 7.9.3); one form covers every case in Launchway
-    and the mail server (login loads a credential and then verifies it; `revokeSubject` loads two
-    sets at once), it is the shape Temporal, redux-saga and Effect users know, and declared loads
-    can be added later as sugar.
-74. **Inline effects in `prepare`.** May a synchronous command call outside and wait for the
-    answer? Options: yes, restricted: only in `prepare` of synchronous commands, only executors
-    marked `inline` that need no capability, at most 30 seconds, no retries, recorded before and
-    after the call; no: every effect is deferred and interactive flows take two steps (the command
-    returns the effect id and the client watches it), so an OAuth callback must answer with a page
-    that polls before the session cookie can be set. Recommendation: yes, restricted (sections 7.9.4
-    and 7.9.5); OAuth and OpenID Connect logins, GitHub's manifest conversion and "test SMTP
-    connection" need the answer inside the same request, and the effect records stay complete.
-75. **Who retries outside calls.** The executor's retry policy or the module's own state machine?
-    Options: the rule: executor retries only for failures without domain meaning (a lost lease, a
-    refused connection, a 429 or 5xx from an API that honours the idempotency key), and everything
-    with domain meaning, mail delivery included, is a state machine with timers and one effect per
-    attempt; executor retries for everything, mail included (less module code, but attempts exist
-    only as attempt records, and partial SMTP success needs one effect per recipient); no executor
-    retries at all (every retry, even after a dropped connection, is a domain event and a timer).
-    Recommendation: the rule (sections 7.9.5 and 17.4.7); an SMTP transaction succeeds per
-    recipient, so retrying a whole delivery would send twice to recipients already accepted, and
-    delay notices, the five-day bounce and JMAP's per-recipient delivery status need the attempts
-    as state.
-76. **Logging inside pure handlers.** Options: `ctx.log` and `ctx.trace` stay write-only
-    capabilities: they return nothing, cannot influence a result, are not part of the logbook and
-    carry the scope, command, effect and trace ids; logs as values that handlers return or yield
-    (strictly pure, but entries written before a throw need special handling and every helper must
-    pass them along); no logging in handlers, the kernel logging every decision and effect itself.
-    Recommendation: write-only capabilities (section 7.9.7); logs are observability, not causes or
-    effects, and the logbook already records everything that matters.
-77. **Clock, ids and randomness.** Requests or plain values? Options: the clock is the invocation's
-    fixed time (`ctx.clock.now()`, equal to the events' `recordedAt`), and ids and random values are
-    yielded requests whose answers the decision record keeps; all three recorded requests, each
-    `now()` a fresh reading; all three derived from a recorded per-invocation seed (Restate's
-    approach: no yields for ids, but derived values are predictable from the seed and never usable
-    for secrets). Recommendation: the fixed clock with recorded ids and random values (section
-    7.9.3); a decision happens at one moment, which the chain already stores, ids and random values
-    are few and cheap to record, and secrets come only from the key service and are never recorded
-    in plaintext.
-78. **Where effect records live.** Options: in the chain: one `core.effect` stream per effect
-    (`requested`, `settled`), positioned and hashed with the scope's other events, with attempts as
-    stream records kept 90 days; a separate `ps_effects` table per namespace with its own retention,
-    not hashed (cheaper, but a second log to rebuild, verify and correlate with the events).
-    Recommendation: in the chain (section 7.9.6); one log, one hash chain, one rebuild, and live
-    updates on effects for free, at the cost of two events per effect.
-79. **Command inputs in the logbook.** Options: the digest only (the receipt's fingerprint), so a
-    re-decide needs the input from the receipt within its window or from the operator; the digest by
-    default plus sealed inputs for actions that opt in (`trace: { input: 'sealed', retention }`),
-    personal fields under the subject's key; sealed inputs for every command (a full re-decide in
-    production, but every input shape must declare its personal fields or crypto-shredding misses
-    them, and secret fields must be stripped). Recommendation: the digest with an opt-in (sections
-    7.3 and 7.9.6); the events already record what changed, while inputs carry passwords and personal
-    data nobody marked, so keeping them is a choice per action.
-80. **Launchway's agents under the strict model.** Options: commands to agents are effects with an
-    external performer: the agent pulls pending `agentCommand` effects over `nodes.channel` and
-    settles them through `nodes.ack`, with a deadline and a continuation in the requesting module;
-    keep the earlier design's `nodes.command` rows and `nodes.command.ack` as module data, with no
-    effect records: the rows' events are the trace, and timeouts remain separate timers.
-    Recommendation: external performers (sections 7.9.5 and 17.3.4); each command to a node gets one
-    record with its outcome and its follow-up, which is the trace Jens asked for, and the same
-    mechanism serves any later remote worker.
+The mail suggestions of decision 47 (30 days for Trash, Junk and archived mail, 90 days for delivery
+attempts) and the mail questions of section 26.3 wait with them. When Jens unparks the mail server,
+these come back as decision points, the mail milestones get their numbers, and the roadmap's gates
+list them.
 
 ### 26.2 Open for the spike (roadmap M0)
 
 1. The type-model checklist of section 4.7: the module base with parts typed against it in
-   separate files and the module literal that mounts them (with the `effects` and `executors`
-   mounts), module-local contexts, all field flags, generated actions with typed `watch`,
-   `defineApp` options, `AppActionTree` from the field model; the pure handlers of section 7.9:
-   generator handlers typed per request through `yield*`, handler types that exclude promises (an
-   `async` `decide` fails to compile), `ctx.all` with `const` type parameters for tuple answers and
-   `outcomeOf` continuation inputs; and `api-sketch.ts`, strict and with its `hooks` module,
-   compiled as the acceptance test of the DSL.
-2. The instantiation budgets on synthetic apps of 25 and 40 modules, and the declaration-size
-   budget per module under the pnpm layout.
-3. Whether the `Check` property form or a rest-parameter form gives the better editor message at
-   `defineApp`.
-4. Whether `ctx.load` of optional modules is best typed `| undefined` or as a `Maybe` object with
-   `.ifPresent()`, after writing the auth module against it.
-5. The write path on a networked PostgreSQL: concurrent writers in many tenants, the commit tail
-   per scope, the notifier's coalescing, and the absence of cross-tenant waiting; and the fair take
-   of section 9.5.3 (take p95 against the number of lanes and the batch size), whose result replaces
-   the planning figure of 2,000 jobs per second per placement (section 9.5.7); and the
+   separate files, and the module literal that the generator writes from a fixture module's
+   directories, with the `effects` and `executors` mounts (decision 59b); module-local contexts, all
+   field flags, generated actions with typed `watch`, `defineApp` options, `AppActionTree` from the
+   field model; the pure handlers of section 7.9: generator handlers typed per request through
+   `yield*`, handler types that exclude promises (an `async` `decide` fails to compile), `ctx.all`
+   with `const` type parameters for tuple answers and `outcomeOf` continuation inputs; and
+   `api-sketch.ts`, strict and with its `hooks` module, compiled as the acceptance test of the DSL.
+2. The instantiation budgets on synthetic apps of 25 and 40 modules, whose manifests the generator
+   writes, and the declaration-size budget per module under the pnpm layout.
+3. The `Check` property form is decided (decision 31a); the spike still reports whether a
+   rest-parameter form gives the better editor message at `defineApp`, and the names stay.
+4. The Maybe accessor (decision 32b): the auth module written against
+   `ctx.load.accounts.ifPresent(...)` and against the `| undefined` form, compared for readability
+   at the call sites, composition with `yield*` and `ctx.all`, type cost and error messages, and
+   reported to Jens, who revisits the choice then.
+5. `prepare` versus inline-before-first-load (decision 50a, confirmed on 2026-10-28): both forms
+   prototyped on Trail's position ingest and on GitHub's connection flow (the manifest conversion),
+   one with a separate `prepare` member, one with a `decide` that may perform inline effects only
+   before its first load, the kernel opening the unit at that load and refusing a later inline
+   effect with a clear error; the code, the types, the records and the errors compared and reported.
+6. The write path on a networked PostgreSQL: concurrent writers in many tenants, the commit tail
+   per scope, the notifier's coalescing, and the absence of cross-tenant waiting; and the
    interpreter's costs (section 7.9.4): the scope-counter read that positions every load and the
    overhead per request, against one `REPEATABLE READ` snapshot per decision.
+7. The fair-take measurement: the take's p95 against the number of lanes and the batch size
+   (section 9.5.3), whose result replaces the planning figure of 2,000 jobs per second per placement
+   (section 9.5.7).
+8. The Node 26 baseline (decision 28a): the checks this document records on Node 24.21.0 (type
+   stripping of linked workspace packages and its refusal under `node_modules`, `node:sqlite`,
+   `crypto.argon2`, the Unicode version behind the normalisers) run again on Node 26 and are recorded
+   in section 13.2 and Appendix B.
 
 ### 26.3 Open questions by area
 
+These are technical questions that the design leaves to measurement, to implementation or to a
+later look; none of them waits for a decision by Jens.
+
 Data:
 
-- Which mail entities declare `partition: 'accountId'` beyond `email` and `mailboxEntry`. Whether
-  mail search must work on SQLite (`fts5`) is answered: the keyed token index of section 14.7.9.9
-  works on every adapter, and `tsvector` and `fts5` remain for plaintext search indexes.
-- The clock-skew bound for offline clients (5 minutes by default).
-- Whether heads of the hash chain should later be anchored outside the database, and the threshold
-  for partitioning `ps_events`.
+- The threshold for partitioning `ps_events` (anchoring heads outside the database is decided,
+  35b).
+- Should anchors carry a digest over every stream head of a scope, so that a rewrite of a stream
+  that never held the scope's head at an anchor is found as well? The digest would be a stored
+  format, so the answer is due before M1 (section 15.1.8).
 - Should the `writer` and `flags` members of `ps_events.meta` enter the hash-chain content of
   section 15.1.8? Recommendation: yes, like the actor; section 15.1.8 assumes it.
 - `Pennestack-Client-Id`, which gives anonymous principals a targeting key (section 20.3), is a
@@ -12756,18 +13116,17 @@ Data:
   tables reveal the same length class (section 14.7.9.6)?
 - Can the migration role on the home PostgreSQL create an operator class for order tokens?
   `CREATE OPERATOR CLASS` needs a superuser, and CipherStash reports the same. Is an own TypeScript
-  implementation of Lewi-Wu block ORE acceptable, or must `order` wait for an externally reviewed
-  implementation (decision point 69)?
+  implementation of Lewi-Wu block ORE acceptable, or must `order` (M5, decision 69a) wait for an
+  externally reviewed implementation?
 - Index sizes, the over-fetch budget (ten times the page size) and the scan default (2,000) are
-  estimates; M4 measures them on a fixture mailbox (sections 14.7.9.5 and 14.7.9.6).
-- After a Node upgrade that changes the Unicode version (17.0 on Node 24.21.0), should the kernel
-  reindex automatically, or only warn in `pennestack doctor` (section 14.7.9.3)?
+  estimates: M4 measures the prefix and trigram indexes on Launchway's admin search, and the mail
+  foundations milestone the token index on a fixture mailbox (sections 14.7.9.5 and 14.7.9.6).
+- After a Node upgrade that changes the Unicode version (17.0 on Node 24.21.0; the M0 spike records
+  Node 26's), should the kernel reindex automatically, or only warn in `pennestack doctor` (section
+  14.7.9.3)?
 - Not verified within the research cap: what Stalwart's full-text index holds for messages it
   encrypted at rest (its documentation, updated 2026-10-03, is silent), and which MongoDB server
   version made the substring queries of Queryable Encryption generally available.
-- Retention of the `core.effect` streams and the `core.effectAttempt` records: keep effect streams
-  forever like other chain entities, or give each effect type a default `compactHistory` rule,
-  since mail delivery attempts accumulate (section 7.9.6)?
 - Re-decides need `asOf` reads by position, while decision 8a gives the generated `get` and
   `history` `asOf` by instant: expose `asOf` by position on those actions, or keep it
   kernel-internal (sections 7.9.6 and 14.7.1)?
@@ -12784,15 +13143,14 @@ Execution:
   and `run`, the name confirmed), the kernel effect constructors (`setTimer`, `cancelTimer`,
   `enqueue`) and continuations (`then`, `with`, `outcomeOf`) are specified in section 7.9.5; and a
   synchronous invocation never awaits a deferred effect, while a bounded inline effect in `prepare`
-  answers within the request ("test SMTP connection" is `mail-delivery.testRelay`; decision point
-  74).
+  answers within the request ("test SMTP connection" is `mail-delivery.testRelay`; decision 74a).
 - Module-defined computations off the event loop (MIME parsing for filing, search-text
   extraction): a `defineComputation` part in its own directory, or executors with continuations?
   Section 7.9.3 offers only the core's Argon2id computations.
 - Read positions of loads under `READ COMMITTED`: the design reads the scope counter in the same
   statement as each load; the M0 write-path spike measures that subselect's cost against one
   `REPEATABLE READ` snapshot per decision, which raises serialization retries on hot rows (section
-  26.2, item 5).
+  26.2, item 6).
 - Blob adoption from the deployment staging area (gap G5): a kernel step before the unit, as
   section 17.4.6 assumes so that no row references a missing blob, or a deferred kernel effect?
 - Rules read flags from the invocation's snapshot while handlers read them as requests: is the
@@ -12800,79 +13158,56 @@ Execution:
   rules declare the flags they read (sections 7.9.3 and 20.6)?
 - Does any pure job ever need a capability? Section 21.2 assumes not: placements handle data
   locality, and GPU work would be an effect.
-- The planning figure of 2,000 jobs per second per placement (section 9.5.7) is to be replaced by a
-  measurement of the fair take (take p95 against the number of lanes and the batch size on a
-  networked PostgreSQL). The roadmap adds it to the M0 write-path spike (section 26.2, item 5); or
-  should M2 measure it on the real queue?
+- The planning figure of 2,000 jobs per second per placement (section 9.5.7) is replaced by the M0
+  measurement of the fair take (section 26.2, item 7); should M2 measure it again on the real
+  queue?
 - Should the docker provider ever reach a remote Docker engine (with TLS client certificates), or
   only its local socket through the proxy (section 21.5)?
-- Which socket proxy the docker provider uses is neither chosen nor checked (section 21.5, decision
-  point 64).
+- Which socket proxy the docker provider uses is neither chosen nor checked (section 21.5,
+  decision 64a).
 
 Interfaces:
 
-- Whether GraphQL should also serve an operator schema at the operator endpoint, or operator work
-  stays on the invocation protocol and the CLI.
-- Whether `@escape.tech/graphql-armor` (last published 2025-12-29) stays maintained, or the
-  operation limits become own validation rules.
-- The upload side of blobs (multipart or resumable uploads, JMAP's upload endpoint), with gap G5.
-- The Connect runtime-descriptor spike, when the Connect transport is scheduled.
 - Should client-readable flags (`client: true`) appear in the API surface, so that
   `core.flag.evaluate` is typed, and how should `pennestack surface diff` classify removing one?
 - How are the core module's own API versions at the operator endpoint declared: a
   framework-maintained `defineApiVersions`, or package majors only?
 - At an older version, is an action that a version change renamed also reachable under its new
   name, as additive changes would suggest?
-- The scaffold command shape: this design reserves one name, `pennestack new <kind> <reference>`
-  (with `pennestack module new` kept as an alias); the alternative, `pennestack entity|action|flag
-  new`, reserves three module ids.
+- Do oRPC's client types accept the derived `OrpcRouterOf<App>` at a cost like the tRPC listing's?
+  Not verified within this pass; M2 checks it when the transport is built (section 16.7.7).
 - Answered with the strict rewrite of `docs/api-sketch.ts`: the profile search requires three
   characters and sends `'Jen'`, so the field keeps the default prefix minimum (section 14.7.9.13).
 
 Platforms:
 
-- `acme-client` 5.4.0 (MIT) implements RFC 8555 completely but has had no commit since 2024-07-17;
-  `@certd/acme-client` 1.45.0 is a maintained fork with dependencies of its own. Use the original,
-  the fork, or a small own ACME client on `node:crypto` and `fetch`?
-- Does the home connection allow inbound ports 25, 465, 587 and 993 and outbound port 25, and does
-  Docker Desktop's port publishing preserve client source addresses? Both need a probe from the
-  home server.
-- Account sharing (RFC 9670) and shared mailboxes in the first release, or one owner per mail
-  account?
-- Sieve and ManageSieve in the first release, or only the JMAP vacation response?
-- Until pennestack has a UI, is a third-party JMAP web client acceptable for webmail?
-- One login for Launchway and mail needs an OpenID Connect provider module; the first release keeps
-  the realms separate, as the brief's per-tenant realms imply. Confirm.
-- DMARC rollout: start with `p=none` and reports, move to `quarantine` and then `reject` after a
-  clean month?
-- The suggested retention defaults: 30 days for Trash, Junk and archived mail, 30 days for
-  deployment logs, seven days for closed previews, 90 days for delivery attempts.
-- Do Launchway's platform modules stay under `examples/launchway` or move to the Launchway
-  repository as its backend once the framework is public?
-- An outbound webhooks module (Standard Webhooks, `standardwebhooks` 1.1.1) for deployment
-  notifications: part of Launchway's first pennestack release or later?
-- Is a TCP proxy in front of the mail listeners, which drops no connection during upgrades, worth
-  one more component on the home server (decision point 56)?
-- The example package scopes (`@launchway`, `@mail`) depend on decision 48 of the register, where
-  Launchway's modules live.
-- Answered by section 7.9.5 (decision point 75): mail delivery's five-day schedule is the
-  submission's state machine with timers, one `smtpDeliver` effect per attempt and the continuation
+- Answered by section 7.9.5 (decision 75a): mail delivery's five-day schedule is the submission's
+  state machine with timers, one `smtpDeliver` effect per attempt and the continuation
   `recordAttempt`; the `mail-delivery.attempt` stream gives way to `attempted` events and
   `core.effectAttempt` records (section 17.4.7).
-- DKIM signing at submission (section 17.4.7, step 3) needs the message bytes and the private key:
-  a core computation over a blob and a key reference (`ctx.compute`), a first `dkimSign` effect with
-  a continuation, or signing inside the `smtpDeliver` executor at each attempt?
-- The inbound checks of `mail-store.acceptInbound` (the SPF, DKIM and DMARC lookups of
-  `sender-auth`, rspamd's HTTP score of `spam`) touch the network: inline effects that its `prepare`
-  performs through the `inboundChecks` fills (about two effect records per message and tenant,
-  section 17.4.6), or checks the SMTP listener performs before invoking the command?
 - External reads for user interfaces (Launchway's GitHub repository picker): a command with an
   inline effect, or a cache entity that a deferred effect's continuation refreshes and a query
   reads (section 17.3.9)?
-- A relay node on a rented host needs a database connection to the home placement (a tunnel). Is a
-  remote worker acceptable, or does decision point 21a (an external relay) make it moot?
-- Do the clients of the M6 matrix (Thunderbird, Apple Mail, iOS Mail) rely on substring semantics in
-  IMAP `SEARCH` (decision point 68)? Not researched within the cap.
+- Where the deployment definition lives once every app has its own repository (decision 48c):
+  `pennestack.config.ts` imports the apps from their packages, so the one deployment of section
+  17.5 needs a home, such as a small deployment repository that pins the apps and the framework to
+  exact versions; and Trail, rebuilt in M3 before that deployment exists, runs as its own deployment
+  until it can move in as a backend (roadmap M3 plans it that way).
+- With the mail server, parked: DKIM signing at submission (section 17.4.7, step 3) needs the
+  message bytes and the private key: a core computation over a blob and a key reference
+  (`ctx.compute`), a first `dkimSign` effect with a continuation, or signing inside the
+  `smtpDeliver` executor at each attempt?
+- With the mail server, parked: the inbound checks of `mail-store.acceptInbound` (the SPF, DKIM and
+  DMARC lookups of `sender-auth`, rspamd's HTTP score of `spam`) touch the network: inline effects
+  that its `prepare` performs through the `inboundChecks` fills (about two effect records per
+  message and tenant, section 17.4.6), or checks the SMTP listener performs before invoking the
+  command?
+- With the mail server, parked: a relay node on a rented host needs a database connection to the
+  home placement (a tunnel). Is a remote worker acceptable, or does an external relay (question 21)
+  make it moot?
+- With the mail server, parked: do the clients of the IMAP milestone's matrix (Thunderbird, Apple
+  Mail, iOS Mail) rely on substring semantics in IMAP `SEARCH` (question 68)? Not researched within
+  the cap.
 
 Toolchain and layout:
 
@@ -12887,12 +13222,18 @@ Toolchain and layout:
   `no-import-effects.grit` still have to be proven against fixtures.
 - The M0 type-model spike must measure the instantiation cost of typing each part against the base
   (one context type over the base per part) and compare it with one module written in a single file.
-- Topics (gap G6) carry subscriber hooks, so they are mounted in `module.ts`; whether subscriptions
-  read them by value depends on G6's final DSL in M2.
+- Topics (gap G6) carry subscriber hooks, so the generated manifest mounts them; whether
+  subscriptions read them by value depends on G6's final DSL in M2.
+- App-level parts (`apps/<id>/src/actions/`, `flags/`, `policies/`, `versions/`) stay mounted by
+  hand in `app.ts`, beside the app's configuration (section 23.5); should the generator write an app
+  manifest as well, as it does for modules?
 - For published module packages: should modules listed in `optional` be regular dependencies or
   optional peer dependencies? A static import requires the package to be installed.
 - `useNamingConvention` with `strictCase` may need overrides for wire-shaped names in object
   literals; fixtures settle it.
+- Publishing 0.x pre-releases, which Trail's rebuild depends on from M3 (decision 48c), needs an
+  npm scope: no `@pennestack` organisation existed on 2026-10-26, and the name is still a working
+  name (decision 84c).
 
 ## Appendix A. Versions checked
 
@@ -12906,10 +13247,10 @@ toolchain is in section 13.2.
 | `kysely` | 0.29.6 (`next`: 0.30.0-beta.2) | MIT | 2026-10-10; tarball inspected 2026-10-11 (dialects `postgres`, `mysql`, `sqlite`, `pglite`, `mssql`; `transformQuery` plugins; savepoints) | SQL family substrate |
 | `pg` | 8.23.1 | MIT | 2026-10-10 | PostgreSQL driver |
 | `mysql2` | 3.24.5 | MIT | 2026-10-10 | MySQL driver |
-| `node:sqlite` | Node.js 24.21.0 with SQLite 3.53.4 | MIT | 2026-10-11, run locally without an experimental warning | SQLite driver |
+| `node:sqlite` | Node.js 24.21.0 with SQLite 3.53.4 | MIT | 2026-10-11, run locally without an experimental warning; checked again on the Node 26 baseline in M0 (A.8) | SQLite driver |
 | `better-sqlite3` | 13.0.3 | MIT | 2026-10-10 | SQLite fallback driver |
 | `@electric-sql/pglite` | 0.5.8 (PostgreSQL 18.3) | Apache-2.0 | 2026-10-11, used to run the PostgreSQL checks of this document | tests and `pennestack dev` |
-| `drizzle-orm` | 0.45.4 (`rc`: 1.0.0-rc.4) | Apache-2.0 | 2026-10-11 (`getTableConfig` in `pg-core`, `mysql-core`, `sqlite-core`) | `db introspect --drizzle`; a later adapter |
+| `drizzle-orm` | 0.45.4 (`rc`: 1.0.0-rc.4) | Apache-2.0 | 2026-10-11 (`getTableConfig` in `pg-core`, `mysql-core`, `sqlite-core`) | the optional later `db introspect --drizzle`; no adapter (decision 13a) |
 | `drizzle-kit` | 0.31.11 | MIT | 2026-10-11 | prior art for diffing and rename prompts; not a dependency |
 | `@supabase/supabase-js` | 2.117.3 | MIT | 2026-10-11 | optional Supabase modules only |
 | `loro-crdt` | 1.16.4 | MIT | 2026-10-11 (API names in the type definitions) | CRDT codec |
@@ -12940,11 +13281,11 @@ Checked against the npm registry on 2026-10-10 and 2026-10-11.
 | `graphql-ws` / `graphql-sse` | 6.3.0 / 2.6.2 | 2026-09-24 / 2026-09-29 |
 | `@graphql-yoga/plugin-persisted-operations` | 3.24.4 | 2026-10-08 |
 | `@envelop/opentelemetry` | 9.2.2 | 2026-10-05 |
-| `@escape.tech/graphql-armor` | 3.2.0 | 2025-12-29 |
+| `@escape.tech/graphql-armor` (not used, decision 37a: own validation rules) | 3.2.0 | 2025-12-29 |
 | `dataloader` | 2.2.3 | 2024-12-03 |
 | `@trpc/server` / `@trpc/client` | 11.19.0 / 11.19.0 | 2026-09-16 / 2026-09-16 |
 | `superjson` | 2.2.6 | 2025-11-27 |
-| `@orpc/server` (not adopted) | 1.15.5 | 2026-10-07 |
+| `@orpc/server` | 1.15.5 (superseded by 1.16.1 in A.8, adopted with decision 15b) | 2026-10-07 |
 | `@hono/zod-openapi` / `hono-openapi` (not adopted) | 1.6.3 / 1.3.5 | 2026-09-04 / 2026-10-07 |
 | `@stricli/core` / `@stricli/auto-complete` | 1.3.0 / 1.3.0 | 2026-07-16 / 2026-07-16 |
 | `yaml` | 2.9.1 | 2026-09-11 |
@@ -12982,13 +13323,13 @@ Checked on 2026-10-11 with `npm view` (packages) or the project's repository (co
 | `wildduck` | 1.46.1 | EUPL-1.2 | examined, not used |
 | `pg-boss` | 12.37.1 (12.38.0 on 2026-10-25, A.6) | MIT | examined; the kernel queue covers its primitives (section 9.5.7) |
 | `ws` | 8.22.0 | MIT | WebSocket server under the HTTP host |
-| `@orpc/server` | 1.15.5 | MIT | examined for agent protocol v2; not adopted (ADR 0011) |
+| `@orpc/server` | 1.15.5 | MIT | examined for the agent protocol on 2026-10-11; the oRPC transport of section 16.7.7 uses 1.16.1 (A.8, decision 15b) |
 | `@simplewebauthn/server` | 14.0.3 | MIT | passkeys in `auth` |
 | `@octokit/app` | 16.1.4 | MIT | GitHub App authentication |
 | `@octokit/rest` | 22.0.1 | MIT | GitHub REST calls |
 | `@octokit/webhooks` | 14.2.0 | MIT | webhook signature verification |
 | `standardwebhooks` | 1.1.1 | MIT | outbound webhooks, later |
-| `acme-client` | 5.4.0 (last commit 2024-07-17) | MIT | ACME for `certificates` (open question) |
+| `acme-client` | 5.4.0 (last commit 2024-07-17) | MIT | ACME for `certificates` (question 40, parked with the mail server) |
 | `@certd/acme-client` | 1.45.0 | MIT | maintained fork, examined |
 | rspamd | 4.2.2 (2026-10-10) | Apache-2.0 | spam scoring, external |
 | Valkey | 9.1.2 (2026-09-01) | BSD-3-Clause | rspamd statistics, external |
@@ -13002,7 +13343,7 @@ Checked on 2026-10-11 with `npm view` (packages) or the project's repository (co
 | Package or component | Version | Licence | Use here |
 |---|---|---|---|
 | `typescript` | 7.0.2 and 5.9.3 | Apache-2.0 | the checks of the section 4.7 listing, the synthetic apps and the declaration-emit chain |
-| Node.js `node:crypto` `argon2` | Node 24.21.0 | MIT | Argon2id password hashing in `auth` (section 17.2.2), run without an experimental warning |
+| Node.js `node:crypto` `argon2` | Node 24.21.0 | MIT | Argon2id password hashing in `auth` (section 17.2.2), run without an experimental warning; checked again on Node 26 in M0 (A.8) |
 | `@simplewebauthn/server` | 14.0.3 | MIT | passkeys in `auth` |
 
 ### A.5 Added with addendum 3 (2026-10-24)
@@ -13054,6 +13395,20 @@ Temporal's client are in A.6.
 | `@event-driven-io/emmett` | 0.42.4 | 2026-08-12 | prior art: deciders that return events, workflows that return their outputs as values; not used |
 | `redux-saga` / `@redux-saga/types` | 1.5.1 / 1.4.1 | 2026-07-26 / not recorded | prior art: generators that yield effect descriptions a middleware performs; not used |
 | `kysely` | 0.29.7 | 2026-10-17 | a newer patch than the 0.29.6 of A.1, which stays pinned until the M0 spike; the SQL read request builds its query without a connection (section 14.3.8) |
+
+### A.8 Added with Jens's decisions of 2026-10-26 to 2026-10-28
+
+The oRPC packages, TypeScript and `@types/node` were checked with `npm view` on 2026-10-28; the
+Node.js release was checked by the lead on 2026-10-27; TypeScript's bundled libraries were read in
+an installed 7.0.2 on 2026-10-28. Licences not re-checked.
+
+| Package or component | Version | Published | Use here |
+|---|---|---|---|
+| Node.js | 26.12.1 | 2026-10-21 | the baseline of decision 28a (section 13.2); ships `Temporal` natively, so no polyfill (decision 19b); LTS promotion due in the last week of October 2026 |
+| `typescript` | 7.0.2, still the latest | 2026-07-08 | `lib.es2025.d.ts` and `lib.esnext.temporal.d.ts` bundled, used by the base configuration of section 13.3 |
+| `@types/node` | 26.6.5 | 2026-10-09 | the Node 26 declarations (section 13.2) |
+| `@orpc/server` / `@orpc/client` / `@orpc/openapi` | 1.16.1 / 1.16.1 / 1.16.1 | 2026-10-22 | `@pennestack/transport-orpc` and its optional OpenAPI handler (section 16.7.7, decision 15b) |
+| Caddy | `caddy:2-alpine`, the image of section 17.5.2 (version not pinned in this document) | not recorded | the first edge provider, `edge-caddy` (section 17.3.7, decision 82a) |
 
 ## Appendix B. Verified typing listing
 

@@ -4,8 +4,9 @@ Date: 2026-10-25
 
 ## Status
 
-Proposed. Decision 7b of the register (2026-10-25) is taken; the defaults below are open decision
-points 65 to 72 for Jens (architecture.md section 26.1). Amends ADR 0009, decision 2.
+Proposed. Decision 7b of the register (2026-10-25) is taken; Jens decided the defaults below on
+2026-10-28 as written (decisions 65a, 66a, 69a, 70a, 71a and 72a), while 67 and 68, on mail search,
+are parked with the mail server. Amends ADR 0009, decision 2.
 Architecture.md section 14.7.9 specifies the design.
 
 ## Context
@@ -39,16 +40,19 @@ the adapters.
 4. **Techniques.** HMAC-SHA-256 tags under per-field keys derived by HKDF from a tenant index root
    key; prefix tags (three characters at least); trigram tags truncated to 12 bits for fields of at
    most 1,024 characters; a keyed token index per data subject for words; ORE tokens on PostgreSQL in
-   M7.
+   M5 (M7 before the roadmap's renumbering of 2026-10-28; decision 69a).
 5. **One AST, verified results.** The kernel's encryption planner rewrites comparisons onto derived
    index fields that adapters compile like any field. Approximate comparisons stand only in positive
    positions of query filters and are verified on unsealed rows; authorization rules, relation
    quantifiers and negations use exact capabilities only.
 6. **Fail closed.** Undeclared operators, short operands and exhausted scans fail with
    `unsupported` (`core.personal_operator`, `core.personal_needle_short`, `core.scan_limit`); the only
-   fallback is an explicit, bounded scan in a custom query.
+   fallback a module author writes is an explicit, bounded scan in a custom query. A capability the
+   adapter lacks for a declared operator is another matter (brief addendum 5, decision 12a): the
+   kernel serves it, order through a bounded scan and tag sets through index tables, and
+   `pennestack doctor` reports the cost; nothing refuses at `connect`.
 7. **Adapters** declare `encryptedQueries` (equality, tag sets, order, scan bound): PostgreSQL first,
-   MySQL and SQLite in M7; an unsealing oracle is the dual-evaluation reference.
+   MySQL and SQLite in M5; an unsealing oracle is the dual-evaluation reference.
 8. **Keys, rotation, erasure.** Rotating index keys or changing a normaliser is a reindex through
    expand, backfill and contract. Erasure shreds subject index keys with the data keys and clears
    every index entry of the subject in the unit of its `erased` event.
@@ -64,7 +68,8 @@ the adapters.
 - Queries that worked on plaintext can become type errors (`startsWith` on an address without
   `prefix`); IMAP substring search becomes word search; mail cannot be sorted by sender or subject.
 - Every personal write costs one encryption and one HMAC per tag; indexes grow (5 to 10 KB per
-  message on PostgreSQL, to be measured in M4).
+  message on PostgreSQL, to be measured with the mail foundations, parked with the mail server; M4
+  measures the prefix and trigram indexes of Launchway's admin search).
 - Low-entropy personal fields gain little from equality indexes, and `pennestack doctor` says so.
 - The mail token index reveals word presence to someone who can both mail the account and read a
   dump; per-account keys confine it to that account.

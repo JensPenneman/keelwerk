@@ -1,13 +1,17 @@
 # 3. Module composition: a const tuple, hard requirements and contracts, soft contributions, extension points, deployment infrastructure
 
-Date: 2026-10-08 (revised 2026-10-11, 2026-10-24 and 2026-10-25)
+Date: 2026-10-08 (revised 2026-10-11, 2026-10-24 and 2026-10-25; notes of 2026-10-28)
 
 ## Status
 
 Proposed. Jens decided decision points 1 (the compiled catalogue, with exact types per app in
 development) and 2 (hard dependencies stay; a module switches off with its dependants) on
 2026-10-25, as the consequences below state them. The module-local context of item 1 is the pure
-context of [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) since 2026-10-25.
+context of [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) since 2026-10-25. Since
+2026-10-28 (decisions 59b and 60b, ADR 0024) the module literal of item 1 is written by the
+generator as `module.generated.ts`, and rules are one per file (`defineRule`); since decision 32b
+(2026-10-27) a part reaches a module it lists as `optional` through the Maybe accessor
+`ifPresent`.
 
 ## Context
 
@@ -57,11 +61,12 @@ reason, and the project layout (ADR 0024) needs parts in files of their own.
    2026-10-24): a module base, `defineModuleBase({ id, version, requires, optional, provides,
    config, data, extensionPoints, entities, streams, flags, contributions, conditions })`; parts,
    one literal each, typed against that base (`defineCommand(base, entity, { ... })`,
-   `defineQuery(base, { ... })`, `definePolicy(base, target, [...])`, `defineReaction(base, ...)`,
+   `defineQuery(base, { ... })`, `defineRule(base, target, { ... })`, `defineReaction(base, ...)`,
    `defineService(base, ...)` and the other part functions); and a module literal,
    `defineModule(base, { actions, entityActions, policies, reactions, services, topics,
    contributes, conditional, schedules, lifecycle, changes })`, which mounts the parts and is
-   normalised into the shape every derived type folds over. Because each part is typed against a
+   normalised into the shape every derived type folds over; in a project the generator writes it
+   from the directory conventions (ADR 0024). Because each part is typed against a
    value that exists before it, no chain is needed to type handlers. An app is `defineApp({ id,
    modules })` over a `const` tuple of module values, in a project the tuple that `modules.ts`
    exports; the `core` module is always prepended. Every derived type (`AppEntities`, `ActionRef`, `AppActionTree`) is a
@@ -70,13 +75,14 @@ reason, and the project layout (ADR 0024) needs parts in files of their own.
    module alone where code runs inside a module (`ActionContext<M>`, ADR 0004; since ADR 0026 the
    pure `DecideContext<M>` and its siblings); app types serve clients, transports and the generated
    file.
-2. Every exported module, module base and app value has a named type: `export interface Auth
-   extends ModuleType<typeof authDef> {}` and `export const auth: Auth = authDef` (`ModuleBaseType`
-   for the base), so declaration emit stays about one kilobyte per module (measured 2026-10-11 on
-   TypeScript 7.0.2, against 219 KB at the tenth module of a dependency chain without names).
-   `pennestack new module` scaffolds it, a GritQL rule flags an exported value without it, and CI checks declaration sizes and TS7056, TS2742 and
-   TS4023 for both proof apps. `@pennestack/core` exports every type that can appear in a module
-   value's type.
+2. Every exported module, module base and app value has a named type: `export interface Auth extends
+   ModuleType<typeof authDef> {}` and `export const auth: Auth = authDef` (`ModuleBaseType` for the
+   base), so declaration emit stays about one kilobyte per module (measured 2026-10-11 on TypeScript
+   7.0.2, against 219 KB at the tenth module of a dependency chain without names). The generator
+   writes it into every module manifest, a GritQL rule flags a hand-written exported value without
+   it, and CI checks declaration sizes and TS7056, TS2742 and TS4023 for the portal example and the
+   synthetic apps here and for each platform in its own repository. `@pennestack/core` exports every
+   type that can appear in a module value's type.
 3. A module declares hard dependencies in `requires` and soft dependencies in `optional`. Both hold
    module values or **contracts**: named capabilities with a typed interface (`live`, `blobs`,
    `httpHost`) that modules or infrastructure entries `provide`. App-level contracts must be
