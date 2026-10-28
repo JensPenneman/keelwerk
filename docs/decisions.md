@@ -235,8 +235,8 @@ Data:
     repository, M4 Launchway in its own repository, mail parked after; a 'beta' section), sections
     17 (Launchway modules no longer under examples/), 22, 24, README; see section K.
 49. **Outbound webhooks.** a) ★ part of Launchway's first pennestack release (M3); b) later.
-    Status: open.
-
+    Status: decided 2026-10-27: **a**, outbound webhooks ship with Launchway's rebuild (M4 after the
+    reorder); applied (roadmap).
 ## E. Addendum 4 (2026-10-24): pure functions
 
 50. **How strict is "pure"?** a) strict functional core: handlers never perform effects; commands
@@ -255,7 +255,9 @@ Data:
     event and command that caused them; imperative code exists only in the kernel, adapters,
     transports, listeners and declared effect executors. To apply: sections 4.3, 7.3, 7.6, 8.4, 9.2,
     the layout section, api-sketch.ts, ADR 0004; new ADR 0026.
-
+    Reopened and confirmed 2026-10-28 (Jens: keep a). Ergonomic variant to test in the M0 spike:
+    no separate `prepare` member; `decide` may perform inline effects only before its first load,
+    the kernel opens the unit at the first load and refuses later inline effects with a clear error.
 ## F. Addendum 3 (2026-10-23): versioning, rollouts, flags and project layout
 
 The designs landed on 2026-10-24 as architecture.md sections 18 to 20 and 23 (ADRs 0021 to 0024);
@@ -269,24 +271,35 @@ Versioning, rollouts and flags:
     (`@pennestack/module-experiments`), because flags are needed in rules, `admit`, transports,
     jobs and the kernel's own rollouts, and only the core reaches all of them; b) a flags module
     that other modules require or list as optional; c) only in the apps built on the framework.
-    Status: open.
+    Status: decided 2026-10-28: **a**, flags in the framework core, experiments as a module; applied
+    (section 20, ADR 0023).
 52. **API version naming.** How are app API versions named and served? a) ★ dated versions pinned
     per request, credential, tenant and backend, served from one head by version-change
     transforms; integer majors only for wire protocols; b) integer majors per app (v1, v2) in a
     header, each major a separate surface; c) no versions: continuous evolution with deprecation
-    only. Status: open.
+    only. Status: decided 2026-10-28: **a**, dated API versions with version-change transforms; applied
+    (section 18, ADR 0021).
 53. **Support window.** How long must an API version stay supported? a) ★ at least 12 months after
     a newer one exists, then retirement only after its sunset and 30 days of zero use (or a logged
     `--force`); for a personal deployment the usage counters matter more than the calendar; b) 24
-    months, as GitHub promises; c) until usage reaches zero, however long that takes. Status: open.
+    months, as GitHub promises; c) until usage reaches zero, however long that takes. Status: decided 2026-10-28: **12 months of deprecation, then support is dropped**, without the
+    zero-use condition: a version is marked deprecated the day a newer one exists, its sunset is 12
+    months later, and after the sunset it is retired regardless of use (clients get
+    `core.api_version_retired`); usage counters stay as information. To apply: section 18.6, ADR 0021;
+    see section K.
 54. **Automatic finalization.** Is finalization of a rollout automatic? a) ★ automatic once every
     live process has run the target revision for a 600-second grace period, with a manual mode per
     deployment; contract steps stay manual because they destroy data; b) always manual
-    (`pennestack rollout finalize`). Status: open.
+    (`pennestack rollout finalize`). Status: decided 2026-10-28: **a**, automatic finalization after the grace period, contract steps
+    manual; applied (section 19, ADR 0022).
 55. **Field renames in production.** How are field renames handled in production? a) ★ keep the
     physical column recorded in the snapshot (a logical rename, no DDL); type changes and splits
     use the gated add, dual write, backfill and contract procedure; b) rename the column through
-    add, dual write, backfill and drop. Status: open.
+    add, dual write, backfill and drop. Status: decided 2026-10-28: **b**, a rename renames the column through expand (add the new column),
+    dual write during the rollout, backfill, and contract (drop the old column), gated by
+    finalization like every other contract step; physical names always equal the derived names.
+    To apply: sections 14.4.2, 14.6.2, 14.6.4, 19 (the 'renamed fields keep their column' rule is
+    reversed), ADR 0022; see section K.
 56. **Mail listeners during upgrades.** How do the mail listeners survive upgrades on the home
     server? a) ★ their own container (a named process of gap G9), replaced by stop and start in
     seconds: SMTP senders retry and IMAP clients reconnect, and the HTTP container rolls blue-green
@@ -297,10 +310,7 @@ Versioning, rollouts and flags:
     fixed-horizon frequentist tests (two-proportion z-test, Welch's t-test, 95 % intervals) with a
     planned-size gate and a sample-ratio check; Bayesian, CUPED and sequential tests later, each
     with its own validation; b) Bayesian analysis from the start; c) sequential testing from the
-    start; d) no analysis: export counts only. Status: open.
-
-Project layout:
-
+    start; d) no analysis: export counts only. Status: decided 2026-10-28: **a**, fixed-horizon frequentist tests first; applied (section 20.8).
 58. **File naming.** What case do file and directory names use, given that every file is named
     after its export? a) ★ kebab-case derived from the export by `kebab()` of architecture.md
     section 16.4.1 (`changePassword` -> `change-password.ts`): it matches module ids, CLI routes
@@ -309,7 +319,7 @@ Project layout:
     b) the identifier's own case (`changePassword.ts`), which Biome 2.5.15 checks in the editor
     with `useFilenamingConvention` `filenameCases: ["export"]`; paths then mix kebab module
     directories with camelCase files, and case-only renames can slip past git on macOS and
-    Windows. Status: open.
+    Windows. Status: decided 2026-10-28: **a**, kebab-case derived from the export; applied (section 23, ADR 0024).
 59. **Module assembly.** How do a module's part files become the module value? a) ★ explicit:
     `base.ts` holds the module base and parts are typed against it through the part functions
     (`defineCommand(base, ...)` and the others); `module.ts` imports every part and mounts it in the
@@ -317,43 +327,55 @@ Project layout:
     and the API name is set in code; b) generated: `pennestack generate` writes
     `module.generated.ts` from the directory conventions, and `generate --check` catches drift in
     CI; nothing needs registering by hand, but the types are stale until the generator runs and a
-    file's path decides its action reference. Status: open.
+    file's path decides its action reference. Status: decided 2026-10-28: **b**, a generated manifest: `pennestack generate` (and the dev server on
+    every file change) writes `module.generated.ts`, a module literal assembled from the directory
+    conventions (3b still holds: it is a literal, only written by a tool); `generate --check` fails CI
+    on drift; an action's reference comes from its file name and its directory (entity or module
+    mount), so moving a file changes the reference and `surface diff` reports it as breaking.
+    `base.ts` stays hand-written. To apply: sections 23.5 to 23.9, 13.1 (generated files), 13.8,
+    ADR 0024; question 61 becomes moot; see section K.
 60. **Policy granularity.** How are authorization rules split into files? a) ★ one policy file per
     entity or module-level action (`policies/<target>.ts` exporting `<target>Policy`), holding all
     rules for that target so allows and denies are reviewed together; b) one rule per file
     (`policies/<entity>/<rule-id>.ts`), so the file name equals the rule id; many small files, and
-    name clashes in `module.ts` need aliases. Status: open.
+    name clashes in `module.ts` need aliases. Status: decided 2026-10-28: **b**, one rule per file (`policies/<target>/<rule-id>.ts`, the file name
+    is the rule id); the generated manifest merges them as a set (order-independent by 5a).
+    To apply: sections 23.2, 23.5, 8.1 (rule ids derive from path), ADR 0024; see section K.
 61. **Scaffold edits.** May scaffolds edit TypeScript sources? Section 16.9.8 used to say they never
     do. a) ★ narrow edits of assembly files only: scaffolds insert one import and one entry into
     the matching key of one assembly file (`base.ts`, `module.ts`, `app.ts` or `modules.ts`),
     refuse any file not in the canonical shape and print the lines instead, and offer `--dry-run`;
     b) keep the earlier rule: scaffolds only print the two lines for the author to paste.
-    Status: open.
-
+    Status: closed 2026-10-28 by 59b: scaffolds create files only and never edit sources; the
+    generated manifest does the wiring.
 ## G. Jobs, nodes and autoscaling (designed 2026-10-25; decision 6 above is the main choice)
 
 62. **Fleet command name.** Launchway already has a module `nodes`, so the framework's command group
     for nodes, processes and scaling needs another name. a) ★ `pennestack fleet` (list, show, watch,
     cordon, uncordon, drain, probe, forget, scale ...), one more reserved name (34); b) `pennestack
-    nodes` and rename Launchway's module; c) `pennestack x nodes` until the next major. Status: open.
+    nodes` and rename Launchway's module; c) `pennestack x nodes` until the next major. Status: decided 2026-10-28: **a**, `pennestack fleet`; applied (sections 16.9, 21).
 63. **When automatic scaling ships.** a) ★ M3: the scaler as a pure plan with the static provider
     (recommendations in `pennestack fleet scale status`); M5: the opt-in docker provider for extra
     workers; b) the docker provider already in M3; c) recommendations only until a Kubernetes or
-    cloud provider exists. Status: open.
+    cloud provider exists. Status: decided 2026-10-28: **a**, scaler with the static provider first, the docker provider one
+    milestone later; Jens wants a Kubernetes (or similar) provider in the future, so the
+    `nodeProviders` contract stays the only coupling and the roadmap keeps the Kubernetes provider
+    as a named later milestone; applied (section 21, roadmap).
 64. **Docker provider on the home server.** The Docker engine is root on that host. a) ★ opt-in per
     deployment, held only by the scaler's named process, through a socket proxy limited to container
     create, start, stop, inspect and list; b) never: extra workers are started by hand; c) on by
-    default. Status: open.
-
+    default. Status: decided 2026-10-28: **a**, opt-in, scaler-only, through a verb-limited socket proxy; applied
+    (section 21.5).
 ## H. Encrypted personal data and queries (designed 2026-10-25, decision 7b)
 
 65. **Equality index by default?** When does a personal field get its blind index? a) ★ only where a
     lookup is declared (`.unique()`, `.index()`, an entity index or `queries: ['eq']`); other
     personal fields support `isNull` only; b) every scalar personal field gets one, opt-out with
-    `queries: []`. Status: open.
+    `queries: []`. Status: decided 2026-10-28: **a**, blind indexes only where a lookup is declared; applied
+    (section 14.7.9).
 66. **Default normaliser for personal strings.** a) ★ NFC (composed and decomposed accents compare
     equal); e-mail fields declare `normalize: 'email'`, which makes uniqueness case-insensitive;
-    b) exact code points; c) caseless by default. Status: open.
+    b) exact code points; c) caseless by default. Status: decided 2026-10-28: **a**, NFC by default, `email` for e-mail fields; applied (section 14.7.9).
 67. **Server-side mail search over personal text.** a) ★ a per-account keyed token index over
     subject, addresses and bodies (`search: 'full'`, switchable to `'headers'` or `'off'` per
     backend); b) headers only, bodies by bounded scans; c) no server-side search until pennestack
@@ -366,18 +388,20 @@ Project layout:
 69. **Ordering and ranges on personal fields.** a) ★ bounded scans only until M7, then
     order-revealing encryption tokens on PostgreSQL as an opt-in with a doctor warning; b) never,
     bounded scans only; c) an order-preserving encoding on every adapter now (more leakage).
-    Status: open.
+    Status: decided 2026-10-28: **a**, bounded scans first, ORE tokens later as an opt-in on PostgreSQL;
+    applied (section 14.7.9, roadmap).
 70. **Key scope of search indexes.** a) ★ per data subject (the mailbox owner): tags of different
     accounts never match, erasure destroys the key; b) per tenant: operator search across accounts,
-    but tags link words across accounts. Status: open.
+    but tags link words across accounts. Status: decided 2026-10-28: **a**, per data subject; applied (section 14.7.9).
 71. **Bounded scans (unseal and evaluate in memory).** a) ★ custom queries only, with an explicit
     limit (default 2,000; adapter maximum, proposed 10,000 on PostgreSQL); b) also generated queries
-    over transports, with a per-entity limit; c) nowhere. Status: open.
+    over transports, with a per-entity limit; c) nowhere. Status: decided 2026-10-28: **a**, bounded scans in custom queries only, explicit limit, never
+    through transports; applied (section 14.7.9).
 72. **Substring search defaults.** a) ★ trigram tags truncated to 12 bits, operands of at least 3
     characters, only fields with `maxLength` of at most 1,024; b) 16-bit tags (fewer false matches,
     sharper statistics for a thief); c) no `contains` on personal fields, word search only.
-    Status: open.
-
+    Status: decided 2026-10-28: **a**, 12-bit trigram tags, 3-character minimum, fields up to 1,024
+    characters; applied (section 14.7.9).
 ## I. Pure handlers and the effect interpreter (designed 2026-10-25, decision 50a)
 
 73. **How a handler gets its data.** a) ★ generators: `decide`, `read` and `react` yield typed
@@ -386,37 +410,45 @@ Project layout:
     `load(input, ctx)` member returns named load descriptions answered before `decide`, which
     becomes a plain function of (input, loaded, ctx), with a second stage for dependent loads;
     c) both, declared loads as the common form and generators only for dependent loads.
-    Status: open.
+    Status: decided 2026-10-28: **a**, generators with `yield*`; applied (section 7.9.2, ADR 0026).
 74. **Inline effects in `prepare`.** May a sync command call outside and wait for the answer?
     a) ★ yes, restricted: only in `prepare` of sync commands, only executors marked `inline` that
     need no capability, at most 30 seconds, no retries, recorded before and after (needed by OAuth
     and OpenID Connect logins, GitHub's manifest conversion, "test SMTP connection"); b) no, every
-    effect is deferred and interactive flows become two steps. Status: open.
+    effect is deferred and interactive flows become two steps. Status: decided 2026-10-28: **a**, with a reservation: Jens is not sold on the phase restrictions
+    (`prepare`, `decide`, ...). They follow from 50a (no transaction waits on the network, every
+    effect recorded); the M0 spike and the Trail rebuild test their ergonomics, and the split model
+    of 50c stays the agreed fallback if they hurt. Applied (section 7.9.4, ADR 0026).
 75. **Who retries outside calls.** a) ★ the rule: executor retries only for failures without
     domain meaning (lost lease, refused connection, 429 or 5xx honouring the idempotency key);
     everything with domain meaning, mail delivery included, is a state machine with timers and one
     effect per attempt; b) executor retries for everything, mail included; c) no executor retries
-    at all. Status: open.
+    at all. Status: decided 2026-10-28: **a**, executors retry mechanical failures, modules decide on answers
+    with domain meaning; applied (section 7.9.5, ADR 0026).
 76. **Logging inside pure handlers.** a) ★ `ctx.log` and `ctx.trace` stay write-only capabilities
     (return nothing, cannot influence a result, not part of the logbook); b) logs as returned or
     yielded values; c) no logging in handlers, the kernel logs decisions and effects itself.
-    Status: open.
+    Status: decided 2026-10-28: **a**, write-only log and trace capabilities; applied (section 7.9.7).
 77. **Clock, ids and randomness.** a) ★ the clock is the invocation's fixed time (equal to the
     events' `recordedAt`); ids and random values are yielded requests recorded in the decision
     record; b) all three recorded requests, each `now()` a fresh reading; c) all three derived from
-    a recorded per-invocation seed (Restate's approach). Status: open.
+    a recorded per-invocation seed (Restate's approach). Status: decided 2026-10-28: **a**, fixed clock per invocation, ids and random values as recorded
+    requests; applied (section 7.9.3).
 78. **Where effect records live.** a) ★ in the chain: one `core.effect` stream per effect
     (requested, settled), positioned and hashed with the scope's other events, attempts as stream
     records kept 90 days; b) a separate `ps_effects` table per namespace with its own retention,
-    not hashed. Status: open.
+    not hashed. Status: decided 2026-10-28: **a**, effect records in the chain (`core.effect` streams); applied
+    (section 7.9.6). Note from 47c: attempt records are kept, not purged after 90 days, unless Jens
+    adopts a rule; see section K.
 79. **Command inputs in the logbook.** a) digest only (the receipt's fingerprint); b) ★ digest by
     default plus sealed inputs for actions that opt in (`trace: { input: 'sealed', retention }`),
-    personal fields under the subject's key; c) sealed inputs for every command. Status: open.
+    personal fields under the subject's key; c) sealed inputs for every command. Status: decided 2026-10-28: **b**, digest by default, sealed inputs by opt-in; applied
+    (section 7.9.6, 7.3).
 80. **Launchway's agents under the strict model.** a) ★ commands to agents are effects with an
     external performer: the agent pulls pending `agentCommand` effects over `nodes.channel` and
     settles them through `nodes.ack`, with a deadline and a continuation; b) keep the
-    `nodes.command` rows and `nodes.command.ack` of section 17.3.4 as module data. Status: open.
-
+    `nodes.command` rows and `nodes.command.ack` of section 17.3.4 as module data. Status: decided 2026-10-28: **a**, agents are external performers of `agentCommand` effects;
+    applied (sections 7.9, 17.3.4).
 ## J. Editorial items from the merge passes (2026-10-25, for the lead and Jens)
 
 - New names introduced by the final editor to make the strict sketches concrete, to confirm or
@@ -479,6 +511,21 @@ Project layout:
 - Mail server parked (2026-10-26): roadmap M4 to M6 marked 'parked until Jens chooses a stable,
   permanent deployment option'; M7 to M9 follow M3 directly; the gates for 21, 22 and the mail
   questions move with them; section 17's mail platform text stays as designed; README status line.
+- 78a + 47c: the 90-day default for `core.effectAttempt` stream records becomes 'kept until a
+  retention rule is adopted' (consistent with keep-everything); section 7.9.6, 14.7.1.
+- 50a spike item: section 26.2 adds 'prepare member versus inline-before-first-load in decide',
+  both prototyped on Trail's ingest and the GitHub connection flow.
+- 60b: policies become one rule per file under policies/<target>/, rule id = module.target.file;
+  sections 23.2, 23.5, 8.1, 8.6 (explain shows the file), ADR 0024.
+- 59b: section 23.5 to 23.9 switch assembly to the generated `module.generated.ts` (conventions in,
+  module literal out), the dev server regenerates on change, CI checks drift, references derive
+  from file name and mount directory, scaffolds only create files (23.14, 16.9.8); 13.1 lists the
+  generated files; ADR 0024 revised; the trace-budget note in 13.11 covers the generated literal.
+- 55b: reverse 'a renamed field keeps its physical column' in 14.4.2, 14.6.2, 14.6.4 and 19;
+  renames become the four-step expand, dual write, backfill, contract procedure; the snapshot keeps
+  no column aliases.
+- 53: section 18.6 and ADR 0021: sunset = deprecation + 12 months, retirement at sunset regardless
+  of use (no zero-use gate, no --force), CI check unchanged.
 - 48c: roadmap reordered (M3 Trail on pennestack in the Trail repository, M4 Launchway in the
   Launchway repository, later milestones unchanged, mail parked); a 'Beta policy' paragraph in the
   roadmap and README (0.x pre-releases, exact pins, stable only when Jens says); section 17's
