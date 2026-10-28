@@ -47,7 +47,7 @@ exercise lock waits.
 
 ## Decision
 
-1. **One log per namespace.** `ps_events` holds every event of a namespace; a stream is an entity
+1. **One log per namespace.** `kw_events` holds every event of a namespace; a stream is an entity
    instance; a unit may append to several streams of its scope atomically, each with its expected
    version. There is no aggregate layer: invariants across entities are online commands over
    several streams, locking a parent row or running at `serializable` where a concurrent insert
@@ -121,8 +121,8 @@ exercise lock waits.
     backups (decision 35b): an anchor holds the scope id, the position and hash of the scope's
     latest event, the recorded time and the writer, at a cadence set in `defineDeployment`
     (`anchors.every`, by default every commit batch of the notifier and at most once per second per
-    scope). `pennestack db verify` compares the chain with the anchors, `connect` treats a head
-    below the newest anchor as a rewind, and `pennestack doctor` warns about missing anchors
+    scope). `keelwerk db verify` compares the chain with the anchors, `connect` treats a head
+    below the newest anchor as a rewind, and `keelwerk doctor` warns about missing anchors
     (architecture.md section 15.1.8).
 14. **Upcasting.** Per track, using the shape each event records: renames and removals
     automatically, type changes through upcasters in migration files; stored events are never

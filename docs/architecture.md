@@ -1,4 +1,4 @@
-# pennestack architecture
+# keelwerk architecture
 
 Date: 2026-10-28 (first version 2026-10-08, consolidated 2026-10-11). Status: specification,
 complete: every question of the decision register is decided or, for the mail server, parked;
@@ -105,7 +105,7 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
     editor sees, with no language-service plugin. Module and app values carry named types, so
     declaration emit stays proportional to each package (section 13.11). The generated files in
     the type path, each module's manifest `module.generated.ts` (section 23.5) and the app's
-    `pennestack.generated.ts` (section 13.7), are plain committed TypeScript: the dev server
+    `keelwerk.generated.ts` (section 13.7), are plain committed TypeScript: the dev server
     rewrites them on every change, `tsc` checks them like hand-written code, and CI fails on drift
     (decision 59b).
 11. **Handlers are pure; the kernel performs every effect.** Every part a module author writes is a
@@ -120,7 +120,7 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 
 | Term | Meaning |
 |---|---|
-| **Deployment** | One running installation of pennestack: one build, one or more processes, possibly on several nodes, sharing one control store. |
+| **Deployment** | One running installation of keelwerk: one build, one or more processes, possibly on several nodes, sharing one control store. |
 | **Infrastructure** | What a deployment provides to every app it runs, listed in `defineDeployment`: data adapter factories, the job queue, blob stores, the HTTP host, secret providers, the erasure-ledger sink, tenant resolvers and listener port bindings (section 4.6). |
 | **App** | A compile-time composition of modules: `defineApp({ id, modules: [...] })`. Its types are exact for that selection. The deployment platform and the mail server are two apps. |
 | **Backend** | A runtime instance of an app inside a deployment, created at runtime without a redeploy: a name, the app it runs, its configuration, secrets, domains, quotas and tenants. Several backends may run the same app. |
@@ -133,7 +133,7 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 | **Module** | A unit of composition with a string id. Owns entities, actions, policies, services, reactions and extension points; declares requirements, optional dependencies, contracts it provides, contributions and conditional parts. Written as a module base and a module literal, `defineModule(base, { ... })`, which the generator assembles from the module's directories as `module.generated.ts` (sections 4.1 and 23.5). |
 | **Module base** | A module's declaration literal, `defineModuleBase({ ... })` in `base.ts`: identity, dependencies, configuration, extension points, entities, streams, flags and the data of contributions and conditional parts, against which parts are typed (sections 4.1 and 23.5). |
 | **Part** | The one definition a source file exports (an action, a rule, a reaction, a service, a fill, a schedule, an effect, an effect executor, ...), typed against a module base and mounted by the generated manifest under the reference its file name and directory give (sections 4.1, 23.3 and 23.5). |
-| **Generated manifest** | A module's `module.generated.ts`: the module literal that `pennestack generate` and the dev server write from the module's directory conventions, mounting every part under the reference its path gives; committed and checked for drift in CI, while `base.ts` stays hand-written (decision 59b, section 23.5). |
+| **Generated manifest** | A module's `module.generated.ts`: the module literal that `keelwerk generate` and the dev server write from the module's directory conventions, mounting every part under the reference its path gives; committed and checked for drift in CI, while `base.ts` stays hand-written (decision 59b, section 23.5). |
 | **Contract** | A named capability with a typed interface (`live`, `blobs`, `httpHost`) that modules list in `requires` or `optional` instead of a concrete implementation; a module or an infrastructure entry declares that it `provides` it (section 5.2). |
 | **Maybe accessor** | The form in which a part reaches a module it lists as `optional`: `ctx.load.accounts.ifPresent((a) => a.profile.byId(id))` is a request answered with the inner request's answer, or `undefined` when the module is not selected, and composes with `yield*` like every request (decision 32b, sections 3.4 and 7.9.3). |
 | **Entity** | A data structure owned by a module: fields, relations, indexes, events and the actions mounted on it. |
@@ -143,7 +143,7 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 | **Request** | A plain value a pure handler yields with `yield*` and the kernel answers: a load (`ctx.load...`), an `ask` of a dependency's query, a flag, a new id, random bytes, the issue, reveal or verification of a secret, a computation, or, in `prepare` only, an inline effect. Answers the chain cannot reproduce are kept in the decision record (section 7.9.3). |
 | **Effect** | A description of something to happen outside the decision, returned in a decision's `effects`: a kernel effect (`invoke`, `enqueue`, `setTimer`, `cancelTimer`, `settle`, scope-key claims) performed in the unit or at its commit, or an external effect declared with `defineEffect` and performed after commit, at least once, with its effect id as idempotency key. Every external effect has a `core.effect` record with its outcome (section 7.9.5). |
 | **Effect executor** | The imperative code that performs one external effect, `defineEffectExecutor(base, effect, options)` under `src/executors/`: no data access, egress only, an output or a taxonomy error per attempt; the only imperative code a module author writes (section 7.9.5). |
-| **External performer** | A program outside pennestack that performs the effects of a `performer: 'external'` declaration: it holds a subscription over its pending effects and settles each through an action of the owning module, within a deadline; Launchway's agent is one (sections 7.9.5 and 17.3.4). |
+| **External performer** | A program outside keelwerk that performs the effects of a `performer: 'external'` declaration: it holds a subscription over its pending effects and settles each through an action of the owning module, within a deadline; Launchway's agent is one (sections 7.9.5 and 17.3.4). |
 | **Effect job** | The job that runs an external effect's executor after the requesting unit commits, on a process that advertises the executor's capabilities (sections 9.5 and 21.2). |
 | **Continuation** | The own command an effect names with `then`: the kernel invokes it under the module's service principal with the effect's outcome as input (`outcomeOf(effect)`), so outcomes re-enter pure code as input (section 7.9.5). |
 | **Decision record** | What the kernel stores in the meta of each event about the decision that produced it: the part, the input digest, the snapshot position of every load, the recorded answers (ids, random values, the public parts of issued secrets) and the requested effect ids; with the chain it reproduces and explains every decision (section 7.9.6). |
@@ -162,7 +162,7 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 | **Invocation protocol** | The canonical JSON wire over HTTP and the operator Unix socket, served by the host for every app and used by the CLI, the typed client and tests (section 16.8). |
 | **Artefact** | A file derived from the surface: the surface JSON, an OpenAPI document, a GraphQL SDL, the CLI manifest, a type fragment. |
 | **Chain** | The append-only event log of an entity instance; "the chain" of the brief. |
-| **Anchor** | A chain head written per scope to the deployment's ledger sinks outside the placement (scope id, position, hash, recorded time, writer), against which `pennestack db verify` checks the chain (decision 35b, section 15.1.8). Not to be confused with a compaction snapshot's `anchor` (the hash of the last removed event, section 14.7.3), the DNS anchor host name (section 17.3.8) or JMAP's paging anchor (section 14.3.5). |
+| **Anchor** | A chain head written per scope to the deployment's ledger sinks outside the placement (scope id, position, hash, recorded time, writer), against which `keelwerk db verify` checks the chain (decision 35b, section 15.1.8). Not to be confused with a compaction snapshot's `anchor` (the hash of the last removed event, section 14.7.3), the DNS anchor host name (section 17.3.8) or JMAP's paging anchor (section 14.3.5). |
 | **Namespace** | One event log, one set of framework tables and one copy of one app's tables on a placement: one per app on a shared-tables placement, one per tenant otherwise (section 14.2). |
 | **Unit** | One transaction on one namespace, opened for one storage scope (section 14.3.2). |
 | **Position** | A commit-ordered integer that orders the events of one scope inside a namespace; stream tokens, JMAP states and IMAP `MODSEQ` are positions (section 15.1.4). |
@@ -170,7 +170,7 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 | **Stream token** | The resume token every resumable emitted item carries: `v1.<epoch>.<position>.<scope>.<check>` (section 15.2.6). |
 | **Control store** | The deployment-level database that holds backends, tenants, the scope directory, placements, namespaces, wrapped keys and migration history. |
 | **Placement** | Where a tenant's data lives: an adapter binding plus a strategy (shared tables with a tenant key, a schema per tenant, a database per tenant, a different adapter). |
-| **Node** | A host that runs pennestack processes (a machine, a virtual machine, a Docker engine), recorded as `core.node` (section 21.1); not a Launchway node, which is tenant data (section 21.8). |
+| **Node** | A host that runs keelwerk processes (a machine, a virtual machine, a Docker engine), recorded as `core.node` (section 21.1); not a Launchway node, which is tenant data (section 21.8). |
 | **Named process** | An entry of `defineDeployment({ processes })`: roles, declared capabilities, slots per queue, placements, a provider and scaling limits, whose replicas the scaler counts (section 21.1). |
 | **Lane** | The unit of fairness of the kernel job queue: one per scope, queue, capability set and priority class, with a cap, a weight and a virtual time (sections 9.5.2 and 9.5.3). |
 | **Blind index** | The equality tag of a personal field: an HMAC of the normalised value under a field key derived from the tenant's index root key (or a per-subject key), stored beside the sealed column so that equality lookups and unique indexes work without decrypting; prefix, trigram, token and order tags extend the idea to the other declared capabilities (sections 14.7.9.2 and 14.7.9.6). |
@@ -182,7 +182,7 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 
 ### 3.1 What the runtime is
 
-The kernel is the `@pennestack/core` package. It contains no transport, no database driver and
+The kernel is the `@keelwerk/core` package. It contains no transport, no database driver and
 no business module. It provides:
 
 - the configuration DSL (section 4) and the registry it builds;
@@ -207,7 +207,7 @@ no business module. It provides:
   per effect, with the attempt stream `core.effectAttempt`; section 7.9.6), and the operator and
   client actions (`core.introspect`, `core.me`, `core.capabilities`, `core.subjects.erase`,
   `core.retention.*`, `core.tenant.enter`, `core.tenant.move`, `core.tenant.setApiVersion`, and
-  `core.flag.*`: `evaluate`, `restoreRules` and the operator actions behind `pennestack flags`;
+  `core.flag.*`: `evaluate`, `restoreRules` and the operator actions behind `keelwerk flags`;
   sections 18 to 20).
 
 Everything else is a module or an infrastructure entry in its own package. The two proof apps are
@@ -339,7 +339,7 @@ Section 12 collects what each layer does.
 
 ## 4. Configuration DSL
 
-The DSL is a set of plain functions exported by `@pennestack/core`. Each returns the value it was
+The DSL is a set of plain functions exported by `@keelwerk/core`. Each returns the value it was
 given, narrowed to literal types, so that later functions can compute over it. Nothing in the DSL
 performs I/O; `defineApp` builds a registry, `defineDeployment` describes where it runs.
 
@@ -360,14 +360,14 @@ A module is written as object literals, never as a builder chain. Three kinds of
   (decision 59b, section 23.5).
 
 ```ts
-import { contracts, defineCommand, defineModule, defineModuleBase, extensionPoint, field, shape, type ModuleBaseType, type ModuleType } from '@pennestack/core'
-import { accounts } from '@pennestack/module-accounts'
+import { contracts, defineCommand, defineModule, defineModuleBase, extensionPoint, field, shape, type ModuleBaseType, type ModuleType } from '@keelwerk/core'
+import { accounts } from '@keelwerk/module-accounts'
 // credential, session, toAccounts, whenAccounts, whenLive and the other parts come from their own files (section 23.5).
 
 // The base: what every part is typed against.
 const authBaseDef = defineModuleBase({
   id: 'auth',                       // literal; permanent; grammar and reserved ids in section 5.1
-  version: '0.1.0',                 // the package's semantic version, enforced by `pennestack surface diff` (section 18.6)
+  version: '0.1.0',                 // the package's semantic version, enforced by `keelwerk surface diff` (section 18.6)
   requires: [],                     // hard dependencies: module values or contracts; compile-time and boot-time checked
   optional: [accounts, contracts.live], // soft dependencies: reached through ifPresent in the context (section 3.4)
   provides: [],                     // contracts this module implements (the live module provides contracts.live)
@@ -464,7 +464,7 @@ and the targets of contributions hold the full type of each dependency. Under `c
 declaration emit is mandatory and would copy every dependency's structure into each dependant's
 `.d.ts`, recursively, until the compiler refuses with TS7056. `ModuleType<T>` is the identity;
 extending it in an interface gives the value a name that emit references, and `ModuleBaseType<T>`
-does the same for the base, which every part's type names. `pennestack new module` scaffolds the
+does the same for the base, which every part's type names. `keelwerk new module` scaffolds the
 pattern, a GritQL rule flags an exported module, module base or app value without a named type,
 and CI measures declaration size (section 13.11).
 
@@ -592,7 +592,7 @@ export const login = defineCommand(authBase, {
   errors: [invalidCredentials],
   auth: { public: true },                                // no principal required; still scoped to a tenant
   execution: 'sync',
-  hints: { http: { cookie: { set: { name: '__Host-pennestack_session', from: 'sessionToken', expiresFrom: 'expiresAt' }, omitFromBody: ['sessionToken'] } } },
+  hints: { http: { cookie: { set: { name: '__Host-keelwerk_session', from: 'sessionToken', expiresFrom: 'expiresAt' }, omitFromBody: ['sessionToken'] } } },
   *decide(input, ctx) { /* a generator: yields the credential load, the Argon2id check, an id and a token; returns the session's events (section 7.9.8) */ },
 })
 
@@ -684,11 +684,11 @@ another module's entities (section 5.3).
 
 ```ts
 // apps/launchway/src/modules.ts: the selection
-import { accounts } from '@pennestack/module-accounts'
-import { auth } from '@pennestack/module-auth'
-import { live } from '@pennestack/live'
-import { graphql } from '@pennestack/transport-graphql'
-import { rest } from '@pennestack/transport-rest'
+import { accounts } from '@keelwerk/module-accounts'
+import { auth } from '@keelwerk/module-auth'
+import { live } from '@keelwerk/live'
+import { graphql } from '@keelwerk/transport-graphql'
+import { rest } from '@keelwerk/transport-rest'
 import { deployments } from '@launchway/module-deployments'
 import { projects } from '@launchway/module-projects'
 
@@ -698,7 +698,7 @@ export const modules = [accounts, auth, live, projects, deployments, graphql, re
 export const health = defineQuery(modules, { /* app-level, referenced as app.health */ })
 
 // apps/launchway/src/app.ts
-import { defineApp, type AppType, type Row } from '@pennestack/core'
+import { defineApp, type AppType, type Row } from '@keelwerk/core'
 import { health } from './actions/health.ts'
 import { launchwayApi } from './api-versions.ts'
 import { modules } from './modules.ts'
@@ -729,29 +729,29 @@ registry.
 ### 4.6 `defineDeployment`
 
 ```ts
-// pennestack.config.ts
-import { byHeader, byHostname, byScopeKey, defineDeployment, env, secret } from '@pennestack/core'
-import { postgresAdapter } from '@pennestack/adapter-postgres'
-import { httpHost } from '@pennestack/transport-http'
-import { blobsFs } from '@pennestack/blobs-fs'
-import { ledgerFile } from '@pennestack/core/ledger'
+// keelwerk.config.ts
+import { byHeader, byHostname, byScopeKey, defineDeployment, env, secret } from '@keelwerk/core'
+import { postgresAdapter } from '@keelwerk/adapter-postgres'
+import { httpHost } from '@keelwerk/transport-http'
+import { blobsFs } from '@keelwerk/blobs-fs'
+import { ledgerFile } from '@keelwerk/core/ledger'
 
 export default defineDeployment({
   apps: [launchway, mail],                                 // the catalogue a backend can be created from
   infrastructure: [                                        // fills the deployment-level extension points (section 5.6)
     postgresAdapter(),                                     // data adapter factory 'postgres' (section 14.3.7)
     httpHost({ listen: [{ port: 3000 }] }),                // provides contracts.httpHost; serves the invocation protocol for every app
-    blobsFs({ root: '/var/lib/pennestack/blobs' }),        // provides contracts.blobs (gap G5)
-    ledgerFile({ path: '/var/lib/pennestack-ledger/erasure.log' }),   // ledger sink outside placement backups: erasures and chain anchors (sections 14.7.6 and 15.1.8)
+    blobsFs({ root: '/var/lib/keelwerk/blobs' }),        // provides contracts.blobs (gap G5)
+    ledgerFile({ path: '/var/lib/keelwerk-ledger/erasure.log' }),   // ledger sink outside placement backups: erasures and chain anchors (sections 14.7.6 and 15.1.8)
   ],
-  control: { adapter: 'postgres', url: env('PENNESTACK_CONTROL_URL') },
+  control: { adapter: 'postgres', url: env('KEELWERK_CONTROL_URL') },
   placements: {                                            // where tenant data may live; chosen per tenant at creation
-    default: { adapter: 'postgres', url: env('PENNESTACK_DATA_URL'), strategy: 'shared-tables' },
+    default: { adapter: 'postgres', url: env('KEELWERK_DATA_URL'), strategy: 'shared-tables' },
   },
-  tenantResolution: [byHostname(), byScopeKey(), byHeader('x-pennestack-tenant')],   // deployment order
+  tenantResolution: [byHostname(), byScopeKey(), byHeader('x-keelwerk-tenant')],   // deployment order
   ports: { 'smtp-in.mx': 25 },                             // listener ports belong to the deployment (gap G1)
-  operator: { socket: '/run/pennestack/operator.sock', hosts: ['ops.example'], bootstrapSecret: secret('PENNESTACK_OPERATOR_SECRET') },
-  keys: { masterKey: secret('PENNESTACK_MASTER_KEY') },    // root of the key service (section 14.7.4)
+  operator: { socket: '/run/keelwerk/operator.sock', hosts: ['ops.example'], bootstrapSecret: secret('KEELWERK_OPERATOR_SECRET') },
+  keys: { masterKey: secret('KEELWERK_MASTER_KEY') },    // root of the key service (section 14.7.4)
   telemetry: { otlp: env('OTEL_EXPORTER_OTLP_ENDPOINT') },
   rollout: { finalize: 'auto', graceSeconds: 600 },        // the defaults: finalization of rolling upgrades (section 19.4)
   anchors: { every: 'batch' },                             // the default: each scope's chain head to every ledger sink per notifier batch (section 15.1.8)
@@ -786,8 +786,8 @@ jobs, from due to start, written as an ISO 8601 duration like every duration in 
 configuration (default `PT30S`): `queues: { 'mail-delivery': { slo: 'PT2M' } }` asks the scaler to
 start a due delivery within two minutes, and the scaler reads it in seconds (`sloSeconds`, section
 21.4). Secret providers default to the process environment. The
-conventional entry file is `pennestack.config.ts` with a default export; `--config` and
-`PENNESTACK_CONFIG` name another (section 16.9.1).
+conventional entry file is `keelwerk.config.ts` with a default export; `--config` and
+`KEELWERK_CONFIG` name another (section 16.9.1).
 
 ### 4.7 The type-level model
 
@@ -824,7 +824,7 @@ the checklist at the end of this section. The spike must keep these properties:
   conditionals;
 - the normalised shape also carries the module's `flags` and `changes` (sections 20.2 and 18.2);
   no composition check reads them, so the listing leaves them out;
-- every type that can appear in a module value's type is exported by `@pennestack/core`;
+- every type that can appear in a module value's type is exported by `@keelwerk/core`;
   otherwise declaration emit fails with TS4023 or TS2742 (checked with this listing);
 - a single `any` in a module definition would collapse `UnionToIntersection`; module packages
   compile with `noImplicitAny` and a type test asserts that `AnyModule` constraints never
@@ -1307,7 +1307,7 @@ fold leaves room, but typing every part against its base and field-model-derived
 to it; the spike
 sets the CI budget from the 25- and 40-module runs (section 13.11). The app-level fold is paid
 once: transports, the CLI and the generated file consume `AppEntities<App>` and
-`AppActionTree<App>` through `pennestack.generated.ts` and never fold the tuple again.
+`AppActionTree<App>` through `keelwerk.generated.ts` and never fold the tuple again.
 
 ## 5. Modules
 
@@ -1317,8 +1317,8 @@ A module's identity is its `id`, a lowercase literal matching `[a-z][a-z0-9]*(-[
 (words separated by single hyphens; no leading, trailing or doubled hyphen). The id keys the
 type-level lookup, the runtime registry, the table namespace, the migration history, the policy
 rule ids and the action references, so it is permanent: renaming a module is a data migration
-with an explicit `pennestack module rename` command that rewrites the history table and the
-namespace, never a silent change. `version` is the package's semantic version, and `pennestack
+with an explicit `keelwerk module rename` command that rewrites the history table and the
+namespace, never a silent change. `version` is the package's semantic version, and `keelwerk
 surface diff` enforces it: a breaking change to the module's surface or declaration files needs a
 major, an additive one a minor (section 18.6). Compatibility between modules is still expressed
 through the types, not through version ranges.
@@ -1332,7 +1332,7 @@ Reserved names, checked at `defineModule` and `defineApp`:
 
 - module ids: `core` (the kernel's own module) and `app` (actions mounted on the app), because
   action references start with them, and nothing else: no id is reserved because of the CLI, an
-  integration, a plugin or another module, since action commands sit under `pennestack call`
+  integration, a plugin or another module, since action commands sit under `keelwerk call`
   (decision 16b, section 16.9.3);
 - entity, action, field, relation and event names match `[a-z][a-zA-Z0-9]*`; entity names and
   module-level action names share one namespace per module, contributed actions included;
@@ -1513,7 +1513,7 @@ declaration merging. [api-sketch.ts](api-sketch.ts) shows the pair in full.
 ### 5.5 Extension points and services
 
 ```ts
-import { extensionPoint } from '@pennestack/core'
+import { extensionPoint } from '@keelwerk/core'
 
 interface IdentityProvider { readonly id: string; readonly label: string; listFor(profileId: Id<'accounts.profile'>): Gen<readonly IdentitySummary[]> }
 
@@ -1579,7 +1579,7 @@ and a placement serves every app it hosts.
 
 | Level | Extension point | Contract | Mode | Filled by |
 |---|---|---|---|---|
-| deployment | `dataAdapters` | `DataAdapterFactory` with its event store, job store and schema operations (section 14.3) | set | `adapter-postgres`, PGlite and in-memory (in `@pennestack/data`), later `adapter-mysql`, `adapter-sqlite`, `adapter-supabase` |
+| deployment | `dataAdapters` | `DataAdapterFactory` with its event store, job store and schema operations (section 14.3) | set | `adapter-postgres`, PGlite and in-memory (in `@keelwerk/data`), later `adapter-mysql`, `adapter-sqlite`, `adapter-supabase` |
 | deployment | `queue` | `JobQueue` (section 9.5) | single | default: the kernel queue over the adapters' job stores |
 | deployment | `blobStores` | `BlobStore` (gap G5); provides `contracts.blobs` | set | `blobs-fs`, later `blobs-s3` |
 | deployment | `httpHost` | `TransportHost` with the invocation protocol (section 16.3.3); provides `contracts.httpHost` | single | `transport-http` (Hono) |
@@ -1589,8 +1589,8 @@ and a placement serves every app it hosts.
 | deployment | `carrierEnrichers` | `CarrierEnricher`: sets `carrier.scopeKey` before scope resolution | ordered | `transport-webhooks` receiver paths (section 16.5.8) |
 | deployment | `ports` | listener port bindings (gap G1) | map | `defineDeployment({ ports })` |
 | deployment | `flagProviders` | `FlagProvider` (section 20.3) | ordered | core (`core.targeting`, `env`), `openFeatureFlags(provider)` |
-| deployment | `capabilityProbes` | `CapabilityProbe`: confirms a capability a named process declares, at `connect`, every five minutes and on `pennestack fleet probe` (section 21.2) | set | core (`docker`, `smtp-out`, `gpu`, `arch`, `region`) |
-| deployment | `nodeProviders` | `NodeProvider`: offers, lists, starts and stops processes for the scaler; called only by the kernel (section 21.5) | set | core (`static`), `@pennestack/provider-docker` (opt-in), later Kubernetes and cloud providers |
+| deployment | `capabilityProbes` | `CapabilityProbe`: confirms a capability a named process declares, at `connect`, every five minutes and on `keelwerk fleet probe` (section 21.2) | set | core (`docker`, `smtp-out`, `gpu`, `arch`, `region`) |
+| deployment | `nodeProviders` | `NodeProvider`: offers, lists, starts and stops processes for the scaler; called only by the kernel (section 21.5) | set | core (`static`), `@keelwerk/provider-docker` (opt-in), later Kubernetes and cloud providers |
 | app | `transports` | `TransportAdapter` (section 16.3) | set | `transport-rest`, `transport-graphql`, `transport-trpc`, `transport-webhooks`, later JMAP and Connect |
 | app | `listeners` | `Listener` (non-HTTP: SMTP, IMAP) | set | mail listener modules |
 | app | `liveHub` | `LiveHub` (section 15.4.11); provides `contracts.live` | single | `live` |
@@ -1716,7 +1716,7 @@ Projections:
   a `Temporal.Instant` in process and an RFC 3339 string on the wire, `field.date()` a
   `Temporal.PlainDate`, and `field.timeZone()` an IANA zone name. Node 26, the baseline (section
   13.2), ships `Temporal` natively, so no polyfill is needed on the server; a client on a runtime
-  without it loads a polyfill of its own choice before the `@pennestack/core/wire` codecs, as the
+  without it loads a polyfill of its own choice before the `@keelwerk/core/wire` codecs, as the
   baseline rule of section 13.2 says. Instants keep millisecond precision, the precision every
   adapter stores (section 14.5.1): `validate` rounds finer digits down, so a value reads back
   equal. The adapters' codecs convert between `Temporal` values and their columns. `createdAt` and
@@ -1740,7 +1740,7 @@ Validation runs once, in the pipeline (section 9.2), before authorization. The `
 accepts a value in wire form or in in-process form (an RFC 3339 string or a `Temporal.Instant` for
 an instant; a decimal string or a `bigint` for a wide integer) and produces the in-process form, so
 transports pass decoded JSON straight to the invoker; `toWire` and `fromWire` per field node live
-in the dependency-free subpath `@pennestack/core/wire` that clients share (section 16.4.2).
+in the dependency-free subpath `@keelwerk/core/wire` that clients share (section 16.4.2).
 Output is validated in development and in tests, and only shaped (masked) in production, so a
 handler bug surfaces early without paying twice in production.
 
@@ -2117,7 +2117,7 @@ else needs a rule like any other principal.
   key, ordering, coalescing, concurrency (a group per reaction and scope) and retry options (section
   9.5). A failing reaction is retried by the queue and never blocks the checkpoint; a job that
   exhausts its retries is parked as a dead letter, which is a metric, an alert and a line in
-  `pennestack doctor`. Delivery is at least once; a reaction is idempotent by
+  `keelwerk doctor`. Delivery is at least once; a reaction is idempotent by
   `(reaction id, event id)`, from which the ids of its effects derive (section 7.9.5). Module code
   never receives a namespace-scope unit.
 - **Processes** are async reactions with their own state stream per instance, keyed and ordered
@@ -2254,7 +2254,7 @@ generator, so `yield*` types each answer (as in Effect); a bare `yield` is a lin
   `accounts` is selected and answers `undefined` otherwise, so a part reads `Profile | undefined`
   in one step; `ctx.all` accepts it among its members.
 - Pure helpers need no request: modules call their `lib/` functions, and the core exports pure
-  primitives that need `node:*` (`@pennestack/core/crypto`: `sha256`, `hmacSha256`,
+  primitives that need `node:*` (`@keelwerk/core/crypto`: `sha256`, `hmacSha256`,
   `timingSafeEqual`).
 - Queries may not request ids, random values, issued secrets or effects (a compose error). Offline
   commands may not request random values, issued secrets or inline effects; their ids are answered
@@ -2305,7 +2305,7 @@ GitHub's connection flow (section 26.2); until it reports, phase 2 stays as writ
 
 #### 7.9.5 Effects
 
-Kernel effects are constructed by functions of `@pennestack/core` and performed in the unit or at
+Kernel effects are constructed by functions of `@keelwerk/core` and performed in the unit or at
 its commit:
 
 | Effect | Performed |
@@ -2367,7 +2367,7 @@ interface ExecutorContext<M> {
 - Outcomes reach module code through the continuation (`then`, an own command by value, typed by
   `outcomeOf(effect, extra)`; entity continuations get the target id through `with`) and the effect
   record (`core.effect.get` and `watch`, readable by the principal whose command caused it).
-- An effect with `performer: 'external'` has no executor: a program outside pennestack holds a
+- An effect with `performer: 'external'` has no executor: a program outside keelwerk holds a
   subscription over `ctx.live.effects(effect, { where })` (its pending effects, resumable), performs
   them, and calls an action of the owning module whose decision returns `settle(...)`; `deadline`
   settles an unsettled one as failed (`core.effect_deadline`). Launchway's agent is such a performer.
@@ -2424,12 +2424,12 @@ effect state per `core.effect` stream. After a rebuild or restore, every effect 
 `settled` is enqueued again (at least once across restores; idempotency keys absorb repeats).
 Receipts and job rows are operational and not rebuilt. The logbook is a projection of the same chain:
 per command its decision record, events, effects with outcomes and the continuations they caused;
-`pennestack explain --trace <command, event or effect id>` prints that tree, and a projection entity
+`keelwerk explain --trace <command, event or effect id>` prints that tree, and a projection entity
 can materialise it from M5.
 
 **What replay means.**
 
-- Re-decide: `pennestack explain --redecide <command id>` runs a recorded decision with the current
+- Re-decide: `keelwerk explain --redecide <command id>` runs a recorded decision with the current
   build, answering loads `asOf` the recorded positions and ids from the record, and compares events
   and effects without committing; the input comes from the decision record when the action keeps it
   sealed, else from the receipt within its window, else `--input`. Time travel is this, `--trace`
@@ -2437,7 +2437,7 @@ can materialise it from M5.
 - Sync ingest: the server runs a pushed mutation's `decide` against current state with the
   mutation's ids and clock (section 15.3.6); a different outcome is the rebase the client journal
   reports (section 15.3.8).
-- Tests: state in, events out, no mocks. `@pennestack/testing` drives a handler with answers as data,
+- Tests: state in, events out, no mocks. `@keelwerk/testing` drives a handler with answers as data,
   or runs it on the in-memory adapter from given rows (`load`, `newId` and `created` are its
   helpers):
 
@@ -2448,7 +2448,7 @@ run.expect(newId(profile)).answer('prof_01j9...')
 run.returns({ events: [created(profile, { id: 'prof_01j9...', displayName: 'Jens', email: 'jens@acme.example' })], result: { profileId: 'prof_01j9...' } })
 ```
 
-- Dry run: `pennestack explain <ref> --input ... --dry-run [--as <principal>]` runs admission,
+- Dry run: `keelwerk explain <ref> --input ... --dry-run [--as <principal>]` runs admission,
   `prepare` (an inline effect stops as "would perform" unless `--answer <effect>=<json>` gives its
   outcome) and `decide` in a unit that rolls back, and prints events with before-images, effects with
   ids and continuations, the result and the decision record.
@@ -2465,7 +2465,7 @@ run.returns({ events: [created(profile, { id: 'prof_01j9...', displayName: 'Jens
   HTTP or SMTP clients out of module packages except under `src/executors/`.
 - `no-module-state.grit` flags top-level `let` and `var` and calls that mutate a top-level binding
   (`push`, `set`, `delete`, property assignment).
-- `noProcessEnv`, `noProcessGlobal` and `noGlobalAssign` hold everywhere except `pennestack.config.ts`.
+- `noProcessEnv`, `noProcessGlobal` and `noGlobalAssign` hold everywhere except `keelwerk.config.ts`.
 - The registry refuses at compose a query requesting ids, random values or effects, `prepare` on an
   asynchronous or offline command, and an inline executor with a capability.
 
@@ -2635,7 +2635,7 @@ export const applied = defineCommand(dnsBase, record, {
 - Layout (section 23): `src/effects/<effect>.ts` exports one `defineEffect`,
   `src/executors/<effect>.ts` exports `<effect>Executor`, imperative helpers sit in
   `src/executors/lib/`, and `src/lib/` stays pure. Effects are parts: the generated manifest mounts
-  `effects` and `executors`, keyed by effect name; `pennestack new effect|executor` scaffolds them.
+  `effects` and `executors`, keyed by effect name; `keelwerk new effect|executor` scaffolds them.
 - Versioning (sections 18 and 19): effect inputs and outputs are versioned like action inputs;
   workers take effect jobs at or below their revision; version changes are pure transforms.
 - Flags (section 20): handlers read flags as requests, recorded in the envelope; rules read the
@@ -2662,7 +2662,7 @@ export const applied = defineCommand(dnsBase, record, {
 
 ### 8.1 Model
 
-The engine is typed-native and built in `@pennestack/core`; it borrows CASL's vocabulary (allow
+The engine is typed-native and built in `@keelwerk/core`; it borrows CASL's vocabulary (allow
 and deny per action, conditions, fields, a reason) and none of its mechanics (ADR 0005). Entities
 and actions come from the registry, so a rule's condition is typed against the real entity shape,
 its field list against the real fields, and its action list against the actions that exist for
@@ -2752,7 +2752,7 @@ freezes), must carry a `reason`, and should stay rare.
 
 ### 8.3 Conditions
 
-The condition AST is owned by `@pennestack/core` and shared with the data layer, the live feed
+The condition AST is owned by `@keelwerk/core` and shared with the data layer, the live feed
 and the sync protocol (one AST, two interpreters: compiled to each adapter's filter, interpreted
 in memory for loaded rows, post-images, live events and offline operations).
 
@@ -2890,12 +2890,12 @@ job runs (section 7.4).
 
 Every decision returns the matched rule ids and effects; `forbidden` errors carry the reason of
 the deciding deny rule or the ids of the rules that would have had to allow. Because a rule is a
-file (decision 60b), `pennestack explain` prints each matched rule with its file
-(`@pennestack/module-auth`, `src/policies/credential/self.ts`), so the reader lands on the one
+file (decision 60b), `keelwerk explain` prints each matched rule with its file
+(`@keelwerk/module-auth`, `src/policies/credential/self.ts`), so the reader lands on the one
 literal to change. A decision-log hook
 receives every decision (`authorization.decisionLog: 'denials' | 'all' | 'none'`), and the audit
 module can write it to the chain. `ability.explain(plan)` renders the resolved condition for
-support work, and `pennestack explain` evaluates a decision without executing (section 16.9.7).
+support work, and `keelwerk explain` evaluates a decision without executing (section 16.9.7).
 Tests are three suites: table-driven policy tests, including transition cases (pre-image,
 post-image and both, for every rule shape of section 8.2); type tests that a fragment cannot
 reference a field or relation its `when` modules do not provide, and that read rules list only
@@ -2993,7 +2993,7 @@ interface Invocation<I> {
   readonly traceparent?: string
   readonly signal: AbortSignal
 }
-type Outcome<O> = { ok: true; value: O; receipt?: CommandReceipt; effects?: readonly string[] } | { ok: false; error: PennestackError }   // effects: deferred effect ids (section 7.9.5)
+type Outcome<O> = { ok: true; value: O; receipt?: CommandReceipt; effects?: readonly string[] } | { ok: false; error: KeelwerkError }   // effects: deferred effect ids (section 7.9.5)
 
 interface Invoker {
   open(carrier: Carrier, options?: { readonly signal?: AbortSignal }): Promise<Outcome<InvocationSession>>
@@ -3109,10 +3109,10 @@ Asynchronous actions and async reactions set the same job options, `capability` 
 
 #### 9.5.2 Where jobs live
 
-- Per namespace: `ps_jobs` (open jobs: `scheduled`, `available`, `waiting`, `running`);
-  `ps_job_lanes`, one row per scope, queue, capability set and priority class (cap, weight, `taken`,
-  virtual time); `ps_job_lane_counts`, an `enqueued` and a `done` counter per lane; `ps_job_groups`
-  (concurrency, token bucket, blocked-until); `ps_job_history` (outcome, attempts, timings and
+- Per namespace: `kw_jobs` (open jobs: `scheduled`, `available`, `waiting`, `running`);
+  `kw_job_lanes`, one row per scope, queue, capability set and priority class (cap, weight, `taken`,
+  virtual time); `kw_job_lane_counts`, an `enqueued` and a `done` counter per lane; `kw_job_groups`
+  (concurrency, token bucket, blocked-until); `kw_job_history` (outcome, attempts, timings and
   error, without input, seven days). Dead letters keep their input until replayed or discarded.
 - Lane state is split by writer: what makes a job available (an enqueue tail, a promotion, a FIFO
   release) moves `enqueued`, takes move `taken` and the virtual time, completions `done`; groups
@@ -3138,18 +3138,18 @@ Asynchronous actions and async reactions set the same job options, `capability` 
 -- PostgreSQL (MySQL: the same steps in two statements); a kernel namespace-scope unit only the queue tables'
 -- policies admit. $sets: capability sets this process satisfies; $vmin: least virtual time of busy lanes.
 with picked as (
-  select l.id, l.cap - (l.taken - d.value) as room from ps_job_lanes l
-  join ps_job_lane_counts e on e.lane_id = l.id and e.kind = 'enqueued'   -- read, never locked
-  join ps_job_lane_counts d on d.lane_id = l.id and d.kind = 'done'
+  select l.id, l.cap - (l.taken - d.value) as room from kw_job_lanes l
+  join kw_job_lane_counts e on e.lane_id = l.id and e.kind = 'enqueued'   -- read, never locked
+  join kw_job_lane_counts d on d.lane_id = l.id and d.kind = 'done'
   where l.queue = $queue and l.capability_set = any($sets) and e.value > l.taken and l.taken - d.value < l.cap
   order by l.priority, (l.taken - d.value) / l.weight, greatest(l.vtime, $vmin)   -- class, load per share, round robin
   limit $lanes
   for update of l skip locked
 ), share as (select greatest(1, ceil($batch::numeric / nullif(count(*), 0))) as n from picked)
 select j.* from picked p cross join share s cross join lateral (
-  select * from ps_jobs j
+  select * from kw_jobs j
   where j.lane_id = p.id and j.state = 'available' and j.revision <= $revision
-    and not exists (select 1 from ps_job_groups g where g.id = j.group_id and g.blocked_until > now())
+    and not exists (select 1 from kw_job_groups g where g.id = j.group_id and g.blocked_until > now())
   order by j.run_at, j.id
   limit least(p.room, s.n)
   for update skip locked) j;
@@ -3182,7 +3182,7 @@ select j.* from picked p cross join share s cross join lateral (
 - Three consecutive lost leases make a job a dead letter, so a poison job cannot take the fleet down
   one process at a time. `expireInSeconds` aborts an attempt through its abort signal with
   `core.timeout` (retryable).
-- Dead letters are a metric, an alert and a `pennestack doctor` line; `pennestack jobs
+- Dead letters are a metric, an alert and a `keelwerk doctor` line; `keelwerk jobs
   replay|discard` handles them.
 
 #### 9.5.5 Limits, priorities and backpressure
@@ -3201,14 +3201,14 @@ The job side of the quota model (section 12.2):
 
 Without a cap the take is work-conserving: one tenant may fill idle slots, and the fair order gives
 the next free one to the least-served lane. Tenants cannot raise their own weight or caps (gap G10
-configuration cannot reach them); `pennestack jobs lanes` and `pennestack doctor` show them.
+configuration cannot reach them); `keelwerk jobs lanes` and `keelwerk doctor` show them.
 
 #### 9.5.6 Workers, scopes and schedules
 
 - Workers run only in processes with the `work` role, for the queues their named process slots, and
   take effect jobs only for executors whose capabilities the process advertises (section 21.2). One
   fetcher per queue promotes due jobs and takes batches for the slots, woken after commit by the
-  notifier of section 14.3.7 (channel `ps_jobs`) and by a jittered poll every second. With
+  notifier of section 14.3.7 (channel `kw_jobs`) and by a jittered poll every second. With
   per-tenant namespaces (M5), wake-ups pass through the control store, and each process sweeps the
   namespaces that rendezvous hashing over the live registry gives it.
 - An action job runs through the invoker after the worker sets the scope and resolves the principal,
@@ -3238,7 +3238,7 @@ effect under decision 50a. The kernel queue stays.
   placement: plan with 2,000 jobs per second, handlers included, until the M0 and M2 measurements
   replace the number. The proof platforms need well under 10.
 - Upgrade path, keeping `JobQueue`, `JobStore`, `JobSpec` and the conformance suite: first more
-  placements, partitioned `ps_jobs` and a transaction-mode pooler; then a dispatch tier, where
+  placements, partitioned `kw_jobs` and a transaction-mode pooler; then a dispatch tier, where
   leased fetchers per namespace and queue take fair batches and publish job ids on NATS JetStream
   work-queue subjects, and workers claim them by id with the same conditional statements. The broker
   carries ids only, so no tenant payload leaves the namespace and the broker needs no backup.
@@ -3292,7 +3292,7 @@ section 16.4.6):
 | `internal` | anything undeclared; message redacted outside development | no |
 
 ```ts
-class PennestackError extends Error {
+class KeelwerkError extends Error {
   readonly kind: ErrorKind
   readonly code: string                  // stable, module-prefixed: 'accounts.email_taken'
   readonly issues?: readonly { path: readonly PropertyKey[]; message: string }[]
@@ -3304,7 +3304,7 @@ class PennestackError extends Error {
 const emailTaken = defineError('accounts.email_taken', { kind: 'conflict', data: shape({ email: field.string() }), message: 'This e-mail address is already in use.' })
 
 /** The one serialised form, used by every transport, the sync protocol and receipts. */
-declare function toWire(error: PennestackError, audience: 'public' | 'operator' | 'development'): WireError
+declare function toWire(error: KeelwerkError, audience: 'public' | 'operator' | 'development'): WireError
 ```
 
 `toWire` decides once what an audience sees: operator principals and development get rule ids and
@@ -3342,18 +3342,18 @@ contract and are never reused.
 
 - Tracing and metrics through OpenTelemetry (`@opentelemetry/api` 1.9.1; SDK 2.x in the
   deployment package). The invoker opens one span per invocation with attributes
-  `pennestack.app`, `.backend`, `.tenant`, `.module`, `.entity`, `.action`, `.kind`,
+  `keelwerk.app`, `.backend`, `.tenant`, `.module`, `.entity`, `.action`, `.kind`,
   `.transport`, `.execution`, `.outcome`, `.api_version`, `.build` (build id and revision) and
   `.flags` (the flags read, with variant and reason) and the matched rule ids; transports, the data layer and
   the queue add child spans; W3C `traceparent` is propagated in and out and stored in every event
   envelope, so live deliveries, async reactions and webhooks link back to the command that caused
   them. Section 16.11 adds the interface layer's spans and metrics.
 - Metrics: invocations and durations by action and outcome, job queue depth, age and dead letters
-  (with the job and scaling metrics of section 21.9: `pennestack.jobs.due`, `.oldest_due`,
+  (with the job and scaling metrics of section 21.9: `keelwerk.jobs.due`, `.oldest_due`,
   `.lanes.capped`, `.unplaceable`, `.wait`, `.run`, `.take.duration` and `.outcomes` by kind and
-  outcome, and `pennestack.slots`, `.processes`, `.connections.reserved` and `.scaler.desired` per
+  outcome, and `keelwerk.slots`, `.processes`, `.connections.reserved` and `.scaler.desired` per
   named process), event append rate per namespace, projection and change-feed lag, live
-  subscriptions, per-tenant quota usage (section 12.2), and `pennestack.flags.evaluations` by flag,
+  subscriptions, per-tenant quota usage (section 12.2), and `keelwerk.flags.evaluations` by flag,
   variant and reason.
 - API usage counters: requests per day, backend, tenant, API version and transport, per action or
   field for deprecated items, flushed at `complete` into `core.apiUsage` (section 18.5).
@@ -3366,9 +3366,9 @@ contract and are never reused.
   (gap G12); the chain itself is the audit trail of what changed. An `audit` module can persist
   them.
 - Health: `app.health` (liveness) and `app.ready` (readiness: control store, placements, queue)
-  are app-level actions every transport exposes; `pennestack doctor` runs them from the CLI.
+  are app-level actions every transport exposes; `keelwerk doctor` runs them from the CLI.
 - Development: the invoker can emit a per-invocation explanation (stages, timings, plan, matched
-  rules) when `PENNESTACK_EXPLAIN=1`.
+  rules) when `KEELWERK_EXPLAIN=1`.
 
 ## 12. Multi-tenancy and one deployment
 
@@ -3380,7 +3380,7 @@ The brief makes this cross-cutting; this section collects the statements of each
 |---|---|
 | Kernel | Control entities `core.backend`, `core.tenant`, `core.domain`, `core.placement` and `core.namespace` (tenancy `deployment`) and the scope directory; API version pins per backend, tenant and credential (section 18.3); the process registry `core.process` (section 19.1); `core.commandReceipt` with tenancy `invocation` (rows carry their command's scope); operator actions with `scope: 'deployment'`; runtime creation without restart; per-backend module configuration and per-tenant overrides; `onBackendCreated` and `onTenantCreated` hooks for provisioning; a change feed over the control store keeps every process's directory current. |
 | Pipeline | `resolveScope` runs first on every request or connection, followed by `resolvePrincipal` and `resolveVersion`, using the deployment-ordered tenant resolvers (host name, path prefix, header, scope key from tokens, receivers and listeners such as the SMTP recipient domain); the same resolvers serve every transport, the CLI and non-HTTP listeners; actions declare the scope level they accept and the gate rejects a mismatch. |
-| Data layer | Placement per tenant (shared tables with a tenant key, schema per tenant, database per tenant, or a different adapter), chosen at tenant creation and changeable by a move; the adapter injects the scope predicate into every statement; PostgreSQL row-level security as a backstop; positions, consumer checkpoints and usage counters per scope; migrations per namespace; application code never sees the strategy (section 14.9), nor the adapter's capabilities: what an adapter lacks the kernel provides at a cost `pennestack doctor` reports, so a tenant can be placed on any adapter, a module's declared raw-SQL dialect being the one condition (section 14.3.3, brief addendum 5). |
+| Data layer | Placement per tenant (shared tables with a tenant key, schema per tenant, database per tenant, or a different adapter), chosen at tenant creation and changeable by a move; the adapter injects the scope predicate into every statement; PostgreSQL row-level security as a backstop; positions, consumer checkpoints and usage counters per scope; migrations per namespace; application code never sees the strategy (section 14.9), nor the adapter's capabilities: what an adapter lacks the kernel provides at a cost `keelwerk doctor` reports, so a tenant can be placed on any adapter, a module's declared raw-SQL dialect being the one condition (section 14.3.3, brief addendum 5). |
 | Authorization | Scope is applied before and outside policies (section 8.8); the operator principal and explicit, logged tenant entry; no rule can widen a scope. |
 | Execution | Jobs, events, receipts, subscriptions and checkpoints carry the scope; workers adopt it and resolve the principal again before running; quotas, and lane caps and queued caps per tenant and queue (sections 9.7 and 12.2). |
 | Transports | Fill the carrier and never resolve tenants themselves; the HTTP host routes by the resolved app; cookies, CORS and CSRF checks follow the tenant's origins; generated documents are per app, served per backend (section 16.12). |
@@ -3408,7 +3408,7 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
 - Usage counters are maintained per scope inside the namespace, so they commit with the data they
   count; the counters of one tenant never contend with another tenant's, because positions and
   counters are both per scope (section 15.1.4).
-- Usage is a metric per tenant and dimension; `pennestack doctor` lists tenants above 80 percent
+- Usage is a metric per tenant and dimension; `keelwerk doctor` lists tenants above 80 percent
   of a limit.
 
 ### 12.3 Scope boundaries, cross-scope work and outbound connections
@@ -3443,21 +3443,21 @@ not used: plugins never run under `tsc`, and TypeScript 7.0 ships no plugin API 
 data-layer.md section 6, interfaces-and-devx.md section 5.4).
 
 Two kinds of TypeScript file are generated, both committed, both rewritten by the dev server
-(`pennestack dev`) on every change and both checked by `tsc` like hand-written code:
+(`keelwerk dev`) on every change and both checked by `tsc` like hand-written code:
 
 - each module's manifest, `src/module.generated.ts`: the module literal that mounts every part of
   the module's directories under the reference its path gives, and the module's package entry
   (decision 59b of 2026-10-28, section 23.5);
-- next to each app, `pennestack.generated.ts`, which re-exports `AppEntities`, `Row`, `ActionRef`,
+- next to each app, `keelwerk.generated.ts`, which re-exports `AppEntities`, `Row`, `ActionRef`,
   `AppActionTree` and the typed client for that app, so application code imports from one place
   and the app-level fold is instantiated once (section 13.7). Module packages never import it:
   their handler types are module-local.
 
-`pennestack generate --check` fails CI when either kind, the migrations, the OpenAPI document, the
+`keelwerk generate --check` fails CI when either kind, the migrations, the OpenAPI document, the
 SDL or the CLI manifest drift from the definitions. Tables the framework does not own are described
-by entity definitions that `pennestack db introspect` writes (section 14.8.4), so there is one type
-mechanism; their drift against the live catalogue is checked at `connect`, in `pennestack dev` and
-by `pennestack db introspect --check`.
+by entity definitions that `keelwerk db introspect` writes (section 14.8.4), so there is one type
+mechanism; their drift against the live catalogue is checked at `connect`, in `keelwerk dev` and
+by `keelwerk db introspect --check`.
 
 ### 13.2 Toolchain
 
@@ -3479,7 +3479,7 @@ parameter properties, no decorators; relative imports carry `.ts`.
 Node, always; the baseline follows each new major, and backfills or polyfills exist only for what
 the baseline lacks, never as a lower target. Today the baseline is TypeScript 7 and Node 26. Every
 package declares `"engines": { "node": ">=26" }`, CI runs on Node 26 only (the matrix has one
-runtime entry), and the deployment image (the `pennestack` container of section 17.5.2) is built on
+runtime entry), and the deployment image (the `keelwerk` container of section 17.5.2) is built on
 a Node 26 base image. Node 26 ships `Temporal`, so instants are `Temporal.Instant` from the start
 with no polyfill (decision 19b, section 6.4). The checks this document records on Node 24.21.0
 (sections 13.4, 14.3.7, 14.7.9.3 and 17.2.2, Appendix B) were made before the baseline moved; the
@@ -3505,7 +3505,7 @@ M0 spike runs them again on Node 26 and records the results here.
     "verbatimModuleSyntax": true,
     "rewriteRelativeImportExtensions": true,
     "resolveJsonModule": true,
-    "customConditions": ["@pennestack/source"],
+    "customConditions": ["@keelwerk/source"],
     "composite": true,
     "declaration": true,
     "declarationMap": true,
@@ -3542,11 +3542,11 @@ published, through one export condition:
 
 ```json
 {
-  "name": "@pennestack/core",
+  "name": "@keelwerk/core",
   "type": "module",
   "exports": {
-    ".": { "@pennestack/source": "./src/index.ts", "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-    "./wire": { "@pennestack/source": "./src/wire/index.ts", "types": "./dist/wire/index.d.ts", "default": "./dist/wire/index.js" }
+    ".": { "@keelwerk/source": "./src/index.ts", "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./wire": { "@keelwerk/source": "./src/wire/index.ts", "types": "./dist/wire/index.d.ts", "default": "./dist/wire/index.js" }
   },
   "publishConfig": {
     "exports": {
@@ -3558,7 +3558,7 @@ published, through one export condition:
 }
 ```
 
-- `pennestack dev` runs Node with `--conditions=@pennestack/source`, and TypeScript resolves the same
+- `keelwerk dev` runs Node with `--conditions=@keelwerk/source`, and TypeScript resolves the same
   condition through `customConditions`, so an edit in any workspace package is live in the running
   app without a build step.
 - This works because pnpm links workspace packages: Node resolves the link to the real path outside
@@ -3567,9 +3567,9 @@ published, through one export condition:
   carry the source condition; pnpm's `publishConfig.exports` replaces `exports` at pack time. Both
   behaviours were checked with Node 24.21.0 (Appendix B); the M0 spike checks them again on Node 26
   (section 13.2).
-- Production runs the JavaScript that `tsc -b` emits (`pennestack start` runs `dist`), so production
+- Production runs the JavaScript that `tsc -b` emits (`keelwerk start` runs `dist`), so production
   does not depend on type stripping at all.
-- Library packages such as `@pennestack/core` keep `src/index.ts` (and subpath entries such as
+- Library packages such as `@keelwerk/core` keep `src/index.ts` (and subpath entries such as
   `src/wire/index.ts`) as curated entry files of named re-exports. Module packages point `"."` at
   `src/module.generated.ts`, the generated module literal, instead of `src/index.ts`, and have no
   other entry (sections 23.5 and 23.7).
@@ -3577,22 +3577,22 @@ published, through one export condition:
 ### 13.5 Project layout
 
 The framework repository follows section 22 and keeps one example app, `examples/portal`, for its
-own CI; every platform built on pennestack lives in its own repository and depends only on the
-published packages (decision 48c, 2026-10-27). An application repository built on pennestack has
-the layout of section 23.1: `pennestack.config.ts`, one package per app under
+own CI; every platform built on keelwerk lives in its own repository and depends only on the
+published packages (decision 48c, 2026-10-27). An application repository built on keelwerk has
+the layout of section 23.1: `keelwerk.config.ts`, one package per app under
 `apps/<id>/` with `src/modules.ts` (the selection) and `src/app.ts` (`defineApp` with its named
 type), every module a package under `modules/<id>/` in the module layout of section 23.2,
 `scripts/` with one task per file, and `knip.json` beside `biome.json` at the root. Section 23
 also states the single-purpose rule, the names and the tooling that keeps them.
 
-### 13.6 `pennestack dev`
+### 13.6 `keelwerk dev`
 
-`pennestack dev` is a supervisor with three kinds of children:
+`keelwerk dev` is a supervisor with three kinds of children:
 
 1. **The type checker**: `tsc -b --watch --preserveWatchOutput` with TypeScript 7.0.2. Diagnostics
    stay visible in the status line; they do not stop the app, because type stripping does not need
-   types, but `pennestack build` refuses them.
-2. **The probe**: a short-lived Node process that imports `pennestack.config.ts`, composes every
+   types, but `keelwerk build` refuses them.
+2. **The probe**: a short-lived Node process that imports `keelwerk.config.ts`, composes every
    app, derives the surfaces and asks every producer for its artefacts. A fresh process runs after
    each change, because an ECMAScript module graph cannot be unloaded. Before it starts, the
    supervisor rewrites the manifest of every module whose directories changed (section 23.5): a
@@ -3601,13 +3601,13 @@ also states the single-purpose rule, the names and the tooling that keeps them.
    whose content changed (atomic rename), so the type checker and the editor see new types within
    one cycle and no watch loop starts. Module definition files must be free of I/O at import time;
    the probe has a 10-second limit and names the import that hung.
-3. **The app**: one process with role `all`, the dev operator socket `.pennestack/dev.sock`,
-   `PENNESTACK_EXPLAIN=1` and the source condition. Before it starts, the data layer synchronises
+3. **The app**: one process with role `all`, the dev operator socket `.keelwerk/dev.sock`,
+   `KEELWERK_EXPLAIN=1` and the source condition. Before it starts, the data layer synchronises
    the development database (expand steps at once, contract and rebuild steps after a confirmation
    in the terminal, section 14.6.4).
 
 The supervisor watches the workspace with recursive `fs.watch` (ignoring `node_modules`, `dist`,
-`generated`, `.pennestack` and the `*.generated.ts` files it writes itself), debounces changes for
+`generated`, `.keelwerk` and the `*.generated.ts` files it writes itself), debounces changes for
 100 milliseconds, then rewrites the changed module manifests and runs the probe, the database
 synchronisation and a restart of the app (stop phase with a 2-second deadline). The target is a
 restart under one second for the proof apps, to be measured. It prints one line per invocation from
@@ -3620,12 +3620,12 @@ and verbose problem details.
 | Artefact | Producer | Written by | Committed | Checked by | At runtime |
 |---|---|---|---|---|---|
 | `src/module.generated.ts` (every module package) | core: the module literal from the directory conventions (section 23.5) | `dev` on change, `generate` | yes | `generate --check` | the package entry: the module value apps import |
-| `src/pennestack.generated.ts` | core, plus type fragments from transports | `dev` on change, `generate` | yes | `generate --check` | not loaded (types only) |
+| `src/keelwerk.generated.ts` | core, plus type fragments from transports | `dev` on change, `generate` | yes | `generate --check` | not loaded (types only) |
 | `generated/api-surface/<app>/<api version>.json` | core | `dev`, `generate` | yes | `generate --check`, `surface diff` | recomputed in memory; the hash is compared at boot (warning in development, configurable in production) |
 | `generated/api-surface/<app>/ledger.json` | core | `surface version new` (explicit) | yes | `generate --check` against `defineApiVersions`; `surface diff` keeps released entries unchanged | read at `compose` for module version changes (section 18.2) |
 | `generated/openapi/<app>/<api version>.json` | `transport-rest` | `dev`, `generate` | yes | `generate --check`, OpenAPI schema validation | recomputed by the same function and served with per-backend `servers` |
 | `generated/graphql/<app>/<api version>.graphql` | `transport-graphql` | `dev`, `generate` | yes | `generate --check` | the schema object is built from the surface; its printed form equals the file |
-| `generated/cli/<app>/<api version>.json` | `@pennestack/cli` | `dev`, `generate` | yes | `generate --check` | not used; the CLI builds from the surface |
+| `generated/cli/<app>/<api version>.json` | `@keelwerk/cli` | `dev`, `generate` | yes | `generate --check` | not used; the CLI builds from the surface |
 | `TrpcRouter` type alias | `transport-trpc` | type fragment in the generated file | yes | `generate --check` | the router value is built from the surface |
 | migrations and module snapshots | data layer | `db generate` (explicit, never by the watch loop) | yes | `generate --check` (definitions against snapshots), `db check` | production verifies the applied history |
 | entity definitions for external tables | data layer | `db introspect` (section 14.8.4) | yes | `db introspect --check` | no |
@@ -3634,10 +3634,10 @@ The generated TypeScript file re-exports what application code needs, so the app
 instantiated once:
 
 ```ts
-// Generated by pennestack 0.1.0 from src/app.ts. Do not edit. Format pennestack.generated/1, API version 2027-01-12, surface sha256-3q2F...
-import type { ActionRef as ActionRefOf, AppActionTree, AppEntities, Row } from '@pennestack/core'
-import type { AppClient } from '@pennestack/client'
-import type { TrpcRouterOf } from '@pennestack/transport-trpc'
+// Generated by keelwerk 0.1.0 from src/app.ts. Do not edit. Format keelwerk.generated/1, API version 2027-01-12, surface sha256-3q2F...
+import type { ActionRef as ActionRefOf, AppActionTree, AppEntities, Row } from '@keelwerk/core'
+import type { AppClient } from '@keelwerk/client'
+import type { TrpcRouterOf } from '@keelwerk/transport-trpc'
 import type { Portal } from './app.ts'
 
 export type App = Portal
@@ -3657,19 +3657,19 @@ version (section 18.2). Biome excludes
 generated paths from linting and formatting (`"!**/generated"`, `"!**/*.generated.ts"`) but keeps
 them indexed for type-aware rules.
 
-### 13.8 `pennestack build` and CI
+### 13.8 `keelwerk build` and CI
 
 CI runs, in order, on Node 26 (the baseline of section 13.2):
 
 1. `pnpm install --frozen-lockfile`;
 2. `biome ci` (formatting and linting, no writes), then `knip` (unused files, which are forgotten
-   mounts, unused exports and dependencies) and `pennestack doctor --layout` (the layout pass of
+   mounts, unused exports and dependencies) and `keelwerk doctor --layout` (the layout pass of
    section 23.13);
 3. `tsc -b` with TypeScript 7.0.2 (checks every project and emits `dist`);
 4. `vitest run` with type checking (unit, integration and type tests);
-5. `pennestack generate --check` (the module manifests, the apps' generated files and every artefact
+5. `keelwerk generate --check` (the module manifests, the apps' generated files and every artefact
    of section 13.7);
-6. `pennestack db check` (section 14.8.5);
+6. `keelwerk db check` (section 14.8.5);
 7. the transport conformance suite of section 16.3.8, the adapter conformance suite of section
    14.10 and the dual-evaluation suite of section 8.6 on every adapter the milestone ships
    (PostgreSQL, PGlite and in-memory from M1; MySQL and SQLite from M5, roadmap.md);
@@ -3678,7 +3678,7 @@ CI runs, in order, on Node 26 (the baseline of section 13.2):
    TypeScript 7.0.2, Appendix B), declaration size per module package, and no TS7056, TS2742 or
    TS4023; attest benchmarks for the core's composition types run on TypeScript 6.0.3, which
    attest still needs;
-9. `pennestack surface diff --base origin/main` (section 18.6): derives the surface of every API
+9. `keelwerk surface diff --base origin/main` (section 18.6): derives the surface of every API
    version of each app on both sides and classifies every change as breaking (an action or an
    output field removed; an output field made optional; a new required input field; an input type
    narrowed or an input enum value removed; an execution mode changed away from `sync`; an error
@@ -3687,13 +3687,13 @@ CI runs, in order, on Node 26 (the baseline of section 13.2):
    fails, whatever the changelog says; dangerous changes need a changelog acknowledgement. Each
    changed module package's own surface and declaration files must fit its semantic version bump.
 
-`pennestack build` runs steps 2 to 6 and 9 locally, the layout pass included, then emits JavaScript
+`keelwerk build` runs steps 2 to 6 and 9 locally, the layout pass included, then emits JavaScript
 for production.
 
 ### 13.9 Biome preset and framework lint rules
 
-`@pennestack/biome-config` publishes a Biome 2.5.15 configuration that projects extend with
-`"extends": ["@pennestack/biome-config/biome"]`. Biome stays the only formatter and linter, with
+`@keelwerk/biome-config` publishes a Biome 2.5.15 configuration that projects extend with
+`"extends": ["@keelwerk/biome-config/biome"]`. Biome stays the only formatter and linter, with
 its formatter defaults. The preset enables these rules as errors:
 
 | Rule (group) | Why |
@@ -3705,10 +3705,10 @@ its formatter defaults. The preset enables these rules as errors:
 | `noEnum`, `noNamespace`, `noParameterProperties` (style) | erasable syntax only, for Node's type stripping |
 | `useImportType`, `useExportType` (style) | `verbatimModuleSyntax` |
 | `useNodejsImportProtocol` (style) | `node:` specifiers for built-ins |
-| `noProcessEnv` (style), `noProcessGlobal` (correctness), `noGlobalAssign` (suspicious), everywhere except `pennestack.config.ts` | configuration comes from `ctx.config`, secrets from `field.secret()`, deployment values from `env()`; no hidden channel through the process or a global (section 7.9.6) |
-| `noNodejsModules` (correctness), in module packages outside `src/executors/` | `node:*` modules perform effects or need the event loop; handlers yield requests instead, and the core's pure primitives come from `@pennestack/core/crypto` (section 7.9.3) |
+| `noProcessEnv` (style), `noProcessGlobal` (correctness), `noGlobalAssign` (suspicious), everywhere except `keelwerk.config.ts` | configuration comes from `ctx.config`, secrets from `field.secret()`, deployment values from `env()`; no hidden channel through the process or a global (section 7.9.6) |
+| `noNodejsModules` (correctness), in module packages outside `src/executors/` | `node:*` modules perform effects or need the event loop; handlers yield requests instead, and the core's pure primitives come from `@keelwerk/core/crypto` (section 7.9.3) |
 | `noNonNullAssertion` (style) | `noUncheckedIndexedAccess` results are meant to be handled |
-| `noDefaultExport` (style) | named exports everywhere except `pennestack.config.ts` (an override) |
+| `noDefaultExport` (style) | named exports everywhere except `keelwerk.config.ts` (an override) |
 | `useImportExtensions` (correctness) | relative imports carry `.ts`, as Node and `rewriteRelativeImportExtensions` need |
 | `noUnusedImports`, `noPrivateImports` (correctness) | hygiene; `@private` internals stay private |
 | `noFloatingPromises`, `noMisusedPromises` (nursery) | in the imperative code that remains (kernel, executors, transports, listeners), unawaited work escapes its span and its abort signal; the exact Biome version is pinned, so nursery behaviour does not drift |
@@ -3738,7 +3738,7 @@ GritQL plugins shipped in the same package, each with tests:
 
 | Plugin | Flags |
 |---|---|
-| `no-selection-augmentation.grit` | `declare module '@pennestack/...'` and `declare global` in module and app packages (principle 2) |
+| `no-selection-augmentation.grit` | `declare module '@keelwerk/...'` and `declare global` in module and app packages (principle 2) |
 | `named-module-types.grit` | an exported `defineModuleBase(...)`, `defineModule(...)` or `defineApp(...)` value without a named type annotation (section 4.1), in `base.ts`, `app.ts` and hand-written module literals of tests and spikes; the generator writes the named type into every `module.generated.ts` |
 | `no-null-in-conditions.grit` | a literal `null` as a comparison value in a rule's `where` or `check` (section 8.3) |
 | `as-system-reason.grit` | `system()` without a reason or with an empty string, as in `invoke(action, input, { as: system('') })` |
@@ -3752,7 +3752,7 @@ GritQL plugins shipped in the same package, each with tests:
 
 The last three, like `pure-parts`, `no-module-state` and `no-await-in-parts` (module sources, minus
 `src/executors/` where the rule says so), are scoped with `includes`, because GritQL cannot read the
-file path; checks that need paths belong to the layout pass of `pennestack doctor` (section 23.13).
+file path; checks that need paths belong to the layout pass of `keelwerk doctor` (section 23.13).
 Modules are object literals (section 4.1), so no rule guards a chain of steps.
 
 ```grit
@@ -3783,11 +3783,11 @@ error-code prefixes against the declaring module, unique TypeID prefixes) run at
   typed per request), the policy typing (a condition cannot name a field or relation that the rule's
   modules do not provide; read rules list only maskable fields; `principal: 'user'` narrows the
   subject), and the generated file's exports.
-- `@pennestack/testing/types` exports assertion helpers for application authors:
+- `@keelwerk/testing/types` exports assertion helpers for application authors:
   `ExpectValidApp<A>` (no `defineApp` check properties), `HasEntity<App, 'accounts.profile'>`,
   `HasAction<App, 'accounts.profile.changePassword'>`, and the client types `InputOf`, `ResultOf`
   and `EventOf` for asserting what a transport will accept and return.
-- `pennestack new module` scaffolds the toggle cases: the module alone, the module with each module
+- `keelwerk new module` scaffolds the toggle cases: the module alone, the module with each module
   in its `optional` list, and the conditional parts present only in the latter.
 - Transport packages carry type tests of their derived types (the cases of Appendix B for tRPC,
   the result types per execution mode for the typed client, `Readable<Row>` for masks) and an
@@ -3813,8 +3813,8 @@ the tenth module of a larger chain. Both proof apps are that deep (`previews` re
 which requires `mail-store`, which requires `mail-domains`). Rules:
 
 - every exported module and app value has a named type (`ModuleType`, `AppType`), scaffolded by
-  `pennestack new module` and enforced by `named-module-types.grit`;
-- every type that can appear in a DSL value's type is exported by `@pennestack/core`, or emit fails
+  `keelwerk new module` and enforced by `named-module-types.grit`;
+- every type that can appear in a DSL value's type is exported by `@keelwerk/core`, or emit fails
   with TS4023 or TS2742;
 - CI builds the portal example and the synthetic apps here, and each platform repository builds its
   app, under the pnpm layout and fails on TS7056, TS2742 or TS4023, and when a module's `.d.ts`
@@ -3825,7 +3825,7 @@ synthetic apps here, and on Trail's, Launchway's and later the mail server's app
 repositories, and fails when the instantiation count exceeds the budget the spike establishes on
 synthetic apps of 25 and 40 modules with parts typed against their bases (section 4.7 gives the fold's own
 figures: 195,783 and 408,543 on TypeScript 7.0.2). attest benchmarks guard the composition types in
-`@pennestack/core`.
+`@keelwerk/core`.
 
 **The generated manifest in the budget.** `tsc` sees `module.generated.ts` as written, so the
 budgets and traces measure the generated literal itself: one import and one entry per part, the
@@ -3834,7 +3834,7 @@ are produced by the generator, so the recorded budgets include its output, and `
 attributes check time to the manifest's mounts like any other file; a generator change that grows
 the manifest's type cost fails the budget like any other change.
 
-### 13.12 `pennestack doctor`
+### 13.12 `keelwerk doctor`
 
 Checks the environment and the project, then the running backends:
 
@@ -3922,13 +3922,13 @@ deployment
 │     erasure ledger, retention rules; their own event log (the directory change feed)
 └── placement "default"                   adapter postgres, strategy shared-tables
       ├── namespace "launchway"           root: PostgreSQL schema launchway
-      │     framework tables  ps_events  ps_positions  ps_shapes  ps_consumers  ps_parked
-      │                       ps_jobs  ps_job_lanes  ps_job_lane_counts  ps_job_groups  ps_job_history
-      │                       ps_serials  ps_usage  ps_subject_keys  ps_value_keys  ps_index_keys
-      │                       ps_subject_refs  ps_tombstones  ps_stream_records  ps_migrations
+      │     framework tables  kw_events  kw_positions  kw_shapes  kw_consumers  kw_parked
+      │                       kw_jobs  kw_job_lanes  kw_job_lane_counts  kw_job_groups  kw_job_history
+      │                       kw_serials  kw_usage  kw_subject_keys  kw_value_keys  kw_index_keys
+      │                       kw_subject_refs  kw_tombstones  kw_stream_records  kw_migrations
       │     module tables     core__command_receipt  accounts__profile  auth__credential  auth__session ...
       └── namespace "mail"                root: PostgreSQL schema mail
-            framework tables  ps_events ...
+            framework tables  kw_events ...
             module tables     accounts__profile  mail_store__email  mail_store__mailbox ...
 ```
 
@@ -3949,10 +3949,10 @@ deployment
 
 | Layer | Package | Responsibility |
 |---|---|---|
-| Kernel repositories and write path | `@pennestack/core` | kernel-internal repositories behind the requests and drafts of section 7.9 (`ctx.load.<module>.<entity>` with the module's authority or the caller's view, section 8.4; `ctx.write` drafts written as events), the interpreter, `evolve`, merge rules, item checks, receipts, decision and effect records, sealing of credential material and encryption of personal fields, the kernel job queue. Written once, against the contract. |
-| Contract | `@pennestack/core` (types only) | `DataAdapterFactory`, `DataAdapter`, `Unit`, `RowStore`, `EventStore`, `ReceiptStore`, `JobStore`, `ConsumerStore`, `TombstoneStore`, `StreamRecordStore`, `UsageStore`, `SubjectKeyStore`, `SchemaOperations`, `ChangeFeedSource`, descriptors, positions. The core declares them because its extension points are typed by them. |
-| SQL family | `@pennestack/data` | The Kysely-based implementation shared by SQL adapters: descriptor-to-table mapping, condition and cursor compilers, value codecs, the scoping plugin, DDL rendering through Kysely's schema builder, catalogue introspection, the migration planner, the in-memory adapter and the conformance kit. |
-| Dialect adapters | `@pennestack/adapter-*` | Driver, dialect codecs and quirks, change-feed wake-ups, row-level security, capability declaration. |
+| Kernel repositories and write path | `@keelwerk/core` | kernel-internal repositories behind the requests and drafts of section 7.9 (`ctx.load.<module>.<entity>` with the module's authority or the caller's view, section 8.4; `ctx.write` drafts written as events), the interpreter, `evolve`, merge rules, item checks, receipts, decision and effect records, sealing of credential material and encryption of personal fields, the kernel job queue. Written once, against the contract. |
+| Contract | `@keelwerk/core` (types only) | `DataAdapterFactory`, `DataAdapter`, `Unit`, `RowStore`, `EventStore`, `ReceiptStore`, `JobStore`, `ConsumerStore`, `TombstoneStore`, `StreamRecordStore`, `UsageStore`, `SubjectKeyStore`, `SchemaOperations`, `ChangeFeedSource`, descriptors, positions. The core declares them because its extension points are typed by them. |
+| SQL family | `@keelwerk/data` | The Kysely-based implementation shared by SQL adapters: descriptor-to-table mapping, condition and cursor compilers, value codecs, the scoping plugin, DDL rendering through Kysely's schema builder, catalogue introspection, the migration planner, the in-memory adapter and the conformance kit. |
+| Dialect adapters | `@keelwerk/adapter-*` | Driver, dialect codecs and quirks, change-feed wake-ups, row-level security, capability declaration. |
 
 The event store must share the transaction that updates the state tables, so it is part of the
 unit (`unit.events`), an adapter declares `capabilities.eventStore`, and there is no separate
@@ -3963,7 +3963,7 @@ store: jobs are enqueued in the unit of the command that causes them.
 #### 14.3.2 The contract
 
 ```ts
-// Declared in @pennestack/core (types only). Implemented by adapters. Used by the kernel write path.
+// Declared in @keelwerk/core (types only). Implemented by adapters. Used by the kernel write path.
 
 /** Where a unit runs. `namespace` is kernel-internal (migrations, provisioning, maintenance that touches no
  *  tenant rows): it never appends events and is never handed to module code. */
@@ -4216,7 +4216,7 @@ export interface AdapterCapabilities {
 The adapter contract of section 14.3.2 is the only coupling between application code and a
 datastore (brief addendum 5; decision 12a of 2026-10-26). A capability is an acceleration, never a
 condition for running: for every capability an adapter may lack, the kernel has a path that gives
-the same results at a cost. `pennestack explain` names the path a plan takes, and `pennestack
+the same results at a cost. `keelwerk explain` names the path a plan takes, and `keelwerk
 doctor` lists per placement the fallbacks the selected apps use and their cost (section 13.12).
 
 | Capability absent | Kernel path | Cost |
@@ -4373,8 +4373,8 @@ result set.
 | Adapter | Package | Substrate (checked) | Change feed | Tenant backstop | Naming default | Placements | Milestone |
 |---|---|---|---|---|---|---|---|
 | PostgreSQL | `adapter-postgres` | Kysely 0.29.6 `PostgresDialect`, `pg` 8.23.1 | `notify` | forced row-level security | schema per app, prefixed tables | all three | M1 |
-| PGlite | `@pennestack/data` (tests, `pennestack dev`) | Kysely `PGliteDialect`, `@electric-sql/pglite` 0.5.8 (PostgreSQL 18.3) | `notify`, in-process | row-level security | as PostgreSQL | shared-tables | M1 |
-| In-memory | `@pennestack/data` | none | in-process | the interpreter | not applicable | shared-tables | M1 |
+| PGlite | `@keelwerk/data` (tests, `keelwerk dev`) | Kysely `PGliteDialect`, `@electric-sql/pglite` 0.5.8 (PostgreSQL 18.3) | `notify`, in-process | row-level security | as PostgreSQL | shared-tables | M1 |
+| In-memory | `@keelwerk/data` | none | in-process | the interpreter | not applicable | shared-tables | M1 |
 | MySQL | `adapter-mysql` | Kysely `MysqlDialect`, `mysql2` 3.24.5, MySQL 8.4 LTS | `poll` and in-process wake | none (scoping plugin and tests) | prefix in one database | shared-tables, database-per-tenant | M5 |
 | SQLite | `adapter-sqlite` | Kysely `SqliteDialect` over `node:sqlite` (SQLite 3.53.4 in Node 24.21.0, checked again on Node 26 in M0); `better-sqlite3` 13.0.3 as fallback | in-process; `poll` across processes of one host | none | prefix in one file | shared-tables, database-per-tenant (a file per tenant) | M5 |
 | Supabase | `adapter-supabase` | the PostgreSQL adapter with a preset | `notify` over a session connection | forced row-level security, nothing granted to `anon` and `authenticated` | schema `ps_<app>` | shared-tables, schema-per-tenant | M5 |
@@ -4382,11 +4382,11 @@ result set.
 Positions use the same commit-tail counter per scope on every adapter (section 15.1.4), and every
 adapter implements the job store (section 14.3.9). Milestones refer to [roadmap.md](roadmap.md).
 
-**PostgreSQL.** The reference adapter. Units set `pennestack.tenant_id` (or `pennestack.backend_id`)
+**PostgreSQL.** The reference adapter. Units set `keelwerk.tenant_id` (or `keelwerk.backend_id`)
 with `set_config(..., true)` at their start, and every scoped table has row-level security enabled
-and forced, with a policy `USING (tenant_id = current_setting('pennestack.tenant_id', true)::uuid)`
+and forced, with a policy `USING (tenant_id = current_setting('keelwerk.tenant_id', true)::uuid)`
 plus the same `WITH CHECK`; tenant tables therefore deny every statement of a backend-scope unit,
-which sets only the backend id. Namespace-scope units set `pennestack.scope = 'namespace'`, which
+which sets only the backend id. Namespace-scope units set `keelwerk.scope = 'namespace'`, which
 only the migration and maintenance policies admit; module code never runs in them. The adapter's
 role has no `BYPASSRLS`. Row-level security protects against defects in the framework and the
 adapters; module code is trusted application code, and the escape-hatch rules of section 14.3.8
@@ -4400,8 +4400,8 @@ in the 2025 "Write Notifications Through WAL" thread). Instead the unit records 
 every 50 milliseconds, carrying the scopes that committed; and readers also poll the heads every
 second, so a process that crashes between commit and notification delays a wake-up by at most a
 second and never loses an event. `LISTEN` uses a dedicated connection, which needs a session (a
-direct connection or a session-mode pooler, never a transaction-mode pooler). `pennestack dev` uses
-PGlite under `.pennestack/dev-db` when no database URL is configured, so a fresh checkout runs
+direct connection or a session-mode pooler, never a transaction-mode pooler). `keelwerk dev` uses
+PGlite under `.keelwerk/dev-db` when no database URL is configured, so a fresh checkout runs
 without installing a database; PGlite wakes in process.
 
 **MySQL.** No transactional DDL: a migration records each applied step and resumes at the failed
@@ -4438,8 +4438,8 @@ defines can be imported". The contract still permits such an adapter, as it perm
 it would build Drizzle table objects from descriptors when the adapter is created (as Payload's
 adapters do), compile conditions to Drizzle SQL expressions, use Drizzle's nested transactions for
 savepoints, implement the event store with the same tables and positions, and render migrations
-itself (drizzle-kit diffs Drizzle schemas, not pennestack snapshots). Importing an existing Drizzle
-schema stays an optional later convenience (roadmap, later milestones): `pennestack db introspect
+itself (drizzle-kit diffs Drizzle schemas, not keelwerk snapshots). Importing an existing Drizzle
+schema stays an optional later convenience (roadmap, later milestones): `keelwerk db introspect
 --drizzle <file>` would read table objects through `getTableConfig` (exported by drizzle-orm
 0.45.4's `pg-core`, `mysql-core` and `sqlite-core`; 1.0.0-rc.4 on 2026-10-10) into entity
 definitions (section 14.8.4).
@@ -4456,7 +4456,7 @@ conformance kit adds the unsealing oracle ("unseal and evaluate") as the referen
 
 `ctx.load.sql(build)` exists when a module declares the data need `{ sql: <dialect> }`, the one way
 module code opts into a datastore (brief addendum 5): the declaration states that the module is not
-portable to adapters of another dialect, the module's surface and `pennestack doctor` show it, and
+portable to adapters of another dialect, the module's surface and `keelwerk doctor` show it, and
 `connect` refuses a placement whose adapter lacks the dialect, the only refusal of section 14.3.3.
 Tenants are only created on, and moved to, placements that satisfy it. It is a read request (section
 7.9.3): `build` receives a Kysely query builder without a connection, typed by `SqlTables<M>` for
@@ -4482,7 +4482,7 @@ its types to module authors, which is accepted for an escape hatch and pinned to
 #### 14.3.9 The job store
 
 The kernel job queue of section 9.5 is implemented once, in the core, over a `JobStore` that every
-adapter provides in its unit. Jobs live in `ps_jobs` in the namespace, beside their lanes, lane
+adapter provides in its unit. Jobs live in `kw_jobs` in the namespace, beside their lanes, lane
 counters, groups and history (section 9.5.2), carry the scope (so row-level security covers their
 payloads) and are inserted in the unit of the command, timer or reaction dispatch that causes them.
 
@@ -4507,10 +4507,10 @@ export interface JobStore {
 
 - On PostgreSQL and MySQL, `take` locks lane rows and then job rows with `SKIP LOCKED` (section
   9.5.3), so any number of workers on any number of processes share a queue. On SQLite, PGlite and
-  the in-memory adapter, the single writer serialises `take`; they serve `pennestack dev`, tests and
+  the in-memory adapter, the single writer serialises `take`; they serve `keelwerk dev`, tests and
   single-process deployments.
-- Lane counters are split by writer: `ps_job_lanes` holds each lane's cap, weight, `taken` and
-  virtual time, of which takes write only `taken` and the virtual time; `ps_job_lane_counts` holds
+- Lane counters are split by writer: `kw_job_lanes` holds each lane's cap, weight, `taken` and
+  virtual time, of which takes write only `taken` and the virtual time; `kw_job_lane_counts` holds
   its `enqueued` and `done` counters, which enqueue tails, promotions, FIFO releases and completions
   write and takers read without locking. An enqueue burst therefore never makes takers skip a lane,
   and a stale `done` only lowers a lane's room.
@@ -4521,9 +4521,9 @@ export interface JobStore {
 - Renewal and completion are conditional on (worker, attempt), so a paused or partitioned attempt
   fails at its completion statement and rolls back its own unit; the next take returns a job whose
   lease expired to `available` (section 9.5.4).
-- Finished jobs leave `ps_jobs`, and `ps_job_history` keeps their outcome, attempts, timings and
+- Finished jobs leave `kw_jobs`, and `kw_job_history` keeps their outcome, attempts, timings and
   error, without input, for seven days, which bounds personal data in job inputs; dead letters keep
-  their input until an operator replays or discards them (`pennestack jobs`).
+  their input until an operator replays or discards them (`keelwerk jobs`).
 - The conformance suite runs the same queue scenarios (keys, coalescing, FIFO under concurrency,
   groups with rates, retries, heartbeats, expiry, dead letters, schedules ticking once per scope,
   the fair-take order, lane caps, the queued cap with backpressure, lease loss and fencing, release
@@ -4558,7 +4558,7 @@ home namespace, chosen when the backend is created.
   new name through the expand, dual-write, backfill and contract steps of section 14.6.4, and the
   snapshot keeps no column aliases. System columns are
   `id`, `tenant_id` or `backend_id`, `created_at`, `updated_at`, `archived_at` and `version`;
-  framework columns are `ps_last_hlc`, `ps_last_hash`, `ps_erased_at` and, from M6, `ps_merge`. A
+  framework columns are `kw_last_hlc`, `kw_last_hash`, `kw_erased_at` and, from M6, `kw_merge`. A
   field whose column name would collide with a system or framework column is a compose error.
 - **Length.** A name longer than the dialect's limit (63 bytes on PostgreSQL, 64 characters on
   MySQL) is truncated and suffixed with 8 hexadecimal characters of the SHA-256 of the full name.
@@ -4600,7 +4600,7 @@ that writes dialect-specific SQL declares its dialect as a data need (section 14
 
 #### 14.4.5 Moving a tenant (M5)
 
-`core.tenant.move` (operator, asynchronous; `pennestack tenant move <tenant> --to <placement>`):
+`core.tenant.move` (operator, asynchronous; `keelwerk tenant move <tenant> --to <placement>`):
 
 1. Freeze: admission answers `unavailable` to the tenant's commands; reads continue.
 2. Copy the tenant's events with their positions into the target namespace, together with the
@@ -4691,7 +4691,7 @@ complete.
   processes use `s` plus 10 random base32 characters chosen at start; clients use their client id.
   A counter overflow within one millisecond waits for the next millisecond.
 - Receive rule: when the kernel loads a stream's state for a write, it advances the process clock
-  past `ps_last_hlc` (and past every field clock in the merge state), so a server-authored event
+  past `kw_last_hlc` (and past every field clock in the merge state), so a server-authored event
   always carries a clock greater than every clock already in the stream. Online writes are therefore
   "last committed wins", and only offline-authored writes can lose an `lww` comparison (section 15.3).
 - Instants are `Temporal.Instant` behind `field.instant()` from the start (decision 19b): the
@@ -4754,10 +4754,10 @@ normaliser and parameters, hidden, maskable and `stateOnly` flags), indexes, for
 history mode, the merge-state flag, the rename history of every field (which event payloads need
 for upcasting; columns follow the current names, section 14.4.2), domain event shapes with
 their versions, and a hash of each `evolve` source text (section 15.2.4). Column ownership is per
-track, so `pennestack db check` knows which module owns each column.
+track, so `keelwerk db check` knows which module owns each column.
 
 An entity's shape is the union of the tracks that are active in an app. Every event therefore
-records the shape it was written with: `ps_shapes` maps a shape id (a hash) to the set of active
+records the shape it was written with: `kw_shapes` maps a shape id (a hash) to the set of active
 track ids with their versions, and each event stores that id (section 15.1.9). Upcasting works per
 track, and the generic evolve and every rebuild pass through the values of fields whose track is
 inactive, so a rebuild in an app where a contributor was switched off keeps that contributor's
@@ -4775,7 +4775,7 @@ export type MigrationStep =
   | { readonly op: 'copyColumn'; readonly entity: string; readonly from: string; readonly to: string }   // data step: a rename's or a split's backfill, batched after finalization
   | { readonly op: 'createIndex' | 'dropIndex'; readonly entity: string; readonly index: IndexSpec }
   | { readonly op: 'addForeignKey' | 'dropForeignKey'; readonly entity: string; readonly key: ForeignKeySpec }
-  | { readonly op: 'enableMergeState'; readonly entity: string }                             // M6: adds ps_merge, then a rebuild
+  | { readonly op: 'enableMergeState'; readonly entity: string }                             // M6: adds kw_merge, then a rebuild
   | { readonly op: 'rebuild'; readonly entity: string; readonly reason: string }              // re-project from the log
   | { readonly op: 'sql'; readonly statements: Readonly<Partial<Record<'postgres' | 'mysql' | 'sqlite', readonly string[]>>> }
 
@@ -4801,7 +4801,7 @@ and fail closed on a dialect they do not cover.
 
 #### 14.6.3 History, order and locks
 
-- `ps_migrations(track, id, checksum, applied_at, duration_ms, steps_applied)` in each namespace;
+- `kw_migrations(track, id, checksum, applied_at, duration_ms, steps_applied)` in each namespace;
   the checksum is the SHA-256 of the canonical neutral steps, and a changed applied file is drift.
 - Order: own tracks topologically by `requires` and `optional`, with tuple order as tie-break; a
   contribution track after the target's own track; a conditional track after the tracks of its
@@ -4815,9 +4815,9 @@ and fail closed on a dialect they do not cover.
 
 #### 14.6.4 Development, CI and production
 
-- Development: `pennestack dev` diffs the definitions against the development database and applies
+- Development: `keelwerk dev` diffs the definitions against the development database and applies
   the difference without writing files (expand steps at once, contract steps after confirmation in
-  the terminal, `rebuild` steps after confirmation). `pennestack db generate <track> --name <name>`
+  the terminal, `rebuild` steps after confirmation). `keelwerk db generate <track> --name <name>`
   writes the file and updates the snapshot when the author is ready; when a field disappears and
   another appears in one entity, the planner asks whether it is a rename (as drizzle-kit and Gel do)
   and records the answer in the file and the rename history. A rename then follows the four steps
@@ -4827,11 +4827,11 @@ and fail closed on a dialect they do not cover.
   (`dropColumn` of the old name), gated by finalization like every contract step (below and section
   19.3). Events keep the name they were written with and are upcast on read through the rename
   history. In development the steps run at once, the contract after the usual confirmation.
-- CI: `pennestack generate --check` fails when definitions and snapshots differ (a file is missing);
-  `pennestack db check` migrates a scratch database and compares its catalogue with the snapshots.
+- CI: `keelwerk generate --check` fails when definitions and snapshots differ (a file is missing);
+  `keelwerk db check` migrates a scratch database and compares its catalogue with the snapshots.
 - Production: the `migrate` phase verifies the history against the files and refuses to start on
-  drift (section 3.3); `pennestack db apply` (alias `pennestack migrate`) applies
-  pending files as a release step, and `pennestack db status` lists applied and pending files per
+  drift (section 3.3); `keelwerk db apply` (alias `keelwerk migrate`) applies
+  pending files as a release step, and `keelwerk db status` lists applied and pending files per
   namespace.
 - Expand and contract: `dropTable`, `dropColumn` and narrowing `alterColumn` steps are contract
   steps. `db apply` applies only expand steps unless `--contract` is given, so the old and the new
@@ -4847,7 +4847,7 @@ and fail closed on a dialect they do not cover.
   backfill (a reindex job that unseals each row and writes the new tags while writers write both), a
   read switch and a contract step that drops the old tags, with uniqueness held on both. Making a
   plaintext field personal runs the same steps (add the sealed and index columns, backfill, switch,
-  drop the plaintext column) plus a vacuum, and `pennestack doctor` states that older backups keep
+  drop the plaintext column) plus a vacuum, and `keelwerk doctor` states that older backups keep
   the plaintext until their retention passes (section 14.7.9.7).
 
 #### 14.6.5 Toggling, retiring and renaming modules
@@ -4859,10 +4859,10 @@ and fail closed on a dialect they do not cover.
   have no value; their defaults are applied on read, and reactivation runs only the files missing
   from the history plus a backfill of defaults. The conformance suite has toggle-then-rebuild
   cases.
-- `pennestack module retire <module> --app <app>` (operator) is the only operation that drops tables,
+- `keelwerk module retire <module> --app <app>` (operator) is the only operation that drops tables,
   after confirmation: it runs the drop steps of every track of the module in the app's namespaces,
   purges its streams from the event log and records the retirement in the control store.
-- `pennestack module rename` rewrites the track ids in `ps_migrations`, renames the tables and
+- `keelwerk module rename` rewrites the track ids in `kw_migrations`, renames the tables and
   rewrites `stream_type` values in the event log. Event hashes do not cover the module id (section
   15.1.8), so the chain stays verifiable.
 
@@ -4873,13 +4873,13 @@ For `schema-per-tenant` and `database-per-tenant`, tenant creation provisions th
 every active track from the snapshots and records every file as applied. This is DDL at runtime but
 not a migration: no history is replayed. The `migrate` phase migrates every tenant namespace with
 bounded parallelism; a namespace behind the files is `unavailable` until migrated, and
-`pennestack db apply --tenants` reports progress.
+`keelwerk db apply --tenants` reports progress.
 
 #### 14.6.7 The schema contract
 
 ```ts
 export interface SchemaOperations {
-  /** Renders neutral steps for review (`pennestack db plan`) without running them. */
+  /** Renders neutral steps for review (`keelwerk db plan`) without running them. */
   render(namespace: NamespaceRef, steps: readonly MigrationStep[]): readonly string[]
   /** Applies one file under the namespace lock and records it; resumable where DDL is not transactional. */
   apply(namespace: NamespaceRef, file: MigrationFile): Promise<void>
@@ -4900,7 +4900,7 @@ Nothing in the chain is deleted until the operator adopts a rule. Rules are set 
 per-tenant overrides, stored in the control store and changed through operator actions
 (`core.retention.set`, `core.retention.list`); every run of the retention worker is recorded in the
 control store (the rule, who adopted it, what was removed, the new horizons). Modules may declare
-suggested rules on their entities (`retention: { suggest: [...] }`), which `pennestack doctor` lists;
+suggested rules on their entities (`retention: { suggest: [...] }`), which `keelwerk doctor` lists;
 a suggestion has no effect until adopted. Launchway's modules suggest none (decision 47c,
 2026-10-27): deployment records, logs, preview records and the attempt records of effects are kept
 until Jens adopts a rule, so that they can be looked back on years later, and the mail server's
@@ -4943,9 +4943,9 @@ the operator configures a window.
 
 - Live tombstone: an archived row (`archivedAt`), hidden from reads unless asked for and allowed,
   restorable.
-- Erased tombstone: a row whose data subject was erased (`ps_erased_at`); invisible to every read,
+- Erased tombstone: a row whose data subject was erased (`kw_erased_at`); invisible to every read,
   including `includeArchived`, reported as destroyed by `changes` and as `remove` by sync.
-- Purge tombstone: `ps_tombstones(scope_id, stream_type, stream_id, position, purged_at)`, written when
+- Purge tombstone: `kw_tombstones(scope_id, stream_type, stream_id, position, purged_at)`, written when
   `purgeArchived` removes a stream and its row, so `changes` can report the id as destroyed and sync
   can send `remove`. A row still referenced by a live row's foreign key is skipped and reported, not
   purged. Tombstones older than a type's horizon are removed and the horizon moves forward, so older
@@ -4976,12 +4976,12 @@ after it, and the stream is reported as changed.
 - **In the chain.** Personal values in `data` and `before` are encrypted with the subject's data
   key: AES-256-GCM from `node:crypto`, a random 96-bit nonce, and additional authenticated data
   `namespace ‖ stream id ‖ event id ‖ field`, encoded as
-  `{ "$pse": 1, "k": "<key id>", "n": "<nonce>", "c": "<ciphertext and tag>" }` (base64url). Random
+  `{ "$kwe": 1, "k": "<key id>", "n": "<nonce>", "c": "<ciphertext and tag>" }` (base64url). Random
   nonces are safe far beyond the number of encryptions one subject's key will see.
 - **In state tables.** Personal values are sealed in state columns and in every derived index too,
   queryable only through the capabilities a field declares (decision 7b, section 14.7.9).
 - **Credential material.** Values of `field.secret()` and `field.verifier()` are sealed with their
-  own value key (`ps_value_keys`), in the state row and in events alike, with the entity, row id and
+  own value key (`kw_value_keys`), in the state row and in events alike, with the entity, row id and
   field as associated data. When a value is replaced, its row archived or purged, the kernel destroys
   the old value key in the same unit, so the chain keeps the current value rebuildable and every
   former password hash, token verifier, private key or environment value becomes unreadable
@@ -4990,9 +4990,9 @@ after it, and the stream is reported as changed.
 - **Keys.** The key service is one component in the core. The deployment master key (from the
   secret providers; a key-management module later) wraps a deployment key, one key per backend and
   one per tenant, all stored wrapped in the control store; these wrap the per-subject data keys
-  (`ps_subject_keys(scope_id, subject_id, key_id, wrapped, kek_version, created_at, shredded_at)`)
+  (`kw_subject_keys(scope_id, subject_id, key_id, wrapped, kek_version, created_at, shredded_at)`)
   and the per-value and per-blob keys in the namespace; each tenant's index root keys
-  (`ps_index_keys`) and the per-subject index keys (`ps_subject_keys` with purpose `index`) of
+  (`kw_index_keys`) and the per-subject index keys (`kw_subject_keys` with purpose `index`) of
   section 14.7.9.7 sit beside them. Deployment and backend keys protect secrets
   that are not tenant data (module configuration per backend, operator tokens); tenant keys protect
   everything of a tenant. A database dump of a placement alone cannot decrypt the chain.
@@ -5000,7 +5000,7 @@ after it, and the stream is reported as changed.
   (cheap). Data keys never rotate in place, because events are never re-encrypted; a new key version
   for a subject is possible and every value names its key id. Retiring a tenant destroys its tenant
   key, which makes every personal value, secret and blob of that tenant unreadable at once.
-- **Subject references.** `ps_subject_refs(scope_id, subject_id, stream_type, stream_id)` is written
+- **Subject references.** `kw_subject_refs(scope_id, subject_id, stream_type, stream_id)` is written
   when an event carries personal values; erasure walks it.
 - **Caching.** Unwrapped data keys and index keys sit in a bounded per-process cache for 60 seconds,
   invalidated by the control store's erasure-ledger feed.
@@ -5009,7 +5009,7 @@ after it, and the stream is reported as changed.
   removed.
 - **Elsewhere.** The kernel redacts personal, secret, verifier and hidden values in logs, traces and
   decision logs; receipts of entity commands store references, not rows; finished jobs leave
-  `ps_jobs` and keep only their outcome, without input, in `ps_job_history` for seven days (section
+  `kw_jobs` and keep only their outcome, without input, in `kw_job_history` for seven days (section
   9.5.2), which bounds personal inputs in job payloads.
 
 ```ts
@@ -5047,7 +5047,7 @@ which is self-service account deletion; the platforms decide). The worker:
    principal of the core, on behalf of the requester; command id: the erasure's). Its evolve clears
    the subject's personal fields in that row, including `.stateOnly()` personal fields such as
    extracted message text, and, where the row's `dataSubject` (directly or through its reference
-   path) is the subject, sets `ps_erased_at` and archives it. In the same unit it clears each such
+   path) is the subject, sets `kw_erased_at` and archives it. In the same unit it clears each such
    field's sealed column and index columns, its index-table rows and its tags and counts in every
    search index (section 14.7.9.8).
 4. Purges the stream records keyed by rows the subject owns.
@@ -5073,7 +5073,7 @@ positions from before and after the restore. Three mechanisms keep both true:
   (decision 35b). At `connect`, and after any restore, the kernel replays the union:
   it shreds every key the ledger has erased before the namespace serves traffic and runs steps 3 to
   5 of the erasure again, because a backup taken before an erasure lacks its `erased` events.
-  `pennestack doctor` warns when the control store and a placement share a database cluster and no
+  `keelwerk doctor` warns when the control store and a placement share a database cluster and no
   ledger sink is configured, because restoring that cluster rewinds both.
 - **Epochs from what a restore changes.** The control store records, per namespace, the database
   cluster's identity (on PostgreSQL the system identifier and the timeline) and, per scope, a
@@ -5144,7 +5144,7 @@ Protected:
 
 Not protected:
 
-- A compromised pennestack process (remote code execution, a memory dump, a malicious module): it
+- A compromised keelwerk process (remote code execution, a memory dump, a malicious module): it
   holds unwrapped keys and can query and unseal as the kernel does.
 - The operator: the master key decrypts everything.
 - A backup together with the master key yields what that backup held, including subjects erased
@@ -5183,7 +5183,7 @@ interface PersonalFlags<Q extends readonly PersonalQuery[]> {
 - Uniqueness (`.unique()`, unique entity indexes, merge `exclusive`) needs the full 128-bit tag under
   a tenant key; `eq.bits` and `keys: 'subject'` are refused on such fields at `defineEntity`.
 - Every other capability is opt-in, costs storage and writes and reveals what the matrix says;
-  `pennestack doctor` reports both.
+  `keelwerk doctor` reports both.
 - `contains` requires a declared `maxLength` of at most 1,024 characters; longer text uses `search`
   (these defaults, with 12-bit trigram tags and operands of at least three characters, are decision
   point 72).
@@ -5208,7 +5208,7 @@ Every operator, uniqueness and search tokens use it; the stored value keeps its 
 - custom: changing its id or version rebuilds the field's indexes.
 
 Normalisers follow the runtime's Unicode tables (17.0 on Node 24.21.0); each index records its
-version, and `pennestack doctor` warns on a mismatch.
+version, and `keelwerk doctor` warns on a mismatch.
 
 ##### 14.7.9.4 The operator matrix
 
@@ -5280,13 +5280,13 @@ On PostgreSQL (physical names from the adapter, section 14.4.2):
 
 | Column | Type | Content | Index |
 |---|---|---|---|
-| `<field>` | `bytea`, nullable | format byte, key id (16), nonce (12), ciphertext of the value padded to 16 bytes, GCM tag (16): the binary form of the chain's `$pse` envelope | none |
+| `<field>` | `bytea`, nullable | format byte, key id (16), nonce (12), ciphertext of the value padded to 16 bytes, GCM tag (16): the binary form of the chain's `$kwe` envelope | none |
 | `<field>__eq` | `bytea` (16) | the blind index tag | B-tree; unique and partial for unique fields |
 | `<field>__prefix` | `bigint[]` | prefix tags | GIN |
 | `<field>__ngram` | `smallint[]` | trigram tags | GIN |
 | `<field>__ore` | `ore` (M5) | the ORE token | B-tree through an operator class |
-| `ps_search_<index>` | `bigint[]` | token tags of a search index | GIN |
-| `ps_search_<index>_counts` | `bytea` | token counts, sealed with the subject's data key | none |
+| `kw_search_<index>` | `bigint[]` | token tags of a search index | GIN |
+| `kw_search_<index>_counts` | `bytea` | token counts, sealed with the subject's data key | none |
 
 MySQL and SQLite keep equality tags in `BINARY(16)` or `BLOB` columns and multi-valued tags in one
 index table per entity, `(tenant_id, row_id, slot, tag)`, with a B-tree on `(tenant_id, slot, tag)`.
@@ -5309,18 +5309,18 @@ table (estimates for the mail foundations milestone to measure, parked with the 
 ##### 14.7.9.7 Keys and rotation
 
 - Each tenant has an index root key per version, 256 random bits wrapped by the tenant key, in
-  `ps_index_keys(scope_id, version, wrapped, created_at, retired_at)` in the namespace.
-- Field keys come from HKDF-SHA-256 over the root key, salt `pennestack/index/1`, info `entity ‖
+  `kw_index_keys(scope_id, version, wrapped, created_at, retired_at)` in the namespace.
+- Field keys come from HKDF-SHA-256 over the root key, salt `keelwerk/index/1`, info `entity ‖
   field ‖ capability ‖ normaliser id and version ‖ parameters`: each capability has its own key, so
   the equality tag and the prefix tags of one value cannot be linked by value.
-- `keys: 'subject'` uses a per-subject index key stored with the data keys (`ps_subject_keys`,
+- `keys: 'subject'` uses a per-subject index key stored with the data keys (`kw_subject_keys`,
   purpose `index`) and shredded with them. Ciphertexts use the subject's data key, as in the chain;
   unwrapped keys share the 60-second cache of section 14.7.4.
-- Rotation is reindexing: `pennestack keys rotate --index` adds a root key version and plans, per
+- Rotation is reindexing: `keelwerk keys rotate --index` adds a root key version and plans, per
   entity, shadow index columns (expand), a backfill job that unseals each row and writes new tags
   while writers write both, a read switch when the job completes and a contract step dropping the
   old tags, with uniqueness held on both (section 19.3). A changed normaliser, `bits`, prefix bound
-  or language plans the same; `pennestack db reindex <entity> [--field <name>]` rebuilds on demand.
+  or language plans the same; `keelwerk db reindex <entity> [--field <name>]` rebuilds on demand.
 - Making a field personal later is a migration (add sealed and index columns, backfill, switch,
   drop the plaintext column, vacuum); older backups keep the plaintext until their retention passes.
 
@@ -5350,7 +5350,7 @@ stored in the adapter's tag sets, so it works on every adapter; the `search` cap
   Ranking by token counts (term frequency times inverse document frequency, from the sealed counts)
   serves custom queries for at most the scan limit's candidates.
 - The index is derived and scrubbable: never in events, rebuilt from the chain and the blobs by
-  `rederive` and `pennestack db reindex`, cleared by erasure, rebuilt by rotation.
+  `rederive` and `keelwerk db reindex`, cleared by erasure, rebuilt by rotation.
 - Known limit: whoever mails an account a word and later reads a dump learns that word's tag and
   every message of the account containing it; subject keys confine this to that account.
 
@@ -5394,7 +5394,7 @@ readonly encryptedQueries: {
 A capability the placement's adapter lacks takes the kernel's path (section 14.3.3, brief addendum
 5): with `order: false`, order and ranges on a personal field run as a bounded scan that unseals,
 filters and sorts in memory up to `maxScan`, and with `tagSets: 'table'` the tags live in index
-tables; `pennestack doctor` lists the fields that use a fallback, and nothing refuses at
+tables; `keelwerk doctor` lists the fields that use a fallback, and nothing refuses at
 `connect`. The in-memory adapter stores sealed values and tags as SQL adapters do,
 so tests exercise the rewrite. The reference semantics are "unseal and evaluate": the conformance
 kit's oracle unseals every row and evaluates the original condition with the core interpreter, and
@@ -5420,7 +5420,7 @@ fields; `page.sortable` accepts a personal field only with `order`, and a query 
 accepts one without it only beside `scan`. The SQL escape hatch types personal columns as `Sealed`,
 hides index columns and refuses writes to both.
 
-##### 14.7.9.12 `pennestack doctor`
+##### 14.7.9.12 `keelwerk doctor`
 
 The personal-data pass lists each personal field's capabilities, leaks, key scope and normaliser
 and, on a running deployment, its index rows and bytes per tenant. It warns about equality indexes on
@@ -5474,7 +5474,7 @@ and app types, computed from the app value, which clients, transports and the ge
 (section 3.4). The data layer adds the following derived types:
 
 ```ts
-// @pennestack/core, sketch. Each is wrapped in Prettify; App-parameterised types also exist module-locally (ModuleRow<M, Ref>, ...).
+// @keelwerk/core, sketch. Each is wrapped in Prettify; App-parameterised types also exist module-locally (ModuleRow<M, Ref>, ...).
 interface SystemFields<Ref extends string> {
   readonly id: Id<Ref>
   readonly createdAt: Temporal.Instant
@@ -5556,7 +5556,7 @@ contain the fields of its own definition, its own conditional parts (optional), 
 contributions add to other modules' entities; fields that other modules contribute to its entities
 are not part of its view, because the module was compiled without them. App types
 (`Row<App, Ref>`, `Readable<R>` for client results) are instantiated once per app in
-`pennestack.generated.ts` (section 13.1), so clients and transports never fold the module tuple
+`keelwerk.generated.ts` (section 13.1), so clients and transports never fold the module tuple
 again.
 
 #### 14.8.2 Types at the database edge
@@ -5579,16 +5579,16 @@ declares in its data needs. No introspection codegen is involved.
 
 #### 14.8.3 What the dev server regenerates
 
-On every change of a definition, `pennestack dev`:
+On every change of a definition, `keelwerk dev`:
 
-1. rebuilds the registry and rewrites `pennestack.generated.ts` (section 13.1);
+1. rebuilds the registry and rewrites `keelwerk.generated.ts` (section 13.1);
 2. diffs every active track against the development database and applies the result (section 14.6.4),
    asking before contract and `rebuild` steps;
 3. reports drift: definitions against snapshots ("track `auth->accounts` needs a migration") and the
    database against snapshots;
 4. asks the transports for their artefacts (section 13.7);
 5. leaves the sources of external entities alone (they are the author's files) and reports drift
-   between an external database and those sources, as `pennestack db introspect --check` does.
+   between an external database and those sources, as `keelwerk db introspect --check` does.
 
 `tsc -b --watch` runs beside it, so the compiler remains the judge. No database type file is
 generated: database types are definition types.
@@ -5596,8 +5596,8 @@ generated: database types are definition types.
 #### 14.8.4 Introspecting an existing database into entity definitions (M5)
 
 ```
-pennestack db introspect --url <url> [--schema <name>] [--tables a,b] --module <id> --mode external|adopt
-pennestack db introspect --drizzle <file> --module <id> --mode external|adopt
+keelwerk db introspect --url <url> [--schema <name>] [--tables a,b] --module <id> --mode external|adopt
+keelwerk db introspect --drizzle <file> --module <id> --mode external|adopt
 ```
 
 The command reads the catalogue through `SchemaOperations.introspect` (or Drizzle table objects
@@ -5628,8 +5628,8 @@ single-column unique and plain indexes become `.unique()` and `.index()`, compos
 column comments become `.describe(...)`; snake-case columns become camel-case fields.
 
 ```ts
-// Written by `pennestack db introspect` on 2026-10-11 from schema public, table customers. Edit freely.
-import { defineEntity, field } from '@pennestack/core'
+// Written by `keelwerk db introspect` on 2026-10-11 from schema public, table customers. Edit freely.
+import { defineEntity, field } from '@keelwerk/core'
 
 export const customer = defineEntity({
   prefix: 'cust',
@@ -5652,7 +5652,7 @@ export const customer = defineEntity({
 
 - **External** entities map tables the framework does not own: no system fields beyond the mapped id
   (with optional `createdAt` and `updatedAt` mappings); `deployment` or `backend` tenancy, or `tenant`
-  with a `source.tenantColumn` holding pennestack tenant ids; generated `get` and `query` only;
+  with a `source.tenantColumn` holding keelwerk tenant ids; generated `get` and `query` only;
   custom commands of the owning module write through `ctx.write` drafts (direct writes plus transient
   records); no migrations; the
   drift check compares the mapping with the live catalogue. A native key that is not a UUID is
@@ -5669,11 +5669,11 @@ export const customer = defineEntity({
 - At boot in production: applied history against committed files, per namespace (refuse to start),
   and external entity definitions against the live catalogue of their source (the backends that
   use a drifted external entity are `unavailable`).
-- `pennestack db check`: a migrated scratch database's catalogue against the snapshots, and a live
+- `keelwerk db check`: a migrated scratch database's catalogue against the snapshots, and a live
   namespace against the snapshots (missing or extra columns, types, indexes, row-level security
   policies).
-- `pennestack generate --check`: definitions against snapshots.
-- `pennestack db introspect --check`: external sources against the live catalogue.
+- `keelwerk generate --check`: definitions against snapshots.
+- `keelwerk db introspect --check`: external sources against the live catalogue.
 
 ### 14.9 Multi-tenancy in the data layer
 
@@ -5694,7 +5694,7 @@ export const customer = defineEntity({
 
 ### 14.10 Testing and conformance
 
-Every adapter passes the conformance suite in `@pennestack/testing` before it is released:
+Every adapter passes the conformance suite in `@keelwerk/testing` before it is released:
 
 1. Codec round trips per field kind, with edge values: the largest safe integer, wide integers,
    decimals with scale, instants at millisecond precision, empty sets, characters beyond the Basic
@@ -5748,17 +5748,17 @@ apps are the integration suites (section 22).
 | Loro's format or API evolves; its WebAssembly weighs on server processes. | A codec id on every CRDT payload and converters in the codec module; the codec loads only when an app declares a collaborative field. |
 | The two condition interpreters drift apart. | One semantics table, binary collations, relation quantifiers always evaluated by the database, the dual-evaluation suite on every adapter. |
 | The disclosure rule costs reads, and plans built on relations cause resets. | Bounded by `maxChanges`; a reset is correct, only slower; measured on the proof apps. |
-| Storage grows: before-images, three indexes on `ps_events`, transient records. | Default expiry of transient records; compaction rules; table partitioning when measurements ask for it. |
+| Storage grows: before-images, three indexes on `kw_events`, transient records. | Default expiry of transient records; compaction rules; table partitioning when measurements ask for it. |
 | Client clocks are wrong or hostile. | The skew bound, offset estimation, and server-authored writes always winning. |
 | Erasure is incomplete: unmarked free text, copies on clients and in old backups. | Documentation, the erasure ledger replayed at restore, scrub instructions in sync, backup retention stated in operations. |
-| Parked streams and dead-letter jobs hide failures. | Metrics, alerts and `pennestack doctor` list them. |
+| Parked streams and dead-letter jobs hide failures. | Metrics, alerts and `keelwerk doctor` list them. |
 | A restore rewinds the ledger together with the data. | Ledger sinks outside the placement, a doctor warning for shared clusters, epochs derived from the cluster identity and high-water marks (section 14.7.6). |
 | Schema-per-tenant migrations take long with many tenants. | Bounded parallelism, unavailable lagging namespaces, shared tables as the default. |
 | MySQL has no row-level security. | The scoping plugin and adversarial tests; PostgreSQL recommended for multi-tenant production. |
-| Module authors misread what the indexes of a personal field leak. | The leaks are part of the field's type, every capability beyond equality is opt-in, and the personal-data pass of `pennestack doctor` lists and warns (section 14.7.9). |
-| Indexes over personal fields grow: prefix, trigram and token tags cost storage and writes (5 to 10 KB per filed message on PostgreSQL, estimated). | Opt-in capabilities, index sizes per tenant in `pennestack doctor`, a measurement on a fixture mailbox in the mail foundations milestone (parked). |
-| A Node upgrade changes the Unicode tables the normalisers follow. | Each index records its Unicode version, `pennestack doctor` warns on a mismatch and `pennestack db reindex` rebuilds (section 14.7.9.3). |
-| An own ORE implementation is flawed. | Order is opt-in, PostgreSQL only and M5, after a spike on operator-class installation and a review of the implementation; `pennestack doctor` warns on every `order` field. |
+| Module authors misread what the indexes of a personal field leak. | The leaks are part of the field's type, every capability beyond equality is opt-in, and the personal-data pass of `keelwerk doctor` lists and warns (section 14.7.9). |
+| Indexes over personal fields grow: prefix, trigram and token tags cost storage and writes (5 to 10 KB per filed message on PostgreSQL, estimated). | Opt-in capabilities, index sizes per tenant in `keelwerk doctor`, a measurement on a fixture mailbox in the mail foundations milestone (parked). |
+| A Node upgrade changes the Unicode tables the normalisers follow. | Each index records its Unicode version, `keelwerk doctor` warns on a mismatch and `keelwerk db reindex` rebuilds (section 14.7.9.3). |
+| An own ORE implementation is flawed. | Order is opt-in, PostgreSQL only and M5, after a spike on operator-class installation and a review of the implementation; `keelwerk doctor` warns on every `order` field. |
 
 ## 15. Events, sync and live updates
 
@@ -5788,14 +5788,14 @@ sync, and the `live` module. ADRs 0007, 0008 and 0012 record the decisions.
 
 ```sql
 -- PostgreSQL; MySQL and SQLite use the same columns with their own types (section 14.5.1).
-create table <root>.ps_positions (
+create table <root>.kw_positions (
   scope_id        uuid            primary key,          -- tenant id, or backend id for backend-level entities
   next            bigint          not null,             -- the next position of this scope
   epoch           integer         not null              -- bumped when the scope's positions cannot continue (14.7.6)
 );
-create table <root>.ps_shapes (shape_id bytea primary key, tracks jsonb not null);   -- active track ids and versions
+create table <root>.kw_shapes (shape_id bytea primary key, tracks jsonb not null);   -- active track ids and versions
 
-create table <root>.ps_events (
+create table <root>.kw_events (
   scope_id        uuid            not null,             -- tenant id, or backend id for backend-level entities
   position        bigint          not null,             -- commit-ordered within the scope (15.1.4)
   backend_id      uuid            not null,
@@ -5819,12 +5819,12 @@ create table <root>.ps_events (
   primary key (scope_id, position),
   unique (scope_id, stream_type, stream_id, stream_version)
 );
-create index ps_events_type on <root>.ps_events (scope_id, stream_type, partition_key, position);
+create index kw_events_type on <root>.kw_events (scope_id, stream_type, partition_key, position);
 ```
 
 The unique constraint is the expected-version check: a concurrent append of the same version fails
 with SQLSTATE 23505 on PostgreSQL (verified on PostgreSQL 18.3), and the unit fails with `conflict`.
-Row-level security covers `ps_events` like every scoped table. Partitioning the table (by position
+Row-level security covers `kw_events` like every scoped table. Partitioning the table (by position
 range or by scope hash) is left until the proof apps show the need.
 
 #### 15.1.3 The envelope
@@ -5889,7 +5889,7 @@ order (G7); a long transaction must not stall other readers; one tenant's writes
 behind another tenant's or reveal another tenant's activity; and the scheme should be the same on
 every adapter.
 
-Decision: every adapter assigns positions from one counter row per scope (`ps_positions`, keyed by
+Decision: every adapter assigns positions from one counter row per scope (`kw_positions`, keyed by
 tenant id, or by backend id for backend-level entities), advanced at the commit tail of each unit
 that appends events. A unit appends only in its own scope (section 14.3.6), so it takes exactly one
 counter. The unit's buffered events are inserted with consecutive positions just before `COMMIT`,
@@ -5899,8 +5899,8 @@ the scope and have no gaps at commit (a rolled-back allocation is reused).
 
 ```sql
 -- Commit tail of a unit that appended $n events in scope $scope (PostgreSQL; MySQL and SQLite have the same shape).
-update <root>.ps_positions set next = next + $n where scope_id = $scope returning next - $n as first;  -- waits for earlier tails of this scope only
-insert into <root>.ps_events (scope_id, position, ...) values ($scope, $first, ...), ($scope, $first + 1, ...);
+update <root>.kw_positions set next = next + $n where scope_id = $scope returning next - $n as first;  -- waits for earlier tails of this scope only
+insert into <root>.kw_events (scope_id, position, ...) values ($scope, $first, ...), ($scope, $first + 1, ...);
 commit;
 -- after commit: the unit's afterCommit hook hands ($namespace, $scope) to the process's notifier (section 14.3.7)
 ```
@@ -5944,7 +5944,7 @@ so the `MODSEQ` of a message (the position of its last change) grows within ever
 account of the tenant.
 
 **Serials.** `field.serial({ per: ['mailboxId'] })` takes, at insert, the next value of a counter row
-in `ps_serials(scope_id, entity, field, partition, next)` keyed by the `per` values. The row lock is
+in `kw_serials(scope_id, entity, field, partition, next)` keyed by the `per` values. The row lock is
 held until commit, so values are strictly ascending in commit order within a partition and never
 reused (a value rolled back was never visible). Inserts into one partition serialise; a unit that
 allocates in several partitions locks them in key order.
@@ -5997,7 +5997,7 @@ For a command on a chain entity (every command is written with `decide`, section
    inserts the pending receipt (section 15.1.7).
 2. The target row is selected by the action's plan (`not_found` outside it), locked where the
    adapter supports it, and handed to `decide` as the full row.
-3. The clock receives `ps_last_hlc` and the field clocks of the merge state (section 14.5.3).
+3. The clock receives `kw_last_hlc` and the field clocks of the merge state (section 14.5.3).
 4. The kernel drives `decide(input, current, ctx)` and answers its requests in the unit, tagging
    each load with the snapshot position it saw; the decision's drafts become events (offline
    mutations stamp them with the client's clock, section 15.3), and its record joins their meta.
@@ -6010,9 +6010,9 @@ For a command on a chain entity (every command is written with `decide`, section
    replaced values' keys are destroyed.
 7. The post-image is item-checked (section 8.2), and the entity invariant, if declared, is
    evaluated; a failure fails the unit.
-8. The hash is chained from `ps_last_hash` (section 15.1.8).
+8. The hash is chained from `kw_last_hash` (section 15.1.8).
 9. The events are appended with the loaded version as expected version, and the state row is
-   updated with `expectedVersion` (new version, `ps_last_hlc`, `ps_last_hash`, merge state).
+   updated with `expectedVersion` (new version, `kw_last_hlc`, `kw_last_hash`, merge state).
 10. Inline reactions decide in module order (section 7.7), and their drafts take steps 5 to 9.
 11. Kernel effects run in order (`invoke` as a nested decision in a savepoint), jobs, timers and the
     `requested` records and effect jobs of external effects are written in the unit (section 9.5),
@@ -6046,7 +6046,7 @@ an operator command's in the control store. Idempotency only holds if the receip
 effect, so it shares the command's namespace and unit. Only the kernel writes receipts: the
 generated set operations are switched off, and the generated `get` and `watch` accept tenant,
 backend and deployment scope. A receipt's id is a UUIDv8 derived from the scope and the command id,
-so clients that hold only a command id (a REST `Location`, `pennestack ... --wait`, a webhook
+so clients that hold only a command id (a REST `Location`, `keelwerk ... --wait`, a webhook
 delivery id) call `core.commandReceipt.get` with it. Command ids are stored as the client gives them
 (section 7.5).
 
@@ -6089,14 +6089,14 @@ export interface ReceiptStore {
   recorded time, actor, writer, flags, the decision record, command id and client fields (the writer
   and flags as the actor is, a recommendation listed in section 26.3; the decision record because
   the logbook of section 7.9.6 must be as tamper-evident as the events it explains). The state row
-  keeps `ps_last_hash`, so chaining costs no read. The canonicaliser lives in the core;
+  keeps `kw_last_hash`, so chaining costs no read. The canonicaliser lives in the core;
   `canonicalize` 5.1.0 (Apache-2.0) serves as an independent implementation in tests.
 - The chain survives crypto-shredding (the ciphertext does not change) and module renames (the
   module id is not hashed).
 - Retention compaction writes a `snapshot` event whose `anchor` is the hash of the last removed
   event, and verification starts there. Operator redaction (section 14.7.7) keeps the stored hash, so
   links hold while that event's content no longer matches, and the redaction ledger explains why.
-- `pennestack db verify [--stream <ref>]` recomputes the chain. It could gain a state check that
+- `keelwerk db verify [--stream <ref>]` recomputes the chain. It could gain a state check that
   compares sealed state values with the fold of the chain, because an older ciphertext put back into
   a state column is invisible in the state table (section 14.7.9.1).
 - **Anchors** (decision 35b, 2026-10-27). From M1 the kernel appends each scope's chain head to every
@@ -6104,10 +6104,10 @@ export interface ReceiptStore {
   of the scope id, the position and hash of the scope's latest event, the recorded time and the
   writer (process and build). The cadence is a setting of `defineDeployment({ anchors: { every } })`:
   by default every commit batch of the notifier, at most once per second per scope (section 4.6).
-  `pennestack db verify` compares the chain with the anchors: the event at each anchored position
+  `keelwerk db verify` compares the chain with the anchors: the event at each anchored position
   must exist with the anchored hash, and the scope's head must be at or past its newest anchor, so a
   chain rewritten or rewound inside the placement is found even when its links are consistent;
-  `connect` reads the newest anchor as one more rewind signal (section 14.7.6), and `pennestack
+  `connect` reads the newest anchor as one more rewind signal (section 14.7.6), and `keelwerk
   doctor` warns when a scope's newest anchor is older than its cadence, which means a sink is
   missing or failing (section 13.12). An anchor pins the stream that held the scope's head at that
   moment; whether anchors should also carry a digest over every stream head of the scope is open
@@ -6117,7 +6117,7 @@ export interface ReceiptStore {
 
 #### 15.1.9 Upcasting and schema evolution of events
 
-- Every event stores the shape it was written with: the id of a `ps_shapes` row listing the active
+- Every event stores the shape it was written with: the id of a `kw_shapes` row listing the active
   tracks and their versions (section 14.6.1). Reads through the kernel upcast each track's fields to
   the track's current version. Renames recorded by the planner are applied automatically, fields a
   track removed are dropped, and added fields are absent (their defaults apply on evolve). Fields of
@@ -6203,8 +6203,8 @@ export type StoredEvent = EventEnvelope<string, unknown>
 
 Deployment logs and effect attempts are high-volume, append-only records keyed by an entity, kept
 like everything else unless a rule is adopted (decision 47c). They are not chain events: putting
-them in `ps_events` would put them on the commit-tail counter and in front of every consumer.
-Streams (`defineStream`, gap G6) store them in `ps_stream_records(scope_id, stream, key, seq, at,
+them in `kw_events` would put them on the commit-tail counter and in front of every consumer.
+Streams (`defineStream`, gap G6) store them in `kw_stream_records(scope_id, stream, key, seq, at,
 data)` through the unit's `StreamRecordStore`, with `seq` from a serial per key (section 15.1.4),
 the stream's own retention (none unless declared), the same scope predicate and wake-ups, and no
 hash, projection or offline sync. Live subscriptions read them by `(key, seq)`. A stream may declare
@@ -6222,8 +6222,8 @@ subject owns (section 14.7.5).
 The state table of a chain entity is its inline projection: updated in the same unit as the append,
 so a command's own reads and the next request see the new state. It is also the snapshot: `decide`
 receives the row, so no stream is replayed on the write path and long streams cost nothing until a
-rebuild or a history read. Framework columns: `version` (the stream version), `ps_last_hlc`,
-`ps_last_hash`, `ps_erased_at` and, from M6, `ps_merge` (field clocks, set dots, CRDT document
+rebuild or a history read. Framework columns: `version` (the stream version), `kw_last_hlc`,
+`kw_last_hash`, `kw_erased_at` and, from M6, `kw_merge` (field clocks, set dots, CRDT document
 versions).
 
 #### 15.2.2 Projection entities (M5)
@@ -6279,9 +6279,9 @@ export interface ConsumerSpec {
 }
 ```
 
-- State: `ps_consumers(consumer_id, scope_id, position, updated_at)`, one checkpoint per consumer
-  and scope, plus `ps_consumer_leases(consumer_id, lease_owner, lease_expires_at)` and
-  `ps_parked(consumer_id, scope_id, stream_type, stream_id, from_position, attempts, last_error,
+- State: `kw_consumers(consumer_id, scope_id, position, updated_at)`, one checkpoint per consumer
+  and scope, plus `kw_consumer_leases(consumer_id, lease_owner, lease_expires_at)` and
+  `kw_parked(consumer_id, scope_id, stream_type, stream_id, from_position, attempts, last_error,
   parked_at)`.
 - Leases: one active instance per consumer and namespace across all processes, acquired by a
   conditional update and renewed every third of the lease; only processes with the `work` role run
@@ -6298,14 +6298,14 @@ export interface ConsumerSpec {
 - Ordering and failures: events of one stream are handled in order. A failing event is retried a few
   times; after `maxAttempts` its stream is parked for that consumer and scope, later events of that
   stream are skipped and recorded, and every other stream and every other scope continues.
-  `pennestack consumers unpark` (or a redeploy with a fix) replays the parked stream from
+  `keelwerk consumers unpark` (or a redeploy with a fix) replays the parked stream from
   `from_position`. Parked streams are a metric and an alert.
 - New reactions start at the head, so adding a reaction to a running system does not replay history
   into side effects (no welcome mail to every existing user); projections start at the beginning.
 
 #### 15.2.4 Rebuilds
 
-- M1, offline: `pennestack db rebuild <entity>` takes an exclusive per-entity lock (writers of that
+- M1, offline: `keelwerk db rebuild <entity>` takes an exclusive per-entity lock (writers of that
   entity take it shared), clears the entity's rows in the namespace, replays its streams in version
   order, verifies their hashes and releases the lock. Writes to that entity wait meanwhile.
 - M5, online blue/green: the new table `<table>__r<n>` is built from the log while writers continue,
@@ -6317,7 +6317,7 @@ export interface ConsumerSpec {
   that is `requested` and not `settled` (at least once across restores, section 7.9.6). The logbook
   is a projection of the same chain and rebuilds the same way.
 - Triggers: `rebuild` and `enableMergeState` migration steps. The snapshot stores a hash of each
-  `evolve` source text; when it changes, `pennestack db generate` asks whether the change alters
+  `evolve` source text; when it changes, `keelwerk db generate` asks whether the change alters
   results (a formatting change does not) and writes a `rebuild` step if it does.
 
 #### 15.2.5 The change feed and live delivery
@@ -6334,7 +6334,7 @@ export interface ChangeFeedSource {
   over `unit.events.readAll` in read-only units of the scope, and `wake(scope)` filters the
   adapter's wake-ups.
 - Wake-up sources: on PostgreSQL, the process's notifier sends at most one
-  `NOTIFY ps_events, '<namespace>:<scopes>'` per namespace every 50 milliseconds after commit, from
+  `NOTIFY kw_events, '<namespace>:<scopes>'` per namespace every 50 milliseconds after commit, from
   its own connection and outside any writer's transaction (section 14.3.7), with payloads far below
   the 8,000-byte limit (a namespace-wide wake-up replaces the scope list when it would not fit); on
   MySQL and SQLite, an in-process wake on commit plus polling for other processes (every 250 ms,
@@ -6484,7 +6484,7 @@ mailbox membership and drafts, which fit this table.
 
 #### 15.3.6 The protocol
 
-The protocol is four actions of the `sync` module (in `@pennestack/events`), five from M7, so every
+The protocol is four actions of the `sync` module (in `@keelwerk/events`), five from M7, so every
 transport can carry it; section 15.4.8 maps them onto carriers.
 
 ```ts
@@ -6648,7 +6648,7 @@ export interface CrdtResult {
 
 #### 15.3.10 The reference client (M6)
 
-`@pennestack/sync-client` is framework-agnostic TypeScript: a local store behind a `SyncStorage`
+`@keelwerk/sync-client` is framework-agnostic TypeScript: a local store behind a `SyncStorage`
 interface (memory, IndexedDB in browsers, SQLite elsewhere), the clock with offset correction, the
 pending queue with client sequences, optimistic application of generated `set` operations (and, in
 M7, of custom offline commands whose `decide` a module exports for clients), rebase after every pull,
@@ -6660,13 +6660,13 @@ transport that carries the `sync` actions.
 
 #### 15.4.1 What the module provides
 
-The brief asks for live updates on everything, delivered by a module. `@pennestack/live` (module id
+The brief asks for live updates on everything, delivered by a module. `@keelwerk/live` (module id
 `live`) is that module. It fills these kernel extension points:
 
 | Extension point | Filled with |
 |---|---|
 | `liveHub` (mode `single`; provides `contracts.live`) | the hub of section 9.6: reads the change feed, authorizes and masks per event, issues stream tokens |
-| `liveCarriers` | the SSE carrier and the WebSocket carrier (`pennestack.live.v1`) |
+| `liveCarriers` | the SSE carrier and the WebSocket carrier (`keelwerk.live.v1`) |
 | `entityActionGenerators` | the core's `watch` template, added to every entity that is not `external` and whose `generated` settings do not switch it off; typed `EntityChange<Row>` per entity (section 4.7) |
 | `principalResolvers` | the stream-ticket resolver (section 15.4.6) |
 
@@ -6798,7 +6798,7 @@ head as the first statement of their unit, so their state is a valid `after` for
 
 #### 15.4.6 The SSE carrier
 
-Used by the invocation protocol (`/_pennestack/v1/subscribe`) and by REST subscription paths.
+Used by the invocation protocol (`/_keelwerk/v1/subscribe`) and by REST subscription paths.
 
 ```
 retry: 3000
@@ -6848,7 +6848,7 @@ when the floor passes the stream's API version.
 
 #### 15.4.7 The WebSocket carrier
 
-Endpoint `GET /_pennestack/v1/live`, subprotocol `pennestack.live.v1`, JSON text frames:
+Endpoint `GET /_keelwerk/v1/live`, subprotocol `keelwerk.live.v1`, JSON text frames:
 
 ```ts
 export type ClientMessage =
@@ -6909,7 +6909,7 @@ export interface PresencePeer {
 
 | Transport | Carrier | Resume | Credentials |
 |---|---|---|---|
-| invocation protocol | SSE `/_pennestack/v1/subscribe`; WebSocket `pennestack.live.v1` | `Last-Event-ID` or `after` | header, cookie, ticket; `hello.token` |
+| invocation protocol | SSE `/_keelwerk/v1/subscribe`; WebSocket `keelwerk.live.v1` | `Last-Event-ID` or `after` | header, cookie, ticket; `hello.token` |
 | REST | SSE on the subscription's own path | `Last-Event-ID` | header, cookie, ticket |
 | GraphQL | GraphQL over SSE (Yoga); graphql-ws 6.3.0 | `after` argument, `state` field | header, cookie; `connectionParams` |
 | tRPC | `httpSubscriptionLink` (SSE); `wsLink` when enabled | `tracked()` ids as `lastEventId` | cookie, header through an `EventSource` ponyfill; `connectionParams` over WebSocket |
@@ -7000,17 +7000,17 @@ export interface LiveQueries<M extends AnyModule> {
 /** Maps items with a pure function or a generator (which may yield loads and reveals) and keeps stream tokens and
  *  control frames, so a custom subscription stays resumable. */
 export declare function mapItems<A, B>(source: LiveSource<A>, fn: (item: A) => B | undefined | Gen<B | undefined>): LiveSource<B>   // undefined drops the item
-/** Kernel and listener code only (`@pennestack/live/internal`): declares an iterable source that cannot resume; the
+/** Kernel and listener code only (`@keelwerk/live/internal`): declares an iterable source that cannot resume; the
  *  surface then reports `resumable: false`. Module code feeds such data through a topic instead. */
 export declare function unresumable<E>(items: AsyncIterable<E>): AsyncIterable<LiveFrame<E>>
 ```
 
 ## 16. Transports and CLI
 
-This section specifies how pennestack is reached from outside its process: the API surface every
+This section specifies how keelwerk is reached from outside its process: the API surface every
 interface reads, the transport adapter contract and the HTTP host, the rules every projection
 shares, REST with OpenAPI, GraphQL, tRPC and oRPC, the invocation protocol and the typed client, the
-`pennestack` CLI, how a later user interface plugs in, and the observability and tenancy of the
+`keelwerk` CLI, how a later user interface plugs in, and the observability and tenancy of the
 interface layer. The live module is section 15.4; the development workflow is section 13. ADRs
 [0010](adr/0010-transports-project-a-derived-api-surface.md),
 [0011](adr/0011-rest-graphql-and-trpc-projections.md),
@@ -7066,7 +7066,7 @@ change to the registry's internal shape does not ripple into transports.
 ```ts
 /** One app's public interface at one API version. Derived by the core during `compose`; serialisable, deterministic, order-independent. */
 export interface ApiSurface {
-  readonly format: 'pennestack.surface/1'
+  readonly format: 'keelwerk.surface/1'
   readonly app: string                                   // the app id, e.g. 'launchway'
   readonly apiVersion: string                            // the dated API version this surface describes (section 18.2)
   readonly hash: string                                  // 'sha256-' + base64url of SHA-256 over the RFC 8785 form, without `hash`
@@ -7283,7 +7283,7 @@ The surface is available in three places, all with the same content:
 
 - the core action `core.introspect` (query, backend scope); its default rule allows any
   non-anonymous principal, and a backend setting makes it public or operator-only;
-- `GET /_pennestack/v1/surface` on the invocation protocol (section 16.8), at the session's API
+- `GET /_keelwerk/v1/surface` on the invocation protocol (section 16.8), at the session's API
   version, with that version's hash as `ETag`, so the CLI revalidates its cache with
   `If-None-Match`;
 - the committed artefacts `generated/api-surface/<app>/<api version>.json` (section 13.7).
@@ -7294,7 +7294,7 @@ The surface is available in three places, all with the same content:
 out: modules with their `requires` and `optional` lists, active and dropped contributions with the
 reason a contribution was dropped (target absent, `when` unsatisfied), conditional parts,
 extension points and their fillers, and the effective policy rules (ids, effects, reasons,
-conditions rendered by `ability.explain`). `pennestack introspect` and support work use it;
+conditions rendered by `ability.explain`). `keelwerk introspect` and support work use it;
 transports never do.
 
 ### 16.3 The transport adapter contract
@@ -7318,7 +7318,7 @@ the surface instead of the registry, has a pure `check`, and separates static op
 artefacts) from per-backend configuration (which only shapes runtime behaviour):
 
 ```ts
-import type { ApiSurface, Carrier, Invoker, InvocationSession, Logger, Scope, Telemetry } from '@pennestack/core'
+import type { ApiSurface, Carrier, Invoker, InvocationSession, Logger, Scope, Telemetry } from '@keelwerk/core'
 
 export interface TransportAdapter<Static = unknown, Config = unknown> {
   readonly name: string                                  // 'rest', 'graphql', 'trpc', 'cli', 'webhooks', later 'jmap', 'connect'
@@ -7347,7 +7347,7 @@ export interface TransportProblem {
 
 export type Artifact =
   | { readonly kind: 'file'; readonly path: string; readonly contentType: string; readonly content: string }
-  | { readonly kind: 'type-fragment'; readonly content: string }   // merged into pennestack.generated.ts (section 13.7)
+  | { readonly kind: 'type-fragment'; readonly content: string }   // merged into keelwerk.generated.ts (section 13.7)
 
 export interface MountContext<Config> {
   readonly app: string
@@ -7369,7 +7369,7 @@ A transport module is built with the core's sugar (section 5.6). Static options 
 module value with the same id, so an app still lists exactly one `rest` module:
 
 ```ts
-import { contracts, defineTransportModule, field, shape } from '@pennestack/core'
+import { contracts, defineTransportModule, field, shape } from '@keelwerk/core'
 
 export const restTransport = (options: RestStaticOptions = {}) =>
   defineTransportModule({
@@ -7388,7 +7388,7 @@ export const rest = restTransport()                      // what `modules: [...,
 
 #### 16.3.3 The HTTP host
 
-`@pennestack/transport-http` is an infrastructure entry of the deployment: it fills the
+`@keelwerk/transport-http` is an infrastructure entry of the deployment: it fills the
 deployment-level `httpHost` extension point (mode `single`) and provides `contracts.httpHost`,
 which every HTTP transport module requires (section 5.6). It is the only package that listens on
 HTTP, and it serves the invocation protocol (section 16.8) for every app of the catalogue, so the
@@ -7429,7 +7429,7 @@ routes and the tRPC router) is only known once the scope is resolved:
 ```
 socket ─▶ node:http ─▶ host dispatcher
             1. fill the Carrier: host, path, headers, connection (remote and local address, TLS), local socket
-            2. deployment routes: /_pennestack/health, /_pennestack/ready ─▶ answered here
+            2. deployment routes: /_keelwerk/health, /_keelwerk/ready ─▶ answered here
             3. carrier enrichers (receiver paths, section 16.5.8) set carrier.scopeKey
             4. invoker.open(carrier) ─▶ session { scope, app, principal } | error ─▶ problem response
             5. take the mount table of session.app; strip a tenant path prefix the resolver consumed
@@ -7449,8 +7449,8 @@ Rules for the host:
 - Deployment-scope requests (the operator socket and the operator host names) are served by the
   operator endpoint: the implicit `core` composition with the invocation protocol always mounted,
   and further transports only if `defineDeployment` lists them (section 4.6).
-- The prefix `/_pennestack` is reserved for the framework on every host name. The default prefixes
-  are `/api` (REST), `/graphql`, `/trpc` and `/_pennestack/v1` (invocation protocol); a user
+- The prefix `/_keelwerk` is reserved for the framework on every host name. The default prefixes
+  are `/api` (REST), `/graphql`, `/trpc` and `/_keelwerk/v1` (invocation protocol); a user
   interface may take `/` (section 16.10). Overlapping prefixes within one app are a `routeConflict`.
 - The host listens on the TCP ports and Unix sockets it is configured with and on the operator
   socket of `defineDeployment({ operator })`. A request that arrives on the operator socket gets
@@ -7463,7 +7463,7 @@ Rules for the host:
 - A tenant whose scope comes from the host name and a request whose carrier also names a scope key
   (a receiver path, a credential's public id) must agree; a mismatch is `not_found`, so a path can
   never steer a request into another tenant of the same host.
-- `GET /_pennestack/health` answers when the process runs; `GET /_pennestack/ready` answers when
+- `GET /_keelwerk/health` answers when the process runs; `GET /_keelwerk/ready` answers when
   the control store, the placements the process serves and the queue are reachable. Both are
   deployment-level and unauthenticated, for orchestrators; per-backend health remains the
   `app.health` and `app.ready` actions (section 11).
@@ -7554,7 +7554,7 @@ carrier (section 17.3.4).
 
 #### 16.3.8 Conformance suite
 
-`@pennestack/testing` ships a transport conformance suite: a fixture app (two modules with a
+`@keelwerk/testing` ships a transport conformance suite: a fixture app (two modules with a
 contribution and a conditional part, declared errors, a field mask, an `either` command, an async
 command, a subscription and every generated entity action) and one scenario set run through every
 selected transport. Each scenario asserts the same decoded outcome everywhere: values, error kind
@@ -7637,7 +7637,7 @@ Every HTTP transport encodes values with the wire column of section 16.2.3. Furt
 - The pipeline's `validate` stage accepts the wire form or the in-process form and produces the
   in-process form (an RFC 3339 string or a `Temporal.Instant` for an instant; a decimal string or a
   `bigint` for a wide integer), so transports pass decoded JSON straight to the invoker. Outputs are
-  serialised with `toWire(node, value)` from `@pennestack/core/wire`, a dependency-free subpath that
+  serialised with `toWire(node, value)` from `@keelwerk/core/wire`, a dependency-free subpath that
   clients share (section 6.5).
 - Patches use the core's patch object: scalar fields are replaced or cleared with `null`;
   merge-typed fields take the operations of section 14.5.4 (for example `{ "tags": { "add": ["x"] } }`
@@ -7733,7 +7733,7 @@ The closed taxonomy of section 10, projected:
 | `internal` | 500 | `INTERNAL_SERVER_ERROR` | `INTERNAL_SERVER_ERROR` | 500 | 1 | 1011 |
 
 CLI usage errors (unknown command, unparsable flag) exit with 2, and an interrupted command with
-130. Every HTTP response echoes `Pennestack-Version`; at a deprecated API version or for a deprecated
+130. Every HTTP response echoes `Keelwerk-Version`; at a deprecated API version or for a deprecated
 action, responses also carry `Deprecation` (RFC 9745), `Sunset` (RFC 8594) and a `Link` with
 `rel="deprecation"` (section 18.5). Each transport follows its ecosystem's conventions for the outer code (tRPC reports input
 validation as `BAD_REQUEST`); the error object inside is the same everywhere:
@@ -7756,14 +7756,14 @@ export interface WireError {
 Which members an audience sees is decided once, by the core's `toWire(error, audience)`
 (section 10), never by a transport: operator principals and development get `rules` and unredacted
 `internal` messages; everyone else gets the code, the kind, the message and the deny reason.
-Error codes are part of the public contract; `pennestack surface diff` (section 13.8) fails when
+Error codes are part of the public contract; `keelwerk surface diff` (section 13.8) fails when
 a code disappears and reappears with another meaning.
 
 #### 16.4.7 Execution preference, receipts and waiting
 
 The effective execution mode is in the surface. For `either`, the caller's preference travels as
 REST `Prefer: respond-async` (RFC 7240), the GraphQL argument `prefer: ASYNC`, the tRPC operation
-context (`{ context: { prefer: 'async' } }`, sent as a header by the pennestack link helpers), the
+context (`{ context: { prefer: 'async' } }`, sent as a header by the keelwerk link helpers), the
 `prefer` member of the invocation protocol, or the CLI flag `--async`.
 
 An asynchronous answer is the core's receipt `{ commandId, status: 'accepted' }`: REST answers 202
@@ -7776,7 +7776,7 @@ with the receipt. Without the live module, `wait` is ignored and not listed in
 `Preference-Applied`.
 
 A command's response never waits for the external effects it requested: it lists their ids
-(section 7.9.5), REST in the `Pennestack-Effects` header and every other transport in the outcome.
+(section 7.9.5), REST in the `Keelwerk-Effects` header and every other transport in the outcome.
 A client that needs an outcome follows `core.effect.watch` (or the entity the continuation
 changes): `--wait-effects[=<seconds>]` in the CLI and `waitForEffects` in the typed client do it for
 the caller.
@@ -7786,7 +7786,7 @@ the caller.
 Every command carries a command id (section 7.5): REST `Idempotency-Key`, a `commandId`
 argument in GraphQL inputs, a header set from the tRPC operation context, the `commandId` member of
 the invocation protocol, `--command-id` in the CLI. A transport generates a UUIDv7 when the client
-sends none and returns it (REST `Pennestack-Command-Id`). A replay returns the recorded outcome
+sends none and returns it (REST `Keelwerk-Command-Id`). A replay returns the recorded outcome
 (REST adds `Idempotent-Replayed: true`); the same id with a different input is `conflict` with code
 `core.idempotency_mismatch`; a duplicate that arrives while the first is still running is
 `conflict` with code `core.command_in_progress`, retryable after one second. Client-chosen keys are
@@ -7811,7 +7811,7 @@ a principal (section 8.5).
 |---|---|---|
 | HTTP request | host, path, headers (including `authorization` and `cookie`), `connection` with the remote address (from forwarding headers of trusted proxies only), the local address and the TLS state | REST, GraphQL, tRPC, invocation protocol, SSE |
 | Webhook receiver | the HTTP fields, plus the receiver id and the scope key set by the deployment's carrier enricher for the receiver's path (section 16.5.8) | `transport-webhooks` |
-| WebSocket upgrade | the HTTP fields of the upgrade request; then first-message credentials (`hello.token` in `pennestack.live.v1`, `connectionParams` in graphql-ws and tRPC), which open a new session for the connection | GraphQL over graphql-ws, tRPC over WebSocket, live WebSocket |
+| WebSocket upgrade | the HTTP fields of the upgrade request; then first-message credentials (`hello.token` in `keelwerk.live.v1`, `connectionParams` in graphql-ws and tRPC), which open a new session for the connection | GraphQL over graphql-ws, tRPC over WebSocket, live WebSocket |
 | Stream ticket | the `ticket` query parameter, resolved by the live module's resolver (section 15.4.6) | browser `EventSource` |
 | Operator socket | `local: { socket }` | CLI against a running deployment |
 | In process | `local: { inProcess: true }` | CLI in project mode, tests |
@@ -7833,7 +7833,7 @@ export const login = defineCommand(authBase, {
   output: shape({ sessionToken: field.string(), sessionId: field.ref.own('session'), expiresAt: field.instant() }),
   auth: { public: true },
   hints: {
-    http: { cookie: { set: { name: '__Host-pennestack_session', from: 'sessionToken', expiresFrom: 'expiresAt' }, omitFromBody: ['sessionToken'] } },
+    http: { cookie: { set: { name: '__Host-keelwerk_session', from: 'sessionToken', expiresFrom: 'expiresAt' }, omitFromBody: ['sessionToken'] } },
     cli: { login: { tokenField: 'sessionToken' } },
   },
   *decide(input, ctx) { /* a credential load, an Argon2id check, an id and a token (sections 7.9.8 and 17.2) */ },
@@ -7896,7 +7896,7 @@ checked before execution and configurable per backend (decision 37a, 2026-10-27)
 
 ### 16.5 REST and OpenAPI
 
-`@pennestack/transport-rest` (module id `rest`) is pennestack's own projection on the shared host,
+`@keelwerk/transport-rest` (module id `rest`) is keelwerk's own projection on the shared host,
 with its own OpenAPI emitter and RFC 9457 problem details. ADR 0011 records why no OpenAPI library
 is used.
 
@@ -7937,7 +7937,7 @@ entity's action namespace.
 - A query input is query-string representable when it is an object whose fields are scalars (string,
   number, boolean, enum, id, instant, date) or lists of scalars. Scalars become `name=value`, lists
   repeat the parameter, `filter` is JSON and `sort` uses the compact form. Any other query input is
-  sent as a JSON body to `POST`, documented as safe and idempotent (`x-pennestack-safe: true`). With
+  sent as a JSON body to `POST`, documented as safe and idempotent (`x-keelwerk-safe: true`). With
   `openapi: '3.2'`, such queries are also emitted as `QUERY` operations (RFC 10008, published as a
   Proposed Standard in 2026), and the host accepts both methods.
 - Command bodies are `application/json`. Instance commands take `id` from the path; every other
@@ -7952,7 +7952,7 @@ entity's action namespace.
 
 - Single rows are returned as the row object; pages as the core page object; void outputs as 204.
 - Headers: `ETag` for single rows, `Location` for creates and receipts, `Link` for pages,
-  `Pennestack-Command-Id` for commands, `Preference-Applied` when a preference was honoured,
+  `Keelwerk-Command-Id` for commands, `Preference-Applied` when a preference was honoured,
   `Idempotent-Replayed` on replays, `Retry-After` on 429 and 503, `x-request-id` always, and
   `Content-Type: application/problem+json` for errors.
 
@@ -8005,9 +8005,9 @@ the `WireError` of section 16.4.6.
   response header; `either` commands document `Prefer` and the 202 receipt response; `async`
   commands document only the 202 response.
 - SSE endpoints are `text/event-stream` responses: in 3.1 with a string schema and the extension
-  `x-pennestack-item-schema` referencing the item schema; in 3.2 with `itemSchema`.
-- Extensions on each operation: `x-pennestack-action` (the reference), `x-pennestack-execution`,
-  `x-pennestack-scope`, `x-pennestack-contributed-by` where applicable.
+  `x-keelwerk-item-schema` referencing the item schema; in 3.2 with `itemSchema`.
+- Extensions on each operation: `x-keelwerk-action` (the reference), `x-keelwerk-execution`,
+  `x-keelwerk-scope`, `x-keelwerk-contributed-by` where applicable.
 - CI validates the emitted document against the OpenAPI schema with `@scalar/openapi-parser`
   0.29.12 in the REST package's tests.
 
@@ -8021,7 +8021,7 @@ backend's `{basePath}/openapi.json`.
 
 | What | When | Where |
 |---|---|---|
-| OpenAPI document | `pennestack dev` on change, `pennestack generate` | `generated/openapi/<app>.json`, committed; `--check` in CI |
+| OpenAPI document | `keelwerk dev` on change, `keelwerk generate` | `generated/openapi/<app>.json`, committed; `--check` in CI |
 | route table and request decoders | at `listen`, from the surface | memory |
 | served OpenAPI document | at `listen`, by the same `artifacts` function, with `servers` rewritten per request | memory |
 | problem type pages | at `listen` | memory |
@@ -8033,7 +8033,7 @@ for signature checks and a path that identifies the tenant; GitHub's manifest fl
 Connect need redirects; MTA-STS policies are `text/plain`, autoconfig documents are XML and JMAP
 downloads are byte streams with ranges.
 
-**Receivers.** `@pennestack/transport-webhooks` (module id `webhooks`, `requires: [contracts.httpHost]`)
+**Receivers.** `@keelwerk/transport-webhooks` (module id `webhooks`, `requires: [contracts.httpHost]`)
 declares the extension point `receivers` (mode `set`), which modules fill through contributions, as
 the `github` module does (section 17.3.9); the contribution is dropped when `webhooks` is not
 selected.
@@ -8069,7 +8069,7 @@ export interface ReceiverRequest {
   behavioural extension value (section 5.5). It loads the connection, yields a reveal request for
   its secret (`yield* own.secrets.reveal(connection.webhookSecret, 'webhook signature')`, never
   recorded), computes the signature over the raw body with `hmacSha256` and compares it with
-  `timingSafeEqual`, the pure primitives of `@pennestack/core/crypto` (section 7.9.3), and only then
+  `timingSafeEqual`, the pure primitives of `@keelwerk/core/crypto` (section 7.9.3), and only then
   resolves the receiver's service principal. Until it succeeds the request is anonymous, so an
   unsigned request from the internet reaches nothing that is not public. The action's rules must
   allow the service principal, and the receiving command repeats the check in its own `decide` with
@@ -8092,7 +8092,7 @@ overlap with another mount as `routeConflict`.
 
 ### 16.6 GraphQL
 
-`@pennestack/transport-graphql` (module id `graphql`) builds a `GraphQLSchema` directly from the
+`@keelwerk/transport-graphql` (module id `graphql`) builds a `GraphQLSchema` directly from the
 surface with graphql 17.0.2 and serves it with graphql-yoga 5.24.4 at `/graphql`. Pothos is not
 used: the schema is derived, not hand-written, so a builder whose value is static typing of
 hand-written resolvers adds a dependency without adding safety (ADR 0011).
@@ -8156,7 +8156,7 @@ hand-written resolvers adds a dependency without adding safety (ADR 0011).
 #### 16.6.4 Errors and masks
 
 - Declared domain errors are union members (section 16.6.3). Every other outcome is a GraphQL error
-  in `errors[]` with `extensions: { code, pennestack: WireError }`, using the codes of section 16.4.6.
+  in `errors[]` with `extensions: { code, keelwerk: WireError }`, using the codes of section 16.4.6.
 - A masked field resolves to `null` without an error; `_masked` lists it. A field-level error
   appears only when the field's own invocation failed (a relation whose query was `forbidden` or
   `unsupported`).
@@ -8191,7 +8191,7 @@ hand-written resolvers adds a dependency without adding safety (ADR 0011).
 
 | What | When | Where |
 |---|---|---|
-| SDL | `pennestack dev` on change, `pennestack generate` | `generated/graphql/<app>.graphql`, committed; `--check` in CI |
+| SDL | `keelwerk dev` on change, `keelwerk generate` | `generated/graphql/<app>.graphql`, committed; `--check` in CI |
 | `GraphQLSchema` | at `listen`, from the surface; its printed form must equal the committed SDL (a warning in development, a failure in CI) | memory |
 | client types | in client projects, from the committed SDL (gql.tada 1.11.4 or graphql-codegen) | the client's repository |
 
@@ -8199,7 +8199,7 @@ hand-written resolvers adds a dependency without adding safety (ADR 0011).
 
 Subsections 16.7.1 to 16.7.6 specify the tRPC transport; section 16.7.7 the oRPC transport beside it.
 
-`@pennestack/transport-trpc` (module id `trpc`) serves tRPC 11.19.0, which the brief requires, at
+`@keelwerk/transport-trpc` (module id `trpc`) serves tRPC 11.19.0, which the brief requires, at
 `/trpc` through tRPC's fetch adapter (`@trpc/server/adapters/fetch`) inside the host handler.
 
 #### 16.7.1 Router at runtime
@@ -8214,7 +8214,7 @@ import superjson from 'superjson'
 
 const t = initTRPC.context<TrpcContext>().meta<{ ref: string }>().create({
   transformer: superjson,                                 // static option; 'json' turns it off
-  errorFormatter: ({ shape, error }) => ({ ...shape, data: { ...shape.data, pennestack: wireErrorOf(error) } }),
+  errorFormatter: ({ shape, error }) => ({ ...shape, data: { ...shape.data, keelwerk: wireErrorOf(error) } }),
   sse: { ping: { enabled: true, intervalMs: 15_000 }, maxDurationMs: 86_400_000 },
 })
 
@@ -8250,10 +8250,10 @@ derived from the core's action tree (`AppActionTree`, section 4.7) in two explic
 ```ts
 import type { TRPCBuiltRouter, TRPCMutationProcedure, TRPCQueryProcedure, TRPCSubscriptionProcedure } from '@trpc/server'
 
-interface PennestackTrpcRoot {
+interface KeelwerkTrpcRoot {
   ctx: object
   meta: object
-  errorShape: { message: string; code: number; data: { code: string; httpStatus: number; path?: string; pennestack: WireError } }
+  errorShape: { message: string; code: number; data: { code: string; httpStatus: number; path?: string; keelwerk: WireError } }
   transformer: true                                       // false when the static option is 'json'
 }
 
@@ -8275,7 +8275,7 @@ type TrpcRecord<T> = {
     & (T[M] extends { entities: infer Es } ? { [E in keyof Es]: { [A in keyof Es[E]]: Procedure<Es[E][A]> } } : {})
 }
 
-export type TrpcRouterOf<App> = TRPCBuiltRouter<PennestackTrpcRoot, TrpcRecord<AppActionTree<App>>>
+export type TrpcRouterOf<App> = TRPCBuiltRouter<KeelwerkTrpcRoot, TrpcRecord<AppActionTree<App>>>
 ```
 
 The listing of Appendix B type-checks on TypeScript 7.0.2 with `@trpc/server` and `@trpc/client`
@@ -8288,7 +8288,7 @@ projects import it from the app package.
 
 Module ids are camel-cased in tRPC paths (`apiKeys.key.revoke`), since paths are property names.
 An `either` command's result is `Output | CommandReceipt`, because tRPC cannot narrow a result by a
-call option; `@pennestack/client` exports the `isReceipt` guard. The typed client of section 16.8 keeps
+call option; `@keelwerk/client` exports the `isReceipt` guard. The typed client of section 16.8 keeps
 the precise per-call types. Subscription data is the item or a control frame (`StreamControl`:
 `head`, `reset`, `gap`; section 15.4.11), wrapped by `tracked` when the subscription is resumable.
 
@@ -8303,8 +8303,8 @@ JSON encoding of section 16.4.2 and the router type sets `transformer: false`, s
 #### 16.7.4 Errors
 
 Errors are `TRPCError`s with the code of section 16.4.6; `errorFormatter` adds the `WireError` as
-`data.pennestack`, typed in the router's error shape. Declared errors cannot be typed per procedure
-in tRPC; clients branch on `error.data.pennestack.code`.
+`data.keelwerk`, typed in the router's error shape. Declared errors cannot be typed per procedure
+in tRPC; clients branch on `error.data.keelwerk.code`.
 
 #### 16.7.5 Subscriptions
 
@@ -8319,12 +8319,12 @@ recommended, because they end up in logs, and stream tickets (section 15.4.6) co
 
 | What | When | Where |
 |---|---|---|
-| `TrpcRouter` type alias | `pennestack dev`, `pennestack generate` | a type fragment in `pennestack.generated.ts`, committed |
+| `TrpcRouter` type alias | `keelwerk dev`, `keelwerk generate` | a type fragment in `keelwerk.generated.ts`, committed |
 | router value | at `listen`, from the surface | memory |
 
 #### 16.7.7 oRPC
 
-`@pennestack/transport-orpc` (module id `orpc`) serves oRPC (`@orpc/server` 1.16.1, published
+`@keelwerk/transport-orpc` (module id `orpc`) serves oRPC (`@orpc/server` 1.16.1, published
 2026-10-22) at `/orpc` through its fetch handler inside the host handler. Jens included it in the
 first release on 2026-10-26 (decision 15b), to judge its implementation and quality on real use
 despite its youth; it ships in M2 beside GraphQL and tRPC, passes the same conformance suite
@@ -8357,7 +8357,7 @@ despite its youth; it ships in M2 beside GraphQL and tRPC, passes the same confo
 
 | What | When | Where |
 |---|---|---|
-| `OrpcRouter` type alias | `pennestack dev`, `pennestack generate` | a type fragment in `pennestack.generated.ts`, committed |
+| `OrpcRouter` type alias | `keelwerk dev`, `keelwerk generate` | a type fragment in `keelwerk.generated.ts`, committed |
 | router value | at `listen`, from the surface | memory |
 
 ### 16.8 The invocation protocol and the typed client
@@ -8369,12 +8369,12 @@ and scripts need a typed client that carries the core's semantics without loss (
 preference, receipts, the full error object, stream tokens); and operator work at deployment scope
 needs a wire on the operator socket before any app transport exists. The invocation protocol is
 that wire: the invoker exposed almost one to one, in JSON, over HTTP and the operator Unix socket.
-It is part of the HTTP host (`@pennestack/transport-http`), mounted for every app of the catalogue
+It is part of the HTTP host (`@keelwerk/transport-http`), mounted for every app of the catalogue
 and at the operator endpoint, so no app has to select a module for the CLI to reach it.
 
 #### 16.8.2 Endpoints
 
-All under `/_pennestack/v1` on every host name of the app, and on the operator endpoint:
+All under `/_keelwerk/v1` on every host name of the app, and on the operator endpoint:
 
 | Endpoint | Purpose |
 |---|---|
@@ -8383,7 +8383,7 @@ All under `/_pennestack/v1` on every host name of the app, and on the operator e
 | `GET /subscribe?action=&input=&after=` or `POST /subscribe` | one subscription as SSE (section 15.4.6); `GET` serves browsers' `EventSource` |
 | `GET /surface` | the API surface at the session's API version; `ETag` is that version's surface hash |
 | `GET /capabilities` | `core.capabilities`, public: the protocol majors served and the API versions with status and dates (section 18.7) |
-| `GET /live` | WebSocket with subprotocol `pennestack.live.v1` (section 15.4.7) |
+| `GET /live` | WebSocket with subprotocol `keelwerk.live.v1` (section 15.4.7) |
 
 ```ts
 export interface InvokeRequest {
@@ -8403,17 +8403,17 @@ export interface BatchResponse { readonly results: readonly InvokeResponse[] }
 
 HTTP statuses follow the REST column of section 16.4.6, and the body is always the JSON envelope above,
 so a client never parses two error formats. Requests carry `authorization`, `traceparent`, and the
-backend and tenant selectors the deployment's resolvers read (by default `x-pennestack-backend` and
-`x-pennestack-tenant`, as in section 4.6), plus `Pennestack-Version` (the API version, section
-18.3), `Pennestack-Client: <name>/<version>` from the typed client, the CLI and the Launchway
-agent, and `Pennestack-Client-Id`, a client-chosen device id that gives anonymous principals a flag
+backend and tenant selectors the deployment's resolvers read (by default `x-keelwerk-backend` and
+`x-keelwerk-tenant`, as in section 4.6), plus `Keelwerk-Version` (the API version, section
+18.3), `Keelwerk-Client: <name>/<version>` from the typed client, the CLI and the Launchway
+agent, and `Keelwerk-Client-Id`, a client-chosen device id that gives anonymous principals a flag
 targeting key (section 20.3).
 
 #### 16.8.3 The operator socket
 
 The host listens on the operator Unix socket configured in `defineDeployment` (default
-`/run/pennestack/operator.sock` in production and `.pennestack/dev.sock` in a project during
-`pennestack dev`, with a short fallback path when the platform's socket path limit would be
+`/run/keelwerk/operator.sock` in production and `.keelwerk/dev.sock` in a project during
+`keelwerk dev`, with a short fallback path when the platform's socket path limit would be
 exceeded). The socket file is created with mode 0600 inside a 0700 directory owned by the
 deployment's user, so connecting to it is proof of operator access, as for other daemons'
 control sockets. Requests on it carry `carrier.local.socket`; the core resolves the operator
@@ -8422,7 +8422,7 @@ principal (section 3.5) and, for tenant work, requires the explicit and logged
 
 #### 16.8.4 The typed client
 
-`@pennestack/client` exports `AppClient<App>`, the client the API sketch uses (`client.invoke`,
+`@keelwerk/client` exports `AppClient<App>`, the client the API sketch uses (`client.invoke`,
 `client.as`, `client.subscribe`). Its types are inferred from the app value through the core's
 action tree; there is no generated client code.
 
@@ -8430,7 +8430,7 @@ action tree; there is no generated client code.
 export type Prefer = 'sync' | 'async'
 
 export interface AppClient<App> {
-  /** Runs a query or a command; rejects with a PennestackError. */
+  /** Runs a query or a command; rejects with a KeelwerkError. */
   invoke<R extends InvokableRef<App>, const P extends Prefer = 'sync'>(
     ref: R, input: InputOf<App, R>, options?: InvokeOptions<P>,
   ): Promise<ResultOf<App, R, P>>
@@ -8465,7 +8465,7 @@ type ResultOf<App, R, P> =
   : never
 
 export function createRemoteClient<App>(options: {
-  readonly url: string                                   // 'https://lvj.example' or 'unix:///run/pennestack/operator.sock'
+  readonly url: string                                   // 'https://lvj.example' or 'unix:///run/keelwerk/operator.sock'
   readonly apiVersion: string                            // required: the head the types were compiled with, exported by the generated file
   readonly token?: string
   readonly backend?: string
@@ -8482,7 +8482,7 @@ receipts), at most three times with jittered backoff.
 
 #### 16.8.5 The local client
 
-`@pennestack/testing` provides `createLocalClient(runtime, { principal })`, the same interface over
+`@keelwerk/testing` provides `createLocalClient(runtime, { principal })`, the same interface over
 the in-process invoker with a test carrier, so tests exercise the full pipeline without a socket;
 the CLI's project mode uses the same mechanism with the operator principal (section 16.9.1).
 `host.fetch(request)` on a test runtime calls the HTTP host without a port, which the conformance
@@ -8492,24 +8492,24 @@ suite uses for the HTTP transports.
 
 #### 16.9.1 One binary, three connections
 
-`@pennestack/cli` provides the `pennestack` binary, built with Stricli 1.3.0 (`@stricli/core`,
+`@keelwerk/cli` provides the `keelwerk` binary, built with Stricli 1.3.0 (`@stricli/core`,
 `@stricli/auto-complete`). Its command contexts are injected objects, so command tests never touch
 process globals.
 
 | Connection | When | Principal |
 |---|---|---|
-| project | inside a project: a `pennestack.config.ts` that default-exports `defineDeployment` in the working directory or an ancestor, or the file named by `--config <path>` or `PENNESTACK_CONFIG` | framework commands run on the local definitions; action commands go to `.pennestack/dev.sock` while `pennestack dev` runs, otherwise to an in-process runtime (connect without listen) as the operator |
+| project | inside a project: a `keelwerk.config.ts` that default-exports `defineDeployment` in the working directory or an ancestor, or the file named by `--config <path>` or `KEELWERK_CONFIG` | framework commands run on the local definitions; action commands go to `.keelwerk/dev.sock` while `keelwerk dev` runs, otherwise to an in-process runtime (connect without listen) as the operator |
 | operator socket | `--socket <path>` or a profile whose URL is `unix://...` | operator, with logged tenant entry for tenant work |
 | remote | a profile with an `https://` URL and a credential | whoever the credential resolves to |
 
 The action part of the command tree is built from the API surface: from the local registry in
-project mode, otherwise from `GET /_pennestack/v1/surface`, cached by hash under
-`$XDG_CACHE_HOME/pennestack/surfaces/` and revalidated with `If-None-Match` on every run.
+project mode, otherwise from `GET /_keelwerk/v1/surface`, cached by hash under
+`$XDG_CACHE_HOME/keelwerk/surfaces/` and revalidated with `If-None-Match` on every run.
 
 #### 16.9.2 The command tree
 
 ```
-pennestack
+keelwerk
 ├── dev | build | start | generate | migrate | db | introspect | module | ...   framework commands (16.9.7)
 ├── call <module.entity.action>     call accounts.profile.deactivate prof_01j9... --reason "left the company"
 ├── call <module.action>            call accounts.register --display-name Jens --email jens@acme.example
@@ -8520,7 +8520,7 @@ pennestack
 
 - Action commands sit under one verb, `call`, with the dotted action reference everyone already
   uses as its argument (decisions 16b and 81a, 2026-10-26):
-  `pennestack call deployments.deployment.run --project ...`. The reference is written as code
+  `keelwerk call deployments.deployment.run --project ...`. The reference is written as code
   writes it (`accounts.profile.changePassword`), and completion offers it segment by segment.
 - The references under `call` are exactly the actions of the selected backend's app: a reference
   exists when the action exists, and a module that is not selected has none.
@@ -8534,7 +8534,7 @@ pennestack
 
 #### 16.9.3 No reserved module ids
 
-Action commands sit under `pennestack call` (decisions 16b and 81a), so framework commands and
+Action commands sit under `keelwerk call` (decisions 16b and 81a), so framework commands and
 module ids never share a level, and no name is reserved because of the CLI, an integration, a
 plugin or a module. The framework's commands (`backend`, `build`, `call`, `completion`,
 `consumers`, `db`, `dev`, `doctor`, `domain`, `explain`, `fleet`, `flags`, `generate`, `help`,
@@ -8567,7 +8567,7 @@ stages, the plan and the matched rule ids) and `--trace` (prints the trace id).
   the default is JSON. YAML output uses `yaml` 2.9.1.
 - `watch` and every subscription print NDJSON (`{"state":"...","item":{...}}` per line) and resume
   automatically from the last token after a disconnect. A subscription command stops at the `head`
-  frame unless `--follow` is given (`pennestack call deployments.deployment.logs <id> --follow`, as
+  frame unless `--follow` is given (`keelwerk call deployments.deployment.logs <id> --follow`, as
   section 17.3.6 expects); `watch` commands start at the present and always follow. Ctrl-C ends
   with exit code 130.
 - Errors go to standard error as one line per problem (`error[accounts.email_taken]: This e-mail
@@ -8583,15 +8583,15 @@ stages, the plan and the matched rule ids) and `--trace` (prints the trace id).
   "current": "lvj",
   "profiles": {
     "lvj": { "url": "https://lvj.example", "backend": "launchway", "tenant": "jens", "credential": "lvj" },
-    "lvj-operator": { "url": "unix:///run/pennestack/operator.sock" }
+    "lvj-operator": { "url": "unix:///run/keelwerk/operator.sock" }
   }
 }
 ```
 
-- Profiles live in `$XDG_CONFIG_HOME/pennestack/profiles.json` (default
-  `~/.config/pennestack/profiles.json`); credentials live apart in `credentials.json` in the same
-  directory with mode 0600. `PENNESTACK_PROFILE` and `PENNESTACK_TOKEN` override both for CI.
-- `pennestack login` finds the actions that carry a `cli.login` hint in the surface (a password
+- Profiles live in `$XDG_CONFIG_HOME/keelwerk/profiles.json` (default
+  `~/.config/keelwerk/profiles.json`); credentials live apart in `credentials.json` in the same
+  directory with mode 0600. `KEELWERK_PROFILE` and `KEELWERK_TOKEN` override both for CI.
+- `keelwerk login` finds the actions that carry a `cli.login` hint in the surface (a password
   login, an API-key exchange, a later device-authorization flow), prompts for their inputs, invokes
   the chosen one and stores the value of its `tokenField` as the profile's credential;
   `--token` stores a pasted token instead. The CLI never knows which module authenticates.
@@ -8601,38 +8601,38 @@ stages, the plan and the matched rule ids) and `--trace` (prints the trace id).
 
 | Command | Connection | What it does |
 |---|---|---|
-| `pennestack init [dir]` | none | creates a project in the canonical layout of section 23.1: workspace, base TypeScript configuration, Biome preset, `knip.json`, `pennestack.config.ts`, one app and one module |
-| `pennestack dev` | project | the watch loop of section 13.6 |
-| `pennestack build` | project | the checks of section 13.8, then emits JavaScript for production |
-| `pennestack start --role serve\|work\|all` | project (built) | runs a process with the role of section 3.2 |
-| `pennestack generate [--watch] [--check] [--only <producer>]` | project | writes or checks every artefact of section 13.7 |
-| `pennestack migrate` | project or operator socket | applies pending migration files (an alias of `db apply`) |
-| `pennestack db plan\|generate\|apply\|status\|check\|introspect\|retire\|rebuild\|verify\|restore\|reindex` | project or operator socket | the data layer's commands, with the semantics of sections 14.6.4, 15.2.4, 14.7.6, 14.7.9.7 and 14.8.4; `verify` also compares the chain heads with the anchors in the ledger sinks (section 15.1.8) |
-| `pennestack consumers list\|unpark`, `pennestack jobs stats\|lanes\|list\|explain\|replay\|discard\|pause\|resume`, `pennestack keys rotate [--index]`, `pennestack tenant move` | operator socket | consumers and parked streams (section 15.2.3); statistics per queue and capability set, the busiest lanes, why a job waits, dead-letter jobs and pausing a queue (sections 9.5 and 21.9); key rotation, with `--index` a reindex (sections 14.7.4 and 14.7.9.7); tenant moves (section 14.4.5) |
-| `pennestack fleet [list\|show\|watch]`, `fleet cordon\|uncordon\|drain\|probe\|forget`, `fleet scale status\|explain\|history\|set\|pause\|resume` | operator socket or remote operator | nodes and processes with roles, capabilities, revision, state, slots and heartbeat; placement on nodes, drains with a deadline and probes; the scaler's plans, decisions and runtime limits within the deployment's (section 21.9) |
-| `pennestack operator token issue\|revoke\|list` | operator socket | short-lived operator tokens for remote operator profiles (section 3.5) |
-| `pennestack introspect [modules\|actions\|entity <ref>\|policies\|extensions\|diff]` | any | the surface and the composition report as a tree or JSON; `introspect diff` is an alias of `surface diff` |
-| `pennestack surface diff\|version new\|usage\|retire` | project; `usage` and `retire` on the operator socket | compatibility of every API version against a git base (section 18.6), a new API version in the ledger (section 18.2), usage per tenant and version, retirement once the sunset has passed (section 18.5) |
-| `pennestack rollout status\|finalize\|abort` | operator socket | processes, revisions and pending contract steps; finalization and abort of a rollout (section 19.4) |
-| `pennestack flags list\|get\|set\|history\|explain\|stale` | operator socket or remote operator | aliases of the `core.flag` operator actions (section 20.9) |
-| `pennestack new <kind> <reference>` | project | creates one part's file where its reference puts it; the generated manifest mounts it (sections 16.9.8 and 23.14) |
-| `pennestack module new\|rename\|retire` | project; rename and retire also on the operator socket | `module new` is an alias of `new module` (section 16.9.8); the operator actions of sections 5.1 and 6.6 |
-| `pennestack backend ...`, `tenant ...`, `domain ...` | operator socket or remote operator | aliases of `call core.backend...`, `core.tenant...` and `core.domain...` |
-| `pennestack call <ref> [--input ...]` | any | the action commands: invokes any action by its dotted reference, with flags from its input fields (sections 16.9.2 and 16.9.4) |
-| `pennestack watch <ref> [--input ...]` | any | `call <ref> --follow` for subscriptions |
-| `pennestack explain <ref> [--input ...] [--as <principal>] [--dry-run]`, `explain --trace <command, event or effect id>`, `explain --redecide <command id>` | operator socket, development | shows the authorization decision without executing (section 8.6); `--dry-run` runs admission, `prepare` and `decide` in a unit that rolls back and prints events, effects and the decision record; `--trace` prints a command's events, effects with outcomes and the continuations they caused; `--redecide` re-runs a recorded decision with the current build and compares (section 7.9.6); `--as` evaluates everywhere and executes only in development (decision 17a) |
-| `pennestack doctor` | any | the checks of section 13.12, then `app.health` and `app.ready` |
-| `pennestack login\|logout\|profile ...` | remote | profiles and credentials |
-| `pennestack completion bash\|zsh\|fish` | none | prints a completion script |
+| `keelwerk init [dir]` | none | creates a project in the canonical layout of section 23.1: workspace, base TypeScript configuration, Biome preset, `knip.json`, `keelwerk.config.ts`, one app and one module |
+| `keelwerk dev` | project | the watch loop of section 13.6 |
+| `keelwerk build` | project | the checks of section 13.8, then emits JavaScript for production |
+| `keelwerk start --role serve\|work\|all` | project (built) | runs a process with the role of section 3.2 |
+| `keelwerk generate [--watch] [--check] [--only <producer>]` | project | writes or checks every artefact of section 13.7 |
+| `keelwerk migrate` | project or operator socket | applies pending migration files (an alias of `db apply`) |
+| `keelwerk db plan\|generate\|apply\|status\|check\|introspect\|retire\|rebuild\|verify\|restore\|reindex` | project or operator socket | the data layer's commands, with the semantics of sections 14.6.4, 15.2.4, 14.7.6, 14.7.9.7 and 14.8.4; `verify` also compares the chain heads with the anchors in the ledger sinks (section 15.1.8) |
+| `keelwerk consumers list\|unpark`, `keelwerk jobs stats\|lanes\|list\|explain\|replay\|discard\|pause\|resume`, `keelwerk keys rotate [--index]`, `keelwerk tenant move` | operator socket | consumers and parked streams (section 15.2.3); statistics per queue and capability set, the busiest lanes, why a job waits, dead-letter jobs and pausing a queue (sections 9.5 and 21.9); key rotation, with `--index` a reindex (sections 14.7.4 and 14.7.9.7); tenant moves (section 14.4.5) |
+| `keelwerk fleet [list\|show\|watch]`, `fleet cordon\|uncordon\|drain\|probe\|forget`, `fleet scale status\|explain\|history\|set\|pause\|resume` | operator socket or remote operator | nodes and processes with roles, capabilities, revision, state, slots and heartbeat; placement on nodes, drains with a deadline and probes; the scaler's plans, decisions and runtime limits within the deployment's (section 21.9) |
+| `keelwerk operator token issue\|revoke\|list` | operator socket | short-lived operator tokens for remote operator profiles (section 3.5) |
+| `keelwerk introspect [modules\|actions\|entity <ref>\|policies\|extensions\|diff]` | any | the surface and the composition report as a tree or JSON; `introspect diff` is an alias of `surface diff` |
+| `keelwerk surface diff\|version new\|usage\|retire` | project; `usage` and `retire` on the operator socket | compatibility of every API version against a git base (section 18.6), a new API version in the ledger (section 18.2), usage per tenant and version, retirement once the sunset has passed (section 18.5) |
+| `keelwerk rollout status\|finalize\|abort` | operator socket | processes, revisions and pending contract steps; finalization and abort of a rollout (section 19.4) |
+| `keelwerk flags list\|get\|set\|history\|explain\|stale` | operator socket or remote operator | aliases of the `core.flag` operator actions (section 20.9) |
+| `keelwerk new <kind> <reference>` | project | creates one part's file where its reference puts it; the generated manifest mounts it (sections 16.9.8 and 23.14) |
+| `keelwerk module new\|rename\|retire` | project; rename and retire also on the operator socket | `module new` is an alias of `new module` (section 16.9.8); the operator actions of sections 5.1 and 6.6 |
+| `keelwerk backend ...`, `tenant ...`, `domain ...` | operator socket or remote operator | aliases of `call core.backend...`, `core.tenant...` and `core.domain...` |
+| `keelwerk call <ref> [--input ...]` | any | the action commands: invokes any action by its dotted reference, with flags from its input fields (sections 16.9.2 and 16.9.4) |
+| `keelwerk watch <ref> [--input ...]` | any | `call <ref> --follow` for subscriptions |
+| `keelwerk explain <ref> [--input ...] [--as <principal>] [--dry-run]`, `explain --trace <command, event or effect id>`, `explain --redecide <command id>` | operator socket, development | shows the authorization decision without executing (section 8.6); `--dry-run` runs admission, `prepare` and `decide` in a unit that rolls back and prints events, effects and the decision record; `--trace` prints a command's events, effects with outcomes and the continuations they caused; `--redecide` re-runs a recorded decision with the current build and compares (section 7.9.6); `--as` evaluates everywhere and executes only in development (decision 17a) |
+| `keelwerk doctor` | any | the checks of section 13.12, then `app.health` and `app.ready` |
+| `keelwerk login\|logout\|profile ...` | remote | profiles and credentials |
+| `keelwerk completion bash\|zsh\|fish` | none | prints a completion script |
 
 #### 16.9.8 Module scaffolding
 
-`pennestack new <kind> <reference>` scaffolds one part, located by its reference (section 23.14),
+`keelwerk new <kind> <reference>` scaffolds one part, located by its reference (section 23.14),
 for the kinds `module`, `entity`, `action`, `flag`, `rule`, `reaction`, `service`, `error`,
 `schedule`, `stream`, `topic`, `effect`, `executor`, `contribution`, `condition`, `version-change`,
-`lib`, `shape`, `app` and `script`; `pennestack module new` stays as an alias of
-`pennestack new module`.
-`pennestack new module <id> [--kind domain|transport|adapter] [--requires a,b] [--optional c]`
+`lib`, `shape`, `app` and `script`; `keelwerk module new` stays as an alias of
+`keelwerk new module`.
+`keelwerk new module <id> [--kind domain|transport|adapter] [--requires a,b] [--optional c]`
 creates a package that already compiles, tests and type-tests:
 
 ```
@@ -8653,7 +8653,7 @@ packages/module-<id>/                     (modules/<id>/ in an application repos
 Scaffolds create files only and never edit a source (question 61, closed by decision 59b on
 2026-10-28). `new module` runs the generator once, so the package compiles at once. A scaffold of
 any other kind writes the part where its reference puts it (with a test beside actions, rules and
-reactions), and the generator mounts it in `module.generated.ts` in the next `pennestack generate`
+reactions), and the generator mounts it in `module.generated.ts` in the next `keelwerk generate`
 or dev-server cycle; `--dry-run` lists the files. What only a hand-written file can hold, the
 scaffold prints for the author to add: a declaration the base lists (an entity, stream, flag,
 extension point, contribution or condition, in `base.ts`), an app-level part (in `app.ts`), the new
@@ -8663,7 +8663,7 @@ tuple entry in that app's `modules.ts`. The layout pass reports any of them stil
 
 #### 16.9.9 Completions and help
 
-`pennestack completion zsh` (or `bash`, `fish`) prints a script that calls back into the binary, and
+`keelwerk completion zsh` (or `bash`, `fish`) prints a script that calls back into the binary, and
 Stricli's `proposeCompletions` answers from the route map, which comes from the cached surface:
 framework commands, the action references after `call` (module, entity and action, segment by
 segment), flag names and enumerations complete without a network call; TypeID values can
@@ -8685,7 +8685,7 @@ export interface CliContext extends CommandContext {
   readonly signal: AbortSignal
 }
 
-/** The routes under `call`, one per action reference, from the surface; @pennestack/cli adds the framework commands. */
+/** The routes under `call`, one per action reference, from the surface; @keelwerk/cli adds the framework commands. */
 export function buildActionRoutes(surface: ApiSurface, options?: { readonly listName?: string }): RouteMap<CliContext>
 
 /** A field node as a Stricli flag: parser, brief, optionality, variadic and enumeration. */
@@ -8723,7 +8723,7 @@ it exists:
   definitions and extension points; the domain modules never import it, following the rule of
   section 5.4. Metadata that is not specific to a user interface (descriptions,
   enumerations, formats, deprecations) stays in the field model, where every client benefits.
-- **Serving it.** A later `@pennestack/transport-static` module mounts a directory of built assets
+- **Serving it.** A later `@keelwerk/transport-static` module mounts a directory of built assets
   on the host for an app (default prefix `/`, with a fallback to `index.html` for client-side
   routing). It projects nothing from the surface; because mounts are per app and the host routes by
   tenant domain, the interface appears on every domain of every backend running that app.
@@ -8738,12 +8738,12 @@ interface layer adds:
 
 | Component | Span | Attributes beyond the core's |
 |---|---|---|
-| HTTP host | one server span per request, created by the host's middleware with OpenTelemetry's HTTP semantic conventions | `http.request.method`, `http.route` (the template, such as `/api/accounts/profiles/{id}`), `http.response.status_code`, `server.address`, `client.address`, `pennestack.transport`, `pennestack.backend`, `pennestack.tenant` |
+| HTTP host | one server span per request, created by the host's middleware with OpenTelemetry's HTTP semantic conventions | `http.request.method`, `http.route` (the template, such as `/api/accounts/profiles/{id}`), `http.response.status_code`, `server.address`, `client.address`, `keelwerk.transport`, `keelwerk.backend`, `keelwerk.tenant` |
 | GraphQL | one operation span (Envelop's OpenTelemetry plugin, `@envelop/opentelemetry` 9.2.2) | operation name and type; resolver spans off by default, since every data access is already an invocation span and a DataLoader batch is one invocation |
 | tRPC | attributes on the HTTP span | `rpc.system: trpc`, `rpc.method: <path>` |
-| invocation protocol | attributes on the HTTP span | `rpc.system: pennestack`, `rpc.method: <action ref>` |
-| live | a short span for the subscribe call; sampled `pennestack.live.deliver` spans linked to the producing invocation through the trace context stored in the event envelope (section 11) | subscription id, carrier, items delivered |
-| CLI | one client span per command, exported only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set | `pennestack.cli.route`; `traceparent` is propagated to the server and `--trace` prints the trace id |
+| invocation protocol | attributes on the HTTP span | `rpc.system: keelwerk`, `rpc.method: <action ref>` |
+| live | a short span for the subscribe call; sampled `keelwerk.live.deliver` spans linked to the producing invocation through the trace context stored in the event envelope (section 11) | subscription id, carrier, items delivered |
+| CLI | one client span per command, exported only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set | `keelwerk.cli.route`; `traceparent` is propagated to the server and `--trace` prints the trace id |
 
 A stream is not one long span: a span that lasts hours is useless in every trace viewer. Deliveries
 link back to the command that caused them instead, so a trace reads "command, events, delivered to
@@ -8755,14 +8755,14 @@ N subscribers".
 |---|---|---|
 | `http.server.request.duration` | histogram, seconds | method, route, status, transport, backend |
 | `http.server.active_requests` | up-down counter | transport |
-| `pennestack.transport.errors` | counter | transport, kind, code |
-| `pennestack.live.connections` | up-down counter | carrier, backend |
-| `pennestack.live.subscriptions` | up-down counter | action, backend |
-| `pennestack.live.items.delivered` | counter | action |
-| `pennestack.live.items.filtered` | counter | action, reason (plan or filter) |
-| `pennestack.live.delivery.lag` | histogram, seconds from commit to write | carrier |
-| `pennestack.live.resets` | counter | reason |
-| `pennestack.graphql.operation.cost` | histogram | operation type |
+| `keelwerk.transport.errors` | counter | transport, kind, code |
+| `keelwerk.live.connections` | up-down counter | carrier, backend |
+| `keelwerk.live.subscriptions` | up-down counter | action, backend |
+| `keelwerk.live.items.delivered` | counter | action |
+| `keelwerk.live.items.filtered` | counter | action, reason (plan or filter) |
+| `keelwerk.live.delivery.lag` | histogram, seconds from commit to write | carrier |
+| `keelwerk.live.resets` | counter | reason |
+| `keelwerk.graphql.operation.cost` | histogram | operation type |
 
 `backend` is always an attribute; `tenant` only when a backend opts in, because tenant counts are
 unbounded and metric cardinality is not.
@@ -8777,11 +8777,11 @@ lines to standard output (section 11).
 
 #### 16.11.4 Development and support
 
-`PENNESTACK_EXPLAIN=1` makes the invoker emit a per-invocation explanation (section 11);
-`pennestack dev` renders it, `--explain` requests it for one CLI call, and `pennestack explain`
-shows the authorization decision without executing. `/_pennestack/health` and `/_pennestack/ready`
+`KEELWERK_EXPLAIN=1` makes the invoker emit a per-invocation explanation (section 11);
+`keelwerk dev` renders it, `--explain` requests it for one CLI call, and `keelwerk explain`
+shows the authorization decision without executing. `/_keelwerk/health` and `/_keelwerk/ready`
 serve orchestrators; `app.health` and `app.ready` serve per-backend checks through every transport;
-`pennestack doctor` runs all of them.
+`keelwerk doctor` runs all of them.
 
 ### 16.12 Multi-tenancy in the interface layer
 
@@ -8800,7 +8800,7 @@ interface layer:
 | CLI | profiles name a deployment, a backend and a tenant; `--backend` and `--tenant` override; operator profiles use the socket |
 | Quotas | the `admit` stage's decisions surface as 429 with `Retry-After` in every transport and as exit code 8 in the CLI |
 | Errors | an unknown host or tenant is `not_found` before any transport runs; a suspended backend is `unavailable` |
-| Observability | `pennestack.backend` and `pennestack.tenant` on spans and logs; tenant as a metric attribute only by opt-in |
+| Observability | `keelwerk.backend` and `keelwerk.tenant` on spans and logs; tenant as a metric attribute only by opt-in |
 
 ### 16.13 Later interfaces
 
@@ -8838,7 +8838,7 @@ interface layer:
 ## 17. Shared modules and platforms
 
 This section specifies the shared accounts and authentication modules and maps the two proof
-platforms of the brief onto pennestack: the deployment platform (the existing Launchway product,
+platforms of the brief onto keelwerk: the deployment platform (the existing Launchway product,
 whose backend is re-architected on the framework) and a mail server for the domain
 `jenspenneman.com`. It ends with the gaps the core must close before both platforms can be built
 and where each one lands. Sources: Launchway's specification (release v0.3.0, 2026-10-07) and its
@@ -8888,8 +8888,8 @@ permanent deployment option; its open questions wait with it (section 26.1).
 
 The brief requires an authentication module in which users keep their login information and sign
 in, and a separate accounts module that authentication influences and that influences
-authentication. Both are shared modules (`@pennestack/module-accounts`,
-`@pennestack/module-auth`) that both platforms select; section 5.4 shows how they influence each
+authentication. Both are shared modules (`@keelwerk/module-accounts`,
+`@keelwerk/module-auth`) that both platforms select; section 5.4 shows how they influence each
 other without an import cycle, and [api-sketch.ts](api-sketch.ts) shows them in code. ADR 0014
 records the decisions of this section.
 
@@ -8917,7 +8917,7 @@ records the decisions of this section.
 
 - **Tokens are not ids.** A session token is issued once by the key service, through the request
   `yield* ctx.secrets.issue({ prefix: 'pss' })`, which the decision record keeps without its
-  plaintext (gap G4, section 7.9.3): `pss_<public id>_<secret>`, with a 128-bit public id and a
+  plaintext (gap G4, section 7.9.3): `kws_<public id>_<secret>`, with a 128-bit public id and a
   256-bit secret. The row stores
   the public id and an HMAC-SHA-256 verifier of the secret under a key of the key service; the
   token itself is stored nowhere. Session ids appear in events, receipts, logs and
@@ -8966,7 +8966,7 @@ The session resolver is a principal resolver of `auth`, a pure generator bound t
 (section 5.5) that yields loads and returns the principal. It runs in `resolvePrincipal`, after
 `resolveScope` has fixed the tenant:
 
-1. It reads the token from the `__Host-pennestack_session` cookie or from `Authorization: Bearer`
+1. It reads the token from the `__Host-keelwerk_session` cookie or from `Authorization: Bearer`
    in the carrier it receives as a parameter.
 2. It yields a load of the session by public id, which the kernel answers in a read-only unit of
    the resolved tenant with auth's module authority, and a verification request
@@ -9017,10 +9017,10 @@ are counted in metrics and in the decision log.
 #### 17.2.7 Login flows
 
 - **Browser.** `auth.login` (password) or the passkey ceremony (`auth.passkey.options`, then
-  `auth.passkey.verify`) returns the token; the `http.cookie` hint sets `__Host-pennestack_session`
+  `auth.passkey.verify`) returns the token; the `http.cookie` hint sets `__Host-keelwerk_session`
   and leaves the token out of the body (section 16.4.10); `auth.logout` clears it. Under path-based
   tenant resolution, a browser client keeps the token in memory and sends it as a bearer token.
-- **CLI.** `pennestack login` finds the actions with a `cli.login` hint in the surface: the password
+- **CLI.** `keelwerk login` finds the actions with a `cli.login` hint in the surface: the password
   login prompts for the identifier and the password (without echo) and stores the token in the
   profile's credentials file (mode 0600). Passkey-only accounts use a device authorization flow
   (`auth.device.start`, approval in a browser session, `auth.device.poll`), delivered with
@@ -9057,15 +9057,15 @@ later OpenID Connect module.
 
 Launchway's product model stays as specified: GitHub repositories are the source, Compose is the
 runtime contract, an agent per machine connects outbound over WebSocket and owns Docker there,
-Caddy is the edge and is configured through its admin API (on pennestack, the first provider of the
+Caddy is the edge and is configured through its admin API (on keelwerk, the first provider of the
 shared `edge` module, section 17.3.7), DNS providers are plugins, pull requests get previews. What
-changes is the control plane: the hand-wired Hono and Drizzle API (`apps/api`) becomes a pennestack
+changes is the control plane: the hand-wired Hono and Drizzle API (`apps/api`) becomes a keelwerk
 app in the Launchway repository (decision 48c). The agent, Docker, Caddy and the web UI stay outside
 the framework; the agent and the UI become clients of the generated interfaces, rebuilt together and
 shipped at one cutover: a clean break, with no compatibility layer for the old agent protocol or the
 old API paths (decision 23c, 2026-10-26).
 
-| Launchway v0.3.0 | On pennestack |
+| Launchway v0.3.0 | On keelwerk |
 |---|---|
 | User, Session, Passkey | `accounts.profile`, `auth.credential`, `auth.session` (shared modules) |
 | ApiToken (`lwy_`, scopes `read`, `write`, `admin`) | `api-keys.key` (shared) with scopes |
@@ -9148,17 +9148,17 @@ What toggling does:
 
 #### 17.3.4 Agents
 
-The agent remains a separate program (Node, the Docker CLI with Compose, git) that pennestack does
+The agent remains a separate program (Node, the Docker CLI with Compose, git) that keelwerk does
 not contain. Decision 23c (2026-10-26) makes the move a clean break: the agent and the UI are
 rebuilt against the generated interfaces and ship together at the cutover (roadmap M4); no
 compatibility transport serves Launchway's agent protocol v1, and no legacy path stays. The agent
 is a typed client (section 16.8.4) pinned to an API version and connected over the live module's
-WebSocket carrier (`pennestack.live.v1`, `subscribe` and `invoke` on one connection, section
+WebSocket carrier (`keelwerk.live.v1`, `subscribe` and `invoke` on one connection, section
 15.4.7): it holds its command channels as subscriptions and calls actions for everything it
 reports. What the agent did with the messages of Launchway's ADR 0004 and their additions in ADR
 0009 maps onto actions as follows:
 
-| The agent (the protocol v1 message it replaces) | Direction | On pennestack |
+| The agent (the protocol v1 message it replaces) | Direction | On keelwerk |
 |---|---|---|
 | connects with `Authorization: Bearer <join token or node credential>` (the upgrade) | agent to server | `invoker.open` over the live carrier (section 16.3.4) with the token in the carrier; the `nodes` resolver yields a `service` principal (`via: 'nodes.credential'` or `'nodes.join'`) |
 | joins or reconnects (`hello`, `hello.ok`) | agent to server; the result back | `nodes.join` (join token: returns the node credential once) or `nodes.node.connect` (agent version, API version, Docker facts); the action's result is the answer |
@@ -9268,16 +9268,16 @@ The command channel is the part that changes most:
   preflight is an action (`domains.domain.verify`, execution `either`) and a schedule (G3).
   Managed domains ask `dns` for a `CNAME` to the anchor host name.
 - Three different "domain" concepts exist in one deployment and must not be confused:
-  `core.domain` maps a host name to a backend and tenant for pennestack's own HTTP host;
+  `core.domain` maps a host name to a backend and tenant for keelwerk's own HTTP host;
   `domains.domain` is a host name a Launchway tenant's edge serves for its projects;
   `mail-domains.mailDomain` is an e-mail domain of a mail tenant (section 17.4.4).
 - The edge is a shared module with providers (decision 82a, 2026-10-26), built like `dns` (section
-  17.3.8): `edge` (`@pennestack/module-edge`) owns a provider-neutral desired state and declares
-  the `providers` extension point (`mode: 'single'`), and `edge-caddy` (`@pennestack/edge-caddy`)
+  17.3.8): `edge` (`@keelwerk/module-edge`) owns a provider-neutral desired state and declares
+  the `providers` extension point (`mode: 'single'`), and `edge-caddy` (`@keelwerk/edge-caddy`)
   is the first provider. A custom `edge-native` listener module, Traefik or Envoy can follow as
-  further providers without a change to `edge` or its callers. Both are pennestack packages,
+  further providers without a change to `edge` or its callers. Both are keelwerk packages,
   because a provider package may depend only on published packages (decision 48c) and because any
-  app on pennestack may need an edge.
+  app on keelwerk may need an edge.
 - Desired state in. `edge.site` rows hold a host name, its owner (`module`, `entity`, `id`), the
   upstreams or the redirect target, the TLS mode and the route options (`protected`, `compress`,
   `hsts` and the admin-only `extraDirectives`). Other modules call pure services instead of writing
@@ -9295,7 +9295,7 @@ The command channel is the part that changes most:
   in a conditional part on `edge`, marks the verified domains whose sites are applied `active`.
 
 ```ts
-// @pennestack/module-edge, src/extension-points/providers.ts
+// @keelwerk/module-edge, src/extension-points/providers.ts
 export interface EdgeProvider {
   readonly id: string                                                         // 'caddy'
   render(desired: EdgeDesiredState): EdgeConfiguration                        // pure: the provider's configuration and its hash
@@ -9310,13 +9310,13 @@ export const providers = extensionPoint<EdgeProvider>({ mode: 'single' })
   `/adapt`), loads it (`/load` on Caddy's admin socket, which only a process on that host can
   open) and settles the effect through `edge.ack`. In Launchway, the edge node's agent is that
   program, beside `nodes.channel` on the same connection (section 17.3.4); `edge.config.performer`
-  names the node principal that may hold the channel. No pennestack process has to run on the edge
-  host, and any number of pennestack processes can serve. An apply left unsettled past its 60-second
+  names the node principal that may hold the channel. No keelwerk process has to run on the edge
+  host, and any number of keelwerk processes can serve. An apply left unsettled past its 60-second
   deadline fails, and the next reconcile tries again.
 - `edge.rendered` (query) returns the rendered configuration with the reason above each site,
   replacing `GET /edge/config`.
-- The pennestack deployment's own HTTP host sits behind this edge: `external` routes in the
-  Launchway tenant point at the pennestack container with the `Host` header preserved, for
+- The keelwerk deployment's own HTTP host sits behind this edge: `external` routes in the
+  Launchway tenant point at the keelwerk container with the `Host` header preserved, for
   `deploy.jenspenneman.com` and for the mail tenant's HTTPS host names (section 17.5.3).
 
 #### 17.3.8 DNS (shared with the mail server)
@@ -9358,7 +9358,7 @@ export const providers = extensionPoint<EdgeProvider>({ mode: 'single' })
   (G8). The deployment's carrier enricher turns the path into the scope key before scope
   resolution; the receiver's verification resolver, a pure generator bound to `github`, checks
   `X-Hub-Signature-256` with the connection's webhook secret (a reveal request) in constant time over
-  the raw body (`hmacSha256` and `timingSafeEqual` of `@pennestack/core/crypto`), and only then does
+  the raw body (`hmacSha256` and `timingSafeEqual` of `@keelwerk/core/crypto`), and only then does
   the request act as `github.webhook` (section 16.5.8). `X-GitHub-Delivery` is
   the command id (receipts drop replays; the deliveries table goes away), and `github.ingest`
   parses the payload and appends domain events to the connection's chain: `releasePublished`,
@@ -9465,7 +9465,7 @@ export const assignedNode = defineRule(deploymentsBase, deployment, {
   reason: 'A node reports only on deployments assigned to it.',
 })
 
-// @pennestack/module-api-keys, src/policies/read-only-key.ts: the rule api-keys.read-only-key;
+// @keelwerk/module-api-keys, src/policies/read-only-key.ts: the rule api-keys.read-only-key;
 // read-only keys cannot run commands in any module.
 export const readOnlyKey = defineRule(apiKeysBase, { kinds: ['command'] }, {   // G13: a selector across modules
   effect: 'deny',
@@ -9484,9 +9484,9 @@ principal needs no rule on other deployments.
   address are concerns of the HTTP host (sections 16.3.3 and 16.4.10); rate limits on login,
   passkey and token actions are `auth`'s admission rule at `admit` (section 17.2.6).
 - Passkeys stay on `@simplewebauthn/server` (14.0.3, MIT) inside `auth` (section 17.2.2).
-- The home node that runs pennestack and PostgreSQL is itself a Launchway node, and its agent
-  controls Docker. A project with `trustedMounts` could mount pennestack's volumes or the Docker
-  socket, so on that node `allowedBindRoots` excludes pennestack's volumes and the Docker socket by
+- The home node that runs keelwerk and PostgreSQL is itself a Launchway node, and its agent
+  controls Docker. A project with `trustedMounts` could mount keelwerk's volumes or the Docker
+  socket, so on that node `allowedBindRoots` excludes keelwerk's volumes and the Docker socket by
   default, and the admin role of the tenant that owns the node is treated as operator-equivalent in
   the threat model (section 17.5.2).
 
@@ -9510,28 +9510,28 @@ under policies, with change events (G10).
 The app is the package `@launchway/app-launchway` in the Launchway repository (`apps/launchway/`),
 and each of its own modules is a package in `modules/<id>/` named `@launchway/module-<id>`, in the
 layout of section 23 (section 23.10 shows the trees). The repository depends only on the published
-`@pennestack/*` packages, pinned to exact 0.x versions (decision 48c); paths in the code below are
+`@keelwerk/*` packages, pinned to exact 0.x versions (decision 48c); paths in the code below are
 relative to it, and each module's `src/module.generated.ts` is written by the generator (section
 23.5).
 
 ```ts
 // apps/launchway/src/modules.ts
-import { accounts } from '@pennestack/module-accounts'
-import { auth } from '@pennestack/module-auth'
-import { apiKeys } from '@pennestack/module-api-keys'
-import { members } from '@pennestack/module-members'
-import { audit } from '@pennestack/module-audit'
-import { dns } from '@pennestack/module-dns'
-import { dnsCloudflare } from '@pennestack/dns-cloudflare'
-import { dnsManual } from '@pennestack/dns-manual'
-import { live } from '@pennestack/live'
-import { rest } from '@pennestack/transport-rest'
-import { graphql } from '@pennestack/transport-graphql'
-import { trpc } from '@pennestack/transport-trpc'
-import { webhooks } from '@pennestack/transport-webhooks'                   // G8
-import { outboundWebhooks } from '@pennestack/module-outbound-webhooks'      // decision 49a
-import { edge } from '@pennestack/module-edge'                               // decision 82a
-import { edgeCaddy } from '@pennestack/edge-caddy'
+import { accounts } from '@keelwerk/module-accounts'
+import { auth } from '@keelwerk/module-auth'
+import { apiKeys } from '@keelwerk/module-api-keys'
+import { members } from '@keelwerk/module-members'
+import { audit } from '@keelwerk/module-audit'
+import { dns } from '@keelwerk/module-dns'
+import { dnsCloudflare } from '@keelwerk/dns-cloudflare'
+import { dnsManual } from '@keelwerk/dns-manual'
+import { live } from '@keelwerk/live'
+import { rest } from '@keelwerk/transport-rest'
+import { graphql } from '@keelwerk/transport-graphql'
+import { trpc } from '@keelwerk/transport-trpc'
+import { webhooks } from '@keelwerk/transport-webhooks'                   // G8
+import { outboundWebhooks } from '@keelwerk/module-outbound-webhooks'      // decision 49a
+import { edge } from '@keelwerk/module-edge'                               // decision 82a
+import { edgeCaddy } from '@keelwerk/edge-caddy'
 import { projects } from '@launchway/module-projects'
 import { nodes } from '@launchway/module-nodes'
 import { deployments } from '@launchway/module-deployments'
@@ -9550,7 +9550,7 @@ export const modules = [
 export const health = defineQuery(modules, { auth: { public: true }, scope: 'backend', output: shape({ ok: field.boolean() }), read: () => ({ ok: true }) })
 
 // apps/launchway/src/app.ts
-import { defineApp, type AppType, type Row } from '@pennestack/core'
+import { defineApp, type AppType, type Row } from '@keelwerk/core'
 import { health } from './actions/health.ts'
 import { modules } from './modules.ts'
 
@@ -9881,7 +9881,7 @@ export const ingest = defineCommand(githubBase, {
   *decide(input, ctx) {
     const connection = yield* ctx.load.github.connection.byId(input.connectionId)
     const secret = connection?.webhookSecret ? yield* ctx.secrets.reveal(connection.webhookSecret, 'webhook signature') : undefined   // never recorded
-    if (!secret || !timingSafeEqual(input.signature, `sha256=${hmacSha256(secret, input.rawBody)}`)) throw errors.unauthenticated('Invalid signature.')   // @pennestack/core/crypto
+    if (!secret || !timingSafeEqual(input.signature, `sha256=${hmacSha256(secret, input.rawBody)}`)) throw errors.unauthenticated('Invalid signature.')   // @keelwerk/core/crypto
     return parseDelivery(input.event, input.rawBody, connection, ctx.write.github.connection)   // lib/: drafts of releasePublished, pushed, pullRequestChanged, installationChanged
   },
 })
@@ -9992,7 +9992,7 @@ accept:
 #### 17.4.2 Framework modules and external components
 
 The rule applied: what decides who may do what, what is stored, and how state changes is a
-pennestack module, so that tenancy, authorization, live updates and the chain apply to mail like to
+keelwerk module, so that tenancy, authorization, live updates and the chain apply to mail like to
 anything else. A component is external when its value is a corpus or a database of its own (spam
 rules, virus signatures), when it is generic infrastructure (a recursive resolver), or when the
 network forces it (a relay with a clean address).
@@ -10006,12 +10006,12 @@ network forces it (a relay with a clean address).
 | Mailbox storage | entities of `mail-store` plus the blob store (G5) | one store for JMAP, IMAP, live updates and authorization |
 | JMAP | the framework transport `transport-jmap` | a projection of the action registry; the generated entity actions already have JMAP semantics (ADR 0004) |
 | IMAP | listener module `imap`, an own implementation | no maintained, permissively licensed IMAP server library exists for Node: WildDuck 1.46.1 is EUPL-1.2 and tied to MongoDB; `imapflow` 2.4.0 (MIT) is a client and serves as the test client |
-| Spam scoring | external: rspamd 4.2.2 (Apache-2.0) with Valkey 9.1.2 (BSD-3-Clause) for its statistics | the rules, Bayes classifier, fuzzy hashes and blocklist logic are a product of their own; pennestack talks to its HTTP interface |
+| Spam scoring | external: rspamd 4.2.2 (Apache-2.0) with Valkey 9.1.2 (BSD-3-Clause) for its statistics | the rules, Bayes classifier, fuzzy hashes and blocklist logic are a product of their own; keelwerk talks to its HTTP interface |
 | Antivirus, optional | external: ClamAV (GPL-2.0) through `clamd` | signature database |
 | Recursive DNS for blocklists and DNSSEC | external: Unbound (BSD-3-Clause) next to rspamd | Spamhaus refuses blocklist queries that arrive through large public resolvers |
 | Outbound relay from the home connection | external host with a static address and matching reverse DNS | residential address ranges sit on policy blocklists and their reverse DNS belongs to the provider (decision point 21 of section 26.1) |
-| TLS certificates for the mail listeners | shared module `certificates` (ACME DNS-01 through `dns`) | listeners terminate TLS inside the pennestack process |
-| HTTPS for JMAP, the MTA-STS policy and the autoconfig document | the Launchway edge in front of the pennestack HTTP host | the edge already terminates TLS for every HTTP host of the deployment |
+| TLS certificates for the mail listeners | shared module `certificates` (ACME DNS-01 through `dns`) | listeners terminate TLS inside the keelwerk process |
+| HTTPS for JMAP, the MTA-STS policy and the autoconfig document | the Launchway edge in front of the keelwerk HTTP host | the edge already terminates TLS for every HTTP host of the deployment |
 | Conformance references | Stalwart v0.16.25 (AGPL-3.0-only or its own enterprise licence) as a reference server; imaptest (MIT) for IMAP; `jmap-jam` 0.13.8 (MIT) as JMAP test client | not dependencies |
 
 #### 17.4.3 Module map
@@ -10307,13 +10307,13 @@ section 26.1):
 | `<selector>._domainkey.jenspenneman.com` | TXT | `v=DKIM1; k=rsa; p=...`, and a second selector with `k=ed25519` | `sender-auth` |
 | `_dmarc.jenspenneman.com` | TXT | `v=DMARC1; p=none; rua=mailto:dmarc@jenspenneman.com` at first, then `quarantine` or `reject` | `mail-domains` |
 | `_mta-sts.jenspenneman.com` | TXT | `v=STSv1; id=<policy version>` | `mta-sts` |
-| `mta-sts.jenspenneman.com` | CNAME | the anchor; the edge serves `/.well-known/mta-sts.txt` from pennestack | `mta-sts` (record), Launchway route |
+| `mta-sts.jenspenneman.com` | CNAME | the anchor; the edge serves `/.well-known/mta-sts.txt` from keelwerk | `mta-sts` (record), Launchway route |
 | `_smtp._tls.jenspenneman.com` | TXT | `v=TLSRPTv1; rua=mailto:tls-reports@jenspenneman.com` | `mta-sts` |
 | `_submissions._tcp.jenspenneman.com` | SRV | `0 1 465 mail.jenspenneman.com.` | `autoconfig` |
 | `_submission._tcp.jenspenneman.com` | SRV | `0 1 587 mail.jenspenneman.com.` | `autoconfig` |
 | `_imaps._tcp.jenspenneman.com` | SRV | `0 1 993 mail.jenspenneman.com.` | `autoconfig` |
 | `_jmap._tcp.jenspenneman.com` | SRV | `0 1 443 mail.jenspenneman.com.` | `autoconfig` |
-| `autoconfig.jenspenneman.com` | CNAME | the anchor; the edge serves the autoconfig document from pennestack | `autoconfig` (record), Launchway route |
+| `autoconfig.jenspenneman.com` | CNAME | the anchor; the edge serves the autoconfig document from keelwerk | `autoconfig` (record), Launchway route |
 | reverse DNS of the sending address | PTR | `mail.jenspenneman.com` or the relay's name | the owner of the address, outside the zone |
 | `_25._tcp.mail.jenspenneman.com` | TLSA | later; needs DNSSEC on the zone | later |
 
@@ -10345,17 +10345,17 @@ paths in the code below are relative to it.
 
 ```ts
 // apps/mail/src/modules.ts
-import { accounts } from '@pennestack/module-accounts'
-import { auth } from '@pennestack/module-auth'
-import { apiKeys } from '@pennestack/module-api-keys'
-import { members } from '@pennestack/module-members'
-import { audit } from '@pennestack/module-audit'
-import { dns } from '@pennestack/module-dns'
-import { dnsCloudflare } from '@pennestack/dns-cloudflare'
-import { certificates } from '@pennestack/module-certificates'
-import { live } from '@pennestack/live'
-import { rest } from '@pennestack/transport-rest'
-import { jmap } from '@pennestack/transport-jmap'
+import { accounts } from '@keelwerk/module-accounts'
+import { auth } from '@keelwerk/module-auth'
+import { apiKeys } from '@keelwerk/module-api-keys'
+import { members } from '@keelwerk/module-members'
+import { audit } from '@keelwerk/module-audit'
+import { dns } from '@keelwerk/module-dns'
+import { dnsCloudflare } from '@keelwerk/dns-cloudflare'
+import { certificates } from '@keelwerk/module-certificates'
+import { live } from '@keelwerk/live'
+import { rest } from '@keelwerk/transport-rest'
+import { jmap } from '@keelwerk/transport-jmap'
 import { mailDomains } from '@mail/module-mail-domains'
 import { mailStore } from '@mail/module-mail-store'
 import { senderAuth } from '@mail/module-sender-auth'
@@ -10532,7 +10532,7 @@ message to staging and asks each tenant to accept it:
 
 ```ts
 // modules/smtp-in/src/module.ts: hand-written, as a listener module declared with the G1 sugar has no parts to assemble (section 23.5)
-import { defineListenerModule, field, shape } from '@pennestack/core'           // G1: sugar that contributes to core.listeners
+import { defineListenerModule, field, shape } from '@keelwerk/core'           // G1: sugar that contributes to core.listeners
 import { mailDomains } from '@mail/module-mail-domains'
 import { mailStore } from '@mail/module-mail-store'
 import { listener } from './listener.ts'
@@ -10681,12 +10681,12 @@ export const rotateDueSchedule = defineSchedule(senderAuthBase, { every: '1d', i
 #### 17.5.1 The deployment definition
 
 ```ts
-// pennestack.config.ts of the installation for jenspenneman.com
-import { byHeader, byHostname, byScopeKey, defineDeployment, env, secret } from '@pennestack/core'
-import { ledgerFile } from '@pennestack/core/ledger'
-import { postgresAdapter } from '@pennestack/adapter-postgres'
-import { httpHost } from '@pennestack/transport-http'
-import { blobsFs } from '@pennestack/blobs-fs'
+// keelwerk.config.ts of the installation for jenspenneman.com
+import { byHeader, byHostname, byScopeKey, defineDeployment, env, secret } from '@keelwerk/core'
+import { ledgerFile } from '@keelwerk/core/ledger'
+import { postgresAdapter } from '@keelwerk/adapter-postgres'
+import { httpHost } from '@keelwerk/transport-http'
+import { blobsFs } from '@keelwerk/blobs-fs'
 import { launchway } from '@launchway/app-launchway'                            // the Launchway repository, apps/launchway/src/app.ts
 import { mail } from '@mail/app-mail'                                            // the mail server's repository (parked), apps/mail/src/app.ts
 
@@ -10695,12 +10695,12 @@ export default defineDeployment({
   infrastructure: [
     postgresAdapter(),
     httpHost({ listen: [{ port: 3000 }], trustedProxies: ['172.18.0.0/16'] }),   // behind the Launchway edge
-    blobsFs({ root: '/var/lib/pennestack/blobs', keepDeletedFor: 'P35D' }),       // G5; longer than the backup retention
-    ledgerFile({ path: '/var/lib/pennestack-ledger/erasure.log' }),               // a separate volume, backed up off the host: erasures and chain anchors
+    blobsFs({ root: '/var/lib/keelwerk/blobs', keepDeletedFor: 'P35D' }),       // G5; longer than the backup retention
+    ledgerFile({ path: '/var/lib/keelwerk-ledger/erasure.log' }),               // a separate volume, backed up off the host: erasures and chain anchors
   ],
-  control: { adapter: 'postgres', url: env('PENNESTACK_CONTROL_URL') },           // its own PostgreSQL instance (section 17.5.2)
+  control: { adapter: 'postgres', url: env('KEELWERK_CONTROL_URL') },           // its own PostgreSQL instance (section 17.5.2)
   placements: {
-    default: { adapter: 'postgres', url: env('PENNESTACK_DATA_URL'), strategy: 'shared-tables' },
+    default: { adapter: 'postgres', url: env('KEELWERK_DATA_URL'), strategy: 'shared-tables' },
   },
   ports: {                                                                          // G1: sockets belong to the deployment
     'smtp-in.mx': 25,
@@ -10717,10 +10717,10 @@ export default defineDeployment({
   },
   scaling: { maxProcesses: 8 },                                                     // the scaler's deployment-wide limit (section 21.4)
   // Carriers that name a scope key (tokens, node credentials, webhook paths, mail domains) resolve through the directory.
-  tenantResolution: [byHostname(), byScopeKey(), byHeader('x-pennestack-tenant')],  // G2
+  tenantResolution: [byHostname(), byScopeKey(), byHeader('x-keelwerk-tenant')],  // G2
   egress: { allow: [] },                                                            // no private destinations (section 12.3)
-  keys: { masterKey: secret('PENNESTACK_MASTER_KEY') },                            // G4
-  operator: { socket: '/run/pennestack/operator.sock', bootstrapSecret: secret('PENNESTACK_OPERATOR_SECRET') },
+  keys: { masterKey: secret('KEELWERK_MASTER_KEY') },                            // G4
+  operator: { socket: '/run/keelwerk/operator.sock', bootstrapSecret: secret('KEELWERK_OPERATOR_SECRET') },
   telemetry: { otlp: env('OTEL_EXPORTER_OTLP_ENDPOINT') },
 })
 ```
@@ -10732,8 +10732,8 @@ Windows 11, residential connection with a dynamic public IPv4 address and no inb
 
 | Container | Ports | Role |
 |---|---|---|
-| `pennestack` (one image with the deployment's apps, on a Node 26 base image, section 13.2) | 3000 on the proxy network | process `home`, roles `serve` and `work`; during an upgrade a second container of the new build runs beside it (blue-green behind Caddy) |
-| `pennestack-mail` (the same image) | 25, 465, 587 and 993 published on the host | process `mail`, role `serve`, capability `smtp-public`: the mail listeners |
+| `keelwerk` (one image with the deployment's apps, on a Node 26 base image, section 13.2) | 3000 on the proxy network | process `home`, roles `serve` and `work`; during an upgrade a second container of the new build runs beside it (blue-green behind Caddy) |
+| `keelwerk-mail` (the same image) | 25, 465, 587 and 993 published on the host | process `mail`, role `serve`, capability `smtp-public`: the mail listeners |
 | `postgres-control` (`postgres:18-alpine`) | internal | the control store, with the erasure ledger and the recorded high-water marks (decision 27a: an instance of its own) |
 | `postgres` (`postgres:18-alpine`) | internal | the default placement, with the job store |
 | `caddy` (`caddy:2-alpine`) | 80, 443 | the Launchway tenant's edge, through the `edge-caddy` provider (section 17.3.7), for every HTTP host of the deployment |
@@ -10743,12 +10743,12 @@ Windows 11, residential connection with a dynamic public IPv4 address and no inb
 - The control store runs in its own PostgreSQL instance (decision 27a, 2026-10-27), so restoring
   the placement never rewinds the erasure ledger, and the ledger file on a separate volume covers a
   restore of both (section 14.7.6). The same file holds the chain anchors from M1 (decision 35b,
-  section 15.1.8), so after a restore of either instance `pennestack db verify` shows whether a
+  section 15.1.8), so after a restore of either instance `keelwerk db verify` shows whether a
   chain was rewound or rewritten. Backups snapshot both instances and the blob directory; blob bytes
   outlive the backup retention.
 - The router forwards 25, 465, 587 and 993 to the home server, in addition to 80 and 443.
 - Upgrades (section 19.6): the HTTP container rolls blue-green behind Caddy (start the new
-  container, wait for `/_pennestack/ready`, move the Caddy upstream, drain the old one). The mail
+  container, wait for `/_keelwerk/ready`, move the Caddy upstream, drain the old one). The mail
   listeners get their own container, a named process of gap G9, because two containers cannot
   publish ports 25, 465, 587 and 993 at once; it is replaced by stop and start within seconds, and
   SMTP senders retry and IMAP clients reconnect (question 56, parked with the mail server).
@@ -10760,20 +10760,20 @@ Windows 11, residential connection with a dynamic public IPv4 address and no inb
   port publishing preserves the client's source address. SPF, DMARC, blocklists and rate limits all
   need the real address; if it is hidden, the listeners need host networking or another host.
 - Untrusted HTTP content. Launchway serves tenant projects and pull-request previews, which are
-  code pennestack does not control. For now they are subdomains of `jenspenneman.com` (decision 26b,
+  code keelwerk does not control. For now they are subdomains of `jenspenneman.com` (decision 26b,
   2026-10-27: no extra spending), which makes them same-site with `deploy.jenspenneman.com` and
   `mail.jenspenneman.com`, so `SameSite=Lax` alone would not stop them from sending a session
   cookie. The hardening is therefore mandatory: session cookies are `__Host-` cookies (no `Domain`
   attribute, so no subdomain receives or plants one, section 16.4.10); no cookie is ever set for
-  the whole domain; pennestack's hosts send a strict Content Security Policy and enforce the origin
+  the whole domain; keelwerk's hosts send a strict Content Security Policy and enforce the origin
   checks of section 16.4.10 (`Origin` and `Sec-Fetch-Site`); and project and preview hosts get no
-  credentials: pennestack issues no cookie or token for them, and its hosts refuse a credentialed
+  credentials: keelwerk issues no cookie or token for them, and its hosts refuse a credentialed
   request whose origin is one of them. A separate registrable domain stays the recommended next
   step, not a requirement: the preview base domain is a per-backend setting
   (`previews.config.baseDomain`, section 17.3.12) and project host names are `domains.domain` rows,
   so the switch is a configuration change with no code change.
 - The home server is also a Launchway node, and its agent controls Docker. On that node,
-  `allowedBindRoots` excludes pennestack's volumes, the ledger volume and the Docker socket by
+  `allowedBindRoots` excludes keelwerk's volumes, the ledger volume and the Docker socket by
   default, and the admin role of the tenant that owns the node is treated as operator-equivalent in
   the threat model: whoever can deploy a project with trusted mounts there can reach the mail
   backend's data.
@@ -10783,7 +10783,7 @@ Windows 11, residential connection with a dynamic public IPv4 address and no inb
 - No backend invokes another. They are separate scope sets, and the brief's isolation applies
   between them as between tenants. They meet only through infrastructure the operator configures:
   - the Launchway tenant's edge has `external` routes for the mail tenant's HTTPS host names
-    (`mail`, `mta-sts`, `autoconfig`), pointing at the pennestack HTTP host with the `Host` header
+    (`mail`, `mta-sts`, `autoconfig`), pointing at the keelwerk HTTP host with the `Host` header
     preserved; the mail tenant has those names as `core.domain` rows. The Launchway domain for
     `mail.jenspenneman.com` is not bound to a zone, because the mail backend's `dns` module owns
     its `A` record;
@@ -10791,10 +10791,10 @@ Windows 11, residential connection with a dynamic public IPv4 address and no inb
     its own provider credentials, and touch only records they created (section 17.3.8);
   - rspamd runs as a Launchway project; the mail backend reaches it by configuration, through an
     egress allowlist entry for its internal address.
-- Bootstrapping: the installer starts `pennestack`, both PostgreSQL instances, `caddy` (with a
-  bootstrap configuration that routes the platform host to pennestack) and the agent. The operator
+- Bootstrapping: the installer starts `keelwerk`, both PostgreSQL instances, `caddy` (with a
+  bootstrap configuration that routes the platform host to keelwerk) and the agent. The operator
   then creates the backends and tenants over the operator socket; from then on the Launchway tenant
-  owns the edge configuration, including the route to pennestack itself.
+  owns the edge configuration, including the route to keelwerk itself.
 - The operator sees and administers both backends; each tenant sees only itself.
 
 #### 17.5.4 Bring-up
@@ -10904,7 +10904,7 @@ publication, spam learning, DKIM rotation steps and retention purges.
 | Mailbox names, addresses, domains, submissions, app passwords | yes | no: unique fields or external side effects |
 
 JMAP clients already work offline in their own way (state strings and `ifInState`); the
-pennestack push protocol of section 15.3 applies to clients that use the framework's
+keelwerk push protocol of section 15.3 applies to clients that use the framework's
 own client.
 
 #### 17.6.4 The SQL escape hatch
@@ -10914,7 +10914,7 @@ The mail server does not force it. Mailbox search uses the keyed token index ove
 IMAP synchronisation use partitioned, commit-ordered change positions and positional paging for JMAP
 (all G7), and queue locking lives inside the job store behind `JobQueue`. On an adapter that lacks
 one of these capabilities, `mail-store` still runs: the kernel's paths of section 14.3.3 serve it at
-the cost `pennestack doctor` reports (brief addendum 5). The escape hatch remains useful for
+the cost `keelwerk doctor` reports (brief addendum 5). The escape hatch remains useful for
 operator reports and DMARC aggregate statistics, which are optional modules.
 
 #### 17.6.5 Names that differ from the first draft
@@ -10924,7 +10924,7 @@ The first draft of this specification (2026-10-08) named the proof apps' modules
 | First draft | Now | Reason |
 |---|---|---|
 | `teams` (Launchway) | `members` | Launchway's roles and invitations are tenant-wide memberships; `teams` stays free for groups inside a tenant |
-| `projects` | `projects`, shown as "apps" in Launchway's UI | "app" is pennestack's word for a composition and `app` is a reserved module id |
+| `projects` | `projects`, shown as "apps" in Launchway's UI | "app" is keelwerk's word for a composition and `app` is a reserved module id |
 | `domains` (mail) | `mail-domains` | an e-mail domain differs from a Launchway domain and from `core.domain` |
 | `mailboxes`, `messages` | `mail-store` | one cohesive store; the protocol modules around it are what can be switched off |
 | `smtp` | `smtp-in`, `smtp-submission`, `mail-delivery` | receiving, submission and delivery are toggled independently |
@@ -10936,7 +10936,7 @@ The first draft of this specification (2026-10-08) named the proof apps' modules
 Shared platform modules (`module-members`, `module-dns`, `dns-cloudflare`, `dns-manual`,
 `module-edge`, `edge-caddy`, `module-outbound-webhooks`, `module-certificates`, `blobs-fs` and later
 `blobs-s3`, `transport-webhooks`, `transport-jmap`) are packages of this repository (section 22).
-Every app built on pennestack lives in its own repository and depends only on the published
+Every app built on keelwerk lives in its own repository and depends only on the published
 packages, never on this repository (decision 48c, 2026-10-27): Launchway's own modules are packages
 in the Launchway repository, `modules/<id>/` (`@launchway/module-<id>`), with the app in
 `apps/launchway/` (section 23.10); Trail's backend is rebuilt in the Trail repository first (roadmap
@@ -11286,7 +11286,7 @@ tenant, and a draining process hands its leases over (section 21.2). The process
 section 19.1 (`core.process`) already records each process's name, roles, capabilities and the
 singleton lease holders, so ADR 0018 builds on it. Named processes with a start flag, declared and
 probed capabilities, and the capabilities a process advertises are section 21's. With the edge
-configuration applied through the edge node's agent (decision 24a, section 17.3.7), no pennestack
+configuration applied through the edge node's agent (decision 24a, section 17.3.7), no keelwerk
 process needs the Caddy admin socket.
 
 #### G10. Tenant-editable configuration with change events
@@ -11323,7 +11323,7 @@ needs the request's remote address and user agent.
 Status: the request metadata on the receipt is specified (sections 11 and 15.1.7). Proposal for the
 rest: a module declares `observes: 'all'` in its base, which allows `defineReaction(base, { on:
 'all', timing: 'async', react })` (an async reaction to every event, dispatched like any other,
-section 7.7) and is listed in the registry and by `pennestack doctor`. It lands with `audit` in M2
+section 7.7) and is listed in the registry and by `keelwerk doctor`. It lands with `audit` in M2
 and needs no ADR beyond ADR 0015. The experiments module (section 20.8) observes all events too,
 which costs one job per event per tenant; the proposal must bound that cost, possibly with a
 dispatch-time event-type filter held as data (section 26.3).
@@ -11338,7 +11338,7 @@ Status: specified in section 8.1 and ADR 0005: rule subjects that match action k
 across modules, evaluated at the gate with the usual explanation.
 
 ```ts
-// policies/read-only-key.ts and policies/app-password.ts of @pennestack/module-api-keys: rules over selectors
+// policies/read-only-key.ts and policies/app-password.ts of @keelwerk/module-api-keys: rules over selectors
 export const readOnlyKey = defineRule(apiKeysBase, { kinds: ['command'] }, { effect: 'deny', when: (ctx) => isReadOnlyKey(ctx), reason: 'This API key has the read scope only.' })
 export const appPassword = defineRule(apiKeysBase, { transports: ['imap', 'smtp-submission'] }, { effect: 'allow', when: (ctx) => keyAllowsTransport(ctx) })
 ```
@@ -11372,17 +11372,17 @@ request without a version header still resolves one, through pins that always ex
 | What | Version | Where |
 |---|---|---|
 | Packages and modules | semantic version (a module's `version` is its package's), bumped from surface and declaration diffs | `package.json`, changelog, build manifest, surface |
-| App | dated API versions, a surface hash each | `defineApiVersions`, ledger, `Pennestack-Version` |
+| App | dated API versions, a surface hash each | `defineApiVersions`, ledger, `Keelwerk-Version` |
 | Deployment build | build id (manifest hash) and the revision assigned at start | build manifest, `core.process` |
 | API surface | `format`; hash per API version | per-version artefacts, `ETag` of `/surface` |
 | Action input and output | `since`, `changedIn`, schema hashes | surface |
-| Entity schemas and events | track versions, shape ids | snapshots, `ps_shapes`, envelope `shape` |
+| Entity schemas and events | track versions, shape ids | snapshots, `kw_shapes`, envelope `shape` |
 | Protocols, stream tokens, cursors | integer major | path, subprotocol, `v1.` prefix, `hello.protocol` |
 | Module configuration | configuration version | each stored value |
 | Generated artefacts | producer version, format, API version, surface hash | file header |
-| Clients and the CLI | semantic version, API version spoken | `Pennestack-Client`, `Pennestack-Version`, `sync.client` |
+| Clients and the CLI | semantic version, API version spoken | `Keelwerk-Client`, `Keelwerk-Version`, `sync.client` |
 | Flags | definition: its module's version; targeting: `ruleVersion` | code, control store, the events' `flags` |
-| Events, jobs, receipts | writer's build and revision; API version of input or output | `ps_events.meta`, job row, receipt |
+| Events, jobs, receipts | writer's build and revision; API version of input or output | `kw_events.meta`, job row, receipt |
 
 ### 18.2 Named API versions
 
@@ -11421,7 +11421,7 @@ export const portalApi = defineApiVersions({
 const portalDef = defineApp({ id: 'portal', modules, api: portalApi })   // modules: the tuple of src/modules.ts
 ```
 
-`pennestack surface version new <date>` appends to `generated/api-surface/<app>/ledger.json` the
+`keelwerk surface version new <date>` appends to `generated/api-surface/<app>/ledger.json` the
 module versions in force, the changes the version adopts and its surface hash, and prints the entry
 for `defineApiVersions`; `generate --check` fails while the two disagree.
 
@@ -11442,7 +11442,7 @@ tRPC link helpers require and send.
 
 The session's version is the first of:
 
-1. the request: header `Pennestack-Version`, query parameter `pennestack-version` on `GET`
+1. the request: header `Keelwerk-Version`, query parameter `keelwerk-version` on `GET`
    (`EventSource` sends no headers), `hello.apiVersion` on WebSocket, `--api-version` in the CLI;
 2. the credential: an API key created with a version, so an integration does not move with its
    tenant;
@@ -11451,11 +11451,11 @@ The session's version is the first of:
    newest version).
 
 `resolveVersion` runs in `Invoker.open` after `resolvePrincipal`; responses echo
-`Pennestack-Version`, and receipts and spans (`pennestack.api_version`) record it. Pins are fields
+`Keelwerk-Version`, and receipts and spans (`keelwerk.api_version`) record it. Pins are fields
 of `core.backend` and `core.tenant`, changed as reversible events by `core.tenant.setApiVersion`
 (tenant scope, governed by rules) and operator actions; no deploy changes a pin except the floor
 rise. The typed client, the CLI and the Launchway agent also send
-`Pennestack-Client: <name>/<version>`.
+`Keelwerk-Client: <name>/<version>`.
 
 ### 18.4 Compatibility per transport
 
@@ -11474,25 +11474,25 @@ rise. The typed client, the CLI and the Launchway agent also send
   says otherwise, and never earlier), and the action option `deprecated` gains `at` and `sunset`.
   From `at`, responses carry `Deprecation: @<seconds>` (RFC 9745), `Sunset: <HTTP-date>` (RFC 8594,
   never before `at`) and a `Link` with `rel="deprecation"`; GraphQL adds
-  `extensions.pennestack.deprecations`, the CLI warns on standard error, live connections get a
+  `extensions.keelwerk.deprecations`, the CLI warns on standard error, live connections get a
   `notice` frame.
 - Processes count requests per day, backend, tenant, version and transport (per action or field
-  for deprecated items) into `core.apiUsage`, read by `pennestack surface usage`.
+  for deprecated items) into `core.apiUsage`, read by `keelwerk surface usage`.
 - Support window (decision 53, 2026-10-28): a version is deprecated the day a newer one exists, its
   sunset is 12 months later, and after the sunset it is retired regardless of use; there is no
   zero-use gate and no `--force`. The floor rises when entries leave `defineApiVersions`, which CI
   accepts only after each removed version's sunset and with a major in the app's changelog (the CI
-  check is unchanged). `pennestack surface retire <version>` records the retirement and refuses only
-  before the sunset. Usage counters stay as information: `pennestack surface usage` shows who still
+  check is unchanged). `keelwerk surface retire <version>` records the retirement and refuses only
+  before the sunset. Usage counters stay as information: `keelwerk surface usage` shows who still
   calls a version, so that they can be told before the sunset. A retired version is then
   `not_found`, `core.api_version_retired` (REST 410); tenants and credentials pinned below the
   floor are re-pinned to it by an event.
 - A module or core major never ends a pinned version: the app's next version adopts its changes,
   and new protocol majors run beside the old.
 
-### 18.6 `pennestack surface diff`
+### 18.6 `keelwerk surface diff`
 
-`pennestack surface diff --base <git ref>` takes over step 9 of section 13.8 (`introspect diff`
+`keelwerk surface diff --base <git ref>` takes over step 9 of section 13.8 (`introspect diff`
 becomes its alias). For every API version on both sides it derives the surface twice and fails on a
 breaking difference; removed versions pass only under the floor rule; dangerous changes need a
 changelog acknowledgement; ledger entries on the base must stay unchanged. Each changed module
@@ -11505,12 +11505,12 @@ patch, as section 5.1 requires.
 Each protocol carries an integer major in its own place (path, subprotocol, prefix, `format`,
 `hello.protocol`). Within a major only optional members and message types are added and readers
 ignore what they do not know; a new major runs beside the old until counters show 30 days without
-use. `core.capabilities` (public query, `GET /_pennestack/v1/capabilities`) lists, like a JMAP
+use. `core.capabilities` (public query, `GET /_keelwerk/v1/capabilities`) lists, like a JMAP
 session object, the majors served and the API versions with status and dates; clients declare
 what they use, as JMAP's `using` does, and the server picks the highest common major or answers
 `not_found`, `core.protocol_retired`. The Launchway agent has no protocol of its own since decision
 23c: it speaks the live carrier's protocol as a typed client pinned to an API version, so its majors
-start at the new protocol, `pennestack.live.v1`, and Launchway v0.3.0's agent protocol v1 is not
+start at the new protocol, `keelwerk.live.v1`, and Launchway v0.3.0's agent protocol v1 is not
 served at all (section 19.7).
 
 ### 18.8 Pipeline stages and errors
@@ -11548,7 +11548,7 @@ finalization that the process registry gates, as CockroachDB's upgrades do
 
 ### 19.1 Builds, revisions and the process registry
 
-`pennestack build` writes the build manifest: package versions and the compatibility content
+`keelwerk build` writes the build manifest: package versions and the compatibility content
 (migration files per track, event shapes, configuration versions, job formats, protocol majors,
 version change ids, and each app's API versions with their surfaces). `core.rollout` records the
 finalized revision and its content. At `connect` a starting process compares: equal content joins
@@ -11597,7 +11597,7 @@ A process that finds itself below the finalized revision, after a partition for 
 
 ### 19.3 Migrations in two phases
 
-`pennestack db plan` shows per namespace and track the expand steps (`db apply`, before the target
+`keelwerk db plan` shows per namespace and track the expand steps (`db apply`, before the target
 takes traffic), the data steps (idempotent, batched backfills) and the contract steps
 (`db apply --contract`), each with the revision that introduced it. `--contract` and rewrites of
 stored configuration refuse with `conflict`, `core.rollout_not_finalized`, unless the finalized
@@ -11616,12 +11616,12 @@ revision covers them and no live process is below it. For one process or many:
 
 ### 19.4 Finalization and rollback
 
-`pennestack rollout status` lists processes, revisions and pending contract steps.
-`pennestack rollout finalize` raises the finalized revision when every live process runs at the
+`keelwerk rollout status` lists processes, revisions and pending contract steps.
+`keelwerk rollout finalize` raises the finalized revision when every live process runs at the
 target revision, and with `finalize: 'auto'` a singleton finalizer does so once that has held for
 the grace period (decision point 54 of section 26.1). Finalization switches writers to the new formats and starts backfills; contract
 steps stay explicit because they destroy data. Before finalization, rollback is a redeploy of the
-finalized build, which reads everything the target wrote, then `pennestack rollout abort`: once
+finalized build, which reads everything the target wrote, then `keelwerk rollout abort`: once
 none of the target's processes is live, it clears the target, moves the target's jobs the
 finalized build can run to its revision and parks the rest as dead letters. After finalization,
 going back means a restore (section 14.7.6).
@@ -11638,14 +11638,14 @@ refetches its surface. When the floor passes a connection's version, the stream 
 
 Rolling replacement is the default; blue-green moves traffic at the edge in one step, switchable
 back until finalization, and a canary build uses weighted edge routes. On the home server (section
-17.5.2): start the new container, wait for `/_pennestack/ready`, move the Caddy upstream, drain the
+17.5.2): start the new container, wait for `/_keelwerk/ready`, move the Caddy upstream, drain the
 old one. Two containers cannot publish one host port, so the mail listeners (ports 25, 465, 587,
 993) get their own container, a named process of gap G9, replaced by stop and start within seconds;
 SMTP senders retry and IMAP clients reconnect (question 56, parked with the mail server).
 
 Deploying and releasing are separate: new behaviour ships behind a tenant-level release flag, moves
 from canary tenants to a percentage and to everyone
-(`pennestack flags set checkout.newFlow --backend launchway --tenants home --percent 10`), and
+(`keelwerk flags set checkout.newFlow --backend launchway --tenants home --percent 10`), and
 leaves the code when the stale report asks.
 
 ### 19.7 Sync and agent protocols
@@ -11654,7 +11654,7 @@ leaves the code when the stale report asks.
 session's version; a cursor of an older format gets `reset: 'shapes'`. The Launchway agent has no
 protocol of its own (decision 23c, 2026-10-26): it is a typed client pinned to an API version over
 the live carrier, so its compatibility is the app's dated API version and the carrier's major
-(`pennestack.live.v1`, section 18.7), and `nodes.node.connect` records its `agentVersion` and
+(`keelwerk.live.v1`, section 18.7), and `nodes.node.connect` records its `agentVersion` and
 `apiVersion`. Launchway v0.3.0's agent protocol v1 is not served: the cutover redeploys every agent
 together with the new UI, and the old installation stays as the rollback until the new one is
 verified (roadmap M4).
@@ -11669,8 +11669,8 @@ one (section 14.6.6).
 
 ### 20.1 Where they live
 
-Flag definitions and evaluation are a small kernel concept in `@pennestack/core`; experiments are
-a module, `@pennestack/module-experiments` (id `experiments`;
+Flag definitions and evaluation are a small kernel concept in `@keelwerk/core`; experiments are
+a module, `@keelwerk/module-experiments` (id `experiments`;
 [ADR 0023](adr/0023-feature-flags-and-experiments.md)). Flags must be readable wherever behaviour
 is decided (handlers, rules, `admit`, transports through the rules over transports of gap G13,
 reactions, jobs, the kernel's own rollouts), and only the core is a dependency of all of them;
@@ -11737,7 +11737,7 @@ export interface FlagProvider {             // deployment-level ordered extensio
 - Providers in order: `core.targeting` (the control store's targeting, always present);
   optionally `openFeatureFlags(provider)`, an infrastructure entry adapting an OpenFeature server
   provider (`@openfeature/server-sdk` 1.23.0, checked 2026-10-24); `env`
-  (`PENNESTACK_FLAG_CHECKOUT_NEW_FLOW=true`, development and tests only). The first resolution
+  (`KEELWERK_FLAG_CHECKOUT_NEW_FLOW=true`, development and tests only). The first resolution
   wins, else the default with `DEFAULT`.
 - Handlers read flags as requests, answered from the invocation's snapshot and recorded in the
   envelope's `flags` (section 7.9.3); rules read the same snapshot as values (section 20.6).
@@ -11747,7 +11747,7 @@ export interface FlagProvider {             // deployment-level ordered extensio
   memory, refreshed from the control store's change feed within about a second.
 - An error never fails an invocation: the default is served with `ERROR` and counted, so the
   default must keep established behaviour.
-- An anonymous principal has a targeting key only when the client sends `Pennestack-Client-Id`;
+- An anonymous principal has a targeting key only when the client sends `Keelwerk-Client-Id`;
   otherwise principal-level flags give the default with `TARGETING_KEY_MISSING`.
 - `flagContextEnrichers` (app level, mode `set`) add attributes once per session. Clients read
   `client: true` flags with `core.flag.evaluate` (query, tenant scope).
@@ -11768,10 +11768,10 @@ export interface FlagProvider {             // deployment-level ordered extensio
 
 ### 20.5 Exposure and provenance
 
-Every event a command appends records, in the `meta` column of `ps_events` (section 15.1.2), its
+Every event a command appends records, in the `meta` column of `kw_events` (section 15.1.2), its
 writer's build and revision and the key, variant, reason and rule version of each flag the
-invocation read; the envelope exposes them as `writer` and `flags`. Spans carry `pennestack.flags`;
-`pennestack.flags.evaluations` counts by flag, variant and reason. The experiments module fills the
+invocation read; the envelope exposes them as `writer` and `flags`. Spans carry `keelwerk.flags`;
+`keelwerk.flags.evaluations` counts by flag, variant and reason. The experiments module fills the
 app-level extension point `flagObservers` (mode `set`, bound to its contributor, gap G16) with a
 pure observer that returns the drafts of each targeting key's first exposure per phase of a running
 experiment; the kernel writes them in the command's unit for commands, otherwise through a
@@ -11782,7 +11782,7 @@ every variant.
 
 - Actions: `gate` names a boolean flag of the module, and the action runs only while it is true.
   It compiles to a deny rule `<action ref>.gate` at `authorize` (`forbidden`,
-  `core.feature_disabled`), explained by `pennestack explain` and visible through `core.me`; on a
+  `core.feature_disabled`), explained by `keelwerk explain` and visible through `core.me`; on a
   `kill-switch` flag it runs at `admit` instead (`unavailable`, `core.feature_suspended`). Gated
   actions stay in the surface.
 - Policies: `where`, `check` and `when` read `ctx.flags`; the plan records the flags its rules
@@ -11798,8 +11798,8 @@ every variant.
 ### 20.7 Kill switches and stale flags
 
 The operator suspends any action with a `core.suspension` row (action reference; deployment,
-backend or tenant; reason), checked at `admit` beside quotas. `pennestack flags stale` and
-`pennestack doctor` report flags past their expiry, serving one value to everyone for 14 days,
+backend or tenant; reason), checked at `admit` beside quotas. `keelwerk flags stale` and
+`keelwerk doctor` report flags past their expiry, serving one value to everyone for 14 days,
 unevaluated for 30 days or with targeting no build defines. `doctor` warns when a release or
 experiment flag's `expires` lies more than 40 days after its first build (Unleash's default
 lifetime); an operational flag without `expires` is stale 7 days after its first build; kill
@@ -11830,11 +11830,11 @@ switches and permission flags never go stale by age.
 
 ### 20.9 Commands
 
-New framework commands: `pennestack surface diff|version new|usage|retire` (project; `usage` and
-`retire` on the operator socket), `pennestack rollout status|finalize|abort` (operator socket) and
-`pennestack flags list|get|set|history|explain|stale` (aliases of `core.flag` actions for
+New framework commands: `keelwerk surface diff|version new|usage|retire` (project; `usage` and
+`retire` on the operator socket), `keelwerk rollout status|finalize|abort` (operator socket) and
+`keelwerk flags list|get|set|history|explain|stale` (aliases of `core.flag` actions for
 operators). `surface`, `rollout` and `flags` are framework commands that reserve no module id
-(section 16.9.3); the module's actions run as `pennestack call experiments...`.
+(section 16.9.3); the module's actions run as `keelwerk call experiments...`.
 
 ### 20.10 Backends and tenants
 
@@ -11852,16 +11852,16 @@ singleton leases (gap G9).
 
 ### 21.1 Nodes, processes and named processes
 
-- A **node** is a host that runs pennestack processes (a machine, a virtual machine, a Docker
-  engine); a **process** is one `pennestack start`; a **named process** is an entry of
+- A **node** is a host that runs keelwerk processes (a machine, a virtual machine, a Docker
+  engine); a **process** is one `keelwerk start`; a **named process** is an entry of
   `defineDeployment({ processes })` with roles, declared capabilities, slots per queue, placements,
   a provider and scaling limits, whose replicas the scaler counts. Without `--process` a process
   belongs to the built-in, static `default`.
 - `core.process` (section 19.1) gains the fields below and `core.node` is new; lifecycle changes
-  write change records (`pennestack fleet watch`), heartbeats and slot counts go to lease rows.
+  write change records (`keelwerk fleet watch`), heartbeats and slot counts go to lease rows.
 
 ```ts
-// pennestack.config.ts: workers started on demand, a relay host with a clean address
+// keelwerk.config.ts: workers started on demand, a relay host with a clean address
 processes: {
   home: { roles: ['serve', 'work'], slots: { '*': 4 } },
   mail: { roles: ['serve'], capabilities: ['smtp-public'] },
@@ -11879,7 +11879,7 @@ export interface ProcessRecord {                      // core.process: the field
   readonly interruption: Temporal.Instant | null                  // a provider's termination notice
 }
 export interface NodeRecord {                         // core.node, deployment scope
-  readonly id: string                                 // --node, PENNESTACK_NODE, the provider's, else the machine id
+  readonly id: string                                 // --node, KEELWERK_NODE, the provider's, else the machine id
   readonly provider: string
   readonly labels: Readonly<Record<string, string>>   // region, zone, arch
   readonly capabilities: readonly string[]            // probed on the host
@@ -11894,7 +11894,7 @@ export interface NodeRecord {                         // core.node, deployment s
 - A process advertises a capability its named process declares (or `--capability` names) once its
   probe, if any, passes. Probes fill the deployment-level `capabilityProbes` extension point; the
   core ships `docker`, `smtp-out` (port 25 of an operator-chosen host is reachable), `gpu`, `arch`
-  and `region`. They run at `connect`, every five minutes and on `pennestack fleet probe`; a failing
+  and `region`. They run at `connect`, every five minutes and on `keelwerk fleet probe`; a failing
   probe withdraws the capability, and running jobs finish.
 - Only listeners and effect executors require capabilities (`smtp-public` for the port 25 listener,
   `smtp-out` for direct delivery). Every other job runs a pure handler (decision 50a) on any work
@@ -11904,7 +11904,7 @@ export interface NodeRecord {                         // core.node, deployment s
 - Unplaceable work fails closed: a static capability that no named process declares is refused at
   boot (`unplaceableCapability`), a computed one at enqueue (`unsupported`,
   `core.capability_unplaceable`). Declared but not live: jobs wait in their lane while the scaler
-  starts a process that declares it, if a provider can; otherwise `pennestack doctor` names it and
+  starts a process that declares it, if a provider can; otherwise `keelwerk doctor` names it and
   `giveUpAfter` applies.
 - Singleton work (reconcilers, the finalizer of section 19.4, the scaler) holds leases with a
   fencing epoch in the control store (ADR 0018); a draining process hands them over.
@@ -11925,7 +11925,7 @@ export interface NodeRecord {                         // core.node, deployment s
 The scaler runs under a singleton lease every 15 seconds, in a work process of a named process whose
 `min` is at least 1. Its plan is a pure function of its inputs (decision 50a); the kernel gathers
 the inputs and executes the plan's provider calls as recorded effects; tests drive it with the fake
-provider and clock of `@pennestack/testing`.
+provider and clock of `@keelwerk/testing`.
 
 ```ts
 export interface WorkClassStats {                     // JobQueue.stats per queue and capability set, over every namespace
@@ -11972,7 +11972,7 @@ export declare function plan(inputs: ScalerInputs, scaling: DeploymentScaling, a
 
 With `min: 0` a named process reaches zero after a down window without work and starts again for
 work due within the activation lead. With the static provider the plan is a recommendation in
-`pennestack fleet scale status`; the scaler with the static provider ships with Launchway's rebuild
+`keelwerk fleet scale status`; the scaler with the static provider ships with Launchway's rebuild
 in M4 and the opt-in docker provider one milestone later, in M5 (decision 63a), while a Kubernetes
 provider stays a named later milestone of the roadmap.
 
@@ -11993,14 +11993,14 @@ export interface NodeProvider {
 
 - **static** (core): operator-run processes; the plan is a recommendation and scale-down a drain
   request the process obeys.
-- **docker** (`@pennestack/provider-docker`): the Docker Engine API over its Unix socket through
-  `node:http`. It runs the running build's image (the target during a rollout) as `pennestack start
+- **docker** (`@keelwerk/provider-docker`): the Docker Engine API over its Unix socket through
+  `node:http`. It runs the running build's image (the target during a rollout) as `keelwerk start
   --role work --process <name>`, unprivileged, with only the named process's networks and volumes,
   restart policy `no` and secrets as mounted files. The socket is root on its host, so the provider
   is off by default, belongs only to the scaler's named process and goes through a socket proxy
   admitting container create, start, stop, inspect and list (decision point 64).
 - **kubernetes** (later): a Deployment scaled through `@kubernetes/client-node` 2.0.1, or desired
-  replicas published at `/_pennestack/scale` for KEDA's Metrics API scaler or an HPA external
+  replicas published at `/_keelwerk/scale` for KEDA's Metrics API scaler or an HPA external
   metric. **Cloud providers** (later): instance groups, drains within spot termination notices.
 - **Launchway as a provider** (not planned): only above a floor another provider supplies, and only
   for an operator-owned tenant, because the containers carry the master key.
@@ -12034,11 +12034,11 @@ export interface NodeProvider {
 
 ### 21.8 The Launchway agent in this model
 
-- The agent is not a pennestack node but the separate program of section 17.3.4, a typed client of
+- The agent is not a keelwerk node but the separate program of section 17.3.4, a typed client of
   the live carrier and the generated interfaces (decision 23c: a clean break with protocol v1). It
-  runs the builds and performs `agentCommand` and `edge.apply` effects; pennestack runs the dispatch
+  runs the builds and performs `agentCommand` and `edge.apply` effects; keelwerk runs the dispatch
   reaction keyed by project and its timers (section 17.3.5).
-- A Launchway node is tenant data running tenant code (decision 25a); a pennestack node holds
+- A Launchway node is tenant data running tenant code (decision 25a); a keelwerk node holds
   database credentials and the master key of every tenant on its placements, so no tenant may run or
   host one. A docker provider and the agent may share an engine, never an identity. Launchway's
   `nodes` module keeps its id; the framework's command group is `fleet` (decision point 62).
@@ -12047,23 +12047,23 @@ export interface NodeProvider {
 
 | Command | What it does |
 |---|---|
-| `pennestack fleet [list\|show\|watch]` | nodes and processes with roles, capabilities, revision, state, slots and heartbeat |
-| `pennestack fleet cordon\|uncordon\|drain\|probe\|forget` | stop placing on a node, drain with `--deadline`, rerun probes, remove a gone node |
-| `pennestack fleet scale status\|explain\|history\|set\|pause\|resume` | desired and current per named process, the last plan, decisions, runtime limits within the deployment's |
-| `pennestack jobs stats\|lanes\|list\|explain\|replay\|discard\|pause\|resume` | statistics per queue and capability set, the busiest lanes, why a job waits, dead letters, pausing a queue |
+| `keelwerk fleet [list\|show\|watch]` | nodes and processes with roles, capabilities, revision, state, slots and heartbeat |
+| `keelwerk fleet cordon\|uncordon\|drain\|probe\|forget` | stop placing on a node, drain with `--deadline`, rerun probes, remove a gone node |
+| `keelwerk fleet scale status\|explain\|history\|set\|pause\|resume` | desired and current per named process, the last plan, decisions, runtime limits within the deployment's |
+| `keelwerk jobs stats\|lanes\|list\|explain\|replay\|discard\|pause\|resume` | statistics per queue and capability set, the busiest lanes, why a job waits, dead letters, pausing a queue |
 
 `fleet` is the name of the framework's command group (decision 62a); because action commands sit
-under `pennestack call` (decision 16b), it reserves no module id, and Launchway's `nodes` module
+under `keelwerk call` (decision 16b), it reserves no module id, and Launchway's `nodes` module
 keeps its id (section 16.9.3).
 
 ```
-$ pennestack fleet scale explain worker
+$ keelwerk fleet scale explain worker
 reactions []: due 840, oldest 41 s (target 30 s), 22/s, 0.18 s each -> 9 slots x 1.4 -> 13; 8 per replica -> 2; start 1 on docker
 ```
 
-Metrics (section 11): the gauges `pennestack.jobs.due`, `.oldest_due`, `.lanes.capped` and
+Metrics (section 11): the gauges `keelwerk.jobs.due`, `.oldest_due`, `.lanes.capped` and
 `.unplaceable` per queue and capability set; the histograms `.wait` (due to start), `.run` and
-`.take.duration`; the counter `.outcomes` by kind (action, effect) and outcome; `pennestack.slots`,
+`.take.duration`; the counter `.outcomes` by kind (action, effect) and outcome; `keelwerk.slots`,
 `.processes`, `.connections.reserved` and `.scaler.desired` per named process; `backend` is an
 attribute, `tenant` only where a backend opts in.
 
@@ -12089,64 +12089,64 @@ attribute, `tenant` only where a backend opts in.
 ## 22. Repository layout and package plan
 
 ```
-pennestack/
+keelwerk/
   README.md
   LICENSE.md                 FSL-1.1-ALv2, Licensor Jens Penneman, present from the first commit (decision 20)
   docs/                      brief, architecture (this document), decision register, roadmap, adr/, research/, api-sketch.ts
   packages/
-    core/                    @pennestack/core: DSL, registry, invoker and sessions, authorization, condition AST, errors,
+    core/                    @keelwerk/core: DSL, registry, invoker and sessions, authorization, condition AST, errors,
                              field model, surface derivation, kernel write path with the effect interpreter (section 7.9),
                              key service, computation pool, job queue, core module, the module-manifest generator
                              (section 23.5), subpaths /wire (dependency-free codecs for clients), /ledger (the file ledger
                              sink) and /crypto (pure primitives: sha256, hmacSha256, timingSafeEqual)
-    data/                    @pennestack/data: the Kysely SQL family, migration planner with tracks, introspection,
+    data/                    @keelwerk/data: the Kysely SQL family, migration planner with tracks, introspection,
                              the in-memory and PGlite adapters, the kernel's fallbacks for absent capabilities
                              (section 14.3.3), the adapter conformance kit
-    adapter-postgres/        @pennestack/adapter-postgres
-    adapter-mysql/           @pennestack/adapter-mysql (M5)
-    adapter-sqlite/          @pennestack/adapter-sqlite (M5)
-    adapter-supabase/        @pennestack/adapter-supabase (M5): the PostgreSQL adapter with a preset
-    events/                  @pennestack/events: consumers (projections, the reaction dispatcher), retention and erasure
+    adapter-postgres/        @keelwerk/adapter-postgres
+    adapter-mysql/           @keelwerk/adapter-mysql (M5)
+    adapter-sqlite/          @keelwerk/adapter-sqlite (M5)
+    adapter-supabase/        @keelwerk/adapter-supabase (M5): the PostgreSQL adapter with a preset
+    events/                  @keelwerk/events: consumers (projections, the reaction dispatcher), retention and erasure
                              workers, process managers, the `sync` module (M6)
-    live/                    @pennestack/live: live hub, SSE and WebSocket carriers, watch generator, pokes, tickets
-    transport-http/          @pennestack/transport-http: the HTTP host, the invocation protocol, the operator socket
-    transport-rest/          @pennestack/transport-rest: REST projection, OpenAPI emitter, problem details
-    transport-graphql/       @pennestack/transport-graphql: schema derivation, Yoga, subscriptions, own operation limits
-    transport-trpc/          @pennestack/transport-trpc: runtime router, TrpcRouterOf<App>
-    transport-orpc/          @pennestack/transport-orpc (M2, decision 15b): runtime router, OrpcRouterOf<App>, the optional
+    live/                    @keelwerk/live: live hub, SSE and WebSocket carriers, watch generator, pokes, tickets
+    transport-http/          @keelwerk/transport-http: the HTTP host, the invocation protocol, the operator socket
+    transport-rest/          @keelwerk/transport-rest: REST projection, OpenAPI emitter, problem details
+    transport-graphql/       @keelwerk/transport-graphql: schema derivation, Yoga, subscriptions, own operation limits
+    transport-trpc/          @keelwerk/transport-trpc: runtime router, TrpcRouterOf<App>
+    transport-orpc/          @keelwerk/transport-orpc (M2, decision 15b): runtime router, OrpcRouterOf<App>, the optional
                              OpenAPI handler for comparison (section 16.7.7)
-    transport-webhooks/      @pennestack/transport-webhooks: receivers (gap G8)
-    transport-jmap/          @pennestack/transport-jmap (mail, parked)
-    client/                  @pennestack/client: AppClient, remote client, SSE and WebSocket clients
-    cli/                     @pennestack/cli: the `pennestack` binary and the CLI manifest artefact
-    blobs-fs/                @pennestack/blobs-fs (M4: long deployment logs, decision 47c); blobs-s3 later
-    provider-docker/         @pennestack/provider-docker (M5, one milestone after the scaler, decision 63a): the opt-in
+    transport-webhooks/      @keelwerk/transport-webhooks: receivers (gap G8)
+    transport-jmap/          @keelwerk/transport-jmap (mail, parked)
+    client/                  @keelwerk/client: AppClient, remote client, SSE and WebSocket clients
+    cli/                     @keelwerk/cli: the `keelwerk` binary and the CLI manifest artefact
+    blobs-fs/                @keelwerk/blobs-fs (M4: long deployment logs, decision 47c); blobs-s3 later
+    provider-docker/         @keelwerk/provider-docker (M5, one milestone after the scaler, decision 63a): the opt-in
                              docker node provider (section 21.5)
-    crdt-loro/               @pennestack/crdt-loro: the Loro codec, with the first app that declares a collaborative field
-    sync-client/             @pennestack/sync-client (M6)
-    module-accounts/         @pennestack/module-accounts
-    module-auth/             @pennestack/module-auth
-    module-api-keys/         @pennestack/module-api-keys
-    module-members/          @pennestack/module-members
-    module-audit/            @pennestack/module-audit
-    module-dns/              @pennestack/module-dns, with dns-cloudflare/ and dns-manual/
-    module-edge/             @pennestack/module-edge (M4, decision 82a): the desired state of an edge and its providers,
-                             with edge-caddy/ (@pennestack/edge-caddy, the first provider; section 17.3.7)
-    module-outbound-webhooks/ @pennestack/module-outbound-webhooks (M4, decision 49a): Standard Webhooks deliveries
+    crdt-loro/               @keelwerk/crdt-loro: the Loro codec, with the first app that declares a collaborative field
+    sync-client/             @keelwerk/sync-client (M6)
+    module-accounts/         @keelwerk/module-accounts
+    module-auth/             @keelwerk/module-auth
+    module-api-keys/         @keelwerk/module-api-keys
+    module-members/          @keelwerk/module-members
+    module-audit/            @keelwerk/module-audit
+    module-dns/              @keelwerk/module-dns, with dns-cloudflare/ and dns-manual/
+    module-edge/             @keelwerk/module-edge (M4, decision 82a): the desired state of an edge and its providers,
+                             with edge-caddy/ (@keelwerk/edge-caddy, the first provider; section 17.3.7)
+    module-outbound-webhooks/ @keelwerk/module-outbound-webhooks (M4, decision 49a): Standard Webhooks deliveries
                              (section 16.13)
-    module-certificates/     @pennestack/module-certificates (mail, parked)
-    module-experiments/      @pennestack/module-experiments (after M4, section 20.8)
-    testing/                 @pennestack/testing: harness, local client, policy matchers, conformance suites, type helpers,
+    module-certificates/     @keelwerk/module-certificates (mail, parked)
+    module-experiments/      @keelwerk/module-experiments (after M4, section 20.8)
+    testing/                 @keelwerk/testing: harness, local client, policy matchers, conformance suites, type helpers,
                              `drive` for pure handlers with answers as data (section 7.9.6)
-    biome-config/            @pennestack/biome-config: the Biome preset, the GritQL plugins and their fixtures
+    biome-config/            @keelwerk/biome-config: the Biome preset, the GritQL plugins and their fixtures
   examples/
     portal/                  the accounts and authentication app of the M1 slice (roadmap.md), this repository's CI fixture
   spikes/                    throwaway verifications (the type-model spike, the write-path measurement, the Connect descriptor spike)
   biome.json  knip.json  pnpm-workspace.yaml  tsconfig.base.json  tsconfig.json  package.json
 ```
 
-Applications live elsewhere (decision 48c, 2026-10-27): every app built on pennestack has its own
-repository in the layout of section 23.1 and depends only on the published `@pennestack/*`
+Applications live elsewhere (decision 48c, 2026-10-27): every app built on keelwerk has its own
+repository in the layout of section 23.1 and depends only on the published `@keelwerk/*`
 packages, never on this repository. Trail's backend is rebuilt in the Trail repository (roadmap
 M3), Launchway's in the Launchway repository (M4), and the mail server gets a repository of its own
 when Jens unparks it; their modules are packages there, under their own scopes (`@launchway/...`).
@@ -12176,7 +12176,7 @@ Rules:
   `"engines": { "node": ">=26" }`, CI runs on Node 26 only, and the deployment image is built on a
   Node 26 base image (section 13.2).
 - Publication (decisions 20, 83 and 85): the code and the design documents may be public on GitHub
-  (JensPenneman/pennestack) from the start, at a moment Jens chooses, with the licence in every
+  (JensPenneman/keelwerk) from the start, at a moment Jens chooses, with the licence in every
   commit (the history is rewritten so that `LICENSE.md` exists from the first commit). Every commit
   is signed with the author's personal identity; a `CONTRIBUTING.md` states it, and that outside
   contributions wait for a lawyer-reviewed contributor licence agreement (issues and discussions are
@@ -12195,7 +12195,7 @@ Rules:
 
 ## 23. Project layout and the single-purpose rule
 
-Every file in a pennestack project defines one thing and is named after it; every module is a
+Every file in a keelwerk project defines one thing and is named after it; every module is a
 package; and a module's parts become the module value through a generated manifest,
 `module.generated.ts`, which the generator writes from the directory conventions and `tsc` checks
 like any source (decision 59b, 2026-10-28), never through discovery at runtime. It specifies the
@@ -12208,7 +12208,7 @@ tooling that keeps them, refining sections 4.1, 13.5 and 16.9.8.
 
 ```
 my-platform/
-  pennestack.config.ts              the deployment: defineDeployment, the only default export (section 4.6)
+  keelwerk.config.ts              the deployment: defineDeployment, the only default export (section 4.6)
   apps/<app-id>/                    one package per app, named <scope>/app-<app-id>
     src/modules.ts                  the selection: export const modules = [accounts, auth, rest] as const
     src/app.ts                      defineApp({ id, modules, actions, ... }) with its named type
@@ -12218,13 +12218,13 @@ my-platform/
     src/policies/<rule>.ts          rules the app adds, one per file
     src/versions/<change>.ts        version changes of app-level actions
     src/app.test-d.ts               ExpectValidApp, HasEntity and HasAction assertions
-    src/pennestack.generated.ts     generated, committed (section 13.7)
+    src/keelwerk.generated.ts     generated, committed (section 13.7)
     generated/                      surfaces, OpenAPI documents, SDL, CLI manifest: generated, committed
     test/                           end-to-end, isolation and conformance suites of the app
   modules/<module-id>/              one package per module, named <scope>/module-<module-id>
   scripts/<script>.ts               one task per file, run with Node against the typed client
   docs/                             the project's decisions and notes
-  .pennestack/                      dev socket and caches, ignored by git
+  .keelwerk/                      dev socket and caches, ignored by git
   biome.json  knip.json  package.json  pnpm-workspace.yaml  tsconfig.base.json  tsconfig.json
 ```
 
@@ -12324,7 +12324,7 @@ exporting an imported binding, and default exports. Exceptions, each with its re
 - The entry files of a framework library package (`src/index.ts`, subpath entries such as
   `src/wire/index.ts`) hold only explicit named re-exports: a library needs one public API, and an
   explicit list makes every addition visible in review. No file imports its own package's entry.
-- `pennestack.config.ts` keeps its default export, because the CLI finds it by convention
+- `keelwerk.config.ts` keeps its default export, because the CLI finds it by convention
   (section 16.9.1).
 - Generated files and migrations follow their producers' names and are excluded from the naming
   rules (section 13.7).
@@ -12366,7 +12366,7 @@ systems. The cost: Biome 2.5.15 cannot check a file's link to its export; the la
 
 ### 23.5 Assembly
 
-From file-based frameworks pennestack keeps the idea that a part's path is its reference
+From file-based frameworks keelwerk keeps the idea that a part's path is its reference
 (`actions/credential/revoke.ts` is `auth.credential.revoke`), and since decision 59b (2026-10-28)
 it keeps their generated manifest as well, without discovery at runtime, reserved file names or
 private folders. A module is assembled from two files, both object literals (section 4.1), one
@@ -12377,15 +12377,15 @@ written by hand and one by the generator:
   hand. Every type a part needs exists once the base does.
 - `module.generated.ts` holds the module literal, `defineModule(base, { actions, entityActions,
   policies, reactions, services, topics, contributes, conditional, schedules, lifecycle, changes,
-  effects, executors })`, which `pennestack generate` writes from the directory conventions and the
+  effects, executors })`, which `keelwerk generate` writes from the directory conventions and the
   dev server rewrites on every file change (section 13.6). It is still a literal (decision 3b
   holds), only written by a tool: committed, checked by `generate --check` in CI, never edited, and
   nothing in a module needs registering by hand.
 
 ```ts
 // modules/auth/src/base.ts
-import { contracts, defineModuleBase, type ModuleBaseType } from '@pennestack/core'
-import { accounts } from '@pennestack/module-accounts'
+import { contracts, defineModuleBase, type ModuleBaseType } from '@keelwerk/core'
+import { accounts } from '@keelwerk/module-accounts'
 import { whenAccounts } from './conditional/when-accounts/condition.ts'
 import { whenLive } from './conditional/when-live/condition.ts'
 import { config } from './config.ts'
@@ -12409,7 +12409,7 @@ export const authBase: AuthBase = authBaseDef
 
 ```ts
 // modules/auth/src/actions/credential/revoke.ts: the action auth.credential.revoke, by its path
-import { defineCommand, field, shape } from '@pennestack/core'
+import { defineCommand, field, shape } from '@keelwerk/core'
 import { authBase } from '../../base.ts'
 import { credential } from '../../entities/credential.ts'
 import { alreadyRevoked } from '../../errors/already-revoked.ts'
@@ -12427,8 +12427,8 @@ export const revoke = defineCommand(authBase, credential, {
 
 ```ts
 // modules/auth/src/module.generated.ts (excerpt), as the generator writes it
-// Generated by pennestack 0.1.0 from the directories of src/. Do not edit. Format pennestack.module/1.
-import { defineModule, type ModuleType } from '@pennestack/core'
+// Generated by keelwerk 0.1.0 from the directories of src/. Do not edit. Format keelwerk.module/1.
+import { defineModule, type ModuleType } from '@keelwerk/core'
 import { revoke } from './actions/credential/revoke.ts'
 import { login } from './actions/login.ts'
 import { revokeSubject } from './actions/revoke-subject.ts'
@@ -12519,10 +12519,10 @@ The trade-offs Jens accepted with decision 59b, and how the tooling bounds them:
 
 - **A generator in the type path.** The dev server rewrites a manifest within the cycle of the
   change, before the type checker sees the new file (section 13.6), and CI fails on any drift, so
-  the editor, `tsc` and CI agree; outside the dev server, `pennestack generate` refreshes the
+  the editor, `tsc` and CI agree; outside the dev server, `keelwerk generate` refreshes the
   manifests. Principle 10 states the rule.
 - **A file's path decides its reference.** Moving or renaming a part file changes its reference,
-  and for an action that is an API change: `pennestack surface diff` reports it as breaking
+  and for an action that is an API change: `keelwerk surface diff` reports it as breaking
   (section 18.6), so it ships only with a new API version and its version change. The reference
   stays reviewable, because it is the path.
 - **A new part is outside the types until the generator runs.** The dev server closes the gap on
@@ -12575,7 +12575,7 @@ generated manifest, in which nothing needs registering by hand (decision 59b).
   import; no module imports an app.
 - A module package has one entry, `src/module.generated.ts` (or the hand-written `src/module.ts` of
   a transport or listener module declared with sugar, section 23.5). Dependants derive other types
-  from the module type through `@pennestack/core` helpers, such as a new `ExtensionValue<Accounts,
+  from the module type through `@keelwerk/core` helpers, such as a new `ExtensionValue<Accounts,
   'identityProviders'>` for fillers.
 - `package.json` lists every module named in `requires`, `optional`, contribution targets and
   `when` lists, and `tsconfig.json` references them.
@@ -12586,7 +12586,7 @@ generated manifest, in which nothing needs registering by hand (decision 59b).
   `module.test-d.ts` holds the toggle cases of section 13.10.
 - Integration tests live in each package's `test/`: a module alone and with each optional module
   through `createLocalClient`; an app's end-to-end, isolation, policy and conformance suites from
-  `@pennestack/testing`. `tsconfig.test.json` includes them and the tests in `src/`.
+  `@keelwerk/testing`. `tsconfig.test.json` includes them and the tests in `src/`.
 - Scripts compose actions through the typed client (section 16.9.2), one task per file.
 
 ### 23.9 The framework's packages
@@ -12609,13 +12609,13 @@ examples/portal/                  the example app, with its modules in modules/<
 
 In the Launchway repository (decision 48c), each module also has the package manifests,
 `src/base.ts`, the generated `src/module.generated.ts`, `src/module.test-d.ts`, `test/` and
-`migrations/`; shared modules come from the published `@pennestack/*` packages.
+`migrations/`; shared modules come from the published `@keelwerk/*` packages.
 
 ```
 <Launchway repository>/
   apps/launchway/                   @launchway/app-launchway
     src/modules.ts                  the 22 modules of section 17.3.13
-    src/app.ts  src/actions/health.ts  src/pennestack.generated.ts  generated/  test/
+    src/app.ts  src/actions/health.ts  src/keelwerk.generated.ts  generated/  test/
   modules/
     projects/                       @launchway/module-projects
       src/entities/project.ts  env-var.ts
@@ -12666,7 +12666,7 @@ In the Launchway repository (decision 48c), each module also has the package man
 The edge and its first provider are shared packages of this repository (section 17.3.7):
 
 ```
-packages/module-edge/               @pennestack/module-edge
+packages/module-edge/               @keelwerk/module-edge
   src/entities/site.ts  render.ts
   src/extension-points/providers.ts               EdgeProvider; single
   src/effects/apply.ts                            performer 'external': the program on the edge host
@@ -12674,7 +12674,7 @@ packages/module-edge/               @pennestack/module-edge
   src/actions/reconcile.ts  channel.ts  ack.ts  rendered.ts
   src/reactions/rerender.ts                       keyed and coalescing per tenant; invokes reconcile
   src/schedules/reconcile.ts                      drift repair every 10 minutes
-packages/edge-caddy/                @pennestack/edge-caddy
+packages/edge-caddy/                @keelwerk/edge-caddy
   src/contributions/to-edge/contribution.ts  fills/providers.ts
   src/lib/render-caddyfile.ts                     the pure renderer
 ```
@@ -12685,7 +12685,7 @@ In the mail server's own repository, once Jens unparks it (decision 48c; the des
 
 ```
 <mail repository>/
-  apps/mail/                        @mail/app-mail: src/modules.ts  src/app.ts  src/actions/health.ts  src/pennestack.generated.ts  generated/  test/
+  apps/mail/                        @mail/app-mail: src/modules.ts  src/app.ts  src/actions/health.ts  src/keelwerk.generated.ts  generated/  test/
   modules/
     mail-domains/                   optional dns
       src/entities/mail-domain.ts
@@ -12743,17 +12743,17 @@ layout pass.
 | `pure-parts.grit`, `no-await-in-parts.grit` | clocks, randomness, timers, `fetch` and a bare `yield` in parts; `async` and `await` in parts (section 7.9.6) | module sources minus `src/executors/` |
 | `no-module-state.grit` | top-level `let` and `var`, mutation of a top-level binding | module sources |
 | `noNodejsModules` (correctness) and the executor override of `noRestrictedImports` | `node:*`, adapters, drivers, `kysely`, HTTP and SMTP clients in module packages | module sources minus `src/executors/` |
-| `noProcessEnv` (style), `noProcessGlobal` (correctness), `noGlobalAssign` (suspicious) | environment and process reads, global assignment | everywhere except `pennestack.config.ts` |
-| knip 6.43.0 | unused files (a forgotten mount), unused exports and types, unused or unlisted dependencies, duplicate exports | CI after `biome ci`; `pennestack init` writes `knip.json` with the entry files |
-| `pennestack generate --check` | the module manifests against the directories, and every artefact of section 13.7 | CI and `pennestack build` |
-| layout pass | conventions that need paths and several files | `pennestack doctor`, `build`, CI, and `dev`'s status line |
+| `noProcessEnv` (style), `noProcessGlobal` (correctness), `noGlobalAssign` (suspicious) | environment and process reads, global assignment | everywhere except `keelwerk.config.ts` |
+| knip 6.43.0 | unused files (a forgotten mount), unused exports and types, unused or unlisted dependencies, duplicate exports | CI after `biome ci`; `keelwerk init` writes `knip.json` with the entry files |
+| `keelwerk generate --check` | the module manifests against the directories, and every artefact of section 13.7 | CI and `keelwerk build` |
+| layout pass | conventions that need paths and several files | `keelwerk doctor`, `build`, CI, and `dev`'s status line |
 
 Biome 2.6.0 (2026-10-21) added JavaScript plugins, a developer preview that sees the file path;
 once they are stable in a pinned release, the name checks move into the editor.
 
 ### 23.13 Layout drift
 
-The layout pass of `pennestack doctor` reports:
+The layout pass of `keelwerk doctor` reports:
 
 - placement: a file outside its kind's directory (a `defineEntity` outside `entities/`, a
   `defineEffectExecutor` outside `executors/`), an unknown directory, a part built for another
@@ -12762,7 +12762,7 @@ The layout pass of `pennestack doctor` reports:
   follow its directory; an error code, rule or schedule named against "Names"; a contribution
   or condition directory that differs from its declaration; a migration track without
   a source directory, or the reverse; a package name that differs from the module id;
-- mounts: a generated manifest that is out of date (`pennestack generate` fixes it), a file the
+- mounts: a generated manifest that is out of date (`keelwerk generate` fixes it), a file the
   conventions cannot place and that would therefore stay unmounted, a declaration file (an entity,
   stream, flag, extension point, contribution or condition) that `base.ts` does not list, and an
   app-level part that `app.ts` does not mount, each with the import and entry to add;
@@ -12776,17 +12776,17 @@ them with the registry the probe composes, names a fix per finding and never edi
 
 ### 23.14 Scaffolding
 
-`pennestack new <kind> <reference>` creates one part, located by its reference:
+`keelwerk new <kind> <reference>` creates one part, located by its reference:
 
 ```
-pennestack new module mail-store --requires mail-domains --optional accounts   # alias: pennestack module new
-pennestack new entity mail-store.mailboxEntry
-pennestack new action auth.credential.revoke --kind command
-pennestack new action accounts.profile.changePassword --from auth             # contributions/to-accounts/
-pennestack new flag checkout.newFlow --kind boolean --level tenant --purpose release --expires 2027-01-31
-pennestack new effect mail-delivery.smtpDeliver                                  # src/effects/smtp-deliver.ts
-pennestack new executor mail-delivery.smtpDeliver                                # src/executors/smtp-deliver.ts
-pennestack new rule auth.credential.already-revoked --effect deny                # src/policies/credential/already-revoked.ts
+keelwerk new module mail-store --requires mail-domains --optional accounts   # alias: keelwerk module new
+keelwerk new entity mail-store.mailboxEntry
+keelwerk new action auth.credential.revoke --kind command
+keelwerk new action accounts.profile.changePassword --from auth             # contributions/to-accounts/
+keelwerk new flag checkout.newFlow --kind boolean --level tenant --purpose release --expires 2027-01-31
+keelwerk new effect mail-delivery.smtpDeliver                                  # src/effects/smtp-deliver.ts
+keelwerk new executor mail-delivery.smtpDeliver                                # src/executors/smtp-deliver.ts
+keelwerk new rule auth.credential.already-revoked --effect deny                # src/policies/credential/already-revoked.ts
 ```
 
 - Further kinds: `rule`, `reaction`, `service`, `error`, `schedule`, `stream`, `topic`, `effect`,
@@ -12879,7 +12879,7 @@ module-facing sketch of this document rewritten to the strict forms.
 | Live updates on everything, delivered by a module | 6.7, 9.6, 15.4 | |
 | Nothing truly deleted, everything appended to a chain | 6.6, 15.1, 14.7 | Chain entities are append-only; `state` entities, transient records, receipts and sync clients are operational data that retention purges, with defaults for the operational buffers, which Jens accepted on 2026-10-24 (decision 8a). History is removed only by rules the operator adopts; Launchway's modules suggest none and keep deployment records, logs, previews and effect attempts, reclaiming only runtime artefacts (decision 47c). |
 | Multiple actors online and offline at the same time, handled gracefully | 15.3, 15.4.7 | Offline authorship ships in M6 and collaborative fields in M7 (decisions 9a and 11a; numbers of the roadmap since 2026-10-28). |
-| Database types always live, generated by a TypeScript server or an equivalent, whatever the connection | 13.1, 14.8 | Row types are inferred from definitions and never generated; the generated TypeScript in the type path, the module manifests, mounts parts without defining a type, is rewritten by the dev server on every change and is checked for drift in CI (decision 59b). Tables the framework does not own are described by introspected definitions, checked against the live catalogue at `connect`, in `pennestack dev` and in CI (decision 14a). |
+| Database types always live, generated by a TypeScript server or an equivalent, whatever the connection | 13.1, 14.8 | Row types are inferred from definitions and never generated; the generated TypeScript in the type path, the module manifests, mounts parts without defining a type, is rewritten by the dev server on every change and is checked for drift in CI (decision 59b). Tables the framework does not own are described by introspected definitions, checked against the live catalogue at `connect`, in `keelwerk dev` and in CI (decision 14a). |
 | Compiler, linter and toolchain always know what to do | 13.2 to 13.12 | |
 | No frontend framework; everything works as an API and a backend framework | 16.5 to 16.8 | |
 | A later UI fully pluggable | 16.10 | |
@@ -12906,13 +12906,13 @@ module-facing sketch of this document rewritten to the strict forms.
 | Many nodes that scale automatically, with limits, on a job queue "thought out REALLY WELL" (Jens, 2026-10-23, with addendum 3) | 9.5, 21 (per phrase in 21.11) | Fair lanes with caps keep tenants apart on any number of processes; named processes, probed capabilities and connection budgets place the work; the scaler is a pure plan clamped by explicit limits, and scale-down is a drain (decisions 6a, 62a, 63a and 64a). |
 | Everything runs on pure functions: inputs only through parameters, outputs only through the return value, nothing through global state, module-level state, ambient context or any other hidden channel; a hard requirement for the framework and for the code written on it (addendum 4, item 1) | 1 (principle 11), 3.4, 4.3, 5.5, 5.6, 7.3, 7.6, 7.9 (per phrase in 7.9.10), 13.9, 23.2 | Fully strict (decision 50a, 2026-10-25, reopened and confirmed on 2026-10-28): every part a module author writes yields requests and returns a decision; only the kernel, the deployment's infrastructure entries, transport and listener modules and effect executors are imperative; handler types exclude promises, and lint rules ban clocks (`Temporal.Now` included), randomness, timers, module state and environment reads (decisions 73 to 80). |
 | Where the outside world is touched: which parts perform effects, how effects enter and leave pure code, how tooling enforces the rule (addendum 4, item 2) | 7.9.1, 7.9.3 to 7.9.6, 9.5, 13.9, 23.12 | Answers enter pure code as the answers to yielded requests; effects leave it as descriptions that the kernel performs (kernel effects in the unit, external effects after commit, at least once, by executors or external performers), and outcomes come back as the input of continuations; only `prepare` performs inline effects (decision 74a), and the M0 spike tests a variant without `prepare` (section 26.2). |
-| Trace each cause and effect, and rebuild a full database and logbook from them (Jens, 2026-10-25, with decision 50a) | 7.9.6, 14.7.6, 15.1.3, 15.1.8, 15.2.4, 16.9.7 | Decision records and one `core.effect` stream per effect live in the hashed chain (decision 78a), attempts included and kept (47c); `pennestack explain --trace`, `--redecide` and `--dry-run` read them; rebuilds and restores fold the effect streams and enqueue unsettled effects again; anchors outside the database make a rewritten chain detectable (35b). |
+| Trace each cause and effect, and rebuild a full database and logbook from them (Jens, 2026-10-25, with decision 50a) | 7.9.6, 14.7.6, 15.1.3, 15.1.8, 15.2.4, 16.9.7 | Decision records and one `core.effect` stream per effect live in the hashed chain (decision 78a), attempts included and kept (47c); `keelwerk explain --trace`, `--redecide` and `--dry-run` read them; rebuilds and restores fold the effect streams and enqueue unsettled effects again; anchors outside the database make a rewritten chain detectable (35b). |
 | Public repository on GitHub, every commit signed with the author's personal identity | 22 | The code and the design documents may be public from the start, at a moment Jens chooses, with the licence (FSL-1.1-ALv2) in every commit (decisions 20 and 83, revised 2026-10-27). |
 | Best practice from first principles, no copied conventions | this document and the ADRs cite research, not older projects | |
 | The product name never references other companies' products | the working name and all package names are generic | The name stays a working name until Jens settles it (decision 84c). |
 | Any database or datastore can be plugged in as an adapter; MySQL is one of them, not a special case (addendum 5, item 1, 2026-10-26) | 5.6, 14.3.2, 14.3.7 | The adapter contract is the only coupling; MySQL ships in M5 beside SQLite and the Supabase preset (decision 12a). |
-| A datastore's features never influence application code or decide whether an app can run; what it lacks the framework provides at a visible cost; only code that opts into a dialect, the raw SQL hatch, declares that choice (addendum 5, item 2) | 1 (principle 7), 4.1, 12.1, 13.12, 14.3.3, 14.3.4, 14.3.8, 14.7.9.10, 17.6.4 | Capabilities are accelerations: each one an adapter lacks has a kernel path with its cost shown by `explain` and `pennestack doctor`; `data: { needs }` keeps only `{ sql: dialect }`, and `connect` refuses only that dialect's absence (decision 12a). |
-| Jens, 2026-10-27 (decision 35b): anchor the chain heads outside the database from the start | 4.6, 13.12, 14.7.6, 15.1.8, 16.9.7, 17.5.2 | Per scope, the latest head goes to every ledger sink at a configurable cadence; `pennestack db verify` compares heads with anchors, and `doctor` warns about missing ones. |
+| A datastore's features never influence application code or decide whether an app can run; what it lacks the framework provides at a visible cost; only code that opts into a dialect, the raw SQL hatch, declares that choice (addendum 5, item 2) | 1 (principle 7), 4.1, 12.1, 13.12, 14.3.3, 14.3.4, 14.3.8, 14.7.9.10, 17.6.4 | Capabilities are accelerations: each one an adapter lacks has a kernel path with its cost shown by `explain` and `keelwerk doctor`; `data: { needs }` keeps only `{ sql: dialect }`, and `connect` refuses only that dialect's absence (decision 12a). |
+| Jens, 2026-10-27 (decision 35b): anchor the chain heads outside the database from the start | 4.6, 13.12, 14.7.6, 15.1.8, 16.9.7, 17.5.2 | Per scope, the latest head goes to every ledger sink at a configurable cadence; `keelwerk db verify` compares heads with anchors, and `doctor` warns about missing ones. |
 | Jens, 2026-10-27 (decision 37a): an entity type never appears twice on one selection path | 16.3.8, 16.4.12, 16.6.6 | The default limit beside depth, aliases, batch and cost, configurable per backend, with a conformance case. |
 | Jens, 2026-10-27 (decision 47c): keep all data, to look back on it in five years | 7.9.6, 14.7.1, 15.1.12, 17.3.6, 17.3.10 | No purge suggestions for Launchway's data; only runtime artefacts are reclaimed; long logs move to the blob store. |
 | Jens, 2026-10-28 (decision 59b): nothing needs registering by hand | 1 (principle 10), 13.1, 13.6, 13.7, 13.11, 16.9.8, 23.5, 23.14 | The generated manifest `module.generated.ts` mounts every part from the directory conventions; the dev server rewrites it on change and CI checks drift. |
@@ -12944,11 +12944,11 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 10 | Before-images in every event from M1, because they cannot be added later for existing events and they make change reports exact | 2026-10-26 | 15.1.3 |
 | 11 | Collaborative fields stored as Loro documents from the first app that declares one, so M7 adds protocols and no data migration | 2026-10-26 | 15.3.9 |
 | 12 | MySQL kept (M5), with the rule of brief addendum 5: the framework is datastore-agnostic, every adapter capability is an acceleration with a kernel fallback at a visible cost, and `connect` refuses only a declared raw-SQL dialect the adapter lacks | 2026-10-26 | 1 (principle 7), 12.1, 14.3.3, 14.3.4, 14.3.8, 14.7.9.10, 13.12, 25, ADR 0006 |
-| 13 | Drizzle lowered: a passing thought, not a requirement; no Drizzle-backed adapter, and `pennestack db introspect --drizzle` is an optional later convenience | 2026-10-26 | 14.3.7, 25, roadmap later milestones |
-| 14 | External tables typed by introspected entity definitions with drift checks at `connect`, in `pennestack dev` and in CI: one type mechanism | 2026-10-26 | 14.8.4 |
+| 13 | Drizzle lowered: a passing thought, not a requirement; no Drizzle-backed adapter, and `keelwerk db introspect --drizzle` is an optional later convenience | 2026-10-26 | 14.3.7, 25, roadmap later milestones |
+| 14 | External tables typed by introspected entity definitions with drift checks at `connect`, in `keelwerk dev` and in CI: one type mechanism | 2026-10-26 | 14.8.4 |
 | 15 | oRPC in the first release beside tRPC (M2), so that Jens can judge its implementation and quality on real use | 2026-10-26 | 16.7.7, 22, ADR 0011, roadmap M2 |
 | 16 | CLI action commands under one verb; no name is ever reserved because of an integration, a plugin or a module (the verb is 81) | 2026-10-26 | 5.1, 13.9, 16.9.2, 16.9.3, 16.9.7, 20.9, 21.9, 23.14, ADR 0013 |
-| 17 | `pennestack explain --as <principal>` evaluates everywhere and executes only in development | 2026-10-26 | 16.9.7 |
+| 17 | `keelwerk explain --as <principal>` evaluates everywhere and executes only in development | 2026-10-26 | 16.9.7 |
 | 18 | Protobuf field tags allocated from day one: a number in a snapshot now instead of a migration of every entity later | 2026-10-26 | 4.2, 6.2 |
 | 19 | Instants are `Temporal` from the start, native on Node 26 with no polyfill (Node 26.12.1 has `Temporal`, verified by the lead on 2026-10-27): `field.instant()`, `field.date()`, the fixed clock and the adapters' codecs | 2026-10-26 | 4.2, 6.4, 6.5, 7.9.3, 7.9.7, 13.2, 13.3, 14.5, 16.2.3, 16.7.3, Appendix A |
 | 20 | Licence: FSL-1.1-ALv2 (Functional Source License, Version 1.1, with the Apache-2.0 future license), Licensor Jens Penneman; `LICENSE.md` is in the repository | 2026-10-27 | 22, README |
@@ -12963,14 +12963,14 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 31 | Composition errors in the `Check` property form; the spike may still report that a rest-parameter form reads better | 2026-10-27 | 4.7, 26.2 |
 | 32 | Optional modules through a `Maybe`-style accessor (`ifPresent`) that composes with `yield*`, for now: Jens is not sold yet, and the M0 spike compares it with `\| undefined` on the auth module | 2026-10-27 | 2, 3.4, 4.7, 7.6, 7.9.3, 13.10, 26.2 |
 | 34 | Clock-skew bound for offline clients: 5 minutes | 2026-10-27 | 14.5.2, 15.3.3 |
-| 35 | Chain heads anchored outside the database from M1: per scope, the latest head (position and hash) goes to the ledger sinks at a configurable cadence, and `pennestack db verify` compares heads with anchors | 2026-10-27 | 4.6, 13.12, 14.7.6, 15.1.8, 16.9.7, 17.5.2, ADR 0007 |
+| 35 | Chain heads anchored outside the database from M1: per scope, the latest head (position and hash) goes to the ledger sinks at a configurable cadence, and `keelwerk db verify` compares heads with anchors | 2026-10-27 | 4.6, 13.12, 14.7.6, 15.1.8, 16.9.7, 17.5.2, ADR 0007 |
 | 36 | Operator work stays on the invocation protocol and the CLI; no operator GraphQL schema | 2026-10-27 | 16.8 |
 | 37 | Operation limits as own validation rules, with Jens's first rule: no entity type twice on one selection path, for GraphQL selections and any REST `include` alike; siblings of one type stay allowed; configurable per backend | 2026-10-27 | 16.3.8, 16.4.12, 16.6.6, ADR 0011 |
 | 38 | Resumable uploads (JMAP's upload endpoint when mail comes), designed with ADR 0020 | 2026-10-27 | gap G5, roadmap section 5 (ADR 0020) |
 | 39 | The Connect runtime-descriptor spike runs with the Connect transport, a later milestone | 2026-10-27 | 16.13, roadmap later milestones |
 | 45 | Separate authentication realms per tenant by default; an optional OpenID Connect provider module later | 2026-10-27 | 17.2.8, roadmap later milestones |
 | 47 | Keep all data forever: no purge suggestions for Launchway's data (deployment records, logs, preview records, later analytics); only the runtime artefacts of a closed preview or a superseded deployment are reclaimed, and long logs move to the blob store; the mail suggestions wait with the mail server | 2026-10-27 | 7.9.6, 14.7.1, 15.1.12, 17.3.6, 17.3.10, gap G11, roadmap M4 |
-| 48 | Every app built on pennestack lives in its own repository and depends only on the published packages; this repository keeps a minimal example for its CI; nothing is sequential (0.x pre-releases, exact pins); everything stays in beta until Jens declares it stable; Trail is rebuilt first and Launchway second; the design documents are public from the start, with the licence from the first commit | 2026-10-27 | 13.5, 13.11, 17, 22, 23.1, 23.10, 23.11, roadmap, README |
+| 48 | Every app built on keelwerk lives in its own repository and depends only on the published packages; this repository keeps a minimal example for its CI; nothing is sequential (0.x pre-releases, exact pins); everything stays in beta until Jens declares it stable; Trail is rebuilt first and Launchway second; the design documents are public from the start, with the licence from the first commit | 2026-10-27 | 13.5, 13.11, 17, 22, 23.1, 23.10, 23.11, roadmap, README |
 | 49 | Outbound webhooks ship with Launchway's rebuild (M4) | 2026-10-27 | 16.13, 17.3.2, 17.6.1, 22, roadmap M4 |
 | 50 | Fully strict pure handlers (option a): handlers never perform effects, and the kernel performs and records every effect with its cause, so the database and a full logbook rebuild from the chain; the split model (option c) is the fallback; reopened and confirmed on 2026-10-28, with one ergonomic variant for the spike (no `prepare`, inline effects only before the first load) | 2026-10-25, 2026-10-28 | 1 (principle 11), 7.9, 26.2, ADR 0026 |
 | 51 | Flags in the framework core, experiments as a module | 2026-10-28 | 20, ADR 0023 |
@@ -12980,10 +12980,10 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 55 | Field renames rename the column through expand, dual write, backfill and contract, gated by finalization; physical names always equal the derived names | 2026-10-28 | 14.4.2, 14.6.1, 14.6.2, 14.6.4, 19.3, ADR 0022 |
 | 57 | Experiment statistics: fixed-horizon frequentist tests first; Bayesian, CUPED and sequential tests later | 2026-10-28 | 20.8 |
 | 58 | File and directory names in kebab-case derived from the export | 2026-10-28 | 23.4, ADR 0024 |
-| 59 | Module assembly by a generated manifest: `pennestack generate` and the dev server write `module.generated.ts` from the directory conventions; references come from file names and directories; `base.ts` stays hand-written; CI checks drift | 2026-10-28 | 1 (principle 10), 4.1, 13.1, 13.6, 13.7, 13.9, 13.11, 13.12, 16.9.8, 23, ADR 0024 |
+| 59 | Module assembly by a generated manifest: `keelwerk generate` and the dev server write `module.generated.ts` from the directory conventions; references come from file names and directories; `base.ts` stays hand-written; CI checks drift | 2026-10-28 | 1 (principle 10), 4.1, 13.1, 13.6, 13.7, 13.9, 13.11, 13.12, 16.9.8, 23, ADR 0024 |
 | 60 | One rule per file, `policies/<target>/<rule>.ts`, whose file name is the rule id; the generated manifest merges the rules as a set | 2026-10-28 | 4.4, 8.1, 8.6, 23.2, 23.4, 23.5, ADR 0024 |
 | 61 | Closed by 59: scaffolds create files only and never edit sources; the generated manifest does the wiring | 2026-10-28 | 16.9.8, 23.14, ADR 0024 |
-| 62 | The framework's command group for nodes, processes and scaling is `pennestack fleet`; with 16 it reserves no module id | 2026-10-28 | 16.9.3, 16.9.7, 21.9 |
+| 62 | The framework's command group for nodes, processes and scaling is `keelwerk fleet`; with 16 it reserves no module id | 2026-10-28 | 16.9.3, 16.9.7, 21.9 |
 | 63 | The scaler with the static provider first (M4), the opt-in docker provider one milestone later (M5); a Kubernetes provider stays a named later milestone, with `nodeProviders` as the only coupling | 2026-10-28 | 21.4, 21.5, 22, roadmap |
 | 64 | The docker provider is opt-in per deployment, held only by the scaler's named process, through a socket proxy limited to container create, start, stop, inspect and list | 2026-10-28 | 21.5 |
 | 65 | Blind indexes only where a lookup is declared | 2026-10-28 | 14.7.9.2 |
@@ -13000,7 +13000,7 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 78 | Effect records in the chain (`core.effect` streams); with 47, attempt records are kept until a rule is adopted | 2026-10-28 | 7.9.6, 14.7.1 |
 | 79 | Command inputs as a digest by default, sealed inputs by opt-in | 2026-10-28 | 7.3, 7.9.6 |
 | 80 | Launchway's agents are external performers of `agentCommand` effects | 2026-10-28 | 7.9.5, 17.1, 17.3.4, 21.8 |
-| 81 | The verb is `pennestack call <module.entity.action>`, with the dotted reference everyone already uses | 2026-10-26 | 16.9.2, 16.9.7, ADR 0013 |
+| 81 | The verb is `keelwerk call <module.entity.action>`, with the dotted reference everyone already uses | 2026-10-26 | 16.9.2, 16.9.7, ADR 0013 |
 | 82 | The edge behind an `edgeProvider` contract owned by the `edge` module, `edge-caddy` first; a custom `edge-native` listener module, Traefik or Envoy later | 2026-10-26 | 17.3.2, 17.3.7, 17.3.12, 17.6.1, 22, 23.10, roadmap M4 |
 | 83 | The code and the design documents may be public from the start, at a moment Jens chooses, with the licence in every commit (the history rewritten so that `LICENSE.md` exists from the first commit) | 2026-10-27 (revised) | 22, 25, README, roadmap section 2 |
 | 84 | Trademark: wait; Jens looks into it when it comes to that, and the name stays a working name | 2026-10-27 | README |
@@ -13015,7 +13015,7 @@ with the option the design assumes (★) and the alternatives:
 - **21. Outbound mail from the home connection.** Residential addresses sit on policy blocklists and
   their reverse DNS belongs to the provider. ★ Relay through an external host with a static address
   first (direct delivery is built anyway and becomes the production path on a node with a clean
-  address); a second pennestack process with the `smtp-out` capability on such a host; direct
+  address); a second keelwerk process with the `smtp-out` capability on such a host; direct
   delivery from home.
 - **22. IMAP.** ★ An own IMAP listener after JMAP; JMAP only; an external IMAP server with its own
   storage, which would split mailbox state from the store.
@@ -13035,17 +13035,17 @@ with the option the design assumes (★) and the alternatives:
 - **43. Sieve.** ★ Only the JMAP vacation response in the first release; Sieve and ManageSieve from
   the start.
 - **44. Webmail before a user interface exists.** ★ A third-party JMAP web client is acceptable; no
-  webmail until pennestack has its own UI.
+  webmail until keelwerk has its own UI.
 - **46. DMARC rollout.** ★ `p=none` with reports, then `quarantine`, then `reject` after a clean
   month; `reject` from the start.
 - **56. Mail listeners during upgrades.** ★ Their own container (a named process of gap G9),
   replaced by stop and start in seconds: SMTP senders retry, IMAP clients reconnect, and the HTTP
   container rolls blue-green behind Caddy; a TCP proxy in front that drains connections (no drops,
-  one more component); the single pennestack container with a restart.
+  one more component); the single keelwerk container with a restart.
 - **67. Server-side mail search over personal text.** ★ A per-account keyed token index over
   subject, addresses and bodies (`search: 'full'`, switchable to `'headers'` or `'off'` per backend),
   which works for every client and adapter and confines its injection leak to one account; header
-  fields only, bodies by bounded scans; no server-side search until pennestack has its own client.
+  fields only, bodies by bounded scans; no server-side search until keelwerk has its own client.
 - **68. Mail search matching.** ★ Word and stem matching for JMAP and IMAP, a documented deviation
   from IMAP's substring rule that gives the same results whatever the mailbox size; exact substring
   matching through scans, only for mailboxes within the scan limit.
@@ -13097,14 +13097,14 @@ later look; none of them waits for a decision by Jens.
 
 Data:
 
-- The threshold for partitioning `ps_events` (anchoring heads outside the database is decided,
+- The threshold for partitioning `kw_events` (anchoring heads outside the database is decided,
   35b).
 - Should anchors carry a digest over every stream head of a scope, so that a rewrite of a stream
   that never held the scope's head at an anchor is found as well? The digest would be a stored
   format, so the answer is due before M1 (section 15.1.8).
-- Should the `writer` and `flags` members of `ps_events.meta` enter the hash-chain content of
+- Should the `writer` and `flags` members of `kw_events.meta` enter the hash-chain content of
   section 15.1.8? Recommendation: yes, like the actor; section 15.1.8 assumes it.
-- `Pennestack-Client-Id`, which gives anonymous principals a targeting key (section 20.3), is a
+- `Keelwerk-Client-Id`, which gives anonymous principals a targeting key (section 20.3), is a
   device identifier: does it need the personal-data handling of section 14.7?
 - The experiments module's `observes: 'all'` reaction enqueues one job per event per tenant
   (section 20.8); gap G12 may need a dispatch-time event-type filter held as data, because module
@@ -13112,7 +13112,7 @@ Data:
 - Should `accounts.profile.displayName`, a person's name, be `.personal()`? The profile search's
   `contains` on it would then need the `contains` capability, with its cost and leak (section
   14.7.9.13).
-- Should the chain's `$pse` envelope also pad values to 16-byte buckets, so that events and state
+- Should the chain's `$kwe` envelope also pad values to 16-byte buckets, so that events and state
   tables reveal the same length class (section 14.7.9.6)?
 - Can the migration role on the home PostgreSQL create an operator class for order tokens?
   `CREATE OPERATOR CLASS` needs a superuser, and CipherStash reports the same. Is an own TypeScript
@@ -13122,7 +13122,7 @@ Data:
   estimates: M4 measures the prefix and trigram indexes on Launchway's admin search, and the mail
   foundations milestone the token index on a fixture mailbox (sections 14.7.9.5 and 14.7.9.6).
 - After a Node upgrade that changes the Unicode version (17.0 on Node 24.21.0; the M0 spike records
-  Node 26's), should the kernel reindex automatically, or only warn in `pennestack doctor` (section
+  Node 26's), should the kernel reindex automatically, or only warn in `keelwerk doctor` (section
   14.7.9.3)?
 - Not verified within the research cap: what Stalwart's full-text index holds for messages it
   encrypted at rest (its documentation, updated 2026-10-03, is silent), and which MongoDB server
@@ -13169,7 +13169,7 @@ Execution:
 Interfaces:
 
 - Should client-readable flags (`client: true`) appear in the API surface, so that
-  `core.flag.evaluate` is typed, and how should `pennestack surface diff` classify removing one?
+  `core.flag.evaluate` is typed, and how should `keelwerk surface diff` classify removing one?
 - How are the core module's own API versions at the operator endpoint declared: a
   framework-maintained `defineApiVersions`, or package majors only?
 - At an older version, is an action that a version change renamed also reachable under its new
@@ -13189,7 +13189,7 @@ Platforms:
   inline effect, or a cache entity that a deferred effect's continuation refreshes and a query
   reads (section 17.3.9)?
 - Where the deployment definition lives once every app has its own repository (decision 48c):
-  `pennestack.config.ts` imports the apps from their packages, so the one deployment of section
+  `keelwerk.config.ts` imports the apps from their packages, so the one deployment of section
   17.5 needs a home, such as a small deployment repository that pins the apps and the framework to
   exact versions; and Trail, rebuilt in M3 before that deployment exists, runs as its own deployment
   until it can move in as a backend (roadmap M3 plans it that way).
@@ -13232,7 +13232,7 @@ Toolchain and layout:
 - `useNamingConvention` with `strictCase` may need overrides for wire-shaped names in object
   literals; fixtures settle it.
 - Publishing 0.x pre-releases, which Trail's rebuild depends on from M3 (decision 48c), needs an
-  npm scope: no `@pennestack` organisation existed on 2026-10-26, and the name is still a working
+  npm scope: no `@keelwerk` organisation existed on 2026-10-26, and the name is still a working
   name (decision 84c).
 
 ## Appendix A. Versions checked
@@ -13249,7 +13249,7 @@ toolchain is in section 13.2.
 | `mysql2` | 3.24.5 | MIT | 2026-10-10 | MySQL driver |
 | `node:sqlite` | Node.js 24.21.0 with SQLite 3.53.4 | MIT | 2026-10-11, run locally without an experimental warning; checked again on the Node 26 baseline in M0 (A.8) | SQLite driver |
 | `better-sqlite3` | 13.0.3 | MIT | 2026-10-10 | SQLite fallback driver |
-| `@electric-sql/pglite` | 0.5.8 (PostgreSQL 18.3) | Apache-2.0 | 2026-10-11, used to run the PostgreSQL checks of this document | tests and `pennestack dev` |
+| `@electric-sql/pglite` | 0.5.8 (PostgreSQL 18.3) | Apache-2.0 | 2026-10-11, used to run the PostgreSQL checks of this document | tests and `keelwerk dev` |
 | `drizzle-orm` | 0.45.4 (`rc`: 1.0.0-rc.4) | Apache-2.0 | 2026-10-11 (`getTableConfig` in `pg-core`, `mysql-core`, `sqlite-core`) | the optional later `db introspect --drizzle`; no adapter (decision 13a) |
 | `drizzle-kit` | 0.31.11 | MIT | 2026-10-11 | prior art for diffing and rename prompts; not a dependency |
 | `@supabase/supabase-js` | 2.117.3 | MIT | 2026-10-11 | optional Supabase modules only |
@@ -13390,7 +13390,7 @@ Temporal's client are in A.6.
 
 | Package | Version | Published | Use here |
 |---|---|---|---|
-| `effect` | 4.0.6 | 2026-10-22 | prior art: effect values implement `[Symbol.iterator]`, so `yield*` types each answer, as pennestack's requests do (section 7.9.3); not used |
+| `effect` | 4.0.6 | 2026-10-22 | prior art: effect values implement `[Symbol.iterator]`, so `yield*` types each answer, as keelwerk's requests do (section 7.9.3); not used |
 | `@temporalio/workflow` | 1.24.0 | 2026-09-15 | prior art: workflow code that schedules activities and is replayed from its event history; not used |
 | `@event-driven-io/emmett` | 0.42.4 | 2026-08-12 | prior art: deciders that return events, workflows that return their outputs as values; not used |
 | `redux-saga` / `@redux-saga/types` | 1.5.1 / 1.4.1 | 2026-07-26 / not recorded | prior art: generators that yield effect descriptions a middleware performs; not used |
@@ -13407,7 +13407,7 @@ an installed 7.0.2 on 2026-10-28. Licences not re-checked.
 | Node.js | 26.12.1 | 2026-10-21 | the baseline of decision 28a (section 13.2); ships `Temporal` natively, so no polyfill (decision 19b); LTS promotion due in the last week of October 2026 |
 | `typescript` | 7.0.2, still the latest | 2026-07-08 | `lib.es2025.d.ts` and `lib.esnext.temporal.d.ts` bundled, used by the base configuration of section 13.3 |
 | `@types/node` | 26.6.5 | 2026-10-09 | the Node 26 declarations (section 13.2) |
-| `@orpc/server` / `@orpc/client` / `@orpc/openapi` | 1.16.1 / 1.16.1 / 1.16.1 | 2026-10-22 | `@pennestack/transport-orpc` and its optional OpenAPI handler (section 16.7.7, decision 15b) |
+| `@orpc/server` / `@orpc/client` / `@orpc/openapi` | 1.16.1 / 1.16.1 / 1.16.1 | 2026-10-22 | `@keelwerk/transport-orpc` and its optional OpenAPI handler (section 16.7.7, decision 15b) |
 | Caddy | `caddy:2-alpine`, the image of section 17.5.2 (version not pinned in this document) | not recorded | the first edge provider, `edge-caddy` (section 17.3.7, decision 82a) |
 
 ## Appendix B. Verified typing listing
@@ -13490,7 +13490,7 @@ interface AppClient<T> {
 }
 
 // ---- tRPC router type: two explicit levels, no recursion
-interface PennestackTrpcRoot { ctx: object; meta: object; errorShape: { message: string; code: number; data: { pennestack: { kind: string; code: string } } }; transformer: true }
+interface KeelwerkTrpcRoot { ctx: object; meta: object; errorShape: { message: string; code: number; data: { keelwerk: { kind: string; code: string } } }; transformer: true }
 type Procedure<A> =
   A extends { kind: 'query'; input: infer I; output: infer O } ? TRPCQueryProcedure<{ input: I; output: O; meta: object }>
   : A extends { kind: 'command'; input: infer I; output: infer O; execution: infer X }
@@ -13507,7 +13507,7 @@ type TrpcRecord<T> = {
     (T[M] extends { actions: infer As } ? { [A in keyof As]: Procedure<As[A]> } : {})
     & (T[M] extends { entities: infer Es } ? { [E in keyof Es]: { [A in keyof Es[E]]: Procedure<Es[E][A]> } } : {})
 }
-type TrpcRouter<T> = TRPCBuiltRouter<PennestackTrpcRoot, TrpcRecord<T>>
+type TrpcRouter<T> = TRPCBuiltRouter<KeelwerkTrpcRoot, TrpcRecord<T>>
 
 // ---- assertions
 declare const client: AppClient<Tree>
@@ -13572,5 +13572,5 @@ Further checks on 2026-10-10 and 2026-10-11:
 - TypeScript 7.0.2 reports `Instantiations` under `--extendedDiagnostics` and writes a trace with
   `--generateTrace`.
 - Node 24.21.0: a workspace package linked into `node_modules` and resolved through the
-  `@pennestack/source`-style condition runs from its `.ts` source; the same package copied into
+  `@keelwerk/source`-style condition runs from its `.ts` source; the same package copied into
   `node_modules` fails with `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`.

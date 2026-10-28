@@ -60,7 +60,7 @@ across tenants, and a revoked session's cookie locked browsers out of the login 
    deployment; HTTP transport modules require its contract (`contracts.httpHost`). It fills the
    carrier, runs the deployment's carrier enrichers (receiver paths), asks the invoker for a session,
    then routes to the mount table of the session's app by longest prefix. Mounts are per app and
-   shared by all backends of that app. `/_pennestack` is reserved; deployment-scope requests go to
+   shared by all backends of that app. `/_keelwerk` is reserved; deployment-scope requests go to
    the operator endpoint (operator socket and host names). Cross-cutting HTTP concerns (request ids,
    trace context, body limits, CORS from the tenant's domains, origin checks for cookie-authenticated
    state changes, WebSocket upgrades and cookie SSE, health endpoints, graceful shutdown) live in the
@@ -83,15 +83,15 @@ across tenants, and a revoked session's cookie locked browsers out of the login 
    masks (`$masked` and `_masked`), execution preference, command ids and `ifVersion` are defined
    once in architecture.md section 16.4 and only encoded per transport.
 7. **The invocation protocol and the typed client.** The host serves a small JSON protocol under
-   `/_pennestack/v1` (`invoke`, `batch`, `subscribe`, `surface`, `capabilities`, `live`) for every app and over the
+   `/_keelwerk/v1` (`invoke`, `batch`, `subscribe`, `surface`, `capabilities`, `live`) for every app and over the
    operator Unix socket, so the CLI reaches every backend whatever its app selects. It is the canonical, lossless projection; `AppClient<App>` from
-   `@pennestack/client` speaks it remotely (or calls the invoker in process) with types inferred
+   `@keelwerk/client` speaks it remotely (or calls the invoker in process) with types inferred
    from the app.
 8. **Clients discover only the surface.** `core.introspect` serves the surface and `core.me` the
    principal's effective rules in CASL raw-rule shape. A user interface is a client of transports and
    of these actions; no framework package knows a frontend framework, and user-interface metadata
    lives in modules that depend on the domain modules, not the reverse.
-9. **Conformance.** `@pennestack/testing` runs one scenario set through every selected transport and
+9. **Conformance.** `@keelwerk/testing` runs one scenario set through every selected transport and
    asserts identical decoded outcomes, including cross-site and cross-tenant browser scenarios.
 
 ## Consequences

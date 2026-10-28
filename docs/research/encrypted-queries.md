@@ -1,3 +1,6 @@
+> Note (2026-10-28): the project was renamed from pennestack to **keelwerk** on 2026-10-28; this
+> research note keeps the old name as written at the time.
+
 # Research: queries over encrypted personal data
 
 Date: 2026-10-25. Author: the encrypted-queries designer. Question: decision 7b of the register

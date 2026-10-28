@@ -1,3 +1,6 @@
+> Note (2026-10-28): the project was renamed from pennestack to **keelwerk** on 2026-10-28; this
+> research note keeps the old name as written at the time.
+
 # Module systems in TypeScript backend frameworks
 
 Date: 2026-10-08. Status: research note, input for `architecture.md` and the ADRs.

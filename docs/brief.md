@@ -1,10 +1,11 @@
 # Brief
 
 Date: 2026-10-08. Author: Jens Penneman (requirements, lightly edited for structure). This is the
-source of truth for what pennestack must become. The architecture, the ADRs and the roadmap
+source of truth for what keelwerk must become. The architecture, the ADRs and the roadmap
 derive from it and must not silently drop or reinterpret anything here.
 
-"pennestack" is a working name only. Everything else in this document is a requirement.
+"keelwerk" is the name chosen on 2026-10-28 (the working name until then was "pennestack"). Everything
+else in this document is a requirement.
 
 ## What it is
 
@@ -165,3 +166,4 @@ deployment" below).
   flags and A/B testing, single-purpose files and project layout.
 - 2026-10-24, addendum 4: pure functions, explicit inputs and outputs, no global state.
 - 2026-10-26, addendum 5: datastore agnosticism.
+- 2026-10-28: the project is named keelwerk (working name pennestack dropped).

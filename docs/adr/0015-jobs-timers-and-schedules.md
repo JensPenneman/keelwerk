@@ -19,7 +19,7 @@ named one `JobQueue` with three capabilities and pg-boss 12.37.1 on PostgreSQL a
 (gap G3).
 
 The review of 2026-10-11 found four problems. pg-boss exists only on PostgreSQL, while the plan runs
-the proof apps on MySQL and SQLite and `pennestack dev` on PGlite, which has a single connection.
+the proof apps on MySQL and SQLite and `keelwerk dev` on PGlite, which has a single connection.
 Asynchronous reactions were checkpointed consumers per namespace, so one tenant's slow or failing
 reaction blocked every tenant of a shared namespace (ADR 0007). Jobs carried a snapshot of the
 principal, so a removed member or a revoked key kept acting through queued work for days. Timers
@@ -28,7 +28,7 @@ fired under whoever set them, so the node-offline timer ran under the node's own
 ## Decision
 
 1. **One kernel queue.** The core implements `JobQueue` once, over a `JobStore` that every data
-   adapter provides in its unit (`ps_jobs` in the namespace, under the scope's row-level security).
+   adapter provides in its unit (`kw_jobs` in the namespace, under the scope's row-level security).
    Workers take jobs with `FOR UPDATE SKIP LOCKED` on PostgreSQL and MySQL and through the single
    writer on SQLite, PGlite and the in-memory adapter. A different implementation (a pg-boss entry)
    can replace it as deployment infrastructure behind the same interface.
@@ -67,8 +67,8 @@ fired under whoever set them, so the node-offline timer ran under the node's own
    its API version (ADR 0022).
 7. **Tenancy.** Jobs carry their scope; lane caps bound a tenant's running jobs per queue and the
    queued cap its backlog, which is the job side of the quota model (ADR 0025, replacing per-tenant
-   groups); finished jobs leave `ps_jobs` and keep their outcome, without input, in
-   `ps_job_history` for seven days.
+   groups); finished jobs leave `kw_jobs` and keep their outcome, without input, in
+   `kw_job_history` for seven days.
 
 ## Consequences
 

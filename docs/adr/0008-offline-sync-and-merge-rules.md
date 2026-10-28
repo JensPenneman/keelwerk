@@ -59,7 +59,7 @@ its own unit although an invocation has exactly one.
    random values or issued secrets), domain events with an author `evolve`,
    unique and `exclusive` fields, authentication and secrets, external side effects, invariants across
    entities, asynchronous and non-tenant actions.
-6. **Protocol.** The `sync` module (in `@pennestack/events`) provides `sync.register`, `sync.push`,
+6. **Protocol.** The `sync` module (in `@keelwerk/events`) provides `sync.register`, `sync.push`,
    `sync.pull`, `sync.poke` (built on the live module's pokes) and, in M7, `sync.crdt`; every
    transport can carry them. The per-client inbox is the client row's `lastClientSeq` plus the
    command receipts, kept until the client acknowledges them with `ackUpTo` on a later push;
@@ -77,7 +77,7 @@ its own unit although an invocation has exactly one.
    update in its event. Online whole-value writes are turned into operations (a minimal text diff)
    from the first collaborative field, so the stored form never changes; incremental CRDT sync by version vector, real-time
    batching and ephemeral presence arrive in M7. Yjs can become a second codec per field.
-9. **Reference client.** `@pennestack/sync-client`: local storage behind an interface (memory,
+9. **Reference client.** `@keelwerk/sync-client`: local storage behind an interface (memory,
    IndexedDB, SQLite), the clock, the pending queue, optimistic application of generated `set`
    operations, rebase, the rejected journal and typed local queries, over the app's typed client.
 10. **Milestones** (numbered as the roadmap since 2026-10-28; M8 and M9 before). M6 delivers the

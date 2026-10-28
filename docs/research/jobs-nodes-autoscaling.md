@@ -1,3 +1,6 @@
+> Note (2026-10-28): the project was renamed from pennestack to **keelwerk** on 2026-10-28; this
+> research note keeps the old name as written at the time.
+
 # Jobs, nodes and autoscaling
 
 Date: 2026-10-25. Status: research input for the sections "Asynchronous work: jobs, timers and

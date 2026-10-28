@@ -36,7 +36,7 @@ version and the JSON fallback for free-form GraphQL inputs open. Facts checked o
 
 ## Decision
 
-1. **REST** is pennestack's own projection on the shared host with its own OpenAPI emitter:
+1. **REST** is keelwerk's own projection on the shared host with its own OpenAPI emitter:
    - resources from generated entity actions (`GET` and `POST .../query` for `query`, `GET /{id}`
      and `POST .../get` for `get`, `POST`, `PATCH`, `DELETE` and `POST .../restore` for `set`, plus
      the batch form), custom entity commands as `POST /{collection}/{id}/{action}`, module actions
@@ -70,7 +70,7 @@ version and the JSON fallback for free-form GraphQL inputs open. Facts checked o
    `TrpcRouterOf<App>`, derived from the core's action tree and emitted as a type alias in the
    generated file, so there is no generated router code. `superjson` 2.2.6 is the default
    transformer (`json` as an option), with `Temporal.Instant` and `Temporal.PlainDate` registered
-   as custom types (decision 19b); errors carry the `WireError` in `data.pennestack`;
+   as custom types (decision 19b); errors carry the `WireError` in `data.keelwerk`;
    subscriptions are async generators over SSE (WebSocket as an option) yielding items and control
    frames, wrapped in `tracked(streamToken, ...)` when the subscription is resumable; an `either`
    command's result type is `Output | CommandReceipt`.
@@ -80,7 +80,7 @@ version and the JSON fallback for free-form GraphQL inputs open. Facts checked o
 5. **oRPC ships in the first release, beside tRPC** (decision 15b, 2026-10-26). This item first
    deferred it, because its typed client is covered by `AppClient<App>`, its OpenAPI handler by the
    REST module, and the CLI and tests use the invocation protocol; Jens included it anyway, to judge
-   its implementation and quality on real use despite its youth. `@pennestack/transport-orpc`
+   its implementation and quality on real use despite its youth. `@keelwerk/transport-orpc`
    (`@orpc/server` 1.16.1) builds its router from the surface like tRPC's, exports the derived type
    `OrpcRouterOf<App>` for `@orpc/client`, types declared errors per procedure, carries
    subscriptions as event iterators with stream tokens as event ids, ships in M2 and passes the same

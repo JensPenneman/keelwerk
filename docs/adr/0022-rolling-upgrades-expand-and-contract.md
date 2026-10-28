@@ -26,7 +26,7 @@ cannot be rolled back and starts only when every live node runs the new version.
 
 ## Decision
 
-1. **Build revisions.** `pennestack build` writes a manifest with the compatibility content
+1. **Build revisions.** `keelwerk build` writes a manifest with the compatibility content
    (migration files, event shapes, configuration versions, job formats, protocol majors, version
    change ids, API versions with their surfaces). `core.rollout` records the finalized revision and
    its content. At `connect`, equal content joins the finalized revision; content that only adds
@@ -53,11 +53,11 @@ cannot be rolled back and starts only when every live node runs the new version.
    first kept a renamed field's physical column, recorded in the snapshot, so that renames never
    waited; Jens chose that physical names always equal the derived names, and the snapshot keeps no
    column aliases.
-5. **Finalization and rollback.** `pennestack rollout finalize` raises the finalized revision when
+5. **Finalization and rollback.** `keelwerk rollout finalize` raises the finalized revision when
    every live process runs at the target revision; with `finalize: 'auto'`, the default, a
    singleton finalizer does so once that has held for the grace period (600 seconds).
    Finalization switches writers to the new formats and starts backfills. Before it, rollback is a
-   redeploy of the finalized build, then `pennestack rollout abort`, which moves the target's jobs
+   redeploy of the finalized build, then `keelwerk rollout abort`, which moves the target's jobs
    the finalized build can run and parks the rest; after it, going back means a restore.
 6. **Clients** resume by token at the same API version after `going_away`; `welcome` carries
    `apiVersion`, `surfaceHash` and the protocol major; a stream whose version is retired ends with

@@ -56,7 +56,7 @@ credential-scope gaps (G1, G4, G13) depend on them.
    processes through the quota model, on login, passkey ceremonies, re-authentication and resets;
    unknown identifiers take the same time as known ones.
 8. **Login flows.** Browsers receive the token as a `__Host-` cookie set by the `http.cookie` hint
-   (bearer tokens under path-based tenant resolution); the CLI's `pennestack login` uses actions
+   (bearer tokens under path-based tenant resolution); the CLI's `keelwerk login` uses actions
    with a `cli.login` hint and stores the token in a mode-0600 file, with a device authorization
    flow for passkey-only accounts.
 9. **Realms per tenant.** Credentials and sessions are tenant rows; one login across tenants or

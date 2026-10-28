@@ -8,7 +8,7 @@ Proposed
 
 ## Context
 
-pennestack is designed and built by several people and agents working in parallel against one
+keelwerk is designed and built by several people and agents working in parallel against one
 specification, [architecture.md](../architecture.md), from one requirements source,
 [brief.md](../brief.md). The brief is appended over time and explicitly asks that a change to the
 kernel be recorded. The specification says what the framework is; it does not record why a

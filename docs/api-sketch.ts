@@ -1,5 +1,5 @@
 /**
- * pennestack public API sketch, as seen by an application author.
+ * keelwerk public API sketch, as seen by an application author.
  * Date: 2026-10-28 (first version 2026-10-08; rewritten in the literal form on 2026-10-24, in the
  * strict model of decision 50a on 2026-10-25, and for the decisions of 2026-10-26 to 2026-10-28:
  * one rule per file (60b), the generated manifest (59b), the Maybe accessor (32b) and Temporal
@@ -69,14 +69,14 @@ import {
   type ModuleBaseType,
   type ModuleType,
   type Row,
-} from '@pennestack/core'
-import { ledgerFile } from '@pennestack/core/ledger'
-import { postgresAdapter } from '@pennestack/adapter-postgres'
-import { httpHost } from '@pennestack/transport-http'
-import { rest } from '@pennestack/transport-rest'
-import { graphql } from '@pennestack/transport-graphql'
-import { live } from '@pennestack/live'
-import type { AppClient } from '@pennestack/client'
+} from '@keelwerk/core'
+import { ledgerFile } from '@keelwerk/core/ledger'
+import { postgresAdapter } from '@keelwerk/adapter-postgres'
+import { httpHost } from '@keelwerk/transport-http'
+import { rest } from '@keelwerk/transport-rest'
+import { graphql } from '@keelwerk/transport-graphql'
+import { live } from '@keelwerk/live'
+import type { AppClient } from '@keelwerk/client'
 
 // ============================================================================
 // 1. accounts: the lower module of the pair. It knows nothing about auth.
@@ -326,7 +326,7 @@ const login = defineCommand(authBase, {
   auth: { public: true },
   execution: 'sync',
   hints: {
-    http: { cookie: { set: { name: '__Host-pennestack_session', from: 'sessionToken', expiresFrom: 'expiresAt' }, omitFromBody: ['sessionToken'] } },
+    http: { cookie: { set: { name: '__Host-keelwerk_session', from: 'sessionToken', expiresFrom: 'expiresAt' }, omitFromBody: ['sessionToken'] } },
     cli: { login: { tokenField: 'sessionToken' } },
   },
   *decide(input, ctx) {
@@ -356,7 +356,7 @@ const login = defineCommand(authBase, {
 const logout = defineCommand(authBase, {
   principal: 'user',
   execution: 'sync',
-  hints: { http: { cookie: { clear: { name: '__Host-pennestack_session' } } } },
+  hints: { http: { cookie: { clear: { name: '__Host-keelwerk_session' } } } },
   decide: (_input, ctx) => {
     const sessionId = ctx.principal.ref?.credentialId
     return sessionId ? [ctx.write.auth.session.update(sessionId, { revokedAt: ctx.clock.now() })] : []
@@ -702,22 +702,22 @@ export default defineDeployment({
   infrastructure: [
     postgresAdapter(),
     httpHost({ listen: [{ port: 3000 }] }), // provides contracts.httpHost; serves the invocation protocol for every app
-    ledgerFile({ path: '/var/lib/pennestack-ledger/erasure.log' }), // erasures and chain anchors (decision 35b)
+    ledgerFile({ path: '/var/lib/keelwerk-ledger/erasure.log' }), // erasures and chain anchors (decision 35b)
   ],
-  control: { adapter: 'postgres', url: env('PENNESTACK_CONTROL_URL') }, // env() and secret() read the environment here only
+  control: { adapter: 'postgres', url: env('KEELWERK_CONTROL_URL') }, // env() and secret() read the environment here only
   placements: {
-    default: { adapter: 'postgres', url: env('PENNESTACK_DATA_URL'), strategy: 'shared-tables' },
-    isolated: { adapter: 'postgres', url: env('PENNESTACK_ISOLATED_URL'), strategy: 'schema-per-tenant' },
+    default: { adapter: 'postgres', url: env('KEELWERK_DATA_URL'), strategy: 'shared-tables' },
+    isolated: { adapter: 'postgres', url: env('KEELWERK_ISOLATED_URL'), strategy: 'schema-per-tenant' },
   },
-  tenantResolution: [byHostname(), byScopeKey(), byHeader('x-pennestack-tenant')],
-  operator: { socket: '/run/pennestack/operator.sock', bootstrapSecret: secret('PENNESTACK_OPERATOR_SECRET') },
-  keys: { masterKey: secret('PENNESTACK_MASTER_KEY') },
+  tenantResolution: [byHostname(), byScopeKey(), byHeader('x-keelwerk-tenant')],
+  operator: { socket: '/run/keelwerk/operator.sock', bootstrapSecret: secret('KEELWERK_OPERATOR_SECRET') },
+  keys: { masterKey: secret('KEELWERK_MASTER_KEY') },
   telemetry: { otlp: env('OTEL_EXPORTER_OTLP_ENDPOINT') },
 })
 
 // ============================================================================
 // 5. Calling actions: the CLI, tests and modules all go through the invoker. Callers outside
-//    pennestack are imperative code; they await outcomes, handlers never do.
+//    keelwerk are imperative code; they await outcomes, handlers never do.
 // ============================================================================
 
 export async function example(operator: AppClient<Portal>, client: AppClient<Portal>) {

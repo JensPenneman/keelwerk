@@ -1,3 +1,6 @@
+> Note (2026-10-28): the project was renamed from pennestack to **keelwerk** on 2026-10-28; this
+> research note keeps the old name as written at the time.
+
 # Research: project layout and the single-purpose rule
 
 Date: 2026-10-24. Author: the layout designer, one of three designers of brief addendum 3. Question:

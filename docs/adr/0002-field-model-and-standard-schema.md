@@ -28,8 +28,8 @@ Candidates examined (research: interfaces-and-devx.md section 2, data-layer.md s
 
 ## Decision
 
-pennestack defines its own small field model (`field.*` builders and `shape()`), owned by
-`@pennestack/core`. A field carries, at the value level, its kind, modifiers and constraints and,
+keelwerk defines its own small field model (`field.*` builders and `shape()`), owned by
+`@keelwerk/core`. A field carries, at the value level, its kind, modifiers and constraints and,
 at the type level, its TypeScript type and every flag that changes a derived type: optionality,
 default, uniqueness, hidden, maskable, merge type, personal subject, `stateOnly` and the
 reference it points to. Every modifier returns a field that keeps all earlier flags. The field

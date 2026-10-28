@@ -1,6 +1,6 @@
-# pennestack
+# keelwerk
 
-pennestack (a working name) is a backend framework written fully in TypeScript. An application is a
+keelwerk (a working name) is a backend framework written fully in TypeScript. An application is a
 set of modules that own entities and the actions on them; transports (REST, GraphQL, tRPC, a CLI,
 later others), authorization, live updates and data storage are all derived from those definitions,
 and one deployment hosts several backends with many tenants each.
@@ -8,11 +8,11 @@ and one deployment hosts several backends with many tenants each.
 The framework is the product. Two platforms prove it and will run in one deployment:
 
 1. a self-hosted deployment platform: the backend of the existing Launchway product, rebuilt on
-   pennestack;
+   keelwerk;
 2. a mail server for the domain `jenspenneman.com`, designed in full and parked until there is a
    stable, permanent deployment option for it.
 
-Trail, a self-hosted location history, is the first app rebuilt on pennestack, Launchway the
+Trail, a self-hosted location history, is the first app rebuilt on keelwerk, Launchway the
 second; each lives in its own repository and depends only on the published packages.
 
 ## Status
@@ -20,11 +20,11 @@ second; each lives in its own repository and depends only on the published packa
 Architecture phase, as of 2026-10-28. The architecture is complete: every question of the decision
 register is decided, and only the mail server's questions are parked with it. Nothing is runnable
 yet: the repository holds the requirements, the specification, the decision records, the research
-and the plan. The design waits for Jens's approval and for the final name (pennestack is a working
+and the plan. The design waits for Jens's approval and for the final name (keelwerk is a working
 name); until then the ADRs are `Proposed`, and implementation starts with milestone M0 of the
 roadmap.
 
-The code and the design documents may be public on GitHub (JensPenneman/pennestack) from the start,
+The code and the design documents may be public on GitHub (JensPenneman/keelwerk) from the start,
 at a moment Jens chooses, with the licence in every commit. Every commit is signed with the author's
 personal identity.
 
@@ -33,7 +33,7 @@ personal identity.
 The framework and every app built on it stay in beta until Jens, and only Jens, declares them
 stable. Every package is published as a 0.x pre-release, and every app pins exact versions, so an
 upgrade is a deliberate change in the app's repository. Nothing is sequential: the apps are rebuilt
-while the framework grows, Trail first and Launchway second. Applications built on pennestack live
+while the framework grows, Trail first and Launchway second. Applications built on keelwerk live
 in their own repositories and depend only on the published packages, never on this repository,
 which keeps a minimal example app for its own CI.
 
@@ -71,7 +71,7 @@ which keeps a minimal example app for its own CI.
 ## Licence
 
 Functional Source License, Version 1.1, ALv2 Future License (FSL-1.1-ALv2): see
-[LICENSE.md](LICENSE.md). You may use, copy, modify and redistribute pennestack for any purpose
+[LICENSE.md](LICENSE.md). You may use, copy, modify and redistribute keelwerk for any purpose
 except offering it as a competing product; each version becomes Apache-2.0 two years after its
 release. Licensor: Jens Penneman. Decided on 2026-10-27 (decision 20 in
 [docs/decisions.md](docs/decisions.md)); a Belgian IP lawyer reviews the text before publication.

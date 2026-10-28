@@ -67,7 +67,7 @@ and the key hierarchy had no keys for secrets that are not tenant data.
    rows the subject owns. History reads show redaction markers where keys are gone.
 6. **Backups and restore.** The ledger and the tombstones of destroyed keys live where a placement
    restore cannot rewind them: in the control store on its own database cluster and in append-only
-   ledger sinks; `pennestack doctor` warns when the control store and a placement share a cluster
+   ledger sinks; `keelwerk doctor` warns when the control store and a placement share a cluster
    without a sink. At `connect` the kernel replays the ledger before a namespace serves traffic. It
    also compares each namespace's cluster identity (on PostgreSQL the system identifier and the
    timeline) and each scope's counters with high-water marks recorded outside the placement; a
@@ -91,7 +91,7 @@ and the key hierarchy had no keys for secrets that are not tenant data.
    of that event no longer verifies; inside CRDT history it uses Loro's redaction.
 10. **Elsewhere.** Personal, secret, verifier and hidden values never enter logs, traces or decision
     logs; receipts of entity commands store references rather than rows; finished jobs keep only
-    their outcome, without input, in `ps_job_history` for seven days (ADR 0025).
+    their outcome, without input, in `kw_job_history` for seven days (ADR 0025).
 
 ## Consequences
 

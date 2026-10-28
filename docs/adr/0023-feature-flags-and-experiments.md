@@ -19,7 +19,7 @@ owner, a target group or an expiry.
 
 Three placements were considered:
 
-- `@pennestack/core`, with typed `ctx.flags` in every module;
+- `@keelwerk/core`, with typed `ctx.flags` in every module;
 - a module providing a `flags` contract that others list in `requires` or `optional`, so
   `ctx.flags` may be absent and the kernel's own stages cannot rely on it;
 - only the apps, each wiring a flag SDK into handlers, which leaves rules, `admit`, transports and
@@ -56,7 +56,7 @@ check at p < 0.001.
 5. **Provenance.** Every appended event records its writer's build and the flags its invocation
    read; spans and counters carry flag, variant and reason. Stale reports cover expiry, one value
    for everyone for 14 days, 30 days without evaluation and targeting that no build defines.
-6. **Experiments are a module**, `@pennestack/module-experiments`: experiments and metrics at
+6. **Experiments are a module**, `@keelwerk/module-experiments`: experiments and metrics at
    backend level, exposures and tallies in each tenant's namespace, exposures recorded through the
    `flagObservers` extension point, tallies updated by an `observes: 'all'` reaction, and results
    from two-proportion z-tests and Welch's t-tests with 95 % intervals, inconclusive before the

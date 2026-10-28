@@ -29,7 +29,7 @@ the adapters.
 
 1. **Sealed state columns.** Personal values are sealed in state columns with AES-256-GCM under the
    subject's data key, padded to 16 bytes, with associated data binding namespace, entity, row id,
-   field and key id; the column holds the binary form of the chain's `$pse` envelope.
+   field and key id; the column holds the binary form of the chain's `$kwe` envelope.
 2. **Declared capabilities.** `.personal({ subject?, queries?, normalize?, ... })` with `eq`,
    `prefix`, `contains`, `order` and `search`. Equality and uniqueness come from a 128-bit blind
    index and are implied by `.unique()`, `.index()` and entity indexes; every other capability is
@@ -50,7 +50,7 @@ the adapters.
    fallback a module author writes is an explicit, bounded scan in a custom query. A capability the
    adapter lacks for a declared operator is another matter (brief addendum 5, decision 12a): the
    kernel serves it, order through a bounded scan and tag sets through index tables, and
-   `pennestack doctor` reports the cost; nothing refuses at `connect`.
+   `keelwerk doctor` reports the cost; nothing refuses at `connect`.
 7. **Adapters** declare `encryptedQueries` (equality, tag sets, order, scan bound): PostgreSQL first,
    MySQL and SQLite in M5; an unsealing oracle is the dual-evaluation reference.
 8. **Keys, rotation, erasure.** Rotating index keys or changing a normaliser is a reindex through
@@ -70,7 +70,7 @@ the adapters.
 - Every personal write costs one encryption and one HMAC per tag; indexes grow (5 to 10 KB per
   message on PostgreSQL, to be measured with the mail foundations, parked with the mail server; M4
   measures the prefix and trigram indexes of Launchway's admin search).
-- Low-entropy personal fields gain little from equality indexes, and `pennestack doctor` says so.
+- Low-entropy personal fields gain little from equality indexes, and `keelwerk doctor` says so.
 - The mail token index reveals word presence to someone who can both mail the account and read a
   dump; per-account keys confine it to that account.
 - Capability, normaliser and key changes are reindexes; mail search no longer needs `tsvector` or

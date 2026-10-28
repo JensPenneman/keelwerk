@@ -40,7 +40,7 @@ consumer and as a reader in every process, that the generated change was named `
 
 ## Decision
 
-1. **One module.** `@pennestack/live` (module id `live`) fills the `single` kernel extension point
+1. **One module.** `@keelwerk/live` (module id `live`) fills the `single` kernel extension point
    `liveHub` with the hub (and provides the `live` contract), `liveCarriers` with the SSE and
    WebSocket carriers, the kernel extension point `entityActionGenerators` with the core's `watch`
    template on every entity, and `principalResolvers` with a stream-ticket resolver; it declares
@@ -84,7 +84,7 @@ consumer and as a reader in every process, that the generated change was named `
    hours or on shutdown and are resumed by token on any process; no sticky sessions.
 6. **Carriers.** SSE (`text/event-stream` with `id`, `event: data | head | reset | gap | error |
    end`, heartbeat comments) for the invocation protocol and REST; a WebSocket subprotocol
-   `pennestack.live.v1` (first-message `hello` with credentials, multiplexed `subscribe` and
+   `keelwerk.live.v1` (first-message `hello` with credentials, multiplexed `subscribe` and
    `unsubscribe`, `invoke` for commands on the same connection, ephemeral `presence` from milestone
    M7 (M9 before the roadmap's renumbering of 2026-10-28), close codes aligned with the error
    table). Every WebSocket upgrade and every cookie-authenticated SSE request passes the host's
@@ -120,6 +120,6 @@ consumer and as a reader in every process, that the generated change was named `
 - Resumption depends on the data layer's tokens and disclosure rule; a change to the token form
   would need a change of ADR 0007 as well.
 - Without the `broadcast` capability, topics and presence still cross processes, through polling,
-  at up to one polling interval of extra delay, which `pennestack doctor` reports.
+  at up to one polling interval of extra delay, which `keelwerk doctor` reports.
 - WebSocket support means one more protocol to secure (origin checks, first-message authentication,
   close codes, limits); SSE remains sufficient for clients with few subscriptions or with HTTP/2.

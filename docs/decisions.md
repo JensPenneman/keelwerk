@@ -77,7 +77,7 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
     To apply: sections 14.3.3 (capabilities become accelerations with fallbacks), 14.3.8 (the SQL
     hatch declares its dialect and non-portability), 12, 26; ADR 0006. See section K.
 13. **Drizzle.** a) ★ wait for Drizzle 1.0 and import existing schemas with
-    `pennestack db introspect --drizzle`; b) build a Drizzle-based adapter now on 0.45.
+    `keelwerk db introspect --drizzle`; b) build a Drizzle-based adapter now on 0.45.
     Status: decided 2026-10-26: **a**, and lowered: Drizzle was a passing thought, not a requirement;
     no Drizzle-backed adapter, and the schema import stays an optional later convenience (roadmap M7
     'Later'). The brief's mention of Drizzle is read as "any ORM-defined schema can be imported", not
@@ -90,12 +90,12 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
     beside tRPC, same conformance suite), ADR 0011 (reverse 'oRPC deferred'), section 22 package
     list (`transport-orpc` already listed), roadmap M2; see section K.
 16. **CLI namespace.** a) ★ action commands at the top level with 34 reserved names (`fleet` included) (29 plus
-    `flags`, `new`, `rollout` and `surface` from addendum 3); b) under a verb (`pennestack run
+    `flags`, `new`, `rollout` and `surface` from addendum 3); b) under a verb (`keelwerk run
     <module> ...`). Status: decided 2026-10-26: **b**, action commands under a verb; no name is ever reserved because of
     an integration, plugin or module. Verb to confirm (question 81). To apply: sections 16.9.3
     (no reserved module ids), 16.9.7, 23 (scaffold docs), ADR 0013; question 62 becomes pure naming;
     see section K.
-17. **Operator impersonation** (`pennestack explain --as <principal>`). a) ★ evaluate everywhere,
+17. **Operator impersonation** (`keelwerk explain --as <principal>`). a) ★ evaluate everywhere,
     execute only in development; b) also execute in production, logged. Status: decided 2026-10-26: **a**, evaluate everywhere, execute only in development; applied
     (section 16.9).
 18. **Protobuf field tags.** a) ★ allocate from day one; b) when the Connect transport arrives.
@@ -109,7 +109,7 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
     Future License), Licensor Jens Penneman; LICENSE.md added to the repository; applied (section 22,
     README).
 21. **Outbound mail from the home connection.** a) ★ relay through an external host first (direct
-    delivery is built anyway); b) a second pennestack process with the `smtp-out`
+    delivery is built anyway); b) a second keelwerk process with the `smtp-out`
     capability on a host with a clean address; c) direct delivery from home. Status: parked 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
     option; the design stays in the architecture, the decision waits.
 22. **IMAP.** a) ★ an own IMAP listener after JMAP (M6); b) JMAP only; c) an external IMAP server
@@ -173,7 +173,7 @@ Data:
     first releases; revisit with the audit module. Status: decided 2026-10-27: **b**, chain heads anchored from the start: per scope, the latest head
     (position, hash) is appended to the deployment's ledger sinks (the ledger file and later sinks) at
     a configurable cadence (default every commit batch of the notifier, at most once per second per
-    scope), and `pennestack db verify` compares heads with the anchors. To apply: sections 15.1.8,
+    scope), and `keelwerk db verify` compares heads with the anchors. To apply: sections 15.1.8,
     14.7.6, 17.5.2, 16.9 (verify), ADR 0007; see section K.
 36. **GraphQL for operator work.** a) ★ operator work stays on the invocation protocol and the
     CLI; b) also an operator GraphQL schema at the operator endpoint. Status: decided 2026-10-27: **a**, operator work on the invocation protocol and the CLI; applied
@@ -207,7 +207,7 @@ Data:
     ManageSieve from the start. Status: parked 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
     option; the design stays in the architecture, the decision waits.
 44. **Webmail before a UI exists.** a) ★ a third-party JMAP web client is acceptable; b) no
-    webmail until pennestack has its own UI. Status: parked 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
+    webmail until keelwerk has its own UI. Status: parked 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
     option; the design stays in the architecture, the decision waits.
 45. **One login for Launchway and mail.** a) ★ separate realms per tenant first, an OpenID
     Connect provider module later; b) the provider module from the start. Status: decided 2026-10-27: **a**, separate realms by default, an optional OpenID Connect provider
@@ -225,16 +225,16 @@ Data:
     17.3.6 (preview teardown reclaims runtime only), roadmap M3; see section K.
 48. **Where Launchway's modules live.** a) ★ `examples/launchway` in this repository until the
     framework is public, then the Launchway repository; b) the Launchway repository from the
-    start. Status: decided 2026-10-27: **c**, neither: every app built on pennestack lives in its own
-    repository and depends only on the published packages (never on the pennestack repository); the
-    pennestack repository keeps a minimal example app for its own CI. Rules from Jens: nothing is
+    start. Status: decided 2026-10-27: **c**, neither: every app built on keelwerk lives in its own
+    repository and depends only on the published packages (never on the keelwerk repository); the
+    keelwerk repository keeps a minimal example app for its own CI. Rules from Jens: nothing is
     sequential (apps are rebuilt while the framework grows, on 0.x pre-releases pinned to exact
     versions); the framework and every app stay in beta until Jens, and only Jens, declares them
     stable; Trail is rebuilt first, Launchway second; the design documents are public from the
     start, with the licence applied from the first commit. To apply: roadmap (M3 Trail in its own
     repository, M4 Launchway in its own repository, mail parked after; a 'beta' section), sections
     17 (Launchway modules no longer under examples/), 22, 24, README; see section K.
-49. **Outbound webhooks.** a) ★ part of Launchway's first pennestack release (M3); b) later.
+49. **Outbound webhooks.** a) ★ part of Launchway's first keelwerk release (M3); b) later.
     Status: decided 2026-10-27: **a**, outbound webhooks ship with Launchway's rebuild (M4 after the
     reorder); applied (roadmap).
 ## E. Addendum 4 (2026-10-24): pure functions
@@ -268,7 +268,7 @@ Versioning, rollouts and flags:
 
 51. **Where flags live.** Where do feature flags live? a) ★ framework core: `defineFlag`, typed
     `ctx.flags`, gates and provenance, with experiments as an optional module
-    (`@pennestack/module-experiments`), because flags are needed in rules, `admit`, transports,
+    (`@keelwerk/module-experiments`), because flags are needed in rules, `admit`, transports,
     jobs and the kernel's own rollouts, and only the core reaches all of them; b) a flags module
     that other modules require or list as optional; c) only in the apps built on the framework.
     Status: decided 2026-10-28: **a**, flags in the framework core, experiments as a module; applied
@@ -290,7 +290,7 @@ Versioning, rollouts and flags:
 54. **Automatic finalization.** Is finalization of a rollout automatic? a) ★ automatic once every
     live process has run the target revision for a 600-second grace period, with a manual mode per
     deployment; contract steps stay manual because they destroy data; b) always manual
-    (`pennestack rollout finalize`). Status: decided 2026-10-28: **a**, automatic finalization after the grace period, contract steps
+    (`keelwerk rollout finalize`). Status: decided 2026-10-28: **a**, automatic finalization after the grace period, contract steps
     manual; applied (section 19, ADR 0022).
 55. **Field renames in production.** How are field renames handled in production? a) ★ keep the
     physical column recorded in the snapshot (a logical rename, no DDL); type changes and splits
@@ -304,7 +304,7 @@ Versioning, rollouts and flags:
     server? a) ★ their own container (a named process of gap G9), replaced by stop and start in
     seconds: SMTP senders retry and IMAP clients reconnect, and the HTTP container rolls blue-green
     behind Caddy; b) a TCP proxy in front that drains connections (no drops, one more component);
-    c) keep them in the single pennestack container and accept a restart. Status: parked 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
+    c) keep them in the single keelwerk container and accept a restart. Status: parked 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
     option; the design stays in the architecture, the decision waits.
 57. **Experiment statistics.** Which statistics does the first experiments module offer? a) ★
     fixed-horizon frequentist tests (two-proportion z-test, Welch's t-test, 95 % intervals) with a
@@ -315,7 +315,7 @@ Versioning, rollouts and flags:
     after its export? a) ★ kebab-case derived from the export by `kebab()` of architecture.md
     section 16.4.1 (`changePassword` -> `change-password.ts`): it matches module ids, CLI routes
     and REST paths and is safe on case-insensitive file systems; the file-to-export check runs in
-    `pennestack doctor`'s layout pass until a Biome JavaScript plugin can do it in the editor;
+    `keelwerk doctor`'s layout pass until a Biome JavaScript plugin can do it in the editor;
     b) the identifier's own case (`changePassword.ts`), which Biome 2.5.15 checks in the editor
     with `useFilenamingConvention` `filenameCases: ["export"]`; paths then mix kebab module
     directories with camelCase files, and case-only renames can slip past git on macOS and
@@ -324,10 +324,10 @@ Versioning, rollouts and flags:
     `base.ts` holds the module base and parts are typed against it through the part functions
     (`defineCommand(base, ...)` and the others); `module.ts` imports every part and mounts it in the
     module literal; scaffolds insert the import and the entry; no generator sits in the type path,
-    and the API name is set in code; b) generated: `pennestack generate` writes
+    and the API name is set in code; b) generated: `keelwerk generate` writes
     `module.generated.ts` from the directory conventions, and `generate --check` catches drift in
     CI; nothing needs registering by hand, but the types are stale until the generator runs and a
-    file's path decides its action reference. Status: decided 2026-10-28: **b**, a generated manifest: `pennestack generate` (and the dev server on
+    file's path decides its action reference. Status: decided 2026-10-28: **b**, a generated manifest: `keelwerk generate` (and the dev server on
     every file change) writes `module.generated.ts`, a module literal assembled from the directory
     conventions (3b still holds: it is a literal, only written by a tool); `generate --check` fails CI
     on drift; an action's reference comes from its file name and its directory (entity or module
@@ -351,11 +351,11 @@ Versioning, rollouts and flags:
 ## G. Jobs, nodes and autoscaling (designed 2026-10-25; decision 6 above is the main choice)
 
 62. **Fleet command name.** Launchway already has a module `nodes`, so the framework's command group
-    for nodes, processes and scaling needs another name. a) ★ `pennestack fleet` (list, show, watch,
-    cordon, uncordon, drain, probe, forget, scale ...), one more reserved name (34); b) `pennestack
-    nodes` and rename Launchway's module; c) `pennestack x nodes` until the next major. Status: decided 2026-10-28: **a**, `pennestack fleet`; applied (sections 16.9, 21).
+    for nodes, processes and scaling needs another name. a) ★ `keelwerk fleet` (list, show, watch,
+    cordon, uncordon, drain, probe, forget, scale ...), one more reserved name (34); b) `keelwerk
+    nodes` and rename Launchway's module; c) `keelwerk x nodes` until the next major. Status: decided 2026-10-28: **a**, `keelwerk fleet`; applied (sections 16.9, 21).
 63. **When automatic scaling ships.** a) ★ M3: the scaler as a pure plan with the static provider
-    (recommendations in `pennestack fleet scale status`); M5: the opt-in docker provider for extra
+    (recommendations in `keelwerk fleet scale status`); M5: the opt-in docker provider for extra
     workers; b) the docker provider already in M3; c) recommendations only until a Kubernetes or
     cloud provider exists. Status: decided 2026-10-28: **a**, scaler with the static provider first, the docker provider one
     milestone later; Jens wants a Kubernetes (or similar) provider in the future, so the
@@ -378,7 +378,7 @@ Versioning, rollouts and flags:
     b) exact code points; c) caseless by default. Status: decided 2026-10-28: **a**, NFC by default, `email` for e-mail fields; applied (section 14.7.9).
 67. **Server-side mail search over personal text.** a) ★ a per-account keyed token index over
     subject, addresses and bodies (`search: 'full'`, switchable to `'headers'` or `'off'` per
-    backend); b) headers only, bodies by bounded scans; c) no server-side search until pennestack
+    backend); b) headers only, bodies by bounded scans; c) no server-side search until keelwerk
     has its own client. Status: parked 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
     option; the design stays in the architecture, the decision waits.
 68. **Mail search matching.** a) ★ word and stem matching for JMAP and IMAP (a documented deviation
@@ -436,7 +436,7 @@ Versioning, rollouts and flags:
     requests; applied (section 7.9.3).
 78. **Where effect records live.** a) ★ in the chain: one `core.effect` stream per effect
     (requested, settled), positioned and hashed with the scope's other events, attempts as stream
-    records kept 90 days; b) a separate `ps_effects` table per namespace with its own retention,
+    records kept 90 days; b) a separate `kw_effects` table per namespace with its own retention,
     not hashed. Status: decided 2026-10-28: **a**, effect records in the chain (`core.effect` streams); applied
     (section 7.9.6). Note from 47c: attempt records are kept, not purged after 90 days, unless Jens
     adopts a rule; see section K.
@@ -455,7 +455,7 @@ Versioning, rollouts and flags:
   rename: `ReadContext`, `SourceContext`, `KernelInvocationContext`, `TargetLoads`, `TargetRowOf`,
   `PrepareHandler`, `ExecutorSecrets`, `LiveSource`, `PendingEffect`, `EffectOptions`,
   `ctx.flagDetails`, `nodes.ack`, `settle({ effect, id, where }, outcome)`, the REST header
-  `Pennestack-Effects`, the GitHub effects `mirrorStatus`, `listReleases`, `convertManifest`, the
+  `Keelwerk-Effects`, the GitHub effects `mirrorStatus`, `listReleases`, `convertManifest`, the
   relay probe shapes, the lib helper `combine`.
 - Section 14.3.8 still lists scoping rules for update, delete and insert although the SQL escape
   hatch is read-only under 50a; kept as defence in depth, may be cut.
@@ -464,16 +464,16 @@ Versioning, rollouts and flags:
 
 ## I2. Follow-ups of decisions (2026-10-26)
 
-81. **The verb for action commands** (from 16b). a) ★ `pennestack call <module.entity.action>` with
+81. **The verb for action commands** (from 16b). a) ★ `keelwerk call <module.entity.action>` with
     the dotted reference everyone already uses (`call deployments.deployment.run --project ...`);
-    b) `pennestack run <module> <entity> <action>` (words instead of dots; reads oddly for actions
-    named run); c) `pennestack do ...`. Status: decided 2026-10-26: **a**, `pennestack call <module.entity.action>`; see section K (16b).
+    b) `keelwerk run <module> <entity> <action>` (words instead of dots; reads oddly for actions
+    named run); c) `keelwerk do ...`. Status: decided 2026-10-26: **a**, `keelwerk call <module.entity.action>`; see section K (16b).
 82. **The edge implementation** (asked 2026-10-26 after Jens wondered about a custom edge). a) ★ Caddy
     behind an `edgeProvider` contract owned by the `edge` module (`edge-caddy` now; a custom
     `edge-native` listener module, Traefik or Envoy later); b) a custom edge from the start (own TLS,
     ACME, proxy, routing; M3 grows by a milestone; no HTTP/3 on Node); c) Caddy hard-wired as today.
     Status: decided 2026-10-26: **a**. To apply: section 17.3.7 (edge module gains the provider
-    contract and its desired-state model), section 22 (`@pennestack/edge-caddy`), roadmap M3; see
+    contract and its desired-state model), section 22 (`@keelwerk/edge-caddy`), roadmap M3; see
     section K.
 
 ## I3. Licensing follow-ups (from the 2026-10-26 research; decision 20 is the main choice)
@@ -484,10 +484,10 @@ Versioning, rollouts and flags:
     c) only when Launchway runs on it. Status: revised 2026-10-27: the code and the design documents may be public from the start, at a
     moment Jens chooses, with the licence in every commit (history rewritten so LICENSE.md exists from
     the first commit).
-84. **Trademark "pennestack".** a) ★ confirm the name is final, run a TMview check (a German
+84. **Trademark "keelwerk".** a) ★ confirm the name is final, run a TMview check (a German
     "Pinestack GmbH" exists), file at BOIP in classes 9 and 42 (about €271); b) EU at EUIPO (about
-    €900 for two classes); c) wait. pennestack.com, .be and .io were free on 2026-10-26; no
-    @pennestack npm organisation exists yet. Status: decided 2026-10-27: **c**, wait; Jens looks into trademarks when it comes to that.
+    €900 for two classes); c) wait. keelwerk.com and keelwerk.dev were free on 2026-10-28 (checked with the registries' RDAP); no
+    @keelwerk npm organisation exists yet. Status: decided 2026-10-27: **c**, wait; Jens looks into trademarks when it comes to that.
 85. **Outside contributions.** a) ★ none for now (issues and discussions only) until a
     lawyer-reviewed CLA with an explicit right to relicense exists; b) DCO sign-off (contributors keep
     copyright; later relicensing needs their consent, which blocks dual licensing); c) CLA now,
@@ -505,25 +505,49 @@ roadmap, README, api-sketch.ts). Milestone numbers changed in that pass: the reg
 to M8 (offline sync), M9 (collaborative fields) and M7 (data breadth, ORE) now read M6, M7 and M5;
 roadmap section 6 maps old to new.
 
+91. **The name.** Decided 2026-10-28: **keelwerk** (keel: the first beam of a ship; werk). Checked free
+    on npm (package and scope), GitHub, .com and .dev; no company or product found by web search; a
+    TMview check belongs to the deferred trademark step (84c). Every document, identifier prefix
+    (`kw_` tables, `$kwe` envelope marker, `kws_` tokens, `KEELWERK_*` environment, `@keelwerk/*`
+    packages, the `keelwerk` CLI, `keelwerk.config.ts`, `.keelwerk`-free: the per-repo directory stays
+    `.launchway/` per 90c) was renamed on 2026-10-28. Status: applied.
+
+## K2. Edits to apply at the next editor pass
+
+- 90c: the `.launchway/` directory convention (deployment.ts + launchway.ts + compose.yaml for the
+  interim), the CLI's config lookup order, Launchway's project model reading it (replacing the
+  `composeFiles` setting of today's Launchway), app repository layout in 23, roadmap M3/M4.
+
 ## L. Questions raised by applying the decisions (2026-10-28)
 
-88. **Where the edge module lives** (consequence of 82a). `@pennestack/edge-caddy` is a pennestack
-    package, and a pennestack package cannot fill an extension point of a module that lives in
-    Launchway's repository. a) ★ the `edge` module becomes a shared pennestack module
-    (`@pennestack/module-edge`: sites, routes, certificates policy, the `edgeProvider` extension
+88. **Where the edge module lives** (consequence of 82a). `@keelwerk/edge-caddy` is a keelwerk
+    package, and a keelwerk package cannot fill an extension point of a module that lives in
+    Launchway's repository. a) ★ the `edge` module becomes a shared keelwerk module
+    (`@keelwerk/module-edge`: sites, routes, certificates policy, the `edgeProvider` extension
     point, `edge.apply` performed by the edge node's agent); Launchway's `domains` declares the
     sites it needs; b) the edge module stays in Launchway and the Caddy provider lives there too (no
-    shared package; a second platform wanting an edge copies it). Status: open.
+    shared package; a second platform wanting an edge copies it). Status: decided 2026-10-28: **a**, `@keelwerk/module-edge` as a shared module; applied by the
+    editor pass (sections 17.3, 22).
 89. **Anchor content** (consequence of 35b; a stored format, needed before M1). a) ★ an anchor
     carries the scope's latest position and hash only; b) also a digest of every stream head in the
     scope, so a rewrite of one stream's history is detectable from the anchor alone, at the cost of
-    larger anchors per scope. Status: open.
+    larger anchors per scope. Status: decided 2026-10-28: **a**, position and hash only; applied (section 15.1.8; the 26.3 question
+    is closed).
 90. **Where a deployment definition lives now that every app has its own repository.** a) ★ each app
-    repository carries its own `pennestack.config.ts` and runs as its own deployment until
+    repository carries its own `keelwerk.config.ts` and runs as its own deployment until
     Launchway is rebuilt (M4), after which one deployment can host several apps from published
     packages; b) one separate deployment repository from the start, importing the apps as packages.
-    Status: open.
-
+    Status: decided 2026-10-28: **c**, Jens's shape: every app repository carries a `.launchway/`
+    directory with its deployment configuration, and the rebuilt Launchway deploys the app from it.
+    Concretely: `.launchway/deployment.ts` is the app's keelwerk deployment file
+    (`defineDeployment`: the app, data stores and placements, ports, providers, scaling limits) and
+    `.launchway/launchway.ts` holds what only the platform needs (domains and routes, previews,
+    environment, node). The framework stays neutral: `keelwerk start --config <file>` with the
+    default lookup `keelwerk.config.ts`, then `.launchway/deployment.ts`; `keelwerk init` writes
+    the `.launchway/` directory. Before Launchway's rebuild (M4), Trail (M3) is deployed by the
+    current Launchway from `.launchway/compose.yaml` running `keelwerk start --config
+    .launchway/deployment.ts`. To apply: sections 16.9 (config lookup), 17.3 (Launchway reads
+    `.launchway/`), 23 (app repository layout), roadmap M3 and M4; see section K2.
 ## J2. More editorial items (2026-10-28 editor pass; names to confirm or rename)
 
 `defineRule`; ids of contributed rules (`auth.accounts.profile.self`); multi-action rules in
@@ -531,7 +555,7 @@ roadmap section 6 maps old to new.
 reserved word); `ifPresent`; `offload: { afterPerKey }`; `anchors: { every }`; `edge.site`,
 `edge.apply`, `edge.channel`, `edge.ack`, `edge.reconcile`, `edge.config.performer`;
 `nodes.node.publishLogs`; `OrpcRouterOf`; `serializer: 'json'`; the migration file's `renames` entry
-and `copyColumn` step; the manifest format `pennestack.module/1`. Roadmap choices proposed by the
+and `copyColumn` step; the manifest format `keelwerk.module/1`. Roadmap choices proposed by the
 editor: Trail (M3) scope and exit criteria; passkeys, outbound webhooks, the egress service and
 package publication in M3; ADR due dates; `blobs-fs` in M4 for the log offload; the docker provider
 in M5. 12a fallback table additions (serializable → one unit at a time per scope, unsupported

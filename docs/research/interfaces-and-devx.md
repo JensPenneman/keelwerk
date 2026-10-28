@@ -1,3 +1,6 @@
+> Note (2026-10-28): the project was renamed from pennestack to **keelwerk** on 2026-10-28; this
+> research note keeps the old name as written at the time.
+
 # Interfaces and developer experience
 
 Date: 2026-10-08. Status: research input for the architecture document and the ADRs; it decides

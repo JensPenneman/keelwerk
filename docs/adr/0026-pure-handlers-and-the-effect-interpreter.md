@@ -63,13 +63,13 @@ art, and [architecture.md section 7.9](../architecture.md) is the specification.
    times, because no decision performs anything.
 8. Enforcement: handler types exclude promises; GritQL plugins (`pure-parts`, `no-module-state`,
    `no-await-in-parts`); Biome's `noNodejsModules` and `noRestrictedImports` outside
-   `src/executors/`, `noProcessEnv` outside `pennestack.config.ts`; compose checks.
+   `src/executors/`, `noProcessEnv` outside `keelwerk.config.ts`; compose checks.
 9. Layout: `src/effects/`, `src/executors/` and `src/executors/lib/`; the module literal, which the
    generator writes since decision 59b (ADR 0024), mounts `effects` and `executors`.
 
 ## Consequences
 
-- Every change and every outside interaction has a record linked to its cause; `pennestack explain
+- Every change and every outside interaction has a record linked to its cause; `keelwerk explain
   --trace`, `--redecide` and `--dry-run` work for every command; tests need no mocks.
 - No command can call code that performs effects, so every command is retried automatically and
   offline commands are re-decided at ingest.

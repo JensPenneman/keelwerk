@@ -50,7 +50,7 @@ The review of 2026-10-11 found that the first version of this decision failed it
 
 ## Decision
 
-1. The engine is built in `@pennestack/core` and does not depend on `@casl/ability`. It keeps
+1. The engine is built in `@keelwerk/core` and does not depend on `@casl/ability`. It keeps
    CASL's vocabulary: allow and deny rules per entity and action, conditions, field lists, a
    reason, serialisable rules.
 2. Rules are typed against the registry: conditions name real fields and relations, field lists

@@ -59,7 +59,7 @@ plan runs CI on three databases.
    `unit(namespace, scope, fn)` runs one transaction on one namespace for one storage scope and
    exposes `rows`, `events`, `receipts`, `jobs`, `consumers`, `tombstones`, `streams`, `usage`,
    `keys`, `serials` and an optional `sql` hatch, plus schema operations, change-feed wake-ups, an
-   optional `broadcast` channel and the cluster identity used to detect restores. The types live in `@pennestack/core`; implementations live in
+   optional `broadcast` channel and the cluster identity used to detect restores. The types live in `@keelwerk/core`; implementations live in
    adapter packages. Archiving is a versioned row update the kernel issues after the `archived`
    event; planning migrations is framework work, adapters render and apply.
 2. **Namespaces.** A namespace owns one event log, one position space, the framework tables and one
@@ -90,7 +90,7 @@ plan runs CI on three databases.
    locks through expected versions and counter rows, positional paging and `countBefore` through
    bounded scans, broadcast and notifications through polling, order on personal fields through
    bounded scans, partial indexes through generated columns, serializable isolation through units
-   run one at a time per scope. `pennestack explain` names the path a plan takes, and `pennestack
+   run one at a time per scope. `keelwerk explain` names the path a plan takes, and `keelwerk
    doctor` lists the fallbacks in use per placement with their cost. The event store and savepoints
    are required parts of the contract that every adapter provides, natively or inside the adapter.
    `data: { needs }` keeps one form, the SQL dialect a module writes (`{ sql: 'postgres' }`), which
@@ -106,11 +106,11 @@ plan runs CI on three databases.
    `countBefore` exist as a capability for the transports that request it (JMAP), bounded by a
    maximum offset and covered by the conformance suite.
 7. **Substrate.** Kysely 0.29.6 carries the SQL family: PostgreSQL (with PGlite 0.5.8 for tests and
-   `pennestack dev`) in M1; MySQL, SQLite on `node:sqlite` and the Supabase preset in M5 (roadmap,
+   `keelwerk dev`) in M1; MySQL, SQLite on `node:sqlite` and the Supabase preset in M5 (roadmap,
    renumbered on 2026-10-28; M7 before). The in-memory adapter is the reference semantics. No
    Drizzle-backed adapter is planned (decision 13a): Drizzle was a passing thought, not a
    requirement, and the brief's mention reads as "a schema an ORM defines can be imported", which
-   `pennestack db introspect --drizzle` may offer later as an optional convenience; the contract
+   `keelwerk db introspect --drizzle` may offer later as an optional convenience; the contract
    still permits such an adapter, as it permits any datastore.
 8. **Columns.** Field kinds map to columns per dialect as architecture.md section 14.5.1 lists;
    decimals are exact strings, floats binary, integers 64-bit with safe-integer validation, unique
@@ -125,12 +125,12 @@ plan runs CI on three databases.
    tracks and their versions) it was written with, and rebuilds pass through the values of
    inactive tracks.
 10. **One type mechanism.** Entity definitions are the only source of types. Tables the framework
-    does not own are described by definitions that `pennestack db introspect` writes (external or adopt
+    does not own are described by definitions that `keelwerk db introspect` writes (external or adopt
     mode), not by generated `.d.ts` files. Drift checks compare definitions, snapshots and live
     catalogues.
 11. **Adapters are deployment infrastructure.** `defineDeployment` lists the adapter factories
     (ADR 0003); apps never list adapters.
-12. **One job store per adapter.** Every adapter implements a job store (`ps_jobs`) in the unit,
+12. **One job store per adapter.** Every adapter implements a job store (`kw_jobs`) in the unit,
     taking jobs with `FOR UPDATE SKIP LOCKED` on PostgreSQL and MySQL and through the single writer
     on SQLite, PGlite and the in-memory adapter, so the kernel queue of ADR 0015 works on every
     adapter and jobs commit with the work that causes them.

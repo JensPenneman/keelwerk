@@ -42,13 +42,13 @@ and AdonisJS do: nothing needs registering by hand.
    signature names; private helpers serve only that export; exports come last; importing has no
    effect. Barrels, `export *`, namespace imports, exported imports and default exports are
    forbidden. Exceptions: assembly and role files, the explicit entry files of library packages,
-   `pennestack.config.ts`, generated files, migrations, tests and scripts.
-2. **Layouts.** A project has `pennestack.config.ts`, `apps/<id>/` (`modules.ts`, `app.ts`),
+   `keelwerk.config.ts`, generated files, migrations, tests and scripts.
+2. **Layouts.** A project has `keelwerk.config.ts`, `apps/<id>/` (`modules.ts`, `app.ts`),
    `modules/<id>/`, `scripts/` and `docs/`. Every module is a package with one layout wherever it
    lives: `src/base.ts`, the generated `src/module.generated.ts`, a directory per part kind,
    `policies/<target>/<rule>.ts` for rules (one rule per file, decision 60b),
    `contributions/to-<target>/`, `conditional/when-<module>/`, `migrations/` and `test/`. Every app
-   built on pennestack has a repository of its own and depends only on the published packages
+   built on keelwerk has a repository of its own and depends only on the published packages
    (decision 48c).
 3. **Names.** Files and directories are kebab-case, derived from the export by `kebab()` (section
    16.4.1; decision 58a). Assembly and role files take their export's name from their directory;
@@ -63,12 +63,12 @@ and AdonisJS do: nothing needs registering by hand.
    written with the part functions over the base (`defineCommand(base, entity, { ... })`,
    `defineQuery(base, { ... })`, `defineRule(base, target, { ... })`, `defineReaction(base, ...)`,
    `defineService(base, ...)`, and `within(base, declaration)` inside contributions and conditional
-   parts), one literal per file. `pennestack generate`, and the dev server on every file change,
+   parts), one literal per file. `keelwerk generate`, and the dev server on every file change,
    writes `module.generated.ts`: one literal, `defineModule(base, { ... })`, that mounts every part
    under keys that are ids, derived from the directory conventions (decision 3b still holds: it is a
    literal, only written by a tool). An action's reference comes from its file name and its
    directory (the entity or the module mount), a rule's id likewise; moving a file changes the
-   reference, and `pennestack surface diff` reports it as breaking. The generator reads names and
+   reference, and `keelwerk surface diff` reports it as breaking. The generator reads names and
    paths and imports nothing; it writes import aliases for clashing names. `generate --check` fails
    CI on drift. Parts invoke their own module's actions by value and call their own `lib/`
    functions, not their own services. Transport and listener modules declared with sugar that holds
@@ -78,10 +78,10 @@ and AdonisJS do: nothing needs registering by hand.
    mounted by the generated manifest under the declaration's key; fragments that share a (target,
    `when`) identity merge.
 6. **Enforcement.** The Biome preset gains those rules and three GritQL plugins (`one-export`,
-   `no-import-effects`, `wiring-only-assembly`); CI runs knip and `pennestack generate --check`;
-   `pennestack doctor` gains a layout pass, also run in CI and by `pennestack dev`, which reports a
+   `no-import-effects`, `wiring-only-assembly`); CI runs knip and `keelwerk generate --check`;
+   `keelwerk doctor` gains a layout pass, also run in CI and by `keelwerk dev`, which reports a
    stale manifest, a file the conventions cannot place, and a declaration `base.ts` does not list.
-7. **Scaffolding.** `pennestack new <kind> <reference>` writes one part where its reference puts it
+7. **Scaffolding.** `keelwerk new <kind> <reference>` writes one part where its reference puts it
    and never edits a source: the generated manifest mounts it. For what only a hand-written file
    holds (a declaration in `base.ts`, an app-level part in `app.ts`, a module in an app's
    `modules.ts`) it prints the import and the entry to add. `new` is a framework command and
@@ -101,7 +101,7 @@ and AdonisJS do: nothing needs registering by hand.
   `surface diff` reports as breaking; renaming a rule file renames the rule, which a
   `policies.disable` entry then no longer finds, a compose error.
 - One rule per file makes rule files many and small; the rules over one target are the files of one
-  directory, merged as a set, so their order and split change nothing, and `pennestack explain`
+  directory, merged as a set, so their order and split change nothing, and `keelwerk explain`
   names the file of every matched rule.
 - The file-to-export check runs in the layout pass, not the editor, until Biome's JavaScript plugins
   are stable in a pinned release.

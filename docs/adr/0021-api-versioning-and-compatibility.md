@@ -14,7 +14,7 @@ Addendum 3 of the brief (2026-10-23) requires that everything is versioned, that
 implicit, and that backwards compatibility holds until a major version is deployed, through a
 best-in-class mechanism. The specification had a hash per app surface (ADR 0010), track versions
 and shape ids for stored events (ADRs 0006 and 0007), integer protocol majors, and
-`pennestack introspect diff`, which classifies surface changes but lets a breaking change pass with
+`keelwerk introspect diff`, which classifies surface changes but lets a breaking change pass with
 a changelog line. Module `version` was informational.
 
 Wire names are pure functions of references (ADR 0010), so a version in the URL fits REST alone.
@@ -37,13 +37,13 @@ continuous evolution and JMAP's capability negotiation (RFC 8620).
    mechanical instructions (`renamedFrom`, `addedRequired`, `removed`),
    custom transforms, error-code mappings and fixtures. A module ships it in a major of its
    package; until an API version adopts it, it is translated for every version.
-   `pennestack surface version new` records each version in a committed ledger.
+   `keelwerk surface version new` records each version in a committed ledger.
 3. **Translation in the invoker.** The pipeline gains `resolveVersion` in `Invoker.open` after
    `resolvePrincipal`, and `translate` after `validate` (input forward, oldest change first) and
    after `shape` (output, errors and items backward, newest first). `locate` maps older references
    and `validate` uses the requested version's schema; handlers, rules and masks see head shapes
    only. Projections and documents exist per supported version.
-4. **Selection.** The session's version is the request's (`Pennestack-Version` or its carrier's
+4. **Selection.** The session's version is the request's (`Keelwerk-Version` or its carrier's
    equivalent), else the credential's, else the tenant's pin, else the backend's default. Pins are
    fields of `core.backend` and `core.tenant`, changed by reversible events and by no deploy except
    the floor rise. Typed clients send the head they were compiled with.
@@ -52,11 +52,11 @@ continuous evolution and JMAP's capability negotiation (RFC 8620).
    version is deprecated the day a newer one exists, and its sunset is 12 months later (decision
    53). After the sunset it is retired regardless of use: there is no zero-use gate and no
    `--force`. The floor rises only after the version's sunset, with a major in the app's changelog
-   (the CI check is unchanged) and `pennestack surface retire`, which records the retirement and
+   (the CI check is unchanged) and `keelwerk surface retire`, which records the retirement and
    refuses only before the sunset; usage counters stay as information, so that remaining callers
    can be told before the sunset. Then the version is `not_found`, `core.api_version_retired` (REST
    410).
-6. **Enforcement.** `pennestack surface diff` replaces `introspect diff` in CI: it derives every
+6. **Enforcement.** `keelwerk surface diff` replaces `introspect diff` in CI: it derives every
    version's surface on both sides and fails on a breaking difference, and each changed module
    package's own surface and declaration files must fit its semantic version bump.
 7. **Protocols** keep integer majors, negotiated through `core.capabilities`; a new major runs

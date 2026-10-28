@@ -81,7 +81,7 @@ reason, and the project layout (ADR 0024) needs parts in files of their own.
    7.0.2, against 219 KB at the tenth module of a dependency chain without names). The generator
    writes it into every module manifest, a GritQL rule flags a hand-written exported value without
    it, and CI checks declaration sizes and TS7056, TS2742 and TS4023 for the portal example and the
-   synthetic apps here and for each platform in its own repository. `@pennestack/core` exports every
+   synthetic apps here and for each platform in its own repository. `@keelwerk/core` exports every
    type that can appear in a module value's type.
 3. A module declares hard dependencies in `requires` and soft dependencies in `optional`. Both hold
    module values or **contracts**: named capabilities with a typed interface (`live`, `blobs`,
