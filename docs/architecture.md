@@ -2,7 +2,7 @@
 
 Date: 2026-10-28 (first version 2026-10-08, consolidated 2026-10-11). Status: specification,
 complete: every question of the decision register is decided or, for the mail server, parked;
-awaiting Jens's approval and the final name. Authors: the core architect and the data, interfaces
+awaiting Jens's approval (the name keelwerk was settled on 2026-10-28). Authors: the core architect and the data, interfaces
 and platforms designers; consolidated with the review findings of 2026-10-11 by the synthesis
 editor; the versioning and project-layout designs of addendum 3 and Jens's decisions of 2026-10-24
 merged by the integration editor on 2026-10-24; the jobs, nodes and autoscaling design, the
@@ -1352,7 +1352,7 @@ a migration that moves data. This is the answer to the research question on vers
 - `requires: [m]`: a hard dependency. The dependant's context types `m` as present; `defineApp`
   rejects a tuple that lacks `m`; references and foreign keys towards `m`'s entities are allowed;
   lifecycle orders `m` first.
-- `optional: [m]`: a soft dependency. The dependant's context types `m` as `| undefined`; a
+- `optional: [m]`: a soft dependency. The dependant's context exposes `m` through the Maybe accessor of section 3.4 (`ifPresent`, decision 32b); a
   missing `m` is fine; references towards `m` are allowed only inside a conditional part or a
   contribution whose target or `when` list contains `m` (section 6.3); lifecycle orders `m` first
   when present.

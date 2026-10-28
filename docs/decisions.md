@@ -518,6 +518,18 @@ roadmap section 6 maps old to new.
   interim), the CLI's config lookup order, Launchway's project model reading it (replacing the
   `composeFiles` setting of today's Launchway), app repository layout in 23, roadmap M3/M4.
 
+- Stale spots found by the tour review (2026-10-28), to fix in the same pass: 5.2's contracts snippet
+  still shows `defineModule({ id, requires ... })` (should be `defineModuleBase`); 18.2's
+  `defineApiVersions` example and 15.4.6's SSE notice carry pre-53 dates (deprecate the day the newer
+  version exists, sunset 12 months later); 15.1.8 and 26.3 still list the stream-head digest as open
+  (closed by 89a); 16.4.1's naming table shows the pre-16b CLI route (should be `keelwerk call
+  accounts.profile.deactivate <id>`); 9.5's intro says every job is enqueued in the causing command's
+  unit, but the reaction dispatcher (7.7) and schedules (9.5.6) enqueue in their own units; 16.5.8:
+  decide whether a receiver's `verify` resolver may yield a per-request identity (Trail's per-device
+  tokens) or receivers keep one fixed service principal (the tour assumes the fixed principal); the
+  register's milestone numbers in 9, 11, 12, 49, 63 and 69 predate the reorder (roadmap section 6
+  maps them).
+
 ## L. Questions raised by applying the decisions (2026-10-28)
 
 88. **Where the edge module lives** (consequence of 82a). `@keelwerk/edge-caddy` is a keelwerk
