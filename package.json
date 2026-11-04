@@ -1,0 +1,32 @@
+{
+  "name": "keelwerk-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The keelwerk framework workspace.",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "check": "biome ci . && knip && tsc -b && vitest run",
+    "test": "vitest run",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "knip": "knip",
+    "prepare": "lefthook install"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@commitlint/cli": "21.2.4",
+    "@commitlint/config-conventional": "21.2.4",
+    "@keelwerk/biome-config": "workspace:*",
+    "@types/node": "26.6.5",
+    "knip": "6.42.1",
+    "lefthook": "2.2.2",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}

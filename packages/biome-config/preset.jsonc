@@ -1,0 +1,201 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noConsole": "error",
+        "noImportCycles": "error",
+        "noTsIgnore": "error",
+        "noGlobalAssign": "error"
+      },
+      "style": {
+        "noEnum": "error",
+        "noNamespace": "error",
+        "noParameterProperties": "error",
+        "useImportType": "error",
+        "useExportType": "error",
+        "useNodejsImportProtocol": "error",
+        "noProcessEnv": "error",
+        "noNonNullAssertion": "error",
+        "noDefaultExport": "error",
+        "noExportedImports": "error",
+        "useExportsLast": "error",
+        "useFilenamingConvention": {
+          "level": "error",
+          "options": { "filenameCases": ["kebab-case"], "requireAscii": true }
+        },
+        "useNamingConvention": {
+          "level": "error",
+          "options": { "strictCase": true }
+        },
+        "noExcessiveLinesPerFile": {
+          "level": "warn",
+          "options": { "maxLines": 300, "skipBlankLines": true }
+        }
+      },
+      "correctness": {
+        "noProcessGlobal": "error",
+        "useImportExtensions": "error",
+        "noUnusedImports": "error",
+        "noPrivateImports": "error"
+      },
+      "performance": {
+        "noBarrelFile": "error",
+        "noReExportAll": "error",
+        "noNamespaceImport": "error"
+      },
+      "nursery": {
+        "noFloatingPromises": "error",
+        "noMisusedPromises": "error"
+      }
+    }
+  },
+  "overrides": [
+    {
+      // Library entry files are curated lists of named re-exports (architecture 23.3).
+      "includes": ["**/src/index.ts"],
+      "linter": { "rules": { "performance": { "noBarrelFile": "off" } } }
+    },
+    {
+      // Tool configuration files are loaded by their tools and need a default export.
+      "includes": ["**/*.config.ts", "**/*.config.js", "**/*.config.mjs"],
+      "linter": { "rules": { "style": { "noDefaultExport": "off" } } }
+    },
+    {
+      // The deployment file is the one place that reads the process environment.
+      "includes": ["**/keelwerk.config.ts"],
+      "linter": {
+        "rules": {
+          "style": { "noDefaultExport": "off", "noProcessEnv": "off" },
+          "correctness": { "noProcessGlobal": "off" },
+          "suspicious": { "noGlobalAssign": "off" }
+        }
+      }
+    },
+    {
+      // Migration names and generated files follow their own naming.
+      "includes": ["**/migrations/**", "**/generated/**", "**/*.generated.ts"],
+      "linter": {
+        "rules": {
+          "style": { "useFilenamingConvention": "off", "useNamingConvention": "off" }
+        }
+      }
+    },
+    {
+      // Module packages: data is reached through ctx.load and ctx.write, never an adapter,
+      // a transport or a database driver (architecture 13.9).
+      "includes": ["**/packages/module-*/src/**", "**/modules/*/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "pg": "Handlers reach data through ctx.load and ctx.write.",
+                  "mysql2": "Handlers reach data through ctx.load and ctx.write.",
+                  "better-sqlite3": "Handlers reach data through ctx.load and ctx.write.",
+                  "kysely": "Handlers reach data through ctx.load and ctx.write.",
+                  "drizzle-orm": "Handlers reach data through ctx.load and ctx.write."
+                },
+                "patterns": [
+                  {
+                    "group": ["@keelwerk/adapter-*", "@keelwerk/transport-*", "@keelwerk/data"],
+                    "message": "Module packages do not import adapters, transports or the data package."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      // Outside src/executors/ a module package also has no node:* modules and no HTTP or SMTP client.
+      "includes": ["**/packages/module-*/src/**", "**/modules/*/src/**", "!**/src/executors/**"],
+      "linter": {
+        "rules": {
+          "correctness": { "noNodejsModules": "error" },
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "pg": "Handlers reach data through ctx.load and ctx.write.",
+                  "mysql2": "Handlers reach data through ctx.load and ctx.write.",
+                  "better-sqlite3": "Handlers reach data through ctx.load and ctx.write.",
+                  "kysely": "Handlers reach data through ctx.load and ctx.write.",
+                  "drizzle-orm": "Handlers reach data through ctx.load and ctx.write.",
+                  "undici": "Network access belongs in src/executors/.",
+                  "axios": "Network access belongs in src/executors/.",
+                  "nodemailer": "Network access belongs in src/executors/."
+                },
+                "patterns": [
+                  {
+                    "group": ["@keelwerk/adapter-*", "@keelwerk/transport-*", "@keelwerk/data"],
+                    "message": "Module packages do not import adapters, transports or the data package."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      // Transports see only the surface and the invoker.
+      "includes": ["**/packages/transport-*/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@keelwerk/module-*", "@keelwerk/adapter-*", "@keelwerk/data"],
+                    "message": "Transports import only the core: they see the surface and the invoker."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      // The core imports nothing from the workspace.
+      "includes": ["**/packages/core/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@keelwerk/*"],
+                    "message": "The core imports nothing from the workspace."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

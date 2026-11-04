@@ -1,0 +1,18 @@
+packages:
+  - packages/*
+  - examples/*
+  - spikes/*
+
+# pnpm 11 reads its settings from this file; .npmrc only carries registry settings.
+saveExact: true
+engineStrict: true
+strictPeerDependencies: true
+preferWorkspacePackages: true
+# Packages see only what they declare: nothing is hoisted to the root node_modules.
+shamefullyHoist: false
+publicHoistPattern: []
+
+# Dependency install scripts are denied unless listed with `true`.
+allowBuilds:
+  # Git hooks are installed by the root `prepare` script instead.
+  lefthook: false

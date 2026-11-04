@@ -3694,7 +3694,8 @@ for production.
 
 `@keelwerk/biome-config` publishes a Biome 2.5.15 configuration that projects extend with
 `"extends": ["@keelwerk/biome-config/biome"]`. Biome stays the only formatter and linter, with
-its formatter defaults. The preset enables these rules as errors:
+its formatter with single quotes, two-space indentation and 100 columns (the style of
+`docs/api-sketch.ts`, fixed 2026-11-04). The preset enables these rules as errors:
 
 | Rule (group) | Why |
 |---|---|
@@ -12185,7 +12186,8 @@ Rules:
 - Beta (decision 48c): the framework and every app stay in beta until Jens, and only Jens, declares
   them stable. Packages are published as 0.x pre-releases, which an app pins to exact versions, so
   an upgrade is always a deliberate change in the app's repository (roadmap section 1).
-- One `CHANGELOG.md` per package, kept by the release tooling; semantic versions; the `core`
+- All `@keelwerk/*` packages share one version (lockstep) and one root `CHANGELOG.md`, kept by the
+  release tooling (decided 2026-11-04 during M0); semantic versions; the `core`
   package's public types are a compatibility contract.
 - The example is the integration test here: CI boots the portal app against PostgreSQL (and the
   in-memory adapter for fast suites; MySQL and SQLite from M5), runs the adversarial isolation
@@ -12324,6 +12326,8 @@ exporting an imported binding, and default exports. Exceptions, each with its re
 - The entry files of a framework library package (`src/index.ts`, subpath entries such as
   `src/wire/index.ts`) hold only explicit named re-exports: a library needs one public API, and an
   explicit list makes every addition visible in review. No file imports its own package's entry.
+- tool configuration files that a tool reads by convention (`*.config.ts`, `*.config.js`,
+  `commitlint.config.js`) may use a default export;
 - `keelwerk.config.ts` keeps its default export, because the CLI finds it by convention
   (section 16.9.1).
 - Generated files and migrations follow their producers' names and are excluded from the naming

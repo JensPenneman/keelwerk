@@ -21,3 +21,7 @@ dist/
 # Logs and coverage
 *.log
 coverage/
+
+# Tool caches
+.keelwerk/
+.vitest/

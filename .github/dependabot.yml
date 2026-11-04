@@ -1,0 +1,50 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Brussels
+    open-pull-requests-limit: 10
+    # Versions must be at least two weeks old; this also clears pnpm 11's
+    # minimumReleaseAge (one day by default), which applies in frozen installs.
+    cooldown:
+      default-days: 14
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      # Security updates get a pull request of their own.
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      # Biome, knip and Vitest change results between releases (which is why
+      # they are pinned exactly), so each gets a pull request of its own.
+      biome:
+        patterns: ["@biomejs/biome"]
+      knip:
+        patterns: ["knip"]
+      vitest:
+        patterns: ["vitest"]
+      npm-minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      # Node.js types follow the runtime major the baseline names (.nvmrc).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Brussels
+    commit-message:
+      prefix: ci(deps)
+    groups:
+      github-actions:
+        patterns: ["*"]

@@ -1,0 +1,29 @@
+# Git hooks, installed by `pnpm install` (prepare script). Skip once with LEFTHOOK=0.
+output:
+  - failure
+pre-commit:
+  parallel: true
+  commands:
+    signed-commits:
+      run: |
+        test "$(git config --get commit.gpgsign)" = "true" && test -n "$(git config --get user.signingkey)" \
+          || { echo "commit signing is required: set commit.gpgsign=true and user.signingkey"; exit 1; }
+    biome:
+      glob: "*.{js,jsx,ts,tsx,cjs,mjs,cts,mts,json,jsonc,css,yaml,yml}"
+      run: pnpm exec biome check --write --no-errors-on-unmatched --files-ignore-unknown=true --colors=off {staged_files}
+      stage_fixed: true
+
+commit-msg:
+  commands:
+    commitlint:
+      run: pnpm exec commitlint --edit {1}
+
+pre-push:
+  piped: true
+  commands:
+    typecheck:
+      priority: 1
+      run: pnpm exec tsc -b
+    unit-tests:
+      priority: 2
+      run: pnpm test

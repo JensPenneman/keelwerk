@@ -1,0 +1,16 @@
+{
+  "name": "@keelwerk/biome-config",
+  "version": "0.0.0",
+  "description": "The Biome preset of keelwerk projects.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "exports": {
+    "./biome": "./preset.jsonc"
+  },
+  "files": [
+    "preset.jsonc"
+  ]
+}

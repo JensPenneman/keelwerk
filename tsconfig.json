@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/core/tsconfig.test.json" },
+    { "path": "packages/data" },
+    { "path": "packages/data/tsconfig.test.json" },
+    { "path": "packages/testing" },
+    { "path": "packages/testing/tsconfig.test.json" }
+  ]
+}
