@@ -50,26 +50,20 @@ describe('timeouts and cancellation', () => {
     expect(failure(outcome)).toMatchObject({ kind: 'unavailable', code: 'core.timeout' });
   });
 
-  test('a client abort during a read ends the wait, and the unit callback still ends', async () => {
-    // runRead has no signal yet (F-14 change note), so the read-only unit runs to its end after
-    // the invoker stopped waiting for it.
-    const probe = publicQuery('abortedRead', () => 1);
-    const inner = open();
-    let release: () => void = () => undefined;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
+  test('a client abort during a read ends the read-only unit promptly', async () => {
     let reading: () => void = () => undefined;
     const started = new Promise<void>((resolve) => {
       reading = resolve;
     });
+    const probe = publicQuery('abortedRead', () => 1);
+    const inner = open();
     let finished: () => void = () => undefined;
     const done = new Promise<void>((resolve) => {
       finished = resolve;
     });
     let ended = false;
     let units = 0;
-    const gated: DataAdapter = {
+    const watched: DataAdapter = {
       ...inner,
       unit: async (ns, scope, fn, options) => {
         units += 1;
@@ -78,10 +72,19 @@ describe('timeouts and cancellation', () => {
           ns,
           scope,
           async (unit) => {
-            reading();
-            await gate;
+            // The head read never answers by itself: only the abort can end the unit.
+            const stuck = {
+              ...unit,
+              events: {
+                ...unit.events,
+                head: () => {
+                  reading();
+                  return new Promise<never>(() => undefined);
+                },
+              },
+            } as typeof unit;
             try {
-              return await fn(unit);
+              return await fn(stuck);
             } finally {
               ended = true;
               finished();
@@ -91,17 +94,20 @@ describe('timeouts and cancellation', () => {
         );
       },
     };
-    const { invoker } = kit({ registry: probe.registry, adapter: gated });
+    const { invoker } = kit({ registry: probe.registry, adapter: watched });
     const controller = new AbortController();
     const pending = invoker.invoke(
       call(probe.ref, {}, { carrier: byHeaderCarrier, signal: controller.signal }),
     );
     await started;
+    expect(ended).toBe(false);
     controller.abort();
     expect(failure(await pending).kind).toBe('unavailable');
-    expect(ended).toBe(false);
-    release();
-    await done;
+    const outcome = await Promise.race([
+      done.then(() => 'ended'),
+      new Promise((resolve) => setTimeout(resolve, 1000, 'open')),
+    ]);
+    expect(outcome).toBe('ended');
     expect(ended).toBe(true);
   });
 

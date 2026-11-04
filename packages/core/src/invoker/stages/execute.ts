@@ -58,8 +58,8 @@ export interface Executed extends CommandResult {
 
 /**
  * `execute` (section 9.2). A query is driven by `runRead` in a read-only unit of the action's
- * scope, and a client disconnect stops the wait for it (`runRead` has no signal yet, so the
- * read-only unit stays open until the read ends: F-14 change note). A command goes to the write path the runtime wires
+ * scope, and a client disconnect or the deadline aborts the signal `runRead` receives, which ends
+ * the read-only unit. A command goes to the write path the runtime wires
  * in; a disconnect never reaches it, only its timeout does (section 16.4.11). Both fail with
  * `unavailable` `core.timeout` past the action's `timeoutMs`.
  */
@@ -101,8 +101,9 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
   const { capabilities } = target.handle;
   const backendNamespace = (details.resolved.backendTarget ?? target).namespace;
   const output = await withDeadline(
-    async () => {
+    async (signal) => {
       const result = await runRead({
+        signal,
         registry,
         adapter: target.handle.adapter,
         namespace: target.namespace,

@@ -48,6 +48,11 @@ export interface RunReadInput {
   readonly rules?: readonly NormalizedRule[];
   /** Produces the `queryState` of a `query` load; default: the decimal position (the state-token work package supplies the token of 15.2.6). */
   readonly queryState?: QueryStateEncoder;
+  /**
+   * Aborts the read: the read-only unit ends and `runRead` rejects with the signal's reason.
+   * Default: none.
+   */
+  readonly signal?: AbortSignal;
   /** Replaces the answerer of a kind (the seam of later packages). */
   readonly replace?: Partial<RequestAnswerer>;
 }

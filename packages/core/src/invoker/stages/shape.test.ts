@@ -17,8 +17,15 @@ const pageSchema = shape({
   queryState: field.string(),
 });
 const page = { sortable: [], defaultSort: [], defaultSize: 20, maxSize: 100 } as const;
-const rowAction = actionOf('doc.one', { output: rowSchema });
-const pageAction = actionOf('doc.list', { output: pageSchema, page });
+const rowAction = actionOf('doc.one', {
+  output: rowSchema,
+  entityOutput: { entity: 'doc.post', shape: 'row' },
+});
+const pageAction = actionOf('doc.list', {
+  output: pageSchema,
+  page,
+  entityOutput: { entity: 'doc.post', shape: 'page' },
+});
 const customAction = actionOf('doc.custom', { output: shape({ n: field.integer() }) });
 const registry = registryOf([rowAction, pageAction, customAction]);
 const own = ruleEntry({
@@ -134,27 +141,35 @@ describe('shape', () => {
   });
 });
 
-describe('an output whose fields match two entities', () => {
-  const twin = (ref: string) =>
-    ({ ref, module: ref.split('.')[0], name: 'post', descriptor: post }) as never;
-  const twins = registryOf([rowAction], {
-    entities: new Map([
-      ['a.post', twin('a.post')],
-      ['b.post', twin('b.post')],
-    ]),
+describe('the entity of an output', () => {
+  test('a row-shaped output without a marker is custom: no check, no mask', async () => {
+    const unmarked = actionOf('doc.unmarked', { output: rowSchema });
+    const registry = registryOf([unmarked]);
+    const row = { id: '2', ownerId: 'bob', title: 'theirs', secret: 's' };
+    expect(await shapeStage(inputOf({ registry, action: unmarked, output: row }))).toBe(row);
   });
 
-  test('the action without its own entity is internal', async () => {
+  test('a marker naming an entity the registry lacks is internal', async () => {
+    const lost = actionOf('doc.lost', {
+      output: rowSchema,
+      entityOutput: { entity: 'doc.gone', shape: 'row' },
+    });
     await expect(
-      shapeStage(inputOf({ registry: twins, action: rowAction, output: mine })),
+      shapeStage(inputOf({ registry: registryOf([lost]), action: lost, output: mine })),
     ).rejects.toMatchObject({ code: 'core.internal' });
   });
 
-  test('the action takes its own entity, whose plan decides', async () => {
-    const own = actionOf('b.one', { output: rowSchema, entity: 'b.post' });
-    const registry = registryOf([own], { entities: twins.entities });
-    await expect(shapeStage(inputOf({ registry, action: own, output: mine }))).rejects.toThrow(
-      /fell outside the read plan of b\.one/,
+  test('the marker names the entity whose plan decides', async () => {
+    const twin = { ref: 'b.post', module: 'b', name: 'post', descriptor: post } as never;
+    const marked = actionOf('b.one', {
+      output: rowSchema,
+      entityOutput: { entity: 'b.post', shape: 'row' },
+    });
+    const registry = registryOf([marked], {
+      entities: new Map([['b.post', twin]]),
+    });
+    await expect(shapeStage(inputOf({ registry, action: marked, output: mine }))).rejects.toThrow(
+      /fell outside the read plan of b\.post\.query/,
     );
   });
 });

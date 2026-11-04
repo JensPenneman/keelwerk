@@ -53,7 +53,7 @@ describe('the shape stage', () => {
       const items = yield* ctx.load.library.book.many({});
       return { items, pageInfo: {}, queryState: '0' };
     },
-    { output: pageSchema, page },
+    { output: pageSchema, page, entityOutput: { entity: 'library.book', shape: 'page' } },
     narrowed,
   );
   const seeded = [bookRow(1), bookRow(2, { addedBy: 'bob' })];
@@ -113,7 +113,7 @@ describe('the shape stage', () => {
       function* (_input: unknown, ctx: ProbeContext) {
         return yield* ctx.load.library.book.one({ where: { isbn: 'isbn-1' } });
       },
-      { output: rowSchema },
+      { output: rowSchema, entityOutput: { entity: 'library.book', shape: 'row' } },
       masked,
     );
     const { adapter, invoker } = kit({ registry: rowProbe.registry, adapter: open([maskedBook]) });

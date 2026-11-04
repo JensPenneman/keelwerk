@@ -15,6 +15,12 @@ const commandKinds: ReadonlySet<GeneratedActionKind> = new Set([
   'set',
 ]);
 const instanceKinds: ReadonlySet<GeneratedActionKind> = new Set(['update', 'archive', 'restore']);
+const rowKinds: ReadonlySet<GeneratedActionKind> = new Set([
+  'create',
+  'update',
+  'archive',
+  'restore',
+]);
 const pagedKinds: ReadonlySet<GeneratedActionKind> = new Set(['query', 'queryChanges']);
 
 /** The registry entries of the actions the core generates for one entity (section 6.7). */
@@ -42,6 +48,7 @@ export function generatedActionEntries(
       instance: instanceKinds.has(kind),
       input: schemas.input,
       output: schemas.output,
+      ...(rowKinds.has(kind) ? { entityOutput: { entity: entry.ref, shape: 'row' as const } } : {}),
       errors: [],
       auth: 'policy',
       scope: scopeOfTenancy(model.tenancy),

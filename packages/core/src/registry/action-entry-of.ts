@@ -83,6 +83,25 @@ function outputOf(
   return shape({});
 }
 
+function entityOutputMarker(
+  part: AnyActionPart,
+  mount: PartMount,
+  context: ActionEntryContext,
+): ActionEntry['entityOutput'] {
+  const output = specOf(part).output;
+  const model = modelOfOutput(part, context);
+  if (output?.kind === 'entityOutput' && model !== undefined) {
+    return { entity: model.entry.ref, shape: output.form === 'page' ? 'page' : 'row' };
+  }
+  if (output === undefined && mount.mount === 'entity' && part.kind === 'command') {
+    const own = mount.entity === undefined ? undefined : `${mount.module}.${mount.entity}`;
+    return own !== undefined && context.entities.has(own)
+      ? { entity: own, shape: 'row' }
+      : undefined;
+  }
+  return undefined;
+}
+
 function pageOf(part: AnyActionPart, context: ActionEntryContext): ActionEntry['page'] {
   const spec = specOf(part);
   const model = modelOfOutput(part, context);
@@ -131,6 +150,7 @@ export function actionEntryOf(
       : context.entities.get(`${mount.module}.${mount.entity}`);
   const principal = spec.principal === undefined ? undefined : [spec.principal].flat();
   const page = pageOf(part, context);
+  const entityOutput = entityOutputMarker(part, mount, context);
   const execution =
     part.kind === 'command' ? (context.app.execution[mount.ref] ?? part.execution) : 'sync';
   const prepare = spec.prepare;
@@ -145,6 +165,7 @@ export function actionEntryOf(
     instance: part.kind === 'command' && mount.mount === 'entity',
     input: inputOf(part, mount, context),
     output: outputOf(part, mount, context),
+    ...(entityOutput === undefined ? {} : { entityOutput }),
     errors: (spec.errors ?? []).map((error) => error.code).sort(),
     auth: spec.auth === undefined || spec.auth === 'policy' ? 'policy' : 'public',
     scope: spec.scope ?? (model === undefined ? 'tenant' : scopeOfTenancy(model.tenancy)),

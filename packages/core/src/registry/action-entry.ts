@@ -21,6 +21,8 @@ export interface ActionEntry {
   readonly instance: boolean;
   readonly input: StandardSchemaV1;
   readonly output: StandardSchemaV1;
+  /** Set when the output is `rowOf(entity)` or `pageOf(entity)`: the entity whose rows it carries and whether it is one row or a page. A custom output has none. */
+  readonly entityOutput?: { readonly entity: string; readonly shape: 'row' | 'page' };
   /** Declared error codes, sorted. */
   readonly errors: readonly string[];
   readonly auth: 'policy' | 'public';

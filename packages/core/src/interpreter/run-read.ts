@@ -13,6 +13,24 @@ import type { RequestAuthorities } from './request-authorities.ts';
 import type { RunReadInput } from './run-read-input.ts';
 import type { RunReadResult } from './run-read-result.ts';
 
+/** Rejects with the signal's reason as soon as it aborts; the unit callback ends with that rejection. */
+function abortable<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (signal === undefined) return work;
+  return new Promise<T>((resolve, reject) => {
+    if (signal.aborted) {
+      work.catch(() => undefined);
+      reject(signal.reason);
+      return;
+    }
+    const onAbort = (): void => {
+      work.catch(() => undefined);
+      reject(signal.reason);
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    work.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+  });
+}
+
 /**
  * Runs a query below the pipeline (section 7.9.4): a read-only unit of the scope, the head
  * position read first, then the handler driven, each request answered in the unit in yield order
@@ -40,11 +58,13 @@ export async function runRead(input: RunReadInput): Promise<RunReadResult> {
     input.rules ??
     [...registry.rules.values()].filter((rule) => rule.disabled !== true).map(normalizeRule);
 
+  const { signal } = input;
+  signal?.throwIfAborted();
   return adapter.unit(
     input.namespace,
     input.scope,
     async (unit) => {
-      const head = await unit.events.head();
+      const head = await abortable(unit.events.head(), signal);
       const reads: RecordedRead[] = [];
       const flags = new Map<string, FlagRead>();
       const authorities: RequestAuthorities = new WeakMap();
@@ -101,7 +121,10 @@ export async function runRead(input: RunReadInput): Promise<RunReadResult> {
         },
       };
       const handler = contexts.forModule(action.module);
-      const output = await driveHandler(action.handler(input.input, handler), context.answer);
+      const output = await abortable(
+        driveHandler(action.handler(input.input, handler), context.answer),
+        signal,
+      );
       return { output, head, reads, flags: [...flags.values()] };
     },
     {
