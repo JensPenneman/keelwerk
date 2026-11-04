@@ -123,15 +123,34 @@ export interface Entity<
   readonly retention: { readonly suggest: string } | null;
 }
 
-/** Any entity. */
-export type AnyEntity = Entity<
-  string,
-  ShapeFields,
-  EventShapes,
-  HistoryMode,
-  GeneratedOptions,
-  Relations
->;
+/**
+ * Any entity, written out structurally rather than as `Entity<string, ShapeFields, ...>`: an index's
+ * `where` mentions the fields in a position TypeScript measures as invariant, and that measurement
+ * depends on which other files the program holds, so an instantiation of `Entity` is not a stable
+ * supertype of every concrete entity.
+ */
+export interface AnyEntity {
+  readonly kind: 'entity';
+  readonly prefix: string;
+  readonly fields: ShapeFields;
+  readonly events: EventShapes;
+  readonly history: HistoryMode;
+  readonly generated: GeneratedOptions;
+  readonly relations: Relations;
+  readonly dataSubject: string | null;
+  readonly indexes: readonly {
+    readonly fields: readonly string[];
+    readonly unique?: boolean;
+    readonly where?: unknown;
+  }[];
+  readonly searchIndexes: readonly SearchIndex[];
+  readonly reason: string | null;
+  readonly tenancy: Tenancy;
+  readonly partition: string | null;
+  readonly evolve: { readonly [name: string]: (state: never, event: never) => unknown };
+  readonly invariant: ((row: never) => boolean) | null;
+  readonly retention: { readonly suggest: string } | null;
+}
 
 /**
  * Defines an entity; `history` defaults to 'chain' and `tenancy` to 'tenant'. The defaulted
