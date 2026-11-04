@@ -70,6 +70,15 @@ export interface DeploymentDefinition {
   readonly scaling?: DeploymentScaling;
   /** Job limits per queue (sections 9.5.5 and 21.4). */
   readonly queues?: Readonly<
-    Record<string, { readonly running?: number; readonly queued?: number; readonly slo?: string }>
+    Record<
+      string,
+      {
+        readonly running?: number;
+        readonly queued?: number;
+        readonly slo?: string;
+        /** The lanes one take may lock; defaults to the take's batch size (section 9.5.6). */
+        readonly takeLanes?: number;
+      }
+    >
   >;
 }

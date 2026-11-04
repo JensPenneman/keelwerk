@@ -56,7 +56,7 @@ export type FlagDeclaration = BooleanFlag | StringFlag | NumberFlag | JsonFlag |
 
 /**
  * Declares a flag, listed by the base of its owning module under `flags` (section 20.2). A typed
- * declaration in M1: a flag request answers the declared default with reason `default` (S-23).
+ * declaration in M1: a flag request answers the declared default with reason `DEFAULT` (S-23, decision 185).
  */
 export function defineFlag<const F extends FlagDeclaration>(flag: F): F {
   return flag;

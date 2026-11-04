@@ -134,3 +134,10 @@ describe('case 14: defineDeployment', () => {
     defineDeployment({ ...base, apps: [app], infrastructure: [], keys: { masterKey: 'plain' } });
   });
 });
+
+describe('queues.<q>.takeLanes', () => {
+  test('is an optional number on a queue declaration', () => {
+    type Queue = NonNullable<DeploymentDefinition['queues']>[string];
+    expectTypeOf<Queue['takeLanes']>().toEqualTypeOf<number | undefined>();
+  });
+});

@@ -22,6 +22,8 @@ export interface AppAuthorization {
 export interface AppPolicies {
   readonly disable?: readonly string[];
   readonly add?: readonly object[];
+  /** A module's whole rule set, replaced by these rules (section 8.7). */
+  readonly replace?: { readonly [module: string]: readonly object[] };
 }
 
 /** The options of `defineApp` (section 4.5). */

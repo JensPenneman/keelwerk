@@ -20,7 +20,7 @@ export interface ModuleEntry {
   readonly hooks: readonly string[];
   readonly services: readonly string[];
   readonly extensionPoints: readonly string[];
-  /** Flags the module declares (section 20.2); a flag request answers the default with reason 'DEFAULT' (20.3; 20.2 and S-23 say 'default'). */
+  /** Flags the module declares (section 20.2); a flag request answers the declared default with reason 'DEFAULT' (20.3, decision 185). */
   readonly flags: Readonly<
     Record<
       string,

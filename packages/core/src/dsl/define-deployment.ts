@@ -90,6 +90,8 @@ export interface DeploymentOptions<
       readonly running?: number;
       readonly queued?: number;
       readonly slo?: string;
+      /** The lanes one take may lock; defaults to the take's batch size (section 9.5.6). */
+      readonly takeLanes?: number;
     };
   };
 }

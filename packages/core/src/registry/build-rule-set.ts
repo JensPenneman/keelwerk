@@ -149,11 +149,8 @@ export function buildRuleSet(
     } else add.push(entry);
   });
   const replace: Record<string, readonly RuleEntry[]> = {};
-  const replaced: unknown = Reflect.get(app.policies, 'replace');
-  for (const [module, list] of Object.entries(
-    typeof replaced === 'object' && replaced !== null ? replaced : {},
-  )) {
-    const entries = (Array.isArray(list) ? list : []).flatMap((value) => {
+  for (const [module, list] of Object.entries(app.policies.replace ?? {})) {
+    const entries = list.flatMap((value) => {
       const entry = appRuleOf(value, module);
       return entry === null ? [] : [{ ...entry, module }];
     });

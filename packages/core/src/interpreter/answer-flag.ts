@@ -1,3 +1,4 @@
+import { defaultFlagReason } from '../events/default-flag-reason.ts';
 import type { AnswerContext } from '../kernel/answer-context.ts';
 import type { FlagRequest } from '../protocol/flag-request.ts';
 import { refuseRequest } from './refuse-request.ts';
@@ -10,12 +11,12 @@ type FlagAnswer =
   | {
       readonly value: unknown;
       readonly variant: string;
-      readonly reason: 'DEFAULT';
+      readonly reason: typeof defaultFlagReason;
       readonly provider: string;
     };
 
 /**
- * Answers a flag request with the flag's declared default and the reason `default`, and records
+ * Answers a flag request with the flag's declared default and the reason `DEFAULT`, and records
  * the read in the flags the invocation read (S-23). The key is `<module id>.<flag>`; providers,
  * targeting and `core.flag` arrive with M2.
  */
@@ -31,8 +32,8 @@ export async function answerFlag(
   }
   const value = flag.default;
   const variant = typeof value === 'object' ? 'default' : String(value);
-  const read = { key: request.key, variant, reason: 'default', ruleVersion: null };
+  const read = { key: request.key, variant, reason: defaultFlagReason, ruleVersion: null };
   context.record.flag(read);
   if (!request.details) return value as FlagAnswer;
-  return { value, variant, reason: 'DEFAULT', provider: 'default' };
+  return { value, variant, reason: defaultFlagReason, provider: 'default' };
 }

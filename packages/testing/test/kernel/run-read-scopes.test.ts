@@ -54,7 +54,7 @@ describe('flags, computations and the seam', () => {
       details: { value: false, variant: 'false', reason: 'DEFAULT', provider: 'default' },
     });
     expect(result.flags).toEqual([
-      { key: 'library.newShelves', variant: 'false', reason: 'default', ruleVersion: null },
+      { key: 'library.newShelves', variant: 'false', reason: 'DEFAULT', ruleVersion: null },
     ]);
   });
 
