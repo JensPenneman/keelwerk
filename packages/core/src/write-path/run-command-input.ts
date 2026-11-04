@@ -1,4 +1,5 @@
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
+import type { HybridClock } from '../clock/hybrid-clock.ts';
 import type { RequestInfo } from '../invoker/request-info.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { ComputePool } from '../kernel/compute-pool.ts';
@@ -46,6 +47,8 @@ export interface RunCommandInput {
   readonly client?: { readonly id: string; readonly seq: number };
   /** The writer part of the events' clock readings (`s` and ten base32 characters, 14.5.3); default: a fixed placeholder until the clock package names one. */
   readonly nodeId?: string;
+  /** The process clock the events' readings come from (14.5.3); default: a fresh clock for the attempt, which only orders that command's own events. The runtime passes one. */
+  readonly hybridClock?: HybridClock;
   readonly traceparent?: string;
   /** Default: the request id. */
   readonly correlationId?: string;

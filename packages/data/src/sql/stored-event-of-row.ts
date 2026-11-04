@@ -50,6 +50,7 @@ export function storedEventOfRow(
     version: Number(row.stream_version),
     partition: row.partition_key === null ? null : String(row.partition_key),
     type: `${stream.type}.${String(row.name)}`,
+    schemaVersion: Number(row.schema_version),
     shape: Buffer.from(decodeBytes(row.shape_id)).toString('hex'),
     data: parsed(row.data),
     before: row.before === null ? null : (parsed(row.before) as StoredEvent['before']),

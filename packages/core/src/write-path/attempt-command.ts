@@ -1,7 +1,8 @@
+import { hybridClock } from '../clock/hybrid-clock.ts';
 import { runKernelEffects } from '../effects/run-kernel-effects.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { buildDecisionRecord } from '../events/build-decision-record.ts';
 import { buildEventMeta } from '../events/build-event-meta.ts';
-import type { DecisionRecord } from '../events/decision-record.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import type { Clock } from '../kernel/clock.ts';
@@ -109,24 +110,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   run.signal?.throwIfAborted();
 
   const reads = [...targetReads, ...decision.reads];
-  const record: DecisionRecord = {
-    part: action.ref,
-    inputDigest: fingerprint,
-    reads,
-    answers: decision.answers,
-    effects: [],
-  };
-  const meta = buildEventMeta({
-    principal: run.principal,
-    commandId,
-    action: action.ref,
-    correlationId: run.correlationId ?? run.request.requestId,
-    ...(run.client === undefined ? {} : { client: run.client }),
-    ...(run.traceparent === undefined ? {} : { traceparent: run.traceparent }),
-    build: run.build,
-    flags: [...decision.flags.values()],
-    decision: record,
-  });
+  const flags = [...decision.flags.values()];
   const drafts = await sealDrafts({ registry, unit, drafts: decided.drafts });
   const written = await draftsToEvents({
     unit,
@@ -135,11 +119,27 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     drafts,
     authority,
     now,
-    meta,
+    meta: (recorded) =>
+      buildEventMeta({
+        principal: run.principal,
+        commandId,
+        action: action.ref,
+        correlationId: run.correlationId ?? run.request.requestId,
+        ...(run.client === undefined ? {} : { client: run.client }),
+        ...(run.traceparent === undefined ? {} : { traceparent: run.traceparent }),
+        build: run.build,
+        flags,
+        decision: buildDecisionRecord({
+          part: action.ref,
+          inputDigest: fingerprint,
+          reads: recorded,
+          answers: decision.answers,
+          effects: [],
+        }),
+      }),
     reads,
     loaded,
-    counter: { next: 0 },
-    nodeId: run.nodeId ?? defaultNodeId,
+    hybridClock: run.hybridClock ?? hybridClock(run.nodeId ?? defaultNodeId),
   });
   await writeStateRows(unit, written);
   await appendEvents(unit, written);

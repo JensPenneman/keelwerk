@@ -26,6 +26,7 @@ export function memoryEnvelope(
     version: pending.version,
     partition: pending.partition,
     type: `${stream.type}.${event.name}`,
+    schemaVersion: event.schemaVersion,
     shape: event.shape,
     data: event.data,
     before: event.before as StoredEvent['before'],

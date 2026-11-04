@@ -1,6 +1,9 @@
+import type { HybridClock } from '../clock/hybrid-clock.ts';
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { chainHash } from '../events/chain-hash.ts';
 import type { EventMeta } from '../events/event-meta.ts';
+import type { Hlc } from '../events/hlc.ts';
 import type { NewEvent } from '../events/new-event.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
@@ -17,10 +20,12 @@ import { encodeEventValue } from './encode-event-value.ts';
 import type { EntityBehaviours } from './entity-behaviours.ts';
 import type { EvolvingEvent } from './evolving-event.ts';
 import { genericEvolve } from './generic-evolve.ts';
-import { nextHlc } from './next-hlc.ts';
 import { resolveDraftById } from './resolve-draft-by-id.ts';
 import { transientRecords } from './transient-records.ts';
 import type { WrittenRow } from './written-row.ts';
+
+/** The event schema version generated and domain events are written with (section 15.1.9). */
+const schemaVersion = 1;
 
 const systemFields = new Set([
   'id',
@@ -96,14 +101,18 @@ export interface DraftsToEventsInput {
   /** The module whose authority the drafts are written with. */
   readonly authority: string;
   readonly now: Temporal.Instant;
-  readonly meta: EventMeta;
+  /**
+   * Builds the meta every event carries from the reads the decision recorded. It is called once,
+   * after every draft's row is loaded and before any event is hashed, so the decision record the
+   * chain covers is the record that is stored.
+   */
+  readonly meta: (reads: readonly RecordedRead[]) => EventMeta;
+  /** The decision's reads so far; a draft by id appends its load here (S-21). */
   readonly reads: RecordedRead[];
   /** Rows the command already holds locked, by `entity/id`: the target of an entity command. */
   readonly loaded: ReadonlyMap<string, StorageRow>;
-  /** Counts the events of the command for their clock readings. */
-  readonly counter: { next: number };
-  /** The writer part of every clock reading (section 14.5.3). */
-  readonly nodeId: string;
+  /** The process clock the events' readings are taken from (section 14.5.3). */
+  readonly hybridClock: HybridClock;
 }
 
 /**
@@ -116,7 +125,9 @@ export interface DraftsToEventsInput {
  * come back for the state update and the append.
  */
 export async function draftsToEvents(input: DraftsToEventsInput): Promise<readonly WrittenRow[]> {
-  const written = new Map<string, WrittenRow>();
+  const planned: { readonly draft: AnyDraft; readonly entry: EntityEntry }[] = [];
+  const loadedRows = new Map<string, StorageRow>();
+  const seen = new Set<string>();
   for (const draft of input.drafts) {
     const entry = input.registry.entities.get(draft.entity);
     if (entry === undefined) {
@@ -130,11 +141,38 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
         message: `${entry.ref} is a ${entry.descriptor.history} entity, which commands do not write in this release.`,
       });
     }
+    planned.push({ draft, entry });
+    const key = `${entry.ref}/${draft.id}`;
+    if (draft.kind === 'create' || seen.has(key)) {
+      seen.add(key);
+      continue;
+    }
+    seen.add(key);
+    const held = input.loaded.get(key);
+    loadedRows.set(
+      key,
+      held !== undefined &&
+        (draft.expectedVersion === undefined || Number(held.version) === draft.expectedVersion)
+        ? held
+        : await resolveDraftById({
+            unit: input.unit,
+            entry,
+            id: draft.id,
+            reads: input.reads,
+            ...(draft.expectedVersion === undefined
+              ? {}
+              : { expectedVersion: draft.expectedVersion }),
+          }),
+    );
+  }
+  const meta = input.meta(input.reads);
+
+  const written = new Map<string, WrittenRow>();
+  for (const { draft, entry } of planned) {
     const behaviour = input.behaviours(entry.ref);
     const key = `${entry.ref}/${draft.id}`;
     const recordedAt = input.now;
-    const hlc = nextHlc(input.now, input.counter.next, input.nodeId);
-    input.counter.next += 1;
+    let hlc: Hlc;
     const transient = transientRecords(entry);
     let work = written.get(key);
     let name: string;
@@ -162,6 +200,7 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
       }
       name = 'created';
       stored = { values: values.stored };
+      hlc = input.hybridClock.tick(input.now.epochMilliseconds);
       const evolving: EvolvingEvent = {
         id: draft.id,
         name,
@@ -184,20 +223,8 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
       previous = undefined;
     } else {
       if (work === undefined) {
-        const held = input.loaded.get(key);
-        const row =
-          held !== undefined &&
-          (draft.expectedVersion === undefined || Number(held.version) === draft.expectedVersion)
-            ? held
-            : await resolveDraftById({
-                unit: input.unit,
-                entry,
-                id: draft.id,
-                reads: input.reads,
-                ...(draft.expectedVersion === undefined
-                  ? {}
-                  : { expectedVersion: draft.expectedVersion }),
-              });
+        const row = loadedRows.get(key);
+        if (row === undefined) throw errors.internal(`${key} was not loaded for its draft`);
         work = {
           entry,
           id: draft.id,
@@ -210,6 +237,9 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
         written.set(key, work);
       }
       previous = work.row;
+      const last = previous.kwLastHlc as string | undefined;
+      if (last !== undefined && last !== null) input.hybridClock.receive(last as Hlc);
+      hlc = input.hybridClock.tick(input.now.epochMilliseconds);
       const base = { id: draft.id, recordedAt, hlc, hash: null } as const;
       switch (draft.kind) {
         case 'update': {
@@ -244,19 +274,42 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
       }
     }
     checkInvariant(entry, behaviour, next);
+    const eventId = newUuidV7();
+    const before = previous === undefined || transient ? null : beforeImage(entry, previous, next);
+    const prevHash = transient ? null : ((previous?.kwLastHash as string | undefined) ?? null);
+    const hash = transient
+      ? null
+      : chainHash(prevHash, {
+          eventId,
+          streamId: draft.id,
+          version: Number(next.version),
+          name,
+          schemaVersion,
+          data: stored,
+          before,
+          hlc,
+          recordedAt,
+          actor: meta.actor,
+          writer: meta.writer,
+          flags: meta.flags,
+          decision: meta.decision,
+          commandId: meta.commandId,
+          client: meta.client,
+        });
+    if (hash !== null) next = { ...next, kwLastHash: hash };
     const event: NewEvent = {
-      eventId: newUuidV7(),
+      eventId,
       name,
-      schemaVersion: 1,
+      schemaVersion,
       shape: entry.descriptor.shape.id,
       data: stored,
-      before: previous === undefined || transient ? null : beforeImage(entry, previous, next),
+      before,
       hlc,
       recordedAt,
-      meta: input.meta,
+      meta,
       transient,
-      prevHash: null,
-      hash: null,
+      prevHash,
+      hash,
     };
     work.events.push(event);
     work.row = next;

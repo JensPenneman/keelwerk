@@ -1,3 +1,4 @@
+import { chainColumns } from '../events/chain-columns.ts';
 import type { SecretRef } from '../ids/secret-ref.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
@@ -14,6 +15,8 @@ import type { StorageRow } from '../storage/storage-row.ts';
 export function decodeRow(entry: EntityEntry, row: StorageRow, authority: string): StorageRow {
   const decoded: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(row)) {
+    // The chain columns of a row loaded for a write are the kernel's, not the part's.
+    if (chainColumns.includes(name)) continue;
     const field = entry.descriptor.fields[name];
     if (field === undefined) {
       decoded[name] = value;

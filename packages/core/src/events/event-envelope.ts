@@ -22,6 +22,8 @@ export interface EventEnvelope<Type extends string = string, Data = unknown> {
   readonly partition: string | null;
   /** Full name: 'accounts.profile.deactivated'. */
   readonly type: Type;
+  /** The event schema version of the payload (`kw_events.schema_version`); upcasters select by it (section 15.1.9) and the chain hashes it (15.1.8). */
+  readonly schemaVersion: number;
   /** The shape id it was written with; reads through the kernel are upcast (section 15.1.9). */
   readonly shape: string;
   readonly data: Data;

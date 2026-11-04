@@ -1,5 +1,6 @@
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { chainSelect } from '../events/chain-select.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 import { createEntityRepository } from '../repositories/entity-repository.ts';
@@ -27,6 +28,7 @@ export async function resolveDraftById(input: ResolveDraftInput): Promise<Storag
   const { unit, entry, id } = input;
   const found = await createEntityRepository(unit, entry).find({
     where: { op: 'eq', field: 'id', value: id },
+    select: chainSelect(Object.keys(entry.descriptor.fields)),
     page: { first: 1 },
     includeArchived: true,
     forUpdate: true,

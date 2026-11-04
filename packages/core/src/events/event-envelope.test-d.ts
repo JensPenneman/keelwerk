@@ -18,6 +18,7 @@ test('the envelope carries every member of section 15.1.3', () => {
     | 'version'
     | 'partition'
     | 'type'
+    | 'schemaVersion'
     | 'shape'
     | 'data'
     | 'before'

@@ -25,10 +25,10 @@ export interface EventMetaInput {
 }
 
 /**
- * The members of an event envelope that come from its invocation (section 15.1.3). This is the
- * minimal form the write path starts with: the actor, the command, the correlation and the
- * writer. The decision records and the chain content arrive with the decision-record work
- * package, which replaces this file and keeps its signature.
+ * The members of an event envelope that come from its invocation (section 15.1.3): the actor, the
+ * command, the correlation, the writer (build and revision), the flags the invocation read and the
+ * decision record. `writer`, `flags` and `decision` are part of the chain content (S-60), so they
+ * are fixed here: the flags in key order, whatever order the invocation read them in.
  */
 export function buildEventMeta(input: EventMetaInput): EventMeta {
   const { principal } = input;
@@ -42,7 +42,14 @@ export function buildEventMeta(input: EventMetaInput): EventMeta {
     merge: null,
     traceparent: input.traceparent ?? null,
     writer: { build: input.build.id, revision: input.build.revision },
-    flags: input.flags,
+    flags: [...input.flags]
+      .map((flag) => ({
+        key: flag.key,
+        variant: flag.variant,
+        reason: flag.reason,
+        ruleVersion: flag.ruleVersion,
+      }))
+      .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)),
     decision: input.decision,
   };
 }

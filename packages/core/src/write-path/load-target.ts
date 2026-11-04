@@ -3,6 +3,7 @@ import { compilePlan } from '../authorization/compile-plan.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { chainSelect } from '../events/chain-select.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
 import { principalContextOf } from '../interpreter/principal-context-of.ts';
 import type { Principal } from '../principals/principal.ts';
@@ -45,6 +46,7 @@ export async function loadTarget(input: LoadTargetInput): Promise<StorageRow> {
   });
   const found = await createEntityRepository(input.unit, input.entry).find({
     where: allOf([{ op: 'eq', field: 'id', value: id }, plan.where]),
+    select: chainSelect(Object.keys(input.entry.descriptor.fields)),
     page: { first: 1 },
     forUpdate: true,
   });
