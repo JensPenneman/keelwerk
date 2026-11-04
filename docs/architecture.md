@@ -6489,7 +6489,7 @@ rename; the disclosure rule never reports an id that was never readable (a model
 random rows and policies). Erasure tests search a dump of the test database for marker values of the
 erased subject, credential tests search it for former password hashes and secret values, and a dump
 test asserts that no plaintext personal marker value appears in state tables or indexes. CI runs
-PostgreSQL and MySQL through testcontainers 12.2.0
+PostgreSQL and MySQL through testcontainers 12.2.1
 (`@testcontainers/postgresql`, `@testcontainers/mysql`); local runs use PGlite and SQLite; the proof
 apps are the integration suites (section 22).
 

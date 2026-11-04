@@ -68,7 +68,6 @@
         "@keelwerk/core",
         "@keelwerk/data",
         "@keelwerk/transport-rest",
-        "@testcontainers/postgresql",
         "fast-check"
       ]
     },
