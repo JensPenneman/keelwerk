@@ -82,7 +82,7 @@
     "packages/transport-http": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@hono/node-server", "@keelwerk/core", "@keelwerk/testing", "hono"]
+      "ignoreDependencies": ["@keelwerk/testing"]
     },
     "packages/transport-rest": {
       "entry": ["src/**/*.test-d.ts"],

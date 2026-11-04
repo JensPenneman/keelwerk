@@ -153,6 +153,7 @@ test('InvokeResponse narrows on ok', () => {
   const response = null as unknown as InvokeResponse;
   if (response.ok) {
     expectTypeOf(response.value).toEqualTypeOf<unknown>();
+    expectTypeOf(response.commandId).toEqualTypeOf<string | undefined>();
     expectTypeOf(response).not.toHaveProperty('error');
   } else {
     expectTypeOf(response.error).toEqualTypeOf<WireError>();

@@ -6,6 +6,7 @@ export type InvokeResponse =
   | {
       readonly ok: true;
       readonly value: unknown;
+      readonly commandId?: string;
       readonly receipt?: CommandReceipt;
       readonly effects?: readonly string[];
     }
