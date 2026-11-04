@@ -500,7 +500,7 @@ Versioning, rollouts and flags:
     (BUSL-1.1 or Elastic-2.0). Never looser than the framework. Status: decided 2026-10-27: **a**, the same FSL-1.1-ALv2 for the platforms and future modules.
 ## K. Edits applied
 
-All 21 items of this section were applied by the editor pass of 2026-10-28 (architecture, 18 ADRs,
+All 21 items of this section were applied by the editing pass of 2026-10-28 (architecture, 18 ADRs,
 roadmap, README, api-sketch.ts). Milestone numbers changed in that pass: the register's references
 to M8 (offline sync), M9 (collaborative fields) and M7 (data breadth, ORE) now read M6, M7 and M5;
 roadmap section 6 maps old to new.
@@ -512,7 +512,7 @@ roadmap section 6 maps old to new.
     packages, the `keelwerk` CLI, `keelwerk.config.ts`, `.keelwerk`-free: the per-repo directory stays
     `.launchway/` per 90c) was renamed on 2026-10-28. Status: applied.
 
-## K2. Edits to apply at the next editor pass
+## K2. Edits to apply at the next editing pass
 
 - 90c: the `.launchway/` directory convention (deployment.ts + launchway.ts + compose.yaml for the
   interim), the CLI's config lookup order, Launchway's project model reading it (replacing the
@@ -539,7 +539,7 @@ roadmap section 6 maps old to new.
     point, `edge.apply` performed by the edge node's agent); Launchway's `domains` declares the
     sites it needs; b) the edge module stays in Launchway and the Caddy provider lives there too (no
     shared package; a second platform wanting an edge copies it). Status: decided 2026-10-28: **a**, `@keelwerk/module-edge` as a shared module; applied by the
-    editor pass (sections 17.3, 22).
+    editing pass (sections 17.3, 22).
 89. **Anchor content** (consequence of 35b; a stored format, needed before M1). a) ★ an anchor
     carries the scope's latest position and hash only; b) also a digest of every stream head in the
     scope, so a rewrite of one stream's history is detectable from the anchor alone, at the cost of
@@ -560,7 +560,7 @@ roadmap section 6 maps old to new.
     current Launchway from `.launchway/compose.yaml` running `keelwerk start --config
     .launchway/deployment.ts`. To apply: sections 16.9 (config lookup), 17.3 (Launchway reads
     `.launchway/`), 23 (app repository layout), roadmap M3 and M4; see section K2.
-## J2. More editorial items (2026-10-28 editor pass; names to confirm or rename)
+## J2. More editorial items (2026-10-28 editing pass; names to confirm or rename)
 
 `defineRule`; ids of contributed rules (`auth.accounts.profile.self`); multi-action rules in
 `policies/<rule>.ts` with the id `<module>.<rule>`; `open` instead of `public` in rule names (a
