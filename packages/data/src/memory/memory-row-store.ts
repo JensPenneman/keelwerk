@@ -13,6 +13,8 @@ import { entityTable } from '../sql/entity-table.ts';
 import { malformedQuery } from '../sql/malformed-query.ts';
 import { memoryCandidates } from './memory-candidates.ts';
 import { memoryCheckCondition } from './memory-check-condition.ts';
+import { memoryCheckPurge } from './memory-check-purge.ts';
+import { memoryCheckReferences } from './memory-check-references.ts';
 import { memoryCheckUnique } from './memory-check-unique.ts';
 import { memoryCodecs } from './memory-codecs.ts';
 import { memoryCompareRows } from './memory-compare-rows.ts';
@@ -74,6 +76,7 @@ export function memoryRowStore(ctx: MemoryUnitContext): RowStore {
       memoryCheckUnique(entity, row, [...stored.values(), ...staged.values()]);
       staged.set(id, row);
     }
+    for (const row of staged.values()) memoryCheckReferences(ctx, entity, row, staged);
     const table = ctx.writeRows(entity);
     for (const [id, row] of staged) table.set(id, row);
   };
@@ -97,6 +100,7 @@ export function memoryRowStore(ctx: MemoryUnitContext): RowStore {
       memoryCheckUnique(entity, row, [...others, ...staged.values()]);
       staged.set(change.id, row);
     }
+    for (const row of staged.values()) memoryCheckReferences(ctx, entity, row, staged);
     const table = ctx.writeRows(entity);
     for (const [id, row] of staged) table.set(id, row);
   };
@@ -150,6 +154,7 @@ export function memoryRowStore(ctx: MemoryUnitContext): RowStore {
       ctx.writable();
       const present = [...new Set(ids)].filter((id) => ctx.rows(entity).has(id));
       if (present.length === 0) return 0;
+      memoryCheckPurge(ctx, entity, new Set(present));
       const table = ctx.writeRows(entity);
       for (const id of present) table.delete(id);
       return present.length;

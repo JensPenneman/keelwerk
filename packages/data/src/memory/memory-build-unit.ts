@@ -3,6 +3,7 @@ import { memoryBucketStore } from './memory-bucket-store.ts';
 import { memoryEventStore } from './memory-event-store.ts';
 import { memoryJobStore } from './memory-job-store.ts';
 import { memoryKeyStore } from './memory-key-store.ts';
+import { memoryNestedContext } from './memory-nested-context.ts';
 import { memoryReceiptStore } from './memory-receipt-store.ts';
 import { memoryRowStore } from './memory-row-store.ts';
 import { memoryScopeKeyStore } from './memory-scope-key-store.ts';
@@ -30,11 +31,12 @@ export function memoryBuildUnit(ctx: MemoryUnitContext, hooks: (() => void)[]): 
     keys: memoryKeyStore(ctx),
     serials: memorySerialStore(ctx),
     ...(ctx.scope.level === 'deployment' ? { scopeKeys: memoryScopeKeyStore(ctx) } : {}),
-    nested: async (fn) => {
+    nested: async (fn, options) => {
+      const view = memoryNestedContext(ctx, options);
       const rollback = ctx.tx.savepoint();
       const registered = hooks.length;
       try {
-        return await fn(unit);
+        return await fn(view === ctx ? unit : memoryBuildUnit(view, hooks));
       } catch (error) {
         rollback();
         hooks.length = registered;

@@ -12,9 +12,10 @@ import type { MemoryUnitContext } from './memory-unit-context.ts';
  * installed.
  */
 export function memoryCommitTail(ctx: MemoryUnitContext): void {
-  const buffered = [...ctx.tx.read<MemoryPendingEvent>('~events').values()];
-  if (buffered.length === 0) return;
+  if (ctx.scope.level === 'namespace') return;
   const scopeId = ctx.scopeId();
+  const buffered = [...ctx.tx.read<MemoryPendingEvent>(`~events/${scopeId}`).values()];
+  if (buffered.length === 0) return;
   const counters = ctx.tx.write<MemoryCounter>(`pos/${scopeId}`);
   const counter = counters.get('counter') ?? { next: 1n, epoch: 1 };
   const log = ctx.tx.write<MemoryLoggedEvent>(`events/${scopeId}`);

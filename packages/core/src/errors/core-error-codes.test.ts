@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { coreErrorCodes } from './core-error-codes.ts';
 
 describe('coreErrorCodes', () => {
-  it('registers 44 codes, all core-prefixed with a message', () => {
+  it('registers 45 codes, all core-prefixed with a message', () => {
     const entries = Object.entries(coreErrorCodes);
-    expect(entries).toHaveLength(44);
+    expect(entries).toHaveLength(45);
     for (const [code, spec] of entries) {
       expect(code).toMatch(/^core\.[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/);
       expect(spec.message).not.toBe('');
@@ -69,6 +69,7 @@ describe('coreErrorCodes', () => {
       ['core.unauthenticated', 'unauthenticated', false],
       ['core.not_found', 'not_found', false],
       ['core.conflict', 'conflict', false],
+      ['core.reference_missing', 'conflict', false],
       ['core.rate_limited', 'rate_limited', true],
       ['core.not_implemented', 'not_implemented', false],
       ['core.unavailable', 'unavailable', true],

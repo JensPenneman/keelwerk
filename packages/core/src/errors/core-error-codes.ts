@@ -115,6 +115,10 @@ export const coreErrorCodes: Readonly<Record<CoreErrorCode, ErrorSpec>> = Object
   'core.unauthenticated': { kind: 'unauthenticated', message: 'A principal is required.' },
   'core.not_found': { kind: 'not_found', message: 'The target does not exist.' },
   'core.conflict': { kind: 'conflict', message: 'The request conflicts with the current state.' },
+  'core.reference_missing': {
+    kind: 'conflict',
+    message: 'The row refers to a target that does not exist.',
+  },
   'core.rate_limited': { kind: 'rate_limited', message: 'Too many requests.' },
   'core.not_implemented': {
     kind: 'not_implemented',

@@ -8,9 +8,6 @@ import type { MemoryPendingEvent } from './memory-pending-event.ts';
 import { memoryStreamKey } from './memory-stream-key.ts';
 import type { MemoryUnitContext } from './memory-unit-context.ts';
 
-const bufferName = '~events';
-const versionsName = '~versions';
-
 function sequenceKey(index: number): string {
   return String(index).padStart(12, '0');
 }
@@ -27,12 +24,14 @@ export function memoryEventStore(ctx: MemoryUnitContext): EventStore {
     hasLog ? ctx.tx.read<MemoryCounter>(`pos/${ctx.scopeId()}`).get('counter') : undefined;
   const logOf = (): ReadonlyMap<string, MemoryLoggedEvent> =>
     hasLog ? ctx.tx.read<MemoryLoggedEvent>(`events/${ctx.scopeId()}`) : new Map();
+  const bufferName = (): string => `~events/${ctx.scopeId()}`;
+  const versionsName = (): string => `~versions/${ctx.scopeId()}`;
   const bufferOf = (): readonly MemoryPendingEvent[] => [
-    ...ctx.tx.read<MemoryPendingEvent>(bufferName).values(),
+    ...ctx.tx.read<MemoryPendingEvent>(bufferName()).values(),
   ];
   const committedVersion = (type: string, id: string): number => {
     const key = memoryStreamKey(type, id);
-    const buffered = ctx.tx.read<number>(versionsName).get(key);
+    const buffered = ctx.tx.read<number>(versionsName()).get(key);
     if (buffered !== undefined) return buffered;
     return ctx.tx.read<number>(`streamv/${ctx.scopeId()}`).get(key) ?? 0;
   };
@@ -64,8 +63,8 @@ export function memoryEventStore(ctx: MemoryUnitContext): EventStore {
         planned.set(key, version + append.events.length);
       }
       const results: { eventId: string; version: number }[] = [];
-      const buffer = ctx.tx.write<MemoryPendingEvent>(bufferName);
-      const versions = ctx.tx.write<number>(versionsName);
+      const buffer = ctx.tx.write<MemoryPendingEvent>(bufferName());
+      const versions = ctx.tx.write<number>(versionsName());
       for (const append of batch) {
         const key = memoryStreamKey(append.stream.type, append.stream.id);
         let version = committedVersion(append.stream.type, append.stream.id);

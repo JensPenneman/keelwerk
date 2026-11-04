@@ -39,6 +39,7 @@ export type CoreErrorCode =
   | 'core.unauthenticated'
   | 'core.not_found'
   | 'core.conflict'
+  | 'core.reference_missing'
   | 'core.rate_limited'
   | 'core.not_implemented'
   | 'core.unavailable'

@@ -19,7 +19,7 @@ const systemColumns: ReadonlySet<string> = new Set([
 const requiredColumns = ['id', 'createdAt', 'updatedAt', 'version'] as const;
 
 /**
- * The row as the table stores it: a copy without absent values, checked the way the table's
+ * The row as the table stores it: a copy without absent values and with instants cut to milliseconds, checked the way the table's
  * columns would check it. A column the entity does not have is `validation`; the scope column, if
  * the row carries it, must be the unit's (`forbidden`, as the scoping plugin has it); the
  * system columns and the non-optional fields must be present.
@@ -49,7 +49,11 @@ export function memoryPrepareRow(
       Object.hasOwn(entity.fields, name) ||
       Object.hasOwn(entity.derivedIndexes, name);
     if (!known) throw malformedQuery(`${entity.ref} has no column ${name}`);
-    if (value !== null && value !== undefined) row[name] = memoryCloneValue(value);
+    if (value === null || value === undefined) continue;
+    row[name] =
+      value instanceof Temporal.Instant
+        ? Temporal.Instant.fromEpochMilliseconds(value.epochMilliseconds)
+        : memoryCloneValue(value);
   }
   for (const name of requiredColumns) {
     if (row[name] === undefined) throw malformedQuery(`${entity.ref}.${name} is required`);

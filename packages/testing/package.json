@@ -55,6 +55,9 @@
     "@testcontainers/postgresql": "12.2.1",
     "fast-check": "4.10.2"
   },
+  "peerDependencies": {
+    "vitest": "5.0.5"
+  },
   "devDependencies": {
     "@keelwerk/adapter-postgres": "workspace:*",
     "@keelwerk/transport-rest": "workspace:*",
