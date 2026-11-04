@@ -7,6 +7,11 @@
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"]
     },
-    "packages/biome-config": {}
+    "packages/biome-config": {},
+    "spikes/composition-types": {
+      "entry": ["src/**/*.test-d.ts", "sketch/acceptance.ts"],
+      "project": ["src/**/*.ts", "scripts/**/*.ts", "sketch/**/*.ts"],
+      "ignore": ["sketch/**"]
+    }
   }
 }

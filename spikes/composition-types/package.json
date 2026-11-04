@@ -1,0 +1,26 @@
+{
+  "name": "@keelwerk/spike-composition-types",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M0 spike: the type-level model of keelwerk, proved before any core code exists.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "exports": {
+    ".": {
+      "@keelwerk/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "manifests": "node scripts/generate-fixture-manifests.ts",
+    "sketch": "tsc -p tsconfig.sketch.json",
+    "measure": "node scripts/measure.ts"
+  },
+  "devDependencies": {
+    "vitest": "5.0.3"
+  }
+}

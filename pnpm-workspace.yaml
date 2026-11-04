@@ -16,3 +16,7 @@ publicHoistPattern: []
 allowBuilds:
   # Git hooks are installed by the root `prepare` script instead.
   lefthook: false
+  # Optional native add-ons of testcontainers' SSH and gRPC dependencies; their JavaScript paths suffice.
+  cpu-features: false
+  protobufjs: false
+  ssh2: false

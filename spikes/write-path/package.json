@@ -1,0 +1,21 @@
+{
+  "name": "@keelwerk/spike-write-path",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Throwaway measurement of the event log's write path on PostgreSQL 18 (architecture sections 9.5, 15.1.4, 26.2).",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "measure": "node src/main.ts"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "12.2.1",
+    "@types/node": "26.6.5",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1",
+    "vitest": "5.0.3"
+  }
+}

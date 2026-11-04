@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "noEmit": true,
+    "paths": {
+      "@keelwerk/core": ["./src/index.ts"],
+      "@keelwerk/core/ledger": ["./sketch/ledger.ts"],
+      "@keelwerk/adapter-postgres": ["./sketch/adapter-postgres.ts"],
+      "@keelwerk/transport-http": ["./sketch/transport-http.ts"],
+      "@keelwerk/transport-rest": ["./sketch/rest.ts"],
+      "@keelwerk/transport-graphql": ["./sketch/graphql.ts"],
+      "@keelwerk/live": ["./sketch/live.ts"],
+      "@keelwerk/client": ["./sketch/client.ts"]
+    }
+  },
+  "files": ["../../docs/api-sketch.ts", "sketch/acceptance.ts"]
+}

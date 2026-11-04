@@ -6,6 +6,11 @@
     { "path": "packages/data" },
     { "path": "packages/data/tsconfig.test.json" },
     { "path": "packages/testing" },
-    { "path": "packages/testing/tsconfig.test.json" }
+    { "path": "packages/testing/tsconfig.test.json" },
+    { "path": "spikes/write-path" },
+    { "path": "spikes/write-path/tsconfig.test.json" },
+    { "path": "spikes/composition-types" },
+    { "path": "spikes/composition-types/tsconfig.test.json" },
+    { "path": "spikes/composition-types/tsconfig.scripts.json" }
   ]
 }
