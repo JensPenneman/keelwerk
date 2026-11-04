@@ -1,5 +1,6 @@
 import type { ActorRef } from '../principals/actor-ref.ts';
 import type { Position } from '../storage/position.ts';
+import type { Scope } from '../storage/scope.ts';
 import type { DecisionRecord } from './decision-record.ts';
 import type { FlagRead } from './flag-read.ts';
 import type { Hlc } from './hlc.ts';
@@ -14,7 +15,7 @@ export interface EventEnvelope<Type extends string = string, Data = unknown> {
   readonly position: Position;
   /** `NamespaceRef.id`. */
   readonly namespace: string;
-  readonly scope: { readonly backendId: string; readonly tenantId: string | null };
+  readonly scope: Scope;
   readonly stream: StreamRef;
   /** 1-based within the stream. */
   readonly version: number;

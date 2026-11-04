@@ -1,9 +1,11 @@
 import { expectTypeOf, test } from 'vitest';
 import type { ActorRef } from '../principals/actor-ref.ts';
+import type { Scope } from '../storage/scope.ts';
 import type { DecisionRecord } from './decision-record.ts';
 import type { EventEnvelope } from './event-envelope.ts';
 import type { FlagRead } from './flag-read.ts';
 import type { Hlc } from './hlc.ts';
+import type { NewEvent } from './new-event.ts';
 import type { StoredEvent } from './stored-event.ts';
 
 test('the envelope carries every member of section 15.1.3', () => {
@@ -66,4 +68,10 @@ test('the decision record keeps reads, answers and effects in order', () => {
     'part' | 'inputDigest' | 'input' | 'reads' | 'answers' | 'effects'
   >();
   expectTypeOf<DecisionRecord['reads'][number]['at']>().toEqualTypeOf<bigint>();
+});
+
+test('the scope is the storage scope without the namespace level, and a new event names its shape', () => {
+  expectTypeOf<EventEnvelope['scope']>().toEqualTypeOf<Scope>();
+  expectTypeOf<{ level: 'deployment' }>().toExtend<EventEnvelope['scope']>();
+  expectTypeOf<NewEvent['shape']>().toBeString();
 });

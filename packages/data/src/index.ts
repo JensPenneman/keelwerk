@@ -1,3 +1,5 @@
+export { memoryAdapter } from './memory/memory-adapter.ts';
+export type { MemoryAdapterOptions } from './memory/memory-adapter-options.ts';
 export type {
   CompiledPredicate,
   ConditionContext,

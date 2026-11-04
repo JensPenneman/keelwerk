@@ -7,6 +7,8 @@ export interface NewEvent {
   /** Local name: 'changed', 'deactivated'. */
   readonly name: string;
   readonly schemaVersion: number;
+  /** The shape id of the payload, as the kernel wrote it. */
+  readonly shape: string;
   /** Personal values already encrypted. */
   readonly data: unknown;
   readonly before: unknown | null;

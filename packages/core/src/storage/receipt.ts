@@ -19,4 +19,6 @@ export interface Receipt {
   readonly clientId: string | null;
   readonly clientSeq: number | null;
   readonly expiresAt: Temporal.Instant;
+  /** Set when the client acknowledged the receipt; the row stays until it expires. */
+  readonly acknowledgedAt?: Temporal.Instant;
 }
