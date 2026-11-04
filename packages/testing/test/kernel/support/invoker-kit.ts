@@ -12,13 +12,7 @@ import type {
   Registry,
   Scope,
 } from '@keelwerk/core';
-import {
-  createInvoker,
-  errors,
-  type KeelwerkError,
-  shape,
-  staticScopeDirectory,
-} from '@keelwerk/core';
+import { createInvoker, errors, type KeelwerkError, shape } from '@keelwerk/core';
 import type { ProbeContext } from './run-read-kit.ts';
 import {
   anonymous,
@@ -31,6 +25,7 @@ import {
   userOf,
   withQuery,
 } from './run-read-kit.ts';
+import { staticScopeDirectory } from './static-scope-directory.ts';
 
 const backendId = tenant.level === 'tenant' ? tenant.backendId : '';
 const tenantId = tenant.level === 'tenant' ? tenant.tenantId : '';

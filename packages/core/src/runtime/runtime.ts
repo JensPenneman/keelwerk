@@ -3,6 +3,7 @@ import type { Registry } from '../registry/registry.ts';
 import type { ApiSurface } from '../surface/api-surface.ts';
 import type { TransportHost } from '../transport/transport-host.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
+import type { RuntimeControl } from './runtime-control.ts';
 import type { RuntimeOptions } from './runtime-options.ts';
 
 /** A booted process (section 3.3). */
@@ -14,6 +15,8 @@ export interface Runtime {
   registry(appId: string): Registry;
   /** With `listen` and an HTTP host in the infrastructure. */
   readonly host?: TransportHost;
+  /** Creates backends and tenants in the running process, no restart needed (F-09 change note, WP-43). */
+  readonly control: RuntimeControl;
   /** The `stop` phase. */
   stop(deadlineMs: number): Promise<void>;
 }

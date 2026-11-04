@@ -4,9 +4,7 @@ import { readAsOfPosition, redecide } from '@keelwerk/core/replay';
 import { afterEach, describe, expect, test } from 'vitest';
 import { runInMemory } from '../../src/drive/run-in-memory.ts';
 import { conformanceApp, libraryApp } from '../../src/fixtures/index.ts';
-import { testEnvironment } from '../../src/harness/test-environment.ts';
 import { testPrincipal } from '../../src/harness/test-principal.ts';
-import { testTracer } from '../../src/harness/test-tracer.ts';
 import { expectReproduces } from '../../src/replay/expect-reproduces.ts';
 import { replayCompute } from '../../src/replay/replay-compute.ts';
 import { replayKeys } from '../../src/replay/replay-keys.ts';
@@ -58,8 +56,8 @@ function redecideWith(
     rules: [...registry.rules.values()].filter((rule) => rule.disabled !== true).map(normalizeRule),
     keys: replayKeys,
     compute: replayCompute,
-    log: testEnvironment(new AbortController().signal).log,
-    trace: testTracer.startSpan('redecide'),
+    log: run.runtime.log,
+    trace: run.runtime.tracer.startSpan('redecide'),
   });
 }
 

@@ -1,42 +1,27 @@
-import type { EntityDescriptor, KeyService, NamespaceRef } from '@keelwerk/core';
-import {
-  coreApiVersions,
-  createCommandRunner,
-  createInvoker,
-  entityBehavioursOf,
-  errors,
-  KeelwerkError,
-  staticScopeDirectory,
+import type {
+  AdapterEnvironment,
+  DataAdapter,
+  DataAdapterFactory,
+  EntityDescriptor,
+  NamespaceRef,
 } from '@keelwerk/core';
+import { coreApiVersions, KeelwerkError, secret, startRuntime } from '@keelwerk/core';
 import { memoryAdapter } from '@keelwerk/data';
-import { harnessAddress } from './harness-address.ts';
-import { harnessNamespaceId } from './harness-namespace-id.ts';
+import { schemaPlanner } from './schema-planner.ts';
 import type { TestApp } from './test-app.ts';
-import { testEnvironment } from './test-environment.ts';
-import { testPrincipalResolver } from './test-principal-resolver.ts';
+import { testMasterKeyName } from './test-master-key-name.ts';
 import type { TestRuntime } from './test-runtime.ts';
 import type { TestRuntimeOptions } from './test-runtime-options.ts';
+import { testSecrets } from './test-secrets.ts';
 import type { TestTenant } from './test-tenant.ts';
+import { withTestResolver } from './with-test-resolver.ts';
 
-const { backendId, placementId } = harnessAddress;
-
-function tenantId(index: number): string {
-  return `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`;
-}
-
-/** Keys are not part of the in-memory slice: every call says so instead of answering. */
-const noKeys: KeyService = {
-  issue: () => Promise.reject(errors.unsupported('The test runtime has no key service.')),
-  verify: () => Promise.reject(errors.unsupported('The test runtime has no key service.')),
-  reveal: () => Promise.reject(errors.unsupported('The test runtime has no key service.')),
-  derive: () => Promise.reject(errors.unsupported('The test runtime has no key service.')),
-  invalidate: () => undefined,
-};
+const placementName = 'main';
 
 /**
- * Starts the app in process on the in-memory adapter: the full invocation pipeline and the command
- * write path, a static scope directory (until the control store, WP-43) holding one backend and
- * the named tenants. Callers reach it through `createLocalClient`.
+ * Starts the app in process the way a deployment does: `startRuntime` over the in-memory adapter
+ * (or the one the options name), the control store, one backend and the named tenants created
+ * through the operator's control API. Callers reach it through `createLocalClient`.
  */
 export async function startTestRuntime<
   const App extends TestApp,
@@ -55,89 +40,90 @@ export async function startTestRuntime<
   const descriptors = new Map<string, EntityDescriptor>(
     [...app.registry.entities].map(([ref, entry]) => [ref, entry.descriptor] as const),
   );
-  const stop = new AbortController();
-  const adapter =
-    options.adapter ??
-    memoryAdapter({ clock, entities: (ref) => descriptors.get(ref) }).create(
-      { id: placementId, strategy: 'shared-tables' },
-      testEnvironment(stop.signal),
-    );
-  const capabilities = await adapter.connect();
-  const namespaceOf = (tenant: string | null): NamespaceRef => ({
-    id: harnessNamespaceId(tenant),
-    placementId,
-    appId: app.id,
-    tenantId: tenant,
-    root: app.id,
-  });
-  const tenants = names.map((name, index): TestTenant => ({ name, id: tenantId(index) }));
-  const head = app.api?.dates.at(-1) ?? coreApiVersions.dates.at(-1) ?? '';
-  const served = {
-    ...app.registry,
-    fills: new Map([
-      ...app.registry.fills,
-      [
-        'core.principalResolvers',
-        [
-          ...(app.registry.fills.get('core.principalResolvers') ?? []),
-          {
-            point: 'core.principalResolvers',
-            module: 'core',
-            bound: false,
-            fill: testPrincipalResolver(),
-          },
-        ],
-      ],
-    ]),
-  };
-  const behaviours = entityBehavioursOf(app.modules);
-  const invoker = createInvoker({
-    apps: new Map([
-      [app.id, { registry: served, head }],
-      ['core', { registry: served, head }],
-    ]),
-    directory: staticScopeDirectory({
-      backends: [
-        { id: backendId, app: app.id, placementId, namespace: namespaceOf(null), status: 'active' },
-      ],
-      tenants: tenants.map((tenant) => ({
-        id: tenant.id,
-        backendId,
-        placementId,
-        namespace: namespaceOf(tenant.id),
-        status: 'active',
-      })),
-    }),
-    placement: () => ({ adapter, capabilities }),
-    tenantResolution: [{ kind: 'header', header: 'x-tenant' }],
-    clock,
-    keys: noKeys,
-    compute: {
-      argon2idHash: () =>
-        Promise.reject(errors.unsupported('The test runtime has no compute pool.')),
-      argon2idVerify: () =>
-        Promise.reject(errors.unsupported('The test runtime has no compute pool.')),
-      close: async () => undefined,
+  const created: DataAdapter[] = [];
+  const namespaces: NamespaceRef[] = [];
+  let environment: AdapterEnvironment | undefined;
+  // The runtime provisions the namespaces; the harness only notes which ones, to address them.
+  const observed = (adapter: DataAdapter): DataAdapter => ({
+    ...adapter,
+    schema: {
+      ...adapter.schema,
+      provision: async (namespace, snapshots, options) => {
+        await adapter.schema.provision(namespace, snapshots, options);
+        namespaces.push(namespace);
+      },
     },
-    log: testEnvironment(stop.signal).log,
-    environment: 'test',
-    commands: createCommandRunner({
-      behaviours: () => behaviours,
-      retry: { sleep: async () => undefined },
-    }),
   });
+  const memory = memoryAdapter({ clock, entities: (ref) => descriptors.get(ref) });
+  const given = options.adapter;
+  const factory: DataAdapterFactory =
+    given === undefined
+      ? {
+          ...memory,
+          create: (placement, env) => {
+            const adapter = observed(memory.create(placement, env));
+            if (placement.id === placementName) {
+              created.push(adapter);
+              environment = env;
+            }
+            return adapter;
+          },
+        }
+      : {
+          ...memory,
+          id: 'given',
+          create: (_placement, env) => {
+            const adapter = observed(given);
+            created.push(adapter);
+            environment = env;
+            return adapter;
+          },
+        };
+  const served = withTestResolver(app);
+  const runtime = await startRuntime(
+    {
+      apps: [served],
+      infrastructure: [factory, schemaPlanner(), testSecrets],
+      control: { adapter: 'memory' },
+      placements: {
+        [placementName]: {
+          adapter: given === undefined ? 'memory' : 'given',
+          strategy: 'shared-tables',
+        },
+      },
+      tenantResolution: [{ kind: 'header', header: 'x-tenant' }],
+      keys: { masterKey: secret(testMasterKeyName) },
+    },
+    { role: 'all', listen: false, environment: 'test', clock },
+  );
+  const backend = await runtime.control.createBackend({
+    name: 'test',
+    app: app.id,
+    placement: placementName,
+  });
+  const tenants: TestTenant[] = [];
+  for (const name of names) {
+    const tenant = await runtime.control.createTenant({ backendId: backend.id, name });
+    tenants.push({ name, id: tenant.id });
+  }
+  const adapter = created[0];
+  const namespace = namespaces.find((candidate) => candidate.appId === app.id);
+  if (adapter === undefined || environment === undefined || namespace === undefined) {
+    throw new Error('the test runtime did not open its placement');
+  }
   return {
     app,
     adapter,
+    backendId: backend.id,
+    namespace,
+    log: environment.log,
+    tracer: environment.tracer,
     tenants: Object.fromEntries(tenants.map((tenant) => [tenant.name, tenant])) as Record<
       Name,
       TestTenant
     >,
-    invoker,
-    head,
-    stop: async () => {
-      stop.abort();
-      await adapter.close(0);
-    },
+    invoker: runtime.invoker,
+    head: app.api?.dates.at(-1) ?? coreApiVersions.dates.at(-1) ?? '',
+    stop: () => runtime.stop(0),
   };
 }

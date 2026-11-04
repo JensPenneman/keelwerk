@@ -1,6 +1,6 @@
-import type { BackendRecord } from './backend-record.ts';
-import type { ScopeLookup } from './scope-lookup.ts';
-import type { TenantRecord } from './tenant-record.ts';
+import type { BackendRecord } from '../../src/invoker/backend-record.ts';
+import type { ScopeLookup } from '../../src/invoker/scope-lookup.ts';
+import type { TenantRecord } from '../../src/invoker/tenant-record.ts';
 
 /** Fixed rows for tests, until the control store serves the lookup (WP-43). */
 export interface StaticScopeRows {

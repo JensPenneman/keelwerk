@@ -19,8 +19,6 @@ export type { RequestMatcher } from './drive/request-matcher.ts';
 export { runInMemory } from './drive/run-in-memory.ts';
 export type { RunInMemoryOptions } from './drive/run-in-memory-options.ts';
 export { createLocalClient } from './harness/create-local-client.ts';
-export { harnessAddress } from './harness/harness-address.ts';
-export { harnessNamespaceId } from './harness/harness-namespace-id.ts';
 export type { LocalClientOptions } from './harness/local-client-options.ts';
 export { startTestRuntime } from './harness/start-test-runtime.ts';
 export type { TestApp } from './harness/test-app.ts';

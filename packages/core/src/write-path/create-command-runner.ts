@@ -5,13 +5,14 @@ import { defaultNodeId } from './default-node-id.ts';
 import type { EntityBehaviours } from './entity-behaviours.ts';
 import { isRecordedFailure } from './is-recorded-failure.ts';
 import { recordFailedReceipt } from './record-failed-receipt.ts';
+import { registryBehaviours } from './registry-behaviours.ts';
 import { runCommand } from './run-command.ts';
 import type { RunCommandInput } from './run-command-input.ts';
 
 /** What the runtime wires the write path with. */
 export interface CommandRunnerOptions {
-  /** The entity behaviour of an app (`entityBehavioursOf` over its modules). */
-  readonly behaviours: (app: string) => EntityBehaviours;
+  /** Overrides the entity behaviour; default: what the registry records on each `EntityEntry` (F-10 change note, WP-43). */
+  readonly behaviours?: (app: string) => EntityBehaviours;
   /** The process's clock node id (section 14.5.3). */
   readonly nodeId?: string;
   /** The process clock (section 14.5.3); default: one clock for this runner, with `nodeId`. */
@@ -46,7 +47,7 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
       rules: run.rules,
       apiVersion: run.session.apiVersion,
       build: run.build,
-      behaviours: options.behaviours(run.session.app),
+      behaviours: options.behaviours?.(run.session.app) ?? registryBehaviours(run.registry),
       correlationId: invocation.requestId,
       signal: run.signal,
       ...(invocation.commandId === undefined ? {} : { commandId: invocation.commandId }),

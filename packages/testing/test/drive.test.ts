@@ -11,7 +11,6 @@ import { runInMemory } from '../src/drive/run-in-memory.ts';
 import { conformanceApp, libraryApp } from '../src/fixtures/index.ts';
 import { addBook } from '../src/fixtures/modules/library/src/actions/add-book.ts';
 import { book } from '../src/fixtures/modules/library/src/entities/book.ts';
-import { harnessAddress } from '../src/harness/harness-address.ts';
 import { testPrincipal } from '../src/harness/test-principal.ts';
 
 const library = load.library as { readonly book: EntityLoadMatchers };
@@ -111,7 +110,7 @@ describe('driveDecision: a load the runtime would refuse', () => {
     };
     const scope = {
       level: 'tenant',
-      backendId: harnessAddress.backendId,
+      backendId: '00000000-0000-4000-8000-0000000000b1',
       tenantId: '00000000-0000-4000-8000-0000000000a1',
     } as const;
     const error = await driveDecision({

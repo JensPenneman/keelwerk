@@ -1,6 +1,4 @@
 import type { NamespaceRef, Scope } from '@keelwerk/core';
-import { harnessAddress } from '../harness/harness-address.ts';
-import { harnessNamespaceId } from '../harness/harness-namespace-id.ts';
 import type { TestApp } from '../harness/test-app.ts';
 import type { TestRuntime } from '../harness/test-runtime.ts';
 import type { TestTenant } from '../harness/test-tenant.ts';
@@ -13,8 +11,8 @@ export interface TenantAddress {
 }
 
 /**
- * The address `startTestRuntime` gives a tenant: one namespace per tenant on the placement
- * `main`, under the runtime's single backend. The ids come from the harness.
+ * The address of a tenant of a running test runtime: the namespace the runtime provisioned for the
+ * app and the tenant scope under the backend it created. The ids come from the runtime.
  */
 export function tenantAddress(runtime: TestRuntime<TestApp>, tenantName?: string): TenantAddress {
   const tenants = Object.values(runtime.tenants);
@@ -27,16 +25,10 @@ export function tenantAddress(runtime: TestRuntime<TestApp>, tenantName?: string
   }
   return {
     tenant,
-    namespace: {
-      id: harnessNamespaceId(tenant.id),
-      placementId: harnessAddress.placementId,
-      appId: runtime.app.id,
-      tenantId: tenant.id,
-      root: runtime.app.id,
-    },
+    namespace: runtime.namespace,
     scope: {
       level: 'tenant',
-      backendId: harnessAddress.backendId,
+      backendId: runtime.backendId,
       tenantId: tenant.id,
     },
   };

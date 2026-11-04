@@ -4,9 +4,7 @@ import { redecide } from '@keelwerk/core/replay';
 import { expect } from 'vitest';
 import { drivePrincipal } from '../drive/drive-principal.ts';
 import type { TestApp } from '../harness/test-app.ts';
-import { testEnvironment } from '../harness/test-environment.ts';
 import type { TestRuntime } from '../harness/test-runtime.ts';
-import { testTracer } from '../harness/test-tracer.ts';
 import type { ExpectReproducesOptions } from './expect-reproduces-options.ts';
 import { replayCompute } from './replay-compute.ts';
 import { replayKeys } from './replay-keys.ts';
@@ -25,7 +23,6 @@ export async function expectReproduces(
 ): Promise<RedecideResult> {
   const { app } = runtime;
   const address = tenantAddress(runtime, options.tenant);
-  const environment = testEnvironment(new AbortController().signal);
   const result = await redecide({
     registry: app.registry,
     adapter: runtime.adapter,
@@ -40,8 +37,8 @@ export async function expectReproduces(
       .map(normalizeRule),
     keys: replayKeys,
     compute: replayCompute,
-    log: environment.log,
-    trace: testTracer.startSpan('redecide'),
+    log: runtime.log,
+    trace: runtime.tracer.startSpan('redecide'),
     ...(options.principal === undefined
       ? {}
       : { principal: drivePrincipal(options.principal, address.scope) }),

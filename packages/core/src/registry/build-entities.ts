@@ -1,4 +1,5 @@
 import type { AnyField } from '../fields/field-def.ts';
+import type { EntityBehaviour } from '../write-path/entity-behaviour.ts';
 import type { AppSelection } from './app-selection.ts';
 import type { AppliedPart } from './applied-part.ts';
 import { buildEntityDescriptor } from './build-entity-descriptor.ts';
@@ -32,7 +33,20 @@ export function buildEntities(
         foreignKeyTo: (entityRef) => tenancyOf(entityRef) === entity.tenancy,
       });
       const fields: Record<string, AnyField> = {};
-      for (const source of sources) Object.assign(fields, source.fields);
+      const fieldTracks: Record<string, string> = {};
+      const defaults: Record<string, unknown> = {};
+      for (const source of sources) {
+        Object.assign(fields, source.fields);
+        for (const [fieldName, def] of Object.entries<AnyField>(source.fields)) {
+          fieldTracks[fieldName] = source.track;
+          if (def.defaultValue !== undefined) defaults[fieldName] = def.defaultValue;
+        }
+      }
+      const behaviour: EntityBehaviour = {
+        defaults,
+        evolve: entity.evolve,
+        invariant: entity.invariant,
+      };
       models.set(descriptor.ref, {
         entry: {
           ref: descriptor.ref,
@@ -43,6 +57,8 @@ export function buildEntities(
           tracks: tracksOf(descriptor.ref, descriptor.shape),
           generated: generatedActionsOf(entity, generators),
           origin,
+          fieldTracks,
+          behaviour,
           page: entityPage(fields),
           events: Object.fromEntries(
             Object.entries(entity.events).map(([event, schema]) => [event, schema]),

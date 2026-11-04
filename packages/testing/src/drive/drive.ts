@@ -3,7 +3,6 @@ import { isKeelwerkError } from '@keelwerk/core';
 import type { DriveDecisionInput } from '@keelwerk/core/replay';
 import { driveDecision } from '@keelwerk/core/replay';
 import { expect } from 'vitest';
-import { harnessAddress } from '../harness/harness-address.ts';
 import type { TestApp } from '../harness/test-app.ts';
 import { assertSame } from './assert-same.ts';
 import type { DraftMatcher } from './draft-matcher.ts';
@@ -22,7 +21,7 @@ interface Step {
 
 const tenant = {
   level: 'tenant',
-  backendId: harnessAddress.backendId,
+  backendId: '00000000-0000-4000-8000-0000000000b1',
   tenantId: '00000000-0000-4000-8000-0000000000a1',
 } as const;
 

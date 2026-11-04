@@ -31,8 +31,13 @@ import { coreBase } from './base.ts';
 import type { CoreBase } from './core-base-type.ts';
 import type { Core } from './core-type.ts';
 import { core } from './module.ts';
+import { operators as backendOperators } from './policies/backend/operators.ts';
 import { operators as compositionOperators } from './policies/composition/operators.ts';
+import { operators as domainOperators } from './policies/domain/operators.ts';
 import { signedIn as introspectSignedIn } from './policies/introspect/signed-in.ts';
+import { operators as tenantOperators } from './policies/tenant/operators.ts';
+import { syncDomains } from './reactions/sync-domains.ts';
+import { syncDomainsOnChange } from './reactions/sync-domains-on-change.ts';
 
 declare const configSchema: StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
 declare const document: StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
@@ -186,7 +191,11 @@ const derivedCore = defineModule(coreBase, {
   policies: {
     introspect: { signedIn: introspectSignedIn },
     composition: { operators: compositionOperators },
+    backend: { operators: backendOperators },
+    tenant: { operators: tenantOperators },
+    domain: { operators: domainOperators },
   },
+  reactions: { syncDomains, syncDomainsOnChange },
 });
 
 const app = defineApp({ id: 'only-core', modules: [] });

@@ -1,3 +1,4 @@
+import type { ReactionPart } from '../dsl/define-reaction.ts';
 import type { RulePart } from '../dsl/define-rule.ts';
 import type { CapabilitiesDocument } from '../invoker/capabilities-document.ts';
 import type { ActionPart, PartTypes, RowOutput } from '../model/action-part.ts';
@@ -51,6 +52,13 @@ export interface CoreLiteral {
     readonly composition: {
       readonly operators: RulePart<CoreBase, CoreQuery<CompositionReportDocument>, readonly []>;
     };
+    readonly backend: { readonly operators: RulePart<CoreBase, 'backend', readonly ['*']> };
+    readonly tenant: { readonly operators: RulePart<CoreBase, 'tenant', readonly ['*']> };
+    readonly domain: { readonly operators: RulePart<CoreBase, 'domain', readonly ['*']> };
+  };
+  readonly reactions: {
+    readonly syncDomains: ReactionPart<CoreBase>;
+    readonly syncDomainsOnChange: ReactionPart<CoreBase>;
   };
   readonly entityActions: {
     readonly tenant: {

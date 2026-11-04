@@ -107,8 +107,11 @@ describe('contributions and conditional parts (sections 5.3 and 5.4)', () => {
     expect([...registry.rules.keys()]).toEqual([
       'auth.credential.self',
       'auth.login.open',
+      'core.backend.operators',
       'core.composition.operators',
+      'core.domain.operators',
       'core.introspect.signedIn',
+      'core.tenant.operators',
     ]);
   });
 
@@ -212,8 +215,11 @@ describe('rules (section 8.1)', () => {
       'auth.accounts.profile.self',
       'auth.credential.self',
       'auth.login.open',
+      'core.backend.operators',
       'core.composition.operators',
+      'core.domain.operators',
       'core.introspect.signedIn',
+      'core.tenant.operators',
     ]);
     expect(full.rules.get('auth.accounts.profile.self')).toMatchObject({
       module: 'auth',

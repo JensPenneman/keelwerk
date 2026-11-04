@@ -10,7 +10,6 @@ import type { InvocationSession } from '../../src/invoker/invocation-session.ts'
 import type { Invoker } from '../../src/invoker/invoker.ts';
 import type { InvokerOptions } from '../../src/invoker/invoker-options.ts';
 import type { Outcome } from '../../src/invoker/outcome.ts';
-import { staticScopeDirectory } from '../../src/invoker/static-scope-directory.ts';
 import type { Principal } from '../../src/principals/principal.ts';
 import type { ActionEntry } from '../../src/registry/action-entry.ts';
 import type { EntityEntry } from '../../src/registry/entity-entry.ts';
@@ -19,6 +18,7 @@ import type { Registry } from '../../src/registry/registry.ts';
 import type { DataAdapter } from '../../src/storage/data-adapter.ts';
 import type { NamespaceRef } from '../../src/storage/namespace-ref.ts';
 import { post } from '../authorization/post-fixture.ts';
+import { staticScopeDirectory } from './static-scope-directory.ts';
 
 const namespace: NamespaceRef = {
   id: 'ns-1',

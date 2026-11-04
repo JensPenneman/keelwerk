@@ -1,0 +1,159 @@
+import { compareAnchors } from '../control/compare-anchors.ts';
+import { setProcessState } from '../control/set-process-state.ts';
+import { coreApiVersions } from '../core-module/core-api-versions.ts';
+import { createInvoker } from '../invoker/create-invoker.ts';
+import type { InvokerApp } from '../invoker/invoker-app.ts';
+import { deriveSurface } from '../surface/derive-surface.ts';
+import { createCommandRunner } from '../write-path/create-command-runner.ts';
+import { anchorScopes } from './anchor-scopes.ts';
+import { answerRuntimeQueries } from './answer-runtime-queries.ts';
+import { composePhase } from './compose-phase.ts';
+import { connectPhase } from './connect-phase.ts';
+import { createRuntimeControl } from './create-runtime-control.ts';
+import { defaultLogger } from './default-logger.ts';
+import type { DeploymentDefinition } from './deployment-definition.ts';
+import { drainingInvoker } from './draining-invoker.ts';
+import { listenPhase } from './listen-phase.ts';
+import { migratePhase } from './migrate-phase.ts';
+import type { Runtime } from './runtime.ts';
+import { runtimeEnvironment } from './runtime-environment.ts';
+import type { RuntimeOptions } from './runtime-options.ts';
+import { setupPhase } from './setup-phase.ts';
+import type { Started } from './start-phase.ts';
+import { startPhase } from './start-phase.ts';
+import { stopPhase } from './stop-phase.ts';
+
+/**
+ * The core's one boot entry point (section 3.3, S-49): runs `compose`, `setup`, `connect`,
+ * `migrate`, `start` and `listen` in order and answers the running process; `stop` is the drain.
+ * A phase that fails closes what the earlier ones opened and rethrows. With `listen: false` the
+ * process connects and migrates only (the CLI's project mode, tests).
+ */
+export async function startRuntime(
+  deployment: DeploymentDefinition,
+  options: RuntimeOptions,
+): Promise<Runtime> {
+  const log = options.logger ?? defaultLogger;
+  const clock = options.clock ?? { now: () => Temporal.Now.instant() };
+  const environment = runtimeEnvironment(options);
+  const development = environment !== 'production';
+
+  log.debug('phase', { phase: 'compose' });
+  const composed = composePhase(deployment, options);
+  log.debug('phase', { phase: 'setup' });
+  const served = setupPhase(composed.apps);
+  const abort = new AbortController();
+  log.debug('phase', { phase: 'connect' });
+  const connected = await connectPhase({
+    deployment,
+    options,
+    composed,
+    served,
+    log,
+    clock,
+    signal: abort.signal,
+  });
+  let started: Started | undefined;
+  try {
+    log.debug('phase', { phase: 'migrate' });
+    const migrated = await migratePhase({ deployment, composed, served, connected, development });
+    const rewound = await compareAnchors(composed.infrastructure.ledgers, (wanted) =>
+      anchorScopes(connected, migrated, wanted),
+    );
+    for (const scopeId of rewound) {
+      log.error('a scope is behind its newest anchor: the database may have been restored', {
+        scope: scopeId,
+      });
+    }
+
+    const apps = new Map<string, InvokerApp>(
+      served.map((app) => [app.id, { registry: app.registry, head: app.head }]),
+    );
+    const sole = served.length === 1 ? served[0] : undefined;
+    apps.set('core', {
+      registry: sole?.registry ?? connected.control.registry,
+      head: sole?.head ?? coreApiVersions.dates.at(-1) ?? '',
+    });
+    const inner = createInvoker({
+      apps,
+      directory: migrated.directory.lookup,
+      placement: (name) => connected.placements.get(name),
+      control: {
+        scope: { level: 'deployment' },
+        namespace: connected.control.namespace,
+        handle: {
+          adapter: connected.control.adapter,
+          capabilities: connected.control.capabilities,
+        },
+      },
+      ...(deployment.tenantResolution === undefined
+        ? {}
+        : { tenantResolution: deployment.tenantResolution }),
+      clock,
+      keys: connected.keys,
+      compute: connected.compute,
+      log,
+      environment,
+      build: connected.build,
+      commands: createCommandRunner({
+        nodeId: connected.nodeId,
+        hybridClock: connected.hybridClock,
+      }),
+    });
+    const answering = answerRuntimeQueries(
+      inner,
+      new Map(served.map((app) => [app.id, app])),
+      connected.control,
+    );
+    const draining = drainingInvoker(answering);
+
+    log.debug('phase', { phase: 'start' });
+    const ready = startPhase({ connected, migrated, options });
+    started = ready;
+    log.debug('phase', { phase: 'listen' });
+    const mounts = options.listen
+      ? await listenPhase({
+          host: composed.infrastructure.host,
+          served,
+          invoker: draining.invoker,
+          log,
+          development,
+          configOf: () => () => undefined,
+        })
+      : [];
+    await setProcessState(connected.control, connected.processId, 'ready');
+
+    let stopping: Promise<void> | undefined;
+    return {
+      invoker: draining.invoker,
+      surface: (appId, version) => {
+        const app = served.find((candidate) => candidate.id === appId);
+        if (app === undefined) throw new RangeError(`The process does not serve app "${appId}".`);
+        return deriveSurface(app.source, version ?? app.head).surface;
+      },
+      registry: (appId) => {
+        const app = served.find((candidate) => candidate.id === appId);
+        if (app === undefined) throw new RangeError(`The process does not serve app "${appId}".`);
+        return app.source.registry;
+      },
+      ...(options.listen && composed.infrastructure.host !== undefined
+        ? { host: composed.infrastructure.host }
+        : {}),
+      control: createRuntimeControl({ deployment, served, connected, migrated }),
+      stop: (deadlineMs) => {
+        log.debug('phase', { phase: 'stop' });
+        stopping ??= stopPhase({ connected, started: ready, draining, mounts, abort }, deadlineMs);
+        return stopping;
+      },
+    };
+  } catch (error) {
+    abort.abort();
+    started?.unfollow();
+    await setProcessState(connected.control, connected.processId, 'stopped').catch(() => undefined);
+    await Promise.allSettled([
+      connected.compute.close(),
+      ...connected.adapters.map((adapter) => adapter.close(0)),
+    ]);
+    throw error;
+  }
+}
