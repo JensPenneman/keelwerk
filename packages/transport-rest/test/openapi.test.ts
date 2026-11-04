@@ -88,7 +88,7 @@ describe('independence', () => {
       schemas: Record<string, { properties: { kind: { enum: string[] } } }>;
     };
     components.headers.etag.description = 'changed';
-    components.schemas['Problem']?.properties.kind.enum.push('changed');
+    components.schemas.Problem?.properties.kind.enum.push('changed');
     expect(emittedText(librarySurface)).toBe(expected);
   });
 });

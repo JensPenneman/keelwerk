@@ -1,6 +1,10 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "extends": ["@keelwerk/biome-config/biome"],
   "files": {
     "includes": [
@@ -34,6 +38,14 @@
         "!**/spikes/write-path/src/main.ts",
         "!**/*.bench.ts"
       ]
+    }
+  ],
+  "overrides": [
+    {
+      "includes": ["spikes/**"],
+      "linter": {
+        "enabled": false
+      }
     }
   ]
 }
