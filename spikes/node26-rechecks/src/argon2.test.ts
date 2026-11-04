@@ -20,7 +20,11 @@ const script = `
   console.log(JSON.stringify({ medianMs: samples[10], minMs: samples[0], maxMs: samples[20], tagLength: tag.length, deterministic: tag.equals(again) }));
 `;
 
-test('crypto.argon2 runs Argon2id at the OWASP minimum without a warning', () => {
+// Twenty-one hashes at the OWASP minimum take seconds on a loaded machine; the test checks the
+// absence of a warning and records the median, so it gets a generous timeout.
+test('crypto.argon2 runs Argon2id at the OWASP minimum without a warning', {
+  timeout: 60_000,
+}, () => {
   const run = runNode(['--input-type=module', '--eval', script]);
   expect(run.stderr).toBe('');
   expect(run.status).toBe(0);
