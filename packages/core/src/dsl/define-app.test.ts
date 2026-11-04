@@ -25,14 +25,14 @@ describe('defineApp (section 4.5)', () => {
       actions: { health },
       execution: { 'accounts.profile.deactivate': 'either' },
       authorization: { mode: 'strict', decisionLog: 'denials' },
-      policies: { disable: ['accounts.profile.directory'] },
+      policies: { disable: ['accounts.profile.operator'] },
       api,
       flags: {},
     });
     expect(app.appActions.health).toBe(health);
     expect(app.execution).toEqual({ 'accounts.profile.deactivate': 'either' });
     expect(app.authorization).toEqual({ mode: 'strict', decisionLog: 'denials' });
-    expect(app.policies).toEqual({ disable: ['accounts.profile.directory'] });
+    expect(app.policies).toEqual({ disable: ['accounts.profile.operator'] });
     expect(app.api).toBe(api);
   });
 
@@ -47,8 +47,15 @@ describe('defineApp (section 4.5)', () => {
     expect(app.flags).toEqual({});
   });
 
-  test('the compose seam passes the value through', () => {
-    const value = { kind: 'app' } as const;
+  test('carries the composed registry, with no error problems', () => {
+    const app = defineApp({ id: 'portal', modules: [accounts, auth] });
+    expect(app.registry.app).toBe('portal');
+    expect(app.registry.entities.has('accounts.profile')).toBe(true);
+    expect(app.registry.problems.filter((problem) => problem.severity === 'error')).toEqual([]);
+  });
+
+  test('the compose seam passes a valid app through', () => {
+    const value = defineApp({ id: 'bare', modules: [] });
     expect(composeApp(value)).toBe(value);
   });
 });

@@ -18,7 +18,7 @@ export interface FieldDescriptor {
   readonly stateOnly: boolean;
   /** Credential material: secret and verifier kinds, sealed per value (section 14.7.4). */
   readonly sealed: boolean;
-  readonly merge: 'lww' | 'counter' | 'set' | 'sequence' | 'richText' | 'exclusive';
+  readonly merge: 'lww' | 'max' | 'min' | 'counter' | 'set' | 'sequence' | 'richText' | 'exclusive';
   /** `subject`: the entity's dataSubject or another field of the row; the rest: section 14.7.9.2. */
   readonly personal:
     | false

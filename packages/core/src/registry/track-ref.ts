@@ -2,7 +2,7 @@
 export interface TrackRef {
   /** 'accounts.profile'. */
   readonly entity: string;
-  /** 'base' for the entity's own fields, else the contributing module's id. */
+  /** The track id of section 14.6.1: the owner module's id for its own fields, the contributor's track for contributed fields. */
   readonly track: string;
   readonly version: number;
   /** The contributing module; null for the owner's own track. */

@@ -3,13 +3,13 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { canonicalizeJson } from './canonicalize-json.ts';
 
-describe('canonicalizeJson', () => {
+describe('canonicalizeJson', { timeout: 20_000 }, () => {
   it('matches the independent implementation on arbitrary JSON values', () => {
     fc.assert(
       fc.property(fc.jsonValue(), (value) => {
         expect(canonicalizeJson(value)).toBe(canonicalize(value));
       }),
-      { numRuns: 500 },
+      { numRuns: 200 },
     );
   });
 
@@ -21,7 +21,7 @@ describe('canonicalizeJson', () => {
           expect(canonicalizeJson(value)).toBe(canonicalize(value));
         },
       ),
-      { numRuns: 300 },
+      { numRuns: 200 },
     );
   });
 

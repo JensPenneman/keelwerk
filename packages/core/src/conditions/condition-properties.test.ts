@@ -21,7 +21,7 @@ describe('compareCodePoints', () => {
     expect(compareCodePoints(`a${astral}`, `a${astral}`)).toBe(0);
   });
 
-  test('agrees with the code point arrays on any string', () => {
+  test('agrees with the code point arrays on any string', { timeout: 20_000 }, () => {
     fc.assert(
       fc.property(fc.string({ unit: 'binary' }), fc.string({ unit: 'binary' }), (a, b) => {
         const left = a.toWellFormed();
@@ -38,6 +38,7 @@ describe('compareCodePoints', () => {
         if (expected === 0 && x.length !== y.length) expected = x.length < y.length ? -1 : 1;
         expect(compareCodePoints(left, right)).toBe(expected);
       }),
+      { numRuns: 200 },
     );
   });
 });

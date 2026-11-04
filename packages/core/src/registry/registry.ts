@@ -1,13 +1,16 @@
 import type { ActionEntry } from './action-entry.ts';
 import type { CompositionProblem } from './composition-problem.ts';
 import type { ContributionEntry } from './contribution-entry.ts';
+import type { EffectEntry } from './effect-entry.ts';
 import type { EntityEntry } from './entity-entry.ts';
+import type { ExecutorEntry } from './executor-entry.ts';
 import type { ExtensionFillEntry } from './extension-fill-entry.ts';
 import type { ExtensionPointEntry } from './extension-point-entry.ts';
 import type { HookEntry } from './hook-entry.ts';
 import type { ModuleEntry } from './module-entry.ts';
 import type { ReactionEntry } from './reaction-entry.ts';
 import type { RuleEntry } from './rule-entry.ts';
+import type { ScheduleEntry } from './schedule-entry.ts';
 import type { ServiceEntry } from './service-entry.ts';
 
 /**
@@ -24,6 +27,12 @@ export interface Registry {
   readonly reactions: ReadonlyMap<string, ReactionEntry>;
   readonly hooks: ReadonlyMap<string, HookEntry>;
   readonly services: ReadonlyMap<string, ServiceEntry>;
+  /** External effects by reference, 'hooks.post'. */
+  readonly effects: ReadonlyMap<string, EffectEntry>;
+  /** Executors by the reference of their effect. */
+  readonly executors: ReadonlyMap<string, ExecutorEntry>;
+  /** Schedules by reference, 'dns.refreshPublicAddressSchedule'. */
+  readonly schedules: ReadonlyMap<string, ScheduleEntry>;
   readonly extensionPoints: ReadonlyMap<string, ExtensionPointEntry>;
   /** Per point reference, in fill order. */
   readonly fills: ReadonlyMap<string, readonly ExtensionFillEntry[]>;
