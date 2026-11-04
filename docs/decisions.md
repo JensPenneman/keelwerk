@@ -1,6 +1,6 @@
 # Decision register
 
-Date: 2026-10-23 (updated 2026-10-24; the M0 spike outcomes of section M added 2026-11-04). Status: open. This register lists every open question of the architecture in
+Date: 2026-10-23 (updated 2026-10-24; the M0 spike outcomes of section M and the M1 plan gaps of section N added 2026-11-04). Status: open. This register lists every open question of the architecture in
 one place, numbered, so that Jens can answer them one by one in conversation. Each answer is
 recorded here with its date and the section or ADR that applies it. The questions come from
 [architecture.md](architecture.md) section 26 (decision points, spike questions, questions by
@@ -688,3 +688,309 @@ lead decided every finding the same day; each entry names the sections the editi
      section 13.9 against 23.1). `pure-parts`, `no-module-state` and `no-await-in-parts` also run
      on `**/apps/*/src/**`, since an app's `src/actions/` and `src/policies/` hold parts like a
      module's. Status: decided by the lead 2026-11-04, applied (section 13.9, the preset).
+
+## N. M1 plan gaps (2026-11-04)
+
+The M1 plan (the work-package plan for roadmap M1) listed 62 places where the specification was
+silent or contradicted itself, S-01 to S-62, each with a decision. The lead decided all of them on
+2026-11-04 and the specification pass of the same day wrote them into architecture.md, the roadmap,
+api-sketch.ts and ADRs 0006, 0007, 0014 and 0015; each entry names the plan's number and the
+sections it touched.
+
+121. **No `engines` field before the first publish** (S-01). Packages carry no `engines` field in
+     M1, because Dependabot's updater refuses `"node": ">=26"`; `keelwerk doctor` checks Node 26 or
+     later, and the lead decides between the field and Dependabot's version updates before the first
+     publish (roadmap M1, criterion 12). Status: decided by the lead 2026-11-04 (M1 plan S-01),
+     applied (sections 13.2, 22; roadmap M1).
+122. **Types the code blocks named without defining** (S-02). `StoredJobSpec`, `StoredJob`,
+     `JobAttempt`, `JobOutcome`, `JobId`, `Receipt`, `ReceiptOutcome`, `DataKey`, `SealedValue`,
+     `TrackSnapshot`, `TableSpec`, `ColumnSpec`, `IndexSpec`, `ForeignKeySpec`, `Catalogue`,
+     `AppliedMigration`, `ShapeRef`, `RelationDescriptor`, `IndexDescriptor`, `DerivedIndexField`,
+     `SearchIndexDescriptor`, `ExternalMapping`, `NormalizerRef`, `PersonalParams`,
+     `FieldConstraints`, `Carrier`, `ActorRef`, `Tracer`, `Telemetry`, `SecretResolver`,
+     `StateToken` and `Scope` are defined at the code blocks that use them (`WorkClassStats` and
+     `CommandReceipt` were defined in sections 21.4 and 4.7). `Scope` is `Exclude<StorageScope, {
+     level: 'namespace' }>`, while a principal's own `scope` stays `{ backend, tenant }`. Status:
+     decided by the lead 2026-11-04 (M1 plan S-02), applied (sections 7.7, 8.5, 9.2, 14.3.2, 14.3.9,
+     14.6.2, 14.6.7, 14.7.4, 15.1.7, 16.3.2).
+123. **The adapter contract grows by members** (S-03). Each interface carries the members its
+     release implements, so no adapter ships a stub: M1's `Unit` has `rows`, `events`, `receipts`,
+     `jobs`, `usage`, `buckets`, `keys`, `serials`, `nested`, `afterCommit` and, on deployment-scope
+     units, `scopeKeys`; `JobStore` lacks only `schedules()`, and `EventStore` lacks `compact`,
+     `purgeStream`, `purgeTransient` and `redact`. M2 adds `consumers`, `tombstones`, `streams`,
+     `schedules()` and those members with their users and tables, and conformance cases 5 (stream
+     records), 10 (consumers, tombstones, streams, the worker scenarios) and 11 join then. Status:
+     decided by the lead 2026-11-04 (M1 plan S-03), applied (section 14.3.2; roadmap sections 1 and
+     3 (M1, M2)).
+124. **Section 23 wins over the spike's layout** (S-04). Ported fixtures and the generator follow
+     section 23: entity actions under `actions/<entity>/`, import aliases only on a clash, fills
+     named `<point>Fill`, and the generated header of section 23.5. Status: decided by the lead
+     2026-11-04 (M1 plan S-04), applied (no text change (sections 23.2 to 23.5 already state it)).
+125. **`prepare` with loads only in M1** (S-05). The `prepare` types are complete in M1, the M1
+     runtime runs `prepare` with loads only, and a `ctx.perform` request fails with `internal`,
+     `core.request_not_allowed`; inline effects ship in M2. Status: decided by the lead 2026-11-04
+     (M1 plan S-05), applied (section 7.9.3; roadmap M1).
+126. **`core.request_not_allowed`** (S-06). One new core code, `core.request_not_allowed`
+     (`internal`), names the request and the reason when a part makes a request it may not make once
+     types are bypassed, or one the running release does not answer. Refusals at compose and at boot
+     are named problems, never codes (`asyncReactionsUnavailable`, `scopeDirectoryUnavailable`).
+     Status: decided by the lead 2026-11-04 (M1 plan S-06), applied (sections 7.6, 7.9.3, 7.9.6,
+     10).
+127. **The rest of the queue tables** (S-07). `kw_jobs` adds `kind`, `principal`, `causation`,
+     `build_id`, `api_version`, `ordering`, `group_spec`, `retry`, `heartbeat_seconds`,
+     `expire_in_seconds`, `dead_letter`, `created_at` and the state `dead`; priority and capability
+     set are the lane's and `onConflict` is not stored. `kw_job_history` gets its DDL without input,
+     `kw_job_groups` adds `scope_id`, `rate`, `tokens` and `refilled_at` under a policy that admits
+     rows whose `scope_id` is null or the unit's scope, and the enqueuing unit upserts its lane and
+     its two count rows; deployment-wide groups arrive in M2. Stored format final from M1. Status:
+     decided by the lead 2026-11-04 (M1 plan S-07), applied (sections 9.5.2, 14.3.9; ADR 0015).
+128. **Module packages compile from the package root** (S-08). Module packages and fixture modules
+     with migrations compile with `rootDir: "."` and `include: ["src", "migrations"]`; `"."` exports
+     `src/module.generated.ts` under the source condition and `dist/src/module.generated.js`
+     otherwise; the manifest carries `migrations: new URL('../migrations/', import.meta.url)`.
+     Status: decided by the lead 2026-11-04 (M1 plan S-08), applied (sections 13.3, 13.4, 23.2; ADR
+     0006).
+129. **The control store's root** (S-09). The control store's physical root is `kw__control`; app
+     ids follow the module id pattern, so no app id maps to a name with two consecutive underscores.
+     Status: decided by the lead 2026-11-04 (M1 plan S-09), applied (sections 5.1, 14.2, 14.4.2,
+     14.4.4).
+130. **Where the PostgreSQL SQL lives** (S-10). All PostgreSQL SQL (codecs, unit statements, DDL,
+     row-level security, the commit tail, the fair take) lives in `data/src/sql/postgres/` and
+     serves `adapter-postgres` and PGlite; `@keelwerk/adapter-postgres` keeps the `pg` driver,
+     pools, the notifier, the cluster identity and error mapping. Status: decided by the lead
+     2026-11-04 (M1 plan S-10), applied (sections 14.3.1, 14.3.7, 22).
+131. **The core module's layout** (S-11). The core module's parts follow the module layout under
+     `core/src/core-module/`; `core-module/module.ts` is hand-written and annotated `Core` in place
+     of a generated manifest, and the layout pass treats it like a sugar module's `module.ts`.
+     Status: decided by the lead 2026-11-04 (M1 plan S-11), applied (sections 13.3, 23.9).
+132. **`defineDeployment` members ahead of their subsystems** (S-12). The types are complete; a
+     runtime validates and keeps every member, and M1 uses `apps`, `infrastructure`, `control`,
+     `placements`, `tenantResolution`, `operator`, `keys`, `anchors` and `queues.<q>.running`.
+     Status: decided by the lead 2026-11-04 (M1 plan S-12), applied (section 4.6; roadmap M1).
+133. **Where fixtures live** (S-13). Runtime fixtures in
+     `packages/testing/src/fixtures/modules/<id>/{src,migrations}` and `.../apps/<id>/src`, exported
+     through `@keelwerk/testing/fixtures`; the DSL type fixtures in
+     `packages/core/test/fixtures/modules/<id>/src`; none are packages, and the layout pass treats
+     `**/fixtures/modules/*` as module roots and `**/fixtures/apps/*` as app roots. Status: decided
+     by the lead 2026-11-04 (M1 plan S-13), applied (sections 16.3.8, 23.8).
+134. **Row-level security on PGlite** (S-14). Provisioning creates a `NOSUPERUSER NOBYPASSRLS` role
+     and every PGlite unit runs `SET LOCAL ROLE` to it, because PGlite's superuser bypasses
+     row-level security; migrations run as the owner. Status: decided by the lead 2026-11-04 (M1
+     plan S-14), applied (section 14.3.7).
+135. **Conformance kit and suites** (S-15). The kit (oracle, descriptors with every kind, fast-check
+     arbitraries, the unsealing oracle) is `@keelwerk/data/conformance`; the scenario suites and
+     `describeAdapterConformance({ name, factory, placement, networked })` are in
+     `@keelwerk/testing`. Status: decided by the lead 2026-11-04 (M1 plan S-15), applied (sections
+     14.10, 22).
+136. **Budgets for the portal and the conformance app** (S-16). Apps with other module counts get
+     their counts at their first green build plus 15 %, recorded in
+     `scripts/type-budgets/budgets.json`. Status: decided by the lead 2026-11-04 (M1 plan S-16),
+     applied (section 13.11).
+137. **TS2883 fails CI with the other three** (S-17). Step 8 of CI fails on TS7056, TS2742, TS4023
+     and TS2883 (decision 101). Status: decided by the lead 2026-11-04 (M1 plan S-17), applied
+     (section 13.8).
+138. **The type-budgets package** (S-18). attest runs in the private package
+     `packages/type-budgets/` with its own exact `typescript` 6.0.3; the CLI imports the compiler
+     API as `typescript-6` (`npm:typescript@6.0.3`), so the workspace's `tsc` stays 7.0.2. Status:
+     decided by the lead 2026-11-04 (M1 plan S-18), applied (sections 13.2, 13.8, 13.11, 22; roadmap
+     M1).
+139. **Positioned loads in the row store** (S-19). `RowQuery.positioned?: true` makes the adapter
+     read the scope counter in the same statement and return `RowPage.position`; the kernel issues
+     positioned single loads as `find` with `first: 1`, and a locked load reads its position with
+     `EventStore.head()` in a statement after the lock. Status: decided by the lead 2026-11-04 (M1
+     plan S-19), applied (section 14.3.2).
+140. **Tenant resolvers in M1** (S-20). M1 resolves `byHostname` (over `core.domain`) and
+     `byHeader`; `byScopeKey` and `byPath` are typed and refused at boot with the named problem
+     `scopeDirectoryUnavailable` until the scope directory of gap G2 exists. Status: decided by the
+     lead 2026-11-04 (M1 plan S-20), applied (gap G2; roadmap M1).
+141. **Drafts built from an id** (S-21). A draft built from an id carries no expected version: the
+     kernel loads and locks the row at apply, uses its version and records that load in `reads`; a
+     missing row is `not_found`, and such a draft never answers `core.version_mismatch`. No new
+     syntax. Status: decided by the lead 2026-11-04 (M1 plan S-21), applied (sections 8.5, 15.1.6).
+142. **Build ids and revisions before rollouts** (S-22). The build id is the SHA-256 of a minimal
+     build manifest (package versions, migration checksums per track, API versions); the revision is
+     1 until `core.rollout` exists; `connect` registers the pair in `core.process`. Stored format
+     final from M1. Status: decided by the lead 2026-11-04 (M1 plan S-22), applied (sections 15.1.3,
+     19.1; ADR 0007).
+143. **Flags in M1** (S-23). M1 ships `defineFlag` as a typed declaration listed by bases; a flag
+     request answers the declared default with reason `default`, recorded in `meta.flags`;
+     providers, targeting and `core.flag` are M2. Status: decided by the lead 2026-11-04 (M1 plan
+     S-23), applied (section 20.2; roadmap M1).
+144. **Asynchronous work without workers in M1** (S-24). M1 writes job rows, timers, `core.effect`
+     `requested` records and `accepted` receipts in final form and runs no worker: `execution:
+     'async'` (and `either` preferring async) answers `{ commandId, status: 'accepted' }`, compose
+     refuses async reactions with `asyncReactionsUnavailable` (auth's `recordLogin` is inline in
+     M1), and a resolver's effects run in a short unit right after `open`, so sessions slide only
+     once M2 runs the keyed job. Boot and `keelwerk doctor` list every queue with work and no
+     worker; the minimal action-job worker in M1 is not taken. Status: decided by the lead
+     2026-11-04 (M1 plan S-24), applied (sections 7.4, 7.7, 9.2, 9.5.6, 13.12, 17.2.3; roadmap M1
+     and M2; ADR 0015). For Jens to confirm; built as decided unless he objects.
+145. **`asOf` by position stays kernel-internal** (S-25). Re-decides read `asOf` a position inside
+     the kernel; the generated `get` and `history` keep `asOf` by instant in M1, and the question of
+     section 26.3 stays open for later. Status: decided by the lead 2026-11-04 (M1 plan S-25),
+     applied (sections 7.9.6, 26.3).
+146. **The control entities' fields** (S-26). `core.backend` has `name` (unique), `app`,
+     `placement`, `apiVersion`, `config` and `status`; `core.tenant` has `backendId`, `name`,
+     `placement` (optional), `apiVersion`, `domains` and `status`; both are created by the generated
+     `create`, so the sketch's `core.tenant.create` calls stay valid. A core inline reaction keeps
+     `core.domain` rows in step with `domains` (a held host name fails with `conflict`), and the
+     runtime writes `core.placement` and `core.namespace` at `connect` and `migrate`. Status:
+     decided by the lead 2026-11-04 (M1 plan S-26), applied (sections 3.1, 5.1, 17.5.4;
+     api-sketch.ts unchanged).
+147. **Tenant hooks in their own unit** (S-27). The kernel runs each `onTenantCreated` hook in its
+     own tenant-scope unit right after the creating unit commits; a failure is logged and listed by
+     `keelwerk doctor`; M2 moves hooks onto the queue. Status: decided by the lead 2026-11-04 (M1
+     plan S-27), applied (sections 3.3, 12.3, 13.12; roadmap M2).
+148. **Generated documents per version everywhere** (S-28). Every surface-derived artefact is
+     written per version: `generated/<kind>/<app>/<version>.json` (`.graphql` for SDL). Status:
+     decided by the lead 2026-11-04 (M1 plan S-28), applied (sections 16.5.7, 16.6.7, 16.9.9).
+149. **`core.composition` in M1** (S-29). `core.composition` ships in M1, because `keelwerk
+     introspect` reads it. Status: decided by the lead 2026-11-04 (M1 plan S-29), applied (roadmap
+     M1).
+150. **The `prepare` comparison** (S-30). M1 delivers the prototype of both forms and its report
+     without changing `@keelwerk/core`; M3 repeats the comparison on Trail's code. Status: decided
+     by the lead 2026-11-04 (M1 plan S-30), applied (sections 7.9.4, 26.2; roadmap M0 and M1).
+151. **Generated `changes` and `queryChanges` in M1** (S-31). `changes`, `queryChanges` and the
+     disclosure rule are generated on every entity in M1, with tokens final from M1; `watch` stays
+     with `@keelwerk/live` in M2. Status: decided by the lead 2026-11-04 (M1 plan S-31), applied
+     (roadmap M1).
+152. **The token format** (S-32). `<prefix>_<public id>_<secret>` in lower-case base32, a 128-bit
+     public id and a 256-bit secret, the prefix from `ctx.secrets.issue({ prefix })` (`pss` for auth
+     sessions); the verifier is HMAC-SHA-256 of the secret under HKDF-SHA-256 of the scope's key
+     (tenant key; backend key for backend-scope tokens), info `keelwerk/token-verifier/1/<prefix>`,
+     stored as `field.verifier()`. Stored format final from M1. Status: decided by the lead
+     2026-11-04 (M1 plan S-32), applied (section 17.2.2; ADR 0014).
+153. **The core's own API versions** (S-33). A framework-maintained `defineApiVersions` in the core,
+     whose first version is the date of the first 0.x publish, versions the operator endpoint; the
+     question of section 26.3 is closed. Status: decided by the lead 2026-11-04 (M1 plan S-33),
+     applied (sections 18.3, 26.1, 26.3).
+154. **The ledger file's format** (S-34). JSON lines of RFC 8785 canonical JSON, each with a `type`
+     (`anchor` in M1; `erasure` and `keyTombstone` from M2), synced to disk per batch, append only;
+     readers skip unknown types. Stored format final from M1. Status: decided by the lead 2026-11-04
+     (M1 plan S-34), applied (section 14.7.6).
+155. **Rewind detection in M1** (S-35). In M1, `connect` compares each scope's head with its newest
+     anchor and logs a rewound scope, `keelwerk doctor` lists it and `keelwerk db verify` fails on
+     it; the epoch bump and the control store's mark tables come in M2. Status: decided by the lead
+     2026-11-04 (M1 plan S-35), applied (sections 13.12, 14.7.6; roadmap M1).
+156. **Rate buckets** (S-36). Table `kw_rate_buckets (scope_id, bucket, tokens, refilled_at)` under
+     forced row-level security and `Unit.buckets: BucketStore` with `take(bucket, cost, { capacity,
+     refillPerSecond })`; an admission rule's `BucketDemand` names buckets charged at `admit` and
+     buckets charged only after a declared error (auth's failed attempts), taken in a short unit
+     after the outcome. M1 takes one token at a time from the shared row (per-process allowances
+     come with M2's quota model), and a bucket key is stored as an HMAC under a key derived from the
+     scope's key (info `keelwerk/bucket/1`). Status: decided by the lead 2026-11-04 (M1 plan S-36),
+     applied (sections 12.2, 14.2, 14.3.1, 14.3.2, 17.2.6; roadmap M1).
+157. **Prefix queries without tags in M1** (S-37). M1 adapters declare `encryptedQueries: {
+     equality: true, tagSets: false, order: false, maxScan }` and write equality tags only; a field
+     keeps its `prefix` declaration, and `startsWith` on it takes the kernel's bounded in-memory
+     scan (past `maxScan`, `core.scan_limit`), listed by `keelwerk doctor`; M4 adds the tags through
+     a reindex. No M1 module declares `contains`, `order` or `search`. Status: decided by the lead
+     2026-11-04 (M1 plan S-37), applied (sections 14.3.3, 14.7.9.10, 14.7.9.13; roadmap M1).
+158. **Trusted proxies** (S-38). `httpHost({ trustedProxies })`, a list of CIDR ranges, empty by
+     default. Status: decided by the lead 2026-11-04 (M1 plan S-38), applied (section 16.4.10).
+159. **The transport fixture in M1** (S-39). M1 runs values, errors, pagination, masks, async
+     acceptance (202 and the stored receipt), idempotent replay, concurrent duplicates, optimistic
+     concurrency and the browser scenarios; the streaming and selection-limit scenarios are written
+     and skipped under the marker `m2`. Status: decided by the lead 2026-11-04 (M1 plan S-39),
+     applied (section 16.3.8; roadmap M1).
+160. **Sign-up** (S-40). `auth.signUp` (public, rate-limited; `identifier`, `password`, optional
+     `displayName`) creates a password credential under a fresh opaque subject and records the
+     domain event `auth.credential.signedUp` with the display name (`auth.identifier_taken` when the
+     identifier has an active password credential). With accounts selected, the inline reaction
+     `register-profile` on `signedUp` invokes `accounts.register`, and `link-profile` on
+     `accounts.profile.created` sets the credential's `profileId` and makes the profile id its
+     subject, re-sealing its personal values, all in one unit. The specification pass moved
+     `register-profile` from the plan's `auth.credential.created` to `signedUp`, because `created`
+     carries no display name and also fires for credentials added later. Status: decided by the lead
+     2026-11-04 (M1 plan S-40), applied (sections 17.2.1, 17.2.2, 17.2.6, 17.2.8, 23.2;
+     api-sketch.ts; ADR 0014). For Jens to confirm; built as decided unless he objects.
+161. **`optional` modules are regular dependencies** (S-41). A module listed in `optional` is a
+     regular dependency of the package in M1 (`module-auth` depends on `module-accounts`), decided
+     before the first publish; the question of section 26.3 is closed. Status: decided by the lead
+     2026-11-04 (M1 plan S-41), applied (sections 23.7, 26.1, 26.3).
+162. **`http://` profiles for loopback only** (S-42). Profiles accept `http://` URLs for loopback
+     hosts only, which is how `keelwerk login` reaches `keelwerk dev`. Status: decided by the lead
+     2026-11-04 (M1 plan S-42), applied (sections 16.9.1, 16.9.6).
+163. **Reset tokens and the reset link** (S-43). `auth.resetToken` (`history: 'state'`,
+     `dataSubject: 'subject'`: `subject`, `credentialId`, `publicId` unique, `tokenVerifier`,
+     `expiresAt`, `usedAt`) holds the reset token, and the operator command `auth.issueResetLink`,
+     inside an entered tenant, returns the one-time token and its expiry. Status: decided by the
+     lead 2026-11-04 (M1 plan S-43), applied (sections 17.2.2, 17.2.5, 17.2.8).
+164. **`db apply --contract` before rollouts** (S-44). In M1 `--contract` applies only while every
+     live `core.process` runs the same build id, else `core.rollout_not_finalized`; no M1 migration
+     has a contract step. Status: decided by the lead 2026-11-04 (M1 plan S-44), applied (section
+     14.6.4; roadmap M1).
+165. **The portal's layout** (S-45). `examples/portal/` is a project root in the layout of section
+     23.1 (`.launchway/`, `apps/portal/` as the private package `@keelwerk-examples/app-portal`,
+     `modules/` once it has own modules); the workspace lists `packages/*`, `examples/*/apps/*`,
+     `examples/*/modules/*` and `spikes/*`. Status: decided by the lead 2026-11-04 (M1 plan S-45),
+     applied (sections 22, 23.1, 23.9; roadmap M1).
+166. **Who provides the pino logger** (S-46). `@keelwerk/cli` provides the pino logger for `keelwerk
+     start` and `keelwerk dev`; the core's default is a no-op logger. Status: decided by the lead
+     2026-11-04 (M1 plan S-46), applied (sections 11, 16.11.3, 22).
+167. **One development database** (S-47). One PGlite directory, `.keelwerk/dev-db`, holds the
+     control root and each app's root, and the ledger file is `.keelwerk/ledger.log`, so the
+     doctor's shared-cluster warning stays silent. Status: decided by the lead 2026-11-04 (M1 plan
+     S-47), applied (sections 13.6, 14.3.7).
+168. **The cookie hint applies to browsers only** (S-48). The `http.cookie` hint applies only to
+     browser requests (a `Sec-Fetch-Site` or `Origin` header present) under host-based tenant
+     resolution, on every HTTP transport: then the cookie is set and `omitFromBody` applies; every
+     other request gets the full output and no cookie, so bearer clients and `keelwerk login`'s
+     `tokenField` receive the token. Status: decided by the lead 2026-11-04 (M1 plan S-48), applied
+     (sections 16.4.10, 16.9.6, 17.2.7).
+169. **`startRuntime`** (S-49). `startRuntime(deployment: DeploymentDefinition, options:
+     RuntimeOptions): Promise<Runtime>` with `RuntimeOptions { role, listen, apps?, logger?, clock?
+     }` and `Runtime { invoker, surface(appId, version?), registry(appId), host?, stop(deadlineMs)
+     }`; `listen: false` serves the CLI's project mode and tests, and `defineDeployment` returns a
+     subtype of `DeploymentDefinition`. Status: decided by the lead 2026-11-04 (M1 plan S-49),
+     applied (section 3.3).
+170. **Runtime values of requests, drafts and effects** (S-50). One frozen plain object per kind
+     with a `kind` discriminant, built only by the DSL's context constructors: requests `load`,
+     `maybe`, `ask`, `all`, `flag`, `id`, `random`, `secret`, `compute` and `perform`; drafts
+     `create`, `update`, `archive`, `restore` and `event`; effects `invoke`, `enqueue`, `setTimer`,
+     `cancelTimer`, `settle` and `external`. Status: decided by the lead 2026-11-04 (M1 plan S-50),
+     applied (section 7.9.2).
+171. **Where the fallbacks live** (S-51). Choosing the kernel path is core code (planner, write
+     path, feed); what runs below the contract (the polling feed, capability masks, the fallback
+     report's rows and costs) is in `data/src/fallbacks/`. Status: decided by the lead 2026-11-04
+     (M1 plan S-51), applied (sections 14.3.3, 22).
+172. **The transport suite takes `fetch`** (S-52). The transport conformance suite takes a `fetch`
+     function and a codec from the caller, so `@keelwerk/testing` depends on no transport. Status:
+     decided by the lead 2026-11-04 (M1 plan S-52), applied (sections 16.8.5, 22).
+173. **Unix sockets in the client** (S-53). The subpath `@keelwerk/client/unix-socket` exports
+     `unixSocketFetch` over `node:http` with `socketPath`; the main entry stays browser-safe.
+     Status: decided by the lead 2026-11-04 (M1 plan S-53), applied (sections 16.8.4, 22).
+174. **How adapters report retryable failures** (S-54). Adapters throw `RetryableUnitError`
+     (kernel-internal, never on the wire) for serialization failures and deadlocks; version
+     conflicts stay `conflict` `core.version_mismatch`. Status: decided by the lead 2026-11-04 (M1
+     plan S-54), applied (section 14.3.6).
+175. **Wrapped scope keys** (S-55). `kw_scope_keys (scope_id, level, version, wrapped, created_at,
+     retired_at, primary key (scope_id, version))` in the control root, reached through
+     `Unit.scopeKeys` on deployment-scope units. Stored format final from M1. Status: decided by the
+     lead 2026-11-04 (M1 plan S-55), applied (sections 14.2, 14.3.1, 14.3.2, 14.4.4, 14.7.4).
+176. **The migration file's export** (S-56). Each migration file exports `migration: MigrationFile`;
+     migration files are exempt from the name-after-export rule. Status: decided by the lead
+     2026-11-04 (M1 plan S-56), applied (sections 14.6.2, 23.3).
+177. **No changelog per package** (S-57). One root `CHANGELOG.md` for the lockstep packages; no
+     package has its own. Status: decided by the lead 2026-11-04 (M1 plan S-57), applied (sections
+     22, 23.2).
+178. **The binary inside the workspace** (S-58). `bin` points at `dist/bin/keelwerk.js`; the root
+     script `keelwerk` runs `node --conditions=@keelwerk/source packages/cli/src/bin/keelwerk.ts`.
+     Status: decided by the lead 2026-11-04 (M1 plan S-58), applied (section 16.9.1).
+179. **Physical names in the core** (S-59). Because physical names equal the derived names (decision
+     55b), `physicalTableName` and `physicalColumnName` are pure functions of the core, used by the
+     registry and by the planner, which records them in snapshots. Status: decided by the lead
+     2026-11-04 (M1 plan S-59), applied (sections 6.1, 14.3.2, 14.4.2; ADR 0006).
+180. **`writer` and `flags` in the chain** (S-60). Yes: `writer` and `flags` enter the hash-chain
+     content, as section 15.1.8 lists; the question of section 26.3 is closed. Stored format final
+     from M1. Status: decided by the lead 2026-11-04 (M1 plan S-60), applied (sections 15.1.8, 26.1,
+     26.3; ADR 0007).
+181. **`displayName` stays plaintext** (S-61). `accounts.profile.displayName` is plaintext in M1, as
+     the sketch has it; making it personal later is a migration of section 14.6.4. The question of
+     section 26.3 is closed. Status: decided by the lead 2026-11-04 (M1 plan S-61), applied
+     (sections 17.2.1, 26.1, 26.3).
+182. **Endpoints without the live module** (S-62). M1 mounts `/invoke`, `/batch`, `/surface` and
+     `/capabilities`; `wait` is ignored as section 16.4.7 allows, and the client's `subscribe` and
+     `waitForEffects` are typed and reject with `unavailable` `core.live_unavailable`. Status:
+     decided by the lead 2026-11-04 (M1 plan S-62), applied (sections 16.4.7, 16.8.2, 16.8.4;
+     roadmap M1).

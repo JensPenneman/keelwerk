@@ -1,6 +1,6 @@
 # 14. Accounts and authentication: opaque tokens apart from ids, one credential model, re-authentication for credential changes
 
-Date: 2026-10-11
+Date: 2026-10-11 (amended 2026-11-04)
 
 ## Status
 
@@ -75,3 +75,17 @@ credential-scope gaps (G1, G4, G13) depend on them.
 - Long-lived credentials that must work without a tenant host name (API keys, node credentials)
   depend on the scope directory of gap G2, whose ADR lands before M4 (Launchway's rebuild; M3 before
   the roadmap's reorder of 2026-10-28).
+
+**Amended 2026-11-04** (register entries 160 and 152, M1 plan S-40 and S-32). A first password
+credential comes from `auth.signUp` (public, rate-limited; `identifier`, `password`, optional
+`displayName`), which creates it under a fresh opaque subject and records the domain event
+`auth.credential.signedUp`. With `accounts` selected, the inline reaction `register-profile` on
+`signedUp` invokes `accounts.register`, and `link-profile` on `accounts.profile.created` sets the
+credential's `profileId` and makes the profile id its subject, sealing its personal values again
+under it, all in the sign-up's unit (architecture.md section 17.2.2); entry 160 waits for Jens's
+confirmation and is built as decided unless he objects. Tokens are `<prefix>_<public id>_<secret>`
+in lower-case base32, with a 128-bit public id, a 256-bit secret and the prefix the issuing request
+names (`pss` for sessions); the verifier, stored as `field.verifier()`, is HMAC-SHA-256 of the
+secret under a key derived with HKDF-SHA-256 from the scope's key (the tenant key; the backend key
+for backend-scope tokens), info `keelwerk/token-verifier/1/<prefix>`. The token format is final
+from M1.

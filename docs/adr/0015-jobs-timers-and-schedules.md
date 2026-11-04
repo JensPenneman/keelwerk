@@ -1,6 +1,6 @@
 # 15. Jobs, durable timers and schedules on one kernel queue over the adapters' job store
 
-Date: 2026-10-11 (revised 2026-10-24 and 2026-10-25)
+Date: 2026-10-11 (revised 2026-10-24 and 2026-10-25; amended 2026-11-04)
 
 ## Status
 
@@ -82,3 +82,18 @@ fired under whoever set them, so the node-offline timer ran under the node's own
   (decision 6a, ADR 0025).
 - On SQLite and PGlite, one writer bounds queue throughput; those adapters serve development, tests
   and single-process deployments.
+
+**Amended 2026-11-04** (register entries 127 and 144, M1 plan S-07 and S-24). The queue tables are
+complete and final from M1: `kw_jobs` adds `kind`, `principal`, `causation`, `build_id` (beside
+`revision`), `api_version`, `ordering`, `group_spec`, `retry`, `heartbeat_seconds`,
+`expire_in_seconds`, `dead_letter`, `created_at` and the state `dead`, in which a dead letter keeps
+its input; priority and capability set belong to the lane, and `onConflict` acts at enqueue
+without being stored. `kw_job_history` keeps outcome, attempts, timings and error without input;
+`kw_job_groups` adds `scope_id`, `rate`, `tokens` and `refilled_at`, under a policy that admits a
+row whose `scope_id` is null or the unit's scope, since group rows hold counters, never tenant data;
+the enqueuing unit upserts its lane and the lane's two count rows. Architecture.md section 9.5.2
+gives the DDL. M1 writes jobs, timers, effect records and `accepted` receipts in this final form
+and runs no worker: asynchronous commands answer with their receipt, compose refuses async
+reactions (`asyncReactionsUnavailable`), and boot and `keelwerk doctor` list queues with work and
+no worker; the workers, the reaction dispatcher and deployment-wide groups arrive in M2. Entry 144
+waits for Jens's confirmation and is built as decided unless he objects.

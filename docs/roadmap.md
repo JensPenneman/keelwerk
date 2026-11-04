@@ -4,7 +4,8 @@ Date: 2026-11-04 (first version 2026-10-11; addendum 3 and Jens's decisions of 2
 merged; the jobs, nodes and autoscaling design, the design of encrypted personal data and the
 pure-handler design of decision 50a merged on 2026-10-25; reordered on 2026-10-28 for decision 48c,
 with Trail rebuilt first, Launchway second and the mail server parked; the M0 spikes recorded and
-the `.launchway/` directory of decision 90c applied on 2026-11-04). Status: approved with the
+the `.launchway/` directory of decision 90c applied on 2026-11-04, and M1's limits from the M1
+plan's specification gaps, register section N, added the same day). Status: approved with the
 architecture on 2026-11-04 (section 2); M0 in progress.
 
 This document orders the work of [architecture.md](architecture.md) into milestones, from the
@@ -23,7 +24,9 @@ listed in full.
 - Each milestone is usable on its own: its exit criteria run in CI or on the home server, not in a
   plan.
 - Stored formats are final from M1 (section 14.1 of the architecture): later milestones add tables,
-  columns and protocols, never a rewrite of stored events, positions or tokens.
+  columns, members of the adapter contract and protocols, never a rewrite of stored events,
+  positions or tokens. A contract member joins with its first user, so no adapter ships a stub
+  (architecture.md section 14.3.2).
 - An ADR exists before the milestone that first depends on its decision (ADR 0001). Section 5 lists
   the ADRs still to be written and when.
 - Every milestone keeps the CI checks of architecture.md section 13.8 green and adds its own
@@ -47,7 +50,7 @@ what it builds on. Only the mail server's questions are open, and they are parke
 | Gate | Before | What |
 |---|---|---|
 | Architecture approval | M1 | Passed on 2026-11-04: Jens approved the architecture and the ADRs are `Accepted`; the name keelwerk was settled on 2026-10-28 (decision 91); trademarks wait (decision 84c). Publication does not wait for this gate: the code and the design documents may be public from the start, at a moment Jens chooses, with the licence in every commit (decisions 20 and 83, revised 2026-10-27). |
-| Decisions for M1 | M1 | Taken: 1 (the compiled app catalogue), 2 (hard dependencies), 3 (object literals), 4 (module authority), 5 (deny rules), 6 (the kernel job queue: the job store is part of the adapter contract from M1 and its stored format is final there), 7 (personal fields encrypted in state tables, ADR 0027), 8 (buffer defaults and `asOf`), 10 (before-images), 12 (datastore agnosticism: the kernel's fallbacks ship with the adapter contract), 16 and 81 (`keelwerk call`), 17 (`explain --as`), 18 (protobuf tags), 19 (Temporal from the start), 20 (the licence), 28 (TypeScript 7 and Node 26), 29 (`chain` by default), 30 (Kysely), 31 (the `Check` form), 32 (the Maybe accessor, revisited after the spike), 35 (anchors from M1), 50 (strict pure handlers, ADR 0026), 52 (dated API versions, because pins and the ledger ship in M1), 58 to 61 (kebab names, the generated manifest, one rule per file, scaffolds that only create files), 65 and 66 (blind indexes only where declared, NFC), and 73, 76, 77, 78 and 79 (generators, logging, the fixed clock, effect records in the chain, command inputs as a digest), because the interpreter, the decision record in `kw_events.meta` and the `core.effect` format ship in M1. None is pending. |
+| Decisions for M1 | M1 | Taken: 1 (the compiled app catalogue), 2 (hard dependencies), 3 (object literals), 4 (module authority), 5 (deny rules), 6 (the kernel job queue: the job store is part of the adapter contract from M1 and its stored format is final there), 7 (personal fields encrypted in state tables, ADR 0027), 8 (buffer defaults and `asOf`), 10 (before-images), 12 (datastore agnosticism: the kernel's fallbacks ship with the adapter contract), 16 and 81 (`keelwerk call`), 17 (`explain --as`), 18 (protobuf tags), 19 (Temporal from the start), 20 (the licence), 28 (TypeScript 7 and Node 26), 29 (`chain` by default), 30 (Kysely), 31 (the `Check` form), 32 (the Maybe accessor, revisited after the spike), 35 (anchors from M1), 50 (strict pure handlers, ADR 0026), 52 (dated API versions, because pins and the ledger ship in M1), 58 to 61 (kebab names, the generated manifest, one rule per file, scaffolds that only create files), 65 and 66 (blind indexes only where declared, NFC), and 73, 76, 77, 78 and 79 (generators, logging, the fixed clock, effect records in the chain, command inputs as a digest), because the interpreter, the decision record in `kw_events.meta` and the `core.effect` format ship in M1; and 121 to 182, the M1 plan's specification gaps (register section N), of which 144 (asynchronous work without workers) and 160 (sign-up) are built as decided unless Jens objects. None is pending. |
 | Decisions for M2 | M2 | Taken: 15 (oRPC beside tRPC), 36 (operator work stays on the invocation protocol and the CLI, no operator GraphQL schema), 37 (own operation limits with the no-repeat rule), 51 (flags in the core), 53 (12 months of deprecation, then retirement), 74 (inline effects in `prepare`), 75 (executor retries only without domain meaning) and 80 (external performers), because effect jobs, executors, continuations, external performers and the other transports ship in M2. None is pending. |
 | Decisions for M3 | M3 | Taken: 48 (Trail in its own repository, on exact-pinned 0.x pre-releases) and 74 with its reservation (Trail's rebuild tests the phase restrictions). None is pending; Trail's own product choices are made in the Trail repository. |
 | Decisions for M4 | M4 | Taken: 23 (a clean break with agent protocol v1), 24 (the edge through the agent), 25 (tenant-owned nodes), 26 (subdomains with mandatory hardening), 27 (two PostgreSQL instances and the ledger file), 38 (resumable uploads, ADR 0020), 45 (separate realms), 47 (keep all data), 49 (outbound webhooks), 54 (automatic finalization), 55 (renames through expand and contract), 62 (`keelwerk fleet`), 63 (the scaler with the static provider), 71 (bounded scans), 72 (substring defaults) and 82 (the edge provider contract). None is pending. |
@@ -74,8 +77,8 @@ transactions, the fair take's p95 against lanes and batch, and positioned loads 
 snapshot per decision, all recorded), the Maybe half of 5 (decision 32b confirmed) and 6 (the
 approval gate passed on 2026-11-04). The GritQL plugins of `@keelwerk/biome-config` shipped with
 their fixtures the same day, which closes M0's deliverables. Neither spike covered the `prepare` comparison or the
-Node 26 re-checks of criterion 5; architecture.md section 26.2 records them as open, and M3's
-criterion 3 writes up the `prepare` comparison from Trail's code.
+Node 26 re-checks of criterion 5; architecture.md section 26.2 records them as open. M1 delivers
+the `prepare` prototype and its report (register entry 150); M3's criterion 3 repeats it on Trail's code.
 
 Packages and artefacts:
 
@@ -172,12 +175,17 @@ Packages and modules:
   `writer` and `flags`), the `core.effect` entity in its final stored format, the `ctx.compute` pool
   with Argon2id, `@keelwerk/core/crypto`, and `keelwerk explain --dry-run` and `--trace`, the
   `core` module (backends, tenants, domains, placements, namespaces, command receipts, operator
-  tokens, `core.introspect`, `core.me`, `core.capabilities`), and the `wire` and `ledger` subpaths.
+  tokens, `core.introspect`, `core.composition`, `core.me`, `core.capabilities`), the generated
+  entity actions with `changes`, `queryChanges`, state tokens and the disclosure rule (tokens final
+  from M1; `watch` comes with `@keelwerk/live` in M2), `startRuntime`, and the `wire` and `ledger`
+  subpaths.
 - API versions in the core: `Keelwerk-Version` resolution and pins per backend, tenant and
   credential, `defineApiVersions` with a first version, the ledger, and `keelwerk surface diff`
   as CI step 9 (architecture.md sections 18.2, 18.3 and 18.6). The stored formats that must be
-  final from M1 are written from the start: `writer` and `flags` in `kw_events.meta`, `build`,
-  `revision` and `apiVersion` on jobs, `apiVersion` on receipts.
+  final from M1 are written from the start: `writer` and `flags` in `kw_events.meta` (and in the
+  chain's content), `build`, `revision` and `apiVersion` on jobs, `apiVersion` on receipts, the
+  queue tables with every `JobSpec` column, `kw_scope_keys`, the ledger file's format and the token
+  format (register entries 127, 142, 152, 154, 175 and 180).
 - `@keelwerk/data`: the Kysely SQL family, the migration planner with tracks and snapshots, the
   in-memory adapter, PGlite wiring, the kernel's paths for capabilities an adapter lacks
   (architecture.md section 14.3.3, brief addendum 5) and the adapter conformance kit.
@@ -206,7 +214,62 @@ Packages and modules:
   for personal fields), the adversarial isolation suite, and `drive` and in-memory runs for pure
   handlers, with answers as data (architecture.md section 7.9.6).
 - `examples/portal`: an app of `accounts`, `auth` and `rest` in the canonical layout, the
-  end-to-end fixture.
+  end-to-end fixture: a project root with `.launchway/` and `apps/portal/`, the private package
+  `@keelwerk-examples/app-portal`, and `modules/` once it has modules of its own; the workspace
+  lists `packages/*`, `examples/*/apps/*`, `examples/*/modules/*` and `spikes/*` (register entry
+  165).
+- `packages/type-budgets` (private): the attest benchmarks on their own exact TypeScript 6.0.3,
+  beside the gate in `scripts/type-budgets/` (register entries 136 and 138).
+
+What M1 ships of designs that span milestones (register section N; architecture.md is the design,
+these are M1's limits):
+
+- Adapter contract: `Unit` has `rows`, `events`, `receipts`, `jobs`, `usage`, `buckets`, `keys`,
+  `serials`, `nested`, `afterCommit` and, on deployment-scope units, `scopeKeys`; `JobStore` is
+  complete except `schedules()`; `EventStore` lacks `compact`, `purgeStream`, `purgeTransient` and
+  `redact`. Adapter conformance cases 5 (stream records), 10 (consumers, tombstones, streams and the
+  queue scenarios with workers) and 11 wait for M2 (entry 123).
+- Asynchronous work without workers (entry 144, for Jens to confirm): M1 writes job rows, timers,
+  `core.effect` `requested` records and `accepted` receipts in their final form and runs no worker.
+  `execution: 'async'`, and `either` with a preference for async, answer `{ commandId, status:
+  'accepted' }`; compose refuses async reactions with `asyncReactionsUnavailable`, so `auth`'s
+  `recordLogin` is inline; the session resolver's idle extension is enqueued in a short unit after
+  `open`, so sessions slide only once M2 runs the keyed job; boot and `keelwerk doctor` list every
+  queue with work and no worker. The minimal action-job worker in M1 was the alternative, not taken.
+- `prepare` is typed in full and runs with loads only; `ctx.perform` fails with `internal`,
+  `core.request_not_allowed`, until inline effects ship in M2 (entry 125). The `prepare` variant
+  prototype and its report are an M1 deliverable that leaves `@keelwerk/core` unchanged (entry 150).
+- `onTenantCreated` hooks run in their own tenant-scope unit right after the creating unit commits;
+  a failure is logged and listed by `keelwerk doctor` (entry 147).
+- `defineDeployment` is typed in full and validated; M1 uses `apps`, `infrastructure`, `control`,
+  `placements`, `tenantResolution`, `operator`, `keys`, `anchors` and `queues.<q>.running` (entry
+  132). Tenant resolution: `byHostname` over `core.domain` and `byHeader`; `byScopeKey` and `byPath`
+  are refused at boot with `scopeDirectoryUnavailable` (entry 140).
+- Flags: `defineFlag` as a typed declaration listed by bases; every flag request answers the
+  declared default with reason `default`, recorded in `meta.flags`; providers, targeting and
+  `core.flag` are M2 (entry 143).
+- Personal fields: adapters declare `encryptedQueries: { equality: true, tagSets: false, order:
+  false, maxScan }` and write equality tags only; `accounts.profile.email` keeps `queries:
+  ['prefix']`, and its `startsWith` runs as the kernel's bounded scan, listed by `keelwerk doctor`;
+  M4 adds prefix tags through a reindex; no M1 module declares `contains`, `order` or `search`
+  (entry 157).
+- Rate buckets take one token at a time from the shared `kw_rate_buckets` row; per-process
+  allowances come with M2's quota model (entry 156).
+- Restore detection: `connect` compares each scope's head with its newest anchor and logs a rewound
+  scope, `keelwerk doctor` lists it and `keelwerk db verify` fails on it; the epoch bump and the
+  control store's mark tables are M2's (entry 155).
+- Rollouts: `core.rollout` does not exist yet, so the revision is 1 and `keelwerk db apply
+  --contract` applies only while every live `core.process` runs the same build id; no M1 migration
+  has a contract step (entries 142 and 164).
+- The invocation protocol mounts `/invoke`, `/batch`, `/surface` and `/capabilities`; `wait` is
+  ignored, and the client's `subscribe` and `waitForEffects` reject with `unavailable`,
+  `core.live_unavailable` (entry 182).
+- The transport conformance suite runs values, errors, pagination, masks, async acceptance (202 and
+  the stored receipt), idempotent replay, concurrent duplicates, optimistic concurrency and the
+  browser scenarios; the streaming and selection-limit scenarios are written and skipped under the
+  marker `m2` (entry 159).
+- Packages carry no `engines` field; `keelwerk doctor` checks Node 26 or later, and the lead
+  decides before the first publish (entry 121, criterion 12).
 
 Exit criteria:
 
@@ -274,6 +337,14 @@ Packages and modules:
   sunset, 12 months after deprecation (decision 53).
 - Flags in the core (architecture.md section 20): `defineFlag`, `ctx.flags`, the `flagProviders`
   chain, `core.flag` targeting, gates, `core.suspension`, the stale report and `keelwerk flags`.
+- What M1 left to M2 (register section N): workers for the job rows M1 writes, so sessions slide
+  and `auth`'s `recordLogin` becomes the async reaction of the sketch; `onTenantCreated` hooks on the
+  queue; the contract members `consumers`, `tombstones`, `streams`, `JobStore.schedules()` and the
+  event store's maintenance members, with their tables (`kw_consumers`, `kw_parked`,
+  `kw_tombstones`, `kw_stream_records`, the schedule table) and adapter conformance cases 5, 10 and
+  11; the epoch bump and the control store's mark tables; deployment-wide job groups; the `erasure`
+  and `keyTombstone` ledger records; `/subscribe`, `/live`, `--wait` and `waitForEffects`; the
+  transport suite's `m2` scenarios.
 
 Exit criteria:
 

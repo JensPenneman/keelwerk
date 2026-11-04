@@ -4,7 +4,8 @@
  * strict model of decision 50a on 2026-10-25, for the decisions of 2026-10-26 to 2026-10-28:
  * one rule per file (60b), the generated manifest (59b), the Maybe accessor (32b) and Temporal
  * instants (19b), and for the M0 spike outcomes of 2026-11-04 (register section M): typed principal
- * refs, `SubjectId`, `extensionPoint.set`, `continueWith`). Status: the acceptance test of the DSL;
+ * refs, `SubjectId`, `extensionPoint.set`, `continueWith`), and for the decisions on the M1 plan's
+ * specification gaps (register section N): `auth.signUp`. Status: the acceptance test of the DSL;
  * the composition-types spike of roadmap M0 type-checks it (`pnpm --filter
  * @keelwerk/spike-composition-types sketch`) with no errors.
  *
@@ -238,6 +239,10 @@ export const reauthenticationRequired = defineError('auth.reauthentication_requi
   kind: 'forbidden',
   message: 'Confirm your password or sign in again to change a credential.',
 })
+export const identifierTaken = defineError('auth.identifier_taken', {
+  kind: 'conflict',
+  message: 'This identifier already has a password.',
+})
 
 const credential = defineEntity({
   prefix: 'cred',
@@ -252,8 +257,11 @@ const credential = defineEntity({
     revokedAt: field.instant().optional(),
   },
   indexes: [{ fields: ['identifier'], unique: true, where: { kind: 'password', revokedAt: { isNull: true } } }],
-  events: { revoked: shape({ at: field.instant(), reason: field.string().optional() }) },
-  evolve: { revoked: (state, e) => ({ ...state, revokedAt: e.at }) },
+  events: {
+    revoked: shape({ at: field.instant(), reason: field.string().optional() }),
+    signedUp: shape({ displayName: field.string({ maxLength: 120 }).optional() }), // the sign-up, as a fact other parts react to
+  },
+  evolve: { revoked: (state, e) => ({ ...state, revokedAt: e.at }), signedUp: (state) => state },
   generated: { set: false }, // credentials change only through auth's own commands
 })
 
@@ -320,6 +328,30 @@ export const authBase: AuthBase = authBaseDef
 const revoke = defineCommand(authBase, credential, {
   input: shape({ reason: field.string().optional() }),
   decide: (input, current, ctx) => [ctx.events.revoked({ at: ctx.clock.now(), reason: input.reason })],
+})
+
+// Sign-up: a password credential under a fresh opaque subject (register entry 160). With accounts selected,
+// the inline reactions of whenAccounts register and link a profile in this unit (described above recordLogin).
+const signUp = defineCommand(authBase, {
+  input: shape({ identifier: field.string({ format: 'email' }), password: field.secret(), displayName: field.string({ maxLength: 120 }).optional() }),
+  output: shape({ credentialId: field.ref.own('credential') }),
+  errors: [identifierTaken],
+  auth: { public: true },
+  execution: 'sync',
+  *decide(input, ctx) {
+    if (yield* ctx.load.auth.credential.exists({ identifier: input.identifier, kind: 'password', revokedAt: { isNull: true } })) throw identifierTaken()
+    const id = yield* ctx.newId(credential)
+    const subject = opaqueSubject(yield* ctx.random(16)) // lib/: the random bytes are an answer in the decision record
+    const salt = yield* ctx.random(16)
+    const verifier = yield* ctx.compute.argon2idHash(input.password, salt)
+    return {
+      events: [
+        ctx.write.auth.credential.create({ id, subject, kind: 'password', identifier: input.identifier, verifier }),
+        ctx.write.auth.credential.signedUp(id, { displayName: input.displayName }), // a domain event on the new stream, by id
+      ],
+      result: { credentialId: id },
+    }
+  },
 })
 
 // Verification is computation, the session is state: login performs no effect.
@@ -398,6 +430,7 @@ const whoami = defineQuery(authBase, {
 })
 
 // Rules, one per file: policies/login/open.ts is auth.login.open, policies/credential/self.ts is auth.credential.self.
+const signUpOpen = defineRule(authBase, signUp, { effect: 'allow', public: true })
 const loginOpen = defineRule(authBase, login, { effect: 'allow', public: true })
 const logoutSignedIn = defineRule(authBase, logout, { effect: 'allow', principal: 'user' })
 const whoamiSignedIn = defineRule(authBase, whoami, { effect: 'allow', principal: 'user' })
@@ -479,6 +512,11 @@ const revokeOnDeactivation = defineReaction(within(authBase, whenAccounts), {
   react: (event) => ({ effects: [invoke(revokeSubject, { subject: asSubject(event.state.id), reason: 'profile deactivated' })] }), // an own action, by value
 })
 
+// Two more inline reactions of whenAccounts complete a sign-up in its unit (architecture.md section 17.2.2):
+// registerProfile on 'auth.credential.signedUp' invokes accounts.register by reference with the identifier and
+// the display name, and linkProfile on 'accounts.profile.created' sets the credential's profileId and makes the
+// profile id its subject. The sketch leaves them out: its invoke takes own actions by value only.
+
 // and the login timestamp flows back to the profile field auth contributed (a keyed job per event).
 const recordLogin = defineReaction(within(authBase, whenAccounts), {
   on: 'auth.session.created',
@@ -513,8 +551,9 @@ const onTenantCreated = defineHook(authBase, 'onTenantCreated', (tenant, ctx) =>
 // Written by hand here; in a project the generator writes it from the directories, aliasing the clashing names.
 const authDef = defineModule(authBase, {
   entityActions: { credential: { revoke } },
-  actions: { login, logout, revokeSubject, whoami },
+  actions: { signUp, login, logout, revokeSubject, whoami },
   policies: {
+    signUp: { open: signUpOpen },
     login: { open: loginOpen },
     logout: { signedIn: logoutSignedIn },
     whoami: { signedIn: whoamiSignedIn },
@@ -731,14 +770,18 @@ export async function example(operator: AppClient<Portal>, client: AppClient<Por
 
   // Tenant-scoped calls: the scope comes from the client's profile (backend, tenant) and the token, once logged in.
   const anonymous = client.as({ backend: backend.id, tenant: tenant.id })
-  const { profileId } = await anonymous.invoke('accounts.register', { displayName: 'Jens', email: 'jens@acme.example' })
+  await anonymous.invoke('auth.signUp', { identifier: 'jens@acme.example', password: '<password>', displayName: 'Jens' }) // with accounts: a linked profile
   const { sessionToken } = await anonymous.invoke('auth.login', { identifier: 'Jens@Acme.example', password: '<password>' }) // normalised: matches
   const scoped = client.as({ backend: backend.id, tenant: tenant.id, token: sessionToken })
 
   const page = await scoped.invoke('accounts.profile.search', { text: 'Jen', first: 10 }) // three characters: the prefix minimum
-  const receipt = await scoped.invoke('accounts.profile.deactivate', { id: profileId }, { prefer: 'async' })
-  //    ^ { commandId, status: 'accepted' } because the app declared `either` for external callers
-  void receipt
+  const me = await scoped.invoke('auth.whoami', {})
+  const profileId = profileIdOf(me.subject) // with accounts selected, the subject is the profile id
+  if (profileId) {
+    const receipt = await scoped.invoke('accounts.profile.deactivate', { id: profileId }, { prefer: 'async' })
+    //    ^ { commandId, status: 'accepted' } because the app declared `either` for external callers
+    void receipt
+  }
 
   for await (const frame of scoped.subscribe('auth.sessionEvents', {})) {
     if ('control' in frame) {
@@ -759,4 +802,5 @@ declare function isRecentlyAuthenticated(ctx: unknown): Gen<boolean>
 declare function revokeOtherSessions(ctx: unknown): Gen<readonly Draft[]>
 declare function asSubject(profileId: Id<'accounts.profile'>): SubjectId
 declare function profileIdOf(subject: SubjectId): Id<'accounts.profile'> | null
+declare function opaqueSubject(bytes: Uint8Array): SubjectId
 declare function signHmacSha256(key: string, body: string): string

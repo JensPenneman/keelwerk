@@ -1,7 +1,7 @@
 # 6. Data adapter boundary: units on namespaces, capabilities as accelerations, Kysely for SQL, migrations in tracks
 
 Date: 2026-10-11 (revised after review the same day; amended 2026-10-25; revised in place on
-2026-10-28 for brief addendum 5 and decisions 12a, 13a and 55b)
+2026-10-28 for brief addendum 5 and decisions 12a, 13a and 55b; amended 2026-11-04)
 
 ## Status
 
@@ -158,3 +158,15 @@ plan runs CI on three databases.
   deployment gets the same queue and the same isolation.
 - The core changes this decision required are folded into architecture.md (sections 4.2, 5.6,
   12.3 and 14).
+
+**Amended 2026-11-04** (register entries 128 and 179, M1 plan S-08 and S-59). Migration files
+live in `migrations/` beside `src/`, and production loads them, while Node strips no types under
+`node_modules`: module packages, and fixture modules with migrations, therefore compile with
+`rootDir: "."` and `include: ["src", "migrations"]`, export `"."` as `src/module.generated.ts`
+under the source condition and `dist/src/module.generated.js` otherwise, and carry `migrations:
+new URL('../migrations/', import.meta.url)` in their manifest, which resolves to the sources in
+development and to `dist/migrations/` when published (architecture.md sections 13.3, 13.4 and
+23.2). Because physical names always equal the derived names (decision 55b), the registry needs no
+snapshot to name tables: `physicalTableName` and `physicalColumnName` are pure functions of the
+core, used by the registry and by the migration planner, which records their results in the
+snapshots (sections 6.1 and 14.4.2).

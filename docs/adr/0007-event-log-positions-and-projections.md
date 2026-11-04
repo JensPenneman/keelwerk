@@ -1,7 +1,7 @@
 # 7. One event log per namespace with commit-ordered positions per scope; entity state as inline projections; async reactions as keyed jobs
 
 Date: 2026-10-11 (revised after review the same day; revised in place on 2026-10-28 for decision
-35b, and on 2026-11-04 with the measurements of the write-path spike)
+35b, and on 2026-11-04 with the measurements of the write-path spike; amended 2026-11-04)
 
 ## Status
 
@@ -181,3 +181,11 @@ exercise lock waits.
 - The core changes this decision required (receipts in the namespace, two more history modes, the
   envelope fields, `eventStores` folded into `dataAdapters`, async reactions as keyed jobs) are
   folded into architecture.md sections 6.6, 7.7, 9.4, 9.5 and 15.
+
+**Amended 2026-11-04** (register entries 180 and 142, M1 plan S-60 and S-22). The envelope's
+`writer` and `flags` enter the hash-chain content, as the actor does, final from M1
+(architecture.md section 15.1.8). `writer.build` is the build id, the SHA-256 of the build
+manifest's canonical JSON, whose smallest form lists the package versions, the migration checksums
+per track and each app's API versions; `writer.revision` is 1 until `core.rollout` exists, and
+`connect` registers the pair in `core.process` (section 19.1). Both are stored formats final from
+M1.
