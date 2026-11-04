@@ -6,3 +6,8 @@
 *.woff2 binary
 
 pnpm-lock.yaml linguist-generated=true
+
+# Package entry files hold one named re-export per line; parallel work packages append lines,
+# so a textual conflict keeps both sides.
+packages/*/src/index.ts merge=union
+packages/*/src/*/index.ts merge=union
