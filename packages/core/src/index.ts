@@ -1,7 +1,7 @@
-export { compareCodePoints } from './conditions/compare-code-points.ts';
 export { compareHlc } from './clock/compare-hlc.ts';
 export type { HybridClock } from './clock/hybrid-clock.ts';
 export { hybridClock } from './clock/hybrid-clock.ts';
+export { compareCodePoints } from './conditions/compare-code-points.ts';
 export type { Condition } from './conditions/condition.ts';
 export type { ConditionFields } from './conditions/condition-fields.ts';
 export { conditionFields } from './conditions/condition-fields.ts';

@@ -164,9 +164,14 @@
   "overrides": [
     {
       // Library entry files and subpath entries are curated lists of named re-exports
-      // (architecture 23.3).
+      // (architecture 23.3); they grow with the package, so the line limit does not apply.
       "includes": ["**/src/index.ts", "**/src/*/index.ts"],
-      "linter": { "rules": { "performance": { "noBarrelFile": "off" } } }
+      "linter": {
+        "rules": {
+          "performance": { "noBarrelFile": "off" },
+          "style": { "noExcessiveLinesPerFile": "off" }
+        }
+      }
     },
     {
       // Tool configuration files are loaded by their tools and need a default export.
