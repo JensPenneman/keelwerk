@@ -1,6 +1,6 @@
 # Decision register
 
-Date: 2026-10-23 (updated 2026-10-24; the M0 spike outcomes of section M and the M1 plan gaps of section N added 2026-11-04). Status: open. This register lists every open question of the architecture in
+Date: 2026-10-23 (updated 2026-10-24; the M0 spike outcomes of section M, the M1 plan gaps of section N and the M1 follow-ups of section O added 2026-11-04). Status: open. This register lists every open question of the architecture in
 one place, numbered, so that Jens can answer them one by one in conversation. Each answer is
 recorded here with its date and the section or ADR that applies it. The questions come from
 [architecture.md](architecture.md) section 26 (decision points, spike questions, questions by
@@ -813,9 +813,9 @@ sections it touched.
      final from M1. Status: decided by the lead 2026-11-04 (M1 plan S-22), applied (sections 15.1.3,
      19.1; ADR 0007).
 143. **Flags in M1** (S-23). M1 ships `defineFlag` as a typed declaration listed by bases; a flag
-     request answers the declared default with reason `default`, recorded in `meta.flags`;
-     providers, targeting and `core.flag` are M2. Status: decided by the lead 2026-11-04 (M1 plan
-     S-23), applied (section 20.2; roadmap M1).
+     request answers the declared default with reason `DEFAULT` (written `default` until decision
+     185), recorded in `meta.flags`; providers, targeting and `core.flag` are M2. Status: decided by
+     the lead 2026-11-04 (M1 plan S-23), applied (section 20.2; roadmap M1).
 144. **Asynchronous work without workers in M1** (S-24). M1 writes job rows, timers, `core.effect`
      `requested` records and `accepted` receipts in final form and runs no worker: `execution:
      'async'` (and `either` preferring async) answers `{ commandId, status: 'accepted' }`, compose
@@ -999,3 +999,590 @@ sections it touched.
      `ßi̇` on both. The question of section 26.3 is closed: `keelwerk doctor` warns on a mismatch and
      `keelwerk db reindex` rebuilds. Status: decided by the lead 2026-11-04, applied (sections
      14.7.9.3, 26.1, 26.3).
+
+## O. M1 follow-ups from work packages 01–34 (2026-11-04)
+
+The M1 work packages 01 to 34 settled rules the specification left open or stated otherwise. The
+lead decided each at the package's review or merge (STATE entries marked SPEC FOLLOW-UP, the plan's
+lead decisions and the change notes of its frozen interfaces), and the specification pass of
+2026-11-04 wrote them into architecture.md, where section 26.1 lists them by number. Points that
+only needed the architecture text brought in line with an entry of section N get no entry here. The
+open points at the end are questions for the packages named; the architecture text describes what is
+built until they are answered.
+
+184. **Write shapes by level** (WP-05). The field-level write shapes are `InsertOf<F, Owner>`,
+     `PatchOf<F, Owner>` and `OfflinePatchOf<F, Owner>` over a set of fields (serial fields never
+     appear; the offline patch also leaves out exclusive and unique fields), and the app-level
+     `Insert<App, Ref>`, `Patch<App, Ref>` and `OfflinePatch<App, Ref>` of section 4.7 apply them to
+     the entity's non-hidden fields; module-local drafts use the field-level names. Status: decided
+     by the lead 2026-11-04 (M1 plan, WP-05). Applied in: sections 4.7 and 14.8.1.
+185. **Upper-case flag reasons** (WP-07). Flag reasons are the upper-case OpenFeature reasons
+     everywhere, in `FlagResolution`, in `meta.flags` and in `explain`: M1's answer of the declared
+     default has reason `DEFAULT` (provider `default`), which amends the text of entry 143. Status:
+     decided by the lead 2026-11-04 (M1 plan, WP-07). Applied in: sections 20.2 and 26.1 (row 143);
+     entry 143.
+186. **What a personal field's flag leaks** (WP-05). `PersonalFlags.leaks` always lists `presence`,
+     then one leak per declared capability (`LeakOf`), and never `length`, because every sealed
+     value shows its padded length whatever the field declares. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-05). Applied in: section 14.7.9.2.
+187. **Custom normalisers** (WP-05). A custom normaliser is `{ id, version, normalize: (value:
+     string) => string }`; changing its id or version rebuilds the field's indexes. Status: decided
+     by the lead 2026-11-04 (M1 plan, WP-05). Applied in: section 14.7.9.2.
+188. **`parseTypeId` returns `undefined`** (WP-05). `parseTypeId(text, prefix)` returns the
+     canonical lower-case UUID, or `undefined` for malformed text, another prefix or an overflowing
+     suffix; the caller raises the error. Status: decided by the lead 2026-11-04 (M1 plan, WP-05).
+     Applied in: section 6.4.
+189. **The runtime view of a deployment** (WP-06). `startRuntime` takes `DeploymentDefinition`, of
+     which `defineDeployment` returns a subtype: `apps` as `{ id }[]`, open `control` and
+     `placements` entries, `operator?`, `keys?`, `tenantResolution?` and the other members listed in
+     section 4.6, with members an adapter or provider reads left open. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-06). Applied in: section 4.6.
+190. **Cookies and cache of a principal resolution** (WP-06). A `PrincipalResolution` is `{
+     principal, effects?, clearCookies?, cache? }`: `clearCookies` names the cookies the host clears
+     for a stale session (copied to `InvocationSession.clearCookies`), and `cache` (`{ key, entity,
+     id }`) is what the kernel caches the session under and whose change record drops it; the
+     session also records `resolvedBy`. Status: decided by the lead 2026-11-04 (M1 plan, WP-06).
+     Applied in: sections 16.3.4 and 17.2.4.
+191. **Effects and command ids in the invocation envelope** (WP-06, WP-24). `InvokeResponse`'s ok
+     branch carries `commandId?` (for every command, batch items included) and `effects?` (the
+     deferred effect ids), so the invocation protocol reports what REST puts in
+     `Keelwerk-Command-Id` and `Keelwerk-Effects`. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-06, WP-24). Applied in: sections 16.4.7, 16.4.8 and 16.8.2.
+192. **Separate backend and tenant header selectors** (WP-06). The header tenant resolver is
+     `byHeader(tenantHeader, { backendHeader? })`: the tenant from one header and, when the tenant
+     does not imply its backend, the backend from a second; the typed client and the CLI send
+     `x-keelwerk-backend` and `x-keelwerk-tenant`. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-06). Applied in: section 16.8.2.
+193. **API version statuses in the capabilities document** (WP-06). `CapabilitiesDocument` is `{
+     protocols, apiVersions }`, each version with `status: 'current' | 'deprecated' | 'retired'` and
+     `deprecated?: { at, sunset }`. Status: decided by the lead 2026-11-04 (M1 plan, WP-06). Applied
+     in: section 18.7.
+194. **The resolver's clock is a parameter** (WP-06). `PrincipalResolver.resolve(carrier, { scope,
+     clock })`: a resolver reads the invocation's time from the clock it is handed, never ambient
+     time, for expiry checks and the idle extension. Status: decided by the lead 2026-11-04 (M1
+     plan, WP-06). Applied in: sections 17.2.3 and 17.2.4.
+195. **Relation paths in the condition tree** (WP-09). A nested relation path in the object form is
+     one plain object per step and normalises to one quantifier node with a dotted `relation`
+     (`'team.members'`), which compilers and the in-memory matcher resolve hop by hop. Status:
+     decided by the lead 2026-11-04 (M1 plan, WP-09). Applied in: section 8.3.
+196. **Absent values in `in` and `nin` lists are rejected** (WP-09, WP-16). A `null` or `undefined`
+     entry in an `in` or `nin` list is rejected at normalisation instead of matching nothing, so a
+     deny rule never fails open: `validation`, `core.malformed_request` on the wire, `internal`,
+     `core.internal` when a rule produced it. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-09, WP-16). Applied in: sections 8.3 and 14.3.4.
+197. **Decimals and wide integers compare by value** (WP-09). Decimal fields compare numerically,
+     not as text (the interpreter learns the kind through `EvaluateOptions.kindOf`), and a `bigint`
+     and a `number` compare exactly, equal only when the number is an integer of the same value.
+     Status: decided by the lead 2026-11-04 (M1 plan, WP-09). Applied in: section 14.3.4.
+198. **Kind-level error codes** (WP-08). Every error kind has a registered core code `core.<kind>`
+     (`core.validation`, `core.conflict`, `core.internal` and the others), the code of the
+     kind-level factories and of the adapters' unique violations. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-08). Applied in: section 10.
+199. **`toWire` returns the body without the request id** (WP-08). `toWire(error, audience)` returns
+     `Omit<WireError, 'requestId'>` and the transport host adds `requestId`; `KeelwerkError` and
+     `WireError` carry the deciding deny rule's `reason?`. Status: decided by the lead 2026-11-04
+     (M1 plan, WP-08). Applied in: sections 10 and 16.4.6.
+200. **The operator audience** (WP-08). The `operator` audience of `toWire` sees exactly what
+     `development` sees (rule ids, unredacted `internal` messages with issues and details); only the
+     public audience gets the redacted form. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-08). Applied in: sections 10 and 16.4.6.
+201. **Injective physical names** (WP-08, WP-12). Entity names are snake-cased into table names like
+     field names into columns, and entity and field names are camelCase without consecutive capitals
+     (`invalidEntityName` at `defineModuleBase`, `invalidFieldName` at `defineEntity`); injectivity
+     rests on that naming rule together with compose's `tableCollisions` and `columnCollisions`.
+     Status: decided by the lead 2026-11-04 (M1 plan, WP-08, WP-12). Applied in: sections 4.7, 5.1
+     and 14.4.2.
+202. **UUIDv8 part encoding** (WP-08). `deriveUuidV8(...parts)` hashes each part as a 4-byte
+     big-endian length followed by its UTF-8 bytes; the encoding is irreversible, because receipt
+     ids and external stream ids depend on it. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-08). Applied in: section 14.5.2.
+203. **Hybrid clock overflow** (WP-08). A counter overflow within one millisecond advances the
+     clock's millisecond part by one and restarts the counter, without waiting for the wall clock.
+     Status: decided by the lead 2026-11-04 (M1 plan, WP-08). Applied in: section 14.5.3.
+204. **Definition refusals are named problems** (WP-12). `defineEntity`, `defineModuleBase` and
+     `defineModule` refuse with a `KeelwerkError` `internal`, `core.internal` whose `details` is the
+     `CompositionProblem`: `invalidTypeIdPrefix`, `uniquePersonalFieldTruncatedTags`,
+     `uniquePersonalFieldSubjectKeys`, `containsNeedsMaxLength`, `invalidFieldName`,
+     `invalidEntityName` and `partMountedTwice`. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-12). Applied in: section 4.7.
+205. **The module value's behaviour members** (WP-12). The module value and `ModuleOf` carry
+     `effects`, `executors`, `policies`, `reactions`, `fills` (from the literal's
+     `extensionPoints`), `schedules`, `lifecycle`, `topics` and `changes`, contributed and
+     conditional entries their own `actions`, `policies`, `reactions` and `fills`, and
+     `defineModule` stamps each mounted part's reference as `ref`. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-12). Applied in: section 4.1.
+206. **Row-level security settings and policy sets** (WP-11). A deployment-scope unit sets
+     `keelwerk.deployment_id`, which admits control-root rows and `kw_scope_keys`; app roots admit
+     `scope_id = coalesce(<tenant>, <backend>)`; namespace-scope units reach the queue tables
+     through the `take` policy set and every other scoped table through the `maintenance` set.
+     Status: decided by the lead 2026-11-04 (M1 plan, WP-11). Applied in: section 14.3.7.
+207. **Composite lane links** (WP-11). `kw_job_lanes` has `unique (id, scope_id)`, and `kw_jobs` and
+     `kw_job_lane_counts` link to it by `foreign key (lane_id, scope_id)`, because foreign-key
+     checks bypass row-level security; this departs from the DDL of entry 116 by these constraints
+     only. Status: decided by the lead 2026-11-04 (M1 plan, WP-11). Applied in: section 9.5.2.
+208. **Columns of the remaining framework tables** (WP-11). `kw_serials` keys on `(scope_id, entity,
+     field, partition)` with `partition` the canonical JSON of the `per` values; `kw_subject_keys`
+     has `key_id text`, `purpose` `data` or `index` and the key `(scope_id, key_id)`;
+     `kw_value_keys` keys on `(scope_id, key_id)`; `kw_usage(scope_id, dimension, value)`;
+     `kw_migrations.checksum` is hex text; the non-key columns of `kw_rate_buckets` and
+     `kw_scope_keys` are `not null`. Stored format final from M1. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-11). Applied in: sections 12.2, 14.6.3, 14.7.4 and 15.1.4.
+209. **Grants of the application role** (WP-11). The application role gets `select, insert` only on
+     the append-only `kw_events` and `kw_shapes`, `select, insert, update, delete` on the other
+     framework tables and `select` on `kw_migrations`; creating the role belongs to provisioning,
+     not to the DDL. Status: decided by the lead 2026-11-04 (M1 plan, WP-11). Applied in: section
+     14.3.7.
+210. **A read's position** (WP-10). A read's position is `kw_positions.next - 1`, the last position
+     committed in the scope, and 0 for a scope that never appended (with entry 139). Status: decided
+     by the lead 2026-11-04 (M1 plan, WP-10). Applied in: section 15.1.4.
+211. **How a relation's keys read** (WP-10). In a relation descriptor `by` is the field on the
+     related rows and `to` the field of the owning row it matches, for to-one and to-many relations
+     alike. Status: decided by the lead 2026-11-04 (M1 plan, WP-10). Applied in: sections 6.3 and
+     14.3.2.
+212. **Quantifiers ignore archived rows** (WP-10). Relation quantifiers (`some`, `none`, `every`,
+     `is`) do not count archived related rows, in both interpreters. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-10). Applied in: section 14.3.4.
+213. **The scoping plugin covers `insert ... select`** (WP-10). An `insert ... select` into a scoped
+     table must list the scope column and select the unit's value as a bound value, else
+     `forbidden`; its inner query and an upsert's update branch carry the scope predicate. Status:
+     decided by the lead 2026-11-04 (M1 plan, WP-10). Applied in: section 14.4.3.
+214. **The logger's signature** (WP-20). `Logger` methods take `(message, fields?)`, the message
+     first, and `child(bindings)` returns a logger that adds the bindings to every line; the CLI's
+     pino logger is adapted to it. Status: decided by the lead 2026-11-04 (M1 plan, WP-20). Applied
+     in: section 11.
+215. **Control entity fields and the `invocation` tenancy** (WP-20). `core.placement`,
+     `core.namespace`, `core.operatorToken`, `core.process`, `core.commandReceipt` and `core.effect`
+     have the fields of the table in section 3.1, backend and tenant `status` is `active` or
+     `suspended`, and `core.commandReceipt` and `core.effect` use the core-only tenancy
+     `invocation`, riding in the scope of the unit that writes them. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-20). Applied in: sections 3.1, 4.2, 14.3.2 and 16.2.2.
+216. **Processes and scaling members** (WP-20). `processes.<name>` is a `ProcessDefinition`
+     (`roles`, `capabilities?`, `slots?`, `placements?`, `provider?`, `scale?: { min?, max?,
+     maxPerNode? }`, `drainSeconds?`), and `scaling` is `DeploymentScaling` (`maxProcesses?`,
+     `maxCostPerHour?`, `providers?: { [name]: { max? } }`). Status: decided by the lead 2026-11-04
+     (M1 plan, WP-20). Applied in: section 4.6.
+217. **Contributions to the implicit core** (WP-20). Contributions to `core` are always active and
+     need no dependency: `contributionsOutsideDependencies` exempts `core`;
+     `defineTransportModule`'s `requires` is optional, and an `extensionPoints` mount takes a list
+     of values as well as a `defineFill` part. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-20). Applied in: section 5.6.
+218. **Runtime members of the app value** (WP-20, WP-27). The app value carries `kind`, `id`,
+     `modules` (core first), `execution`, `appActions`, `authorization`, `policies`, `api`, `flags`
+     and `registry`, the composed `Registry` built once at definition, with the derived types under
+     the optional type-only key `'~types'`. Status: decided by the lead 2026-11-04 (M1 plan, WP-20,
+     WP-27). Applied in: section 4.5.
+219. **Typed outputs that are not shapes** (WP-20, WP-33). `output: typedOutput<T>()` types a result
+     by `T` alone; the registry holds a permissive schema marked as typed output and the surface
+     describes it as an open object (`core.introspect` and `core.capabilities` use it). Status:
+     decided by the lead 2026-11-04 (M1 plan, WP-20, WP-33). Applied in: section 4.3.
+220. **Generated files stay under Biome** (WP-21). `*.generated.ts` files stay under Biome's check
+     (only `generated/` directories are excluded), so generators sort imports as Biome's organizer
+     does, and drift checks ignore the producer's version. Status: decided by the lead 2026-11-04
+     (M1 plan, WP-21). Applied in: section 13.7.
+221. **Generator aliases and contributed references** (WP-21). Import aliases are the camel case of
+     scope, target and export (`credentialSelf`, `accountsProfileSelf`), a part with neither adding
+     its kind (`postEffect`); a contributed part's reference is `<module>.<target
+     module>.<entity>.<name>`; the literal gets `migrations` only when the package has the
+     directory; the Node-only generator entry points are on `@keelwerk/core/manifest`. Status:
+     decided by the lead 2026-11-04 (M1 plan, WP-21). Applied in: sections 13.7, 22 and 23.5.
+222. **A deny rule with fields is field-level only** (WP-16). A deny rule that lists `fields` hides
+     those fields from the rows it matches, or forbids writes that change them (tested on the
+     pre-image), and never denies the row or the action. Status: decided by the lead 2026-11-04 (M1
+     plan, WP-16). Applied in: section 8.1.
+223. **Deny rules apply to public actions** (WP-16). `auth: { public: true }` removes the need for
+     an allow rule, never the deny rules: a deny whose `when` holds, or whose `where` covers every
+     row, stops a public action at the gate. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-16). Applied in: sections 7.3 and 8.2.
+224. **Deployment actions for operators only** (WP-16). Deployment-scope actions are reachable by
+     operator principals only; the system principal is refused too, and the earlier widening to
+     system principals is withdrawn. Status: decided by the lead 2026-11-04 (M1 plan, WP-16).
+     Applied in: section 8.8.
+225. **`relation.through`** (WP-16, WP-22). `relation.through(module, entity, { join, by, to, via
+     })` (and `.own`) joins the join rows whose `by` equals the owner's `to`, then the target rows
+     whose `id` equals the join rows' `via`; the descriptor keeps `keys: { by, to }` and `through: {
+     module, entity, by, to, via }`. Status: decided by the lead 2026-11-04 (M1 plan, WP-16, WP-22).
+     Applied in: sections 6.3 and 14.3.2.
+226. **Policy overrides** (WP-16, WP-27). The engine applies `PolicyOverrides { disable?, add?,
+     replace? }` (`applyPolicyOverrides`); a disabled rule stays in the set marked disabled, and the
+     problems are `unknownDisabledRule`, `unknownReplacedModule`, `duplicateRuleId` and
+     `invalidAddedRules`. Status: decided by the lead 2026-11-04 (M1 plan, WP-16, WP-27). Applied
+     in: sections 4.7 and 8.7.
+227. **Relation operators by cardinality** (WP-16). `RelationOps` follows cardinality: `some`,
+     `none` and `every` over a to-many relation, `is` over a to-one relation. Status: decided by the
+     lead 2026-11-04 (M1 plan, WP-16). Applied in: section 8.3.
+228. **Capability sets as text** (WP-13). A lane's capability set is stored as the job's
+     capabilities, distinct, sorted and joined by a comma, and the empty string for none. Status:
+     decided by the lead 2026-11-04 (M1 plan, WP-13). Applied in: section 14.3.9.
+229. **Dead letters write history** (WP-13). A job made dead also writes its `kw_job_history` row
+     (outcome `dead`), beside keeping its input in `kw_jobs` until replayed or discarded. Status:
+     decided by the lead 2026-11-04 (M1 plan, WP-13). Applied in: section 14.3.9.
+230. **What a job key does** (WP-13). Keys act on a pending job of the same key and lane: `keep`
+     returns it, `coalesce` keeps it and moves its `runAt` to the earlier time (available at once
+     when due), and `replace` finishes it as `cancelled`, with history, and enqueues the new job.
+     Status: decided by the lead 2026-11-04 (M1 plan, WP-13). Applied in: section 14.3.9.
+231. **`readAll`'s next position** (WP-13). `EventStore.readAll(after)` returns `next` as the
+     position of the last event returned, or `after` when none was. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-13). Applied in: section 15.1.11.
+232. **The shape of a new event and the envelope's scope** (WP-13). `NewEvent` carries `shape`, the
+     shape id of its payload, and the envelope's `scope` is the appending unit's `Scope`, the
+     deployment form included, never a fake id. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-13). Applied in: sections 15.1.3 and 15.1.11.
+233. **`count` and `exists` leave archived rows out** (WP-13). `RowStore.count` and
+     `RowStore.exists` agree with `find`: archived rows are left out. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-13). Applied in: section 14.3.2.
+234. **Acknowledged receipts are kept** (WP-13). `ReceiptStore.acknowledge` sets `acknowledgedAt`
+     and deletes nothing; an acknowledged receipt stays until it expires. Status: decided by the
+     lead 2026-11-04 (M1 plan, WP-13). Applied in: section 15.1.7.
+235. **In-memory units and timeouts** (WP-13). The in-memory adapter runs one read-write unit per
+     namespace at a time, and a unit that waits longer than its `timeoutMs` fails with
+     `unavailable`, `core.timeout`. Status: decided by the lead 2026-11-04 (M1 plan, WP-13). Applied
+     in: sections 10, 14.3.6 and 14.3.7.
+236. **Runtime composition problems** (WP-27). `defineApp` names the runtime problems
+     `invalidModuleIds`, `invalidAppId`, `camelCaseCollisions`, `dependencyCycles`,
+     `duplicateNames`, `duplicateActions`, `duplicateReactions`, `reservedActionNames`,
+     `reservedEventNames`, `reservedFieldNames`, `invalidActionName`, `invalidRelationName`,
+     `invalidEventName`, `columnCollisions`, `tableCollisions`, `offlineCommands`,
+     `prepareNeedsSyncExecution`, `readRuleFields`, `unknownExtensionPoints`,
+     `singleExtensionPointFillers`, `unknownScheduleActions`, `unresolvedPartReferences`,
+     `inlineExecutorCapabilities`, `unknownHooks` and `asyncReactionsUnavailable`;
+     `emptyExtensionPoints` is a compose warning and a boot error; the app is refused with the first
+     error. Status: decided by the lead 2026-11-04 (M1 plan, WP-27). Applied in: sections 3.3, 4.7,
+     5.1, 5.5, 7.3, 7.9.6, 8.1, 9.5.6 and 14.4.2.
+237. **Track ids in the registry** (WP-27). `TrackRef.track` is the 14.6.1 track id: the owner
+     module's id for its own fields, the contributor's track for contributed ones. Status: decided
+     by the lead 2026-11-04 (M1 plan, WP-27). Applied in: section 14.6.1.
+238. **Tags per track** (WP-27). An omitted `.tag(n)` is allocated per track, from 1 in declaration
+     order and skipping declared tags, so switching a contribution or conditional part off never
+     shifts another track's tags. Status: decided by the lead 2026-11-04 (M1 plan, WP-27). Applied
+     in: section 4.2.
+239. **PGlite's own driver** (WP-14). PGlite runs Kysely's PostgreSQL dialect over an own driver
+     (the stock one wraps `begin` in `pglite.transaction()` and destroys the instance), which
+     refuses transactions the unit does not own; one session means one unit at a time, `jobs:
+     'single-writer'`, and no enforced `statement_timeout`. Status: decided by the lead 2026-11-04
+     (M1 plan, WP-14). Applied in: sections 14.3.6 and 14.3.7.
+240. **Cross-scope reads as nested savepoints** (WP-14, WP-22). `Unit.nested(fn, { as?, readOnly?
+     })`: the only `as` allowed is a tenant unit's own backend with `readOnly: true`, anything else
+     is `forbidden`, `core.forbidden`, on every adapter; a single-session adapter reads backend
+     entities that way, with the scope settings swapped and restored. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-14, WP-22). Applied in: sections 14.3.2 and 14.3.6.
+241. **The deployment's wake-up id** (WP-14). A deployment-scope unit's wake-up names the scope by
+     the deployment's id. Status: decided by the lead 2026-11-04 (M1 plan, WP-14). Applied in:
+     section 15.2.5.
+242. **The deployment id reaches adapters** (WP-15). The runtime hands every adapter the
+     deployment's id as `AdapterEnvironment.deploymentId`; it is no member of the deployment file
+     and no factory option, and deployment-scope units are scoped to it. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-15). Applied in: sections 4.6 and 14.3.2.
+243. **Pool timeouts** (WP-15). The PostgreSQL pool sets `idle_in_transaction_session_timeout` to 30
+     seconds and a connect timeout of 10 seconds, the placement options `idleInTransactionTimeoutMs`
+     and `connectionTimeoutMs`; unknown option keys are refused. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-15). Applied in: section 14.3.6.
+244. **Minimum PostgreSQL 18** (WP-15). `connect` refuses a PostgreSQL server older than 18, the
+     only major verified. Status: decided by the lead 2026-11-04 (M1 plan, WP-15). Applied in:
+     section 14.3.7.
+245. **Statement timeouts** (WP-15). A cancelled statement (SQLSTATE 57014) is `unavailable`,
+     `core.timeout`, like every exceeded unit timeout. Status: decided by the lead 2026-11-04 (M1
+     plan, WP-15). Applied in: sections 10 and 14.3.6.
+246. **Schemas of `json` nodes** (WP-18). A `json` field node carries `input` and `output` JSON
+     Schemas (`schema` repeats `output`), and `field.json` over a `shape` is projected as that
+     shape's `shape` node. Status: decided by the lead 2026-11-04 (M1 plan, WP-18). Applied in:
+     section 16.2.3.
+247. **Decimal nodes carry precision and scale** (WP-18). The `decimal` field node carries the
+     field's `precision` and `scale`. Status: decided by the lead 2026-11-04 (M1 plan, WP-18).
+     Applied in: section 16.2.3.
+248. **Merge types `max` and `min`** (WP-18, WP-27). The merge types of the field model include
+     `max` and `min`, so `FieldDescriptor.merge` and `FieldNodeBase.merge` list them (their offline
+     rule is an open point below). Status: decided by the lead 2026-11-04 (M1 plan, WP-18, WP-27).
+     Applied in: sections 14.3.2 and 16.2.3.
+249. **Serial fields are read-only** (WP-18). A `serial` field node has access `read`: it is never
+     an input, and its JSON Schema is `readOnly`. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-18). Applied in: section 16.2.3.
+250. **Maskable members in output schemas** (WP-18). In derived output schemas a `maskable` member
+     is not `required`, because a rule may hide it from a row. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-18). Applied in: section 16.2.3.
+251. **`void` has no wire form** (WP-18, WP-26). A `void` input means the request carries no body
+     and is never read; a `void` output answers without one (REST: 204). Status: decided by the lead
+     2026-11-04 (M1 plan, WP-18, WP-26). Applied in: sections 16.2.3 and 16.5.2.
+252. **Sealed column padding** (WP-17). A sealed value is padded with `0x80` then zeros to a
+     multiple of 16 bytes, so it takes its length plus one rounded up to 16, plus 45 bytes. Stored
+     format final from M1. Status: decided by the lead 2026-11-04 (M1 plan, WP-17). Applied in:
+     section 14.7.9.6.
+253. **Length-prefixed associated data and HKDF info** (WP-17). Every `‖` list of associated data
+     and HKDF info is encoded as parts each prefixed with a 4-byte big-endian length, with
+     parameters as canonical JSON. Stored format final from M1. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-17). Applied in: sections 14.7.4 and 14.7.9.7.
+254. **Wrapped scope keys** (WP-17). A wrapped scope key is a format byte, the master key version (4
+     bytes), a 12-byte nonce and the ciphertext with its tag, bound by its associated data to level,
+     scope id and version (refines entry 175). Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-17). Applied in: section 14.7.4.
+255. **The `SecretRef` text** (WP-17). A sealed value's `SecretRef` text is `kwv1.<key
+     id>.<nonce>.<ciphertext>`, nonce and ciphertext in base64url. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-17). Applied in: sections 14.7.4 and 17.7 (G4).
+256. **Argon2id hashes as PHC strings** (WP-17). Password hashes are PHC strings
+     `$argon2id$v=19$m=…,t=…,p=…$<salt>$<tag>` (unpadded base64), so verification reads its
+     parameters from the hash. Stored format final from M1. Status: decided by the lead 2026-11-04
+     (M1 plan, WP-17). Applied in: section 17.2.2.
+257. **Token details** (WP-17). The token verifier is the HMAC of the secret's base32 text under
+     HKDF with an empty salt, stored as 64 hex characters; a prefix matches `[a-z][a-z0-9]{0,15}`
+     and a secret has 16 to 128 bytes (refines entry 152). Status: decided by the lead 2026-11-04
+     (M1 plan, WP-17). Applied in: section 17.2.2.
+258. **The event-loop rule, measured** (WP-17). The computation pool's 5 ms rule is asserted on the
+     main thread's CPU bursts, not on wall-clock event-loop lag, which machine load distorts.
+     Status: decided by the lead 2026-11-04 (M1 plan, WP-17). Applied in: section 17.2.2.
+259. **`--wait` with an optional value** (WP-19). `--wait` and `--wait-effects` take an optional
+     value through Stricli's `inferEmpty`; the bare flag waits without a limit. Status: decided by
+     the lead 2026-11-04 (M1 plan, WP-19). Applied in: section 16.9.4.
+260. **The credentials file** (WP-19). `credentials.json` is `{ "credentials": { "<key>": { "token":
+     "<token>" } } }`, keyed by the profile's `credential`, else the profile name. Status: decided
+     by the lead 2026-11-04 (M1 plan, WP-19). Applied in: section 16.9.6.
+261. **Deployment file lookup** (WP-19). Project mode looks for the deployment file from the working
+     directory upwards, taking the nearest directory that holds `keelwerk.config.ts` or
+     `.launchway/deployment.ts`, the former first (refines entry 90). Status: decided by the lead
+     2026-11-04 (M1 plan, WP-19). Applied in: section 16.9.1.
+262. **CLI exit codes for an unreachable deployment and an interrupt** (WP-19). A deployment the CLI
+     cannot reach is `unavailable`, `cli.unreachable`, tried three times and then exit code 10; an
+     interrupt exits with 130. Status: decided by the lead 2026-11-04 (M1 plan, WP-19). Applied in:
+     section 16.9.5.
+263. **The receipt table** (WP-22). `core__command_receipt` stores the command's scope in `scope_id`
+     (tenant, backend or deployment id), primary key `(scope_id, id)`, unique `(scope_id,
+     command_id)`, with the entity's system columns and `acknowledged_at`; its policy admits the
+     unit's tenant, backend or deployment id. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-22). Applied in: section 15.1.7.
+264. **Key material through the adapter's key wrapper** (WP-22). The SQL adapters wrap subject and
+     value key material through the key wrapper the core's key service provides (`keyWrapper`),
+     bound to the key id; without it their key stores refuse. Status: decided by the lead 2026-11-04
+     (M1 plan, WP-22). Applied in: section 14.7.4.
+265. **Bucket key bytes** (WP-22). `kw_rate_buckets.bucket` holds the UTF-8 bytes of the HMAC text
+     the kernel passes to `BucketStore.take` (refines entry 156). Status: decided by the lead
+     2026-11-04 (M1 plan, WP-22). Applied in: section 12.2.
+266. **Derived column names** (WP-23). A personal field's derived columns are named `<field
+     column>__<query>` (`__eq`, `__prefix`, `__contains`, `__order`). Status: decided by the lead
+     2026-11-04 (M1 plan, WP-23). Applied in: section 14.7.9.6.
+267. **Track directories and contract files** (WP-23). A track's directory derives from its id
+     (`own`, `to-<target>`, `when-<module>`, `to-<target>.when-<module>`, several `when` modules
+     joined with `+` in sorted order), and a change with contract steps is split into `NNNN-<name>`
+     and `NNNN-<name>-contract`. Status: decided by the lead 2026-11-04 (M1 plan, WP-23). Applied
+     in: section 14.6.1.
+268. **JSON artefacts carry no comment header** (WP-23, WP-26, WP-33). JSON artefacts carry no
+     comment header: the API surface document is the surface itself (sorted keys, two-space
+     indentation), a snapshot names its format in `format`, and the OpenAPI document carries the
+     header as `x-keelwerk-generated` with `producerVersion`, which drift checks ignore. Status:
+     decided by the lead 2026-11-04 (M1 plan, WP-23, WP-26, WP-33). Applied in: section 13.7.
+269. **A required column added later** (WP-23). A required column added to an existing table is
+     added nullable and tightened by an `alterColumn` in the contract file, instead of carrying a
+     database default until a contract step. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-23). Applied in: section 14.6.4.
+270. **One `dropColumn` per column** (WP-23). The planner writes one `dropColumn` step per column.
+     Status: decided by the lead 2026-11-04 (M1 plan, WP-23). Applied in: section 14.6.2.
+271. **The owner connection** (WP-23). Migrations and provisioning connect as the owner role through
+     `PostgresAdapterOptions.ownerUrl`; without it `schema.apply` and `schema.provision` refuse with
+     `unsupported`. Status: decided by the lead 2026-11-04 (M1 plan, WP-23). Applied in: sections
+     14.3.7 and 14.6.6.
+272. **`loadMigrations` in the data package's main entry** (WP-23). `loadMigrations` stays in
+     `@keelwerk/data`'s main entry, a Node package; PGlite has the subpath `/pglite`. Status:
+     decided by the lead 2026-11-04 (M1 plan, WP-23). Applied in: section 22.
+273. **A method an endpoint does not take** (WP-24). A method an endpoint does not take answers 405
+     with `Allow`, kind `unsupported`, code `core.unsupported`. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-24). Applied in: section 16.4.6.
+274. **Response compression in M2** (WP-24). The host's compression of non-streaming responses
+     arrives in M2; M1 sends responses uncompressed. Status: decided by the lead 2026-11-04 (M1
+     plan, WP-24). Applied in: section 16.3.3.
+275. **The own-host origin match** (WP-24). An `Origin` matches the request's own host only over
+     `https:`, unless the request came over plain HTTP or the host is loopback; only a bearer token
+     exempts a cookie request from the origin check. Status: decided by the lead 2026-11-04 (M1
+     plan, WP-24). Applied in: section 16.4.10.
+276. **The deprecation link** (WP-24, WP-25). The host's `Link` with `rel="deprecation"` for a
+     deprecated API version points at `</_keelwerk/v1/capabilities>`, REST's for a deprecated action
+     at its `/docs` page, and both are appended to other links. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-24, WP-25). Applied in: section 18.5.
+277. **Development comes from the mount context** (WP-25). `MountContext.development` is set by the
+     runtime in development, and transports take the `development` error audience and their docs
+     page from it, never from a static option. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-25). Applied in: sections 16.3.2 and 16.3.5.
+278. **Idempotent replays are marked** (WP-25). The invoker sets `replayed: true` on the outcome of
+     an idempotent replay, which REST reports as `Idempotent-Replayed: true`. Status: decided by the
+     lead 2026-11-04 (M1 plan, WP-25). Applied in: sections 16.4.8 and 16.8.2.
+279. **Receipt ids and the receipt `Location`** (WP-25). A receipt's id is the `rcpt_` TypeID of the
+     UUIDv8 of scope id and command id (`commandReceiptId`), and an accepted REST command answers
+     202 with `Location: <mount path>/core/command-receipts/<receipt id>`. Status: decided by the
+     lead 2026-11-04 (M1 plan, WP-25). Applied in: sections 14.5.2 and 15.1.7.
+280. **What `HttpContext.basePath` means** (WP-25). `basePath` is the tenant path prefix the host
+     consumed during scope resolution; the host hands the request on with its URL unchanged, and a
+     transport joins `basePath` with its own prefix and never strips a prefix itself. Status:
+     decided by the lead 2026-11-04 (M1 plan, WP-25). Applied in: section 16.3.3.
+281. **Cookie names** (WP-25). A cookie hint whose name does not start with `__Host-` is the
+     transport check problem `cookieName`. Status: decided by the lead 2026-11-04 (M1 plan, WP-25).
+     Applied in: section 16.4.10.
+282. **Strong `If-Match`** (WP-25). `If-Match` compares strongly: exactly one strong tag holding a
+     version, or `*`; a weak tag or several tags are `core.malformed_request`. Status: decided by
+     the lead 2026-11-04 (M1 plan, WP-25). Applied in: section 16.4.9.
+283. **Type budgets at measured plus 15 %** (WP-28). The instantiation budgets are the counts the
+     core's synthetic apps measured on 2026-11-04 plus 15 % (fold 590,000 and 1,265,000, whole
+     program 1,840,000 and 3,180,000 at 25 and 40 modules), with the reason in `budgets.json`,
+     replacing the spike-derived figures of entry 103; the core's DSL type fixtures are exempt from
+     the declaration limits. Status: decided by the lead 2026-11-04 (M1 plan, WP-28). Applied in:
+     section 13.11.
+284. **Exclusive problem schemas** (WP-26). Each declared error's `oneOf` is discriminated by
+     `code`, and its generic `Problem` member excludes the declared codes, so the `oneOf` is
+     exclusive; OpenAPI 3.2 adds `discriminator.defaultMapping`. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-26). Applied in: section 16.5.5.
+285. **The client's attempt result** (WP-29). `attempt` returns, on success, the `commandId` it sent
+     and the `effects` the envelope reported, beside the value; `waitForEffects` takes those
+     references. Status: decided by the lead 2026-11-04 (M1 plan, WP-29). Applied in: section
+     16.8.4.
+286. **No body for `GET` and `DELETE`** (WP-26). Instance commands on `GET` and `DELETE` (the
+     generated archive) carry no body and take their members from the query string. Status: decided
+     by the lead 2026-11-04 (M1 plan, WP-26). Applied in: section 16.5.2.
+287. **Instance queries by representability** (WP-26). An entity instance query is `GET
+     /{m}/{c}/{id}/{a}` when its input is query-string representable, otherwise `POST` (and `QUERY`
+     with OpenAPI 3.2). Status: decided by the lead 2026-11-04 (M1 plan, WP-26). Applied in: section
+     16.5.1.
+288. **A missing reference target** (WP-34). A write whose `ref` points at a missing target is
+     `conflict`, `core.reference_missing`, on every adapter: the SQL adapters map foreign-key
+     violation 23503 to it, the in-memory adapter checks the target in the same unit; the core
+     registers the code. Status: decided by the lead 2026-11-04 (M1 plan, WP-34). Applied in:
+     section 10.
+289. **Concurrent units are the caller's flag** (WP-32). `AdapterCapabilities` has no member for
+     concurrent units in M1; `runRead`'s `concurrentUnits?: boolean`, absent meaning `false` (the
+     savepoint path), says so until the invoker supplies it. Status: decided by the lead 2026-11-04
+     (M1 plan, WP-32). Applied in: section 14.3.6.
+290. **The Maybe accessor's inner generator** (WP-32). When the function given to `ifPresent`
+     returns a generator or a value instead of a request, it is kept beside the `MaybeRequest` and
+     driven by its answerer. Status: decided by the lead 2026-11-04 (M1 plan, WP-32). Applied in:
+     section 7.9.3.
+291. **Plans of the caller's views** (WP-32). `ctx.target` and `forCaller()` on the entity the
+     invoked action is mounted on use that action's own plan; `forCaller()` on any other entity uses
+     the plan of its generated `query`. Status: decided by the lead 2026-11-04 (M1 plan, WP-32).
+     Applied in: section 7.3.
+292. **The `queryState` seam** (WP-32). The read path renders a `query` load's `queryState` through
+     `runRead`'s `queryState?: QueryStateEncoder`, the decimal position by default, where the signed
+     token of section 15.2.6 plugs in. Status: decided by the lead 2026-11-04 (M1 plan, WP-32).
+     Applied in: section 15.2.6.
+293. **Flag keys** (WP-32). A flag request's key is `<module id>.<flag>`. Status: decided by the
+     lead 2026-11-04 (M1 plan, WP-32). Applied in: section 7.9.3.
+294. **No history loads in M1** (WP-32). `ctx.load.<m>.<e>.history` fails with `internal`,
+     `core.request_not_allowed` in M1 (entry 126). Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-32). Applied in: section 7.9.3.
+295. **What `ctx.ask` reaches** (WP-32). `ctx.ask` reaches query actions of the asking module and of
+     the modules it requires or lists as optional, never generated actions. Status: decided by the
+     lead 2026-11-04 (M1 plan, WP-32). Applied in: section 7.9.3.
+296. **Contributed fields reach their contributor only** (WP-32). A contributed field reaches only
+     its contributor's parts, whichever module loads the row, and hidden and verifier fields only
+     their owner's; reads apply no `when` gating, because the registry materialises only active
+     contributions. Status: decided by the lead 2026-11-04 (M1 plan, WP-32). Applied in: section
+     14.8.1.
+297. **Bare job group ids** (WP-31). A job group's id is the bare declared key, the scope is its
+     `scope_id` column, and `kw_job_groups` has no primary key but `unique nulls not distinct
+     (scope_id, id)`; the take's group check joins on `g.scope_id is not distinct from j.scope_id
+     and g.id = j.group_id` (amends entries 116 and 127). Status: decided by the lead 2026-11-04 (M1
+     plan, WP-31). Applied in: sections 9.5.2 and 9.5.3.
+298. **Shape ids as bytes** (WP-31). `kw_events.shape_id` and `kw_shapes.shape_id` hold the 32 hash
+     bytes (`bytea`), hex on the API. Status: decided by the lead 2026-11-04 (M1 plan, WP-31).
+     Applied in: sections 15.1.2 and 15.1.11.
+299. **Unknown stream types are refused** (WP-31). Every adapter refuses an append to a stream type
+     that is not an entity the unit knows, with `internal`. Status: decided by the lead 2026-11-04
+     (M1 plan, WP-31). Applied in: section 15.1.2.
+300. **The end of a SQL unit** (WP-15, WP-31). A SQL unit ends with a probe statement (so a
+     swallowed error never reports a commit that was rolled back), then the work registered with the
+     session's `beforeCommit` in order with the commit tail last, then `commit`; work registered in
+     a rolled-back savepoint is discarded. Status: decided by the lead 2026-11-04 (M1 plan, WP-15,
+     WP-31). Applied in: section 14.3.6.
+301. **The event's schema version is stored** (WP-31). `kw_events.schema_version integer not null`
+     is a column, the envelope and `StoredEvent` carry `schemaVersion`, the hash covers it and
+     upcasters select by it. Stored format final from M1. Status: decided by the lead 2026-11-04 (M1
+     plan, WP-31). Applied in: sections 15.1.2 and 15.1.3.
+302. **Namespace job groups** (WP-31). A job group that spans the namespace (`scope_id` null) is
+     created and re-limited only by `JobStore.provisionGroup` in a namespace-scope or provisioning
+     unit; tenant units only read it, so tenants never wait on each other, and enqueueing into an
+     unprovisioned one fails with `internal`. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-31). Applied in: sections 9.5.2, 14.3.9 and 15.1.4.
+303. **Stream-version conflicts in the commit tail** (WP-31). The commit tail inserts events with
+     `on conflict on constraint ... do nothing returning position`, because forced row-level
+     security hides a 23505's detail, and fails the unit with `conflict`, `core.version_mismatch`
+     for the events whose positions did not come back. Status: decided by the lead 2026-11-04 (M1
+     plan, WP-31). Applied in: sections 15.1.2 and 15.1.4.
+304. **Rule conditions in the composition report** (WP-33). The composition report lists a rule's
+     conditions only by which callbacks it has (`where`, `check`, `when`), because rendering them
+     needs a principal. Status: decided by the lead 2026-11-04 (M1 plan, WP-33). Applied in: section
+     16.2.6.
+305. **Introspection answered by the runtime** (WP-33). `core.introspect` has no `read` of its own;
+     the runtime answers it from the derived surface, open to user, service and operator principals
+     by its default rule. Status: decided by the lead 2026-11-04 (M1 plan, WP-33). Applied in:
+     section 16.2.5.
+306. **Actions newer than a version** (WP-33). An action whose `since` is later than a surface's API
+     version is absent from that version's surface; the core module's actions are in every version.
+     Status: decided by the lead 2026-11-04 (M1 plan, WP-33). Applied in: section 16.2.4.
+307. **Derivation errors refuse the app** (WP-33). `defineApp` derives the surface of every API
+     version before it composes and refuses on any derivation error problem (an undescribable
+     schema, `undefinedErrors`, `conflictingErrors`). Status: decided by the lead 2026-11-04 (M1
+     plan, WP-33). Applied in: section 16.2.4.
+308. **Track activity is not a schema state** (WP-34). `SchemaOperations` has no operation that
+     marks a track inactive and read-time defaults are kernel behaviour, so the adapter conformance
+     toggle-then-rebuild cases cover provisioning and rebuilding only. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-34). Applied in: section 14.6.5.
+309. **`countBefore` with a vanished anchor** (WP-34). `countBefore` counts the query's rows before
+     the anchor, also when the anchor is outside the filtered result; for an anchor whose row no
+     longer exists the contract defines no answer. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-34). Applied in: sections 14.3.2 and 14.3.5.
+310. **In-memory instants at milliseconds** (WP-34). The in-memory adapter keeps instants at
+     millisecond precision, as the columns store them. Status: decided by the lead 2026-11-04 (M1
+     plan, WP-34). Applied in: sections 14.3.7 and 14.5.3.
+311. **Kernel misuse of a unit** (WP-34). A write inside a read-only unit and an event append in a
+     namespace-scope unit are `internal`, `core.internal`, with a message naming the cause. Status:
+     decided by the lead 2026-11-04 (M1 plan, WP-34). Applied in: sections 14.3.6 and 15.1.2.
+312. **The admission input** (WP-06). An admission rule receives `AdmissionInput { action, scope,
+     principal, request, input }`, `input` being the wire form before `validate`, and returns an
+     `AdmissionVerdict` (`charge` with a `BucketDemand`, or `refuse`). Status: decided by the lead
+     2026-11-04 (M1 plan, WP-06). Applied in: section 12.2.
+313. **Lifecycle hook names** (WP-27). The lifecycle hooks are `onBackendCreated`, `onTenantCreated`
+     and `onTenantArchived`, the names of the `lifecycle` mount; another name is `unknownHooks`.
+     Status: decided by the lead 2026-11-04 (M1 plan, WP-27). Applied in: section 3.3.
+314. **The decision record's JSON encoding** (WP-31). In `kw_events.meta` a recorded read's `at` is
+     decimal text and a sealed input's bytes are base64url, pinned by a golden test of the commit
+     tail. Stored format final from M1. Status: decided by the lead 2026-11-04 (M1 plan, WP-31).
+     Applied in: section 7.9.6.
+
+Open points raised by the same packages, for their owners:
+
+315. **Completions without `@stricli/auto-complete`** (WP-19). The CLI depends on
+     `@stricli/auto-complete` but no command uses it yet: a) the completion scripts of section
+     16.9.9 use it; b) the CLI writes its own and drops the dependency. WP-58 decides. Status: open,
+     for WP-58 (concerns sections 16.9.1 and 16.9.9).
+316. **The scaffold's module test** (WP-30). `keelwerk new module` writes `test/alone.test.ts`
+     composing with `defineApp`, because `createLocalClient` arrives with the harness; it moves to
+     `createLocalClient` as section 16.9.8 specifies. Status: open, for WP-39 (concerns section
+     16.9.8).
+317. **Layouts for transport and adapter modules** (WP-30). Sections 16.9.8 and 23.14 give no layout
+     for `keelwerk new module --kind transport|adapter`, and only domain modules are scaffolded; the
+     layout of the other two kinds is to decide. Status: open, for WP-61 (concerns sections 16.9.8
+     and 23.14).
+318. **The licence of a scaffolded package** (WP-30). A scaffolded `package.json` has no `license`
+     member (the templates are pure): a) a `--license` flag; b) inherit the root package's licence.
+     To decide before the first publish. Status: open, for the lead (concerns section 16.9.8).
+319. **Custom inputs that are not shapes** (WP-33). A custom action whose input is not a shape
+     reaches the registry as a permissive schema (`action-entry-of.ts` drops the original) and
+     surfaces as an open `foreign` node, which the REST check refuses; keeping the original schema
+     is the registry owner's question. Status: open, for WP-27's owner (concerns section 16.2.2).
+320. **The introspection setting** (WP-33). The backend setting that makes `core.introspect` public
+     or operator-only, and the runtime's answer to the action, arrive with the core module's
+     runtime. Status: open, for WP-43 (concerns section 16.2.5).
+321. **Two forms of `SecretRef`** (WP-17, WP-32). The key service reads a sealed value's reference
+     `kwv1.<key id>.<nonce>.<ciphertext>`, while a row loaded by a part carries `{ ref:
+     '<entity>/<id>/<field>' }`; how a reveal resolves the row form to the sealed value is WP-48's
+     to settle. Status: open, for WP-48 (concerns sections 14.7.4, 14.8.1 and 17.7 (G4)).
+322. **The command receipt entity** (WP-22). `core.commandReceipt` declares `commandId` and `status`
+     (`accepted`, `succeeded`, `failed`), while the receipt store and table use `pending`,
+     `accepted`, `completed` and `failed` and the full field list of section 15.1.7; the entity's
+     fields and the column of a backend command's receipt in a tenant namespace are open. Status:
+     open, for WP-38, WP-43 (concerns section 15.1.7).
+323. **The offline rule of `max` and `min`** (WP-18). The field model and the descriptors carry the
+     merge types `max` and `min`, for which section 15.3.4 states no ingest rule. Status: open, for
+     the M6 sync design (concerns section 15.3.4).
+324. **The server's clock node id** (WP-08). The node id of a server process's hybrid clock (`s`
+     plus ten random base32 characters, section 14.5.3) is supplied by the runtime. Status: open,
+     for WP-43 (concerns section 14.5.3).
+325. **Issuing operator tokens** (WP-20). `core.operatorToken.issue` is left out of `Core` until the
+     entity-command option for commands that create (no `InstanceInput`) exists. Status: open, for
+     WP-56 (concerns section 3.1).
+326. **The cost of the fold** (WP-28). WP-47 investigates the fold cost of `consume.ts`, and WP-63
+     records the budgets of the portal and conformance apps (entry 136). Status: open, for WP-47,
+     WP-63 (concerns section 13.11).
