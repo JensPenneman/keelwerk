@@ -994,3 +994,8 @@ sections it touched.
      `waitForEffects` are typed and reject with `unavailable` `core.live_unavailable`. Status:
      decided by the lead 2026-11-04 (M1 plan S-62), applied (sections 16.4.7, 16.8.2, 16.8.4;
      roadmap M1).
+183. **Unicode version of Node 26** (Node 26 re-checks). `process.versions.unicode` is 17.0 on Node
+     26.13.0, the same as on Node 24.21.0, and NFKC followed by lower case of U+1E9E U+0130 gives
+     `ßi̇` on both. The question of section 26.3 is closed: `keelwerk doctor` warns on a mismatch and
+     `keelwerk db reindex` rebuilds. Status: decided by the lead 2026-11-04, applied (sections
+     14.7.9.3, 26.1, 26.3).

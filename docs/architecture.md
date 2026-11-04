@@ -1864,7 +1864,8 @@ Projections:
   without it loads a polyfill of its own choice before the `@keelwerk/core/wire` codecs, as the
   baseline rule of section 13.2 says. Instants keep millisecond precision, the precision every
   adapter stores (section 14.5.1): `validate` rounds finer digits down, so a value reads back
-  equal. The adapters' codecs convert between `Temporal` values and their columns. `createdAt` and
+  equal; `instant.round({ smallestUnit: 'millisecond', roundingMode: 'floor' })` rounds down, where the default
+  `halfExpand` would turn `.123987654` into `.124`, and `Temporal.Instant` is native on Node 26.13.0 (not on Node 24.21.0). The adapters' codecs convert between `Temporal` values and their columns. `createdAt` and
   `updatedAt` are set by the kernel, never by database defaults.
 - `ctx.clock.now()` is the invocation's fixed time, a `Temporal.Instant` taken once when execution
   begins (for jobs, when the job runs) and kept across retries; it is recorded as the events'
@@ -2408,7 +2409,7 @@ generator, so `yield*` types each answer (as in Effect); a bare `yield` is a lin
 | `ctx.newId(entity)`, `ctx.random(bytes)` | decide, prepare, react | the kernel: UUIDv7, a CSPRNG | the answers |
 | `ctx.secrets.issue({ prefix })` | decide | the key service | public id and verifier, never the plaintext |
 | `ctx.secrets.reveal(ref, reason)`, `ctx.secrets.verify(token, verifier)` | decide, read, react, services | the key service, logged with the reason | no |
-| `ctx.compute.argon2idHash(password, salt)`, `.argon2idVerify(verifier, password)` | decide, read | a kernel worker pool, off the event loop (14 ms per hash at OWASP's minimum) | no: reproducible |
+| `ctx.compute.argon2idHash(password, salt)`, `.argon2idVerify(verifier, password)` | decide, read | a kernel worker pool, off the event loop (about 16 ms per hash at OWASP's minimum) | no: reproducible |
 | `ctx.perform(effectDraft)` | prepare only | the effect's inline executor | the effect's record |
 
 - Requests never throw into a generator: an infrastructure failure aborts the invocation (retried
@@ -3877,7 +3878,7 @@ by `keelwerk db introspect --check`.
 | Tool | Version checked (2026-10-08 to 2026-10-28) | Role |
 |---|---|---|
 | TypeScript | 7.0.2 (builds and checks; still the latest on 2026-10-28, with `lib.es2025` and `lib.esnext.temporal` bundled); 6.0.3 pinned only for tools that need the compiler API: attest in the private package `packages/type-budgets/`, which has its own exact `typescript` 6.0.3, and the CLI, which imports the compiler API as `typescript-6` (the alias `npm:typescript@6.0.3`), so the workspace's `tsc` stays 7.0.2; 5.9.3 used for cross-checks | `tsc -b` with project references |
-| Node.js | 26 (26.12.1 of 2026-10-21; promotion to LTS due in the last week of October 2026; checked by the lead on 2026-10-27) | runs `.ts` sources directly through type stripping; ships `Temporal` natively, so no polyfill (decision 19b); `node:crypto` provides Argon2id and AES-256-GCM |
+| Node.js | 26 (26.13.0, checked on 2026-11-04) | runs `.ts` sources directly through type stripping; ships `Temporal` natively, so no polyfill (decision 19b); `node:crypto` provides Argon2id and AES-256-GCM |
 | `@types/node` | 26.6.5 (2026-10-09, checked 2026-10-28) | the Node 26 declarations that `"types": ["node"]` loads |
 | pnpm | 11.21.0 locally | workspace |
 | Biome | 2.5.15 | the only formatter and linter |
@@ -3897,8 +3898,8 @@ Node 26 or later (section 13.12). Packages carry no `engines` field while Depend
 refuses `"node": ">=26"`; the published packages declare `"engines": { "node": ">=26" }` again
 before the first publish (roadmap M1, criterion 12). Node 26 ships `Temporal`, so instants are `Temporal.Instant` from the start
 with no polyfill (decision 19b, section 6.4). The checks this document records on Node 24.21.0
-(sections 13.4, 14.3.7, 14.7.9.3 and 17.2.2, Appendix B) were made before the baseline moved; the
-M0 spike runs them again on Node 26 and records the results here.
+(sections 13.4, 14.3.7, 14.7.9.3 and 17.2.2, Appendix B) were made again on Node 26.13.0 on
+2026-11-04 with the same results.
 
 ### 13.3 TypeScript configuration and project references
 
@@ -3991,8 +3992,10 @@ published, through one export condition:
   `node_modules`, where type stripping is allowed. Node refuses type stripping for files under
   `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), so the published manifest must not
   carry the source condition; pnpm's `publishConfig.exports` replaces `exports` at pack time. Both
-  behaviours were checked with Node 24.21.0 (Appendix B); the M0 spike checks them again on Node 26
-  (section 13.2).
+  behaviours were checked with Node 24.21.0 (Appendix B). Checked again on Node 26.13.0 on 2026-11-04:
+  a linked workspace package runs from its `.ts` source through `--conditions=@keelwerk/source`; the
+  same package copied into `node_modules` fails with `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`;
+  no type-stripping warning is printed.
 - Production runs the JavaScript that `tsc -b` emits (`keelwerk start` runs `dist`), so production
   does not depend on type stripping at all.
 - Library packages such as `@keelwerk/core` keep `src/index.ts` (and subpath entries such as
@@ -4966,7 +4969,7 @@ result set.
 | PGlite | `@keelwerk/data` (tests, `keelwerk dev`) | Kysely `PGliteDialect`, `@electric-sql/pglite` 0.5.8 (PostgreSQL 18.3) | `notify`, in-process | row-level security | as PostgreSQL | shared-tables | M1 |
 | In-memory | `@keelwerk/data` | none | in-process | the interpreter | not applicable | shared-tables | M1 |
 | MySQL | `adapter-mysql` | Kysely `MysqlDialect`, `mysql2` 3.24.5, MySQL 8.4 LTS | `poll` and in-process wake | none (scoping plugin and tests) | prefix in one database | shared-tables, database-per-tenant | M5 |
-| SQLite | `adapter-sqlite` | Kysely `SqliteDialect` over `node:sqlite` (SQLite 3.53.4 in Node 24.21.0, checked again on Node 26 in M0); `better-sqlite3` 13.0.3 as fallback | in-process; `poll` across processes of one host | none | prefix in one file | shared-tables, database-per-tenant (a file per tenant) | M5 |
+| SQLite | `adapter-sqlite` | Kysely `SqliteDialect` over `node:sqlite` (SQLite 3.54.0 in Node 26.13.0, no experimental warning; `StatementSync` still has no `reader`); `better-sqlite3` 13.0.3 as fallback | in-process; `poll` across processes of one host | none | prefix in one file | shared-tables, database-per-tenant (a file per tenant) | M5 |
 | Supabase | `adapter-supabase` | the PostgreSQL adapter with a preset | `notify` over a session connection | forced row-level security, nothing granted to `anon` and `authenticated` | schema `kw_<app>` | shared-tables, schema-per-tenant | M5 |
 
 Positions use the same commit-tail counter per scope on every adapter (section 15.1.4), and every
@@ -5017,8 +5020,8 @@ collation. `GET_LOCK` provides the migration lock and `SKIP LOCKED` the row lock
 is not offered, because `CREATE SCHEMA` is a synonym for `CREATE DATABASE` in MySQL;
 database-per-tenant is the equivalent.
 
-**SQLite.** `node:sqlite` is built into Node and ran without an experimental warning on 24.21.0 (the
-M0 spike checks it again on the Node 26 baseline, section 13.2);
+**SQLite.** `node:sqlite` is built into Node and runs without an experimental warning on Node 26.13.0
+(SQLite 3.54.0; it did so on 24.21.0 too);
 Kysely 0.29.6's `SqliteDialect` expects a `prepare()` whose statements expose `reader`, which
 `node:sqlite`'s `StatementSync` lacks, so the adapter wraps it in a shim of about twenty lines
 (deriving `reader` from `columns()`). WAL mode, `busy_timeout`, `foreign_keys = ON` per connection,
@@ -5948,8 +5951,8 @@ Every operator, uniqueness and search tokens use it; the stored value keeps its 
   and `jens@jenspenneman.com` are one value, also for the unique index.
 - custom: changing its id or version rebuilds the field's indexes.
 
-Normalisers follow the runtime's Unicode tables (17.0 on Node 24.21.0); each index records its
-version, and `keelwerk doctor` warns on a mismatch.
+Normalisers follow the runtime's Unicode tables (17.0 on Node 24.21.0 and on Node 26.13.0; NFKC followed by
+lower case of U+1E9E U+0130 gives `ßi̇` on both); each index records its version, and `keelwerk doctor` warns on a mismatch.
 
 ##### 14.7.9.4 The operator matrix
 
@@ -7817,9 +7820,9 @@ interface layer. The live module is section 15.4; the development workflow is se
 running the tools on 2026-10-10 and 2026-10-11 (Appendix B): a tRPC router type and a typed client
 can be derived from an action tree without code generation (TypeScript 7.0.2, `@trpc/server`
 11.19.0); `isolatedDeclarations` rejects the inferred exports of the configuration DSL; Vitest 5.0.3
-type tests run on TypeScript 7.0.2; and Node 24.21.0 runs a linked workspace package from its
-TypeScript source through an export condition but refuses the same files inside `node_modules` (the
-M0 spike repeats this check on the Node 26 baseline, section 13.2).
+type tests run on TypeScript 7.0.2; and Node 24.21.0 and Node 26.13.0 run a linked workspace package from its
+TypeScript source through an export condition but refuse the same files inside `node_modules`
+(section 13.4).
 
 ### 16.1 Principles
 
@@ -9779,8 +9782,9 @@ records the decisions of this section.
 - **Passwords** are hashed with Argon2id, a computation of the core that module code requests
   (`yield* ctx.compute.argon2idHash(password, salt)` and `argon2idVerify(verifier, password)`, the
   salt a recorded random value): the core runs `node:crypto`'s `crypto.argon2` (which runs on Node
-  24.21.0 without an experimental warning, checked on 2026-10-11) in a worker pool off the event
-  loop, about 14 ms per hash, so `auth` imports no `node:*` module (section 7.9.3). The parameters
+  26.13.0 without a warning; Argon2id at 19 MiB, two passes, one lane takes a median of 16 ms on an
+  Apple M2 Pro, 15.6 to 17.0 ms over three runs of the argon2 test file alone and 15 to 18 ms with the
+  other files running in parallel) in a worker pool off the event loop, about 16 ms per hash, so `auth` imports no `node:*` module (section 7.9.3). The parameters
   are at least OWASP's current minimum (19 MiB of memory, two passes, one lane). The parameters are
   part of the stored hash, and a successful login rehashes with the current parameters. Verification
   of an unknown identifier runs against a dummy hash, so timing does not reveal which identifiers
@@ -14026,6 +14030,7 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 180 | Yes: `writer` and `flags` enter the hash-chain content, as section 15.1.8 lists; the question of section 26.3 is closed (M1 plan S-60) | 2026-11-04 | 15.1.8, 26.1, 26.3, ADR 0007 |
 | 181 | `accounts.profile.displayName` is plaintext in M1, as the sketch has it; making it personal later is a migration of section 14.6.4 (M1 plan S-61) | 2026-11-04 | 17.2.1, 26.1, 26.3 |
 | 182 | M1 mounts `/invoke`, `/batch`, `/surface` and `/capabilities`; `wait` is ignored as section 16.4.7 allows, and the client's `subscribe` and `waitForEffects` are typed and reject with `unavailable` `core.live_unavailable` (M1 plan S-62) | 2026-11-04 | 16.4.7, 16.8.2, 16.8.4, roadmap M1 |
+| 183 | The Unicode version of Node 26.13.0 is 17.0, the same as on Node 24.21.0, and NFKC followed by lower case of U+1E9E U+0130 gives `ßi̇` on both; the question whether a Node upgrade that changes the Unicode version should reindex automatically stays with `keelwerk doctor` warning and `keelwerk db reindex` rebuilding | 2026-11-04 | 14.7.9.3, 26.1, 26.3 |
 
 Parked on 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
 option. The design stays in this document (section 17.4), and these questions wait with it, each
@@ -14084,7 +14089,7 @@ items 6 and 7 (the write path on PostgreSQL 18 and the fair take). Every finding
 listed in section 26.1 as numbers 92 to 118 and in register section M. Neither spike covered the
 `prepare` comparison of decision 50a's variant (former item 5), the interpreter's overhead per
 request (the second half of former item 6) or the Node 26 re-checks of decision 28a (former item
-8); those remain open. M1 delivers the `prepare` prototype and its report without changing
+8) were done on 2026-11-04 on Node 26.13.0 (`spikes/node26-rechecks/REPORT.md`) and passed; those two items remain open. M1 delivers the `prepare` prototype and its report without changing
 `@keelwerk/core`, and M3 repeats the comparison on Trail's code (register entry 150).
 
 ### 26.3 Open questions by area
@@ -14110,9 +14115,6 @@ Data:
 - Index sizes, the over-fetch budget (ten times the page size) and the scan default (2,000) are
   estimates: M4 measures the prefix and trigram indexes on Launchway's admin search, and the mail
   foundations milestone the token index on a fixture mailbox (sections 14.7.9.5 and 14.7.9.6).
-- After a Node upgrade that changes the Unicode version (17.0 on Node 24.21.0; the M0 spike records
-  Node 26's), should the kernel reindex automatically, or only warn in `keelwerk doctor` (section
-  14.7.9.3)?
 - Not verified within the research cap: what Stalwart's full-text index holds for messages it
   encrypted at rest (its documentation, updated 2026-10-03, is silent), and which MongoDB server
   version made the substring queries of Queryable Encryption generally available.
@@ -14233,7 +14235,7 @@ toolchain is in section 13.2.
 | `kysely` | 0.29.6 (`next`: 0.30.0-beta.2) | MIT | 2026-10-10; tarball inspected 2026-10-11 (dialects `postgres`, `mysql`, `sqlite`, `pglite`, `mssql`; `transformQuery` plugins; savepoints) | SQL family substrate |
 | `pg` | 8.23.1 | MIT | 2026-10-10 | PostgreSQL driver |
 | `mysql2` | 3.24.5 | MIT | 2026-10-10 | MySQL driver |
-| `node:sqlite` | Node.js 24.21.0 with SQLite 3.53.4 | MIT | 2026-10-11, run locally without an experimental warning; checked again on the Node 26 baseline in M0 (A.8) | SQLite driver |
+| `node:sqlite` | Node.js 24.21.0 with SQLite 3.53.4 | MIT | 2026-10-11, run locally without an experimental warning; checked again on Node 26.13.0 on 2026-11-04, SQLite 3.54.0, no experimental warning | SQLite driver |
 | `better-sqlite3` | 13.0.3 | MIT | 2026-10-10 | SQLite fallback driver |
 | `@electric-sql/pglite` | 0.5.8 (PostgreSQL 18.3) | Apache-2.0 | 2026-10-11, used to run the PostgreSQL checks of this document | tests and `keelwerk dev` |
 | `drizzle-orm` | 0.45.4 (`rc`: 1.0.0-rc.4) | Apache-2.0 | 2026-10-11 (`getTableConfig` in `pg-core`, `mysql-core`, `sqlite-core`) | the optional later `db introspect --drizzle`; no adapter (decision 13a) |
@@ -14329,7 +14331,7 @@ Checked on 2026-10-11 with `npm view` (packages) or the project's repository (co
 | Package or component | Version | Licence | Use here |
 |---|---|---|---|
 | `typescript` | 7.0.2 and 5.9.3 | Apache-2.0 | the checks of the section 4.7 listing, the synthetic apps and the declaration-emit chain |
-| Node.js `node:crypto` `argon2` | Node 24.21.0 | MIT | Argon2id password hashing in `auth` (section 17.2.2), run without an experimental warning; checked again on Node 26 in M0 (A.8) |
+| Node.js `node:crypto` `argon2` | Node 24.21.0 | MIT | Argon2id password hashing in `auth` (section 17.2.2), run without an experimental warning; checked again on Node 26.13.0 on 2026-11-04, no warning |
 | `@simplewebauthn/server` | 14.0.3 | MIT | passkeys in `auth` |
 
 ### A.5 Added with addendum 3 (2026-10-24)
@@ -14560,3 +14562,6 @@ Further checks on 2026-10-10 and 2026-10-11:
 - Node 24.21.0: a workspace package linked into `node_modules` and resolved through the
   `@keelwerk/source`-style condition runs from its `.ts` source; the same package copied into
   `node_modules` fails with `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`.
+- Node 26.13.0: the same result; `node:sqlite` runs without an experimental warning (SQLite 3.54.0),
+  `crypto.argon2` runs without a warning, `process.versions.unicode` is 17.0, and `Temporal.Instant`
+  is native.
