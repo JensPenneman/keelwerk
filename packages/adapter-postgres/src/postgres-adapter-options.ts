@@ -1,8 +1,9 @@
 import type { Clock, EntityDescriptor } from '@keelwerk/core';
 import type { SqlKeyWrapper } from '@keelwerk/data';
+import type { AccelerationOptions } from './acceleration-options.ts';
 
 /** What `postgresAdapter` takes; every member is optional. */
-export interface PostgresAdapterOptions {
+export interface PostgresAdapterOptions extends AccelerationOptions {
   /** Tags the sessions in `pg_stat_activity`; default `keelwerk`. */
   readonly applicationName?: string;
   /** The time source of bucket refills and key timestamps; default: the system clock. */

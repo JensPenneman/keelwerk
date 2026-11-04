@@ -1,3 +1,9 @@
+export { fallbackReport } from './fallbacks/fallback-report.ts';
+export type { FallbackRow } from './fallbacks/fallback-row.ts';
+export { maskCapabilities } from './fallbacks/mask-capabilities.ts';
+export type { MaskableCapability } from './fallbacks/maskable-capability.ts';
+export { pollChangeFeed } from './fallbacks/poll-change-feed.ts';
+export type { PollChangeFeedOptions } from './fallbacks/poll-change-feed-options.ts';
 export { memoryAdapter } from './memory/memory-adapter.ts';
 export type { MemoryAdapterOptions } from './memory/memory-adapter-options.ts';
 export type {
