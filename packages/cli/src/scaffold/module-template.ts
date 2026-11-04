@@ -67,7 +67,11 @@ export const ${name}Base: ${type}Base = ${name}BaseDef;
   const apps = (extra: readonly string[]): string =>
     [`${name}`, ...extra.map(camelFromKebab)].join(', ');
   const typeTestImports = renderImports([
-    { from: '@keelwerk/core', names: ['defineApp', 'type Registry'] },
+    { from: '@keelwerk/core', names: ['defineApp'] },
+    {
+      from: '@keelwerk/testing/types',
+      names: ['type ExpectValidApp', 'type HasAction', 'type HasEntity'],
+    },
     { from: 'vitest', names: ['describe', 'expectTypeOf', 'test'] },
     ...dependencies.map((other) => moduleImport(scope, other)),
     { from: `./${ENTRY}.ts`, names: [name] },
@@ -87,7 +91,9 @@ ${cases
   .map(
     (entry) => `  test('${entry.title}', () => {
     const app = defineApp({ id: '${entry.id}', modules: [${apps(entry.modules)}] as const });
-    expectTypeOf(app.registry).toEqualTypeOf<Registry>();
+    expectTypeOf<ExpectValidApp<typeof app>>().toEqualTypeOf<true>();
+    expectTypeOf<HasEntity<typeof app, '${id}.none'>>().toEqualTypeOf<false>();
+    expectTypeOf<HasAction<typeof app, '${id}.none'>>().toEqualTypeOf<false>();
   });`,
   )
   .join('\n\n')}
@@ -96,13 +102,25 @@ ${cases
   const aloneTest = `${renderImports([
     { from: 'vitest', names: ['expect', 'test'] },
     { from: '@keelwerk/core', names: ['defineApp'] },
+    {
+      from: '@keelwerk/testing',
+      names: ['createLocalClient', 'startTestRuntime', 'testPrincipal'],
+    },
     ...requires.map((other) => moduleImport(scope, other)),
     { from: `../src/${ENTRY}.ts`, names: [name] },
   ])}
 
-test('${id} composes into an app without problems', () => {
+test('${id} composes into an app without problems and answers through a local client', async () => {
   const app = defineApp({ id: 'alone', modules: [${apps(requires)}] as const });
   expect(app.registry.problems.filter((problem) => problem.severity === 'error')).toEqual([]);
+  const runtime = await startTestRuntime(app);
+  try {
+    const client = createLocalClient(runtime, { principal: testPrincipal(null) });
+    const surface = await client.surface();
+    expect(surface.modules.map((module) => module.id)).toContain('${id}');
+  } finally {
+    await runtime.stop();
+  }
 });
 `;
   const entry = {
@@ -125,7 +143,10 @@ test('${id} composes into an app without problems', () => {
         dependencies.map((other) => [`${scope}/module-${other}`, 'workspace:*']),
       ),
     },
-    devDependencies: { vitest: '5.0.5' },
+    devDependencies: {
+      '@keelwerk/testing': request.coreSibling ? 'workspace:*' : version,
+      vitest: '5.0.5',
+    },
   };
   const vitestConfig = `import { configDefaults, defineConfig } from 'vitest/config';
 
@@ -170,7 +191,11 @@ export default defineConfig({
       allowImportingTsExtensions: true,
     },
     include: ['src', 'migrations', 'test'],
-    references: [{ path: './tsconfig.json' }, ...references(request, dependencies)],
+    references: [
+      { path: './tsconfig.json' },
+      ...(request.coreSibling ? [{ path: '../testing' }] : []),
+      ...references(request, dependencies),
+    ],
   };
   const directory = packageDirectory(id, request.packagesLayout);
   const location = `${request.packagesLayout ? 'packages' : 'modules'}/${directory}`;

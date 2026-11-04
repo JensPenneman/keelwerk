@@ -3,4 +3,15 @@ export type { ConformanceClock } from './conformance/adapter/conformance-clock.t
 export type { ConformanceTarget } from './conformance/adapter/conformance-target.ts';
 export { describeAdapterConformance } from './conformance/adapter/describe-adapter-conformance.ts';
 export { jobStoreCases } from './conformance/adapter/job-store-cases.ts';
+export { createLocalClient } from './harness/create-local-client.ts';
+export type { LocalClientOptions } from './harness/local-client-options.ts';
+export { startTestRuntime } from './harness/start-test-runtime.ts';
+export type { TestApp } from './harness/test-app.ts';
+export type { TestPrincipal } from './harness/test-principal.ts';
+export { testPrincipal } from './harness/test-principal.ts';
+export type { TestRuntime } from './harness/test-runtime.ts';
+export type { TestRuntimeOptions } from './harness/test-runtime-options.ts';
+export type { TestTenant } from './harness/test-tenant.ts';
+export { expectAllowed } from './policy/expect-allowed.ts';
+export { expectDenied } from './policy/expect-denied.ts';
 export { version } from './version.ts';

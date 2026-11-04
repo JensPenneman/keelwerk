@@ -1,12 +1,16 @@
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdir, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { renderModuleManifest } from '@keelwerk/core/manifest';
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test } from 'vitest';
 import { parseReference } from '../src/scaffold/parse-reference.ts';
 import { createFakeHost } from './support/fake-host.ts';
 import { useNewWorkspace } from './support/new-workspace.ts';
 import { runCliWith } from './support/run-cli-with.ts';
 
+const execFileAsync = promisify(execFile);
 const workspace = useNewWorkspace();
 const { runNew, listing, read } = workspace;
 
@@ -73,6 +77,7 @@ describe('new module', () => {
       }),
     );
     const manifestJson = JSON.parse(await read('modules/mail-store/package.json')) as {
+      devDependencies: Record<string, string>;
       name: string;
       exports: Record<string, Record<string, string>>;
       publishConfig: { exports: Record<string, Record<string, string>> };
@@ -81,6 +86,17 @@ describe('new module', () => {
     expect(manifestJson.exports['.']?.['@keelwerk/source']).toBe('./src/module.generated.ts');
     expect(manifestJson.publishConfig.exports['.']).not.toHaveProperty('@keelwerk/source');
     expect(run.stdout).toContain('{ "path": "modules/mail-store" },');
+    const alone = await read('modules/mail-store/test/alone.test.ts');
+    expect(alone).toContain("from '@keelwerk/testing'");
+    expect(alone).toContain('createLocalClient(runtime');
+    const typeTest = await read('modules/mail-store/src/module.test-d.ts');
+    expect(typeTest).toContain("from '@keelwerk/testing/types'");
+    expect(typeTest).toContain('ExpectValidApp<typeof app>');
+    expect(typeTest).toContain('HasEntity<typeof app,');
+    expect(typeTest).toContain('HasAction<typeof app,');
+    expect(manifestJson).toMatchObject({
+      devDependencies: { '@keelwerk/testing': expect.any(String) },
+    });
   });
 
   test('--requires and --optional shape the base, the references and the toggle type tests', async () => {
@@ -202,4 +218,42 @@ describe('new module', () => {
     expect(run.code).toBe(2);
     expect(run.stderr).toContain('domain module only');
   });
+});
+
+describe('new module inside the framework repository', () => {
+  const repository = fileURLToPath(new URL('../../..', import.meta.url));
+  const id = 'scaffold-probe';
+  const created = join(repository, 'packages', `module-${id}`);
+  const bin = (name: string): string => join(repository, 'node_modules', '.bin', name);
+
+  afterEach(async () => {
+    await rm(created, { recursive: true, force: true });
+  });
+
+  test('the generated type test and alone test compile and pass', async () => {
+    const run = await runCliWith(
+      ['new', 'module', id, '--scope', '@keelwerk'],
+      createFakeHost({ cwd: repository }).host,
+    );
+    expect(run.code).toBe(0);
+    const modules = join(created, 'node_modules');
+    await mkdir(join(modules, '@keelwerk'), { recursive: true });
+    await symlink(join(repository, 'packages', 'core'), join(modules, '@keelwerk', 'core'));
+    await symlink(join(repository, 'packages', 'testing'), join(modules, '@keelwerk', 'testing'));
+    await symlink(
+      join(repository, 'packages', 'testing', 'node_modules', 'vitest'),
+      join(modules, 'vitest'),
+    );
+    const compiled = await execFileAsync(bin('tsc'), ['-b', join(created, 'tsconfig.test.json')], {
+      cwd: repository,
+    }).catch((error: { stdout?: string }) => error);
+    expect(compiled).not.toHaveProperty('code');
+    const tested = await execFileAsync(
+      bin('vitest'),
+      ['run', '--root', created, '--config', join(created, 'vitest.config.ts')],
+      { cwd: created },
+    ).catch((error: { stdout?: string; stderr?: string }) => error);
+    expect(tested).not.toHaveProperty('code');
+    expect(String((tested as { stdout?: string }).stdout)).toMatch(/Tests\s+2 passed/);
+  }, 300_000);
 });
