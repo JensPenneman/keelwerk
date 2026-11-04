@@ -10,6 +10,104 @@
       "quoteStyle": "single"
     }
   },
+  // GritQL plugins (architecture 13.9). Biome 2.5.15 resolves a plugin path from the directory of the
+  // configuration that extends this one, so the paths go through the installed package, and the
+  // consuming project lists @keelwerk/biome-config as a dependency of its root. Each plugin is scoped by
+  // `includes`, because GritQL cannot read the file path.
+  "plugins": [
+    {
+      "path": "./node_modules/@keelwerk/biome-config/plugins/no-selection-augmentation.grit",
+      "includes": [
+        "**/packages/module-*/src/**",
+        "**/modules/*/src/**",
+        "**/apps/*/src/**",
+        "!**/*.generated.ts"
+      ]
+    },
+    {
+      "path": "./node_modules/@keelwerk/biome-config/plugins/named-module-types.grit",
+      "includes": ["**/src/base.ts", "**/src/app.ts", "**/*.test.ts", "**/*.test-d.ts"]
+    },
+    {
+      "path": "./node_modules/@keelwerk/biome-config/plugins/no-null-in-conditions.grit",
+      "includes": [
+        "**/packages/module-*/src/**",
+        "**/modules/*/src/**",
+        "**/apps/*/src/**",
+        "!**/*.generated.ts",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    "./node_modules/@keelwerk/biome-config/plugins/as-system-reason.grit",
+    {
+      "path": "./node_modules/@keelwerk/biome-config/plugins/pure-parts.grit",
+      "includes": [
+        "**/packages/module-*/src/**",
+        "**/modules/*/src/**",
+        "**/apps/*/src/**",
+        "!**/src/executors/**",
+        "!**/*.generated.ts",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./node_modules/@keelwerk/biome-config/plugins/no-module-state.grit",
+      "includes": [
+        "**/packages/module-*/src/**",
+        "**/modules/*/src/**",
+        "**/apps/*/src/**",
+        "!**/*.generated.ts",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./node_modules/@keelwerk/biome-config/plugins/no-await-in-parts.grit",
+      "includes": [
+        "**/packages/module-*/src/**",
+        "**/modules/*/src/**",
+        "**/apps/*/src/**",
+        "!**/src/executors/**",
+        "!**/*.generated.ts",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    "./node_modules/@keelwerk/biome-config/plugins/error-code-format.grit",
+    {
+      "path": "./node_modules/@keelwerk/biome-config/plugins/one-export.grit",
+      "includes": [
+        "**/src/**",
+        "!**/src/base.ts",
+        "!**/src/app.ts",
+        "!**/src/modules.ts",
+        "!**/src/index.ts",
+        "!**/src/*/index.ts",
+        "!**/migrations/**",
+        "!**/generated/**",
+        "!**/*.config.ts",
+        "!**/*.generated.ts",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./node_modules/@keelwerk/biome-config/plugins/no-import-effects.grit",
+      "includes": [
+        "**/src/**",
+        "!**/*.config.ts",
+        "!**/*.generated.ts",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./node_modules/@keelwerk/biome-config/plugins/wiring-only-assembly.grit",
+      "includes": ["**/src/base.ts", "**/src/app.ts", "**/src/modules.ts"]
+    }
+  ],
   "linter": {
     "enabled": true,
     "rules": {
@@ -65,8 +163,9 @@
   },
   "overrides": [
     {
-      // Library entry files are curated lists of named re-exports (architecture 23.3).
-      "includes": ["**/src/index.ts"],
+      // Library entry files and subpath entries are curated lists of named re-exports
+      // (architecture 23.3).
+      "includes": ["**/src/index.ts", "**/src/*/index.ts"],
       "linter": { "rules": { "performance": { "noBarrelFile": "off" } } }
     },
     {

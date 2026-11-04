@@ -1,13 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip@6.42.1/schema.json",
-  "ignore": ["docs/**"],
+  "ignore": ["docs/**", "packages/biome-config/plugins/fixtures/**"],
   "workspaces": {
     ".": {},
     "packages/*": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"]
     },
-    "packages/biome-config": {},
+    "packages/biome-config": { "ignoreDependencies": ["@biomejs/biome"] },
     "spikes/composition-types": {
       "entry": ["src/**/*.test-d.ts", "sketch/acceptance.ts"],
       "project": ["src/**/*.ts", "scripts/**/*.ts", "sketch/**/*.ts"],

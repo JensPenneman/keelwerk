@@ -683,3 +683,8 @@ lead decided every finding the same day; each entry names the sections the editi
      `verify` resolver may attach typed claims, declared by the receiver (Trail's device id), to the
      principal's context, and rules may condition on those claims; never a per-request identity.
      Status: decided by the lead 2026-11-04, applied (section 16.5.8; overview chapter 13).
+
+120. **App sources count as module sources for the purity plugins** (found by the plugin fixtures,
+     section 13.9 against 23.1). `pure-parts`, `no-module-state` and `no-await-in-parts` also run
+     on `**/apps/*/src/**`, since an app's `src/actions/` and `src/policies/` hold parts like a
+     module's. Status: decided by the lead 2026-11-04, applied (section 13.9, the preset).

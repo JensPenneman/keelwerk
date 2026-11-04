@@ -1,0 +1,3 @@
+{
+  "extends": ["@keelwerk/biome-config/biome"]
+}

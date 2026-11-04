@@ -3989,16 +3989,16 @@ GritQL plugins shipped in the same package, each with tests:
 | `named-module-types.grit` | an exported `defineModuleBase(...)`, `defineModule(...)` or `defineApp(...)` value without a named type annotation (section 4.1), in `base.ts`, `app.ts` and hand-written module literals of tests and spikes; the generator writes the named type into every `module.generated.ts` |
 | `no-null-in-conditions.grit` | a literal `null` as a comparison value in a rule's `where` or `check` (section 8.3) |
 | `as-system-reason.grit` | `system()` without a reason or with an empty string, as in `invoke(action, input, { as: system('') })` |
-| `pure-parts.grit` (replaces `pure-deciders.grit`) | `Temporal.Now.*`, `Date.now()`, `new Date()` without arguments, `Math.random()`, `performance.now()`, `crypto.*`, `setTimeout`, `setInterval`, `queueMicrotask`, `fetch` and a bare `yield` of a request, in module sources outside `src/executors/` (use `ctx.clock`, `ctx.newId`, `ctx.random`, `yield*` and effects; section 7.9.6) |
-| `no-module-state.grit` | top-level `let` and `var`, and calls that mutate a top-level binding (`push`, `set`, `delete`, property assignment), in module sources |
+| `pure-parts.grit` (replaces `pure-deciders.grit`) | `Temporal.Now.*`, `Date.now()`, `new Date()` without arguments, `Math.random()`, `performance.now()`, `crypto.*`, `setTimeout`, `setInterval`, `queueMicrotask`, `fetch` and a bare `yield` of a request, in module and app sources outside `src/executors/` (use `ctx.clock`, `ctx.newId`, `ctx.random`, `yield*` and effects; section 7.9.6) |
+| `no-module-state.grit` | top-level `let` and `var`, and calls that mutate a top-level binding (`push`, `set`, `delete`, property assignment), in module and app sources |
 | `no-await-in-parts.grit` | `async` and `await` in pure parts outside `src/executors/`: handler types already exclude promises, and this rule says so readably |
 | `error-code-format.grit` | `defineError` codes that do not match `<module>.<snake_case>` |
 | `one-export.grit` | a second exported value in a source file, outside assembly files (`base.ts`, `app.ts`, `modules.ts`), generated files, library entries and tests (section 23.3) |
 | `no-import-effects.grit` | top-level expression statements, `await` and bare imports, outside tests and scripts |
 | `wiring-only-assembly.grit` | a function or arrow function in `base.ts`, `app.ts` or `modules.ts` |
 
-The last three, like `pure-parts`, `no-module-state` and `no-await-in-parts` (module sources, minus
-`src/executors/` where the rule says so), are scoped with `includes`, because GritQL cannot read the
+The last three, like `pure-parts`, `no-module-state` and `no-await-in-parts` (module and app sources: `**/packages/module-*/src/**`, `**/modules/*/src/**`
+and `**/apps/*/src/**`, minus `src/executors/` where the rule says so), are scoped with `includes`, because GritQL cannot read the
 file path; checks that need paths belong to the layout pass of `keelwerk doctor` (section 23.13).
 Modules are object literals (section 4.1), so no rule guards a chain of steps.
 

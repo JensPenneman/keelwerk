@@ -1,0 +1,23 @@
+// Importing a definition file has no effect: no top-level expression statement, await or bare
+// import (architecture 23.3, 13.6). Tests, scripts and tool configuration are left out by
+// `includes` in the preset.
+or {
+  JsImport(import_clause=JsImportBareClause()) as $n where {
+    $msg = "no-import-effects: a bare import exists only for its effect. Import the names you use, or move the effect to a script or an executor."
+  },
+  JsAwaitExpression() as $n where {
+    not $n <: within or {
+      JsFunctionBody(),
+      JsArrowFunctionExpression(),
+      JsFunctionExpression(),
+      JsMethodClassMember(),
+      JsStaticInitializationBlockClassMember()
+    },
+    $msg = "no-import-effects: top-level await runs when the file is imported. Move it into a function that something calls."
+  },
+  JsExpressionStatement() as $n where {
+    not $n <: JsExpressionStatement(expression=JsAwaitExpression()),
+    not $n <: within JsFunctionBody(),
+    $msg = "no-import-effects: a top-level expression statement runs when the file is imported. Export a definition, or move the call into a function."
+  }
+} where { register_diagnostic(span=$n, message=$msg, severity="error") }

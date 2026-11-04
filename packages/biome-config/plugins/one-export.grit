@@ -1,0 +1,36 @@
+// One definition per file, named after its export (architecture 23.3). Counts exported values
+// only (const, let, function, class, and the names of an `export { ... }` list); types and
+// interfaces are free. The unit of counting is one exported binding, so `export const a = 1, b = 2`
+// and `export { a, b }` are two units. The first unit of a file is the file's definition, every
+// further one is reported. Assembly files, generated files, library entries and tests are left out
+// by `includes` in the preset.
+pattern export_unit() {
+  or {
+    JsVariableDeclarator() as $u where {
+      $u <: within JsExport(),
+      not $u <: within or {
+        JsFunctionBody(),
+        JsBlockStatement()
+      }
+    },
+    JsExport(export_clause=or {
+      JsFunctionDeclaration(),
+      JsClassDeclaration()
+    }),
+    or {
+      JsExportNamedShorthandSpecifier(),
+      JsExportNamedSpecifier()
+    } as $u where {
+      not $u <: r"type\s[\s\S]*",
+      $u <: within JsExport() as $e,
+      not $e <: r"export\s+type\s*\{[\s\S]*"
+    }
+  }
+}
+
+export_unit() as $n where {
+  $n <: within JsModule() as $m,
+  $m <: contains export_unit() as $first,
+  not $n <: $first,
+  register_diagnostic(span=$n, message="one-export: a second exported value in this file. Move it to a file of its own named after it (kebab-case); types and interfaces may stay.", severity="error")
+}

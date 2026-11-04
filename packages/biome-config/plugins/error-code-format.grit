@@ -1,0 +1,14 @@
+// Error codes are <module>.<snake_case> with the declaring module's id (architecture 5.1). The
+// syntax check covers the shape of a literal code, in quotes or in a template without
+// substitutions; that the prefix is the declaring module's id is checked by defineError at boot.
+`defineError($code, $...)` where {
+  $code <: or {
+    JsStringLiteralExpression(),
+    JsTemplateExpression() where { not $code <: r"[\s\S]*[$][{][\s\S]*" }
+  },
+  not $code <: or {
+    r"[\"'][a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*\.[a-z][a-z0-9]*(?:_[a-z0-9]+)*[\"']",
+    r"`[a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*\.[a-z][a-z0-9]*(?:_[a-z0-9]+)*`"
+  },
+  register_diagnostic(span=$code, message="error-code-format: an error code is <module>.<snake_case>, for example 'accounts.email_taken'. Prefix the module id (lower case, hyphens allowed), a dot, then lower-case words joined by underscores.", severity="error")
+}

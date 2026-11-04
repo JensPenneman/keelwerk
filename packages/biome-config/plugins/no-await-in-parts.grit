@@ -1,0 +1,27 @@
+// Pure parts are synchronous generators: handler types already exclude promises, and this rule says
+// so readably. Scoped by `includes` in the preset to module sources outside src/executors/.
+or {
+  JsAwaitExpression() as $n where {
+    $msg = "no-await-in-parts: await in a pure part. Yield a request with yield* and let the runner resume the handler with the result."
+  },
+  or {
+    JsFunctionDeclaration(),
+    JsFunctionExpression(),
+    JsArrowFunctionExpression()
+  } as $n where {
+    $n <: r"(?:(?:static|public|private|protected|override)\s+)*async(?:\s*[(<*]|\s+[A-Za-z_$*\[]|\s+function)[\s\S]*",
+    $msg = "no-await-in-parts: async function in a pure part. Write a plain function or a generator; asynchronous work belongs in src/executors/."
+  },
+  or {
+    JsMethodObjectMember(),
+    JsMethodClassMember()
+  } as $n where {
+    // A method named async is `async(): T {}`; a modifier is followed by a star or a name.
+    $n <: r"(?:(?:static|public|private|protected|override)\s+)*async(?:\s*\*|\s+[A-Za-z_$\[#0-9\"'])[\s\S]*",
+    $msg = "no-await-in-parts: async method in a pure part. Write a plain method or a generator; asynchronous work belongs in src/executors/."
+  },
+  JsForOfStatement() as $n where {
+    $n <: r"for\s+await\b[\s\S]*",
+    $msg = "no-await-in-parts: for await in a pure part. Yield the requests one by one with yield*, or move the loop to src/executors/."
+  }
+} where { register_diagnostic(span=$n, message=$msg, severity="error") }

@@ -1,0 +1,60 @@
+// Pure parts (handlers, deciders, conditions, rules) read time, randomness and the network through
+// the context, never through the platform (architecture 7.9.6). Scoped by `includes` in the preset
+// to module sources outside src/executors/, tests and generated files.
+// Members are matched, not calls, so an alias (`const now = Date.now`), a computed access
+// (`Temporal.Now['instant']()`) and `globalThis.` spellings are caught too.
+or {
+  `Temporal.Now` as $n where {
+    $msg = "pure-parts: Temporal.Now is a hidden clock. Use ctx.clock.now() so the invocation has one fixed time."
+  },
+  `Date.now` as $n where { $msg = "pure-parts: Date.now is a hidden clock. Use ctx.clock.now()." },
+  `new Date()` as $n where {
+    $msg = "pure-parts: new Date() without arguments reads the clock. Use ctx.clock.now(), or pass an explicit value."
+  },
+  `Date()` as $n where {
+    $msg = "pure-parts: Date() without new returns the current time. Use ctx.clock.now()."
+  },
+  `Math.random` as $n where {
+    $msg = "pure-parts: Math.random is not replayable. Use ctx.random or ctx.newId()."
+  },
+  `performance.now` as $n where {
+    $msg = "pure-parts: performance.now is a hidden clock. Use ctx.clock.now()."
+  },
+  or {
+    `globalThis.Temporal.Now`,
+    `globalThis.Date.now`,
+    `globalThis.Math.random`,
+    `globalThis.performance.now`
+  } as $n where {
+    $msg = "pure-parts: globalThis reaches the same hidden clock and randomness. Use ctx.clock.now(), ctx.random or ctx.newId()."
+  },
+  `globalThis.$g` as $n where {
+    $g <: or {
+      `crypto`,
+      `fetch`,
+      `setTimeout`,
+      `setInterval`,
+      `queueMicrotask`
+    },
+    $msg = "pure-parts: globalThis reaches the platform. Use ctx, or move the work to src/executors/."
+  },
+  `crypto.$m` as $n where {
+    $msg = "pure-parts: the crypto global is random and effectful. Use ctx.random, ctx.newId() or the pure primitives of @keelwerk/core/crypto."
+  },
+  `setTimeout($...)` as $n where {
+    $msg = "pure-parts: setTimeout() needs the event loop. Declare a timer or schedule in the module, or move the work to src/executors/."
+  },
+  `setInterval($...)` as $n where {
+    $msg = "pure-parts: setInterval() needs the event loop. Declare a schedule in the module, or move the work to src/executors/."
+  },
+  `queueMicrotask($...)` as $n where {
+    $msg = "pure-parts: queueMicrotask() escapes the invocation. Return the work as a request or an effect, or move it to src/executors/."
+  },
+  `fetch($...)` as $n where {
+    $msg = "pure-parts: fetch() performs network I/O. Yield a request with yield* and let an executor in src/executors/ perform it."
+  },
+  JsYieldExpression(argument=JsYieldArgument()) as $n where {
+    not $n <: r"yield\s*\*[\s\S]*",
+    $msg = "pure-parts: a bare yield hands a request to the runner without its result type. Use yield* ctx.load..., yield* ctx.write... or yield* of an effect."
+  }
+} where { register_diagnostic(span=$n, message=$msg, severity="error") }

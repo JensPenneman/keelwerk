@@ -1,0 +1,29 @@
+// A comparison with null is false in both interpreters of the condition AST, so a rule written
+// with a literal null fails closed and never matches (architecture 8.3). Scoped by `includes` in
+// the preset to module and app sources. A where may also return a plain boolean
+// (`x !== null` is a legitimate JavaScript test), so only null as a value is reported: the value of
+// a property, directly or as one side of `??`, `||`, `&&` or a conditional, and null in an array.
+pattern null_value() {
+  or {
+    JsNullLiteralExpression(),
+    JsLogicalExpression(right=JsNullLiteralExpression()),
+    JsConditionalExpression(consequent=JsNullLiteralExpression()),
+    JsConditionalExpression(alternate=JsNullLiteralExpression())
+  }
+}
+
+or {
+  JsPropertyObjectMember(name=$key, value=$value),
+  JsMethodObjectMember(name=$key, body=$value)
+} where {
+  $key <: or {
+    `where`,
+    `check`
+  },
+  $value <: contains bubble or {
+    JsPropertyObjectMember(value=null_value()) as $n,
+    JsArrayExpression(elements=contains JsNullLiteralExpression()) as $n
+  } where {
+    register_diagnostic(span=$n, message="no-null-in-conditions: a literal null in a where or check never matches. Test for absence with { isNull: true } (or { isNull: false }).", severity="error")
+  }
+}

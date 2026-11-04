@@ -1,6 +1,7 @@
 {
   "files": [],
   "references": [
+    { "path": "packages/biome-config/tsconfig.test.json" },
     { "path": "packages/core" },
     { "path": "packages/core/tsconfig.test.json" },
     { "path": "packages/data" },

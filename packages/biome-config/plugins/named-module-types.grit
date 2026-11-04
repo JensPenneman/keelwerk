@@ -1,0 +1,42 @@
+// An exported module base, module or app needs a named type annotation (architecture 4.1), because
+// isolatedDeclarations cannot print the inferred type and a named type keeps the composition types
+// readable. The generator writes the named type into every module.generated.ts; this rule covers
+// base.ts, app.ts and the hand-written module literals of tests. Scoped by `includes` in the preset.
+//
+// An exported binding counts when it is exported in its own declaration or by a later
+// `export { name }`, when it has no annotation (or a bare `typeof`), and when its initializer is a
+// define call (also under `satisfies` or `as`) or a plain reference to a binding of the same file
+// that is initialised with one.
+pattern define_call() {
+  JsCallExpression(callee=JsIdentifierExpression(name=or {
+    `defineModuleBase`,
+    `defineModule`,
+    `defineApp`
+  }))
+}
+
+pattern define_value() {
+  or {
+    define_call(),
+    TsSatisfiesExpression(expression=define_call()),
+    TsAsExpression(expression=define_call())
+  }
+}
+
+JsVariableDeclarator(id=$id, variable_annotation=$ann, initializer=JsInitializerClause(expression=$init)) as $n where {
+  not $n <: within or {
+    JsFunctionBody(),
+    JsBlockStatement()
+  },
+  $n <: within JsModule() as $m,
+  or { $n <: within JsExport(), $m <: contains JsExportNamedShorthandSpecifier(name=$id) },
+  or { $ann <: ., $ann <: contains TsTypeofType() },
+  or {
+    $init <: define_value(),
+    and {
+      $init <: JsIdentifierExpression(name=$ref),
+      $m <: contains JsVariableDeclarator(id=$ref, initializer=JsInitializerClause(expression=define_value()))
+    }
+  },
+  register_diagnostic(span=$n, message="named-module-types: the exported value of defineModuleBase, defineModule or defineApp has no named type. Annotate it with the module's named type (for example export const authBase: AuthBase = defineModuleBase({ ... })).", severity="error")
+}

@@ -1,0 +1,95 @@
+// A module has no state of its own: top-level let and var, and calls or assignments that mutate a
+// top-level binding, would keep data between invocations outside the event log. Scoped by
+// `includes` in the preset to module sources outside tests and generated files.
+//
+// GritQL has no semantic model, so a mutation is tied to a top-level binding by the name used in
+// the same file. A function that declares the same name directly (a variable of its own body or a
+// parameter) is treated as shadowing it; a declaration in a nested block or callback does not hide
+// a mutation outside it. Values built by Temporal are immutable, so their methods are not mutations.
+pattern top_level_binding($name) {
+  JsVariableDeclarator(id=$id) as $decl where {
+    $id <: $name,
+    not $decl <: within or {
+      JsFunctionBody(),
+      JsBlockStatement(),
+      JsForStatement(),
+      JsForInStatement(),
+      JsForOfStatement(),
+      JsSwitchStatement(),
+      JsStaticInitializationBlockClassMember()
+    }
+  }
+}
+
+pattern member_root($recv) {
+  or {
+    JsIdentifierExpression(name=$recv),
+    JsStaticMemberExpression(object=JsIdentifierExpression(name=$recv)),
+    JsComputedMemberExpression(object=JsIdentifierExpression(name=$recv)),
+    JsStaticMemberExpression(object=JsStaticMemberExpression(object=JsIdentifierExpression(name=$recv))),
+    JsStaticMemberExpression(object=JsComputedMemberExpression(object=JsIdentifierExpression(name=$recv))),
+    JsComputedMemberExpression(object=JsStaticMemberExpression(object=JsIdentifierExpression(name=$recv))),
+    JsComputedMemberExpression(object=JsComputedMemberExpression(object=JsIdentifierExpression(name=$recv)))
+  }
+}
+
+// A function whose own body or parameter list declares the name.
+pattern declares($recv) {
+  or {
+    JsFunctionBody(statements=some JsVariableStatement(declaration=JsVariableDeclaration(declarators=some JsVariableDeclarator(id=$recv)))),
+    JsFunctionDeclaration(parameters=JsParameters(items=some JsFormalParameter(binding=$recv))),
+    JsFunctionExpression(parameters=JsParameters(items=some JsFormalParameter(binding=$recv))),
+    JsArrowFunctionExpression(parameters=JsParameters(items=some JsFormalParameter(binding=$recv))),
+    JsArrowFunctionExpression(parameters=$recv),
+    JsMethodObjectMember(parameters=JsParameters(items=some JsFormalParameter(binding=$recv))),
+    JsMethodClassMember(parameters=JsParameters(items=some JsFormalParameter(binding=$recv)))
+  }
+}
+
+or {
+  JsVariableDeclaration() as $n where {
+    $n <: r"(?:let|var)\b[\s\S]*",
+    not $n <: within or {
+      JsFunctionBody(),
+      JsBlockStatement(),
+      JsForStatement(),
+      JsForInStatement(),
+      JsForOfStatement(),
+      JsSwitchStatement(),
+      JsStaticInitializationBlockClassMember()
+    },
+    $msg = "no-module-state: top-level let or var is state shared between invocations. Use const, and keep state in entities, streams or ctx."
+  },
+  or {
+    JsCallExpression(callee=JsStaticMemberExpression(object=member_root($recv), member=$method)) where {
+      $method <: or {
+        `push`,
+        `pop`,
+        `shift`,
+        `unshift`,
+        `splice`,
+        `sort`,
+        `reverse`,
+        `fill`,
+        `set`,
+        `add`,
+        `delete`,
+        `clear`
+      }
+    },
+    JsAssignmentExpression(left=JsStaticMemberAssignment(object=member_root($recv))),
+    JsAssignmentExpression(left=JsComputedMemberAssignment(object=member_root($recv))),
+    JsPostUpdateExpression(operand=JsStaticMemberAssignment(object=member_root($recv))),
+    JsPostUpdateExpression(operand=JsComputedMemberAssignment(object=member_root($recv))),
+    JsPreUpdateExpression(operand=JsStaticMemberAssignment(object=member_root($recv))),
+    JsPreUpdateExpression(operand=JsComputedMemberAssignment(object=member_root($recv))),
+    JsUnaryExpression(argument=member_root($recv)) as $d where { $d <: r"delete\s[\s\S]*" },
+    `Object.assign($target, $...)` where { $target <: member_root($recv) }
+  } as $n where {
+    $n <: within JsModule() as $m,
+    $m <: contains top_level_binding($recv),
+    not $m <: contains JsVariableDeclarator(id=$recv, initializer=JsInitializerClause(expression=contains JsIdentifierExpression(name=`Temporal`))),
+    not $n <: within declares($recv),
+    $msg = "no-module-state: this call, assignment or update mutates a top-level binding. Build a new value inside the handler, or keep the data in entities, streams or ctx."
+  }
+} where { register_diagnostic(span=$n, message=$msg, severity="error") }

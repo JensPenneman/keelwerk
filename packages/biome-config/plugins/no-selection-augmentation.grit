@@ -1,0 +1,12 @@
+// Principle 2: the types of a module come from its declaration and the selection of an app, never
+// from augmenting a framework interface. Scoped by `includes` in the preset to module and app
+// sources.
+or {
+  TsExternalModuleDeclaration() as $n where {
+    $n <: r"module\s+.@keelwerk/[\s\S]*",
+    $msg = "no-selection-augmentation: declare module on a @keelwerk package augments framework types. Contribute through the module base (extension points and contributions) instead."
+  },
+  TsGlobalDeclaration() as $n where {
+    $msg = "no-selection-augmentation: declare global augments the global scope. Pass the value through ctx or the module configuration instead."
+  }
+} where { register_diagnostic(span=$n, message=$msg, severity="error") }

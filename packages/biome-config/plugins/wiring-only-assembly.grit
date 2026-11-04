@@ -1,0 +1,16 @@
+// Assembly files (base.ts, app.ts, modules.ts) import parts and export a value with its named
+// type; they hold no function bodies (architecture 23.3). Scoped by `includes` in the preset.
+or {
+  JsFunctionDeclaration(),
+  JsFunctionExpression(),
+  JsArrowFunctionExpression(),
+  JsMethodObjectMember(),
+  JsMethodClassMember(),
+  JsGetterObjectMember(),
+  JsSetterObjectMember(),
+  JsGetterClassMember(),
+  JsSetterClassMember(),
+  JsConstructorClassMember()
+} as $n where {
+  register_diagnostic(span=$n, message="wiring-only-assembly: a function in an assembly file. Write it as a part in a file of its own and import it here.", severity="error")
+}

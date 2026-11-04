@@ -1,0 +1,15 @@
+// system() is written to the audit log with its reason (architecture 8.4), so the reason must be
+// there and must not be empty.
+or {
+  `system()`,
+  `system($reason)` where {
+    $reason <: or {
+      `""`,
+      `''`,
+      r"``",
+      r"['\"`]\s+['\"`]"
+    }
+  }
+} as $call where {
+  register_diagnostic(span=$call, message="as-system-reason: system() needs a reason, which is written to the audit log. Pass what the system principal is doing, for example system('nightly cleanup').", severity="error")
+}
