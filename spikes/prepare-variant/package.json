@@ -6,6 +6,8 @@
   "license": "FSL-1.1-ALv2",
   "type": "module",
   "devDependencies": {
+    "@keelwerk/core": "workspace:*",
+    "@keelwerk/testing": "workspace:*",
     "vitest": "5.0.5"
   }
 }

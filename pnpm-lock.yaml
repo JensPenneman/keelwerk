@@ -372,6 +372,12 @@ importers:
 
   spikes/prepare-variant:
     devDependencies:
+      '@keelwerk/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@keelwerk/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
       vitest:
         specifier: 5.0.5
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(jiti@2.7.0)(yaml@2.9.1))

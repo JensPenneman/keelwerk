@@ -1,6 +1,11 @@
 import { configDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  ssr: {
+    resolve: {
+      conditions: ['@keelwerk/source', 'module', 'node', 'development|production'],
+    },
+  },
   test: {
     name: 'spike-prepare-variant',
     include: ['src/**/*.test.ts'],
