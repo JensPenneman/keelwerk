@@ -1,0 +1,34 @@
+{
+  "name": "@keelwerk/transport-rest",
+  "version": "0.0.0",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@keelwerk/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@keelwerk/core": "workspace:*",
+    "@scalar/hono-api-reference": "0.12.11",
+    "hono": "4.13.13"
+  },
+  "devDependencies": {
+    "@keelwerk/testing": "workspace:*",
+    "@scalar/openapi-parser": "0.29.12",
+    "vitest": "5.0.5"
+  }
+}

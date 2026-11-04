@@ -1,0 +1,33 @@
+{
+  "name": "@keelwerk/transport-http",
+  "version": "0.0.0",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@keelwerk/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@hono/node-server": "2.1.4",
+    "@keelwerk/core": "workspace:*",
+    "hono": "4.13.13"
+  },
+  "devDependencies": {
+    "@keelwerk/testing": "workspace:*",
+    "vitest": "5.0.5"
+  }
+}

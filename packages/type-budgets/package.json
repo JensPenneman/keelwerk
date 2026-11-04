@@ -1,0 +1,38 @@
+{
+  "name": "@keelwerk/type-budgets",
+  "version": "0.0.0",
+  "private": true,
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@keelwerk/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "bench": "node --conditions=@keelwerk/source src/compose-app.bench.ts"
+  },
+  "dependencies": {
+    "@keelwerk/core": "workspace:*",
+    "@keelwerk/module-accounts": "workspace:*",
+    "@keelwerk/module-auth": "workspace:*"
+  },
+  "devDependencies": {
+    "@ark/attest": "0.57.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  }
+}

@@ -7,11 +7,148 @@
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"]
     },
-    "packages/biome-config": { "ignoreDependencies": ["@biomejs/biome"] },
+    "packages/biome-config": {
+      "ignoreDependencies": ["@biomejs/biome"]
+    },
     "spikes/composition-types": {
       "entry": ["src/**/*.test-d.ts", "sketch/acceptance.ts"],
       "project": ["src/**/*.ts", "scripts/**/*.ts", "sketch/**/*.ts"],
       "ignore": ["sketch/**"]
+    },
+    "examples/portal/apps/portal": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": [
+        "@keelwerk/adapter-postgres",
+        "@keelwerk/cli",
+        "@keelwerk/client",
+        "@keelwerk/core",
+        "@keelwerk/data",
+        "@keelwerk/module-accounts",
+        "@keelwerk/module-auth",
+        "@keelwerk/testing",
+        "@keelwerk/transport-http",
+        "@keelwerk/transport-rest"
+      ]
+    },
+    "packages/type-budgets": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": [
+        "@ark/attest",
+        "@keelwerk/core",
+        "@keelwerk/module-accounts",
+        "@keelwerk/module-auth",
+        "tsc"
+      ]
+    },
+    "packages/adapter-postgres": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": [
+        "@keelwerk/core",
+        "@keelwerk/data",
+        "@keelwerk/testing",
+        "@types/pg",
+        "kysely",
+        "pg"
+      ]
+    },
+    "packages/module-auth": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@keelwerk/core", "@keelwerk/module-accounts", "@keelwerk/testing"]
+    },
+    "packages/testing": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": [
+        "@keelwerk/adapter-postgres",
+        "@keelwerk/client",
+        "@keelwerk/core",
+        "@keelwerk/data",
+        "@keelwerk/transport-rest",
+        "@testcontainers/postgresql",
+        "fast-check"
+      ]
+    },
+    "packages/cli": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": [
+        "@keelwerk/client",
+        "@keelwerk/core",
+        "@keelwerk/data",
+        "@stricli/auto-complete",
+        "@stricli/core",
+        "pino",
+        "tsc",
+        "typescript-6",
+        "yaml"
+      ]
+    },
+    "packages/module-accounts": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@keelwerk/core", "@keelwerk/testing"]
+    },
+    "packages/transport-http": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@hono/node-server", "@keelwerk/core", "@keelwerk/testing", "hono"]
+    },
+    "packages/transport-rest": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": [
+        "@keelwerk/core",
+        "@keelwerk/testing",
+        "@scalar/hono-api-reference",
+        "@scalar/openapi-parser",
+        "hono"
+      ]
+    },
+    "packages/client": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@keelwerk/core", "@keelwerk/testing", "@keelwerk/transport-http"]
+    },
+    "packages/data": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": [
+        "@electric-sql/pglite",
+        "@keelwerk/core",
+        "@keelwerk/testing",
+        "@types/pg",
+        "kysely",
+        "pg"
+      ]
+    },
+    "packages/core": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@standard-schema/spec", "canonicalize", "fast-check", "uuid"]
+    },
+    "spikes/node26-rechecks": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "spikes/prepare-variant": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "spikes/interpreter-overhead": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "examples/portal": {
+      "ignoreDependencies": [
+        "@keelwerk-examples/app-portal",
+        "@keelwerk/adapter-postgres",
+        "@keelwerk/cli",
+        "@keelwerk/core"
+      ]
     }
   }
 }

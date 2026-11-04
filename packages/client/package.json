@@ -1,0 +1,41 @@
+{
+  "name": "@keelwerk/client",
+  "version": "0.0.0",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@keelwerk/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./unix-socket": {
+      "@keelwerk/source": "./src/unix-socket/index.ts",
+      "types": "./dist/unix-socket/index.d.ts",
+      "default": "./dist/unix-socket/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./unix-socket": {
+        "types": "./dist/unix-socket/index.d.ts",
+        "default": "./dist/unix-socket/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@keelwerk/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@keelwerk/testing": "workspace:*",
+    "@keelwerk/transport-http": "workspace:*",
+    "vitest": "5.0.5"
+  }
+}

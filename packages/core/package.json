@@ -8,6 +8,21 @@
       "@keelwerk/source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./wire": {
+      "@keelwerk/source": "./src/wire/index.ts",
+      "types": "./dist/wire/index.d.ts",
+      "default": "./dist/wire/index.js"
+    },
+    "./ledger": {
+      "@keelwerk/source": "./src/ledger/index.ts",
+      "types": "./dist/ledger/index.d.ts",
+      "default": "./dist/ledger/index.js"
+    },
+    "./crypto": {
+      "@keelwerk/source": "./src/crypto/index.ts",
+      "types": "./dist/crypto/index.d.ts",
+      "default": "./dist/crypto/index.js"
     }
   },
   "publishConfig": {
@@ -15,13 +30,32 @@
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./wire": {
+        "types": "./dist/wire/index.d.ts",
+        "default": "./dist/wire/index.js"
+      },
+      "./ledger": {
+        "types": "./dist/ledger/index.d.ts",
+        "default": "./dist/ledger/index.js"
+      },
+      "./crypto": {
+        "types": "./dist/crypto/index.d.ts",
+        "default": "./dist/crypto/index.js"
       }
     }
   },
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@opentelemetry/api": "1.9.1",
+    "@standard-schema/spec": "1.1.0",
+    "uuid": "14.0.3"
+  },
   "devDependencies": {
+    "canonicalize": "5.1.0",
+    "fast-check": "4.10.2",
     "vitest": "5.0.5"
   }
 }

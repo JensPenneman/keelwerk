@@ -1,6 +1,8 @@
 packages:
   - packages/*
   - examples/*
+  - examples/*/apps/*
+  - examples/*/modules/*
   - spikes/*
 
 # pnpm 11 reads its settings from this file; .npmrc only carries registry settings.
@@ -27,3 +29,6 @@ allowBuilds:
 overrides:
   'glob@>=9.0.0 <14.0.2': 14.0.2
   'minimatch@<11.0.1': 11.0.1
+# thread-stream 4.2.1 (via pino) was published on 2026-11-02, inside the 14-day window; 4.2.0 dates from 2026-05-14.
+# Drop this entry once 4.2.1 is older than two weeks.
+  'thread-stream@4.2.1': 4.2.0

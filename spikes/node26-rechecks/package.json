@@ -1,0 +1,11 @@
+{
+  "name": "@keelwerk/spike-node26-rechecks",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Throwaway node26-rechecks spike of milestone M1.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "devDependencies": {
+    "vitest": "5.0.5"
+  }
+}

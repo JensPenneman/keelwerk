@@ -96,6 +96,69 @@
         {
           "type": "generic",
           "path": "packages/testing/src/version.ts"
+        },
+        {
+          "type": "json",
+          "path": "packages/adapter-postgres/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/cli/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/client/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/module-accounts/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/module-auth/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/transport-http/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/transport-rest/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "generic",
+          "path": "packages/adapter-postgres/src/version.ts"
+        },
+        {
+          "type": "generic",
+          "path": "packages/cli/src/version.ts"
+        },
+        {
+          "type": "generic",
+          "path": "packages/client/src/version.ts"
+        },
+        {
+          "type": "generic",
+          "path": "packages/module-accounts/src/version.ts"
+        },
+        {
+          "type": "generic",
+          "path": "packages/module-auth/src/version.ts"
+        },
+        {
+          "type": "generic",
+          "path": "packages/transport-http/src/version.ts"
+        },
+        {
+          "type": "generic",
+          "path": "packages/transport-rest/src/version.ts"
         }
       ]
     }

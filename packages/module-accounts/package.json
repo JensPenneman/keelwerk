@@ -1,0 +1,31 @@
+{
+  "name": "@keelwerk/module-accounts",
+  "version": "0.0.0",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@keelwerk/source": "./src/version.ts",
+      "types": "./dist/src/version.d.ts",
+      "default": "./dist/src/version.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/src/version.d.ts",
+        "default": "./dist/src/version.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@keelwerk/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@keelwerk/testing": "workspace:*",
+    "vitest": "5.0.5"
+  }
+}

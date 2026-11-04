@@ -1,0 +1,38 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test-d.ts"],
+  "references": [
+    {
+      "path": "../../../../packages/core"
+    },
+    {
+      "path": "../../../../packages/data"
+    },
+    {
+      "path": "../../../../packages/adapter-postgres"
+    },
+    {
+      "path": "../../../../packages/transport-http"
+    },
+    {
+      "path": "../../../../packages/transport-rest"
+    },
+    {
+      "path": "../../../../packages/client"
+    },
+    {
+      "path": "../../../../packages/module-accounts"
+    },
+    {
+      "path": "../../../../packages/module-auth"
+    },
+    {
+      "path": "../../../../packages/testing"
+    }
+  ]
+}

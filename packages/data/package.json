@@ -8,6 +8,16 @@
       "@keelwerk/source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./pglite": {
+      "@keelwerk/source": "./src/pglite/index.ts",
+      "types": "./dist/pglite/index.d.ts",
+      "default": "./dist/pglite/index.js"
+    },
+    "./conformance": {
+      "@keelwerk/source": "./src/conformance/index.ts",
+      "types": "./dist/conformance/index.d.ts",
+      "default": "./dist/conformance/index.js"
     }
   },
   "publishConfig": {
@@ -15,13 +25,29 @@
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./pglite": {
+        "types": "./dist/pglite/index.d.ts",
+        "default": "./dist/pglite/index.js"
+      },
+      "./conformance": {
+        "types": "./dist/conformance/index.d.ts",
+        "default": "./dist/conformance/index.js"
       }
     }
   },
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@keelwerk/core": "workspace:*",
+    "kysely": "0.29.7"
+  },
   "devDependencies": {
+    "@keelwerk/testing": "workspace:*",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1",
     "vitest": "5.0.5"
   }
 }

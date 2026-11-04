@@ -1,0 +1,11 @@
+{
+  "name": "@keelwerk/spike-interpreter-overhead",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Throwaway interpreter-overhead spike of milestone M1.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "devDependencies": {
+    "vitest": "5.0.5"
+  }
+}

@@ -1,1 +1,12 @@
+export type { BlobRef } from './ids/blob-ref.ts';
+export type { Id } from './ids/id.ts';
+export type { RichText } from './ids/rich-text.ts';
+export type { SecretRef } from './ids/secret-ref.ts';
+export type { SubjectId } from './ids/subject-id.ts';
+export type { NamespaceRef } from './storage/namespace-ref.ts';
+export type { Position } from './storage/position.ts';
+export type { Scope } from './storage/scope.ts';
+export type { ScopeEpoch } from './storage/scope-epoch.ts';
+export type { StorageScope } from './storage/storage-scope.ts';
+export type { Empty } from './types/empty.ts';
 export { version } from './version.ts';

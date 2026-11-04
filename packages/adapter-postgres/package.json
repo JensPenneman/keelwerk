@@ -1,0 +1,35 @@
+{
+  "name": "@keelwerk/adapter-postgres",
+  "version": "0.0.0",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@keelwerk/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@keelwerk/core": "workspace:*",
+    "@keelwerk/data": "workspace:*",
+    "kysely": "0.29.7",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@keelwerk/testing": "workspace:*",
+    "@types/pg": "8.23.1",
+    "vitest": "5.0.5"
+  }
+}

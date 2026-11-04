@@ -8,6 +8,21 @@
       "@keelwerk/source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./postgres": {
+      "@keelwerk/source": "./src/postgres/index.ts",
+      "types": "./dist/postgres/index.d.ts",
+      "default": "./dist/postgres/index.js"
+    },
+    "./fixtures": {
+      "@keelwerk/source": "./src/fixtures/index.ts",
+      "types": "./dist/fixtures/index.d.ts",
+      "default": "./dist/fixtures/index.js"
+    },
+    "./types": {
+      "@keelwerk/source": "./src/types/index.ts",
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/types/index.js"
     }
   },
   "publishConfig": {
@@ -15,13 +30,34 @@
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./postgres": {
+        "types": "./dist/postgres/index.d.ts",
+        "default": "./dist/postgres/index.js"
+      },
+      "./fixtures": {
+        "types": "./dist/fixtures/index.d.ts",
+        "default": "./dist/fixtures/index.js"
+      },
+      "./types": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/types/index.js"
       }
     }
   },
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@keelwerk/client": "workspace:*",
+    "@keelwerk/core": "workspace:*",
+    "@keelwerk/data": "workspace:*",
+    "@testcontainers/postgresql": "12.2.1",
+    "fast-check": "4.10.2"
+  },
   "devDependencies": {
+    "@keelwerk/adapter-postgres": "workspace:*",
+    "@keelwerk/transport-rest": "workspace:*",
     "vitest": "5.0.5"
   }
 }

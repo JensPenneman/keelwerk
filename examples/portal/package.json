@@ -1,0 +1,16 @@
+{
+  "name": "@keelwerk-examples/portal",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The portal example as a project root: its deployment lives in .launchway/, its app in apps/portal.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "dependencies": {
+    "@keelwerk-examples/app-portal": "workspace:*",
+    "@keelwerk/adapter-postgres": "workspace:*",
+    "@keelwerk/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@keelwerk/cli": "workspace:*"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "include": ["src", "migrations"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test-d.ts"],
+  "references": [
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../module-accounts"
+    }
+  ]
+}

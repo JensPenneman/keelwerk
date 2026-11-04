@@ -1,0 +1,40 @@
+{
+  "name": "@keelwerk-examples/app-portal",
+  "version": "0.0.0",
+  "private": true,
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@keelwerk/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@keelwerk/adapter-postgres": "workspace:*",
+    "@keelwerk/client": "workspace:*",
+    "@keelwerk/core": "workspace:*",
+    "@keelwerk/data": "workspace:*",
+    "@keelwerk/module-accounts": "workspace:*",
+    "@keelwerk/module-auth": "workspace:*",
+    "@keelwerk/transport-http": "workspace:*",
+    "@keelwerk/transport-rest": "workspace:*"
+  },
+  "devDependencies": {
+    "@keelwerk/cli": "workspace:*",
+    "@keelwerk/testing": "workspace:*",
+    "vitest": "5.0.5"
+  }
+}

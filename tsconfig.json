@@ -1,17 +1,113 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/biome-config/tsconfig.test.json" },
-    { "path": "packages/core" },
-    { "path": "packages/core/tsconfig.test.json" },
-    { "path": "packages/data" },
-    { "path": "packages/data/tsconfig.test.json" },
-    { "path": "packages/testing" },
-    { "path": "packages/testing/tsconfig.test.json" },
-    { "path": "spikes/write-path" },
-    { "path": "spikes/write-path/tsconfig.test.json" },
-    { "path": "spikes/composition-types" },
-    { "path": "spikes/composition-types/tsconfig.test.json" },
-    { "path": "spikes/composition-types/tsconfig.scripts.json" }
+    {
+      "path": "packages/biome-config/tsconfig.test.json"
+    },
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/core/tsconfig.test.json"
+    },
+    {
+      "path": "packages/data"
+    },
+    {
+      "path": "packages/data/tsconfig.test.json"
+    },
+    {
+      "path": "packages/adapter-postgres"
+    },
+    {
+      "path": "packages/adapter-postgres/tsconfig.test.json"
+    },
+    {
+      "path": "packages/transport-http"
+    },
+    {
+      "path": "packages/transport-http/tsconfig.test.json"
+    },
+    {
+      "path": "packages/transport-rest"
+    },
+    {
+      "path": "packages/transport-rest/tsconfig.test.json"
+    },
+    {
+      "path": "packages/client"
+    },
+    {
+      "path": "packages/client/tsconfig.test.json"
+    },
+    {
+      "path": "packages/cli"
+    },
+    {
+      "path": "packages/cli/tsconfig.test.json"
+    },
+    {
+      "path": "packages/module-accounts"
+    },
+    {
+      "path": "packages/module-accounts/tsconfig.test.json"
+    },
+    {
+      "path": "packages/module-auth"
+    },
+    {
+      "path": "packages/module-auth/tsconfig.test.json"
+    },
+    {
+      "path": "packages/testing"
+    },
+    {
+      "path": "packages/testing/tsconfig.test.json"
+    },
+    {
+      "path": "packages/type-budgets"
+    },
+    {
+      "path": "packages/type-budgets/tsconfig.test.json"
+    },
+    {
+      "path": "examples/portal/apps/portal"
+    },
+    {
+      "path": "examples/portal/apps/portal/tsconfig.test.json"
+    },
+    {
+      "path": "spikes/write-path"
+    },
+    {
+      "path": "spikes/write-path/tsconfig.test.json"
+    },
+    {
+      "path": "spikes/composition-types"
+    },
+    {
+      "path": "spikes/composition-types/tsconfig.test.json"
+    },
+    {
+      "path": "spikes/composition-types/tsconfig.scripts.json"
+    },
+    {
+      "path": "spikes/node26-rechecks"
+    },
+    {
+      "path": "spikes/node26-rechecks/tsconfig.test.json"
+    },
+    {
+      "path": "spikes/prepare-variant"
+    },
+    {
+      "path": "spikes/prepare-variant/tsconfig.test.json"
+    },
+    {
+      "path": "spikes/interpreter-overhead"
+    },
+    {
+      "path": "spikes/interpreter-overhead/tsconfig.test.json"
+    }
   ]
 }
