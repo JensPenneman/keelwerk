@@ -1,0 +1,171 @@
+{
+  "entities": {
+    "library.book": {
+      "events": {},
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "isbn": {
+          "codec": null,
+          "column": "isbn",
+          "constraints": {
+            "maxLength": 17
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "exclusive",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 2,
+          "unique": true
+        },
+        "title": {
+          "codec": null,
+          "column": "title",
+          "constraints": {
+            "maxLength": 200
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": false
+        }
+      },
+      "history": "chain",
+      "mergeState": false,
+      "renames": []
+    }
+  },
+  "format": "keelwerk.snapshot/1",
+  "tables": [
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "tenant_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "created_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "updated_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "archived_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": 1,
+          "field": null,
+          "kind": "integer",
+          "name": "version",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hlc",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hash",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "kw_erased_at",
+          "nullable": true
+        },
+        {
+          "constraints": {
+            "maxLength": 200
+          },
+          "default": null,
+          "field": "title",
+          "kind": "string",
+          "name": "title",
+          "nullable": false
+        },
+        {
+          "constraints": {
+            "maxLength": 17
+          },
+          "default": null,
+          "field": "isbn",
+          "kind": "string",
+          "name": "isbn",
+          "nullable": false
+        }
+      ],
+      "foreignKeys": [],
+      "indexes": [
+        {
+          "columns": ["tenant_id", "isbn"],
+          "method": "btree",
+          "name": "library__book__isbn_uq",
+          "unique": true,
+          "where": {
+            "field": "archivedAt",
+            "op": "isNull",
+            "value": true
+          }
+        }
+      ],
+      "name": "library__book",
+      "primaryKey": ["tenant_id", "id"],
+      "scoped": "tenant"
+    }
+  ],
+  "track": "library",
+  "version": 0
+}

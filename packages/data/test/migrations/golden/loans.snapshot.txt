@@ -1,0 +1,159 @@
+{
+  "entities": {
+    "loans.loan": {
+      "events": {},
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "borrower": {
+          "codec": null,
+          "column": "borrower",
+          "constraints": {},
+          "hidden": false,
+          "indexed": true,
+          "inner": null,
+          "kind": "subject",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": false
+        },
+        "dueOn": {
+          "codec": null,
+          "column": "due_on",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "date",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 2,
+          "unique": false
+        }
+      },
+      "history": "chain",
+      "mergeState": false,
+      "renames": []
+    }
+  },
+  "format": "keelwerk.snapshot/1",
+  "tables": [
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "tenant_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "created_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "updated_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "archived_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": 1,
+          "field": null,
+          "kind": "integer",
+          "name": "version",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hlc",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hash",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "kw_erased_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "borrower",
+          "kind": "subject",
+          "name": "borrower",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "dueOn",
+          "kind": "date",
+          "name": "due_on",
+          "nullable": false
+        }
+      ],
+      "foreignKeys": [],
+      "indexes": [
+        {
+          "columns": ["tenant_id", "borrower"],
+          "method": "btree",
+          "name": "loans__loan__borrower_ix",
+          "unique": false,
+          "where": null
+        }
+      ],
+      "name": "loans__loan",
+      "primaryKey": ["tenant_id", "id"],
+      "scoped": "tenant"
+    }
+  ],
+  "track": "loans",
+  "version": 0
+}

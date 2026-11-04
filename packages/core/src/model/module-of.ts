@@ -81,6 +81,8 @@ export interface ModuleOf<B extends AnyModuleBase, L> {
   readonly lifecycle: MemberOf<L, 'lifecycle'>;
   readonly topics: MemberOf<L, 'topics'>;
   readonly changes: MemberOf<L, 'changes'>;
+  /** Where the module ships its migration tracks; absent for a module without tables of its own (S-08). */
+  readonly migrations?: URL;
   readonly contributes: readonly NormalisedContribution<B, L>[];
   readonly conditional: readonly NormalisedConditional<B, L>[];
 }

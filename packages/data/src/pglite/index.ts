@@ -7,6 +7,7 @@ export { pgliteIdentity } from './pglite-identity.ts';
 export type { PgliteKyselyDialectOptions } from './pglite-kysely-dialect.ts';
 export { pgliteKyselyDialect } from './pglite-kysely-dialect.ts';
 export { PgliteReentrantUnitError } from './pglite-reentrant-unit-error.ts';
+export { pgliteSchemaConnection } from './pglite-schema-connection.ts';
 export type { OpenedPgliteUnit, PgliteUnit, PgliteUnitBase } from './pglite-unit.ts';
 export { pgliteUnit } from './pglite-unit.ts';
 export type { ProvisionApplicationRoleOptions } from './provision-application-role.ts';

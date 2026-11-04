@@ -13,4 +13,6 @@ export interface ModuleLiteral extends Behaviour {
   readonly changes?: Parts;
   readonly effects?: Parts;
   readonly executors?: Parts;
+  /** The directory of the module's migration tracks, `new URL('../migrations/', import.meta.url)` (S-08, section 14.6.1). */
+  readonly migrations?: URL;
 }

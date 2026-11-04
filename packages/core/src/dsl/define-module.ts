@@ -76,6 +76,7 @@ export function defineModule<const B extends AnyModuleBase, const L extends Modu
     lifecycle: literal.lifecycle ?? {},
     topics: literal.topics ?? {},
     changes: literal.changes ?? {},
+    ...(literal.migrations === undefined ? {} : { migrations: literal.migrations }),
     contributes,
     conditional,
   } as unknown as ModuleOf<B, L>;

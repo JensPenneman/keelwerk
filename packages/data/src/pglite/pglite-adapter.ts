@@ -13,6 +13,7 @@ import type {
 import { mapSqlError } from '../sql/map-sql-error.ts';
 import { assertRoleName } from '../sql/postgres/assert-role-name.ts';
 import { beginUnitStatements } from '../sql/postgres/begin-unit-statements.ts';
+import { postgresSchemaOperations } from '../sql/postgres/postgres-schema-operations.ts';
 import { runInSpan } from '../sql/run-in-span.ts';
 import { sqlEntityIndex } from '../sql/sql-entity-index.ts';
 import type { SqlKeyWrapper } from '../sql/sql-key-wrapper.ts';
@@ -20,6 +21,7 @@ import { pgliteCapabilities } from './pglite-capabilities.ts';
 import { pgliteChangeFeed } from './pglite-change-feed.ts';
 import { pgliteIdentity } from './pglite-identity.ts';
 import { PgliteReentrantUnitError } from './pglite-reentrant-unit-error.ts';
+import { pgliteSchemaConnection } from './pglite-schema-connection.ts';
 import { type PgliteUnit, pgliteUnit } from './pglite-unit.ts';
 
 function scopeIdOf(scope: StorageScope, deploymentId: string): string | undefined {
@@ -61,11 +63,11 @@ export interface PgliteAdapterOptions {
 }
 
 /**
- * The adapter as far as WP-22 builds it: connection, capabilities, units with the stores below the
- * event log (`PgliteUnit`), the change feed and identity. WP-31 and WP-36 add the event store and
- * the job store to the unit, WP-23 the schema operations; until then `schema` is absent.
+ * The adapter as far as the work packages so far build it: connection, capabilities, units with the
+ * stores below the event log (`PgliteUnit`), the change feed, identity and the schema operations.
+ * WP-31 and WP-36 add the event store and the job store to the unit.
  */
-export interface PgliteAdapter extends Omit<DataAdapter, 'unit' | 'schema'> {
+export interface PgliteAdapter extends Omit<DataAdapter, 'unit'> {
   unit<T>(
     namespace: NamespaceRef,
     scope: StorageScope,
@@ -112,9 +114,15 @@ export function pgliteAdapter(
     return result;
   };
 
+  const asOwner = async <T>(fn: (database: PGlite) => Promise<T>): Promise<T> => {
+    const db = open();
+    return serialised(async () => fn(db));
+  };
+
   return {
     placementId: options.placementId ?? 'pglite',
     feed: feed.source,
+    schema: postgresSchemaOperations(pgliteSchemaConnection(asOwner), { role }),
     async connect(): Promise<AdapterCapabilities> {
       if (database === undefined) {
         database = options.dataDir === undefined ? new PGlite() : new PGlite(options.dataDir);
@@ -159,10 +167,7 @@ export function pgliteAdapter(
       const db = open();
       return serialised(async () => pgliteIdentity(db));
     },
-    async asOwner<T>(fn: (database: PGlite) => Promise<T>): Promise<T> {
-      const db = open();
-      return serialised(async () => fn(db));
-    },
+    asOwner,
     async unit<T>(
       namespace: NamespaceRef,
       scope: StorageScope,

@@ -1,0 +1,21 @@
+import type { MigrationFile } from '@keelwerk/core';
+
+export const migration: MigrationFile = {
+  id: '0001-initial',
+  steps: [
+    {
+      column: {
+        constraints: {},
+        default: null,
+        field: 'onLoan',
+        kind: 'boolean',
+        name: 'on_loan',
+        nullable: true,
+      },
+      entity: 'library.book',
+      field: 'onLoan',
+      op: 'addColumn',
+    },
+  ],
+  track: 'loans->library',
+};

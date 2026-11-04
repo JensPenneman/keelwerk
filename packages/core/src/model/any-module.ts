@@ -61,4 +61,5 @@ export interface AnyModule {
   readonly services?: { readonly [name: string]: object };
   readonly contributes?: readonly AnyNormalisedContribution[];
   readonly conditional?: readonly AnyNormalisedConditional[];
+  readonly migrations?: URL;
 }

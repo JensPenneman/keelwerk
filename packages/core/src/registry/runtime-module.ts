@@ -74,6 +74,7 @@ export interface RuntimeModule {
   readonly lifecycle: PartMap;
   readonly contributes: readonly RuntimeContribution[];
   readonly conditional: readonly RuntimeConditional[];
+  readonly migrations?: URL;
 }
 
 /** Reads a module value as the runtime module it is: `defineModule` is the only producer. */
