@@ -3,13 +3,19 @@ import { PGlite } from '@electric-sql/pglite';
 import type {
   AdapterCapabilities,
   AdapterEnvironment,
+  Clock,
   DataAdapter,
+  EntityDescriptor,
   NamespaceRef,
   StorageScope,
   UnitOptions,
 } from '@keelwerk/core';
+import { mapSqlError } from '../sql/map-sql-error.ts';
 import { assertRoleName } from '../sql/postgres/assert-role-name.ts';
 import { beginUnitStatements } from '../sql/postgres/begin-unit-statements.ts';
+import { runInSpan } from '../sql/run-in-span.ts';
+import { sqlEntityIndex } from '../sql/sql-entity-index.ts';
+import type { SqlKeyWrapper } from '../sql/sql-key-wrapper.ts';
 import { pgliteCapabilities } from './pglite-capabilities.ts';
 import { pgliteChangeFeed } from './pglite-change-feed.ts';
 import { pgliteIdentity } from './pglite-identity.ts';
@@ -29,6 +35,8 @@ function scopeIdOf(scope: StorageScope, deploymentId: string): string | undefine
   }
 }
 
+const systemClock: Clock = { now: () => Temporal.Now.instant() };
+
 /** How `pgliteAdapter` opens its database. */
 export interface PgliteAdapterOptions {
   /** A directory that survives restarts (`.keelwerk/dev-db`, S-47); omitted: in memory. */
@@ -41,12 +49,21 @@ export interface PgliteAdapterOptions {
    * microtask, so it surfaces as an uncaught error without rejecting the committed unit.
    */
   readonly onAfterCommitError?: (error: unknown) => void;
+  /** The time source of bucket refills and key timestamps; default: the system clock. */
+  readonly clock?: Clock;
+  /**
+   * Finds the descriptor of a relation's target by entity ref. The adapter also learns every
+   * descriptor a store call names, so this is needed only for a target no call has named yet.
+   */
+  readonly entities?: (ref: string) => EntityDescriptor | undefined;
+  /** Wraps the key material of `kw_subject_keys` and `kw_value_keys`; without it the key stores refuse. */
+  readonly keyWrapper?: SqlKeyWrapper;
 }
 
 /**
- * The adapter as far as WP-14 builds it: connection, capabilities, units without stores, the
- * change feed and identity. WP-22, WP-31 and WP-36 add the stores to the unit, WP-23 the schema
- * operations; until then `unit` hands out a `PgliteUnit` (the alias WP-22 redefines in `pglite-unit.ts`) and `schema` is absent.
+ * The adapter as far as WP-22 builds it: connection, capabilities, units with the stores below the
+ * event log (`PgliteUnit`), the change feed and identity. WP-31 and WP-36 add the event store and
+ * the job store to the unit, WP-23 the schema operations; until then `schema` is absent.
  */
 export interface PgliteAdapter extends Omit<DataAdapter, 'unit' | 'schema'> {
   unit<T>(
@@ -69,9 +86,11 @@ export interface PgliteAdapter extends Omit<DataAdapter, 'unit' | 'schema'> {
  * in-process change feed afterwards.
  */
 export function pgliteAdapter(
-  env: Pick<AdapterEnvironment, 'deploymentId'>,
+  env: Pick<AdapterEnvironment, 'deploymentId'> & Partial<Pick<AdapterEnvironment, 'tracer'>>,
   options: PgliteAdapterOptions = {},
 ): PgliteAdapter {
+  const entities = sqlEntityIndex(options.entities);
+  const clock = options.clock ?? systemClock;
   const role = assertRoleName(options.role ?? 'kw_app');
   const inside = new AsyncLocalStorage<true>();
   const feed = pgliteChangeFeed();
@@ -160,23 +179,35 @@ export function pgliteAdapter(
         ...(unitOptions.isolation === undefined ? {} : { isolation: unitOptions.isolation }),
         ...(unitOptions.timeoutMs === undefined ? {} : { timeoutMs: unitOptions.timeoutMs }),
       });
-      const { result, afterCommit } = await serialised(async () => {
-        unitOptions.signal?.throwIfAborted();
-        await db.query(begun.begin);
-        try {
-          for (const statement of begun.settings) {
-            await db.query(statement.sql, [...statement.parameters]);
-          }
-          const opened = pgliteUnit(db, namespace, scope, readOnly);
-          const value = await fn(opened.unit);
-          unitOptions.signal?.throwIfAborted();
-          await db.query('commit');
-          return { result: value, afterCommit: opened.takeAfterCommit() };
-        } catch (error) {
-          await db.query('rollback');
-          throw error;
-        }
-      });
+      const { result, afterCommit } = await serialised(async () =>
+        runInSpan(
+          env.tracer,
+          'keelwerk.unit',
+          { 'keelwerk.scope.level': scope.level, 'keelwerk.unit.read_only': readOnly },
+          async () => {
+            unitOptions.signal?.throwIfAborted();
+            await db.query(begun.begin);
+            try {
+              for (const statement of begun.settings) {
+                await db.query(statement.sql, [...statement.parameters]);
+              }
+              const opened = pgliteUnit(db, namespace, scope, readOnly, {
+                deploymentId: env.deploymentId,
+                clock,
+                entities,
+                ...(options.keyWrapper === undefined ? {} : { keyWrapper: options.keyWrapper }),
+              });
+              const value = await fn(opened.unit);
+              unitOptions.signal?.throwIfAborted();
+              await db.query('commit');
+              return { result: value, afterCommit: opened.takeAfterCommit() };
+            } catch (error) {
+              await db.query('rollback');
+              throw mapSqlError(error);
+            }
+          },
+        ),
+      );
       const scopeId = scopeIdOf(scope, env.deploymentId);
       if (!readOnly && scopeId !== undefined) feed.publish(namespace.id, [scopeId]);
       // The unit has committed: a callback that throws is reported, never allowed to reject the

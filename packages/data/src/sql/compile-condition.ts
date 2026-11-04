@@ -6,6 +6,7 @@ import type { EntityTable } from './entity-table.ts';
 import { entityTable } from './entity-table.ts';
 import { falseLiteral } from './false-literal.ts';
 import { malformedCondition } from './malformed-condition.ts';
+import { throughHops } from './through-hops.ts';
 import { trueLiteral } from './true-literal.ts';
 import type { DialectCodecs } from './value-codec.ts';
 import { wrapPredicate } from './wrap-predicate.ts';
@@ -52,19 +53,21 @@ function steps(
         relation: node.relation,
       });
     }
-    const entity = context.entities(relation.target);
-    if (entity === undefined) {
-      throw malformedCondition(
-        `the relation ${segment} of ${owner.entity.ref} targets the unknown ${relation.target}`,
-        {
-          entity: owner.entity.ref,
-          relation: node.relation,
-        },
-      );
+    for (const hop of throughHops(relation)) {
+      const entity = context.entities(hop.target);
+      if (entity === undefined) {
+        throw malformedCondition(
+          `the relation ${segment} of ${owner.entity.ref} targets the unknown ${hop.target}`,
+          {
+            entity: owner.entity.ref,
+            relation: node.relation,
+          },
+        );
+      }
+      const target = entityTable(entity, context.root, `q${depth + path.length + 1}`);
+      path.push({ owner, target, relation: hop.relation });
+      owner = target;
     }
-    const target = entityTable(entity, context.root, `q${depth + path.length + 1}`);
-    path.push({ owner, target, relation });
-    owner = target;
   }
   return path;
 }

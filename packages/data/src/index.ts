@@ -28,12 +28,20 @@ export type {
   PostgresStatement,
 } from './sql/postgres/begin-unit-statements.ts';
 export { beginUnitStatements } from './sql/postgres/begin-unit-statements.ts';
+export { commandReceiptTable } from './sql/postgres/command-receipt-table.ts';
 export { frameworkTablesDdl } from './sql/postgres/framework-tables.ts';
 export { postgresCodecs } from './sql/postgres/postgres-codecs.ts';
 export { quantifierSql } from './sql/postgres/quantifier-sql.ts';
 export { rlsPoliciesDdl } from './sql/postgres/rls-policies.ts';
+export { runInSpan } from './sql/run-in-span.ts';
 export type { ScopedTable, ScopingOptions } from './sql/scoping-plugin.ts';
 export { ScopingPlugin } from './sql/scoping-plugin.ts';
 export type { SqlDb } from './sql/sql-db.ts';
+export type { SqlEntityIndex } from './sql/sql-entity-index.ts';
+export { sqlEntityIndex } from './sql/sql-entity-index.ts';
+export type { SqlKeyWrapper } from './sql/sql-key-wrapper.ts';
+export type { SqlSession } from './sql/sql-session.ts';
+export type { SqlUnit, SqlUnitParts } from './sql/sql-unit.ts';
+export { sqlUnit } from './sql/sql-unit.ts';
 export type { DialectCodecs, ValueCodec } from './sql/value-codec.ts';
 export { version } from './version.ts';

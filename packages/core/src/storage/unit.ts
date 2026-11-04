@@ -2,6 +2,7 @@ import type { EventStore } from '../events/event-store.ts';
 import type { BucketStore } from './bucket-store.ts';
 import type { JobStore } from './job-store.ts';
 import type { NamespaceRef } from './namespace-ref.ts';
+import type { NestedUnitOptions } from './nested-unit-options.ts';
 import type { ReceiptStore } from './receipt-store.ts';
 import type { RowStore } from './row-store.ts';
 import type { ScopeKeyStore } from './scope-key-store.ts';
@@ -35,8 +36,11 @@ export interface Unit {
   readonly serials: SerialStore;
   /** Wrapped deployment, backend and tenant keys; present on deployment-scope units only (S-55). */
   readonly scopeKeys?: ScopeKeyStore;
-  /** A savepoint: rolls back to it when `fn` throws, then rethrows. */
-  nested<T>(fn: (u: Unit) => Promise<T>): Promise<T>;
+  /**
+   * A savepoint: rolls back to it when `fn` throws, then rethrows. A tenant unit may pass
+   * `{ as: <backend scope>, readOnly: true }` to read backend data; no other `as` is allowed.
+   */
+  nested<T>(fn: (u: Unit) => Promise<T>, options?: NestedUnitOptions): Promise<T>;
   /** In-process work after a successful commit, such as waking the local live hub. Never I/O that must be atomic. */
   afterCommit(fn: () => void): void;
 }

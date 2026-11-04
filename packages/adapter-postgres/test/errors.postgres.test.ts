@@ -131,12 +131,15 @@ describe('error mapping', () => {
 });
 
 describe('the adapter entry points', () => {
-  test('unit is not available before its stores are wired', async () => {
-    const failure = await adapter
-      .unit(testNamespace, scopeA, async () => 1)
-      .catch((e: unknown) => e);
-    expect(isKeelwerkError(failure)).toBe(true);
-    expect(failure).toMatchObject({ kind: 'unsupported' });
+  test('a unit runs; the event store and the job store are not available until they are wired', async () => {
+    expect(await adapter.unit(testNamespace, scopeA, async () => 1)).toBe(1);
+    for (const store of ['events', 'jobs'] as const) {
+      const failure = await adapter
+        .unit(testNamespace, scopeA, async (u) => u[store])
+        .catch((e: unknown) => e);
+      expect(isKeelwerkError(failure)).toBe(true);
+      expect(failure).toMatchObject({ kind: 'unsupported' });
+    }
   });
 
   test('a closed adapter is unavailable and unhealthy', async () => {

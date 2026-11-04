@@ -2,12 +2,13 @@ import type { PGlite } from '@electric-sql/pglite';
 import type { NamespaceRef, StorageScope } from '@keelwerk/core';
 import { Kysely } from 'kysely';
 import type { SqlDb } from '../sql/sql-db.ts';
+import type { SqlUnit, SqlUnitParts } from '../sql/sql-unit.ts';
+import { sqlUnit } from '../sql/sql-unit.ts';
 import { pgliteKyselyDialect } from './pglite-kysely-dialect.ts';
 
 /**
- * A unit on PGlite before the stores: the transaction is open, the role and the scope settings are
- * in force, and the Kysely handle runs inside it. WP-22, WP-31 and WP-36 add the stores
- * (`rows`, `events`, `jobs` and the rest of `Unit`) over `db`.
+ * A session on PGlite: the transaction is open, the role and the scope settings are in force, and
+ * the Kysely handle runs inside it. The shared SQL unit is built over it (S-10).
  */
 export interface PgliteUnitBase {
   readonly namespace: NamespaceRef;
@@ -22,14 +23,14 @@ export interface PgliteUnitBase {
 }
 
 /**
- * The unit type `PgliteAdapter.unit` hands to its callback. It is the base today; the package that
- * adds the stores (WP-22) redefines it here, so `pglite-adapter.ts` stays as it is.
+ * The unit type `PgliteAdapter.unit` hands to its callback: the shared SQL unit with the stores
+ * below the event log (WP-22). WP-31 and WP-36 add the event store and the job store.
  */
-export type PgliteUnit = PgliteUnitBase;
+export type PgliteUnit = SqlUnit;
 
 /** A unit and the callbacks to run once it has committed. */
 export interface OpenedPgliteUnit {
-  readonly unit: PgliteUnitBase;
+  readonly unit: PgliteUnit;
   /** Takes the callbacks registered so far, for the adapter to run after `commit`. */
   takeAfterCommit(): readonly (() => void)[];
 }
@@ -43,13 +44,14 @@ export function pgliteUnit(
   namespace: NamespaceRef,
   scope: StorageScope,
   readOnly: boolean,
+  parts: SqlUnitParts,
 ): OpenedPgliteUnit {
   const callbacks: (() => void)[] = [];
   let savepoints = 0;
   const db = new Kysely<SqlDb>({
     dialect: pgliteKyselyDialect(database, { transactions: 'refuse' }),
   });
-  const unit: PgliteUnitBase = {
+  const session: PgliteUnitBase = {
     namespace,
     scope,
     readOnly,
@@ -60,7 +62,7 @@ export function pgliteUnit(
       const mark = callbacks.length;
       await database.query(`savepoint ${name}`);
       try {
-        const result = await fn(unit);
+        const result = await fn(session);
         await database.query(`release savepoint ${name}`);
         return result;
       } catch (error) {
@@ -74,5 +76,5 @@ export function pgliteUnit(
       callbacks.push(fn);
     },
   };
-  return { unit, takeAfterCommit: () => callbacks.splice(0) };
+  return { unit: sqlUnit(session, parts), takeAfterCommit: () => callbacks.splice(0) };
 }

@@ -24,7 +24,7 @@ export function pgliteCapabilities(): AdapterCapabilities {
     changeFeed: 'notify',
     rowLevelSecurity: true,
     rowLocks: { skipLocked: true, noWait: true },
-    search: 'tsvector',
+    search: false,
     positionPaging: { maxOffset: 10_000 },
     jobs: 'single-writer',
     broadcast: false,

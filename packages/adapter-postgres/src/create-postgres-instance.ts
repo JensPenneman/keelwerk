@@ -2,6 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type {
   AdapterEnvironment,
   ChangeFeedSource,
+  Clock,
   NamespaceRef,
   PlacementConfig,
   SchemaOperations,
@@ -10,6 +11,7 @@ import type {
 } from '@keelwerk/core';
 import { errors } from '@keelwerk/core';
 import type { SqlDb } from '@keelwerk/data';
+import { sqlEntityIndex } from '@keelwerk/data';
 import { Kysely, PostgresDialect } from 'kysely';
 import type pg from 'pg';
 import { checkRole } from './check-role.ts';
@@ -72,6 +74,8 @@ export function createPostgresInstance(
     if (connection === undefined) throw errors.unavailable('the postgres adapter is not connected');
     return connection;
   };
+  const entities = sqlEntityIndex(options.entities);
+  const clock: Clock = options.clock ?? { now: () => Temporal.Now.instant() };
   const request = (
     namespace: NamespaceRef,
     scope: StorageScope,
@@ -83,6 +87,13 @@ export function createPostgresInstance(
     options: unitOptions,
     deploymentId: env.deploymentId,
     log: env.log,
+    tracer: env.tracer,
+    parts: {
+      deploymentId: env.deploymentId,
+      clock,
+      entities,
+      ...(options.keyWrapper === undefined ? {} : { keyWrapper: options.keyWrapper }),
+    },
   });
   return {
     placementId: placement.id,
