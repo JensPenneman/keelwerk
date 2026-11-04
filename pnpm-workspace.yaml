@@ -32,3 +32,6 @@ overrides:
 # thread-stream 4.2.1 (via pino) was published on 2026-11-02, inside the 14-day window; 4.2.0 dates from 2026-05-14.
 # Drop this entry once 4.2.1 is older than two weeks.
   'thread-stream@4.2.1': 4.2.0
+# undici below 7.30.1 carries eight advisories and reaches the workspace through @scalar/openapi-parser
+# (a development dependency of transport-rest); 7.30.1 dates from 2026-10-15.
+  'undici@>=7.0.0 <7.30.1': 7.30.1
