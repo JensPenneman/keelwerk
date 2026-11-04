@@ -336,6 +336,7 @@ export { renderTypeId } from './ids/render-type-id.ts';
 export type { RichText } from './ids/rich-text.ts';
 export type { SecretRef } from './ids/secret-ref.ts';
 export type { SubjectId } from './ids/subject-id.ts';
+export { runRead } from './interpreter/run-read.ts';
 export type { BatchRequest } from './invoker/batch-request.ts';
 export type { BatchResponse } from './invoker/batch-response.ts';
 export type { CapabilitiesDocument } from './invoker/capabilities-document.ts';
