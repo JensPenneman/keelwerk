@@ -91,8 +91,7 @@
     },
     "packages/client": {
       "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@keelwerk/core", "@keelwerk/testing", "@keelwerk/transport-http"]
+      "project": ["src/**/*.ts"]
     },
     "packages/data": {
       "entry": ["src/**/*.test-d.ts"],

@@ -1,1 +1,18 @@
+export type { AppClient } from './app-client.ts';
+export type { ClientErrorInit } from './client-error.ts';
+export { ClientError } from './client-error.ts';
+export { createRemoteClient } from './create-remote-client.ts';
+export { createRetryPolicy } from './create-retry-policy.ts';
+export type { DeclaredError, DeclaredErrorOf } from './declared-error-of.ts';
+export type { EventOf } from './event-of.ts';
+export type { InputOf } from './input-of.ts';
+export type { InvokableRef } from './invokable-ref.ts';
+export type { InvokeOptions } from './invoke-options.ts';
+export { isReceipt } from './is-receipt.ts';
+export type { Prefer } from './prefer.ts';
+export type { RemoteClientOptions } from './remote-client-options.ts';
+export type { ResultOf } from './result-of.ts';
+export type { RetryPolicy } from './retry-policy.ts';
+export type { SubscriptionRef } from './subscription-ref.ts';
+export type { TaxonomyError } from './taxonomy-error.ts';
 export { version } from './version.ts';
