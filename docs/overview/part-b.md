@@ -404,7 +404,7 @@ $ keelwerk generate --check && keelwerk doctor --layout             # drift, pla
 - Q19: `Temporal` from the start, native in Node 26 (19b).
 - Q20: FSL-1.1-ALv2, Licensor Jens Penneman, `LICENSE.md` from the first commit.
 - Q48: every app in its own repository on exact-pinned 0.x pre-releases; beta until Jens declares it stable (48c).
-- Q90: each app repository carries `.launchway/`; the edit that writes it into the specification is pending (90c).
+- Q90: each app repository carries `.launchway/`, which the rebuilt Launchway deploys from (90c; architecture.md sections 4.6, 16.9.1, 17.3.1 and 23.1).
 
 **Read more.** Sections 13.1, 13.2, 13.8, 13.9, 13.12, 16.9.8, 22, 23.1 to 23.14; ADRs 0013, 0024; decision register section K2.
 
@@ -421,7 +421,7 @@ $ keelwerk generate --check && keelwerk doctor --layout             # drift, pla
 export const ingestOverland = defineCommand(trackingBase, {
   input: overlandUpload,                                // receiver input: path's device id, token, points (G8)
   output: shape({ result: field.enum(['ok']) }),
-  principal: 'service',                                 // tracking.overland, after the receiver's verify (16.5.8)
+  principal: 'service',                                 // tracking.overland, the receiver's one principal; verify attaches the device id as a claim (16.5.8)
   execution: 'sync',                                    // the phone deletes its batch only after "ok"
   *decide(input, ctx) {
     const device = yield* ctx.load.tracking.device.byId(input.deviceId)

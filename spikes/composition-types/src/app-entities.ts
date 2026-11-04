@@ -100,7 +100,7 @@ export type Row<P, Ref extends string> = Ref extends `${infer M}.${infer E}`
     : never
   : never;
 
-/** A row as clients receive it. Section 8.1 writes `Readable<R>`; the maskable set needs the fields, so it takes the app and reference. */
+/** A row as clients receive it (section 8.1): computed from the fields, because maskability is a field flag a row type has lost. */
 export type Readable<P, Ref extends string> = Ref extends `${infer I}.${infer E}`
   ? ReadableRowAt<ModulesOf<P>, I, E>
   : never;

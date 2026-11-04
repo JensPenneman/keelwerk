@@ -9,7 +9,7 @@ const accountsBaseDef = defineModuleBase({
   id: 'accounts',
   version: '0.1.0',
   config: shape({ allowSelfRegistration: field.boolean().default(false) }),
-  extensionPoints: { identityProviders: extensionPoint<IdentityProvider>({ mode: 'set' }) },
+  extensionPoints: { identityProviders: extensionPoint.set<IdentityProvider>() },
   entities: { profile },
 });
 

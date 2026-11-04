@@ -1,7 +1,7 @@
 # 7. One event log per namespace with commit-ordered positions per scope; entity state as inline projections; async reactions as keyed jobs
 
 Date: 2026-10-11 (revised after review the same day; revised in place on 2026-10-28 for decision
-35b)
+35b, and on 2026-11-04 with the measurements of the write-path spike)
 
 ## Status
 
@@ -59,8 +59,10 @@ exercise lock waits.
    integers in commit order within the scope, without gaps at commit, the same on every adapter.
    Tenants never wait on each other's commit tails, and positions disclose nothing across tenants.
    An asynchronous sequencer per scope is the upgrade path for a tenant that outgrows this, with
-   the same stored format. The ceiling and the absence of cross-tenant waiting are measured on a
-   networked PostgreSQL before M1.
+   the same stored format. The commit tail is one statement (counter update, event insert and the
+   lane's `enqueued` counter), so the counter's lock is held for one round trip plus the flush. The
+   ceiling and the absence of cross-tenant waiting were measured on PostgreSQL 18.6 on 2026-11-04
+   (Consequences).
 3. **Partitions and serials.** An entity may declare an immutable `partition` field; its events
    carry the value, and heads and tokens are per scope, type and partition. `field.serial({ per })`
    allocates per-partition sequences under a row lock held until commit.
@@ -135,11 +137,39 @@ exercise lock waits.
   conformance test.
 - A chain rewritten or rewound inside the placement, even with consistent links, is found against
   the anchors, at the cost of one ledger append per scope and cadence; an anchor pins the stream
-  that held the scope's head, and whether anchors should also digest every stream head of a scope
-  is an open question of architecture.md section 26.3.
-- Appending units of one tenant serialise for the length of their commit tail, which caps a single
-  tenant at roughly one appending transaction per write-ahead-log flush. High-volume records belong
-  in streams; the sequencer remains available.
+  that held the scope's head and carries the scope's position and hash only (decision 89a).
+- Appending units of one tenant serialise for the length of their commit tail. The ceiling is set
+  per round trip between the writers and the database, not per write-ahead-log flush: about 1,000
+  to 1,400 appending units per second per scope within 0.2 ms of the database, 110 to 150 at
+  2.8 ms. The adapter keeps the database within about 1 ms of the writers, or the deployment plans
+  the sequencer for the scope; beyond about four writers a scope only queues. High-volume records
+  belong in streams.
+- **Measured** (2026-11-04, write-path spike, `spikes/write-path/REPORT.md`; PostgreSQL 18.6, every
+  unit under forced row-level security as a role without `BYPASSRLS`):
+  - Writers of one tenant never waited on another tenant's tail: no cross-scope lock wait in any
+    sample; with one tenant's counter row held for 1.5 seconds the other seven kept a p95 of 13.8 to
+    15.8 ms; eight tenants committed 2.13 to 2.23 times the units per second of one under the same
+    16 writers.
+  - The tail as two statements held the counter lock for two round trips plus the flush (p50 0.45
+    to 0.83 ms at a 0.2 ms round trip, 6.3 to 7.2 ms at 2.8 ms); as one statement it held 0.25 to
+    0.63 ms, and at 2.8 ms a scope committed 147 instead of 110 units per second. From 4 to 16
+    writers one scope went from 1,170 to 1,035 units per second while its p95 rose from 5 to 42 ms.
+  - The coalescing notifier left writers untouched (2,240 against 2,318 units per second without
+    wake-ups, within the run-to-run range); `NOTIFY` inside the writer cost 34 % of the throughput
+    and doubled the tail's hold, which item 11 already excludes.
+  - Positioned loads at `READ COMMITTED` cost 0.06 to 0.07 ms per load, but a locked load whose
+    position came from a subselect in the locking statement recorded a stale position in 100 of
+    100 commits on a hot row: after a lock wait the row is the newest version while the subselect
+    keeps the statement's snapshot. A locked load's position is therefore read after the lock is
+    held, from the first statement the unit sends after it (architecture.md sections 7.9.4 and
+    15.1.6).
+  - One `REPEATABLE READ` snapshot per decision does not work with the per-scope counter: every
+    appending unit updates the counter at its tail, so 36 to 77 % of units failed after three
+    retries, at 99 to 200 units per second against 337 to 843 at `READ COMMITTED`. Commands stay at
+    `READ COMMITTED` with positioned loads.
+  - Row-level security policies cast `nullif(current_setting('keelwerk.tenant_id', true),
+    '')::uuid`: a pooled connection that ran a tenant unit keeps the setting as `''`, and `''::uuid`
+    raises (architecture.md section 14.3.7).
 - Every entity has live updates and `changes`, read models are entities, and anything can be rebuilt
   from the log, including fields of contributors that are currently switched off.
 - Reactions behave like the jobs the platforms need (lanes, debounced mirrors, retries for days)

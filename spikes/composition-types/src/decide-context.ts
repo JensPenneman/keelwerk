@@ -7,6 +7,7 @@ import type { Id, SecretRef } from './id.ts';
 import type { LoadsOf } from './loads-of.ts';
 import type { EntityNameOf, OwnEntityValue } from './module-rows.ts';
 import type { PrincipalKind, PrincipalOf } from './principal.ts';
+import type { PrincipalRefOf } from './principal-ref-of.ts';
 import type { Request } from './request.ts';
 import type { ServicesOf } from './services-of.ts';
 import type { Shape } from './shape.ts';
@@ -99,12 +100,15 @@ export type EventDraftsOf<B, E extends string> = [E] extends [never]
       ) => Draft;
     };
 
-/** `ctx.extensions`: the values filled into the module's own extension points. */
+/** `ctx.extensions`: the values filled into the module's own extension points; a `single` point reads as one value. */
 export type ExtensionsOf<B> = {
   readonly [K in keyof ExtensionPointsOf<B>]: ExtensionPointsOf<B>[K] extends ExtensionPoint<
-    infer T
+    infer T,
+    infer M
   >
-    ? readonly T[]
+    ? M extends 'single'
+      ? T
+      : readonly T[]
     : never;
 };
 
@@ -122,7 +126,7 @@ export interface DecideContext<
   E extends string = never,
 > {
   readonly scope: Scope;
-  readonly principal: PrincipalOf<Pk>;
+  readonly principal: PrincipalOf<Pk, PrincipalRefOf<B>>;
   readonly ability: Ability;
   readonly config: ConfigOf<B>;
   readonly clock: Clock;

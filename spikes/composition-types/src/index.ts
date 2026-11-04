@@ -97,7 +97,13 @@ export type { EntityChange } from './entity-change.ts';
 export { env } from './env.ts';
 export { errors } from './errors.ts';
 export type { Egress, ExecutorBlobs, ExecutorContext } from './executor-context.ts';
-export { type ExtensionMode, type ExtensionPoint, extensionPoint } from './extension-point.ts';
+export {
+  type ExtensionMode,
+  type ExtensionPoint,
+  type ExtensionPointFactory,
+  type ExtensionPointOptions,
+  extensionPoint,
+} from './extension-point.ts';
 export {
   type AbsoluteRef,
   type FieldDef,
@@ -140,6 +146,7 @@ export type {
   SystemPrincipal,
   UserPrincipal,
 } from './principal.ts';
+export type { PrincipalRefOf } from './principal-ref-of.ts';
 export type { ReadContext } from './read-context.ts';
 export { type Relation, type RelationKeys, type RelationTo, relation } from './relation.ts';
 export type { Gen, Pending, Request, RequestKind } from './request.ts';

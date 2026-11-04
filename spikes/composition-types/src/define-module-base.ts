@@ -126,6 +126,7 @@ export interface AnyModuleBase {
     readonly sql?: 'postgres' | 'mysql' | 'sqlite';
   };
   readonly extensionPoints?: { readonly [name: string]: ExtensionPoint<unknown> };
+  readonly principalRef?: Shape;
   readonly entities?: { readonly [name: string]: AnyEntity };
   readonly streams?: { readonly [name: string]: object };
   readonly flags?: { readonly [name: string]: object };

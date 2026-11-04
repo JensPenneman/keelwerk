@@ -1,10 +1,12 @@
 /**
  * keelwerk public API sketch, as seen by an application author.
- * Date: 2026-10-28 (first version 2026-10-08; rewritten in the literal form on 2026-10-24, in the
- * strict model of decision 50a on 2026-10-25, and for the decisions of 2026-10-26 to 2026-10-28:
+ * Date: 2026-11-04 (first version 2026-10-08; rewritten in the literal form on 2026-10-24, in the
+ * strict model of decision 50a on 2026-10-25, for the decisions of 2026-10-26 to 2026-10-28:
  * one rule per file (60b), the generated manifest (59b), the Maybe accessor (32b) and Temporal
- * instants (19b)). Status: target for the spike of roadmap M0, which type-checks it as the
- * acceptance test of the DSL; it does not compile against anything yet.
+ * instants (19b), and for the M0 spike outcomes of 2026-11-04 (register section M): typed principal
+ * refs, `SubjectId`, `extensionPoint.set`, `continueWith`). Status: the acceptance test of the DSL;
+ * the composition-types spike of roadmap M0 type-checks it (`pnpm --filter
+ * @keelwerk/spike-composition-types sketch`) with no errors.
  *
  * It shows: an accounts module, an authentication module that contributes to accounts and adapts
  * itself when accounts (or a live module) is present, a small module with an external effect, two
@@ -69,6 +71,7 @@ import {
   type ModuleBaseType,
   type ModuleType,
   type Row,
+  type SubjectId,
 } from '@keelwerk/core'
 import { ledgerFile } from '@keelwerk/core/ledger'
 import { postgresAdapter } from '@keelwerk/adapter-postgres'
@@ -125,7 +128,7 @@ const accountsBaseDef = defineModuleBase({
     allowSelfRegistration: field.boolean().default(false),
   }),
   extensionPoints: {
-    identityProviders: extensionPoint<IdentityProvider>({ mode: 'set' }),
+    identityProviders: extensionPoint.set<IdentityProvider>(),
   },
   entities: { profile },
 })
@@ -306,6 +309,7 @@ const authBaseDef = defineModuleBase({
     sessionAbsoluteDays: field.integer({ min: 1 }).default(30),
     reauthenticateWithinMinutes: field.integer({ min: 1 }).default(10),
   }),
+  principalRef: shape({ credentialId: field.ref.own('credential'), sessionId: field.ref.own('session') }), // what auth's resolvers put into a principal's ref (section 8.5)
   entities: { credential, session },
   contributions: { toAccounts },
   conditions: { whenAccounts, whenLive },
@@ -358,7 +362,7 @@ const logout = defineCommand(authBase, {
   execution: 'sync',
   hints: { http: { cookie: { clear: { name: '__Host-keelwerk_session' } } } },
   decide: (_input, ctx) => {
-    const sessionId = ctx.principal.ref?.credentialId
+    const sessionId = ctx.principal.ref?.sessionId // Id<'auth.session'>: auth's principalRef types the ref of principals its resolvers resolved
     return sessionId ? [ctx.write.auth.session.update(sessionId, { revokedAt: ctx.clock.now() })] : []
   },
 })
@@ -609,7 +613,7 @@ const notify = defineCommand(hooksBase, {
     const body = JSON.stringify({ id, event: input.event, payload: input.payload })
     return {
       events: [ctx.write.hooks.delivery.create({ id, event: input.event, body })],
-      effects: [post({ url: ctx.config.endpoint, signingKey: ctx.config.signingKey, body }, { then: recordOutcome, with: { id } })],
+      effects: [post({ url: ctx.config.endpoint, signingKey: ctx.config.signingKey, body }, { continueWith: recordOutcome, with: { id } })],
       result: { deliveryId: id },
     }
   },
@@ -691,7 +695,7 @@ export type DirectoryProfile = Row<Directory, 'accounts.profile'>
 //   the same without lastLoginAt and emailVerifiedAt; `credentials` and `changePassword` do not exist.
 export type PortalCredential = Row<Portal, 'auth.credential'>
 //   has `profileId?: Id<'accounts.profile'> | undefined` because accounts is selected; no verifier (hidden).
-// Clients and transports read rows as Readable<Row>: only the maskable fields (email, lastLoginAt) are optional.
+// Clients and transports read rows as Readable<Portal, 'accounts.profile'>: only the maskable fields (email, lastLoginAt) are optional.
 
 // ============================================================================
 // 4. One deployment hosts both apps; backends and tenants are created at runtime.
@@ -753,6 +757,6 @@ declare const DUMMY_VERIFIER: string
 declare function passwordProvider(own: unknown): IdentityProvider
 declare function isRecentlyAuthenticated(ctx: unknown): Gen<boolean>
 declare function revokeOtherSessions(ctx: unknown): Gen<readonly Draft[]>
-declare function asSubject(profileId: Id<'accounts.profile'>): string
-declare function profileIdOf(subject: string): Id<'accounts.profile'> | null
+declare function asSubject(profileId: Id<'accounts.profile'>): SubjectId
+declare function profileIdOf(subject: SubjectId): Id<'accounts.profile'> | null
 declare function signHmacSha256(key: string, body: string): string

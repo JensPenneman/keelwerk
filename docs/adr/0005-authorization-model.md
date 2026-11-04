@@ -98,7 +98,7 @@ The review of 2026-10-11 found that the first version of this decision failed it
    reason.
 7. Field masks govern only fields declared `.maskable()`; only those may appear in the field lists
    of read rules and of runtime rule sources, so every other field keeps its declared type in
-   `Readable<R>` and in client types. Hidden fields never appear in rules.
+   `Readable<App, 'module.entity'>` and in client types. Hidden fields never appear in rules.
 8. Principals are a discriminated union resolved by ordered resolvers and enriched by a set of
    enrichers, once per session; the plan is memoised per invocation only. Jobs and receipts store a
    principal reference that is resolved again when the job runs.

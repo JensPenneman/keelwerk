@@ -69,7 +69,7 @@ await operator.invoke('core.tenant.create', { backendId: backend.id, name: 'Jens
 - `Q1` The compiled catalogue (a): per-backend variation through configuration and flags; development always has the exact types of the app being built.
 - `Q2` Hard dependencies stay (a): a module switches off together with the modules that require it.
 - `Q48` Own repositories (c): apps use published 0.x packages pinned exactly; Trail first, Launchway second; beta until Jens declares them stable.
-- `Q90` The `.launchway/` directory (c): `deployment.ts`, `launchway.ts`, an interim `compose.yaml`; not yet in architecture.md (register K2).
+- `Q90` The `.launchway/` directory (c): `deployment.ts`, `launchway.ts`, an interim `compose.yaml`; in architecture.md sections 4.6, 16.9.1, 17.3.1 and 23.1 since 2026-11-04.
 
 **Read more.** Sections 1, 2, 3.2, 4.5, 4.6, 12 and 17.5; ADRs 0003 and 0006.
 
@@ -77,7 +77,7 @@ await operator.invoke('core.tenant.create', { backendId: backend.id, name: 'Jens
 
 **In one sentence.** A module is a hand-written base plus one part per file typed against it, assembled by a generator; contributions, conditional parts and optional dependencies let modules influence each other while each stays selectable on its own.
 
-**How it works.** `base.ts` holds `defineModuleBase({ id, version, requires, optional, provides, config, data, extensionPoints, entities, streams, flags, contributions, conditions })`: everything a handler's types depend on, so no builder chain is needed. Each part is one literal per file, typed against the base: `defineCommand(base, entity, { ... })`, `defineQuery`, `defineRule`, `defineReaction`, `defineService`, `defineEffect` and the others. `keelwerk generate` and the dev server write the module literal, `module.generated.ts`, from the directories: `actions/<entity>/<action>.ts` mounts as `<module>.<entity>.<action>`; CI fails on drift. `requires` is hard: typed as present, checked at compile time and boot. `optional` is soft, reached through the Maybe accessor `yield* ctx.load.github.ifPresent((g) => ...)`, which answers `undefined` when the module is absent. Contracts (`live`, `blobs`, `httpHost`) name pluggable capabilities. A contribution adds fields, relations, actions, rules or extension-point values to another module, active only while that target and its `when` modules are selected and dropped silently otherwise; contributed fields must be optional or defaulted. A conditional part adds to the module itself while other modules are selected, which count as required inside it. The lower module publishes entities, events and extension points; the higher one imports, contributes and adapts. `defineApp` folds the tuple at the type level and repeats each check at boot; a failure reads as a missing property, `missingModules: 'projects'`.
+**How it works.** `base.ts` holds `defineModuleBase({ id, version, requires, optional, provides, config, data, extensionPoints, principalRef, entities, streams, flags, contributions, conditions })`: everything a handler's types depend on, so no builder chain is needed. Each part is one literal per file, typed against the base: `defineCommand(base, entity, { ... })`, `defineQuery`, `defineRule`, `defineReaction`, `defineService`, `defineEffect` and the others. `keelwerk generate` and the dev server write the module literal, `module.generated.ts`, from the directories: `actions/<entity>/<action>.ts` mounts as `<module>.<entity>.<action>`; CI fails on drift. `requires` is hard: typed as present, checked at compile time and boot. `optional` is soft, reached through the Maybe accessor `yield* ctx.load.github.ifPresent((g) => ...)`, which answers `undefined` when the module is absent. Contracts (`live`, `blobs`, `httpHost`) name pluggable capabilities. A contribution adds fields, relations, actions, rules or extension-point values to another module, active only while that target and its `when` modules are selected and dropped silently otherwise; contributed fields must be optional or defaulted. A conditional part adds to the module itself while other modules are selected, which count as required inside it. The lower module publishes entities, events and extension points; the higher one imports, contributes and adapts. `defineApp` folds the tuple at the type level and repeats each check at boot; a failure reads as a missing property, `missingModules: 'projects'`.
 
 **Example.** Launchway's `previews` (section 17.3.10): three hard dependencies, `github` optional, fields added to two modules, pull-request reactions only with `github`.
 
@@ -150,8 +150,8 @@ export const syncPreview = defineReaction(within(previewsBase, whenGithub), {
 - `Q3` Object literals (b): a base, parts typed against it and a module literal; no builder chain.
 - `Q59` A generated manifest (b): a file's path is its reference; moving it is a breaking change.
 - `Q2` Hard dependencies stay (a): switching a module off switches off its dependants.
-- `Q32` The Maybe accessor (b): Jens is not sold yet; M0 and Trail compare it with `| undefined`.
-- `Q31` The `Check` property form (a): errors read as a missing property with a literal type.
+- `Q32` The Maybe accessor (b): confirmed by the M0 spike on 2026-11-04 against `| undefined` (same cost); a short named type per module keeps its error messages short.
+- `Q31` The `Check` property form (a): errors read as a missing property with a literal type; confirmed by the M0 spike.
 - `Q58` Kebab-case file names from the export (a): `syncPreview` lives in `sync-preview.ts`.
 
 **Read more.** Sections 4.1, 4.5, 4.7, 5.1 to 5.6 and 23.5; ADRs 0003 and 0024.
@@ -233,7 +233,7 @@ export const device = defineEntity({
 
 **In one sentence.** Every behaviour is a query, command or subscription with a pure handler: it yields typed requests and returns events, effect descriptions and a result; the kernel performs and records every effect.
 
-**How it works.** A query's `read` returns a query description or the output; a command's `decide` returns events or `{ events, effects, result }`; a subscription's `source` returns a live source description. On an entity, `decide(input, current, ctx)` gets the full current row. Generators yield requests with `yield*`: `ctx.load.<module>.<entity>.byId`, `ctx.newId`, `ctx.secrets.issue`, `ctx.compute.argon2idVerify`, `ctx.ask`, `ctx.all`; promises are type errors, and lint bans clocks, randomness and `fetch` in parts. `ctx.clock.now()` is fixed per invocation; ids and random values are recorded. A command runs in phases: admission; `prepare` (sync commands only, the one place for inline effects: at most 30 seconds, no retries); the unit with its pending receipt; target; decide; apply (evolve, seal, item check, chain, inline reactions, kernel effects: `invoke`, `enqueue`, `setTimer`); commit, repeated up to three times on conflicts; respond. After commit, each external effect, recorded `requested` in the unit, runs at least once in an effect executor (the only imperative module code: no data access, egress only, effect id as idempotency key) or at an external performer, is recorded `settled`, and its `then` continuation receives `outcomeOf(effect)`. The logbook is the chain: decision records (part, input digest, load positions, answers, effect ids) plus `core.effect` streams; `keelwerk explain --trace` prints it, `--redecide` replays a decision. Tests answer requests as data, without mocks.
+**How it works.** A query's `read` returns a query description or the output; a command's `decide` returns events or `{ events, effects, result }`; a subscription's `source` returns a live source description. On an entity, `decide(input, current, ctx)` gets the full current row. Generators yield requests with `yield*`: `ctx.load.<module>.<entity>.byId`, `ctx.newId`, `ctx.secrets.issue`, `ctx.compute.argon2idVerify`, `ctx.ask`, `ctx.all`; promises are type errors, and lint bans clocks, randomness and `fetch` in parts. `ctx.clock.now()` is fixed per invocation; ids and random values are recorded. A command runs in phases: admission; `prepare` (sync commands only, the one place for inline effects: at most 30 seconds, no retries); the unit with its pending receipt; target; decide; apply (evolve, seal, item check, chain, inline reactions, kernel effects: `invoke`, `enqueue`, `setTimer`); commit, repeated up to three times on conflicts; respond. After commit, each external effect, recorded `requested` in the unit, runs at least once in an effect executor (the only imperative module code: no data access, egress only, effect id as idempotency key) or at an external performer, is recorded `settled`, and its `continueWith` continuation receives `outcomeOf(effect)`. The logbook is the chain: decision records (part, input digest, load positions, answers, effect ids) plus `core.effect` streams; `keelwerk explain --trace` prints it, `--redecide` replays a decision. Tests answer requests as data, without mocks.
 
 **Example.** Launchway hands a deployment to a node's agent, an external performer (decision 80a, section 7.9.8); logbook positions and ids are illustrative:
 
@@ -244,7 +244,7 @@ export const run = defineCommand(deploymentsBase, deployment, {
     if (current.status !== 'queued' || node?.status !== 'online') return []
     return {
       events: [ctx.events.dispatched({ at: ctx.clock.now() })],
-      effects: [ctx.services.nodes.send(current.nodeId, { type: 'deploy', payload: { deploymentId: current.id } }, { then: dispatchSettled, with: { id: current.id }, deadline: '60s' })],
+      effects: [ctx.services.nodes.send(current.nodeId, { type: 'deploy', payload: { deploymentId: current.id } }, { continueWith: dispatchSettled, with: { id: current.id }, deadline: '60s' })],
     }
   },
 })
@@ -288,7 +288,7 @@ export const dispatchSettled = defineCommand(deploymentsBase, deployment, {   //
 {"from":"eff","to":"perf","label":"pending effects subscription"},
 {"from":"exec","to":"eff","label":"settled outcome"},
 {"from":"perf","to":"eff","label":"settle via action"},
-{"from":"eff","to":"cont","label":"then: outcomeOf"},
+{"from":"eff","to":"cont","label":"continueWith: outcomeOf"},
 {"from":"cont","to":"inv","label":"module service principal"}],
 "groups":[
 {"label":"Inside the unit","nodes":["dec","interp","data","apply","log"]},

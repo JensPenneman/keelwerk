@@ -1,6 +1,6 @@
 # Decision register
 
-Date: 2026-10-23 (updated 2026-10-24). Status: open. This register lists every open question of the architecture in
+Date: 2026-10-23 (updated 2026-10-24; the M0 spike outcomes of section M added 2026-11-04). Status: open. This register lists every open question of the architecture in
 one place, numbered, so that Jens can answer them one by one in conversation. Each answer is
 recorded here with its date and the section or ADR that applies it. The questions come from
 [architecture.md](architecture.md) section 26 (decision points, spike questions, questions by
@@ -64,18 +64,19 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
    command id, actor and causation. Applied in architecture.md sections 6.7, 14.7.1 (an `asOf`
    before the compaction horizon is `not_found`, `core.history_compacted`) and 14.8.1.
 9. **Offline multi-actor sync timing.** a) ★ M8, after the mail server; b) earlier. Status: decided 2026-10-26: **a**, M8 after the mail server (Jens delegated the pick to the lead);
-   applied (roadmap).
+   applied (roadmap). M8 is M6 since the reorder of 2026-10-28 (roadmap section 6).
 10. **Before-images** in every event from M1. a) ★ yes; b) no. Status: decided 2026-10-26: **a**, before-images from M1; applied (section 15.1).
 11. **Collaborative fields.** a) ★ Loro documents from the first app that declares one; b) plain
     values until M9, then migrate. Status: decided 2026-10-26: **a**, Loro documents from the first declaring app; applied
-    (section 15.3).
+    (section 15.3). M9 is M7 since the reorder of 2026-10-28 (roadmap section 6).
 12. **MySQL.** a) ★ keep it (M7) and recommend PostgreSQL for multi-tenant production; b) drop it.
     Status: decided 2026-10-26: **a**, keep MySQL, with a sharpened rule (brief addendum 5): the
     framework is datastore-agnostic; a datastore's features never influence application code or
     whether an app can run; every adapter capability has a kernel fallback with a visible cost
     (doctor reports the fallbacks in use); `connect` refuses only a declared raw-SQL dialect mismatch.
     To apply: sections 14.3.3 (capabilities become accelerations with fallbacks), 14.3.8 (the SQL
-    hatch declares its dialect and non-portability), 12, 26; ADR 0006. See section K.
+    hatch declares its dialect and non-portability), 12, 26; ADR 0006. See section K. M7 is M5 since
+    the reorder of 2026-10-28 (roadmap section 6).
 13. **Drizzle.** a) ★ wait for Drizzle 1.0 and import existing schemas with
     `keelwerk db introspect --drizzle`; b) build a Drizzle-based adapter now on 0.45.
     Status: decided 2026-10-26: **a**, and lowered: Drizzle was a passing thought, not a requirement;
@@ -154,12 +155,15 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
 
 31. **Composition error form.** a) ★ the `Check` property form (missing property with a literal
     type); b) a rest-parameter form, if it reads better in the editor. Status: decided 2026-10-27: **a**, the `Check` property form; the spike may still report if the
-    rest-parameter form reads better. Applied (section 4.7).
+    rest-parameter form reads better. Applied (section 4.7). Confirmed by the spike 2026-11-04: the
+    rest-parameter form only says "Expected 2 arguments, but got 1." (entry 108).
 32. **Optional modules in `ctx.data`.** a) ★ `| undefined`; b) a `Maybe` object with
     `.ifPresent()`. Status: decided 2026-10-27: **b** for now (Jens: not sold yet), a `Maybe`-style accessor for optional
     modules; to be revisited after the M0 spike writes the auth module against it. To apply: sections
     3.4, 7.6, 7.9.3 (the accessor must compose with `yield*`: `yield* ctx.load.accounts.ifPresent(a =>
-    a.profile.byId(id))` answering `Profile | undefined`), 26.2; see section K.
+    a.profile.byId(id))` answering `Profile | undefined`), 26.2; see section K. Confirmed by the spike
+    2026-11-04: it composes with `yield*` and `ctx.all` at the cost of `| undefined`; the accessor
+    gets a short named type per module so its error message stays short (entry 108).
 ## D. Questions by area (section 26.3)
 
 Data:
@@ -234,7 +238,7 @@ Data:
     start, with the licence applied from the first commit. To apply: roadmap (M3 Trail in its own
     repository, M4 Launchway in its own repository, mail parked after; a 'beta' section), sections
     17 (Launchway modules no longer under examples/), 22, 24, README; see section K.
-49. **Outbound webhooks.** a) ★ part of Launchway's first keelwerk release (M3); b) later.
+49. **Outbound webhooks.** a) ★ part of Launchway's first keelwerk release (M3, now M4); b) later.
     Status: decided 2026-10-27: **a**, outbound webhooks ship with Launchway's rebuild (M4 after the
     reorder); applied (roadmap).
 ## E. Addendum 4 (2026-10-24): pure functions
@@ -360,7 +364,8 @@ Versioning, rollouts and flags:
     cloud provider exists. Status: decided 2026-10-28: **a**, scaler with the static provider first, the docker provider one
     milestone later; Jens wants a Kubernetes (or similar) provider in the future, so the
     `nodeProviders` contract stays the only coupling and the roadmap keeps the Kubernetes provider
-    as a named later milestone; applied (section 21, roadmap).
+    as a named later milestone; applied (section 21, roadmap). Since the reorder of 2026-10-28 the
+    scaler ships in M4 (Launchway's rebuild) and the docker provider in M5 (roadmap section 6).
 64. **Docker provider on the home server.** The Docker engine is root on that host. a) ★ opt-in per
     deployment, held only by the scaler's named process, through a socket proxy limited to container
     create, start, stop, inspect and list; b) never: extra workers are started by hand; c) on by
@@ -389,7 +394,7 @@ Versioning, rollouts and flags:
     order-revealing encryption tokens on PostgreSQL as an opt-in with a doctor warning; b) never,
     bounded scans only; c) an order-preserving encoding on every adapter now (more leakage).
     Status: decided 2026-10-28: **a**, bounded scans first, ORE tokens later as an opt-in on PostgreSQL;
-    applied (section 14.7.9, roadmap).
+    applied (section 14.7.9, roadmap). M7 is M5 since the reorder of 2026-10-28 (roadmap section 6).
 70. **Key scope of search indexes.** a) ★ per data subject (the mailbox owner): tags of different
     accounts never match, erasure destroys the key; b) per tenant: operator search across accounts,
     but tags link words across accounts. Status: decided 2026-10-28: **a**, per data subject; applied (section 14.7.9).
@@ -514,21 +519,8 @@ roadmap section 6 maps old to new.
 
 ## K2. Edits to apply at the next editing pass
 
-- 90c: the `.launchway/` directory convention (deployment.ts + launchway.ts + compose.yaml for the
-  interim), the CLI's config lookup order, Launchway's project model reading it (replacing the
-  `composeFiles` setting of today's Launchway), app repository layout in 23, roadmap M3/M4.
-
-- Stale spots found by the tour review (2026-10-28), to fix in the same pass: 5.2's contracts snippet
-  still shows `defineModule({ id, requires ... })` (should be `defineModuleBase`); 18.2's
-  `defineApiVersions` example and 15.4.6's SSE notice carry pre-53 dates (deprecate the day the newer
-  version exists, sunset 12 months later); 15.1.8 and 26.3 still list the stream-head digest as open
-  (closed by 89a); 16.4.1's naming table shows the pre-16b CLI route (should be `keelwerk call
-  accounts.profile.deactivate <id>`); 9.5's intro says every job is enqueued in the causing command's
-  unit, but the reaction dispatcher (7.7) and schedules (9.5.6) enqueue in their own units; 16.5.8:
-  decide whether a receiver's `verify` resolver may yield a per-request identity (Trail's per-device
-  tokens) or receivers keep one fixed service principal (the tour assumes the fixed principal); the
-  register's milestone numbers in 9, 11, 12, 49, 63 and 69 predate the reorder (roadmap section 6
-  maps them).
+Applied by the editing pass of 2026-11-04 (90c, the tour review's stale spots, and 16.5.8 as entry
+119); nothing is pending.
 
 ## L. Questions raised by applying the decisions (2026-10-28)
 
@@ -574,3 +566,120 @@ in M5. 12a fallback table additions (serializable → one unit at a time per sco
 operators evaluated by the kernel, SQLite sort-key column). 19b: instants keep millisecond
 precision (finer digits rounded down at validate). Appendix B's typing listing still types instants
 as `Date` with a note.
+
+## M. M0 spike outcomes (2026-11-04)
+
+The composition-types spike (`spikes/composition-types/REPORT.md`, findings 1 to 16, "F") and the
+write-path spike (`spikes/write-path/REPORT.md`, findings 1 to 10, "W") reported on 2026-11-04. The
+lead decided every finding the same day; each entry names the sections the editing pass of
+2026-11-04 changed.
+
+92. **Principal references** (F1). Principal refs are typed by the module that resolves the
+    principal, through `principalRef` on its base; auth's user principal ref is `{ credentialId:
+    Id<'auth.credential'>; sessionId: Id<'auth.session'> }`, and logout passes
+    `ctx.principal.ref?.sessionId`. Status: decided by the lead 2026-11-04, applied (sections 4.1,
+    7.4, 8.5, 17.2.4; api-sketch.ts; the spike's principal types).
+93. **`asSubject` returns `SubjectId`** (F2). Status: decided by the lead 2026-11-04, applied
+    (sections 4.2, 8.5; api-sketch.ts).
+94. **The readable row** (F3). `Readable<App, 'module.entity'>`, because maskability is a field flag a
+    row type has lost; module-local views compute it from the fields. Status: decided by the lead
+    2026-11-04, applied (sections 4.7, 6.2, 8.1, 13.10, 14.7.9, 14.8.1, 15.4.2, 16.2.3, 16.4.5;
+    api-sketch.ts; spike comments).
+95. **Contracts without an interface type argument** (F4). `defineContract('live', 'app')`; the
+    contract's shape comes from the module that provides it; no curried form. Status: decided by
+    the lead 2026-11-04, applied (section 5.2, with the stale `defineModule({ id, requires })`
+    snippet of K2 now `defineModuleBase`).
+96. **Extension points per mode** (F5). `extensionPoint.single<T>()`, `.set<T>()` and
+    `.ordered<T>()` replace `extensionPoint<T>({ mode })`; a `single` point reads as `T`. Status:
+    decided by the lead 2026-11-04, applied (sections 4.1, 5.5, 16.5.8, 17.3.7, 17.3.13, 17.4.13,
+    17.7 G14; api-sketch.ts; the spike's extension points and fixtures).
+97. **`continueWith`** (F6). The continuation option `then` made the options object a thenable;
+    it is `continueWith` everywhere. Status: decided by the lead 2026-11-04, applied (sections 2,
+    7.6, 7.9.5, 7.9.8, 17.3.4, 17.3.13, 17.7, 23.5, 26.3; api-sketch.ts; overview; the spike's
+    fixture, its `biome-ignore` removed).
+98. **Where the named module checks run** (F7). `refsOutsideRequirements` and
+    `contributedFieldsNeedDefault` move to `defineModuleBase`; new checks
+    `contributionsOutsideDependencies` and `unknownConditionTargets` (base), `unknownContributionTargets`
+    also at `defineContribution`, `executorsWithoutEffect` (`defineModule`) and
+    `unknownConditionFields` (`defineRule`). Status: decided by the lead 2026-11-04, applied
+    (section 4.7: the table of named checks and cases 9 and 10).
+99. **Condition keys checked by name** (F8). Rules infer the returned condition and check its keys
+    (`unknownConditionFields`; shallow plus `or`, `and`, `not`; relation sub-conditions not deep),
+    because TypeScript does not excess-check object literals returned from callbacks. Status:
+    decided by the lead 2026-11-04, applied (sections 4.4, 8.3, 13.10).
+100. **Nested const-generic calls** (F9). No DSL function that may be nested inside another
+     const-generic call infers a defaulted literal type parameter; such functions take the whole
+     literal as one type parameter and defaulted parameters use `NoInfer` (measured: an inline
+     `defineContribution` got `when: readonly Dependency[]` and was silently inactive). Status:
+     decided by the lead 2026-11-04, applied (sections 4.7, 13.11).
+101. **TS2883 and the core's exports** (F10). CI fails on TS2883 too; the core entry exports every
+     type that can appear in a part or module type (about 120 names in the spike). Status: decided
+     by the lead 2026-11-04, applied (sections 4.7, 13.11; roadmap M0).
+102. **Part return types written out** (F11). Declared return types of part functions are
+     `ActionPart<...>` with computed types, never an alias with raw arguments (21 KB to 12.3 KB per
+     module). Status: decided by the lead 2026-11-04, applied (section 13.11).
+103. **Named entity types and the budgets** (F12). `export interface Profile extends
+     EntityType<typeof profile> {}`; 6 KB per `module.generated.d.ts`, 16 KB per module package;
+     instantiations: fold 450,000 at 25 modules and 960,000 at 40, whole program 1,550,000 and
+     2,600,000; the listing's old figures replaced by the measured ones. Status: decided by the lead
+     2026-11-04, applied (sections 4.2, 4.7, 13.11, 23.5).
+104. **The core module's hand-written type** (F13). `CoreBase` and `Core`, because the named-type
+     pattern fails under `isolatedDeclarations` (TS9010). Status: decided by the lead 2026-11-04,
+     applied (section 13.3).
+105. **Rule actions and policy keys checked at `defineModule`** (F14). `unknownRuleActions` and
+     `unknownPolicyTargets`; the spike typed both as strings, so the core adds them in M1. Status:
+     decided by the lead 2026-11-04, applied (sections 4.4, 4.7, 8.1).
+106. **Contributed fields in module-local rows** (F15). `ctx.write` and dependency rows carry the
+     module's contributed fields that are active in the part (`when` lists honoured). Status:
+     decided by the lead 2026-11-04, applied (section 7.6).
+107. **Type-only files and the empty object type** (F16). A type-only file exports its main type
+     plus the helper types its definition names, and the single-purpose rule counts the main type;
+     `noBannedTypes` stays on, the core defines `type Empty = Record<never, never>` once and uses
+     it; no preset relaxation. Status: decided by the lead 2026-11-04, applied (sections 13.9, 23.3).
+108. **Decisions 31a and 32b confirmed by the spike.** The `Check` property form stays; the Maybe
+     accessor stays and gets a short named type per module, so its error message no longer prints
+     the whole loads type. Status: decided by the lead 2026-11-04, applied (sections 3.4, 4.7, 7.6,
+     26.1; questions 31 and 32).
+109. **A locked load's position** (W1). Read after the lock is held, from the first statement the
+     unit sends after the lock (the adapter may fold it into the versioned state update's
+     `returning`), never from a subselect in the locking statement (measured: a stale position in
+     100 of 100 commits on a hot row). Status: decided by the lead 2026-11-04, applied (sections
+     7.9.4, 7.9.6, 15.1.6; ADRs 0007 and 0026).
+110. **Isolation of command units** (W2). Closed: `READ COMMITTED` with positioned loads; one
+     `REPEATABLE READ` snapshot per decision is rejected (36 to 77 % of units fail after three
+     retries, because every unit updates the scope counter). Status: decided by the lead
+     2026-11-04, applied (sections 14.3.6, 26.1, 26.2, 26.3; ADR 0007).
+111. **The row-level security cast** (W3). `nullif(current_setting('keelwerk.tenant_id', true),
+     '')::uuid`, because a pooled connection keeps the setting as `''` after a tenant unit. Status:
+     decided by the lead 2026-11-04, applied (section 14.3.7; ADR 0007).
+112. **The commit tail and the per-scope ceiling** (W4). One statement (counter update, event
+     insert and the lane's `enqueued` counter in one CTE); the ceiling is per round trip, about
+     1,000 to 1,400 units per second per scope within 0.2 ms of the database and 110 to 150 at
+     2.8 ms; the adapter keeps the database within about 1 ms of the writers or plans the
+     sequencer; beyond about four writers a scope only queues. Status: decided by the lead
+     2026-11-04, applied (section 15.1.4; ADR 0007 consequences, with the dated "Measured" entry).
+113. **Lanes per take and skipped lanes** (W5). `$lanes` defaults to the batch size, configurable per
+     queue (written `queues.<q>.takeLanes`, confirmed by the lead 2026-11-04); the take reports lanes skipped as
+     locked separately from "no work", and a fetcher that saw skipped lanes retries at once with
+     jitter. Status: decided by the lead 2026-11-04, applied (sections 9.5.3, 9.5.6, 14.3.9).
+114. **The lane pick sorts every eligible lane** (W6). A known limit (take p95 1.6 to 4.8 ms from 1
+     to 1,000 lanes); a bounded candidate set for placements with thousands of lanes follows in M5.
+     Status: decided by the lead 2026-11-04, applied (section 9.5.3; roadmap M5).
+115. **Job throughput** (W7). The take delivers 417 to 718 jobs per second at batch 1, 4,020 to
+     5,500 at batch 10 and 16,067 to 20,899 at batch 50 (four takers); a placement's job rate is
+     bounded by its unit rate (1,757 to 2,519 units per second across eight tenants measured); the
+     default take batch is 10. Status: decided by the lead 2026-11-04, applied (sections 9.5.7, 26.3).
+116. **DDL of the queue tables** (W8). `kw_jobs`, `kw_job_lanes`, `kw_job_lane_counts` and
+     `kw_job_groups` as the spike built them; `kw_job_lane_counts` carries the lane's scope column,
+     because under forced row-level security a counter row the unit cannot see is updated zero times
+     without an error. Status: decided by the lead 2026-11-04, applied (sections 9.5.2, 14.3.9).
+117. **`$vmin` and the retry jitter** (W9). `$vmin` is the least virtual time of lanes with
+     available work, read in the take's unit; unit retries use full jitter over 2, 4 and 8 ms for
+     three attempts, then the unit fails. Status: decided by the lead 2026-11-04, applied (sections
+     9.5.3, 14.3.6).
+118. **The take on PostgreSQL 18** (W10). It runs unmodified (the numeric `limit` is accepted).
+     Status: decided by the lead 2026-11-04, applied (section 9.5.3).
+119. **Receiver identity** (K2, 16.5.8). Receivers keep one fixed service principal; a receiver's
+     `verify` resolver may attach typed claims, declared by the receiver (Trail's device id), to the
+     principal's context, and rules may condition on those claims; never a per-request identity.
+     Status: decided by the lead 2026-11-04, applied (section 16.5.8; overview chapter 13).

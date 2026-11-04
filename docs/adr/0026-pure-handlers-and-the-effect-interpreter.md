@@ -1,6 +1,6 @@
 # 26. Pure handlers and the effect interpreter
 
-Date: 2026-10-25 (notes of 2026-10-28)
+Date: 2026-10-25 (notes of 2026-10-28; item 6 refined on 2026-11-04 after the write-path spike)
 
 ## Status
 
@@ -53,7 +53,10 @@ art, and [architecture.md section 7.9](../architecture.md) is the specification.
 5. Executor retries handle failures without domain meaning; anything else, mail delivery included,
    is a state machine with timers and one effect per attempt.
 6. The logbook is the chain: a decision record in each event's meta (the input's digest, and the
-   sealed input only for actions that opt in; the snapshot position of every load; ids, random
+   sealed input only for actions that opt in; the snapshot position of every load, read for a
+   locked load after its lock is held and never from a subselect in the locking statement, which
+   recorded a stale position in 100 of 100 commits on a hot row (architecture.md section 7.9.4,
+   phase 5); ids, random
    values and the public part of issued secrets; effect ids), and one `core.effect` stream per
    effect (`requested`, `settled`), with attempts as stream records, kept until a retention rule is
    adopted (decision 47c). Load answers are reproduced

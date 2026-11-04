@@ -1,10 +1,11 @@
 # keelwerk roadmap
 
-Date: 2026-10-28 (first version 2026-10-11; addendum 3 and Jens's decisions of 2026-10-24
+Date: 2026-11-04 (first version 2026-10-11; addendum 3 and Jens's decisions of 2026-10-24
 merged; the jobs, nodes and autoscaling design, the design of encrypted personal data and the
 pure-handler design of decision 50a merged on 2026-10-25; reordered on 2026-10-28 for decision 48c,
-with Trail rebuilt first, Launchway second and the mail server parked). Status: proposal, with every
-decision taken, awaiting Jens's approval together with the architecture.
+with Trail rebuilt first, Launchway second and the mail server parked; the M0 spikes recorded and
+the `.launchway/` directory of decision 90c applied on 2026-11-04). Status: approved with the
+architecture on 2026-11-04 (section 2); M0 in progress.
 
 This document orders the work of [architecture.md](architecture.md) into milestones, from the
 repository toolchain (M0) to the first apps running on keelwerk: Trail's backend rebuilt in the
@@ -62,6 +63,20 @@ what it builds on. Only the mail server's questions are open, and they are parke
 Scope: the workspace every later package builds in, and the two spikes the review asked for before
 any M1 code: the type model and the write path.
 
+Status (2026-11-04): the toolchain is in place, and both spikes are done, with their reports in
+`spikes/composition-types/REPORT.md` and `spikes/write-path/REPORT.md`. Their findings are decided
+and applied (architecture.md section 26.2, register section M). Exit criteria met: 2 (the
+type-model checklist passes on TypeScript 7.0.2, the budgets are recorded in architecture.md section
+13.11, and the pnpm-layout build has no TS7056, TS2742, TS4023 or TS2883 at 3, 12, 25 and 40
+modules), 3 (`docs/api-sketch.ts` type-checks against the spike with no errors), 4 (no
+cross-tenant waiting, the single-tenant ceiling per round trip, wake-ups outside writer
+transactions, the fair take's p95 against lanes and batch, and positioned loads against one
+snapshot per decision, all recorded), the Maybe half of 5 (decision 32b confirmed) and 6 (the
+approval gate passed on 2026-11-04). The remaining M0 item is the GritQL plugins of
+`@keelwerk/biome-config` with their fixtures. Neither spike covered the `prepare` comparison or the
+Node 26 re-checks of criterion 5; architecture.md section 26.2 records them as open, and M3's
+criterion 3 writes up the `prepare` comparison from Trail's code.
+
 Packages and artefacts:
 
 - Root workspace on Node 26 (`"engines": { "node": ">=26" }`, decision 28a): pnpm 11 workspace,
@@ -116,7 +131,7 @@ Exit criteria:
 1. A fresh clone runs `pnpm install`, `biome ci`, `tsc -b` and `vitest run` green in CI.
 2. Every item of the type-model checklist passes on TypeScript 7.0.2; the instantiation budget for
    apps of 25 and 40 modules and the declaration-size budget per module are recorded in
-   architecture.md section 13.11; no TS7056, TS2742 or TS4023 occurs.
+   architecture.md section 13.11; no TS7056, TS2742, TS4023 or TS2883 occurs.
 3. `docs/api-sketch.ts` type-checks against the spike types, or every difference is recorded as a
    change to architecture.md.
 4. The write-path measurement shows that writers of one tenant never wait on another tenant's
@@ -310,9 +325,10 @@ Packages and modules:
 - Whatever Trail's rebuild finds missing lands as framework work in a 0.x release, through the
   procedure of architecture.md section 24; what M3 cannot fix is recorded in section 26.3.
 - In the Trail repository: the app package and its modules in the layout of architecture.md
-  section 23.1, its own `keelwerk.config.ts` (Trail runs as its own deployment until the one
-  deployment of M4 exists, and may then move in as a backend; architecture.md section 26.3), and its
-  own CI with the keelwerk preset.
+  section 23.1, its `.launchway/` directory (decision 90c; architecture.md sections 4.6 and 17.3.1)
+  with `deployment.ts` (Trail's own deployment), `launchway.ts` and `compose.yaml`, from which the
+  current Launchway deploys Trail by running `keelwerk start --config .launchway/deployment.ts` until
+  M4's rebuild, and its own CI with the keelwerk preset.
 
 Exit criteria:
 
@@ -354,6 +370,10 @@ Packages and modules:
 - `@keelwerk/blobs-fs`: staging, per-blob keys, range reads, resumable uploads (decision 38a) and
   the collector bounded by the backup retention; stream offload into it, which deployment logs use
   past 50,000 lines (decision 47c).
+- Launchway's project model reads each app repository's `.launchway/` directory (decision 90c;
+  architecture.md section 17.3.1): `deployment.ts` is the app's deployment and `launchway.ts` its
+  domains and routes, previews, environment and node, replacing today's per-project `composeFiles`
+  setting; Trail moves from its interim `compose.yaml` to that path.
 - In the Launchway repository, Launchway's modules as packages in `modules/<id>/`
   (`@launchway/module-<id>`): `projects`, `nodes` (with the agent channel; the agent is the
   external performer of `agentCommand` effects), `deployments` (with the log stream, kept and
@@ -506,7 +526,7 @@ given on 2026-10-28: data breadth was M7, offline sync M8 and collaborative fiel
 
 | Milestone | Scope | Exit criterion |
 |---|---|---|
-| M5. Data breadth | `adapter-mysql`, `adapter-sqlite`, the Supabase preset; schema-per-tenant and database-per-tenant placements; tenant move; projection entities with online rebuilds; operator redaction; `keelwerk db introspect` (external, adopt); the SQL escape hatch as the `ctx.load.sql` read request, with its declared dialect; index tables for personal fields on MySQL and SQLite; the ORE order capability on PostgreSQL, after a spike on operator-class installation and a review of the implementation; job groups with `scope: 'deployment'`; wake-ups through the control store for per-tenant namespaces; `@keelwerk/provider-docker`, the opt-in docker node provider for extra workers, one milestone after the scaler (decisions 63a and 64a) | Trail's and Launchway's apps pass their CI on PostgreSQL, MySQL and SQLite, queues included, with `keelwerk doctor` listing the kernel paths each adapter takes; a synthetic backlog on the home server gets extra workers from the docker provider within the configured limits, and they drain after the down window. |
+| M5. Data breadth | `adapter-mysql`, `adapter-sqlite`, the Supabase preset; schema-per-tenant and database-per-tenant placements; tenant move; projection entities with online rebuilds; operator redaction; `keelwerk db introspect` (external, adopt); the SQL escape hatch as the `ctx.load.sql` read request, with its declared dialect; index tables for personal fields on MySQL and SQLite; the ORE order capability on PostgreSQL, after a spike on operator-class installation and a review of the implementation; job groups with `scope: 'deployment'`; wake-ups through the control store for per-tenant namespaces; `@keelwerk/provider-docker`, the opt-in docker node provider for extra workers, one milestone after the scaler (decisions 63a and 64a); a bounded candidate set for the fair take's lane pick in placements with thousands of lanes (register entry 114) | Trail's and Launchway's apps pass their CI on PostgreSQL, MySQL and SQLite, queues included, with `keelwerk doctor` listing the kernel paths each adapter takes; a synthetic backlog on the home server gets extra workers from the docker provider within the configured limits, and they drain after the down window. |
 | M6. Offline sync | merge state, `lww`, `counter` and `set` merges, the `sync` module, `@keelwerk/sync-client` | Property tests show convergence for permutations of concurrent offline mutations; rejected mutations are reported, never lost. |
 | M7. Collaborative fields | Loro codec protocols, presence, client-side prediction of custom offline commands | Two clients editing one rich-text field offline converge with each other and with the server. |
 | Experiments (after M4) | `@keelwerk/module-experiments` (architecture.md section 20.8): experiments, metrics, exposures through `flagObservers`, tallies and fixed-horizon results | An experiment on a test app reports per-variant results with 95 % intervals, reads "inconclusive" before the planned sample size, and marks a planted sample ratio mismatch invalid. |

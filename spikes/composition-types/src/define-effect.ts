@@ -6,7 +6,7 @@ import type { ShapeValue } from './shape-value.ts';
 
 /** Options of an effect request: the continuation and its extra input, a key and timing. */
 export interface EffectOptions {
-  readonly then?: AnyActionPart;
+  readonly continueWith?: AnyActionPart;
   readonly with?: Readonly<Record<string, unknown>>;
   readonly key?: string;
   readonly runAt?: Temporal.Instant;

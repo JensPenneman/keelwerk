@@ -4,7 +4,8 @@ import type { BaseOf, ContributionTargetOf, WhenOf } from './part-source.ts';
 import type { AnyWithin } from './within.ts';
 
 type PointsOf<M> = M extends { readonly extensionPoints: infer X } ? X : {};
-type FillValue<X> = X extends ExtensionPoint<infer T> ? T | readonly T[] : never;
+type FillValue<X> =
+  X extends ExtensionPoint<infer T, infer M> ? (M extends 'single' ? T : T | readonly T[]) : never;
 
 /** A fill part: the values a contributor puts into a target's extension point. */
 export interface FillPart<S, P extends string> {

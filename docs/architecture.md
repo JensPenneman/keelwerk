@@ -1,6 +1,6 @@
 # keelwerk architecture
 
-Date: 2026-10-28 (first version 2026-10-08, consolidated 2026-10-11). Status: specification,
+Date: 2026-11-04 (first version 2026-10-08, consolidated 2026-10-11). Status: specification,
 complete: every question of the decision register is decided or, for the mail server, parked;
 approved by Jens on 2026-11-04 (the name keelwerk was settled on 2026-10-28). Authors: the core architect and the data, interfaces
 and platforms designers; consolidated with the review findings of 2026-10-11 by the synthesis
@@ -8,7 +8,8 @@ editor; the versioning and project-layout designs of addendum 3 and Jens's decis
 merged by the integration editor on 2026-10-24; the jobs, nodes and autoscaling design, the
 design of encrypted personal data (decision 7b) and the pure-handler design (decision 50a, section
 7.9) merged by the merge editor on 2026-10-25; brief addendum 5 and Jens's decisions of 2026-10-25
-to 2026-10-28 (section 26.1) applied by the editor on 2026-10-28.
+to 2026-10-28 (section 26.1) applied by the editor on 2026-10-28; the outcomes of the two M0 spikes
+(section 26.2, register section M) and register section K2 applied on 2026-11-04.
 
 This document is the design contract of the framework. [brief.md](brief.md) is the requirements
 source of truth; this document says how those requirements are met and must not drop or
@@ -145,7 +146,7 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 | **Effect executor** | The imperative code that performs one external effect, `defineEffectExecutor(base, effect, options)` under `src/executors/`: no data access, egress only, an output or a taxonomy error per attempt; the only imperative code a module author writes (section 7.9.5). |
 | **External performer** | A program outside keelwerk that performs the effects of a `performer: 'external'` declaration: it holds a subscription over its pending effects and settles each through an action of the owning module, within a deadline; Launchway's agent is one (sections 7.9.5 and 17.3.4). |
 | **Effect job** | The job that runs an external effect's executor after the requesting unit commits, on a process that advertises the executor's capabilities (sections 9.5 and 21.2). |
-| **Continuation** | The own command an effect names with `then`: the kernel invokes it under the module's service principal with the effect's outcome as input (`outcomeOf(effect)`), so outcomes re-enter pure code as input (section 7.9.5). |
+| **Continuation** | The own command an effect names with `continueWith`: the kernel invokes it under the module's service principal with the effect's outcome as input (`outcomeOf(effect)`), so outcomes re-enter pure code as input (section 7.9.5). |
 | **Decision record** | What the kernel stores in the meta of each event about the decision that produced it: the part, the input digest, the snapshot position of every load, the recorded answers (ids, random values, the public parts of issued secrets) and the requested effect ids; with the chain it reproduces and explains every decision (section 7.9.6). |
 | **Contribution** | Fields, relations, actions, policies or extension-point values a module adds to another module, active only when the target (and any extra `when` modules) are selected. |
 | **Conditional part** | Fields, actions, reactions or policies a module adds to itself only when other modules are selected. |
@@ -306,8 +307,12 @@ A module listed as `optional` is reached through a Maybe accessor (decision 32b,
 answers when `accounts` is selected and `undefined` when it is not, without touching the unit, so
 `yield* ctx.load.accounts.ifPresent((a) => a.profile.byId(id))` is `Profile | undefined` and composes
 with `yield*` like every other request (section 7.9.3). `ctx.services.<module>` of an optional
-module has the same form. Jens chose it for now and is not sold yet: the M0 spike writes the auth
-module against it and against the `| undefined` form and reports (section 26.2).
+module has the same form. The composition-types spike wrote the auth module against it and against
+the `| undefined` form (2026-11-04): the accessor composes with `yield*` and `ctx.all` and costs the
+same (514 against 609 instantiations over a baseline of 219,196 at 30 call sites), so it stays
+(decision 32b, confirmed). Its error message printed the module's whole loads type, so the accessor
+has a short named type per module, referenced by declaration emit like the named module types of
+section 13.11, and a type error names that type instead.
 
 Inside a conditional part, the `when` modules count as required, so a reaction typed with
 `within(authBase, whenAccounts)` sees `ctx.load.accounts` as present, without the accessor. Module
@@ -348,8 +353,9 @@ performs I/O; `defineApp` builds a registry, `defineDeployment` describes where 
 A module is written as object literals, never as a builder chain. Three kinds of value make it up:
 
 - the **module base**, `defineModuleBase({ ... })`: identity, dependencies, configuration, data
-  needs, extension points, entities, streams, flags and the declarations of contributions and
-  conditional parts, which is everything a handler's types depend on;
+  needs, extension points, the principal reference its resolvers return (section 8.5), entities,
+  streams, flags and the declarations of contributions and conditional parts, which is everything a
+  handler's types depend on;
 - **parts**, one literal each, typed against the base: `defineCommand`, `defineQuery` and
   `defineSubscription` (section 4.3), `defineRule` (section 4.4), `defineReaction` and
   `defineProcess` (section 7.7), `defineService` and `defineFill` (section 5.5), `defineSchedule`
@@ -376,8 +382,9 @@ const authBaseDef = defineModuleBase({
   }),
   data: { needs: [] },              // only a raw-SQL dialect, { sql: 'postgres' }: the one declared non-portability (section 14.3.3)
   extensionPoints: {                // typed slots other modules may fill (section 5.5)
-    identityProviders: extensionPoint<IdentityProvider>({ mode: 'set' }),
+    identityProviders: extensionPoint.set<IdentityProvider>(),
   },
+  principalRef: shape({ credentialId: field.ref.own('credential'), sessionId: field.ref.own('session') }),   // what auth's resolvers put into a principal's ref (section 8.5)
   entities: { credential, session },            // section 4.2
   streams: {},                                  // records without a chain (gap G6)
   flags: {},                                    // section 20.2
@@ -471,7 +478,7 @@ and CI measures declaration size (section 13.11).
 ### 4.2 `defineEntity` and the field model
 
 ```ts
-export const credential = defineEntity({
+const credentialDef = defineEntity({
   prefix: 'cred',                              // TypeID prefix at the API boundary: cred_01j...; unique per app
   dataSubject: 'subject',                      // whose personal data a row holds (section 14.7.4)
   fields: {
@@ -496,6 +503,10 @@ export const credential = defineEntity({
   invariant: (row) => row.kind !== 'password' || row.identifier !== undefined,   // checked on every post-image
   generated: { set: false },                   // credentials change only through auth's own commands
 })
+// The named entity type (section 13.11): the base's declaration file references `Credential`
+// instead of repeating the entity's structure.
+export interface Credential extends EntityType<typeof credentialDef> {}
+export const credential: Credential = credentialDef
 ```
 
 Every entity gets system fields the author never declares: `id` (UUIDv7, prefixed at the API),
@@ -521,7 +532,7 @@ and columns. The core defines the kinds and the modifiers; section 14.5.1 maps t
 | `field.enum([...])` | union of the literals | |
 | `field.json(schema)` | the schema's output type | any Standard Schema; stored as JSON |
 | `field.ref(module, entity)`, `field.ref.own(entity)` | `Id<'module.entity'>` | a typed reference; where it may point is section 6.3; `own` names an entity of the declaring or contributing module |
-| `field.subject()` | `SubjectId` | an opaque principal or data-subject id |
+| `field.subject()` | `SubjectId` | an opaque principal or data-subject id, branded: a plain string is rejected, and a helper that maps an id to a subject returns `SubjectId` (`asSubject(profileId): SubjectId`, section 8.5) |
 | `field.serial({ per })` | `number` | allocated at insert, strictly ascending per partition, read-only (IMAP UIDs) |
 | `field.set(inner)`, `field.list(inner)` | `ReadonlySet<T>`, `readonly T[]` | observed-remove set for merge `set`; CRDT list for merge `sequence` |
 | `field.richText()` | `RichText` (an opaque document handle) | merge `richText`; an app needs a codec module (section 15.3.9) |
@@ -680,6 +691,13 @@ snapshot (section 7.9.2). An interpolated `null` or `undefined` never matches; n
 `isNull` (section 8.3). Semantics and composition are in section 8. A contribution can add rules to
 another module's entities (section 5.3).
 
+`defineRule` checks what it can see: the keys of a returned condition against the target's fields
+and relations (`unknownConditionFields`, section 8.3). A rule's custom action names and its policy
+key need the module literal, which does not exist when the rule is typed, so `defineModule` checks
+them: a mounted rule that names an action its target does not mount fails with
+`unknownRuleActions`, and a policy key that names a target the rule does not cover fails with
+`unknownPolicyTargets` (section 4.7).
+
 ### 4.5 `defineApp`
 
 ```ts
@@ -785,9 +803,18 @@ most once per second per scope, or an ISO 8601 duration such as `PT1M` (decision
 jobs, from due to start, written as an ISO 8601 duration like every duration in this document's
 configuration (default `PT30S`): `queues: { 'mail-delivery': { slo: 'PT2M' } }` asks the scaler to
 start a due delivery within two minutes, and the scaler reads it in seconds (`sloSeconds`, section
-21.4). Secret providers default to the process environment. The
-conventional entry file is `keelwerk.config.ts` with a default export; `--config` and
-`KEELWERK_CONFIG` name another (section 16.9.1).
+21.4). Secret providers default to the process environment.
+
+The deployment file has a default export and is found in this order: the file named by `--config`
+or `KEELWERK_CONFIG`, then `keelwerk.config.ts`, then `.launchway/deployment.ts` (decision 90c,
+section 16.9.1). An app repository carries its deployment in the `.launchway/` directory (section
+23.1): `.launchway/deployment.ts` is the app's deployment file, as above (the app, data stores and
+placements, ports, providers, scaling limits), and `.launchway/launchway.ts` holds what only the
+deployment platform needs (domains and routes, previews, environment, node; section 17.3.1). Until
+Launchway's rebuild (roadmap M4), the current Launchway deploys an app from
+`.launchway/compose.yaml`, which runs `keelwerk start --config .launchway/deployment.ts`; Trail
+(M3) is deployed that way. A deployment hosting several apps from published packages, as the
+example above does, is what the rebuilt Launchway makes possible.
 
 ### 4.7 The type-level model
 
@@ -798,15 +825,18 @@ groups of positive and negative cases listed after it: every positive case holds
 negative case fails with the named check. The listing types instants as `Date`, as it was checked;
 the DSL types them as `Temporal.Instant` (decision 19b, section 6.4), which no composition check
 reads. The file with its cases costs 61,042 type
-instantiations on TypeScript 7.0.2 (57,242 on 5.9.3).
+instantiations on TypeScript 7.0.2 (57,242 on 5.9.3). The composition-types spike of roadmap M0
+(`spikes/composition-types`, 2026-11-04) built the type model of the whole DSL on this listing:
+every case holds, every named check below is asserted as the exact `AppChecks` type and as a
+failing call, and `docs/api-sketch.ts` type-checks against it.
 
 The listing models the composition fold, not the whole DSL: its `defineModule(m)` takes the
-normalised shape directly and applies the module-level checks, as the DSL's `defineModule(base,
-{ ... })` does after normalising, and `contribute` and `whenPresent` build the normalised entries
+normalised shape directly and applies the data-level module checks, which the DSL applies at
+`defineModuleBase`, where the data lives (decided 2026-11-04 after the spike), and `contribute` and `whenPresent` build the normalised entries
 that `defineContribution` and `defineCondition` declare. The module base, the parts typed against
 it and the module literal, the module-local contexts of section 7.6, action input and output types
 derived from the field model, `Insert` and `Patch`, and relations are the spike's work, against
-the checklist at the end of this section. The spike must keep these properties:
+the checklist at the end of this section. The core keeps these properties, as the spike did:
 
 - every lookup is a mapped type over the union of module ids plus `Extract` by id; there is no
   recursion over the tuple, so depth is constant in the number of modules;
@@ -825,7 +855,14 @@ the checklist at the end of this section. The spike must keep these properties:
 - the normalised shape also carries the module's `flags` and `changes` (sections 20.2 and 18.2);
   no composition check reads them, so the listing leaves them out;
 - every type that can appear in a module value's type is exported by `@keelwerk/core`;
-  otherwise declaration emit fails with TS4023 or TS2742 (checked with this listing);
+  otherwise declaration emit fails with TS4023 or TS2742 (checked with this listing), which
+  TypeScript 7.0.2 reports as TS2883 (section 13.11);
+- no DSL function that may be nested inside another const-generic call infers a defaulted literal
+  type parameter: TypeScript infers such a parameter from the outer call's constraint, so in the
+  spike an inline `defineContribution` inside `defineModuleBase` got `when: readonly Dependency[]`
+  and was silently inactive. Such functions take the whole literal as one type parameter
+  (`defineContribution`, `defineCondition`), and defaulted parameters use `NoInfer` (`defineEntity`);
+  this is a rule for core authors (section 13.11);
 - a single `any` in a module definition would collapse `UnionToIntersection`; module packages
   compile with `noImplicitAny` and a type test asserts that `AnyModule` constraints never
   mention `any`.
@@ -927,7 +964,7 @@ export interface AnyModule {
 /** Module values get a named type, so declaration emit references it instead of copying the structure. */
 export type ModuleType<T extends AnyModule> = T
 
-// ---- Module-level checks (defineModule)
+// ---- Module-level checks (applied by defineModuleBase in the DSL, where the data lives)
 type DepIds<L> = L extends readonly (infer R)[] ? (R extends { readonly id: infer I extends string } ? I : never) : never
 type RequiresOf<M> = M extends { readonly requires: infer L } ? DepIds<L> : never
 type RefsOf<Path extends string, F> = { [K in keyof F]: F[K] extends { readonly ref: { readonly module: infer RM extends string } } ? `${Path}.${K & string} -> ${RM}` : never }[keyof F]
@@ -1216,9 +1253,9 @@ the named-type pattern of section 4.1 throughout):
 8. Two modules with the same id fail with `duplicateModuleIds`; a module with the id `core` fails
    with `reservedModuleIds`.
 9. A `field.ref(accounts, 'profile')` in an entity of a module that lists `accounts` only as
-   `optional` fails at `defineModule` with `refsOutsideRequirements`; with `accounts` in
+   `optional` fails at `defineModuleBase` with `refsOutsideRequirements`; with `accounts` in
    `requires` it is accepted, and `.optional().index()` keeps the reference.
-10. A contributed field that is neither optional nor defaulted fails at `defineModule` with
+10. A contributed field that is neither optional nor defaulted fails at `defineModuleBase` with
     `contributedFieldsNeedDefault`; with `.default(...)` it is accepted.
 11. A `projection` entity has `get`, `query`, `changes` and `queryChanges` but no set operations;
     `generated: { set: false, history: true }` removes `set`, `create`, `update`, `archive` and
@@ -1232,15 +1269,43 @@ the named-type pattern of section 4.1 throughout):
 14. `defineDeployment` fails with `missingInfrastructure: 'blobs'` when an app's module requires
     the `blobs` contract and no infrastructure entry provides it.
 
-Runtime mirror: `defineModule`, `defineApp` and `defineDeployment` repeat every check with the same
-names, so a JavaScript caller or a dynamically assembled tuple gets the same errors at boot.
+The named checks, by the function that applies them; each has a passing and a failing case in the
+core's suite (the cases above, and one each for the checks they do not cover):
+
+| Check | Applied by | Fails when |
+|---|---|---|
+| `refsOutsideRequirements` | `defineModuleBase` | a reference targets a module outside `requires`, or, inside a contribution or conditional part, outside its target and `when` modules (case 9) |
+| `contributedFieldsNeedDefault` | `defineModuleBase` | a contributed or conditional field is neither optional nor defaulted (case 10) |
+| `contributionsOutsideDependencies` | `defineModuleBase` | a contribution targets a module the base lists in neither `requires` nor `optional` (section 5.3) |
+| `unknownConditionTargets` | `defineModuleBase` | a conditional part patches an entity the module does not own (section 5.4) |
+| `unknownContributionTargets` | `defineContribution` and `defineApp` | a contribution names an entity its target does not define: at `defineContribution` the compile error of section 5.3, at `defineApp` case 7 |
+| `executorsWithoutEffect` | `defineModule` | an executor is mounted under a key with no effect of that name, or for another effect (section 7.9.5) |
+| `unknownRuleActions` | `defineModule` | a mounted rule names an action its target does not mount (section 8.1) |
+| `unknownPolicyTargets` | `defineModule` | a policy key names a target the rule does not cover (section 4.4) |
+| `unknownConditionFields` | `defineRule` | a `where` or `check` condition names a field or relation the target does not have (section 8.3) |
+| `missingModules` | `defineApp` | a required module or app-level contract is not selected or provided (cases 5 and 11) |
+| `duplicateModuleIds`, `reservedModuleIds` | `defineApp` | two modules share an id, or a module uses `core` or `app` (case 8) |
+| `conflictingFields` | `defineApp` | a field has more than one source (case 6) |
+| `danglingReferences` | `defineApp` | an active reference's target module or entity is not selected (a backstop for `refsOutsideRequirements`) |
+| `unknownExecutionOverrides` | `defineApp` | an execution override names no command of the app (case 12) |
+| `missingInfrastructure` | `defineDeployment` | a deployment-level contract has no infrastructure entry (case 14) |
+| `emptyExtensionPoints` | boot | an extension point with `min` has fewer fillers (section 5.5) |
+
+`unknownRuleActions` and `unknownPolicyTargets` cannot run at `defineRule`, because the module
+literal that mounts the target's actions does not exist yet; the spike typed those names as strings,
+and the core adds both checks at `defineModule` (decided 2026-11-04).
+
+Runtime mirror: the functions of the table repeat every check with the same names, so a JavaScript
+caller or a dynamically assembled tuple gets the same errors at boot.
 
 Error quality: `Check` makes the failure a missing property with a literal type, so the compiler
 message reads "Property 'missingModules' is missing ... required in type { missingModules:
 'accounts' }"; messages name the module interfaces (`[Accounts, Auth, LastLogin]`), because module
 values carry named types. TypeScript 7.0.2 widens literal types in some messages (it printed
-`string` where 5.9.3 printed `'a'`); the property name stays exact. The spike may replace the
-property form with a rest-parameter form if that reads better in the editor; the names must stay.
+`string` where 5.9.3 printed `'a'`); the property name stays exact. The spike compared it with a
+rest-parameter form and kept the property form (decision 31a, confirmed 2026-11-04): the property
+form names the check and the literal, while the rest-parameter form only says "Expected 2
+arguments, but got 1."
 
 Names used by the rest of the framework, so that every section and every package says the same
 thing:
@@ -1250,7 +1315,7 @@ thing:
 | `AppEntities<App>` | the rows of an app, per module and entity, system fields included |
 | `Row<App, 'module.entity'>` | one row type |
 | `Insert<App, Ref>`, `Patch<App, Ref>`, `OfflinePatch<App, Ref>` | write shapes (section 14.8.1) |
-| `Readable<R>` | a row as a transport or client receives it: maskable fields optional (section 8.1) |
+| `Readable<App, 'module.entity'>` | a row as a transport or client receives it: maskable fields optional (section 8.1); computed from the fields, because a row type has lost the maskable flag |
 | `AppActionTree<App>` | module, then entity, then action: kind, input, output, errors, events and effective execution |
 | `ActionRef<App>` | the union of every action reference of an app |
 | `DecideContext<M>`, `ReadContext<M>`, `SourceContext<M>`, `ExecutorContext<M>`, `LoadsOf<M>`, `WritesOf<M>`, `InvokableRefs<M>`, `LiveQueries<M>`, `SqlTables<M>` | module-local types, independent of any app (sections 7.6 and 7.9.7) |
@@ -1258,7 +1323,9 @@ thing:
 | `version` | the stream version of a row |
 | position | the commit order of events within one scope of a namespace (section 15.1.4) |
 
-Spike checklist, to be run before any M1 code is written (roadmap M0):
+Spike checklist, to be run before any M1 code is written (roadmap M0). The composition-types spike
+ran it on 2026-11-04 (`spikes/composition-types/REPORT.md`, which also lists the parts it did not
+build); its findings are applied in this section, sections 5, 7.6, 8 and 13, and register section M:
 
 1. The module base and the parts typed against it: `defineCommand`, `defineQuery`,
    `defineSubscription`, `defineRule`, `defineReaction`, `defineService`, `defineEffect`,
@@ -1291,23 +1358,33 @@ Spike checklist, to be run before any M1 code is written (roadmap M0):
 9. `AppActionTree` with input, output, error and event types derived from field-model shapes;
    `Insert`, `Patch`, `OfflinePatch` and `PatchValue`.
 10. Declaration emit of every example module, the portal example and the synthetic apps under the
-    pnpm layout: `.d.ts` size per module, and no TS7056, TS2742 or TS4023; the platforms run the same
-    checks in their own repositories (decision 48c).
+    pnpm layout: `.d.ts` size per module, and no TS7056, TS2742, TS4023 or TS2883; the platforms run
+    the same checks in their own repositories (decision 48c).
 11. Instantiation budgets set on synthetic apps of 25 and 40 modules (the proof apps have 25 and
     26 modules), with every part typed against its base, and the cost of that typing (one context
     type over the base per part) compared with the same modules written in one file each.
 
-Budget: measured on 2026-10-11 with this listing on synthetic apps in which every module has two
-entities of four fields, two entity actions, a module action, a contribution and a conditional
-part, and requires its two predecessors: 20,279, 72,543, 195,783 and 408,543 instantiations for 3,
-12, 25 and 40 modules on TypeScript 7.0.2 (16,714, 69,179, 192,809 and 406,019 on 5.9.3), with
-check times below 0.25 seconds on 7.0.2. Growth is super-linear, roughly with the 1.4th to 1.6th
-power of the module count. The checker's limit is 5,000,000 instantiations per statement, so the
-fold leaves room, but typing every part against its base and field-model-derived action types add
-to it; the spike
-sets the CI budget from the 25- and 40-module runs (section 13.11). The app-level fold is paid
-once: transports, the CLI and the generated file consume `AppEntities<App>` and
-`AppActionTree<App>` through `keelwerk.generated.ts` and never fold the tuple again.
+Budget: measured on 2026-11-04 with TypeScript 7.0.2 by the composition-types spike on synthetic
+apps in which every module has two entities of four fields, two entity actions, a module action, a
+contribution (a field and an entity action) and a conditional part (a field and an action), and
+requires its two predecessors, built under the pnpm layout with every part in a file of its own and
+the module literal written by the generator. Counts exclude the empty workspace with only the core:
+
+| Modules | Fold: the app over the modules' `.d.ts` | Whole program, parts in files | One file per module |
+|---|---|---|---|
+| 3 | 24,332 | 252,727 | 198,369 |
+| 12 | 133,727 | 654,194 | 635,394 |
+| 25 | 391,842 | 1,334,636 | 1,315,213 |
+| 40 | 836,667 | 2,267,554 | 2,249,090 |
+
+The fold is about twice what this listing alone cost on 2026-10-11, and grows with about the 1.6th
+power of the module count from 25 to 40 modules; check times stayed below 0.5 seconds for the fold
+and 1.3 seconds for the whole program. Typing parts against their bases costs about 36,000
+instantiations per module (whole program minus fold), linear in the module count, and parts in
+files cost 0.8 % more than one file per module at 40 modules. The checker's limit of 5,000,000
+instantiations per statement is far away. Section 13.11 sets the CI budgets from these runs. The
+app-level fold is paid once: transports, the CLI and the generated file consume `AppEntities<App>`
+and `AppActionTree<App>` through `keelwerk.generated.ts` and never fold the tuple again.
 
 ## 5. Modules
 
@@ -1366,16 +1443,32 @@ plug-and-play requirement, and typing the capability as always present would typ
 may not exist. Such capabilities are **contracts**:
 
 ```ts
-// Declared by the core: a name, a level and the interface the context exposes.
+// Declared by the core: a name and a level. The shape comes from the module that provides the contract.
 export const contracts = {
-  live: defineContract<LiveQueries>('live', 'app'),            // provided by an app module (the live module)
-  blobs: defineContract<Blobs>('blobs', 'deployment'),         // provided by an infrastructure entry (gap G5)
-  httpHost: defineContract<TransportHost>('httpHost', 'deployment'),   // required by HTTP transport modules
+  live: defineContract('live', 'app'),              // provided by an app module (the live module)
+  blobs: defineContract('blobs', 'deployment'),     // provided by an infrastructure entry (gap G5)
+  httpHost: defineContract('httpHost', 'deployment'),   // required by HTTP transport modules
 }
 
-defineModule({ id: 'mail-store', requires: [mailDomains, contracts.blobs], ... })   // its executors and listeners get blobs; handlers hold BlobRefs
-defineModule({ id: 'live', provides: [contracts.live], ... })                       // the live module
+defineModuleBase({ id: 'mail-store', requires: [mailDomains, contracts.blobs], ... })   // its executors and listeners get blobs; handlers hold BlobRefs
+defineModuleBase({ id: 'live', provides: [contracts.live], ... })                       // the live module
 ```
+
+`defineContract` is the function the composition-types spike type-checked:
+
+```ts
+type ContractLevel = 'app' | 'deployment'
+interface Contract<C extends string = string, L extends ContractLevel = ContractLevel> { readonly kind: 'contract'; readonly contract: C; readonly level: L }
+function defineContract<const C extends string, const L extends ContractLevel>(contract: C, level: L): Contract<C, L>
+```
+
+It takes no interface type argument. TypeScript has no partial type-argument inference, so
+`defineContract<LiveQueries>('live', 'app')`, the earlier form, typed the name and the level as
+`string` and the whole union, and every check keyed on the contract's name failed; a curried form
+is not used either. The interface is the providing module's: the live module implements the live
+queries, an infrastructure entry the blob store, and the context types the matching member by the
+contract's name, computed from the dependant's own module (`ctx.live` lists the entities of the
+module and of its dependencies, section 15.4.11).
 
 - A module lists contracts in `requires` or `optional` like modules; the context types the
   matching member as present, possibly undefined, or absent: `ctx.live` in subscription sources,
@@ -1518,7 +1611,7 @@ import { extensionPoint } from '@keelwerk/core'
 interface IdentityProvider { readonly id: string; readonly label: string; listFor(profileId: Id<'accounts.profile'>): Gen<readonly IdentitySummary[]> }
 
 // Declared by accounts:
-extensionPoints: { identityProviders: extensionPoint<IdentityProvider>({ mode: 'set' }) }
+extensionPoints: { identityProviders: extensionPoint.set<IdentityProvider>() }
 // Read by accounts, typed as readonly IdentityProvider[]; a query's read delegates with yield* p.listFor(id):
 ctx.extensions.identityProviders
 // Filled by auth, without accounts importing auth. A value that carries behaviour is a factory of
@@ -1529,9 +1622,13 @@ export const identityProvidersFill = defineFill(within(authBase, toAccounts), 'i
 type Provider = ExtensionValue<Accounts, 'identityProviders'>    // IdentityProvider; no subpath export of accounts needed
 ```
 
-Modes: `set` (any number of values), `ordered` (values carry `order`), `single` (exactly one
-filler across the app, else a boot error; the owner can declare a default). `min` makes an empty
-slot a named boot error (`extensionPoint<GitProvider>({ mode: 'set', min: 1 })` fails with
+Modes, one declaring function each: `extensionPoint.set<T>()` (any number of values, read as
+`readonly T[]`), `extensionPoint.ordered<T>()` (values carry `order`, read as `readonly T[]`) and
+`extensionPoint.single<T>()` (exactly one filler across the app, else a boot error; the owner can
+declare a default; read as `T`). The mode is in the function's name because `T` is given
+explicitly and TypeScript infers no other type argument once one is explicit: the earlier
+`extensionPoint<T>({ mode })` read every point as `readonly T[]`. `min` makes an empty slot a
+named boot error (`extensionPoint.set<GitProvider>({ min: 1 })` fails with
 `emptyExtensionPoints: 'projects.gitProviders'`), and the boot check also verifies that every
 carrier a listener produces has a principal resolver that accepts it (gap G14). The contract type
 is a TypeScript type; a value-level schema is optional and used when the filler is configuration
@@ -1669,7 +1766,7 @@ Projections:
 
 | Consumer | Derived from the field model |
 |---|---|
-| TypeScript | row type, insert type, patch type, `Readable<R>`, `Id<'module.entity'>` (section 14.8.1) |
+| TypeScript | row type, insert type, patch type, `Readable<App, Ref>`, `Id<'module.entity'>` (section 14.8.1) |
 | Validation | a Standard Schema validator per entity (create, patch) and per action input |
 | JSON Schema | draft 2020-12 and OpenAPI 3.1 dialects (through Standard JSON Schema) |
 | GraphQL | object, input and enum types, Relay node ids |
@@ -1951,8 +2048,9 @@ A synchronous command returns its result. An asynchronous command is validated a
 synchronously (gate stage), recorded as an `accepted` receipt in the same unit as its job, and
 answered with `{ commandId, status: 'accepted' }`. Its progress is observable through
 `core.commandReceipt.get` and `core.commandReceipt.watch`, and its result through the receipt.
-The job stores a principal reference (resolver id, principal id, credential id), not a snapshot
-of roles and claims. When the job runs, the kernel resolves and enriches the principal again,
+The job stores a principal reference (resolver id, principal id and the fields the resolving
+module declares, such as auth's credential and session ids; section 8.5), not a snapshot of roles
+and claims. When the job runs, the kernel resolves and enriches the principal again,
 fails the command with `unauthenticated` if the credential was revoked or expired, and
 authorizes the command again against the state at execution time (fail closed). A removed member
 or a revoked API key therefore stops acting through queued work at once.
@@ -2025,8 +2123,13 @@ interface SourceContext<M extends AnyModuleBase, W extends readonly AnyModule[] 
 - Loads and services of a module listed as `optional` go through the Maybe accessor (decision 32b,
   2026-10-27): `ctx.load.accounts.ifPresent((a) => a.profile.byId(id))` is a request answered with
   `Profile | undefined`, `undefined` when `accounts` is not selected, and composes with `yield*`
-  like every other request (section 7.9.3). The M0 spike compares it with the `| undefined` form on
-  the auth module before the form is final (section 26.2).
+  like every other request (section 7.9.3). The composition-types spike compared it with the `|
+  undefined` form on the auth module and confirmed it (2026-11-04, decision 32b); its type has a
+  short name per module (section 3.4).
+- `ctx.write` and the rows of dependency loads carry the fields of the module's own contributions
+  that are active in the part, with their `when` lists honoured: the fields of auth's contribution
+  to `accounts.profile` with `when: [teams]` appear on profile rows and drafts only in a part where
+  `teams` counts as required (listed in `requires` or in `W`), and are absent everywhere else.
 
 - `ctx.load` runs with the module's own authority (section 8.4): loads of its own entities and of
   its dependencies are never narrowed by the caller's plan, so uniqueness checks, quotas and
@@ -2040,7 +2143,7 @@ interface SourceContext<M extends AnyModuleBase, W extends readonly AnyModule[] 
 - Kernel effects accept the module's own actions, including those its contributions and
   conditional parts mount, as part values (`invoke(revokeSubject, input)`), which the registry
   resolves to their references, and the commands of required modules (and of `W`) by reference.
-  The same holds for `enqueue`, `setTimer({ invoke })`, `async.onGiveUp`, continuations (`then`)
+  The same holds for `enqueue`, `setTimer({ invoke })`, `async.onGiveUp`, continuations (`continueWith`)
   and schedules; inside a module, its own actions are never named by string. A synchronous command
   of the same scope runs in a savepoint of the current unit after the decision's events; a query of
   the same or a wider scope is a request, `ctx.ask(ref, input)`, answered in its own read-only
@@ -2272,8 +2375,15 @@ generator, so `yield*` types each answer (as in Effect); a bare `yield` is a lin
 4. **Target**: an instance command loads its target through the plan's `where` (`not_found`
    outside it), locked where the adapter has row locks.
 5. **Decide**: the kernel drives `decide` and answers each request in the unit, tagging every load
-   with the scope position its snapshot saw (the counter read in the same statement). `ctx.perform`
-   here fails with `internal`, `core.effect_in_unit`.
+   with the scope position its snapshot saw. An unlocked load reads the counter in the same
+   statement. A locked load (the target of phase 4) takes its position after the lock is held, from
+   the first statement the unit sends after the lock (the adapter may fold it into the `returning`
+   of the versioned state update, section 15.1.6 step 9), never from a subselect in the locking
+   statement: at READ COMMITTED a `for update` that waited for a row lock returns the newest row
+   version, while a subselect in the same statement keeps the statement's original snapshot, so the
+   record would say `p - 1` for a row written at `p` and an `asOf` replay would return the older
+   row. The write-path spike measured that stale position in 100 of 100 commits on a hot row
+   (2026-11-04). `ctx.perform` here fails with `internal`, `core.effect_in_unit`.
 6. **Apply**: drafts are evolved with before-images, encrypted, item-checked and chained (section
    15.1.6, steps 5 to 9); inline reactions to the new events decide in turn (pure, in module order,
    up to depth 8, else `core.reaction_depth`). Then the kernel effects run in order (`invoke` as a
@@ -2314,7 +2424,7 @@ its commit:
 | `enqueue(action, input, { runAt?, key?, commandId? })` | a command job committed with the unit, any scope (section 12.3) |
 | `setTimer({ key, at or after, invoke, input })`, `cancelTimer(key)` | keyed timer jobs (section 9.5.1) |
 | `settle(effect, outcome)` | the `settled` record of an effect with an external performer, and its continuation |
-| `claimScopeKey(key, owner, { then })`, `releaseScopeKey(key, owner)` | after commit, in the control store; the effect record is the outbox, settling gap G2's open choice |
+| `claimScopeKey(key, owner, { continueWith })`, `releaseScopeKey(key, owner)` | after commit, in the control store; the effect record is the outbox, settling gap G2's open choice |
 
 External effects are declared once and constructed by value:
 
@@ -2325,7 +2435,7 @@ export const smtpDeliver = defineEffect(mailDeliveryBase, {
   output: smtpRepliesShape,
   performer: 'executor',          // the default; 'external': an outside program pulls and settles it
 })
-// in a decision: smtpDeliver(input, { then: recordAttempt, with: { id, domain }, key?, runAt?, deadline? })
+// in a decision: smtpDeliver(input, { continueWith: recordAttempt, with: { id, domain }, key?, runAt?, deadline? })
 ```
 
 `defineEffectExecutor(base, effect, options)` is the only imperative module code; the name that
@@ -2364,9 +2474,12 @@ interface ExecutorContext<M> {
 - Effect ids are UUIDv8 derived from the scope, the cause (a command id, or a reaction id and event
   id) and the effect's index, so a repeated decision requests the same ids and idempotent
   destinations deduplicate.
-- Outcomes reach module code through the continuation (`then`, an own command by value, typed by
+- Outcomes reach module code through the continuation (`continueWith`, an own command by value, typed by
   `outcomeOf(effect, extra)`; entity continuations get the target id through `with`) and the effect
-  record (`core.effect.get` and `watch`, readable by the principal whose command caused it).
+  record (`core.effect.get` and `watch`, readable by the principal whose command caused it). The
+  option is not called `then`: an options object with a `then` member is a thenable, which `await`
+  and `Promise.resolve` treat as a promise, and the preset's `noThenProperty` rule rejects it
+  (renamed 2026-11-04 after the composition-types spike).
 - An effect with `performer: 'external'` has no executor: a program outside keelwerk holds a
   subscription over `ctx.live.effects(effect, { where })` (its pending effects, resumable), performs
   them, and calls an action of the owning module whose decision returns `settle(...)`; `deadline`
@@ -2400,7 +2513,7 @@ output (`deferred`), not an error; the executor retries only infrastructure fail
 |---|---|
 | a decision | each event's envelope (actor, command id, action, causation, writer, flags; section 15.1.3) and a decision record in `meta.decision`, hashed with the event (section 15.1.8) |
 | command inputs | the input's digest (the receipt's fingerprint); the input itself only for actions that opt in with `trace: { input: 'sealed', retention }` (decision point 79): sealed under a value key the retention worker destroys after `retention`, personal fields under the subject's key, `field.secret()` inputs stripped |
-| load answers | not stored: `asOf` reads at the recorded snapshot positions reproduce them (`history: 'state'` entities within the feed horizon only) |
+| load answers | not stored: `asOf` reads at the recorded snapshot positions reproduce them (`history: 'state'` entities within the feed horizon only); a locked load's position is read after its lock is held (section 7.9.4, phase 5), so it names the row version the decision saw |
 | ids, random values, issued secrets | in the decision record; issued secrets by public id and verifier only |
 | reveals, verifications, computations | nothing: reproducible while their keys exist |
 | an effect | its stream `core.effect/<id>` (kernel entity, chain, tenancy `invocation`): `requested` in the requesting unit (type; input, personal fields sealed, secrets as references; command id; the ids of the events it accompanied; continuation, key, deadline) and `settled` (`succeeded`, `failed` or `abandoned`; output up to 64 KiB, else a blob reference; error; attempts; timings; SHA-256 digest of the canonical output) |
@@ -2465,7 +2578,8 @@ run.returns({ events: [created(profile, { id: 'prof_01j9...', displayName: 'Jens
   HTTP or SMTP clients out of module packages except under `src/executors/`.
 - `no-module-state.grit` flags top-level `let` and `var` and calls that mutate a top-level binding
   (`push`, `set`, `delete`, property assignment).
-- `noProcessEnv`, `noProcessGlobal` and `noGlobalAssign` hold everywhere except `keelwerk.config.ts`.
+- `noProcessEnv`, `noProcessGlobal` and `noGlobalAssign` hold everywhere except the deployment file
+  (`.launchway/deployment.ts` or `keelwerk.config.ts`, section 4.6).
 - The registry refuses at compose a query requesting ids, random values or effects, `prepare` on an
   asynchronous or offline command, and an inline executor with a capability.
 
@@ -2563,7 +2677,7 @@ export const run = defineCommand(deploymentsBase, deployment, {             // i
     if (current.status !== 'queued' || node?.status !== 'online') return []    // wakeLanesOfNode dispatches again
     return {
       events: [ctx.events.dispatched({ at: ctx.clock.now() })],
-      effects: [ctx.services.nodes.send(current.nodeId, { type: 'deploy', payload: { deploymentId: current.id } }, { then: dispatchSettled, with: { id: current.id }, deadline: '60s' })],
+      effects: [ctx.services.nodes.send(current.nodeId, { type: 'deploy', payload: { deploymentId: current.id } }, { continueWith: dispatchSettled, with: { id: current.id }, deadline: '60s' })],
     }
   },
 })
@@ -2587,7 +2701,7 @@ export const smtpDeliverExecutor = defineEffectExecutor(mailDeliveryBase, smtpDe
   run: (input, ctx) => deliverOverSmtp(input, ctx),                         // executors/lib/: MX, MTA-STS, STARTTLS, one transaction
 })
 // submit: creates the submission with a status per recipient, then per domain:
-//   smtpDeliver({ submissionId, domain, recipients, message, dkim }, { then: recordAttempt, with: { id, domain } })
+//   smtpDeliver({ submissionId, domain, recipients, message, dkim }, { continueWith: recordAttempt, with: { id, domain } })
 export const recordAttempt = defineCommand(mailDeliveryBase, submission, {
   input: outcomeOf(smtpDeliver, shape({ domain: field.string() })),
   decide: (input, current, ctx) => {
@@ -2614,7 +2728,7 @@ export const applyRecordExecutor = defineEffectExecutor(dnsBase, applyRecord, {
   retry: { delays: 'exponential', maxDelay: '10m', giveUpAfter: 'PT6H' },   // 429 and 5xx: the upsert is idempotent
   run: async (input, ctx) => ctx.extensions.providers.for(input.kind).upsert(ctx.egress, await ctx.secrets.reveal(input.token, 'dns apply'), input),
 })
-// dns.ensure, a service, returns record drafts plus applyRecord(input, { then: applied, with: { id } }) for its caller's decision
+// dns.ensure, a service, returns record drafts plus applyRecord(input, { continueWith: applied, with: { id } }) for its caller's decision
 export const applied = defineCommand(dnsBase, record, {
   input: outcomeOf(applyRecord),
   decide: (input, _current, ctx) => input.outcome.ok
@@ -2703,7 +2817,11 @@ rule, so `defineApp` refuses a `policies.disable` entry that names no rule of th
 Action names: a rule names custom actions, the set operations `create`, `update`, `archive` and
 `restore`, the batch `set`, or the aliases `read` (`get`, `query`, `changes`, `queryChanges`, and
 generator-contributed reads such as `watch`, plus `history`) and `write` (the four operations and
-`set`). A batch `set` is authorized item by item, each against its own operation.
+`set`). A batch `set` is authorized item by item, each against its own operation. `defineModule`
+checks the custom action names of every mounted rule against the actions mounted on its target
+(`unknownRuleActions`) and every policy key against the targets the rule covers
+(`unknownPolicyTargets`); `defineRule` cannot, because the module literal does not exist when the
+rule is typed (section 4.7).
 
 Fields and maskability:
 
@@ -2715,9 +2833,11 @@ Fields and maskability:
 - For write actions, `fields` lists the fields the write may change; for custom commands, the
   fields the events of their decision change. A write that changes another field is `forbidden`
   (`authorization.mode: 'strip'` drops it instead).
-- `Readable<R>`, the type of rows that transports and clients receive, makes exactly the maskable
-  fields optional; every other field keeps its declared type. Inside the invoker, the write path
-  always works with full rows (section 7.3).
+- `Readable<App, 'module.entity'>`, the type of rows that transports and clients receive, makes
+  exactly the maskable fields optional; every other field keeps its declared type. It takes the app
+  and the reference, not a row type, because maskability is a field flag that a row type has lost;
+  module-local views compute their readable rows from the entity's fields the same way. Inside the
+  invoker, the write path always works with full rows (section 7.3).
 - Hidden fields (section 6.6) are outside the rule model: they never leave their module.
 
 ### 8.2 Decision algebra
@@ -2771,6 +2891,13 @@ Authors write the object form (`{ ownerId: ctx.principal.subject }`,
 `{ revokedAt: { isNull: false } }`), which normalises to the AST. Semantics, identical in both
 interpreters, are fixed in section 14.3.4: two-valued logic, null-safe `ne` and `nin`, code-point
 string comparison, membership for `contains` on sets and lists.
+
+A rule's `where` and `check` are callbacks, and TypeScript does not excess-check an object literal
+returned from a callback: in the composition-types spike `where: () => ({ owner: 'x' })` passed a
+plain condition type on an entity without `owner`. `defineRule` therefore infers the returned
+condition and checks its keys by name: a key that is neither a field nor a relation of the target
+fails with `unknownConditionFields`. The check covers the top level and the `or`, `and` and `not`
+branches; the sub-conditions of a relation are not checked in depth (section 13.10).
 
 Null in conditions written in code (rules, load queries, live options): a comparison whose
 value is `null` or `undefined` is false, and testing for absence needs `{ isNull: true }`. An
@@ -2846,37 +2973,63 @@ per emitted event, since a principal can lose access mid-stream.
 
 ```ts
 type PrincipalKind = 'anonymous' | 'user' | 'service' | 'operator' | 'system'
-interface PrincipalBase {
+interface PrincipalRef { readonly resolver: string; readonly principalId: string }   // the resolving module adds its declared fields
+interface PrincipalBase<Ref extends PrincipalRef = PrincipalRef> {
   readonly scope: Scope
   readonly claims: Readonly<Record<string, unknown>>
   readonly roles: readonly string[]                       // from principal enrichers; a convenience, never the whole model
   readonly memberships: readonly Membership[]
   readonly via: string                                    // resolver id: 'auth.session', 'api-keys.key', 'core.operator', 'core.module'
-  readonly ref: PrincipalRef | null                       // what jobs and receipts store: resolver id, principal id, credential id
+  readonly ref: Ref | null                                // what jobs and receipts store, typed by the module that resolves the principal (below)
   readonly expiresAt?: Temporal.Instant                               // when the presented credential stops being valid
   readonly apiVersion?: string                            // from the credential: an API key created with a version (section 18.3)
 }
-interface UserPrincipal extends PrincipalBase {
+interface UserPrincipal<Ref extends PrincipalRef = PrincipalRef> extends PrincipalBase<Ref> {
   readonly kind: 'user'
   readonly subject: SubjectId                             // never null for a user
   readonly subjectRef: string | null                      // the entity subjects refer to: 'accounts.profile' when accounts is selected
   subjectAs<R extends string>(ref: R): Id<R> | null       // null when the subject is not a row of R; null never matches
 }
-interface ServicePrincipal extends PrincipalBase {
+interface ServicePrincipal<Ref extends PrincipalRef = PrincipalRef> extends PrincipalBase<Ref> {
   readonly kind: 'service'
   readonly id: string                                     // 'auth.system', a node id for 'nodes.credential', 'github.webhook'
   idAs<R extends string>(ref: R): Id<R> | null            // the id as a branded row id when the principal stands for a row of R
 }
-interface OperatorPrincipal extends PrincipalBase { readonly kind: 'operator'; readonly id: string }
-interface AnonymousPrincipal extends PrincipalBase { readonly kind: 'anonymous' }
-interface SystemPrincipal extends PrincipalBase { readonly kind: 'system'; readonly reason: string }
-type Principal = AnonymousPrincipal | UserPrincipal | ServicePrincipal | OperatorPrincipal | SystemPrincipal
+interface OperatorPrincipal<Ref extends PrincipalRef = PrincipalRef> extends PrincipalBase<Ref> { readonly kind: 'operator'; readonly id: string }
+interface AnonymousPrincipal<Ref extends PrincipalRef = PrincipalRef> extends PrincipalBase<Ref> { readonly kind: 'anonymous' }
+interface SystemPrincipal<Ref extends PrincipalRef = PrincipalRef> extends PrincipalBase<Ref> { readonly kind: 'system'; readonly reason: string }
+type Principal<Ref extends PrincipalRef = PrincipalRef> =
+  AnonymousPrincipal<Ref> | UserPrincipal<Ref> | ServicePrincipal<Ref> | OperatorPrincipal<Ref> | SystemPrincipal<Ref>
 ```
 
 A rule or an action that declares `principal: 'user'` sees `ctx.principal` narrowed to
 `UserPrincipal`, so `ctx.principal.subject` is a non-null `SubjectId`, and
 `ctx.principal.subjectAs('accounts.profile')` converts it to a branded profile id when the
 subject is a profile. Branded ids therefore never accept a raw string.
+
+A principal's `ref` is typed by the module that resolves the principal. A module with principal
+resolvers declares in its base the fields its resolvers put into a reference, as a shape:
+
+```ts
+// modules/auth/src/base.ts
+principalRef: shape({ credentialId: field.ref.own('credential'), sessionId: field.ref.own('session') }),
+
+// modules/auth/src/actions/logout.ts: ctx.principal.ref is { resolver, principalId, credentialId: Id<'auth.credential'>; sessionId: Id<'auth.session'> } | null
+decide: (_input, ctx) => {
+  const sessionId = ctx.principal.ref?.sessionId
+  return sessionId ? [ctx.write.auth.session.update(sessionId, { revokedAt: ctx.clock.now() })] : []
+},
+```
+
+In the parts of that module, `ctx.principal.ref` is `PrincipalRef` with those fields, typed, and
+null when no resolver of the module resolved the principal; logout therefore revokes the session
+by its branded id, with no cast and no load. Every other module sees `PrincipalRef | null`: the
+resolver id and the principal id, because the other fields belong to the resolving module. Before
+2026-11-04 the reference carried a plain `credentialId: string`, which branded ids reject (the
+composition-types spike found it in `docs/api-sketch.ts`). The subject itself is the opaque
+`SubjectId` of `field.subject()`; a module that maps a profile id to a subject declares the helper
+with that return type (`asSubject(profileId): SubjectId`), so the value fits `field.subject()`
+inputs without a cast.
 
 Principal resolvers (an ordered extension point) turn the carrier into a principal and describe
 themselves (`describe(): { scheme: 'bearer' | 'cookie' | 'apiKey'; name?; description? }`) for the
@@ -3043,8 +3196,9 @@ positions per scope, a hybrid logical clock per event, the actor and command id 
 Asynchronous commands, async reactions, durable timers, schedules and external effects run on one
 job queue (gap G3; ADR 0015, amended by [ADR 0025](adr/0025-nodes-capacity-and-autoscaling.md)). The
 kernel queue stores jobs in the namespace through the data adapter's job store (section 14.3.9), so
-a job is enqueued in the unit of the command that causes it on every adapter, carries the scope's
-row-level security and needs no relay. Under decision 50a no worker runs code that performs effects:
+a job is enqueued in the unit that causes it on every adapter (a command's jobs in the command's
+unit; async reactions in the reaction dispatcher's unit, section 7.7; schedule runs in the
+schedule's tick, section 9.5.6), carries the scope's row-level security and needs no relay. Under decision 50a no worker runs code that performs effects:
 an action job (an asynchronous command, reaction, timer, schedule or continuation) is invoked
 through the invoker and returns events and effect descriptions; an external effect (an SMTP
 dialogue, a Docker Engine request) becomes an effect job in the same unit, run by its declared
@@ -3132,11 +3286,70 @@ Asynchronous actions and async reactions set the same job options, `capability` 
   idempotency key where the destination accepts one. Each outcome is recorded on its effect record,
   linked to its cause, and passed to the continuation the description names.
 
+The queue tables, as the write-path spike built and measured them on PostgreSQL 18.6 (2026-11-04):
+
+```sql
+-- PostgreSQL, per namespace; MySQL and SQLite use the same columns with their own types (section 14.5.1). Every table
+-- has forced row-level security over scope_id that also admits namespace-scope units (the take, section 9.5.3).
+create table <root>.kw_job_lanes (
+  id              bigint          generated always as identity primary key,
+  scope_id        uuid            not null,             -- tenant id, or backend id
+  queue           text            not null,
+  capability_set  text            not null,             -- the capability set the lane's jobs need (section 21.2)
+  priority        smallint        not null,             -- the class: high, normal, low
+  cap             integer         not null,             -- running jobs at most (section 9.5.5)
+  weight          integer         not null,             -- the scope's share
+  taken           bigint          not null default 0,   -- written by takes only
+  vtime           double precision not null default 0,  -- virtual time; written by takes only
+  unique (queue, capability_set, scope_id, priority)
+);
+create table <root>.kw_job_lane_counts (
+  lane_id         bigint          not null references <root>.kw_job_lanes (id),
+  kind            text            not null check (kind in ('enqueued', 'done')),
+  scope_id        uuid            not null,             -- the lane's scope, the row-level security key (below)
+  value           bigint          not null default 0,   -- written by enqueue tails, promotions, FIFO releases, completions
+  primary key (lane_id, kind)
+);
+create table <root>.kw_job_groups (
+  id              text            primary key,          -- 'mx:example.com', 'backend:<id>'
+  concurrency     integer,
+  running         integer         not null default 0,
+  blocked_until   timestamptz                           -- rate_limited with retryAfter, or the rate's next token
+);
+create table <root>.kw_jobs (
+  id              bigint          generated always as identity primary key,
+  scope_id        uuid            not null,
+  lane_id         bigint          not null,
+  queue           text            not null,
+  state           text            not null check (state in ('scheduled', 'available', 'waiting', 'running')),
+  run_at          timestamptz     not null default now(),
+  revision        integer         not null,             -- the enqueuer's build revision (section 19.2)
+  group_id        text,
+  key             text,
+  cost            integer         not null default 1,   -- fair-share units
+  input           jsonb           not null,             -- the run: action and input, or executor and effect id
+  worker          text,                                 -- worker, attempt and lease: the running attempt (section 9.5.4)
+  attempt         integer         not null default 0,
+  lease_until     timestamptz
+);
+create index kw_jobs_take on <root>.kw_jobs (lane_id, run_at, id) where state = 'available';
+```
+
+- `kw_job_lane_counts` carries the lane's scope: the enqueue bump runs in the causing tenant's unit
+  under forced row-level security, and an update of a counter row the unit cannot see matches zero
+  rows without an error, so a counter row without the scope would silently stop counting (the
+  spike's first run did).
+- These are the columns the take, the lane counters and the completions use. The rest of
+  `JobSpec` (principal reference, causation, retry and lease options, dead-letter target) adds
+  columns to `kw_jobs` in M1; groups, rates and FIFO keys were not exercised by the spike, so the
+  group table's row-level security is settled with them, under the rule the lane counters follow.
+
 #### 9.5.3 The fair take
 
 ```sql
 -- PostgreSQL (MySQL: the same steps in two statements); a kernel namespace-scope unit only the queue tables'
--- policies admit. $sets: capability sets this process satisfies; $vmin: least virtual time of busy lanes.
+-- policies admit. $sets: capability sets this process satisfies; $vmin: the least virtual time of the lanes with
+-- available work, read in the take's unit before this statement; $lanes: lanes to lock, by default the batch size.
 with picked as (
   select l.id, l.cap - (l.taken - d.value) as room from kw_job_lanes l
   join kw_job_lane_counts e on e.lane_id = l.id and e.kind = 'enqueued'   -- read, never locked
@@ -3164,6 +3377,22 @@ select j.* from picked p cross join share s cross join lateral (
 - Takers lock different lanes, then different jobs, sharing a batch over the lanes picked. Group
   rows serialise only takes of one group; counting under that lock replaces the count inside the
   take statement, which raced at `READ COMMITTED`.
+- `$vmin` is the least virtual time of the lanes of the queue and capability sets that have
+  available work (`enqueued > taken`), read in the take's unit; an idle lane that becomes busy is
+  lifted to it.
+- `$lanes` defaults to the take's batch size and is configurable per queue
+  (`queues.<q>.takeLanes`). A take locks every lane it may use for the whole take unit with `skip
+  locked`, so concurrent takers on few lanes come back empty while work is available: the
+  write-path spike saw 44 to 59 % empty takes on one lane, 46 to 56 % on ten lanes with batches of
+  10 or 50, and 9 % on 100 lanes with batches of 50. The take therefore reports the lanes it skipped
+  as locked separately from "no work", and the fetcher acts on the difference (section 9.5.6).
+- Known limit: the lane pick sorts every eligible lane, because the order by load per weight and
+  virtual time cannot use an index. The take statement's p95 grew from 1.6 to 1.9 ms (1 to 10
+  lanes) to 2.1 to 2.2 ms (100 lanes) and 4.3 to 4.8 ms (1,000 lanes). Lanes are per scope, queue,
+  capability set and priority, so a placement with thousands of tenants needs a bounded candidate
+  set (roadmap M5). Lane caps held: 0 of 325 samples over cap.
+- The statement runs unmodified on PostgreSQL 18 (checked on 18.6): `limit least(p.room, s.n)`
+  accepts the numeric share.
 - SQLite, PGlite and the in-memory adapter (the conformance oracle) run the same steps under their
   single writer.
 
@@ -3208,7 +3437,9 @@ configuration cannot reach them); `keelwerk jobs lanes` and `keelwerk doctor` sh
 - Workers run only in processes with the `work` role, for the queues their named process slots, and
   take effect jobs only for executors whose capabilities the process advertises (section 21.2). One
   fetcher per queue promotes due jobs and takes batches for the slots, woken after commit by the
-  notifier of section 14.3.7 (channel `kw_jobs`) and by a jittered poll every second. With
+  notifier of section 14.3.7 (channel `kw_jobs`) and by a jittered poll every second. A take that
+  skipped locked lanes is not "no work": a fetcher that saw skipped lanes takes again at once,
+  after a short jitter, instead of waiting for the next wake-up or the poll (section 9.5.3). With
   per-tenant namespaces (M5), wake-ups pass through the control store, and each process sweeps the
   namespaces that rendezvous hashing over the live registry gives it.
 - An action job runs through the invoker after the worker sets the scope and resolves the principal,
@@ -3235,8 +3466,13 @@ effect under decision 50a. The kernel queue stays.
 - Ceiling: graphile-worker 0.18's benchmark reaches about 15,600 trivial jobs per second unbatched
   and 184,000 batched on one machine; Hatchet's maintainers reported that bursts above 5,000 tasks
   per second (about 25,000 transactions) outgrew a plain `SKIP LOCKED` queue. The ceiling is per
-  placement: plan with 2,000 jobs per second, handlers included, until the M0 and M2 measurements
-  replace the number. The proof platforms need well under 10.
+  placement. The write-path spike measured the take with four takers and trivial handlers on
+  PostgreSQL 18.6 (2026-11-04): 417 to 718 jobs per second at batch 1, 4,020 to 5,500 at batch 10
+  and 16,067 to 20,899 at batch 50, with completions batched per take. Each job completes in its
+  own unit (section 9.5.2), so a placement's job rate is bounded by its unit rate (1,757 to 2,519
+  units per second across eight tenants in the same environment), not by the take; the default take
+  batch is 10. M2 measures again with real handlers. The proof platforms need well under 10 jobs
+  per second.
 - Upgrade path, keeping `JobQueue`, `JobStore`, `JobSpec` and the conformance suite: first more
   placements, partitioned `kw_jobs` and a transaction-mode pooler; then a dispatch tier, where
   leased fetchers per namespace and queue take fair batches and publish job ids on NATS JetStream
@@ -3525,9 +3761,14 @@ M0 spike runs them again on Node 26 and records the results here.
 - `isolatedDeclarations` is enabled only in packages whose exports are explicitly typed (core
   internals, adapters, the client, the CLI). It cannot be enabled in packages that export DSL values
   (modules, apps, transport modules, examples): TypeScript 7.0.2 rejects `export const accounts =
-  defineModule(...)` with TS9010 and TS9013, because the type comes from inference (Appendix B).
-  The named-type pattern of section 4.1 keeps the inference and still needs the full checker for
-  declaration emit.
+  defineModule(...)` with TS9010 and TS9013, because the type comes from inference (Appendix B);
+  the composition-types spike counted 41 such errors (TS9010, TS9013, TS9016, TS9017) in one
+  synthetic module package. The named-type pattern of section 4.1 keeps the inference and still
+  needs the full checker for declaration emit.
+- The core compiles with `isolatedDeclarations` on, so the core module's own value cannot use the
+  named-type pattern, which needs an inferred type and fails there with TS9010: its base and module
+  types are written by hand (`CoreBase`, `Core`; found by the composition-types spike,
+  2026-11-04).
 - The root `tsconfig.json` is a solution file (`"files": []` and the references of every package);
   `tsc -b` builds the graph with TypeScript 7.0.2.
 - Unit and type tests live next to sources (`*.test.ts`, `*.test-d.ts`); integration tests live in
@@ -3579,7 +3820,7 @@ published, through one export condition:
 The framework repository follows section 22 and keeps one example app, `examples/portal`, for its
 own CI; every platform built on keelwerk lives in its own repository and depends only on the
 published packages (decision 48c, 2026-10-27). An application repository built on keelwerk has
-the layout of section 23.1: `keelwerk.config.ts`, one package per app under
+the layout of section 23.1: the deployment in `.launchway/` (decision 90c), one package per app under
 `apps/<id>/` with `src/modules.ts` (the selection) and `src/app.ts` (`defineApp` with its named
 type), every module a package under `modules/<id>/` in the module layout of section 23.2,
 `scripts/` with one task per file, and `knip.json` beside `biome.json` at the root. Section 23
@@ -3592,7 +3833,7 @@ also states the single-purpose rule, the names and the tooling that keeps them.
 1. **The type checker**: `tsc -b --watch --preserveWatchOutput` with TypeScript 7.0.2. Diagnostics
    stay visible in the status line; they do not stop the app, because type stripping does not need
    types, but `keelwerk build` refuses them.
-2. **The probe**: a short-lived Node process that imports `keelwerk.config.ts`, composes every
+2. **The probe**: a short-lived Node process that imports the deployment file (section 4.6), composes every
    app, derives the surfaces and asks every producer for its artefacts. A fresh process runs after
    each change, because an ECMAScript module graph cannot be unloaded. Before it starts, the
    supervisor rewrites the manifest of every module whose directories changed (section 23.5): a
@@ -3706,10 +3947,10 @@ its formatter with single quotes, two-space indentation and 100 columns (the sty
 | `noEnum`, `noNamespace`, `noParameterProperties` (style) | erasable syntax only, for Node's type stripping |
 | `useImportType`, `useExportType` (style) | `verbatimModuleSyntax` |
 | `useNodejsImportProtocol` (style) | `node:` specifiers for built-ins |
-| `noProcessEnv` (style), `noProcessGlobal` (correctness), `noGlobalAssign` (suspicious), everywhere except `keelwerk.config.ts` | configuration comes from `ctx.config`, secrets from `field.secret()`, deployment values from `env()`; no hidden channel through the process or a global (section 7.9.6) |
+| `noProcessEnv` (style), `noProcessGlobal` (correctness), `noGlobalAssign` (suspicious), everywhere except the deployment file (`.launchway/deployment.ts` or `keelwerk.config.ts`) | configuration comes from `ctx.config`, secrets from `field.secret()`, deployment values from `env()`; no hidden channel through the process or a global (section 7.9.6) |
 | `noNodejsModules` (correctness), in module packages outside `src/executors/` | `node:*` modules perform effects or need the event loop; handlers yield requests instead, and the core's pure primitives come from `@keelwerk/core/crypto` (section 7.9.3) |
 | `noNonNullAssertion` (style) | `noUncheckedIndexedAccess` results are meant to be handled |
-| `noDefaultExport` (style) | named exports everywhere except `keelwerk.config.ts` (an override) |
+| `noDefaultExport` (style) | named exports everywhere except the deployment file (an override) |
 | `useImportExtensions` (correctness) | relative imports carry `.ts`, as Node and `rewriteRelativeImportExtensions` need |
 | `noUnusedImports`, `noPrivateImports` (correctness) | hygiene; `@private` internals stay private |
 | `noFloatingPromises`, `noMisusedPromises` (nursery) | in the imperative code that remains (kernel, executors, transports, listeners), unawaited work escapes its span and its abort signal; the exact Biome version is pinned, so nursery behaviour does not drift |
@@ -3719,6 +3960,11 @@ its formatter with single quotes, two-space indentation and 100 columns (the sty
 | `noBarrelFile`, `noReExportAll`, `noNamespaceImport` (performance); `noExportedImports` (style) | no re-exporting files, `export *`, `import * as` or exported imports (section 23.3) |
 | `useExportsLast` (style) | a file's exports are its last statements |
 | `noExcessiveLinesPerFile` (style), 300 non-blank lines, as a warning | a file long enough to hold two purposes |
+
+Biome's recommended `noBannedTypes` (complexity) stays on everywhere, core type modules included,
+with no relaxation in the preset. The type model needs the empty object type, so the core defines
+it once as `Empty` (`type Empty = Record<never, never>`) and uses that name instead of `{}`; the
+composition-types spike, which wrote `{}`, drew 67 warnings from the rule (2026-11-04).
 
 Overrides exempt the entry files of library packages from the barrel rules, migrations and
 generated paths from the naming rule, and scripts and tests from the import-effects plugin below.
@@ -3783,7 +4029,14 @@ error-code prefixes against the declaring module, unique TypeID prefixes) run at
   of the same module written in one file; an `async` handler fails to compile; generator answers are
   typed per request), the policy typing (a condition cannot name a field or relation that the rule's
   modules do not provide; read rules list only maskable fields; `principal: 'user'` narrows the
-  subject), and the generated file's exports.
+  subject), the named checks of section 4.7 with a passing and a failing case each, and the
+  generated file's exports.
+- TypeScript does not excess-check an object literal returned from a callback: a rule's
+  `where: () => ({ owner: 'x' })` passed a plain `Condition<E>` return type on an entity without
+  `owner` (composition-types spike, 2026-11-04). Every callback-returned literal in the DSL
+  therefore needs a named check that infers the literal and checks its keys by name, as
+  `unknownConditionFields` does for rules (section 8.3), and a failing case in the suite; a
+  declared return type alone checks nothing.
 - `@keelwerk/testing/types` exports assertion helpers for application authors:
   `ExpectValidApp<A>` (no `defineApp` check properties), `HasEntity<App, 'accounts.profile'>`,
   `HasAction<App, 'accounts.profile.changePassword'>`, and the client types `InputOf`, `ResultOf`
@@ -3791,7 +4044,7 @@ error-code prefixes against the declaring module, unique TypeID prefixes) run at
 - `keelwerk new module` scaffolds the toggle cases: the module alone, the module with each module
   in its `optional` list, and the conditional parts present only in the latter.
 - Transport packages carry type tests of their derived types (the cases of Appendix B for tRPC,
-  the result types per execution mode for the typed client, `Readable<Row>` for masks) and an
+  the result types per execution mode for the typed client, `Readable<App, Ref>` for masks) and an
   instantiation budget on their fixture app.
 
 ### 13.11 Type budgets and declaration emit
@@ -3814,19 +4067,46 @@ the tenth module of a larger chain. Both proof apps are that deep (`previews` re
 which requires `mail-store`, which requires `mail-domains`). Rules:
 
 - every exported module and app value has a named type (`ModuleType`, `AppType`), scaffolded by
-  `keelwerk new module` and enforced by `named-module-types.grit`;
+  `keelwerk new module` and enforced by `named-module-types.grit`; every exported entity has one
+  too, in the same style (`export interface Profile extends EntityType<typeof profile> {}`, section
+  4.2), because `base.d.ts` otherwise repeats each entity's type;
 - every type that can appear in a DSL value's type is exported by `@keelwerk/core`, or emit fails
-  with TS4023 or TS2742;
+  with TS4023 or TS2742, which TypeScript 7.0.2 reports as TS2883: the core package's entry exports
+  every type that can appear in a part or module type (about 120 names in the spike);
+- the declared return types of part functions are written out as `ActionPart<...>` with computed
+  types, never as an alias with its raw arguments: emit writes an alias in a declared return type
+  with the arguments as given, which copied the entity and input shapes into every part file and
+  brought a synthetic module to 21 KB, against 12.3 KB written out;
+- no DSL function that may be nested inside another const-generic call infers a defaulted literal
+  type parameter; such functions take the whole literal as one type parameter, and defaulted
+  parameters use `NoInfer`. Measured failure: an inline `defineContribution` inside
+  `defineModuleBase` inferred `when: readonly Dependency[]` from the outer constraint and the
+  contribution was silently inactive (section 4.7);
 - CI builds the portal example and the synthetic apps here, and each platform repository builds its
-  app, under the pnpm layout and fails on TS7056, TS2742 or TS4023, and when a module's `.d.ts`
-  exceeds the budget the spike sets (a few kilobytes per module).
+  app, under the pnpm layout and fails on TS7056, TS2742, TS4023 or TS2883, and when a module's
+  declarations exceed the budgets: 6 KB per `module.generated.d.ts` and 16 KB per module package
+  `.d.ts` in total.
+
+Measured on 2026-11-04 by the composition-types spike under the pnpm layout: a synthetic module
+emits 12,317 B in 11 files (`module.generated.d.ts` 2,880 B, `base.d.ts` 4,078 B, the two entities
+865 and 1,323 B, parts 355 to 539 B each), the same at depth 3 and at depth 40; the fixture modules
+emit 1.1 KB (teams) to 21.4 KB (auth, 21 files, manifest 5.6 KB) before the named entity types. The
+build is clean at 3, 12, 25 and 40 modules with no TS7056, TS2742, TS4023 or TS2883.
 
 **Instantiations.** CI runs `tsc -p <app> --extendedDiagnostics` on the portal example and the
 synthetic apps here, and on Trail's, Launchway's and later the mail server's app in their own
-repositories, and fails when the instantiation count exceeds the budget the spike establishes on
-synthetic apps of 25 and 40 modules with parts typed against their bases (section 4.7 gives the fold's own
-figures: 195,783 and 408,543 on TypeScript 7.0.2). attest benchmarks guard the composition types in
-`@keelwerk/core`.
+repositories, and fails when the instantiation count exceeds the budgets set from the spike's synthetic apps with
+parts typed against their bases (section 4.7 lists the measurements, about 15 % headroom):
+
+| Count | 25 modules | 40 modules |
+|---|---|---|
+| fold: the app over the modules' `.d.ts` | 450,000 | 960,000 |
+| whole program | 1,550,000 | 2,600,000 |
+
+Typing parts against their bases costs about 36,000 instantiations per module, linear in the
+module count, and parts in files cost 0.8 % more than one file per module, so the one-part-per-file
+layout of section 23 has no type-check price worth naming. attest benchmarks guard the composition
+types in `@keelwerk/core`.
 
 **The generated manifest in the budget.** `tsc` sees `module.generated.ts` as written, so the
 budgets and traces measure the generated literal itself: one import and one entry per part, the
@@ -3882,8 +4162,9 @@ sync and live updates. ADRs [0006](adr/0006-data-adapter-boundary-namespaces-and
 statements this section relies on (the commit-tail counter, including the reuse of a rolled-back
 allocation, and the unique-violation code of expected-version conflicts) and the `xid8` visibility
 scheme it rejects were run on PostgreSQL 18.3 through PGlite 0.5.8 on 2026-10-11; PGlite has a
-single connection and cannot exercise lock waits, so concurrent multi-tenant writers are measured
-on a networked PostgreSQL before M1 (roadmap M0).
+single connection and cannot exercise lock waits, so the write-path spike measured concurrent
+multi-tenant writers on PostgreSQL 18.6 over TCP on 2026-11-04 (`spikes/write-path/REPORT.md`;
+sections 7.9.4, 9.5, 14.3.6, 14.3.7 and 15.1.4 carry its results).
 
 ### 14.1 Principles
 
@@ -4342,14 +4623,22 @@ result set.
 - Commands run at `READ COMMITTED` on PostgreSQL and MySQL (on MySQL this avoids the gap locks of
   `REPEATABLE READ` on inserts) and under `BEGIN IMMEDIATE` on SQLite. Writers of one row queue on its
   row lock where the adapter has row locks (section 15.1.6); the versioned state update and the unique
-  stream version remain the guard on every adapter.
+  stream version remain the guard on every adapter. Loads are positioned (section 7.9.4, phase 5),
+  so a decision records what it read without one snapshot for the whole decision. One `REPEATABLE
+  READ` snapshot per decision was measured and rejected (write-path spike, 2026-11-04): every
+  appending unit updates its scope's counter row at its tail, so any other commit of the scope after
+  the snapshot fails that update with 40001, even when the units touch different entities; 36 to
+  77 % of units failed after three retries, at 99 to 200 units per second against 337 to 843 at
+  `READ COMMITTED`.
 - Nested units are savepoints: a command requested with an `invoke` effect runs after the decision
   that requested it, in a savepoint of the same unit, and its failure fails the unit (the decision
   saw no result to catch; section 7.9.5).
 - Retries: on a version conflict, a serialization failure or a deadlock, every command, the
-  generated `set` included, is retried up to three times with jitter (phases 3 to 7 of section
-  7.9.4), because no decision performed anything; `prepare` is not repeated. A `set` with
-  `ifInState` or `ifVersion` never retries.
+  generated `set` included, is retried up to three times (phases 3 to 7 of section 7.9.4), because
+  no decision performed anything; `prepare` is not repeated. The waits are full jitter over 2, 4
+  and 8 ms (a random wait of up to 2 ms before the first retry, 4 ms before the second, 8 ms before
+  the third), and the unit fails after the third. A `set` with `ifInState` or `ifVersion` never
+  retries.
 - A unit spans one namespace and one scope. A tenant command reads backend-level entities in a
   separate read-only snapshot, always, even when the backend's home namespace is the tenant's;
   backend-level entities change only through backend-scope actions, which a tenant command reaches
@@ -4385,9 +4674,14 @@ adapter implements the job store (section 14.3.9). Milestones refer to [roadmap.
 
 **PostgreSQL.** The reference adapter. Units set `keelwerk.tenant_id` (or `keelwerk.backend_id`)
 with `set_config(..., true)` at their start, and every scoped table has row-level security enabled
-and forced, with a policy `USING (tenant_id = current_setting('keelwerk.tenant_id', true)::uuid)`
-plus the same `WITH CHECK`; tenant tables therefore deny every statement of a backend-scope unit,
-which sets only the backend id. Namespace-scope units set `keelwerk.scope = 'namespace'`, which
+and forced, with a policy `USING (tenant_id = nullif(current_setting('keelwerk.tenant_id', true),
+'')::uuid)` plus the same `WITH CHECK` (backend-level tables the same over `keelwerk.backend_id`);
+tenant tables therefore deny every statement of a backend-scope unit, which sets only the backend
+id. The `nullif` is needed on pooled connections: once a unit that set the tenant with
+`set_config(..., true)` has ended, the setting still exists on that connection with the value
+`''`, and `''::uuid` raises 22P02, so a backend-scope or namespace-scope unit on a connection that
+earlier ran a tenant unit would fail instead of seeing no tenant rows (found by the write-path
+spike, 2026-11-04). Namespace-scope units set `keelwerk.scope = 'namespace'`, which
 only the migration and maintenance policies admit; module code never runs in them. The adapter's
 role has no `BYPASSRLS`. Row-level security protects against defects in the framework and the
 adapters; module code is trusted application code, and the escape-hatch rules of section 14.3.8
@@ -4484,8 +4778,9 @@ its types to module authors, which is accepted for an escape hatch and pinned to
 
 The kernel job queue of section 9.5 is implemented once, in the core, over a `JobStore` that every
 adapter provides in its unit. Jobs live in `kw_jobs` in the namespace, beside their lanes, lane
-counters, groups and history (section 9.5.2), carry the scope (so row-level security covers their
-payloads) and are inserted in the unit of the command, timer or reaction dispatch that causes them.
+counters, groups and history (section 9.5.2, which gives their DDL), carry the scope (so row-level
+security covers their payloads) and are inserted in the unit of the command, timer or reaction
+dispatch that causes them.
 
 ```ts
 export interface JobStore {
@@ -4496,7 +4791,7 @@ export interface JobStore {
   /** The fair take of section 9.5.3 over the lanes of the worker's capability sets: lane caps, keys, FIFO order per key
       and group limits; reclaims expired leases first; only jobs enqueued at or below `maxRevision`, the worker's build
       revision (section 19.2). */
-  take(queue: string, worker: string, request: { readonly limit: number; readonly capabilitySets: readonly string[]; readonly maxRevision: number; readonly leaseMs: number }): Promise<readonly StoredJob[]>
+  take(queue: string, worker: string, request: { readonly limit: number; readonly lanes?: number; readonly capabilitySets: readonly string[]; readonly maxRevision: number; readonly leaseMs: number }): Promise<{ readonly jobs: readonly StoredJob[]; readonly skippedLanes: number }>   // lanes defaults to limit; skippedLanes: locked by other takers, not "no work"
   /** Conditional on (worker, attempt); returns the attempts whose lease still holds. */
   heartbeat(attempts: readonly JobAttempt[], worker: string, leaseMs: number): Promise<readonly JobAttempt[]>
   /** Conditional on (worker, attempt): succeeded (history written), retry at a time, or dead letter; false when the lease was lost. */
@@ -5404,7 +5699,7 @@ for random rows, normalisers and operators (section 14.10).
 
 ##### 14.7.9.11 Types
 
-`Row`, `Readable<R>`, `AsOf<R>` and `HistoryEntry<R>` are unchanged: a personal field keeps its
+`Row`, `Readable<App, Ref>`, `AsOf<R>` and `HistoryEntry<R>` are unchanged: a personal field keeps its
 declared type. Only the operators a filter may use narrow:
 
 ```ts
@@ -5547,7 +5842,8 @@ and 7.9.3):
 - for entities of required and optional modules, the loads, with rows that exclude the other
   module's hidden fields, plus `update` drafts limited to the fields this module contributed;
 - `forCaller()` on any of them gives the loads narrowed by the caller's read plan, typed
-  `Readable<R>` because the caller's mask may hide maskable fields;
+  as the readable row (computed from the entity's fields, section 8.1) because the caller's mask
+  may hide maskable fields;
 - projection and external entities offer loads only, apart from the owning module's drafts on an
   external entity (section 14.8.4).
 
@@ -5556,7 +5852,7 @@ comparison with `null` or `undefined` never matches (section 8.3). The row types
 contain the fields of its own definition, its own conditional parts (optional), and the fields its
 contributions add to other modules' entities; fields that other modules contribute to its entities
 are not part of its view, because the module was compiled without them. App types
-(`Row<App, Ref>`, `Readable<R>` for client results) are instantiated once per app in
+(`Row<App, Ref>`, `Readable<App, Ref>` for client results) are instantiated once per app in
 `keelwerk.generated.ts` (section 13.1), so clients and transports never fold the module tuple
 again.
 
@@ -5899,9 +6195,19 @@ its tail meanwhile waits, then reads the committed counter, so positions follow 
 the scope and have no gaps at commit (a rolled-back allocation is reused).
 
 ```sql
--- Commit tail of a unit that appended $n events in scope $scope (PostgreSQL; MySQL and SQLite have the same shape).
-update <root>.kw_positions set next = next + $n where scope_id = $scope returning next - $n as first;  -- waits for earlier tails of this scope only
-insert into <root>.kw_events (scope_id, position, ...) values ($scope, $first, ...), ($scope, $first + 1, ...);
+-- Commit tail of a unit that appended $n events in scope $scope: one statement on PostgreSQL (MySQL and SQLite run the
+-- same three steps as statements of the unit).
+with counter as (
+  update <root>.kw_positions set next = next + $n where scope_id = $scope
+  returning next - $n as first                                     -- waits for earlier tails of this scope only
+), appended as (
+  insert into <root>.kw_events (scope_id, position, ...)
+  select $scope, counter.first + e.ordinal - 1, ... from counter, unnest($events) with ordinality as e
+), enqueued as (                                                   -- only when the unit made jobs available (section 9.5.2)
+  update <root>.kw_job_lane_counts c set value = c.value + x.n
+  from unnest($lanes, $counts) as x(lane_id, n) where c.lane_id = x.lane_id and c.kind = 'enqueued'
+)
+select first from counter;
 commit;
 -- after commit: the unit's afterCommit hook hands ($namespace, $scope) to the process's notifier (section 14.3.7)
 ```
@@ -5917,13 +6223,23 @@ Properties:
 - Tenants do not contend: two tenants in one shared namespace commit in parallel, and a tenant's
   positions count only its own commits, so tokens and `MODSEQ` values disclose nothing about other
   tenants.
-- Cost: appending units of one scope serialise for the length of their tail (one insert and the
-  commit), so a single tenant commits at most about one appending unit per write-ahead-log flush:
-  several hundred to a few thousand per second on local NVMe storage. Every write appends (state
-  entities through transient records), so this is the write ceiling of one tenant. High-frequency
-  ephemeral data belongs in streams (section 15.1.12) or presence, not in entities. The ceiling and
-  the absence of cross-tenant waiting are measured with concurrent multi-tenant writers on a
-  networked PostgreSQL before M1 (roadmap M0) and again on both proof apps.
+- Cost: appending units of one scope serialise for the length of their tail. The counter's row
+  lock is held from the tail statement until the commit completes: with the tail as one statement,
+  one round trip plus the write-ahead-log flush. The ceiling is therefore set per round trip, not
+  per flush. The write-path spike measured it on PostgreSQL 18.6 on 2026-11-04: about 1,000 to
+  1,400 appending units per second per scope with the database within 0.2 ms of the writers, and
+  110 to 150 at a 2.8 ms round trip. As two statements (counter update and insert, then `COMMIT`)
+  the tail held the lock for two round trips plus the flush (p50 0.45 to 0.83 ms at 0.2 ms, 6.3 to
+  7.2 ms at 2.8 ms); as one it holds 0.25 to 0.63 ms, and at 2.8 ms a scope commits 147 instead of
+  110 units per second. Beyond about four writers a scope gains nothing and only queues (1,170 to
+  1,035 units per second from 4 to 16 writers, p95 5 to 42 ms). The adapter keeps the database
+  within about 1 ms of the writers, or the deployment plans the asynchronous sequencer below for
+  the scope. Every write appends (state entities through transient records), so this is the write
+  ceiling of one tenant. High-frequency ephemeral data belongs in streams (section 15.1.12) or
+  presence, not in entities. Writers of different scopes do not wait on each other: the spike saw
+  no cross-scope lock wait in any sample, seven tenants kept a p95 of 13.8 to 15.8 ms while an
+  eighth tenant's counter row was held for 1.5 seconds, and eight tenants committed 2.1 times the
+  units per second of one under the same 16 writers. Both proof apps measure the ceiling again.
 - Wake-ups never run inside the writer's transaction (section 14.3.7).
 
 Alternatives considered:
@@ -5997,7 +6313,12 @@ For a command on a chain entity (every command is written with `decide`, section
 1. The invoker resolves the scope's namespace and opens a read-write unit on it; the first statement
    inserts the pending receipt (section 15.1.7).
 2. The target row is selected by the action's plan (`not_found` outside it), locked where the
-   adapter supports it, and handed to `decide` as the full row.
+   adapter supports it, and handed to `decide` as the full row. Its snapshot position is read after
+   the lock is held, from the first statement the unit sends after the lock (the adapter may fold
+   it into the `returning` of step 9's versioned state update), never from a subselect in the
+   locking statement, which keeps the statement's original snapshot after a lock wait and recorded
+   a stale position in 100 of 100 commits on a hot row in the write-path spike (section 7.9.4,
+   phase 5).
 3. The clock receives `kw_last_hlc` and the field clocks of the merge state (section 14.5.3).
 4. The kernel drives `decide(input, current, ctx)` and answers its requests in the unit, tagging
    each load with the snapshot position it saw; the decision's drafts become events (offline
@@ -6111,8 +6432,8 @@ export interface ReceiptStore {
   `connect` reads the newest anchor as one more rewind signal (section 14.7.6), and `keelwerk
   doctor` warns when a scope's newest anchor is older than its cadence, which means a sink is
   missing or failing (section 13.12). An anchor pins the stream that held the scope's head at that
-  moment; whether anchors should also carry a digest over every stream head of the scope is open
-  (section 26.3).
+  moment and carries the scope's latest position and hash only, no digest over every stream head of
+  the scope (decision 89a, 2026-10-28).
 - Always on for chain entities: one SHA-256 per event is negligible next to the write itself.
   Transient records carry no hash.
 
@@ -6700,9 +7021,10 @@ The data layer's own sync protocol (`sync.register`, `sync.push`, `sync.pull`, `
 transport like any other; section 15.4.8 says which carrier suits which.
 
 ```ts
+// Row is the readable row: Readable<App, 'module.entity'> in app types, computed from the fields in module-local views (section 8.1).
 export type EntityChange<Row> =
-  | { readonly type: 'created' | 'changed' | 'restored'; readonly id: string; readonly version: number; readonly cause?: string; readonly row: Readable<Row> }
-  | { readonly type: 'archived'; readonly id: string; readonly version: number; readonly cause?: string; readonly row?: Readable<Row> }
+  | { readonly type: 'created' | 'changed' | 'restored'; readonly id: string; readonly version: number; readonly cause?: string; readonly row: Row }
+  | { readonly type: 'archived'; readonly id: string; readonly version: number; readonly cause?: string; readonly row?: Row }
   | { readonly type: 'removed'; readonly id: string; readonly reason: 'left-view' | 'purged' | 'erased' }   // no data; reasons as the sync protocol's RowChange
 
 /** Input of the generated `watch` (wire names follow the generated `query`: `filter`). */
@@ -6824,7 +7146,7 @@ event: error
 data: {"kind":"forbidden","code":"core.forbidden","message":"...","retryable":false,"requestId":"..."}
 
 event: notice
-data: {"kind":"deprecation","apiVersion":"2026-10-23","at":"2027-06-01","sunset":"2028-01-31"}
+data: {"kind":"deprecation","apiVersion":"2026-10-23","at":"2027-01-12","sunset":"2028-01-12"}
 
 event: end
 data: {"reason":"going_away"}
@@ -7197,7 +7519,7 @@ export interface FieldNodeBase {
   readonly default?: unknown                             // in wire form
   readonly description?: string
   readonly access: 'read-write' | 'read' | 'write'       // system fields 'read'; field.secret() 'write'
-  readonly maskable?: true                               // rules may hide it per row; optional in Readable<Row>
+  readonly maskable?: true                               // rules may hide it per row; optional in Readable<App, Ref>
   readonly merge?: 'lww' | 'counter' | 'set' | 'sequence' | 'richText' | 'exclusive'
   readonly unique?: true
   readonly personal?: true
@@ -7586,29 +7908,30 @@ Name derivation uses the identifier grammar of section 5.1: module ids
   `y` becomes `ies` (`policy`, `policies`); every other word takes `s` (`profile`, `profiles`;
   `key`, `keys`). Irregular nouns use the `rest.collection` hint.
 
-| Item | Reference | REST | GraphQL | tRPC path | CLI route |
+| Item | Reference | REST | GraphQL | tRPC path | CLI |
 |---|---|---|---|---|---|
-| entity type | `accounts.profile` | collection `/accounts/profiles` | type `AccountsProfile` | n/a | `accounts profile` |
-| generated `get` | `accounts.profile.get` | `GET /accounts/profiles/{id}`, `POST /accounts/profiles/get` | `accountsProfile(id)`, `accountsProfileGet(ids)` | `accounts.profile.get` | `accounts profile get <id>...` |
-| generated `query` | `accounts.profile.query` | `GET /accounts/profiles`, `POST /accounts/profiles/query` | `accountsProfiles(...)` | `accounts.profile.query` | `accounts profile list` |
-| generated `changes` | `accounts.profile.changes` | `GET /accounts/profiles/changes` | `accountsProfileChanges(...)` | `accounts.profile.changes` | `accounts profile changes` |
-| generated `queryChanges` | `accounts.profile.queryChanges` | `POST /accounts/profiles/query-changes` | `accountsProfileQueryChanges(...)` | `accounts.profile.queryChanges` | `accounts profile query-changes` |
-| generated `set` | `accounts.profile.set` | `POST /accounts/profiles`, `PATCH` and `DELETE /accounts/profiles/{id}`, `POST /accounts/profiles/{id}/restore`, `POST /accounts/profiles/set` | `accountsProfileCreate`, `...Update`, `...Archive`, `...Restore`, `accountsProfileSet` | `accounts.profile.set` | `accounts profile create`, `update`, `archive`, `restore`, `set` |
-| generated `watch` | `accounts.profile.watch` | `GET /accounts/profiles/watch` (SSE) | subscription `accountsProfileWatch` | `accounts.profile.watch` | `accounts profile watch` |
-| generated `history` (off by default) | `accounts.profile.history` | `GET /accounts/profiles/{id}/history` | `accountsProfileHistory(id)` | `accounts.profile.history` | `accounts profile history <id>` |
-| entity command | `accounts.profile.deactivate` | `POST /accounts/profiles/{id}/deactivate` | `accountsProfileDeactivate(input)` | `accounts.profile.deactivate` | `accounts profile deactivate <id>` |
-| entity query | `accounts.profile.search` | `GET /accounts/profiles/search` | `accountsProfileSearch(...)` | `accounts.profile.search` | `accounts profile search` |
-| module command | `accounts.register` | `POST /accounts/register` | `accountsRegister(input)` | `accounts.register` | `accounts register` |
-| module query | `accounts.identities` | `GET /accounts/identities` | `accountsIdentities(...)` | `accounts.identities` | `accounts identities` |
-| subscription | `auth.sessionEvents` | `GET /auth/session-events` (SSE) | subscription `authSessionEvents` | `auth.sessionEvents` | `auth session-events` |
-| app action | `app.health` | `GET /app/health` | `health` | `app.health` | `app health` |
-| kebab module id | `api-keys.key.revoke` | `POST /api-keys/keys/{id}/revoke` | `apiKeysKeyRevoke(input)` | `apiKeys.key.revoke` | `api-keys key revoke <id>` |
+| entity type | `accounts.profile` | collection `/accounts/profiles` | type `AccountsProfile` | n/a | n/a |
+| generated `get` | `accounts.profile.get` | `GET /accounts/profiles/{id}`, `POST /accounts/profiles/get` | `accountsProfile(id)`, `accountsProfileGet(ids)` | `accounts.profile.get` | `keelwerk call accounts.profile.get <id>...` |
+| generated `query` | `accounts.profile.query` | `GET /accounts/profiles`, `POST /accounts/profiles/query` | `accountsProfiles(...)` | `accounts.profile.query` | `keelwerk call accounts.profile.query` |
+| generated `changes` | `accounts.profile.changes` | `GET /accounts/profiles/changes` | `accountsProfileChanges(...)` | `accounts.profile.changes` | `keelwerk call accounts.profile.changes` |
+| generated `queryChanges` | `accounts.profile.queryChanges` | `POST /accounts/profiles/query-changes` | `accountsProfileQueryChanges(...)` | `accounts.profile.queryChanges` | `keelwerk call accounts.profile.queryChanges` |
+| generated `set` | `accounts.profile.set` | `POST /accounts/profiles`, `PATCH` and `DELETE /accounts/profiles/{id}`, `POST /accounts/profiles/{id}/restore`, `POST /accounts/profiles/set` | `accountsProfileCreate`, `...Update`, `...Archive`, `...Restore`, `accountsProfileSet` | `accounts.profile.set` | `keelwerk call accounts.profile.create`, `.update <id>`, `.archive <id>`, `.restore <id>`, `.set` |
+| generated `watch` | `accounts.profile.watch` | `GET /accounts/profiles/watch` (SSE) | subscription `accountsProfileWatch` | `accounts.profile.watch` | `keelwerk call accounts.profile.watch` |
+| generated `history` (off by default) | `accounts.profile.history` | `GET /accounts/profiles/{id}/history` | `accountsProfileHistory(id)` | `accounts.profile.history` | `keelwerk call accounts.profile.history <id>` |
+| entity command | `accounts.profile.deactivate` | `POST /accounts/profiles/{id}/deactivate` | `accountsProfileDeactivate(input)` | `accounts.profile.deactivate` | `keelwerk call accounts.profile.deactivate <id>` |
+| entity query | `accounts.profile.search` | `GET /accounts/profiles/search` | `accountsProfileSearch(...)` | `accounts.profile.search` | `keelwerk call accounts.profile.search` |
+| module command | `accounts.register` | `POST /accounts/register` | `accountsRegister(input)` | `accounts.register` | `keelwerk call accounts.register` |
+| module query | `accounts.identities` | `GET /accounts/identities` | `accountsIdentities(...)` | `accounts.identities` | `keelwerk call accounts.identities` |
+| subscription | `auth.sessionEvents` | `GET /auth/session-events` (SSE) | subscription `authSessionEvents` | `auth.sessionEvents` | `keelwerk watch auth.sessionEvents` |
+| app action | `app.health` | `GET /app/health` | `health` | `app.health` | `keelwerk call app.health` |
+| kebab module id | `api-keys.key.revoke` | `POST /api-keys/keys/{id}/revoke` | `apiKeysKeyRevoke(input)` | `apiKeys.key.revoke` | `keelwerk call api-keys.key.revoke <id>` |
 
 OpenAPI operation ids are `camel(ref)`; the per-operation endpoints of `set` use the entity's
 `camel` name with `Create`, `Update`, `Archive` and `Restore`, as GraphQL does
 (`accountsProfileCreate`). Error type names are `pascal(code)` plus `Error`: `accounts.email_taken`
-becomes `AccountsEmailTakenError`. The CLI renames the generated `query` to `list` by default, a
-documented naming choice like any hint.
+becomes `AccountsEmailTakenError`. The CLI takes the reference itself under `keelwerk call`
+(subscriptions under `keelwerk watch`), so it derives no names of its own (decisions 16b and 81a,
+section 16.9.2).
 
 Collisions are found by `check`, never resolved silently. Example: a module action
 `accounts.profileSearch` and an entity query `accounts.profile.search` both become
@@ -7712,7 +8035,7 @@ type-check; the GraphQL filter inputs and the OpenAPI document describe only tho
   from you" from "not set": a `$masked` member in JSON bodies and a `_masked: [String!]!` field on
   every GraphQL entity type. Both names lie outside the identifier grammar, so they never collide
   with a field. The member is present only when something is masked.
-- TypeScript clients type reads as `Readable<Row>`: the fields declared `.maskable()` are
+- TypeScript clients type reads as `Readable<App, Ref>`: the fields declared `.maskable()` are
   optional, every other field keeps its declared type, because only maskable fields can appear in
   read rules and runtime rule sources (section 8.1).
 
@@ -8035,7 +8358,7 @@ Connect need redirects; MTA-STS policies are `text/plain`, autoconfig documents 
 downloads are byte streams with ranges.
 
 **Receivers.** `@keelwerk/transport-webhooks` (module id `webhooks`, `requires: [contracts.httpHost]`)
-declares the extension point `receivers` (mode `set`), which modules fill through contributions, as
+declares the extension point `receivers` (`extensionPoint.set`), which modules fill through contributions, as
 the `github` module does (section 17.3.9); the contribution is dropped when `webhooks` is not
 selected.
 
@@ -8046,6 +8369,7 @@ export interface WebhookReceiver {
   readonly action: string                                // 'github.ingest'
   readonly principal: string                             // the service principal granted after verification: 'github.webhook'
   readonly verify: string                                // the principal resolver of the owning module that checks the request
+  readonly claims?: Shape                                // typed claims verify may attach to the principal: Trail's { deviceId }
   readonly scopeKey?: (request: ReceiverRequest) => ScopeKey        // G2, becomes carrier.scopeKey
   readonly commandId?: (request: ReceiverRequest) => string | null  // for example the delivery id header
   readonly input?: (request: ReceiverRequest) => unknown            // default { params, headers, rawBody }
@@ -8076,6 +8400,14 @@ export interface ReceiverRequest {
   allow the service principal, and the receiving command repeats the check in its own `decide` with
   the same reveal request and primitives (as `github.ingest` does, section 17.3.13), so the
   decision verifies what it records and a re-decide checks it again.
+- A receiver grants one fixed service principal, never a per-request identity (decided
+  2026-11-04). Its `verify` resolver may attach typed claims to that principal's context, declared
+  by the receiver in `claims` (Trail's tracking receiver declares the device id, which its resolver
+  sets once the device's token matches), and rules may condition on those claims
+  (`ctx.principal.claims.deviceId`). Per-device credentials therefore stay data of the owning
+  module: they select a claim of the one principal, not a principal of their own, so the action's
+  rules, the job's principal reference and the audit log name the same service principal for every
+  device.
 - The command id makes a replayed delivery return the recorded outcome. The response is the
   action's outcome: 202 for an asynchronous action (the usual choice, because senders expect a fast
   answer), 200 or 204 otherwise, problem details on errors. Receivers appear in the composition
@@ -8499,7 +8831,7 @@ process globals.
 
 | Connection | When | Principal |
 |---|---|---|
-| project | inside a project: a `keelwerk.config.ts` that default-exports `defineDeployment` in the working directory or an ancestor, or the file named by `--config <path>` or `KEELWERK_CONFIG` | framework commands run on the local definitions; action commands go to `.keelwerk/dev.sock` while `keelwerk dev` runs, otherwise to an in-process runtime (connect without listen) as the operator |
+| project | inside a project: the file named by `--config <path>` or `KEELWERK_CONFIG`, else a `keelwerk.config.ts` that default-exports `defineDeployment` in the working directory or an ancestor, else `.launchway/deployment.ts` there (decision 90c) | framework commands run on the local definitions; action commands go to `.keelwerk/dev.sock` while `keelwerk dev` runs, otherwise to an in-process runtime (connect without listen) as the operator |
 | operator socket | `--socket <path>` or a profile whose URL is `unix://...` | operator, with logged tenant entry for tenant work |
 | remote | a profile with an `https://` URL and a credential | whoever the credential resolves to |
 
@@ -8602,10 +8934,10 @@ stages, the plan and the matched rule ids) and `--trace` (prints the trace id).
 
 | Command | Connection | What it does |
 |---|---|---|
-| `keelwerk init [dir]` | none | creates a project in the canonical layout of section 23.1: workspace, base TypeScript configuration, Biome preset, `knip.json`, `keelwerk.config.ts`, one app and one module |
+| `keelwerk init [dir]` | none | creates a project in the canonical layout of section 23.1: workspace, base TypeScript configuration, Biome preset, `knip.json`, the `.launchway/` directory (`deployment.ts`, `launchway.ts`, and until M4 `compose.yaml`; decision 90c), one app and one module |
 | `keelwerk dev` | project | the watch loop of section 13.6 |
 | `keelwerk build` | project | the checks of section 13.8, then emits JavaScript for production |
-| `keelwerk start --role serve\|work\|all` | project (built) | runs a process with the role of section 3.2 |
+| `keelwerk start --role serve\|work\|all [--config <file>]` | project (built) | runs a process with the role of section 3.2, from the deployment file found as in section 16.9.1 |
 | `keelwerk generate [--watch] [--check] [--only <producer>]` | project | writes or checks every artefact of section 13.7 |
 | `keelwerk migrate` | project or operator socket | applies pending migration files (an alias of `db apply`) |
 | `keelwerk db plan\|generate\|apply\|status\|check\|introspect\|retire\|rebuild\|verify\|restore\|reindex` | project or operator socket | the data layer's commands, with the semantics of sections 14.6.4, 15.2.4, 14.7.6, 14.7.9.7 and 14.8.4; `verify` also compares the chain heads with the anchors in the ledger sinks (section 15.1.8) |
@@ -8974,7 +9306,8 @@ The session resolver is a principal resolver of `auth`, a pure generator bound t
    (`ctx.secrets.verify(token, session.tokenVerifier)`), which compares the HMAC of the secret with
    the stored verifier in constant time.
 3. It checks revocation and both expiries against the invocation's time and returns a
-   `UserPrincipal` whose `ref` names the resolver, the subject and the session, and whose
+   `UserPrincipal` whose `ref` names the resolver, the subject, the credential and the session
+   (auth's `principalRef`, section 8.5), and whose
    `expiresAt` is the earlier expiry, together with the idle extension due, if any (section
    17.2.3).
 4. The kernel caches validated sessions per process for at most 30 seconds, keyed by public id (the
@@ -9065,6 +9398,17 @@ app in the Launchway repository (decision 48c). The agent, Docker, Caddy and the
 the framework; the agent and the UI become clients of the generated interfaces, rebuilt together and
 shipped at one cutover: a clean break, with no compatibility layer for the old agent protocol or the
 old API paths (decision 23c, 2026-10-26).
+
+**The `.launchway/` directory** (decision 90c, 2026-10-28). Every app repository carries a
+`.launchway/` directory, and the rebuilt Launchway deploys the app from it: its project model reads
+the directory, which replaces the per-project `composeFiles` setting of today's Launchway.
+`.launchway/deployment.ts` is the app's keelwerk deployment file (`defineDeployment`: the app, data
+stores and placements, ports, providers, scaling limits; section 4.6), and `.launchway/launchway.ts`
+holds what only the platform needs (domains and routes, previews, environment, node). The framework
+stays neutral: `keelwerk start --config <file>` runs any deployment file, and the default lookup is
+`keelwerk.config.ts`, then `.launchway/deployment.ts` (section 16.9.1). Before the rebuild, Trail
+(M3) is deployed by the current Launchway from `.launchway/compose.yaml`, which runs `keelwerk start
+--config .launchway/deployment.ts`.
 
 | Launchway v0.3.0 | On keelwerk |
 |---|---|
@@ -9176,7 +9520,7 @@ reports. What the agent did with the messages of Launchway's ADR 0004 and their 
 The command channel is the part that changes most:
 
 - A module that must tell a node something returns, from its decision, what the pure service
-  `ctx.services.nodes.send(nodeId, command, { then, with, deadline })` builds: an `agentCommand`
+  `ctx.services.nodes.send(nodeId, command, { continueWith, with, deadline })` builds: an `agentCommand`
   effect, which `nodes` declares with `performer: 'external'` (decision 80a). Its `requested`
   record commits in the caller's unit, so a state change and the message to the node commit
   together, and the effect record is the outbox.
@@ -9274,7 +9618,7 @@ The command channel is the part that changes most:
   `mail-domains.mailDomain` is an e-mail domain of a mail tenant (section 17.4.4).
 - The edge is a shared module with providers (decision 82a, 2026-10-26), built like `dns` (section
   17.3.8): `edge` (`@keelwerk/module-edge`) owns a provider-neutral desired state and declares
-  the `providers` extension point (`mode: 'single'`), and `edge-caddy` (`@keelwerk/edge-caddy`)
+  the `providers` extension point (`extensionPoint.single`), and `edge-caddy` (`@keelwerk/edge-caddy`)
   is the first provider. A custom `edge-native` listener module, Traefik or Envoy can follow as
   further providers without a change to `edge` or its callers. Both are keelwerk packages,
   because a provider package may depend only on published packages (decision 48c) and because any
@@ -9302,7 +9646,7 @@ export interface EdgeProvider {
   render(desired: EdgeDesiredState): EdgeConfiguration                        // pure: the provider's configuration and its hash
   status(outcome: EdgeApplyOutcome, desired: EdgeDesiredState): EdgeStatus    // pure: per site applied, pending or failed, with the reason
 }
-export const providers = extensionPoint<EdgeProvider>({ mode: 'single' })
+export const providers = extensionPoint.single<EdgeProvider>()
 ```
 
 - `edge.apply` is an external effect (decision 24a: through the edge node's agent). The program on
@@ -9428,7 +9772,7 @@ export const manage = defineRule(projectsBase, project, {
   actions: ['create', 'update'],
   principal: 'user',
   where: (ctx) => hasRole(ctx, 'member', 'admin', 'owner'),
-  fields: ['name', 'slug', 'composeFiles', 'dockerfile', 'context', 'nodeId'],   // the fields members may change
+  fields: ['name', 'slug', 'dockerfile', 'context', 'nodeId'],   // the fields members may change; the deployment comes from the repository's .launchway/ (section 17.3.1)
 })
 
 // modules/projects/src/policies/project/admin-fields.ts
@@ -9582,14 +9926,14 @@ export interface HeartbeatObserver {
   readonly id: string
   observe(nodeId: Id<'nodes.node'>, activeDeploymentIds: readonly string[]): Gen<Decision>    // pure, bound to the contributor (G16); joins the heartbeat's decision
 }
-export const heartbeatObservers = extensionPoint<HeartbeatObserver>({ mode: 'set' })
+export const heartbeatObservers = extensionPoint.set<HeartbeatObserver>()
 
 // modules/nodes/src/extension-points/command-resolvers.ts
 export interface CommandResolver {
   readonly types: readonly AgentCommand['type'][]
   resolve(nodeId: Id<'nodes.node'>, command: PendingEffect<typeof agentCommand>): Gen<AgentCommandPayload>   // pure, bound to the contributor (G16)
 }
-export const commandResolvers = extensionPoint<CommandResolver>({ mode: 'set' })
+export const commandResolvers = extensionPoint.set<CommandResolver>()
 
 // modules/nodes/src/entities/node.ts, credential.ts and presence.ts
 export const node = defineEntity({
@@ -9709,7 +10053,7 @@ export const ack = defineCommand(nodesBase, {
 })
 
 // modules/nodes/src/services/send.ts
-// pure, bound to nodes: returns the effect for the caller's decision; callers write ctx.services.nodes.send(nodeId, command, { then, with, deadline })
+// pure, bound to nodes: returns the effect for the caller's decision; callers write ctx.services.nodes.send(nodeId, command, { continueWith, with, deadline })
 export const send = defineService(nodesBase, (_own, nodeId: Id<'nodes.node'>, command: AgentCommand, options: EffectOptions) => agentCommand({ nodeId, ...command }, options))
 
 // modules/nodes/src/contributions/to-core/fills/principal-resolvers.ts
@@ -10451,7 +10795,7 @@ export const mailboxEntry = defineEntity({
 export const whenAccounts = defineCondition([accounts], { entities: { mailAccount: { fields: { profileId: field.ref(accounts, 'profile').optional() } } } })
 
 // modules/mail-store/src/extension-points/inbound-checks.ts
-export const inboundChecks = extensionPoint<InboundCheck>({ mode: 'ordered' })   // filled by sender-auth and spam (G16): pure fills returning effect drafts
+export const inboundChecks = extensionPoint.ordered<InboundCheck>()   // filled by sender-auth and spam (G16): pure fills returning effect drafts
 
 // modules/mail-store/src/config.ts
 export const config = shape({
@@ -10593,8 +10937,8 @@ executor options this needs, and a state machine on the submission that decides 
 
 ```ts
 // modules/mail-delivery/src/extension-points/signers.ts and outbound-checks.ts
-export const signers = extensionPoint<MessageSigner>({ mode: 'ordered' })                // sender-auth: DKIM (G16)
-export const outboundChecks = extensionPoint<OutboundCheck>({ mode: 'ordered' })         // spam: outbound scoring (G16)
+export const signers = extensionPoint.ordered<MessageSigner>()                // sender-auth: DKIM (G16)
+export const outboundChecks = extensionPoint.ordered<OutboundCheck>()         // spam: outbound scoring (G16)
 
 // modules/mail-delivery/src/base.ts
 const mailDeliveryBaseDef = defineModuleBase({
@@ -11070,7 +11414,7 @@ interface ScopeDirectory {                        // kernel-internal: module cod
   /** Cached per process and invalidated by the control store's change feed. */
   resolve(key: ScopeKey): Promise<{ backendId: string; tenantId: string } | undefined>
 }
-// module code:   claimScopeKey({ kind: 'mail-domain', value: 'jenspenneman.com' }, owner, { then: claimed })   // a kernel effect after commit (section 7.9.5)
+// module code:   claimScopeKey({ kind: 'mail-domain', value: 'jenspenneman.com' }, owner, { continueWith: claimed })   // a kernel effect after commit (section 7.9.5)
 // resolver:      byScopeKey()  reads carrier.scopeKey, set by listeners, receivers and token parsers
 ```
 
@@ -11082,7 +11426,7 @@ interface ScopeDirectory {                        // kernel-internal: module cod
   a compensating release on rollback, or an outbox with a reconciler) as the outbox:
   `claimScopeKey` and `releaseScopeKey` are kernel effects whose `requested` records commit with the
   owning row and which the kernel performs after commit in the control store. The continuation
-  (`then`) receives the outcome, so a `conflict` (another scope holds the key) becomes a decision of
+  (`continueWith`) receives the outcome, so a `conflict` (another scope holds the key) becomes a decision of
   the owning module, such as marking the mail domain rejected; an effect left unsettled after a
   crash is performed again, and claims are idempotent per owner (section 7.9.5).
 - Release and claim of security-sensitive kinds (mail domains, webhook endpoints) need care because
@@ -11346,7 +11690,7 @@ export const appPassword = defineRule(apiKeysBase, { transports: ['imap', 'smtp-
 
 #### G14. Extension-point cardinality and carrier coverage checks
 
-Status: specified in sections 5.2 and 5.5. `extensionPoint<T>({ mode: 'set', min: 1 })` turns an
+Status: specified in sections 5.2 and 5.5. `extensionPoint.set<T>({ min: 1 })` turns an
 empty slot into a named boot error (`emptyExtensionPoints: 'projects.gitProviders'`); a contract
 provided by several modules is an error unless it is `set`-valued; and every carrier a listener
 produces (SASL for IMAP and submission) must have at least one principal resolver that accepts it.
@@ -11415,7 +11759,7 @@ const accountsDef = defineModule(accountsBase, { entityActions: { profile: { upd
 
 // apps/portal/src/api-versions.ts
 export const portalApi = defineApiVersions({
-  '2026-10-23': { deprecated: { at: '2027-06-01', sunset: '2028-01-31' } },
+  '2026-10-23': { deprecated: { at: '2027-01-12', sunset: '2028-01-12' } },   // deprecated the day the newer version exists, retired 12 months later (decision 53)
   '2027-01-12': { changes: [healthDetails] },            // app-level changes; module changes come from the ledger
 })
 // apps/portal/src/app.ts
@@ -12210,7 +12554,10 @@ tooling that keeps them, refining sections 4.1, 13.5 and 16.9.8.
 
 ```
 my-platform/
-  keelwerk.config.ts              the deployment: defineDeployment, the only default export (section 4.6)
+  .launchway/                       the deployment configuration (decision 90c, section 4.6)
+    deployment.ts                   the deployment: defineDeployment, the only default export
+    launchway.ts                    what only Launchway needs: domains and routes, previews, environment, node
+    compose.yaml                    until Launchway's rebuild (M4): runs keelwerk start --config .launchway/deployment.ts
   apps/<app-id>/                    one package per app, named <scope>/app-<app-id>
     src/modules.ts                  the selection: export const modules = [accounts, auth, rest] as const
     src/app.ts                      defineApp({ id, modules, actions, ... }) with its named type
@@ -12233,6 +12580,9 @@ my-platform/
 - The workspace lists `apps/*` and `modules/*`. Every package has the manifests of sections 13.3
   and 13.4 and references the packages it imports, so `tsc -b` enforces the module graph of
   section 5.2.
+- The deployment lives in `.launchway/`, which `keelwerk init` writes and the rebuilt Launchway
+  deploys from (section 17.3.1); a repository that is not deployed by Launchway may keep the same
+  file as `keelwerk.config.ts` at the root instead, which the CLI looks for first (section 16.9.1).
 - A module is a package wherever it lives: `modules/<id>/` in an application repository,
   `packages/module-<id>/` here and in any shared repository. Moving it changes its package name and
   nothing inside it. Every application has its own repository and depends only on the published
@@ -12307,7 +12657,9 @@ module-auth/
 A source file has one purpose when:
 
 1. it exports exactly one value, the definition it is named after, plus at most the types that
-   value's signature names (an extension point's contract type, a service's argument types);
+   value's signature names (an extension point's contract type, a service's argument types, the
+   value's named type); a type-only file exports its main type, the one it is named after, plus
+   the helper types that type's definition names, and the rule counts the main type;
 2. everything else in it is private and serves that export: a constant, a local shape, a small
    function. A helper that a second file needs moves to `lib/` (one function per file) or
    `shapes/`;
@@ -12328,8 +12680,8 @@ exporting an imported binding, and default exports. Exceptions, each with its re
   explicit list makes every addition visible in review. No file imports its own package's entry.
 - tool configuration files that a tool reads by convention (`*.config.ts`, `*.config.js`,
   `commitlint.config.js`) may use a default export;
-- `keelwerk.config.ts` keeps its default export, because the CLI finds it by convention
-  (section 16.9.1).
+- The deployment file (`.launchway/deployment.ts`, or `keelwerk.config.ts`) keeps its default
+  export, because the CLI finds it by convention (section 16.9.1).
 - Generated files and migrations follow their producers' names and are excluded from the naming
   rules (section 13.7).
 - Test files may hold many cases and fixtures; scripts are entry points and may run code at import.
@@ -12535,7 +12887,7 @@ The trade-offs Jens accepted with decision 59b, and how the tooling bounds them:
 Typing parts against the base means:
 
 - Parts invoke their own module's actions by value in effects, `invoke(revokeSubject, input)`, and
-  pass them by value to timers (`setTimer({ invoke })`), continuations (`then`), `async.onGiveUp`
+  pass them by value to timers (`setTimer({ invoke })`), continuations (`continueWith`), `async.onGiveUp`
   and schedules; other modules' actions keep string references.
 - `ctx.services` in a part lists the dependencies' services; a module's own code calls the `lib/`
   function its service wraps.
@@ -12545,7 +12897,9 @@ Typing parts against the base means:
   `executors/lib/` while nothing outside `src/executors/` imports an executor, and only tests import
   `module.generated.ts`.
 - Parts depend on the base, not on the module type, so editing one re-checks it, its importers and
-  the manifest. The type-model spike measures the cost (roadmap M0).
+  the manifest. The composition-types spike measured the cost: about 36,000 instantiations per
+  module for typing parts against their bases, and 0.8 % more than one file per module at 40
+  modules (section 13.11).
 
 The alternative was explicit assembly: a hand-written `module.ts` importing every part and mounting
 it, with scaffolds inserting the import and the entry, the recommendation until 2026-10-28. It kept
@@ -12747,7 +13101,7 @@ layout pass.
 | `pure-parts.grit`, `no-await-in-parts.grit` | clocks, randomness, timers, `fetch` and a bare `yield` in parts; `async` and `await` in parts (section 7.9.6) | module sources minus `src/executors/` |
 | `no-module-state.grit` | top-level `let` and `var`, mutation of a top-level binding | module sources |
 | `noNodejsModules` (correctness) and the executor override of `noRestrictedImports` | `node:*`, adapters, drivers, `kysely`, HTTP and SMTP clients in module packages | module sources minus `src/executors/` |
-| `noProcessEnv` (style), `noProcessGlobal` (correctness), `noGlobalAssign` (suspicious) | environment and process reads, global assignment | everywhere except `keelwerk.config.ts` |
+| `noProcessEnv` (style), `noProcessGlobal` (correctness), `noGlobalAssign` (suspicious) | environment and process reads, global assignment | everywhere except the deployment file (`.launchway/deployment.ts` or `keelwerk.config.ts`) |
 | knip 6.43.0 | unused files (a forgotten mount), unused exports and types, unused or unlisted dependencies, duplicate exports | CI after `biome ci`; `keelwerk init` writes `knip.json` with the entry files |
 | `keelwerk generate --check` | the module manifests against the directories, and every artefact of section 13.7 | CI and `keelwerk build` |
 | layout pass | conventions that need paths and several files | `keelwerk doctor`, `build`, CI, and `dev`'s status line |
@@ -12927,7 +13281,7 @@ module-facing sketch of this document rewritten to the strict forms.
 
 Every question of the decision register ([decisions.md](decisions.md)) now carries a decision or,
 for the mail server, is parked; the register keeps each answer with its date, Jens's reasoning and
-where it applies. Section 26.1 lists them, section 26.2 what the M0 spike still has to settle, and
+where it applies. Section 26.1 lists them, section 26.2 the outcome of the M0 spikes, and
 section 26.3 the technical questions that remain open by area. No decision point for Jens is open.
 
 ### 26.1 Decided and parked
@@ -12964,8 +13318,8 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 28 | Toolchain: always the latest majors, TypeScript 7 and Node 26 (26.12.1 of 2026-10-21) with type stripping; the baseline follows each new major, and backfills or polyfills exist only for what it lacks | 2026-10-27 | 13.2, 13.3, 13.8, 13.12, 17.5.2, Appendix A |
 | 29 | History default: `chain` for every entity, `state` as an opt-out with a reason | 2026-10-27 | 6.6 |
 | 30 | Kysely as the internal plumbing of the SQL adapters, never visible to app code | 2026-10-26 | 14.3 |
-| 31 | Composition errors in the `Check` property form; the spike may still report that a rest-parameter form reads better | 2026-10-27 | 4.7, 26.2 |
-| 32 | Optional modules through a `Maybe`-style accessor (`ifPresent`) that composes with `yield*`, for now: Jens is not sold yet, and the M0 spike compares it with `\| undefined` on the auth module | 2026-10-27 | 2, 3.4, 4.7, 7.6, 7.9.3, 13.10, 26.2 |
+| 31 | Composition errors in the `Check` property form; confirmed by the spike on 2026-11-04 (the rest-parameter form only says "Expected 2 arguments") | 2026-10-27 | 4.7 |
+| 32 | Optional modules through a `Maybe`-style accessor (`ifPresent`) that composes with `yield*`; confirmed by the spike on 2026-11-04 against `\| undefined` on the auth module (same cost), with a short named type per module for its error messages | 2026-10-27 | 2, 3.4, 4.7, 7.6, 7.9.3, 13.10, 26.2 |
 | 34 | Clock-skew bound for offline clients: 5 minutes | 2026-10-27 | 14.5.2, 15.3.3 |
 | 35 | Chain heads anchored outside the database from M1: per scope, the latest head (position and hash) goes to the ledger sinks at a configurable cadence, and `keelwerk db verify` compares heads with anchors | 2026-10-27 | 4.6, 13.12, 14.7.6, 15.1.8, 16.9.7, 17.5.2, ADR 0007 |
 | 36 | Operator work stays on the invocation protocol and the CLI; no operator GraphQL schema | 2026-10-27 | 16.8 |
@@ -13011,6 +13365,34 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 85 | No outside contributions until a lawyer-reviewed contributor licence agreement exists; issues and discussions are welcome | 2026-10-27 | 22, README |
 | 86 | The intellectual property belongs to Jens personally for now | 2026-10-27 | none needed |
 | 87 | The platforms and later modules carry the same FSL-1.1-ALv2 as the framework | 2026-10-27 | 22 |
+| 92 | Principal references are typed by the module that resolves the principal (`principalRef` on its base); auth's carries `credentialId: Id<'auth.credential'>` and `sessionId: Id<'auth.session'>`, and logout revokes `ctx.principal.ref?.sessionId` | 2026-11-04 | 4.1, 7.4, 8.5, 17.2.4, api-sketch.ts |
+| 93 | `asSubject(...)` returns `SubjectId`; `field.subject()` is the opaque branded `SubjectId` | 2026-11-04 | 4.2, 8.5, api-sketch.ts |
+| 94 | The readable row is `Readable<App, 'module.entity'>`, computed from the fields; module-local views compute it the same way | 2026-11-04 | 4.7, 6.2, 8.1, 13.10, 14.7.9, 14.8.1, 15.4.2, 16.2.3, 16.4.5 |
+| 95 | `defineContract('live', 'app')` without an interface type argument; the shape comes from the providing module; no curried form | 2026-11-04 | 5.2 |
+| 96 | `extensionPoint.single<T>()`, `.set<T>()` and `.ordered<T>()` replace `extensionPoint<T>({ mode })`; a `single` point reads as `T` | 2026-11-04 | 4.1, 5.5, 16.5.8, 17.3, 17.4, 17.7 |
+| 97 | The continuation option is `continueWith`, not `then` (a thenable options object) | 2026-11-04 | 2, 7.6, 7.9.5, 7.9.8, 17.3, 17.7, 23.5, 26.3 |
+| 98 | Data-level module checks run at `defineModuleBase`; new checks `contributionsOutsideDependencies`, `unknownConditionTargets`, `unknownContributionTargets` at `defineContribution`, `executorsWithoutEffect` and `unknownConditionFields` | 2026-11-04 | 4.7 |
+| 99 | Rules infer the returned condition and check its keys by name (`unknownConditionFields`), because TypeScript does not excess-check literals returned from callbacks | 2026-11-04 | 4.4, 8.3, 13.10 |
+| 100 | No DSL function that may be nested in another const-generic call infers a defaulted literal type parameter | 2026-11-04 | 4.7, 13.11 |
+| 101 | CI also fails on TS2883; the core entry exports every type that can appear in a part or module type | 2026-11-04 | 4.7, 13.11 |
+| 102 | Declared return types of part functions are written out as `ActionPart<...>` with computed types | 2026-11-04 | 13.11 |
+| 103 | Named entity types; budgets of 6 KB per `module.generated.d.ts` and 16 KB per module package, and the instantiation budgets of the spike's runs | 2026-11-04 | 4.2, 4.7, 13.11 |
+| 104 | The core module's type is written by hand (`CoreBase`, `Core`) under `isolatedDeclarations` | 2026-11-04 | 13.3 |
+| 105 | `defineModule` checks mounted rules (`unknownRuleActions`) and policy keys (`unknownPolicyTargets`) | 2026-11-04 | 4.4, 4.7, 8.1 |
+| 106 | `ctx.write` and dependency rows carry the module's contributed fields active in the part | 2026-11-04 | 7.6 |
+| 107 | Type-only files export a main type plus its helper types; `noBannedTypes` stays on and the core names the empty object type `Empty` | 2026-11-04 | 13.9, 23.3 |
+| 108 | Decisions 31a and 32b confirmed by the spike; the Maybe accessor gets a short named type per module | 2026-11-04 | 3.4, 4.7, 7.6 |
+| 109 | A locked load's position is read after the lock, never from a subselect in the locking statement | 2026-11-04 | 7.9.4, 7.9.6, 15.1.6 |
+| 110 | Commands stay at `READ COMMITTED` with positioned loads; one `REPEATABLE READ` snapshot per decision is rejected | 2026-11-04 | 14.3.6, 26.3 |
+| 111 | Row-level security policies cast `nullif(current_setting('keelwerk.tenant_id', true), '')::uuid` | 2026-11-04 | 14.3.7 |
+| 112 | The commit tail is one statement; the per-scope ceiling is set per round trip, and the adapter keeps the database within about 1 ms of the writers or plans the sequencer | 2026-11-04 | 15.1.4, ADR 0007 |
+| 113 | `$lanes` defaults to the batch size; the take reports skipped lanes apart from "no work", and the fetcher retries at once with jitter | 2026-11-04 | 9.5.3, 9.5.6, 14.3.9 |
+| 114 | The lane pick sorting every eligible lane is a known limit; a bounded candidate set follows in M5 | 2026-11-04 | 9.5.3, roadmap M5 |
+| 115 | Measured take rates replace the 2,000 jobs per second figure; a placement's job rate is bounded by its unit rate; take batch 10 by default | 2026-11-04 | 9.5.7 |
+| 116 | DDL of the queue tables, with the lane's scope on `kw_job_lane_counts` | 2026-11-04 | 9.5.2, 14.3.9 |
+| 117 | `$vmin` is the least virtual time of lanes with available work, read in the take's unit; unit retries use full jitter over 2, 4 and 8 ms | 2026-11-04 | 9.5.3, 14.3.6 |
+| 118 | The take runs unmodified on PostgreSQL 18 | 2026-11-04 | 9.5.3 |
+| 119 | Webhook receivers grant one fixed service principal; `verify` may attach typed claims declared by the receiver, and rules may condition on them | 2026-11-04 | 16.5.8 |
 
 Parked on 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
 option. The design stays in this document (section 17.4), and these questions wait with it, each
@@ -13059,40 +13441,17 @@ attempts) and the mail questions of section 26.3 wait with them. When Jens unpar
 these come back as decision points, the mail milestones get their numbers, and the roadmap's gates
 list them.
 
-### 26.2 Open for the spike (roadmap M0)
+### 26.2 The M0 spikes (resolved 2026-11-04)
 
-1. The type-model checklist of section 4.7: the module base with parts typed against it in
-   separate files, and the module literal that the generator writes from a fixture module's
-   directories, with the `effects` and `executors` mounts (decision 59b); module-local contexts, all
-   field flags, generated actions with typed `watch`, `defineApp` options, `AppActionTree` from the
-   field model; the pure handlers of section 7.9: generator handlers typed per request through
-   `yield*`, handler types that exclude promises (an `async` `decide` fails to compile), `ctx.all`
-   with `const` type parameters for tuple answers and `outcomeOf` continuation inputs; and
-   `api-sketch.ts`, strict and with its `hooks` module, compiled as the acceptance test of the DSL.
-2. The instantiation budgets on synthetic apps of 25 and 40 modules, whose manifests the generator
-   writes, and the declaration-size budget per module under the pnpm layout.
-3. The `Check` property form is decided (decision 31a); the spike still reports whether a
-   rest-parameter form gives the better editor message at `defineApp`, and the names stay.
-4. The Maybe accessor (decision 32b): the auth module written against
-   `ctx.load.accounts.ifPresent(...)` and against the `| undefined` form, compared for readability
-   at the call sites, composition with `yield*` and `ctx.all`, type cost and error messages, and
-   reported to Jens, who revisits the choice then.
-5. `prepare` versus inline-before-first-load (decision 50a, confirmed on 2026-10-28): both forms
-   prototyped on Trail's position ingest and on GitHub's connection flow (the manifest conversion),
-   one with a separate `prepare` member, one with a `decide` that may perform inline effects only
-   before its first load, the kernel opening the unit at that load and refusing a later inline
-   effect with a clear error; the code, the types, the records and the errors compared and reported.
-6. The write path on a networked PostgreSQL: concurrent writers in many tenants, the commit tail
-   per scope, the notifier's coalescing, and the absence of cross-tenant waiting; and the
-   interpreter's costs (section 7.9.4): the scope-counter read that positions every load and the
-   overhead per request, against one `REPEATABLE READ` snapshot per decision.
-7. The fair-take measurement: the take's p95 against the number of lanes and the batch size
-   (section 9.5.3), whose result replaces the planning figure of 2,000 jobs per second per placement
-   (section 9.5.7).
-8. The Node 26 baseline (decision 28a): the checks this document records on Node 24.21.0 (type
-   stripping of linked workspace packages and its refusal under `node_modules`, `node:sqlite`,
-   `crypto.argon2`, the Unicode version behind the normalisers) run again on Node 26 and are recorded
-   in section 13.2 and Appendix B.
+Both spikes of roadmap M0 ran on 2026-11-04, and their reports are in the repository:
+`spikes/composition-types/REPORT.md` covers the former items 1 to 4 (the type-model checklist of
+section 4.7 with `docs/api-sketch.ts` as the acceptance test, the instantiation and declaration
+budgets, the `Check` form and the Maybe accessor), and `spikes/write-path/REPORT.md` the former
+items 6 and 7 (the write path on PostgreSQL 18 and the fair take). Every finding has a decision,
+listed in section 26.1 as numbers 92 to 118 and in register section M. Neither spike covered the
+`prepare` comparison of decision 50a's variant (former item 5), the interpreter's overhead per
+request (the second half of former item 6) or the Node 26 re-checks of decision 28a (former item
+8); those remain open.
 
 ### 26.3 Open questions by area
 
@@ -13102,10 +13461,7 @@ later look; none of them waits for a decision by Jens.
 Data:
 
 - The threshold for partitioning `kw_events` (anchoring heads outside the database is decided,
-  35b).
-- Should anchors carry a digest over every stream head of a scope, so that a rewrite of a stream
-  that never held the scope's head at an anchor is found as well? The digest would be a stored
-  format, so the answer is due before M1 (section 15.1.8).
+  35b, and anchors carry the scope's position and hash only, 89a).
 - Should the `writer` and `flags` members of `kw_events.meta` enter the hash-chain content of
   section 15.1.8? Recommendation: yes, like the actor; section 15.1.8 assumes it.
 - `Keelwerk-Client-Id`, which gives anonymous principals a targeting key (section 20.3), is a
@@ -13145,16 +13501,16 @@ Execution:
 - Answered by section 7.9 (ADR 0026): the effect executor contract
   (`defineEffectExecutor(base, effect, options)` with a queue, a capability, a group, a retry policy
   and `run`, the name confirmed), the kernel effect constructors (`setTimer`, `cancelTimer`,
-  `enqueue`) and continuations (`then`, `with`, `outcomeOf`) are specified in section 7.9.5; and a
+  `enqueue`) and continuations (`continueWith`, `with`, `outcomeOf`) are specified in section 7.9.5; and a
   synchronous invocation never awaits a deferred effect, while a bounded inline effect in `prepare`
   answers within the request ("test SMTP connection" is `mail-delivery.testRelay`; decision 74a).
 - Module-defined computations off the event loop (MIME parsing for filing, search-text
   extraction): a `defineComputation` part in its own directory, or executors with continuations?
   Section 7.9.3 offers only the core's Argon2id computations.
-- Read positions of loads under `READ COMMITTED`: the design reads the scope counter in the same
-  statement as each load; the M0 write-path spike measures that subselect's cost against one
-  `REPEATABLE READ` snapshot per decision, which raises serialization retries on hot rows (section
-  26.2, item 6).
+- Closed by the write-path spike (2026-11-04): read positions of loads stay at `READ COMMITTED`,
+  an unlocked load reading the counter in its own statement (0.06 to 0.07 ms more per load) and a
+  locked load after its lock (section 7.9.4, phase 5); one `REPEATABLE READ` snapshot per decision
+  is rejected (section 14.3.6, register entry 110).
 - Blob adoption from the deployment staging area (gap G5): a kernel step before the unit, as
   section 17.4.6 assumes so that no row references a missing blob, or a deferred kernel effect?
 - Rules read flags from the invocation's snapshot while handlers read them as requests: is the
@@ -13162,9 +13518,9 @@ Execution:
   rules declare the flags they read (sections 7.9.3 and 20.6)?
 - Does any pure job ever need a capability? Section 21.2 assumes not: placements handle data
   locality, and GPU work would be an effect.
-- The planning figure of 2,000 jobs per second per placement (section 9.5.7) is replaced by the M0
-  measurement of the fair take (section 26.2, item 7); should M2 measure it again on the real
-  queue?
+- The planning figure of 2,000 jobs per second per placement (section 9.5.7) was replaced by the
+  write-path spike's take rates on 2026-11-04 (register entry 115); M2 measures again on the real
+  queue with real handlers.
 - Should the docker provider ever reach a remote Docker engine (with TLS client certificates), or
   only its local socket through the proxy (section 21.5)?
 - Which socket proxy the docker provider uses is neither chosen nor checked (section 21.5,
@@ -13192,11 +13548,10 @@ Platforms:
 - External reads for user interfaces (Launchway's GitHub repository picker): a command with an
   inline effect, or a cache entity that a deferred effect's continuation refreshes and a query
   reads (section 17.3.9)?
-- Where the deployment definition lives once every app has its own repository (decision 48c):
-  `keelwerk.config.ts` imports the apps from their packages, so the one deployment of section
-  17.5 needs a home, such as a small deployment repository that pins the apps and the framework to
-  exact versions; and Trail, rebuilt in M3 before that deployment exists, runs as its own deployment
-  until it can move in as a backend (roadmap M3 plans it that way).
+- Answered by decision 90c (2026-10-28): every app repository carries its deployment in
+  `.launchway/` (sections 4.6, 16.9.1, 17.3.1 and 23.1), Trail (M3) is deployed by the current
+  Launchway from `.launchway/compose.yaml`, and the rebuilt Launchway (M4) deploys apps from the
+  directory, so one deployment can then host several apps from published packages.
 - With the mail server, parked: DKIM signing at submission (section 17.4.7, step 3) needs the
   message bytes and the private key: a core computation over a blob and a key reference
   (`ctx.compute`), a first `dkimSign` effect with a continuation, or signing inside the
@@ -13224,8 +13579,9 @@ Toolchain and layout:
   `useFilenamingConvention` until fixtures show the behaviour.
 - In Biome, GritQL has no semantic model and no file path. The patterns of `one-export.grit` and
   `no-import-effects.grit` still have to be proven against fixtures.
-- The M0 type-model spike must measure the instantiation cost of typing each part against the base
-  (one context type over the base per part) and compare it with one module written in a single file.
+- Measured by the composition-types spike (2026-11-04): typing each part against the base costs
+  about 36,000 instantiations per module, and parts in files cost 0.8 % more than one module written
+  in a single file (section 13.11).
 - Topics (gap G6) carry subscriber hooks, so the generated manifest mounts them; whether
   subscriptions read them by value depends on G6's final DSL in M2.
 - App-level parts (`apps/<id>/src/actions/`, `flags/`, `policies/`, `versions/`) stay mounted by

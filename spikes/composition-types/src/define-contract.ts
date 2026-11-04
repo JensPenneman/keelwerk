@@ -12,8 +12,8 @@ export interface Contract<C extends string = string, L extends ContractLevel = C
 export type AnyContract = Contract;
 
 /**
- * Declares a contract. The interface type of section 5.2 (`defineContract<LiveQueries>(...)`) is
- * not a parameter: an explicit type argument would stop the inference of the literal name.
+ * Declares a contract by name and level (section 5.2). It takes no interface type argument: an
+ * explicit type argument would stop the inference of the literal name and level.
  */
 export function defineContract<const C extends string, const L extends ContractLevel>(
   contract: C,

@@ -16,8 +16,7 @@ export const notify = defineCommand(hooksBase, {
       effects: [
         post(
           { url: ctx.config.endpoint, signingKey: ctx.config.signingKey, body: input.payload },
-          // biome-ignore lint/suspicious/noThenProperty: section 7.9.5 names the continuation `then`; the report proposes a rename
-          { then: recordOutcome, with: { id } },
+          { continueWith: recordOutcome, with: { id } },
         ),
       ],
       result: { deliveryId: id },
