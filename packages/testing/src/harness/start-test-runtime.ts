@@ -9,6 +9,8 @@ import {
   staticScopeDirectory,
 } from '@keelwerk/core';
 import { memoryAdapter } from '@keelwerk/data';
+import { harnessAddress } from './harness-address.ts';
+import { harnessNamespaceId } from './harness-namespace-id.ts';
 import type { TestApp } from './test-app.ts';
 import { testEnvironment } from './test-environment.ts';
 import { testPrincipalResolver } from './test-principal-resolver.ts';
@@ -16,8 +18,7 @@ import type { TestRuntime } from './test-runtime.ts';
 import type { TestRuntimeOptions } from './test-runtime-options.ts';
 import type { TestTenant } from './test-tenant.ts';
 
-const backendId = '00000000-0000-4000-8000-0000000000b1';
-const placementId = 'main';
+const { backendId, placementId } = harnessAddress;
 
 function tenantId(index: number): string {
   return `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`;
@@ -63,7 +64,7 @@ export async function startTestRuntime<
     );
   const capabilities = await adapter.connect();
   const namespaceOf = (tenant: string | null): NamespaceRef => ({
-    id: tenant === null ? 'ns-backend' : `ns-${tenant}`,
+    id: harnessNamespaceId(tenant),
     placementId,
     appId: app.id,
     tenantId: tenant,

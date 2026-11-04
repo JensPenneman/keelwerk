@@ -17,12 +17,12 @@ import type { StorageRow } from '../storage/storage-row.ts';
 import type { StorageScope } from '../storage/storage-scope.ts';
 import type { Unit } from '../storage/unit.ts';
 import type { AnswerDeps } from './answer-deps.ts';
+import { assertLoadVisible } from './assert-load-visible.ts';
 import { authorityOf } from './authority-of.ts';
 import { planQueryDescription } from './plan-query-description.ts';
 import { recordLoadPosition } from './record-load-position.ts';
 import { refuseRequest } from './refuse-request.ts';
 import { requestName } from './request-name.ts';
-import { visibleModules } from './visible-modules.ts';
 
 /** The most rows `many` returns (section 7.9.3). */
 const manyLimit = 1000;
@@ -79,21 +79,8 @@ export async function answerLoad(
   deps: AnswerDeps,
 ): Promise<unknown> {
   const name = requestName(request);
-  const entry = context.registry.entities.get(`${request.module}.${request.entity}`);
-  if (entry === undefined) {
-    throw refuseRequest(name, `"${request.module}.${request.entity}" is not an entity of this app`);
-  }
-  if (request.forUpdate && context.form !== 'decide' && context.form !== 'react') {
-    throw refuseRequest(name, `a ${context.form} does not lock rows`);
-  }
+  const entry = assertLoadVisible(request, context, deps.authorities);
   const authority = authorityOf(deps.authorities, request, context.module);
-  const requester = context.registry.modules.find((module) => module.id === authority);
-  if (requester === undefined || !visibleModules(context.registry, requester).has(request.module)) {
-    throw refuseRequest(
-      name,
-      `"${authority}" may not load "${request.module}.${request.entity}": it is neither the module itself nor one of its dependencies`,
-    );
-  }
   const view = request.view === 'caller' ? deps.views(entry, context) : undefined;
 
   const read = async (unit: Unit, crossed: boolean): Promise<unknown> => {

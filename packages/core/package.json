@@ -28,6 +28,11 @@
       "@keelwerk/source": "./src/manifest/index.ts",
       "types": "./dist/manifest/index.d.ts",
       "default": "./dist/manifest/index.js"
+    },
+    "./replay": {
+      "@keelwerk/source": "./src/replay/index.ts",
+      "types": "./dist/replay/index.d.ts",
+      "default": "./dist/replay/index.js"
     }
   },
   "publishConfig": {
@@ -51,6 +56,10 @@
       "./manifest": {
         "types": "./dist/manifest/index.d.ts",
         "default": "./dist/manifest/index.js"
+      },
+      "./replay": {
+        "types": "./dist/replay/index.d.ts",
+        "default": "./dist/replay/index.js"
       }
     }
   },
