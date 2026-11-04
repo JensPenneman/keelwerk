@@ -6,9 +6,6 @@
   "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
-  "engines": {
-    "node": ">=26"
-  },
   "scripts": {
     "build": "tsc -b",
     "check": "biome ci . && knip && tsc -b && vitest run",

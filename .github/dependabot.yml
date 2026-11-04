@@ -1,6 +1,9 @@
 version: 2
 
 updates:
+  # The root package carries no engines field: Dependabot runs the Node release it
+  # ships (24 on 2026-11-04) and refuses manifests whose engines it cannot satisfy.
+  # .nvmrc, packageManager, CI and the published packages pin the runtime instead.
   - package-ecosystem: npm
     directory: /
     schedule:
