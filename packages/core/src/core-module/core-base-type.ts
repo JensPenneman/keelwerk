@@ -1,0 +1,190 @@
+import type { Entity } from '../dsl/define-entity.ts';
+import type { ExtensionPoint } from '../dsl/extension-point.ts';
+import type { AdmissionRule } from '../edge/admission-rule.ts';
+import type { PrincipalEnricher } from '../edge/principal-enricher.ts';
+import type { PrincipalResolver } from '../edge/principal-resolver.ts';
+import type { FieldDef, OwnRef } from '../fields/field-def.ts';
+import type { NoFlags, WithFlag } from '../fields/field-flags.ts';
+import type { TransportAdapter } from '../transport/transport-adapter.ts';
+import type { Empty } from '../types/empty.ts';
+
+type Text = FieldDef<string, NoFlags, null, 'string'>;
+type OptionalText = FieldDef<string, WithFlag<NoFlags, 'optional', true>, null, 'string'>;
+type UniqueText = FieldDef<
+  string,
+  WithFlag<WithFlag<WithFlag<NoFlags, 'unique', true>, 'merge', 'exclusive'>, 'personal', false>,
+  null,
+  'string'
+>;
+type Count = FieldDef<number, NoFlags, null, 'integer'>;
+type DefaultedCount = FieldDef<number, WithFlag<NoFlags, 'defaulted', true>, null, 'integer'>;
+type Moment = FieldDef<Temporal.Instant, NoFlags, null, 'instant'>;
+type OptionalMoment = FieldDef<
+  Temporal.Instant,
+  WithFlag<NoFlags, 'optional', true>,
+  null,
+  'instant'
+>;
+type OwnId<E extends string> = FieldDef<never, NoFlags, OwnRef<E>, 'ref'>;
+type OptionalOwnId<E extends string> = FieldDef<
+  never,
+  WithFlag<NoFlags, 'optional', true>,
+  OwnRef<E>,
+  'ref'
+>;
+type Status = FieldDef<'active' | 'suspended', WithFlag<NoFlags, 'defaulted', true>, null, 'enum'>;
+type NoSet = { readonly set: false };
+
+/** The base of the implicit core module, written out because the core compiles with isolatedDeclarations (decision 104). */
+export interface CoreBase {
+  readonly id: 'core';
+  readonly version: '0.0.0';
+  readonly extensionPoints: {
+    readonly transports: ExtensionPoint<TransportAdapter, 'set'>;
+    readonly principalResolvers: ExtensionPoint<PrincipalResolver, 'ordered'>;
+    readonly principalEnrichers: ExtensionPoint<PrincipalEnricher, 'set'>;
+    readonly invocationMiddleware: ExtensionPoint<AdmissionRule, 'ordered'>;
+  };
+  readonly entities: {
+    readonly backend: Entity<
+      'bknd',
+      {
+        readonly name: UniqueText;
+        readonly app: Text;
+        readonly placement: Text;
+        readonly apiVersion: OptionalText;
+        readonly config: FieldDef<
+          Record<string, unknown>,
+          WithFlag<NoFlags, 'optional', true>,
+          null,
+          'json'
+        >;
+        readonly status: Status;
+      },
+      Empty,
+      'chain',
+      Empty,
+      Empty
+    >;
+    readonly tenant: Entity<
+      'tnt',
+      {
+        readonly backendId: OwnId<'backend'>;
+        readonly name: Text;
+        readonly placement: OptionalText;
+        readonly apiVersion: OptionalText;
+        readonly domains: FieldDef<readonly string[], NoFlags, null, 'list'>;
+        readonly status: Status;
+      },
+      Empty,
+      'chain',
+      Empty,
+      Empty
+    >;
+    readonly domain: Entity<
+      'dom',
+      {
+        readonly hostname: UniqueText;
+        readonly backendId: OwnId<'backend'>;
+        readonly tenantId: OwnId<'tenant'>;
+      },
+      Empty,
+      'chain',
+      NoSet,
+      Empty
+    >;
+    readonly placement: Entity<
+      'plc',
+      {
+        readonly name: UniqueText;
+        readonly adapter: Text;
+        readonly strategy: FieldDef<
+          'database-per-tenant' | 'schema-per-tenant' | 'shared-tables',
+          NoFlags,
+          null,
+          'enum'
+        >;
+      },
+      Empty,
+      'chain',
+      NoSet,
+      Empty
+    >;
+    readonly namespace: Entity<
+      'nsp',
+      {
+        readonly placementId: OwnId<'placement'>;
+        readonly appId: Text;
+        readonly tenantId: OptionalOwnId<'tenant'>;
+        readonly root: Text;
+      },
+      Empty,
+      'chain',
+      NoSet,
+      Empty
+    >;
+    readonly operatorToken: Entity<
+      'otk',
+      {
+        readonly label: Text;
+        readonly verifier: FieldDef<string, WithFlag<NoFlags, 'hidden', true>, null, 'verifier'>;
+        readonly expiresAt: Moment;
+        readonly revokedAt: OptionalMoment;
+      },
+      Empty,
+      'chain',
+      NoSet,
+      Empty
+    >;
+    readonly commandReceipt: Entity<
+      'rcpt',
+      {
+        readonly commandId: Text;
+        readonly status: FieldDef<'accepted' | 'failed' | 'succeeded', NoFlags, null, 'enum'>;
+      },
+      Empty,
+      'state',
+      NoSet,
+      Empty
+    >;
+    readonly effect: Entity<
+      'eff',
+      {
+        readonly type: Text;
+        readonly commandId: Text;
+        readonly status: FieldDef<
+          'abandoned' | 'failed' | 'requested' | 'succeeded',
+          NoFlags,
+          null,
+          'enum'
+        >;
+        readonly attempts: DefaultedCount;
+      },
+      Empty,
+      'chain',
+      NoSet,
+      Empty
+    >;
+    readonly process: Entity<
+      'proc',
+      {
+        readonly name: OptionalText;
+        readonly node: Text;
+        readonly roles: FieldDef<readonly ('serve' | 'work')[], NoFlags, null, 'list'>;
+        readonly buildId: Text;
+        readonly revision: Count;
+        readonly state: FieldDef<
+          'draining' | 'ready' | 'starting' | 'stopped',
+          NoFlags,
+          null,
+          'enum'
+        >;
+        readonly heartbeatAt: Moment;
+      },
+      Empty,
+      'state',
+      NoSet,
+      Empty
+    >;
+  };
+}

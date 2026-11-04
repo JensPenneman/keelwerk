@@ -2,6 +2,7 @@ import { describe, expectTypeOf, test } from 'vitest';
 import type { IdentityProvider } from '../../test/fixtures/modules/accounts/src/extension-points/identity-provider.ts';
 import { accounts } from '../../test/fixtures/modules/accounts/src/module.generated.ts';
 import { teams } from '../../test/fixtures/modules/teams/src/module.generated.ts';
+import { core } from '../core-module/module.ts';
 import { field } from '../fields/field.ts';
 import { contracts } from './contracts.ts';
 import { defineCommand } from './define-command.ts';
@@ -58,6 +59,17 @@ describe('the base checks of defineModuleBase (cases 9 and 10, decision 98)', ()
     });
     // @ts-expect-error contributionsOutsideDependencies: accounts is neither required nor optional
     defineModuleBase({ id: 'scores', version: '0.1.0', contributions: { defaulted } });
+  });
+
+  test('contributionsOutsideDependencies exempts the implicit core, never an undeclared module', () => {
+    const toCore = defineContribution(core, {});
+    defineModuleBase({ id: 'plain', version: '0.1.0', contributions: { toCore } });
+    // @ts-expect-error contributionsOutsideDependencies: accounts is not declared
+    defineModuleBase({
+      id: 'plain',
+      version: '0.1.0',
+      contributions: { toCore, toAccounts: defineContribution(accounts, {}) },
+    });
   });
 
   test("unknownConditionTargets: a conditional part patches only the module's own entities", () => {

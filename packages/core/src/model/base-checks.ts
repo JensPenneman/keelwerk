@@ -74,14 +74,16 @@ type UnguardedFields<B extends AnyModuleBase> =
         : never;
     }[keyof ContributionsOf<B>];
 
-/** A module may contribute only to modules it lists in `requires` or `optional` (section 5.3). */
+/** A module may contribute only to modules it lists in `requires` or `optional` (section 5.3); the implicit `core` is always active and needs no entry (section 5.6). */
 type ContributionsOutsideDependencies<B extends AnyModuleBase> = {
   [K in keyof ContributionsOf<B>]: ContributionsOf<B>[K] extends {
     readonly to: { readonly id: infer T extends string };
   }
-    ? T extends RequiredIds<B> | OptionalIds<B>
+    ? T extends 'core'
       ? never
-      : `${B['id']}->${T}`
+      : T extends RequiredIds<B> | OptionalIds<B>
+        ? never
+        : `${B['id']}->${T}`
     : never;
 }[keyof ContributionsOf<B>];
 

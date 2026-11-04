@@ -22,7 +22,10 @@ export interface BehaviourMounts<S, Es extends string> {
   readonly entityActions?: { readonly [E in Es]?: PartsAt<S, E> };
   readonly policies?: { readonly [target: string]: SourcedBy<S> };
   readonly reactions?: SourcedBy<S>;
-  readonly extensionPoints?: SourcedBy<S>;
+  /** A point is filled by a part typed against the source, or by a list of values (a `set` point). */
+  readonly extensionPoints?: {
+    readonly [name: string]: { readonly source: S } | readonly unknown[];
+  };
 }
 
 /** What the module literal may mount for base `B`: a part is accepted only where its source and mount match. */

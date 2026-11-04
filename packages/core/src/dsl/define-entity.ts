@@ -16,7 +16,7 @@ type IndexedNames<I extends readonly { readonly fields: readonly string[] }[]> =
 export type HistoryMode = 'chain' | 'state' | 'projection' | 'external';
 
 /** Where an entity's rows live (section 4.2). */
-export type Tenancy = 'tenant' | 'backend' | 'deployment';
+export type Tenancy = 'tenant' | 'backend' | 'deployment' | 'invocation';
 
 /** Switches for generated actions (section 6.7). */
 export interface GeneratedOptions {

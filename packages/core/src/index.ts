@@ -39,9 +39,21 @@ export type { ServicesOf } from './contexts/services-of.ts';
 export type { Sort } from './contexts/sort.ts';
 export type { SourceContext } from './contexts/source-context.ts';
 export type { WritesOf } from './contexts/writes-of.ts';
+export { coreApiVersions } from './core-module/core-api-versions.ts';
+export type { CoreBase } from './core-module/core-base-type.ts';
+export type { Core, CoreLiteral } from './core-module/core-type.ts';
+export { core } from './core-module/module.ts';
+export { byHeader } from './dsl/by-header.ts';
+export { byHostname } from './dsl/by-hostname.ts';
+export { byPath } from './dsl/by-path.ts';
+export { byScopeKey } from './dsl/by-scope-key.ts';
 export { cancelTimer } from './dsl/cancel-timer.ts';
 export type { Contracts } from './dsl/contracts.ts';
 export { contracts } from './dsl/contracts.ts';
+export type { ApiVersionEntry, ApiVersionMap, ApiVersions } from './dsl/define-api-versions.ts';
+export { defineApiVersions } from './dsl/define-api-versions.ts';
+export type { App, AppAuthorization, AppOptions, AppPolicies } from './dsl/define-app.ts';
+export { defineApp } from './dsl/define-app.ts';
 export type {
   CommandOptions,
   EntityCommandSpec,
@@ -63,6 +75,15 @@ export type {
   WhenIn,
 } from './dsl/define-contribution.ts';
 export { defineContribution } from './dsl/define-contribution.ts';
+export type {
+  ControlStore,
+  DeployableApp,
+  Deployment,
+  DeploymentOptions,
+  InfrastructureEntry,
+  Placement,
+} from './dsl/define-deployment.ts';
+export { defineDeployment } from './dsl/define-deployment.ts';
 export type { AnyEffectPart, EffectOptions, EffectPart } from './dsl/define-effect.ts';
 export { defineEffect } from './dsl/define-effect.ts';
 export type { EffectExecutorOptions, ExecutorPart } from './dsl/define-effect-executor.ts';
@@ -128,8 +149,16 @@ export { defineSchedule } from './dsl/define-schedule.ts';
 export { defineService } from './dsl/define-service.ts';
 export type { SubscriptionSpec } from './dsl/define-subscription.ts';
 export { defineSubscription } from './dsl/define-subscription.ts';
+export type {
+  TransportBase,
+  TransportLiteral,
+  TransportModuleSpec,
+} from './dsl/define-transport-module.ts';
+export { defineTransportModule } from './dsl/define-transport-module.ts';
 export type { EnqueueOptions } from './dsl/enqueue.ts';
 export { enqueue } from './dsl/enqueue.ts';
+export type { EnvRef } from './dsl/env.ts';
+export { env } from './dsl/env.ts';
 export type {
   ExtensionMode,
   ExtensionPoint,
@@ -146,6 +175,7 @@ export { outcomeOf } from './dsl/outcome-of.ts';
 export type { EntityOutputSpec } from './dsl/page-of.ts';
 export { pageOf } from './dsl/page-of.ts';
 export { rowOf } from './dsl/row-of.ts';
+export { secret } from './dsl/secret.ts';
 export type { SetTimerRefSpec, SetTimerSpec, TimerWhen } from './dsl/set-timer.ts';
 export { setTimer } from './dsl/set-timer.ts';
 export { settle } from './dsl/settle.ts';
@@ -288,6 +318,7 @@ export type {
   PartTypes,
   RowOutput,
 } from './model/action-part.ts';
+export type { ActionRef } from './model/action-ref.ts';
 export type { AllKeys } from './model/all-keys.ts';
 export type {
   AnyModule,
@@ -298,6 +329,10 @@ export type {
   Dependency,
 } from './model/any-module.ts';
 export type { AnyModuleBase } from './model/any-module-base.ts';
+export type { AppActionTree } from './model/app-action-tree.ts';
+export type { AppChecks } from './model/app-checks.ts';
+export type { AppEntities } from './model/app-entities.ts';
+export type { AppType } from './model/app-type.ts';
 export type { BaseChecks } from './model/base-checks.ts';
 export type { Behaviour } from './model/behaviour.ts';
 export type { BuiltinActionName } from './model/builtin-action-name.ts';
@@ -327,6 +362,7 @@ export type { HandlerOutput } from './model/handler-output.ts';
 export type { IdOf } from './model/id-of.ts';
 export type { InputSpec } from './model/input-spec.ts';
 export type { InputValue } from './model/input-value.ts';
+export type { Insert } from './model/insert.ts';
 export type { InsertOf } from './model/insert-of.ts';
 export type { InstanceInput } from './model/instance-input.ts';
 export type { IsUnion } from './model/is-union.ts';
@@ -341,6 +377,7 @@ export type { ModuleOf } from './model/module-of.ts';
 export type { ModuleType } from './model/module-type.ts';
 export type { BehaviourMounts, MountsFor } from './model/mounts-for.ts';
 export type { NoOutput } from './model/no-output.ts';
+export type { OfflinePatch } from './model/offline-patch.ts';
 export type { OfflinePatchOf } from './model/offline-patch-of.ts';
 export type { OutputSpec } from './model/output-spec.ts';
 export type { OwnFields, OwnRow } from './model/own-row.ts';
@@ -355,6 +392,7 @@ export type {
   PartSource,
   WhenOf,
 } from './model/part-source.ts';
+export type { Patch } from './model/patch.ts';
 export type { CrdtUpdate, PatchOf, PatchValue } from './model/patch-of.ts';
 export type {
   ModuleById,
@@ -366,9 +404,12 @@ export type {
   PresentModules,
 } from './model/present-modules.ts';
 export type { Prettify } from './model/prettify.ts';
+export type { Readable } from './model/readable.ts';
 export type { RelationsOf } from './model/relations-of.ts';
+export type { Row } from './model/row.ts';
 export type { PartialRowOf, RowOf } from './model/row-of.ts';
 export type { RowView } from './model/row-view.ts';
+export type { ById, Ids, WithCore } from './model/selection.ts';
 export type { Service } from './model/service.ts';
 export type { TargetName } from './model/target-name.ts';
 export type { TargetRef } from './model/target-ref.ts';

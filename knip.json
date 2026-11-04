@@ -117,7 +117,7 @@
       "project": ["src/**/*.ts"]
     },
     "packages/core": {
-      "entry": ["src/**/*.test-d.ts"],
+      "entry": ["src/**/*.test-d.ts", "sketch/acceptance.ts"],
       "project": ["src/**/*.ts"]
     },
     "spikes/node26-rechecks": {

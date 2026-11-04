@@ -11,7 +11,7 @@ export interface SurfaceEntity {
   readonly prefix: string;
   /** The last two are read-only through actions (section 6.6). */
   readonly history: 'chain' | 'state' | 'projection' | 'external';
-  readonly tenancy: 'tenant' | 'backend' | 'deployment';
+  readonly tenancy: 'tenant' | 'backend' | 'deployment' | 'invocation';
   /** System fields included; `tenantId` and hidden fields never. */
   readonly fields: Readonly<Record<string, FieldNode>>;
   readonly relations: Readonly<Record<string, SurfaceRelation>>;
