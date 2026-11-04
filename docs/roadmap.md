@@ -72,8 +72,8 @@ modules), 3 (`docs/api-sketch.ts` type-checks against the spike with no errors),
 cross-tenant waiting, the single-tenant ceiling per round trip, wake-ups outside writer
 transactions, the fair take's p95 against lanes and batch, and positioned loads against one
 snapshot per decision, all recorded), the Maybe half of 5 (decision 32b confirmed) and 6 (the
-approval gate passed on 2026-11-04). The remaining M0 item is the GritQL plugins of
-`@keelwerk/biome-config` with their fixtures. Neither spike covered the `prepare` comparison or the
+approval gate passed on 2026-11-04). The GritQL plugins of `@keelwerk/biome-config` shipped with
+their fixtures the same day, which closes M0's deliverables. Neither spike covered the `prepare` comparison or the
 Node 26 re-checks of criterion 5; architecture.md section 26.2 records them as open, and M3's
 criterion 3 writes up the `prepare` comparison from Trail's code.
 
