@@ -824,7 +824,7 @@ sections it touched.
      once M2 runs the keyed job. Boot and `keelwerk doctor` list every queue with work and no
      worker; the minimal action-job worker in M1 is not taken. Status: decided by the lead
      2026-11-04 (M1 plan S-24), applied (sections 7.4, 7.7, 9.2, 9.5.6, 13.12, 17.2.3; roadmap M1
-     and M2; ADR 0015). For Jens to confirm; built as decided unless he objects.
+     and M2; ADR 0015). Confirmed by Jens 2026-11-04.
 145. **`asOf` by position stays kernel-internal** (S-25). Re-decides read `asOf` a position inside
      the kernel; the generated `get` and `history` keep `asOf` by instant in M1, and the question of
      section 26.3 stays open for later. Status: decided by the lead 2026-11-04 (M1 plan S-25),
@@ -903,7 +903,7 @@ sections it touched.
      `register-profile` from the plan's `auth.credential.created` to `signedUp`, because `created`
      carries no display name and also fires for credentials added later. Status: decided by the lead
      2026-11-04 (M1 plan S-40), applied (sections 17.2.1, 17.2.2, 17.2.6, 17.2.8, 23.2;
-     api-sketch.ts; ADR 0014). For Jens to confirm; built as decided unless he objects.
+     api-sketch.ts; ADR 0014). Confirmed by Jens 2026-11-04.
 161. **`optional` modules are regular dependencies** (S-41). A module listed in `optional` is a
      regular dependency of the package in M1 (`module-auth` depends on `module-accounts`), decided
      before the first publish; the question of section 26.3 is closed. Status: decided by the lead
