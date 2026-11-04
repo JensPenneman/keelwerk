@@ -544,7 +544,7 @@ const sessionEventsSignedIn = defineRule(within(authBase, whenLive), sessionEven
 // A lifecycle hook is a reaction: pure, returning a decision. Logging is the one capability in ctx:
 // write-only, never part of the decision.
 const onTenantCreated = defineHook(authBase, 'onTenantCreated', (tenant, ctx) => {
-  ctx.log.info({ tenant: tenant.id }, 'auth ready for tenant')
+  ctx.log.info('auth ready for tenant', { tenant: tenant.id })
   return []
 })
 
