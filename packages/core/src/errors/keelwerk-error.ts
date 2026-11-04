@@ -13,6 +13,8 @@ interface KeelwerkErrorInit {
   /** Seconds. */
   readonly retryAfter?: number;
   readonly rules?: readonly RuleMatch[];
+  /** `forbidden`: the deciding deny rule's reason (section 16.4.6). */
+  readonly reason?: string;
   readonly cause?: unknown;
 }
 
@@ -29,6 +31,8 @@ export class KeelwerkError extends Error {
   /** Seconds. */
   declare readonly retryAfter?: number;
   declare readonly rules?: readonly RuleMatch[];
+  /** The deciding deny rule's reason. */
+  declare readonly reason?: string;
 
   constructor(init: KeelwerkErrorInit) {
     super(init.message, init.cause === undefined ? undefined : { cause: init.cause });
@@ -40,5 +44,6 @@ export class KeelwerkError extends Error {
     if (init.details !== undefined) this.details = init.details;
     if (init.retryAfter !== undefined) this.retryAfter = init.retryAfter;
     if (init.rules !== undefined) this.rules = init.rules;
+    if (init.reason !== undefined) this.reason = init.reason;
   }
 }

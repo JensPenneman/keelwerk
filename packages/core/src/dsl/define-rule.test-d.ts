@@ -6,6 +6,7 @@ import { whenAccounts } from '../../test/fixtures/modules/auth/src/conditional/w
 import { toAccounts } from '../../test/fixtures/modules/auth/src/contributions/to-accounts/contribution.ts';
 import { credential } from '../../test/fixtures/modules/auth/src/entities/credential.ts';
 import { field } from '../fields/field.ts';
+import { relation } from '../fields/relation.ts';
 import { shape } from '../fields/shape.ts';
 import type { Id } from '../ids/id.ts';
 import type { SubjectId } from '../ids/subject-id.ts';
@@ -116,5 +117,50 @@ describe('policy typing (section 13.10)', () => {
       ],
     });
     expectTypeOf(rename.mount).toEqualTypeOf<'local'>();
+  });
+
+  test('a rule quantifies over relations by cardinality, also inside or, and and not', () => {
+    const author = defineEntity({ prefix: 'aut', fields: { name: field.string() } });
+    const comment = defineEntity({ prefix: 'com', fields: { text: field.string() } });
+    const article = defineEntity({
+      prefix: 'art',
+      fields: { title: field.string() },
+      relations: {
+        comments: relation.many.own('comment', { by: 'id', to: 'id' }),
+        writer: relation.one.own('author', { by: 'id', to: 'id' }),
+      },
+    });
+    const newsBase = defineModuleBase({
+      id: 'news',
+      version: '0.1.0',
+      entities: { author, comment, article },
+    });
+    defineRule(newsBase, article, {
+      effect: 'allow',
+      where: () => ({ comments: { some: { text: 'x' } }, writer: { is: { name: 'y' } } }),
+    });
+    defineRule(newsBase, article, {
+      effect: 'allow',
+      where: () => ({
+        or: [{ comments: { every: { text: 'x' } } }, { writer: { is: { name: 'y' } } }],
+        and: [{ comments: { none: { text: { startsWith: 'z' } } } }],
+        not: { comments: { some: {} } },
+      }),
+    });
+    defineRule(newsBase, article, {
+      effect: 'deny',
+      check: () => ({ not: { or: [{ writer: { is: {} } }, { title: 'a' }] } }),
+      reason: 'no',
+    });
+    defineRule(newsBase, article, {
+      effect: 'allow',
+      // @ts-expect-error a to-many relation has no 'is'
+      where: () => ({ comments: { is: { text: 'x' } } }),
+    });
+    defineRule(newsBase, article, {
+      effect: 'allow',
+      // @ts-expect-error a to-one relation has no 'some'
+      where: () => ({ writer: { some: { name: 'y' } } }),
+    });
   });
 });

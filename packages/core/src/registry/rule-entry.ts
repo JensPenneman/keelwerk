@@ -1,4 +1,4 @@
-import type { Condition } from '../conditions/condition.ts';
+import type { ConditionInput } from '../conditions/condition-input.ts';
 import type { PrincipalKind } from '../principals/principal-kind.ts';
 
 /** One policy rule as the registry holds it (section 8.1); the callbacks take the principal context of the DSL. */
@@ -18,9 +18,9 @@ export interface RuleEntry {
   readonly actions: readonly string[];
   readonly principal?: PrincipalKind | readonly PrincipalKind[];
   /** The row acted on (the pre-image), the rows read. */
-  where?(context: unknown): Condition | boolean;
+  where?(context: unknown): ConditionInput | boolean;
   /** The row produced (the post-image of creates and updates). */
-  check?(context: unknown): Condition | boolean;
+  check?(context: unknown): ConditionInput | boolean;
   /** Module-level, app and cross-module rules. */
   when?(context: unknown, input: unknown): boolean;
   /** Reads: the maskable fields this rule reveals; writes: the fields that may change. */

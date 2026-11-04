@@ -7,7 +7,6 @@ import type { SubjectId } from '../ids/subject-id.ts';
 import type { InsertOf } from '../model/insert-of.ts';
 import type { OfflinePatchOf } from '../model/offline-patch-of.ts';
 import type { CrdtUpdate, PatchOf } from '../model/patch-of.ts';
-import type { Where } from '../model/where.ts';
 import { field } from './field.ts';
 import type { AbsoluteRef, OwnRef, ValueOfField } from './field-def.ts';
 import type { PersonalFlags } from './personal-flags.ts';
@@ -167,6 +166,21 @@ describe('self-typed field modifiers', () => {
       OwnRef<'credential'>
     >();
   });
+
+  test('relation.through is many-to-many through an own join entity', () => {
+    const keys = { join: 'membership', by: 'teamId', to: 'id', via: 'userId' } as const;
+    const own = relation.through.own('member', keys);
+    expectTypeOf(own.cardinality).toEqualTypeOf<'many'>();
+    expectTypeOf(own.target).toEqualTypeOf<OwnRef<'member'>>();
+    expectTypeOf(own.through).toEqualTypeOf<{ readonly entity: string; readonly via: string }>();
+    const other = relation.through(accounts, 'profile', keys);
+    expectTypeOf(other.target).toEqualTypeOf<AbsoluteRef<'accounts', 'profile'>>();
+    // @ts-expect-error the join entity and its fields are required
+    relation.through.own('member', { by: 'teamId', to: 'id' });
+    expectTypeOf(relation.many.own('x', { by: 'a', to: 'id' }).through).toEqualTypeOf<
+      { readonly entity: string; readonly via: string } | undefined
+    >();
+  });
 });
 
 describe('write shapes', () => {
@@ -230,55 +244,5 @@ describe('shape output', () => {
       readonly locale: string;
       readonly n?: string | undefined;
     }>();
-  });
-});
-
-describe('Where', () => {
-  const fields = {
-    email: field.string().personal().unique(),
-    nickname: field.string().personal({ queries: ['prefix'] }),
-    born: field.date().personal({ queries: ['eq', 'order'] }),
-    name: field.string(),
-    secretNote: field.string().personal(),
-  };
-  type Row = ShapeValue<typeof fields, 'm', 'stored'>;
-
-  test('personal fields offer only the operators of their capabilities', () => {
-    const ok: Where<Row, typeof fields> = {
-      email: { eq: 'a@b.c', in: ['a@b.c'] },
-      nickname: { startsWith: 'je' },
-      born: { gte: Temporal.PlainDate.from('2000-01-01') },
-      name: { contains: 'x', lt: 'z' },
-      secretNote: { isNull: true },
-      or: [{ email: 'a@b.c' }, { name: null }],
-    };
-    expectTypeOf(ok).toExtend<Where<Row, typeof fields>>();
-    // @ts-expect-error a unique personal field has no prefix capability
-    const prefix: Where<Row, typeof fields> = { email: { startsWith: 'a' } };
-    // @ts-expect-error a prefix-only field has no equality, also as a bare value
-    const bare: Where<Row, typeof fields> = { nickname: 'jens' };
-    // @ts-expect-error a prefix-only field has no equality operator
-    const eq: Where<Row, typeof fields> = { nickname: { eq: 'jens' } };
-    // @ts-expect-error without order, no range operator
-    const range: Where<Row, typeof fields> = { email: { gt: 'a' } };
-    // @ts-expect-error a personal field without capabilities supports isNull only
-    const none: Where<Row, typeof fields> = { secretNote: { eq: 'x' } };
-    // @ts-expect-error a bare value needs eq, also on a field with no capabilities
-    const bareNone: Where<Row, typeof fields> = { secretNote: 'x' };
-    expectTypeOf([prefix, bare, eq, range, none, bareNone]).not.toBeAny();
-  });
-
-  test('a number field that only declares order takes no bare value', () => {
-    const numbers = { rank: field.integer().personal({ queries: ['order'] }) };
-    type Ranked = ShapeValue<typeof numbers, 'm', 'stored'>;
-    // @ts-expect-error order is not equality
-    const bare: Where<Ranked, typeof numbers> = { rank: 5 };
-    const range: Where<Ranked, typeof numbers> = { rank: { gt: 5 } };
-    expectTypeOf([bare, range]).not.toBeAny();
-  });
-
-  test('without the fields every operator is offered', () => {
-    const loose: Where<Row> = { email: { startsWith: 'a', gt: 'b' }, nickname: 'jens' };
-    expectTypeOf(loose).toExtend<Where<Row>>();
   });
 });

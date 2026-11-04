@@ -3,6 +3,7 @@ import type { CoreErrorCode } from './core-error-code.ts';
 import { coreErrorCodes } from './core-error-codes.ts';
 import { createError } from './create-error.ts';
 import type { ErrorAudience } from './error-audience.ts';
+import { KeelwerkError } from './keelwerk-error.ts';
 import { toWire } from './to-wire.ts';
 
 const audiences: readonly ErrorAudience[] = ['public', 'operator', 'development'];
@@ -64,5 +65,30 @@ describe('toWire', () => {
     expect(wire.details).toEqual({ field: 'email' });
     expect(wire.retryAfter).toBe(5);
     expect('rules' in wire).toBe(false);
+  });
+});
+
+describe('toWire reason', () => {
+  it('maps the deciding deny rule reason, and keeps the message as the fallback', () => {
+    const denied = new KeelwerkError({
+      kind: 'forbidden',
+      code: 'core.forbidden',
+      message: 'Not allowed.',
+      reason: 'Suspended.',
+    });
+    expect(toWire(denied, 'public').reason).toBe('Suspended.');
+    expect(denied.reason).toBe('Suspended.');
+  });
+
+  it('carries no reason on an error that is not forbidden', () => {
+    const internal = new KeelwerkError({
+      kind: 'internal',
+      code: 'core.internal',
+      message: 'Broke.',
+      reason: 'secret detail',
+    });
+    for (const audience of audiences) {
+      expect(toWire(internal, audience)).not.toHaveProperty('reason');
+    }
   });
 });

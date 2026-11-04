@@ -58,9 +58,18 @@ describe('normalizeCondition', () => {
     expect(normalizeCondition({ f: { ne: null } })).toEqual(never);
     expect(normalizeCondition({ f: { gt: null } })).toEqual(never);
     expect(normalizeCondition({ f: { in: undefined } })).toEqual(never);
-    expect(normalizeCondition({ f: { in: [1, null] } })).toEqual(never);
-    expect(normalizeCondition({ f: { nin: [undefined] } })).toEqual(never);
     expect(normalizeCondition({ f: { contains: null } })).toEqual(never);
+  });
+
+  test('a null or undefined inside an in or nin list is rejected, never matched', () => {
+    for (const input of [{ f: { in: [1, null] } }, { f: { nin: [undefined] } }]) {
+      expect(() => normalizeCondition(input)).toThrow(
+        expect.objectContaining({ kind: 'internal', code: 'core.internal' }),
+      );
+      expect(() => normalizeWireFilter(input)).toThrow(
+        expect.objectContaining({ kind: 'validation', code: 'core.malformed_request' }),
+      );
+    }
   });
 
   test('and, or and not nest', () => {

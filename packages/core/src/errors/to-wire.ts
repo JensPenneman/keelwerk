@@ -30,7 +30,7 @@ export function toWire(
         })),
       }),
     ...(!redacted && error.details !== undefined && { details: error.details }),
-    ...(error.kind === 'forbidden' && { reason: error.message }),
+    ...(error.kind === 'forbidden' && { reason: error.reason ?? error.message }),
     ...(privileged && error.rules !== undefined && { rules: error.rules }),
   };
 }

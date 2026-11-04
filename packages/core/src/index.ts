@@ -1,3 +1,48 @@
+export { applyPolicyOverrides } from './authorization/apply-policy-overrides.ts';
+export type { AuthorizedAction } from './authorization/authorized-action.ts';
+export { checkFilterFields } from './authorization/check-filter-fields.ts';
+export { checkItem } from './authorization/check-item.ts';
+export type { RowInPlanInput } from './authorization/check-row-in-plan.ts';
+export { checkRowInPlan } from './authorization/check-row-in-plan.ts';
+export { compilePlan } from './authorization/compile-plan.ts';
+export type { CompilePlanInput } from './authorization/compile-plan-input.ts';
+export type { AbilityOptions, AuthorizationAbility } from './authorization/create-ability.ts';
+export { createAbility } from './authorization/create-ability.ts';
+export type { RowMatcherOptions } from './authorization/create-row-matcher.ts';
+export { createRowMatcher } from './authorization/create-row-matcher.ts';
+export { decisionLog } from './authorization/decision-log.ts';
+export type { DecisionLogEntry } from './authorization/decision-log-entry.ts';
+export type { DecisionLogSink } from './authorization/decision-log-sink.ts';
+export type { DroppedRow } from './authorization/dropped-row.ts';
+export { evaluateGate } from './authorization/evaluate-gate.ts';
+export type { ExpandedActions } from './authorization/expand-action-aliases.ts';
+export { expandActionAliases } from './authorization/expand-action-aliases.ts';
+export { explainPlan } from './authorization/explain-plan.ts';
+export type { Denial } from './authorization/forbidden-error.ts';
+export { forbiddenError } from './authorization/forbidden-error.ts';
+export type { GateInput } from './authorization/gate-input.ts';
+export type { GateResult } from './authorization/gate-result.ts';
+export { itemAction } from './authorization/item-action.ts';
+export type { ItemImages } from './authorization/item-images.ts';
+export type { ItemVerdict } from './authorization/item-verdict.ts';
+export { maskRow } from './authorization/mask-row.ts';
+export { normalizeRule } from './authorization/normalize-rule.ts';
+export type { NormalizedRule, RuleTarget } from './authorization/normalized-rule.ts';
+export { operationOf } from './authorization/operation-of.ts';
+export type { OverriddenRules } from './authorization/overridden-rules.ts';
+export { plainRowMatcher } from './authorization/plain-row-matcher.ts';
+export type { Plan } from './authorization/plan.ts';
+export type { PlanClause } from './authorization/plan-clause.ts';
+export { planConditions } from './authorization/plan-conditions.ts';
+export type { PlanMemo } from './authorization/plan-memo.ts';
+export { createPlanMemo } from './authorization/plan-memo.ts';
+export type { PlanOperation } from './authorization/plan-operation.ts';
+export type { PolicyOverrides } from './authorization/policy-overrides.ts';
+export type { QuantifierNode, RelationAnswerer } from './authorization/relation-answerer.ts';
+export type { RowEnvironment } from './authorization/row-environment.ts';
+export type { RowMatcher } from './authorization/row-matcher.ts';
+export { ruleApplies } from './authorization/rule-applies.ts';
+export { ruleProblems } from './authorization/rule-problems.ts';
 export { compareHlc } from './clock/compare-hlc.ts';
 export type { HybridClock } from './clock/hybrid-clock.ts';
 export { hybridClock } from './clock/hybrid-clock.ts';
@@ -254,7 +299,11 @@ export type {
   Relation,
   RelationBuilders,
   RelationKeys,
+  RelationThrough,
+  RelationThroughTo,
   RelationTo,
+  ThroughKeys,
+  ThroughRelation,
 } from './fields/relation.ts';
 export { relation } from './fields/relation.ts';
 export type { Shape, ShapeFields } from './fields/shape.ts';
@@ -429,7 +478,14 @@ export type { UnknownPolicyTargets } from './model/unknown-policy-targets.ts';
 export type { UnknownPolicyTargetsIn } from './model/unknown-policy-targets-in.ts';
 export type { UnknownRuleActions } from './model/unknown-rule-actions.ts';
 export type { UnknownRuleActionsIn } from './model/unknown-rule-actions-in.ts';
-export type { FieldCondition, FieldOps, PersonalOps, Where } from './model/where.ts';
+export type {
+  FieldCondition,
+  FieldOps,
+  PersonalOps,
+  RelationOps,
+  RelationWhere,
+  Where,
+} from './model/where.ts';
 export type { WireOutput } from './model/wire-output.ts';
 export { camel } from './naming/camel.ts';
 export { camelFromKebab } from './naming/camel-from-kebab.ts';

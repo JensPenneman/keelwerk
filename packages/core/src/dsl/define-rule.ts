@@ -48,27 +48,27 @@ type RelatedRow<B extends AnyModuleBase, Rel> = Rel extends { readonly target: O
   ? OwnRow<B, E, 'dependency'>
   : { readonly [field: string]: unknown };
 
-type RelationConditions<B extends AnyModuleBase, Rels> = {
-  readonly [K in keyof Rels]?: {
-    readonly some?: Where<RelatedRow<B, Rels[K]>>;
-    readonly every?: Where<RelatedRow<B, Rels[K]>>;
-    readonly none?: Where<RelatedRow<B, Rels[K]>>;
-  };
+type RelationRows<B extends AnyModuleBase, Rels> = {
+  readonly [K in keyof Rels]: Rels[K] extends { readonly cardinality: 'many' }
+    ? readonly RelatedRow<B, Rels[K]>[]
+    : RelatedRow<B, Rels[K]>;
 };
 
-type UnknownKeys<C, Allowed> = C extends object
-  ? {
-      [K in keyof C]-?: K extends 'or' | 'and'
-        ? C[K] extends readonly (infer I)[]
-          ? UnknownKeys<I, Allowed>
-          : never
-        : K extends 'not'
-          ? UnknownKeys<C[K], Allowed>
-          : K extends Allowed
-            ? never
-            : K & string;
-    }[keyof C]
-  : never;
+type UnknownKeys<C, Allowed, Depth extends readonly unknown[] = []> = Depth['length'] extends 8
+  ? never
+  : C extends object
+    ? {
+        [K in keyof C]-?: K extends 'or' | 'and'
+          ? C[K] extends readonly (infer I)[]
+            ? UnknownKeys<I, Allowed, [...Depth, unknown]>
+            : never
+          : K extends 'not'
+            ? UnknownKeys<C[K], Allowed, [...Depth, unknown]>
+            : K extends Allowed
+              ? never
+              : K & string;
+      }[keyof C]
+    : never;
 type ConditionKeys<S, T> = keyof RuleRow<S, T> | keyof RuleRelations<S, T>;
 
 type MaskableKeys<F> = {
@@ -77,8 +77,11 @@ type MaskableKeys<F> = {
   string;
 
 /** A typed condition of an entity rule: fields of the row acted on and its relations (section 8.3). */
-export type RuleCondition<S, T> = Where<RuleRow<S, T>> &
-  RelationConditions<BaseOf<S>, RuleRelations<S, T>>;
+export type RuleCondition<S, T> = Where<
+  RuleRow<S, T>,
+  RuleFields<S, T>,
+  RelationRows<BaseOf<S>, RuleRelations<S, T>>
+>;
 
 /** The field names a rule may list: maskable fields for read rules, any field for write rules (section 8.1). */
 export type RuleFieldName<S, T, A extends readonly string[]> =

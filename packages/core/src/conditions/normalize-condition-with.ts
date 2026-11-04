@@ -48,11 +48,28 @@ function isAbsent(value: unknown): boolean {
   return value === null || value === undefined;
 }
 
+/**
+ * A `null` or `undefined` inside an `in` or `nin` list is rejected rather than matched: a deny rule
+ * must never fail open. On the wire it is a malformed request; a rule that produced it is an
+ * evaluation error of the rule.
+ */
+function absentListEntry(op: string, path: readonly string[], wire: boolean): KeelwerkError {
+  if (wire) return malformed(path, `${op} takes a list without null or undefined`);
+  const message = `${path.join('.')}: ${op} takes a list without null or undefined`;
+  return new KeelwerkError({
+    kind: 'internal',
+    code: 'core.internal',
+    message,
+    issues: [{ path, message: `${op} takes a list without null or undefined` }],
+  });
+}
+
 function operatorCondition(
   op: FieldOperator,
   field: string,
   value: unknown,
   path: readonly string[],
+  wire: boolean,
 ): Condition {
   if (op === 'isNull') {
     if (typeof value !== 'boolean') throw malformed(path, 'isNull takes true or false');
@@ -61,7 +78,7 @@ function operatorCondition(
   if (isAbsent(value)) return never;
   if (op === 'in' || op === 'nin') {
     if (!Array.isArray(value)) throw malformed(path, `${op} takes an array`);
-    if (value.some(isAbsent)) return never;
+    if (value.some(isAbsent)) throw absentListEntry(op, path, wire);
     return { op, field, value: [...value] };
   }
   return { op, field, value };
@@ -80,7 +97,7 @@ function fieldConditions(
     if (keys.length === 0) throw malformed(path, 'an empty operator object');
     const known = keys.filter(isFieldOperator);
     if (known.length === keys.length) {
-      return known.map((key) => operatorCondition(key, field, value[key], [...path, key]));
+      return known.map((key) => operatorCondition(key, field, value[key], [...path, key], wire));
     }
     if (known.length > 0) {
       const stray = keys.find((key) => !isFieldOperator(key));

@@ -21,6 +21,7 @@ export function createError(
     ...(retry !== undefined && { retryable: retry }),
     ...(options.retryAfter !== undefined && { retryAfter: options.retryAfter }),
     ...(options.rules !== undefined && { rules: options.rules }),
+    ...(options.reason !== undefined && { reason: options.reason }),
     ...(options.cause !== undefined && { cause: options.cause }),
   });
 }

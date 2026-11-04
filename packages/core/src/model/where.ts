@@ -56,14 +56,32 @@ export type FieldCondition<V, Fd = unknown> = Fd extends {
   : V | null | undefined | FieldOps<Exclude<V, undefined>>;
 
 /**
+ * What a relation accepts (section 8.3): `some`, `none` and `every` over a to-many relation (its
+ * `Target` is an array of the related row), `is` over a to-one one, each with a condition on the
+ * related rows.
+ */
+export type RelationOps<Target> = Target extends readonly (infer Row)[]
+  ? {
+      readonly some?: Where<Row>;
+      readonly none?: Where<Row>;
+      readonly every?: Where<Row>;
+    }
+  : { readonly is?: Where<Target> };
+
+/** The relation members of a condition: `Rels` maps each relation name to the related row (to-one) or an array of it (to-many). */
+export type RelationWhere<Rels> = {
+  readonly [K in keyof Rels]?: RelationOps<Rels[K]>;
+};
+
+/**
  * The object form of the condition AST over the fields of a row. `F` is the entity's fields, so
  * personal fields narrow to the operators their capabilities allow; without it every field offers
- * every operator.
+ * every operator. `Rels` maps relation names to the related row (to-one) or an array of it (to-many) and adds their quantifiers.
  */
-export type Where<R, F = unknown> = {
+export type Where<R, F = unknown, Rels = Empty> = {
   readonly [K in keyof R]?: FieldCondition<R[K], K extends keyof F ? F[K] : unknown>;
-} & {
-  readonly or?: readonly Where<R, F>[];
-  readonly and?: readonly Where<R, F>[];
-  readonly not?: Where<R, F>;
-};
+} & RelationWhere<Rels> & {
+    readonly or?: readonly Where<R, F, Rels>[];
+    readonly and?: readonly Where<R, F, Rels>[];
+    readonly not?: Where<R, F, Rels>;
+  };

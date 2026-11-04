@@ -10,5 +10,7 @@ export interface ErrorThrowOptions {
   /** Seconds. */
   readonly retryAfter?: number;
   readonly rules?: readonly RuleMatch[];
+  /** `forbidden`: the deciding deny rule's reason. */
+  readonly reason?: string;
   readonly cause?: unknown;
 }
