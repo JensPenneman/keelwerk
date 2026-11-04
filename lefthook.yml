@@ -26,4 +26,5 @@ pre-push:
       run: pnpm exec tsc -b
     unit-tests:
       priority: 2
-      run: pnpm test
+      # The spikes are measurement code whose timing tests need a quiet machine; CI runs them.
+      run: pnpm vitest run --exclude "spikes/**"
