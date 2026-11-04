@@ -1,0 +1,23 @@
+/** The field kinds an adapter stores (section 14.5.1). */
+export type FieldKind =
+  | 'string'
+  | 'text'
+  | 'integer'
+  | 'decimal'
+  | 'float'
+  | 'boolean'
+  | 'instant'
+  | 'date'
+  | 'timeZone'
+  | 'enum'
+  | 'json'
+  | 'ref'
+  | 'subject'
+  | 'set'
+  | 'list'
+  | 'richText'
+  | 'binary'
+  | 'blob'
+  | 'secret'
+  | 'verifier'
+  | 'serial';

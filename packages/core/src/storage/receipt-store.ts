@@ -1,0 +1,13 @@
+import type { Receipt } from './receipt.ts';
+import type { ReceiptOutcome } from './receipt-outcome.ts';
+
+/** Receipts of a unit's scope (section 15.1.7). */
+export interface ReceiptStore {
+  get(commandId: string): Promise<Receipt | undefined>;
+  /** Inserts the receipt; `conflict` when the id exists with another fingerprint. */
+  put(receipt: Receipt): Promise<void>;
+  complete(commandId: string, outcome: ReceiptOutcome): Promise<void>;
+  /** Sync: outcomes of one client's mutations after a client sequence number (M6). */
+  forClient(clientId: string, afterSeq: number, limit: number): Promise<readonly Receipt[]>;
+  acknowledge(clientId: string, uptoSeq: number): Promise<void>;
+}
