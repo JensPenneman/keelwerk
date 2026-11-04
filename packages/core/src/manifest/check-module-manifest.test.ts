@@ -44,7 +44,9 @@ describe('checkModuleManifest', () => {
     });
   });
 
-  test('fails on a manifest whose header names another generator version', async ({ manifest }) => {
+  test('passes on a manifest whose header names another generator version', async ({
+    manifest,
+  }) => {
     const text = render(FILES);
     const older = text.replace(`keelwerk ${version} `, 'keelwerk 0.0.0-older ');
     expect(older).not.toBe(text);
