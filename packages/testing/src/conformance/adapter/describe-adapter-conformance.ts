@@ -14,6 +14,7 @@ import { conditionCases } from './condition-cases.ts';
 import type { ConformanceSubject } from './conformance-subject.ts';
 import type { ConformanceTarget } from './conformance-target.ts';
 import { eventStoreCases } from './event-store-cases.ts';
+import { jobStoreCases } from './job-store-cases.ts';
 import { migrationCases } from './migration-cases.ts';
 import { paginationCases } from './pagination-cases.ts';
 import { rowCases } from './row-cases.ts';
@@ -70,6 +71,9 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
       name: options.name,
       placement: options.placement,
       networked: options.networked,
+      get clock() {
+        return current().clock;
+      },
       adapter: () => current().adapter,
       namespace: () => current().namespace,
       capabilities: () => {
@@ -89,6 +93,7 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('row isolation', () => rowIsolationCases(subject));
     describe('store isolation', () => storeIsolationCases(subject));
     describe('event store', () => eventStoreCases(subject));
+    describe('job store', () => jobStoreCases(subject));
     describe('serials', () => serialCases(subject));
     describe('migrations', () => migrationCases(subject));
     describe('toggle then rebuild', () => toggleRebuildCases(subject));

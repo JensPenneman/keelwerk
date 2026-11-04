@@ -7,12 +7,15 @@ import type {
   Unit,
   UnitOptions,
 } from '@keelwerk/core';
+import type { ConformanceClock } from './conformance-clock.ts';
 
 /** What a case file sees of the adapter under test; every member reads the current target. */
 export interface ConformanceSubject {
   readonly name: string;
   readonly placement: PlacementConfig;
   readonly networked: boolean;
+  /** The target's clock, when it has one. */
+  readonly clock?: ConformanceClock | undefined;
   adapter(): DataAdapter;
   namespace(): NamespaceRef;
   capabilities(): AdapterCapabilities;

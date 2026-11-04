@@ -54,9 +54,8 @@ function sameScope(a: StorageScope, b: StorageScope): boolean {
 
 /**
  * The unit as far as the stores go that the SQL family implements (14.3.2): rows, the event store,
- * receipts, enqueue and cancel of the job store, serials, usage, buckets and keys, plus the scope
- * keys of a deployment-scope unit (S-55). The rest of the job store (promote, take, heartbeat,
- * complete, stats) joins with WP-36; `Unit` is this plus those members.
+ * receipts, the job store (without `schedules()`, S-03), serials, usage, buckets and keys, plus the
+ * scope keys of a deployment-scope unit (S-55).
  */
 export interface SqlUnit {
   readonly namespace: NamespaceRef;

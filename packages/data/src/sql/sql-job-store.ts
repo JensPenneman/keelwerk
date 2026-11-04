@@ -11,9 +11,14 @@ import { scopeForbidden } from './scope-forbidden.ts';
 import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
 import { sqlGuard } from './sql-guard.ts';
 import { sqlJobCancel } from './sql-job-cancel.ts';
+import { sqlJobComplete } from './sql-job-complete.ts';
 import { sqlJobGroup } from './sql-job-group.ts';
+import { sqlJobHeartbeat } from './sql-job-heartbeat.ts';
 import { sqlJobLane } from './sql-job-lane.ts';
+import { sqlJobPromote } from './sql-job-promote.ts';
 import { sqlJobRelease } from './sql-job-release.ts';
+import { sqlJobStats } from './sql-job-stats.ts';
+import { sqlJobTake } from './sql-job-take.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
 
 function sameScope(unit: StorageScope, job: Scope): boolean {
@@ -33,8 +38,12 @@ function sameScope(unit: StorageScope, job: Scope): boolean {
 
 const pending = `('scheduled', 'available', 'waiting')`;
 
-/** The members of the job store this layer implements: the writes of the unit that causes a job. */
-export interface SqlJobStore extends Pick<JobStore, 'cancel' | 'enqueue'> {
+/** The job store of a unit (14.3.9) without `schedules()` (S-03), plus the provisioning of namespace groups. */
+export interface SqlJobStore
+  extends Pick<
+    JobStore,
+    'cancel' | 'complete' | 'enqueue' | 'heartbeat' | 'promote' | 'stats' | 'take'
+  > {
   /**
    * Creates or re-limits a job group that spans the namespace's scopes; only a namespace-scope unit
    * may call it, any other fails with `internal`. Tenant enqueues only read such a group.
@@ -43,8 +52,10 @@ export interface SqlJobStore extends Pick<JobStore, 'cancel' | 'enqueue'> {
 }
 
 /**
- * Enqueue and cancel on the PostgreSQL dialect (9.5.2, 14.3.9), in the unit of the cause. Enqueue
- * upserts the lane (scope, queue, capability set, priority) and its two counter rows, applies the
+ * The job store on the PostgreSQL dialect (9.5.2 to 9.5.4, 14.3.9). Promotion, the fair take,
+ * heartbeats, completion and statistics live in `sqlJobPromote`, `sqlJobTake`, `sqlJobHeartbeat`,
+ * `sqlJobComplete` and `sqlJobStats`; a completion gives its counters back at the end of its unit,
+ * before the commit tail. Enqueue and cancel run in the unit of the cause. Enqueue upserts the lane (scope, queue, capability set, priority) and its two counter rows, applies the
  * key policy to a pending job of the same key and lane (`keep`, `replace`, `coalesce`), keeps the
  * group's counter row, and inserts the job: `available` when due, `scheduled` when its time has
  * not come, `waiting` behind an earlier job of the same key when the queue orders by key. A job
@@ -124,10 +135,10 @@ where id = $1::bigint and scope_id = $4::uuid`,
         }
         const state = follower ? 'waiting' : due ? 'available' : 'scheduled';
         const [inserted] = await runSql(ctx.db, {
-          sql: `insert into ${root}.kw_jobs (scope_id, lane_id, queue, kind, state, run_at, principal, causation,
+          sql: `insert into ${root}.kw_jobs (scope_id, scope, lane_id, queue, kind, state, run_at, principal, causation,
   build_id, revision, api_version, ordering, group_id, group_spec, key, cost, retry, heartbeat_seconds,
   expire_in_seconds, dead_letter, input, created_at)
-values ($1::uuid, $2::bigint, $3, $4, $5, $6::timestamptz, $7::jsonb, $8::jsonb, $9, $10::integer, $11, $12,
+values ($1::uuid, $23::jsonb, $2::bigint, $3, $4, $5, $6::timestamptz, $7::jsonb, $8::jsonb, $9, $10::integer, $11, $12,
   $13, $14::jsonb, $15, $16::integer, $17::jsonb, $18::integer, $19::integer, $20, $21::jsonb, $22::timestamptz)
 returning id::text as id`,
           parameters: [
@@ -153,6 +164,7 @@ returning id::text as id`,
             spec.deadLetter ?? null,
             JSON.stringify(spec.run),
             encodeInstant(spec.createdAt),
+            JSON.stringify(spec.scope),
           ],
         });
         if (inserted === undefined) throw errors.internal('the job insert answered nothing');
@@ -160,6 +172,24 @@ returning id::text as id`,
         return String(inserted.id);
       });
     },
+
+    promote: async (queue, limit) => {
+      ctx.writable();
+      return sqlGuard(async () => sqlJobPromote(ctx, buffer, queue, limit));
+    },
+    take: async (queue, worker, request) => {
+      ctx.writable();
+      return sqlGuard(async () => sqlJobTake(ctx, buffer, queue, worker, request));
+    },
+    heartbeat: async (attempts, worker, leaseMs) => {
+      ctx.writable();
+      return sqlGuard(async () => sqlJobHeartbeat(ctx, attempts, worker, leaseMs));
+    },
+    complete: async (attempt, worker, outcome) => {
+      ctx.writable();
+      return sqlGuard(async () => sqlJobComplete(ctx, buffer, attempt, worker, outcome));
+    },
+    stats: async (queue) => sqlGuard(async () => sqlJobStats(ctx, queue)),
 
     cancel: async (queue, key) => {
       ctx.writable();

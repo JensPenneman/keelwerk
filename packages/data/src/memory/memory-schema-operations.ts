@@ -4,6 +4,9 @@ import { sha256 } from '@keelwerk/core/crypto';
 import { memoryApplyStep } from './memory-apply-step.ts';
 import type { MemoryDatabase } from './memory-database.ts';
 import { memoryDescribeStep } from './memory-describe-step.ts';
+import { memoryJobStore } from './memory-job-store.ts';
+import { memoryTransaction } from './memory-transaction.ts';
+import { memoryUnitContext } from './memory-unit-context.ts';
 
 /**
  * The schema contract of the in-memory adapter (14.6.7). DDL is transactional here: a file is
@@ -54,7 +57,7 @@ export function memorySchemaOperations(database: MemoryDatabase): SchemaOperatio
       }
     },
     history: async (namespace) => [...database.namespace(namespace).migrations],
-    provision: async (namespace, snapshots) => {
+    provision: async (namespace, snapshots, options) => {
       const release = await database.lock(namespace.id);
       try {
         const state = database.namespace(namespace);
@@ -62,6 +65,24 @@ export function memorySchemaOperations(database: MemoryDatabase): SchemaOperatio
           for (const table of snapshot.tables) {
             if (!state.tables.has(table.name)) state.tables.set(table.name, table);
           }
+        }
+        const groups = (options?.jobGroups ?? []).filter((group) => group.scope === 'namespace');
+        if (groups.length > 0) {
+          const ctx = memoryUnitContext(
+            {
+              namespace,
+              scope: { level: 'namespace', reason: 'provision' },
+              readOnly: false,
+              tx: memoryTransaction(new Map(state.collections)),
+              clock: database.clock,
+              state,
+            },
+            undefined,
+          );
+          const jobs = memoryJobStore(ctx);
+          for (const group of groups) await jobs.provisionGroup(group);
+          for (const [name, collection] of ctx.tx.changes())
+            state.collections.set(name, collection);
         }
       } finally {
         release();

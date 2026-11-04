@@ -4,6 +4,7 @@ import { quoteIdentifier } from './postgres/quote-identifier.ts';
 import { runSql } from './run-sql.ts';
 import { sqlJobGroupKey } from './sql-job-group-key.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
+import { unitGroupTarget } from './unit-group-target.ts';
 import { upsertJobGroup } from './upsert-job-group.ts';
 
 /**
@@ -28,5 +29,9 @@ export async function sqlJobGroup(ctx: SqlUnitContext, group: JobGroup): Promise
     }
     return key;
   }
-  return upsertJobGroup(ctx, group, group.scope === 'namespace' ? null : ctx.scopeId());
+  return upsertJobGroup(
+    unitGroupTarget(ctx),
+    group,
+    group.scope === 'namespace' ? null : ctx.scopeId(),
+  );
 }

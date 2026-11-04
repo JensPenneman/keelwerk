@@ -26,8 +26,7 @@ export interface PgliteUnitBase {
 
 /**
  * The unit type `PgliteAdapter.unit` hands to its callback: the shared SQL unit with its stores,
- * the event store and enqueue and cancel of the job store among them (WP-22, WP-31). WP-36 adds
- * the rest of the job store.
+ * the event store and the job store among them (WP-22, WP-31, WP-36).
  */
 export type PgliteUnit = SqlUnit;
 

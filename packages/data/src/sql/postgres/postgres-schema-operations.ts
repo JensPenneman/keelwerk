@@ -1,6 +1,7 @@
-import type { AppliedMigration, SchemaOperations } from '@keelwerk/core';
+import type { AppliedMigration, Clock, SchemaOperations } from '@keelwerk/core';
 import { errors } from '@keelwerk/core';
 import { migrationChecksum } from '../../migrations/migration-checksum.ts';
+import { upsertJobGroup } from '../upsert-job-group.ts';
 import { applicationRoleDdl } from './application-role.ts';
 import { assertNamespaceRoot } from './assert-namespace-root.ts';
 import { frameworkTablesDdl } from './framework-tables.ts';
@@ -12,6 +13,8 @@ import { rlsPoliciesDdl } from './rls-policies.ts';
 import type { SchemaConnection } from './schema-connection.ts';
 import type { SchemaSession } from './schema-session.ts';
 import { snapshotSteps } from './snapshot-steps.ts';
+
+const systemClock: Clock = { now: () => Temporal.Now.instant() };
 
 const controlRoot = 'kw__control';
 
@@ -30,6 +33,8 @@ async function runAll(session: SchemaSession, statements: readonly string[]): Pr
 export interface PostgresSchemaOptions {
   /** The application role: granted the entity tables and the framework tables a namespace creates. */
   readonly role?: string;
+  /** Stamps the token bucket of a provisioned group; the system clock by default. */
+  readonly clock?: Clock;
 }
 
 /**
@@ -104,7 +109,7 @@ export function postgresSchemaOperations(
         );
       });
     },
-    provision: async (namespace, snapshots) => {
+    provision: async (namespace, snapshots, provisionOptions) => {
       const root = assertNamespaceRoot(namespace.root);
       const control = root === controlRoot ? { control: true } : {};
       await connection.transaction(async (session) => {
@@ -128,6 +133,20 @@ export function postgresSchemaOperations(
           await runAll(
             session,
             steps.flatMap((step) => renderStep(root, step, context)),
+          );
+        }
+        for (const group of provisionOptions?.jobGroups ?? []) {
+          if (group.scope !== 'namespace') continue;
+          await upsertJobGroup(
+            {
+              root,
+              now: (options.clock ?? systemClock).now(),
+              run: async (sql, parameters) => {
+                await session.query(sql, parameters);
+              },
+            },
+            group,
+            null,
           );
         }
       });

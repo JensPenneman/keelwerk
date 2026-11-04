@@ -72,6 +72,7 @@ create table "kw__control".kw_job_groups (
 create table "kw__control".kw_jobs (
   id bigint generated always as identity primary key,
   scope_id uuid not null,
+  scope jsonb not null,
   lane_id bigint not null,
   queue text not null,
   kind text not null check (kind in ('action', 'effect')),
@@ -95,11 +96,17 @@ create table "kw__control".kw_jobs (
   worker text,
   attempt integer not null default 0,
   lease_until timestamptz,
+  lost_leases integer not null default 0,
+  started_at timestamptz(3),
   created_at timestamptz(3) not null,
   foreign key (lane_id, scope_id) references "kw__control".kw_job_lanes (id, scope_id)
 );
 
 create index kw_jobs_take on "kw__control".kw_jobs (lane_id, run_at, id) where state = 'available';
+
+create index kw_jobs_promote on "kw__control".kw_jobs (queue, run_at) where state = 'scheduled';
+
+create index kw_jobs_reclaim on "kw__control".kw_jobs (queue, lease_until) where state = 'running';
 
 create table "kw__control".kw_job_history (
   scope_id uuid,

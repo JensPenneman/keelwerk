@@ -256,13 +256,15 @@ describe('composite lane keys', () => {
   const failsForeignKey = async (statement: string, values: unknown[]): Promise<void> => {
     await expect(
       unit(app, asTenant(tenantA), async () => app.query(statement, values)),
-    ).rejects.toMatchObject({ code: expect.stringMatching(/^(23503|42501)$/) });
+    ).rejects.toMatchObject({
+      code: expect.stringMatching(/^(core\.reference_missing|23503|42501)$/),
+    });
   };
 
   test("a tenant unit cannot attach a job to another tenant's lane", async () => {
     await failsForeignKey(
-      `insert into ${ns}.kw_jobs (scope_id, lane_id, queue, kind, state, principal, causation, build_id, revision, input, created_at)
-       values ($1, $2, 'q', 'action', 'available', '{}', '{}', 'b', 1, '{}', now())`,
+      `insert into ${ns}.kw_jobs (scope_id, scope, lane_id, queue, kind, state, principal, causation, build_id, revision, input, created_at)
+       values ($1, jsonb_build_object('level', 'tenant', 'tenantId', $1::uuid::text), $2, 'q', 'action', 'available', '{}', '{}', 'b', 1, '{}', now())`,
       [tenantA, await laneOf(tenantB)],
     );
   });

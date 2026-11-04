@@ -2,6 +2,7 @@ import type { AdapterEnvironment, EntityDescriptor, Logger, PlacementConfig } fr
 import { describeAdapterConformance } from '@keelwerk/testing';
 import { expect, test } from 'vitest';
 import { memoryAdapter } from '../src/memory/memory-adapter.ts';
+import { offsetClock } from './support/offset-clock.ts';
 
 const silent: Logger = {
   debug: () => undefined,
@@ -27,13 +28,15 @@ describeAdapterConformance({
   networked: false,
   factory: async (entities: readonly EntityDescriptor[]) => {
     const known = new Map(entities.map((entity) => [entity.ref, entity]));
+    const clock = offsetClock();
     const open = () =>
-      memoryAdapter({ entities: (ref) => known.get(ref) }).create(placement, environment);
+      memoryAdapter({ clock, entities: (ref) => known.get(ref) }).create(placement, environment);
     let adapter = open();
     return {
       get adapter() {
         return adapter;
       },
+      clock,
       namespace: {
         id: 'ns-conformance',
         placementId: 'main',

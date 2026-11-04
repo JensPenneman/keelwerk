@@ -26,4 +26,14 @@ describe('provisioning a namespace job group', () => {
         .kind,
     ).toBe('internal');
   });
+
+  test('the schema operations provision the namespace groups of a namespace', async () => {
+    const memory = openMemory();
+    await memory.adapter.schema.provision(memory.namespace, [], {
+      jobGroups: [group, { id: 'per-scope' }],
+    });
+    expect(await memory.run(tenantScope, (unit) => unit.jobs.enqueue(jobSpec({ group })))).toBe(
+      '1',
+    );
+  });
 });

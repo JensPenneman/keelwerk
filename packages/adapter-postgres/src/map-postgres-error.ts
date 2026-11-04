@@ -16,6 +16,12 @@ export function mapPostgresError(error: unknown): unknown {
   switch (codeOf(error)) {
     case '23505':
       return errors.conflict('A unique value is already taken.', { cause: error });
+    case '23503':
+      return new KeelwerkError({
+        ...coreErrorCodes['core.reference_missing'],
+        code: 'core.reference_missing',
+        cause: error,
+      });
     case '40001':
       return new RetryableUnitError('serialization_failure', { cause: error });
     case '40P01':

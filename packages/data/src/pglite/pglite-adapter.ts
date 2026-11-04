@@ -122,7 +122,7 @@ export function pgliteAdapter(
   return {
     placementId: options.placementId ?? 'pglite',
     feed: feed.source,
-    schema: postgresSchemaOperations(pgliteSchemaConnection(asOwner), { role }),
+    schema: postgresSchemaOperations(pgliteSchemaConnection(asOwner), { role, clock }),
     async connect(): Promise<AdapterCapabilities> {
       if (database === undefined) {
         database = options.dataDir === undefined ? new PGlite() : new PGlite(options.dataDir);

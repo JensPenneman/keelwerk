@@ -9,8 +9,8 @@ export function insertFor(
 ): { text: string; values: unknown[] } {
   if (table === 'kw_jobs') {
     return {
-      text: `insert into ${ns}.kw_jobs (scope_id, lane_id, queue, kind, state, principal, causation, build_id, revision, input, created_at)
-        values ($1, $2, 'q', 'action', 'available', '{}', '{}', 'b', 1, '{}', now())`,
+      text: `insert into ${ns}.kw_jobs (scope_id, scope, lane_id, queue, kind, state, principal, causation, build_id, revision, input, created_at)
+        values ($1, jsonb_build_object('level', 'tenant', 'tenantId', $1::uuid::text), $2, 'q', 'action', 'available', '{}', '{}', 'b', 1, '{}', now())`,
       values: [scope, lane],
     };
   }

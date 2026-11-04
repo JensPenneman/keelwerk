@@ -1,3 +1,4 @@
+import type { JobGroup } from '../jobs/job-group.ts';
 import type { AppliedMigration } from './applied-migration.ts';
 import type { Catalogue } from './catalogue.ts';
 import type { MigrationFile } from './migration-file.ts';
@@ -12,8 +13,16 @@ export interface SchemaOperations {
   /** Applies one file under the namespace lock and records it; resumable where DDL is not transactional. */
   apply(namespace: NamespaceRef, file: MigrationFile): Promise<void>;
   history(namespace: NamespaceRef): Promise<readonly AppliedMigration[]>;
-  /** Creates the root, the framework tables and the given track snapshots; idempotent. */
-  provision(namespace: NamespaceRef, snapshots: readonly TrackSnapshot[]): Promise<void>;
+  /**
+   * Creates the root, the framework tables and the given track snapshots; idempotent. The
+   * namespace-wide groups of `options.jobGroups` are created or re-limited in the same unit; groups
+   * of another scope are ignored.
+   */
+  provision(
+    namespace: NamespaceRef,
+    snapshots: readonly TrackSnapshot[],
+    options?: { readonly jobGroups?: readonly JobGroup[] },
+  ): Promise<void>;
   /** Reads a live catalogue: a namespace for drift checks, or any schema and table set for `db introspect`. */
   introspect(
     target:

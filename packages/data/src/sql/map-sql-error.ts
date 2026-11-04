@@ -1,4 +1,4 @@
-import { errors, RetryableUnitError } from '@keelwerk/core';
+import { coreErrorCodes, errors, KeelwerkError, RetryableUnitError } from '@keelwerk/core';
 
 function codeOf(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
@@ -8,13 +8,19 @@ function codeOf(error: unknown): string | undefined {
 
 /**
  * Maps the SQLSTATE of a failed statement to the contract's errors, the same way on PGlite and on
- * `pg` (S-54): a unique violation is `conflict`, a serialization failure and a deadlock are the
+ * `pg` (S-54): a unique violation is `conflict`, a foreign-key violation is `conflict` `core.reference_missing`, a serialization failure and a deadlock are the
  * kernel-internal `RetryableUnitError`. Anything else is returned as it is.
  */
 export function mapSqlError(error: unknown): unknown {
   switch (codeOf(error)) {
     case '23505':
       return errors.conflict('A unique value is already taken.', { cause: error });
+    case '23503':
+      return new KeelwerkError({
+        ...coreErrorCodes['core.reference_missing'],
+        code: 'core.reference_missing',
+        cause: error,
+      });
     case '40001':
       return new RetryableUnitError('serialization_failure', { cause: error });
     case '40P01':

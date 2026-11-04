@@ -10,6 +10,15 @@ describe('mapPostgresError', () => {
     expect(mapped).toMatchObject({ kind: 'conflict', cause: driver });
   });
 
+  test('23503 is a conflict that says a referenced row is missing', () => {
+    const driver = Object.assign(new Error('foreign key'), { code: '23503' });
+    expect(mapPostgresError(driver)).toMatchObject({
+      kind: 'conflict',
+      code: 'core.reference_missing',
+      cause: driver,
+    });
+  });
+
   test('40001 is a retryable serialization failure', () => {
     const mapped = mapPostgresError(
       Object.assign(new Error('could not serialize'), { code: '40001' }),

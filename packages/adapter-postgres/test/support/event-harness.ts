@@ -14,7 +14,11 @@ import { testNamespace } from './test-namespace.ts';
 
 /** What a test file works with once `eventHarness` has registered its hooks. */
 export interface EventHarness {
-  readonly clock: { readonly now: () => Temporal.Instant };
+  readonly clock: {
+    readonly now: () => Temporal.Instant;
+    /** Moves the instant the adapter's units see forward; undone before each test. */
+    readonly advance: (milliseconds: number) => void;
+  };
   readonly adapter: () => PostgresAdapterInstance;
   readonly run: <T>(scope: StorageScope, fn: (u: Unit) => Promise<T>) => Promise<T>;
   readonly failure: (work: Promise<unknown>) => Promise<{ kind: string; code: string }>;
@@ -33,7 +37,13 @@ export function eventHarness(databaseName: string, poolMax: number): EventHarnes
   let database: TestDatabase | undefined;
   let current: PostgresAdapterInstance | undefined;
   const spawned: PostgresAdapterInstance[] = [];
-  const clock = { now: () => Temporal.Now.instant() };
+  let offset = 0;
+  const clock = {
+    now: () => Temporal.Now.instant().add({ milliseconds: offset }),
+    advance: (milliseconds: number) => {
+      offset += milliseconds;
+    },
+  };
   const adapter = (): PostgresAdapterInstance => {
     if (current === undefined) throw new Error('the event harness is used outside a test');
     return current;
@@ -69,6 +79,7 @@ export function eventHarness(databaseName: string, poolMax: number): EventHarnes
     await current?.close(5000);
   });
   beforeEach(async () => {
+    offset = 0;
     await owner(async (client) => {
       const tables = await client.query<{ schemaname: string; tablename: string }>(
         `select schemaname, tablename from pg_tables where schemaname in ('app', 'kw__control') and tablename <> 'kw_migrations'`,

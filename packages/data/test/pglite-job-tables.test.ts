@@ -45,7 +45,9 @@ describe('job groups and lanes on PGlite', () => {
   const failsForeignKey = async (text: string, values: unknown[]): Promise<void> => {
     await expect(
       inUnit(adapter, storageTenant(tenantA), async (u) => runStatement(u, text, values)),
-    ).rejects.toMatchObject({ code: expect.stringMatching(/^(23503|42501)$/) });
+    ).rejects.toMatchObject({
+      code: expect.stringMatching(/^(core\.reference_missing|42501)$/),
+    });
   };
 
   test("a tenant unit cannot attach a job to another tenant's lane", async () => {
@@ -55,8 +57,8 @@ describe('job groups and lanes on PGlite', () => {
       )
     ).rows[0]?.id;
     await failsForeignKey(
-      `insert into ${ns}.kw_jobs (scope_id, lane_id, queue, kind, state, principal, causation, build_id, revision, input, created_at)
-       values ($1, $2, 'q', 'action', 'available', '{}', '{}', 'b', 1, '{}', now())`,
+      `insert into ${ns}.kw_jobs (scope_id, scope, lane_id, queue, kind, state, principal, causation, build_id, revision, input, created_at)
+       values ($1, jsonb_build_object('level', 'tenant', 'tenantId', $1::uuid::text), $2, 'q', 'action', 'available', '{}', '{}', 'b', 1, '{}', now())`,
       [tenantA, laneOfB],
     );
   });
