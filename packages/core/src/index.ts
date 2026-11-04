@@ -676,6 +676,8 @@ export type { SurfaceError } from './surface/surface-error.ts';
 export type { SurfaceEvent } from './surface/surface-event.ts';
 export type { SurfaceModule } from './surface/surface-module.ts';
 export type { SurfaceRelation } from './surface/surface-relation.ts';
+export type { ToJsonSchemaOptions } from './surface/to-json-schema.ts';
+export { toJsonSchema } from './surface/to-json-schema.ts';
 export type { TransportHints } from './surface/transport-hints.ts';
 export type { Artifact } from './transport/artifact.ts';
 export type { HttpContext } from './transport/http-context.ts';

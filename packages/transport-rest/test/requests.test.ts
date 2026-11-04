@@ -1,7 +1,9 @@
 import { commandReceiptId, type Invocation, KeelwerkError, parseTypeId } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
+import { action, anyJson, id, list, none, shape, str } from './support/nodes.ts';
 import { portalSurface } from './support/portal-surface.ts';
 import { call, fakeInvoker, mountRest, profileId, session } from './support/rest-kit.ts';
+import { withActions } from './support/with-actions.ts';
 
 const uuid = parseTypeId(profileId, 'prof') ?? '';
 const row = { id: uuid, name: 'Ada', version: 3 };
@@ -284,6 +286,84 @@ describe('requests', () => {
     });
     expect(large.status).toBe(413);
     expect(await large.json()).toMatchObject({ code: 'core.payload_too_large' });
+  });
+
+  test('a void-input POST never reads its body, so it cannot answer an undocumented 413', async () => {
+    const surface = withActions(
+      portalSurface(),
+      action('app.ping', { mount: 'module', kind: 'command', input: none, output: none }),
+    );
+    const fake = fakeInvoker(() => ({ ok: true, value: undefined }));
+    const small = await mountRest(surface, fake.invoker, {}, { maxBodyBytes: 16 });
+    const response = await call(small.handler, 'POST', '/api/app/ping', {
+      rawBody: 'x'.repeat(1000),
+      headers: { 'content-type': 'text/plain' },
+    });
+    expect(response.status).not.toBe(413);
+    expect(response.status).toBeLessThan(300);
+    expect(lastCall(fake.calls).action).toBe('app.ping');
+  });
+
+  test('DELETE is decoded from the query string, whatever the body', async () => {
+    const fake = fakeInvoker(() => ({ ok: true, value: row }));
+    const small = await mountRest(portalSurface(), fake.invoker, {}, { maxBodyBytes: 16 });
+    const response = await call(
+      small.handler,
+      'DELETE',
+      `/api/accounts/profiles/${profileId}?ifVersion=3`,
+      {
+        rawBody: 'x'.repeat(1000),
+      },
+    );
+    expect(response.status).not.toBe(413);
+    expect(lastCall(fake.calls).input).toEqual({ id: profileId, ifVersion: 3 });
+  });
+
+  test('an instance query with a nested member travels as a POST body', async () => {
+    const surface = withActions(
+      portalSurface(),
+      action('accounts.profile.inspect', {
+        mount: 'entity',
+        instance: true,
+        kind: 'query',
+        input: shape({ id: id('accounts.profile', 'prof'), where: shape({ a: str() }) }),
+        output: none,
+      }),
+    );
+    const fake = fakeInvoker(() => ({ ok: true, value: undefined }));
+    const { handler } = await mountRest(surface, fake.invoker);
+    const response = await call(handler, 'POST', `/api/accounts/profiles/${profileId}/inspect`, {
+      body: { where: { a: 'x' } },
+    });
+    expect(response.status).toBeLessThan(300);
+    expect(lastCall(fake.calls).input).toEqual({ where: { a: 'x' }, id: profileId });
+    const get = await call(handler, 'GET', `/api/accounts/profiles/${profileId}/inspect`);
+    expect(get.status).toBe(404);
+  });
+
+  test('a module query with filter JSON, a sort list and a scalar decodes from the query string', async () => {
+    const surface = withActions(
+      portalSurface(),
+      action('app.search', {
+        mount: 'module',
+        kind: 'query',
+        input: shape({
+          filter: anyJson(false),
+          sort: list(shape({ field: str(), direction: str() })),
+          q: str(),
+        }),
+        output: none,
+      }),
+    );
+    const fake = fakeInvoker(() => ({ ok: true, value: undefined }));
+    const { handler } = await mountRest(surface, fake.invoker);
+    const filter = encodeURIComponent('{"title":"a"}');
+    await call(handler, 'GET', `/api/app/search?filter=${filter}&sort=-title&q=x`);
+    expect(lastCall(fake.calls).input).toEqual({
+      filter: { title: 'a' },
+      sort: [{ field: 'title', direction: 'desc' }],
+      q: 'x',
+    });
   });
 
   test('unknown paths and subscriptions', async () => {

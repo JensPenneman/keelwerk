@@ -72,7 +72,7 @@ function selectionRenamed(
 async function instanceInput(request: Request, context: DecodeContext): Promise<unknown> {
   const id = pathId(context);
   const body =
-    request.method === 'GET'
+    request.method === 'GET' || request.method === 'DELETE'
       ? decodeQueryString(context.route, new URL(request.url).searchParams)
       : await readJsonBody(request, context.maxBodyBytes);
   if (body !== undefined && !isRecord(body)) {
@@ -124,10 +124,10 @@ export async function decodeRequest(request: Request, context: DecodeContext): P
     case 'stream':
       return undefined;
     case 'body': {
-      const body = await readJsonBody(request, context.maxBodyBytes);
       if (route.action.input.kind === 'void') {
         return undefined;
       }
+      const body = await readJsonBody(request, context.maxBodyBytes);
       if (route.action.generated === 'get' && isRecord(body) && body.fields !== undefined) {
         const { fields, ...rest } = body;
         return { ...rest, [selectionKey(context)]: fields };

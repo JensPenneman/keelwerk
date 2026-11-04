@@ -1,5 +1,9 @@
+export { checkRestSurface } from './check/check-rest-surface.ts';
 export { createRestAdapter } from './create-rest-adapter.ts';
 export { rest } from './module.ts';
+export { emitOpenapi } from './openapi/emit-openapi.ts';
+export { openapiArtifact } from './openapi/openapi-artifact.ts';
+export type { OpenapiOptions } from './openapi/openapi-options.ts';
 export type { RestConfig } from './rest-config.ts';
 export type { RestStaticOptions } from './rest-static-options.ts';
 export { restTransport } from './rest-transport.ts';

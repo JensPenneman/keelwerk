@@ -1,13 +1,26 @@
 import { describe, expect, test } from 'vitest';
 import { buildRouteTable } from '../src/build-route-table.ts';
 import { createRestAdapter } from '../src/create-rest-adapter.ts';
+import { action, anyJson, id, list, none, shape, str } from './support/nodes.ts';
 import { portalSurface, withAction } from './support/portal-surface.ts';
+import { withActions } from './support/with-actions.ts';
 
 function listing(surface = portalSurface(), options = {}): string[] {
   return buildRouteTable(surface, options).routes.map(
     (route) => `${route.method} ${route.path} ${route.action.ref}`,
   );
 }
+
+const searchAction = action('app.search', {
+  mount: 'module',
+  kind: 'query',
+  input: shape({
+    filter: anyJson(false),
+    sort: list(shape({ field: str(), direction: str() })),
+    q: str(),
+  }),
+  output: none,
+});
 
 describe('the route table of 16.5.1', () => {
   test('every action of the fixture surface has its route', () => {
@@ -78,6 +91,42 @@ describe('the route table of 16.5.1', () => {
     });
     expect(listing(nested)).toContain('POST /app/health app.health');
     expect(listing(nested, { openapi: '3.2' })).toContain('QUERY /app/health app.health');
+  });
+
+  test('an instance query with a nested member is a POST in instance mode, and QUERY under 3.2', () => {
+    const surface = withActions(
+      portalSurface(),
+      action('accounts.profile.inspect', {
+        mount: 'entity',
+        instance: true,
+        kind: 'query',
+        input: shape({ id: id('accounts.profile', 'prof'), where: shape({ a: str() }) }),
+        output: none,
+      }),
+    );
+    const modes = (options = {}) =>
+      buildRouteTable(surface, options)
+        .routes.filter((route) => route.action.ref === 'accounts.profile.inspect')
+        .map((route) => `${route.method} ${route.mode}`);
+    expect(modes()).toEqual(['POST instance']);
+    expect(modes({ openapi: '3.2' })).toEqual(['POST instance', 'QUERY instance']);
+    const flat = withActions(
+      portalSurface(),
+      action('accounts.profile.peek', {
+        mount: 'entity',
+        instance: true,
+        kind: 'query',
+        input: shape({ id: id('accounts.profile', 'prof') }),
+        output: none,
+      }),
+    );
+    expect(listing(flat)).toContain('GET /accounts/profiles/:id/peek accounts.profile.peek');
+  });
+
+  test('a module query with filter JSON, a sort list and a scalar is a GET', () => {
+    expect(listing(withActions(portalSurface(), searchAction))).toContain(
+      'GET /app/search app.search',
+    );
   });
 
   test('a module action named like a collection is a routeConflict', () => {

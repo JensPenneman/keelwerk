@@ -12,7 +12,7 @@ import { decodeRequest } from './decode-request.ts';
 import { encodeResponse } from './encode-response.ts';
 import { idempotencyKey } from './idempotency-key.ts';
 import { locateRoute } from './locate-route.ts';
-import { openApiDocument } from './openapi-document.ts';
+import { type OpenApiDocuments, openApiDocuments } from './openapi-documents.ts';
 import { readPreconditions } from './preconditions.ts';
 import { preferHeader } from './prefer-header.ts';
 import { problemResponse } from './problem-details.ts';
@@ -86,6 +86,7 @@ interface Pages {
 async function serveMeta(
   deps: RestHandlerDeps,
   pages: Pages,
+  documents: OpenApiDocuments,
   request: Request,
   ctx: HttpContext,
   name: 'docs' | 'openapi' | 'problem',
@@ -101,8 +102,7 @@ async function serveMeta(
     return page;
   }
   if (name === 'openapi') {
-    const document = openApiDocument(
-      deps.artifacts,
+    const document = documents(
       `generated/openapi/${deps.app}/${ctx.session.apiVersion}.json`,
       `${url.origin}${mountPath}`,
     );
@@ -149,6 +149,7 @@ function failure(
 export function createRestHandler(deps: RestHandlerDeps): HttpHandler {
   const basePath = deps.options.basePath ?? '/api';
   const pages: Pages = { problem: problemPages(deps.surface), reference: referencePage() };
+  const documents = openApiDocuments(deps.artifacts);
   return async (request, ctx) => {
     const method = request.method === 'HEAD' ? 'GET' : request.method;
     const located = locateRoute(deps.table, method, new URL(request.url).pathname, {
@@ -163,6 +164,7 @@ export function createRestHandler(deps: RestHandlerDeps): HttpHandler {
           return await serveMeta(
             deps,
             pages,
+            documents,
             request,
             ctx,
             located.name,

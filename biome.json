@@ -6,6 +6,7 @@
     "includes": [
       "**",
       "!**/dist",
+      "!**/generated",
       "!**/pnpm-lock.yaml",
       "!docs",
       "!packages/biome-config/plugins/fixtures"

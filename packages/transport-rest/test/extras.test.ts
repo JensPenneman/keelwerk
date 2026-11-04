@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { createRestAdapter } from '../src/create-rest-adapter.ts';
-import { openApiDocument } from '../src/openapi-document.ts';
+import { openApiDocuments } from '../src/openapi-documents.ts';
 import { portalSurface, withAction } from './support/portal-surface.ts';
 import { call, fakeInvoker, invokerWith, mountRest, session } from './support/rest-kit.ts';
 
@@ -177,6 +177,17 @@ describe('the mount', () => {
     ).toBe(404);
   });
 
+  test('artifacts() yields the OpenAPI file at generated/openapi/<app>/<version>.json', () => {
+    const surface = portalSurface();
+    expect(createRestAdapter().artifacts(surface)).toEqual([
+      expect.objectContaining({
+        kind: 'file',
+        path: `generated/openapi/${surface.app}/${surface.apiVersion}.json`,
+        contentType: 'application/json',
+      }),
+    ]);
+  });
+
   test('a cookie hint without the __Host- prefix is a check problem', () => {
     const surface = withAction(portalSurface(), 'auth.login', {
       hints: { http: { cookie: { set: { name: 'session', from: 'token' } } } },
@@ -197,8 +208,8 @@ describe('the mount', () => {
       file('generated/openapi/portal/2026-10-01.json', 'old'),
       file('generated/openapi/portal/2026-11-01.json', 'new'),
     ];
-    const served = openApiDocument(
-      artifacts,
+    const documents = openApiDocuments(artifacts);
+    const served = documents(
       'generated/openapi/portal/2026-11-01.json',
       'https://portal.example/api',
     );
@@ -206,7 +217,34 @@ describe('the mount', () => {
       info: { title: 'new' },
       servers: [{ url: 'https://portal.example/api' }],
     });
-    expect(openApiDocument(artifacts, 'generated/openapi/portal/9999.json', 'x')).toBeUndefined();
+    expect(documents('generated/openapi/portal/9999.json', 'x')).toBeUndefined();
+    expect(
+      documents('generated/openapi/portal/2026-11-01.json', 'https://portal.example/api'),
+    ).toBe(served);
+    expect(
+      JSON.parse(
+        documents('generated/openapi/portal/2026-11-01.json', 'https://other.example/api') ?? '{}',
+      ).servers,
+    ).toEqual([{ url: 'https://other.example/api' }]);
+  });
+
+  test('the document is parsed once, when the lookup is built', () => {
+    let reads = 0;
+    const artifact = {
+      kind: 'file' as const,
+      path: 'generated/openapi/portal/2026-11-01.json',
+      contentType: 'application/json',
+      get content() {
+        reads += 1;
+        return '{"info":{}}';
+      },
+    };
+    const documents = openApiDocuments([artifact]);
+    for (let n = 0; n < 5; n += 1) {
+      documents(artifact.path, 'https://portal.example/api');
+      documents(artifact.path, `https://host${n}.example/api`);
+    }
+    expect(reads).toBe(1);
   });
 
   test('registers one handler under the base path and honours static options', async () => {
@@ -278,11 +316,14 @@ describe('the mount', () => {
     await closing;
   });
 
-  test('the reference page needs the docs setting; the OpenAPI document needs the emitter', async () => {
+  test('the reference page needs the docs setting; the OpenAPI document carries the request host', async () => {
     const fake = fakeInvoker(() => ({ ok: true, value: {} }));
     const off = await mountRest(portalSurface(), fake.invoker);
     expect((await call(off.handler, 'GET', '/api/docs')).status).toBe(404);
-    expect((await call(off.handler, 'GET', '/api/openapi.json')).status).toBe(404);
+    const served = await call(off.handler, 'GET', '/api/openapi.json');
+    expect(served.status).toBe(200);
+    const document = (await served.json()) as { servers: { url: string }[] };
+    expect(document.servers).toEqual([{ url: 'https://portal.example/api' }]);
     const on = await mountRest(portalSurface(), fake.invoker, {}, { docs: true });
     const page = await call(on.handler, 'GET', '/api/docs');
     expect(page.status).toBe(200);

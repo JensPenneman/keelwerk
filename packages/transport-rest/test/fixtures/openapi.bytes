@@ -1,0 +1,4933 @@
+{
+  "components": {
+    "headers": {
+      "etag": {
+        "description": "The entity tag of the row; send it back as `If-Match` or `If-None-Match`.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "idempotentReplayed": {
+        "description": "`true` when the response replays an earlier command with the same key.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "keelwerkCommandId": {
+        "description": "The command id (the idempotency key, or one generated).",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "keelwerkEffects": {
+        "description": "The ids of the external effects the command requested, comma separated.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "keelwerkVersion": {
+        "description": "The API version that answered.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "link": {
+        "description": "RFC 8288 links to the neighbouring pages.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "location": {
+        "description": "Where the created row or the command receipt can be fetched.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "preferenceApplied": {
+        "description": "The `Prefer` preferences that were honoured.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "requestId": {
+        "description": "The request id, also `requestId` of an error body.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "retryAfter": {
+        "description": "Seconds to wait before retrying.",
+        "schema": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      }
+    },
+    "parameters": {
+      "idempotencyKey": {
+        "description": "The command id: a repeated key replays the first answer.",
+        "in": "header",
+        "name": "Idempotency-Key",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "ifMatch": {
+        "description": "The `ETag` of the version the change applies to; a mismatch answers 412.",
+        "in": "header",
+        "name": "If-Match",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "ifNoneMatch": {
+        "description": "An `ETag` the client holds; a match answers 304.",
+        "in": "header",
+        "name": "If-None-Match",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "prefer": {
+        "description": "`respond-async` to get the 202 receipt, optionally with `wait=<seconds>` (at most 60).",
+        "in": "header",
+        "name": "Prefer",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "problem400": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Malformed request",
+        "headers": {
+          "Keelwerk-Version": {
+            "$ref": "#/components/headers/keelwerkVersion"
+          },
+          "x-request-id": {
+            "$ref": "#/components/headers/requestId"
+          }
+        }
+      },
+      "problem401": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Unauthenticated",
+        "headers": {
+          "Keelwerk-Version": {
+            "$ref": "#/components/headers/keelwerkVersion"
+          },
+          "x-request-id": {
+            "$ref": "#/components/headers/requestId"
+          }
+        }
+      },
+      "problem403": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Forbidden",
+        "headers": {
+          "Keelwerk-Version": {
+            "$ref": "#/components/headers/keelwerkVersion"
+          },
+          "x-request-id": {
+            "$ref": "#/components/headers/requestId"
+          }
+        }
+      },
+      "problem404": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Not found",
+        "headers": {
+          "Keelwerk-Version": {
+            "$ref": "#/components/headers/keelwerkVersion"
+          },
+          "x-request-id": {
+            "$ref": "#/components/headers/requestId"
+          }
+        }
+      },
+      "problem412": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Precondition failed",
+        "headers": {
+          "Keelwerk-Version": {
+            "$ref": "#/components/headers/keelwerkVersion"
+          },
+          "x-request-id": {
+            "$ref": "#/components/headers/requestId"
+          }
+        }
+      },
+      "problem413": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Payload too large",
+        "headers": {
+          "Keelwerk-Version": {
+            "$ref": "#/components/headers/keelwerkVersion"
+          },
+          "x-request-id": {
+            "$ref": "#/components/headers/requestId"
+          }
+        }
+      },
+      "problem422": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Validation failed or unsupported",
+        "headers": {
+          "Keelwerk-Version": {
+            "$ref": "#/components/headers/keelwerkVersion"
+          },
+          "x-request-id": {
+            "$ref": "#/components/headers/requestId"
+          }
+        }
+      },
+      "problem429": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Rate limited",
+        "headers": {
+          "Keelwerk-Version": {
+            "$ref": "#/components/headers/keelwerkVersion"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/retryAfter"
+          },
+          "x-request-id": {
+            "$ref": "#/components/headers/requestId"
+          }
+        }
+      },
+      "problem500": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Internal error",
+        "headers": {
+          "Keelwerk-Version": {
+            "$ref": "#/components/headers/keelwerkVersion"
+          },
+          "x-request-id": {
+            "$ref": "#/components/headers/requestId"
+          }
+        }
+      },
+      "problem503": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Unavailable",
+        "headers": {
+          "Keelwerk-Version": {
+            "$ref": "#/components/headers/keelwerkVersion"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/retryAfter"
+          },
+          "x-request-id": {
+            "$ref": "#/components/headers/requestId"
+          }
+        }
+      }
+    },
+    "schemas": {
+      "AppHealthOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "CommandReceipt": {
+        "additionalProperties": false,
+        "properties": {
+          "commandId": {
+            "type": "string"
+          },
+          "status": {
+            "const": "accepted"
+          }
+        },
+        "required": [
+          "commandId",
+          "status"
+        ],
+        "type": "object"
+      },
+      "CoreMeOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "subject": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject"
+        ],
+        "type": "object"
+      },
+      "CoreVersionMismatchProblem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Problem"
+          },
+          {
+            "description": "The row changed since you read it.",
+            "properties": {
+              "code": {
+                "const": "core.version_mismatch"
+              },
+              "kind": {
+                "const": "conflict"
+              },
+              "retryable": {
+                "const": false
+              }
+            },
+            "required": [
+              "code"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "LibraryAlreadyLentProblem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Problem"
+          },
+          {
+            "description": "The book is already lent.",
+            "properties": {
+              "code": {
+                "const": "library.already_lent"
+              },
+              "details": {
+                "additionalProperties": false,
+                "properties": {
+                  "since": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "since"
+                ],
+                "type": "object"
+              },
+              "kind": {
+                "const": "conflict"
+              },
+              "retryable": {
+                "const": false
+              }
+            },
+            "required": [
+              "code"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "LibraryAuthor": {
+        "additionalProperties": false,
+        "properties": {
+          "$masked": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "pattern": "^au_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "readOnly": true,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "LibraryAuthorCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "LibraryAuthorFilter": {
+        "additionalProperties": false,
+        "properties": {
+          "and": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryAuthorFilter"
+            },
+            "type": "array"
+          },
+          "books": {
+            "additionalProperties": false,
+            "properties": {
+              "every": {
+                "$ref": "#/components/schemas/LibraryBookFilter"
+              },
+              "is": {
+                "$ref": "#/components/schemas/LibraryBookFilter"
+              },
+              "none": {
+                "$ref": "#/components/schemas/LibraryBookFilter"
+              },
+              "some": {
+                "$ref": "#/components/schemas/LibraryBookFilter"
+              }
+            },
+            "type": "object"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "pattern": "^au_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "pattern": "^au_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "pattern": "^au_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "pattern": "^au_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "pattern": "^au_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "contains": {
+                    "type": "string"
+                  },
+                  "eq": {
+                    "type": "string"
+                  },
+                  "gt": {
+                    "type": "string"
+                  },
+                  "gte": {
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "type": "string"
+                  },
+                  "lte": {
+                    "type": "string"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "startsWith": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "not": {
+            "$ref": "#/components/schemas/LibraryAuthorFilter"
+          },
+          "or": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryAuthorFilter"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryAuthorGetInput": {
+        "additionalProperties": false,
+        "properties": {
+          "ids": {
+            "items": {
+              "pattern": "^au_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "readOnly": true,
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "type": "object"
+      },
+      "LibraryAuthorGetOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "list": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "pattern": "^au_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                  "readOnly": true,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "list"
+        ],
+        "type": "object"
+      },
+      "LibraryAuthorPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryAuthorQueryInput": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/LibraryAuthorFilter"
+          },
+          "first": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "sort": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryAuthorQueryOutput": {
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "pattern": "^au_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                  "readOnly": true,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "pageInfo": {
+            "properties": {
+              "endCursor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPreviousPage": {
+                "type": "boolean"
+              },
+              "startCursor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "hasNextPage",
+              "hasPreviousPage",
+              "startCursor",
+              "endCursor"
+            ],
+            "type": "object"
+          },
+          "queryState": {
+            "type": "string"
+          },
+          "total": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "pageInfo"
+        ],
+        "type": "object"
+      },
+      "LibraryBook": {
+        "additionalProperties": false,
+        "description": "A book in the library.",
+        "properties": {
+          "$masked": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "author": {
+            "pattern": "^au_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "readOnly": true,
+            "type": "string"
+          },
+          "isbn": {
+            "type": "string"
+          },
+          "notes": {},
+          "pages": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "publishedOn": {
+            "format": "date",
+            "type": "string"
+          },
+          "reviewer": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "available",
+              "lent",
+              "lost"
+            ],
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "description": "The title.",
+            "maxLength": 120,
+            "type": "string"
+          },
+          "version": {
+            "minimum": 0,
+            "readOnly": true,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "createdAt",
+          "isbn",
+          "status",
+          "author"
+        ],
+        "type": "object"
+      },
+      "LibraryBookArchiveInput": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "LibraryBookArchiveOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "readOnly": true,
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object"
+      },
+      "LibraryBookChangesInput": {
+        "additionalProperties": false,
+        "properties": {
+          "max": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "since": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "since"
+        ],
+        "type": "object"
+      },
+      "LibraryBookChangesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "created": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "newState": {
+            "type": "string"
+          },
+          "oldState": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "oldState",
+          "newState",
+          "created"
+        ],
+        "type": "object"
+      },
+      "LibraryBookCheckOutInput": {
+        "additionalProperties": false,
+        "properties": {
+          "until": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "until"
+        ],
+        "type": "object"
+      },
+      "LibraryBookCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "author": {
+            "pattern": "^au_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "type": "string"
+          },
+          "isbn": {
+            "type": "string"
+          },
+          "notes": {},
+          "pages": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "publishedOn": {
+            "format": "date",
+            "type": "string"
+          },
+          "reviewer": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "available",
+              "lent",
+              "lost"
+            ],
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "description": "The title.",
+            "maxLength": 120,
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "isbn",
+          "status",
+          "author"
+        ],
+        "type": "object"
+      },
+      "LibraryBookCreateInput": {
+        "additionalProperties": false,
+        "properties": {
+          "isbn": {
+            "type": "string"
+          },
+          "pages": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "isbn"
+        ],
+        "type": "object"
+      },
+      "LibraryBookCreateOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "readOnly": true,
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object"
+      },
+      "LibraryBookFilter": {
+        "additionalProperties": false,
+        "properties": {
+          "and": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryBookFilter"
+            },
+            "type": "array"
+          },
+          "author": {
+            "additionalProperties": false,
+            "properties": {
+              "every": {
+                "$ref": "#/components/schemas/LibraryAuthorFilter"
+              },
+              "is": {
+                "$ref": "#/components/schemas/LibraryAuthorFilter"
+              },
+              "none": {
+                "$ref": "#/components/schemas/LibraryAuthorFilter"
+              },
+              "some": {
+                "$ref": "#/components/schemas/LibraryAuthorFilter"
+              }
+            },
+            "type": "object"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "gt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "gte": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "lte": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "id": {
+            "anyOf": [
+              {
+                "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "isbn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "contains": {
+                    "type": "string"
+                  },
+                  "eq": {
+                    "type": "string"
+                  },
+                  "gt": {
+                    "type": "string"
+                  },
+                  "gte": {
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "type": "string"
+                  },
+                  "lte": {
+                    "type": "string"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "startsWith": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "not": {
+            "$ref": "#/components/schemas/LibraryBookFilter"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "isNull": {
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "or": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryBookFilter"
+            },
+            "type": "array"
+          },
+          "pages": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "gt": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "gte": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "in": {
+                    "items": {
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "lte": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "maximum": 9007199254740991,
+                        "minimum": -9007199254740991,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "publishedOn": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "gt": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "gte": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "lte": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "format": "date",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "format": "date",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "reviewer": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "type": "string"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "available",
+                  "lent",
+                  "lost"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "enum": [
+                      "available",
+                      "lent",
+                      "lost"
+                    ],
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "enum": [
+                        "available",
+                        "lent",
+                        "lost"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "available",
+                          "lent",
+                          "lost"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "enum": [
+                        "available",
+                        "lent",
+                        "lost"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "contains": {
+                    "type": "string"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "contains": {
+                    "type": "string"
+                  },
+                  "eq": {
+                    "maxLength": 120,
+                    "type": "string"
+                  },
+                  "gt": {
+                    "maxLength": 120,
+                    "type": "string"
+                  },
+                  "gte": {
+                    "maxLength": 120,
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "maxLength": 120,
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "maxLength": 120,
+                    "type": "string"
+                  },
+                  "lte": {
+                    "maxLength": 120,
+                    "type": "string"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "maxLength": 120,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "maxLength": 120,
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "startsWith": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "version": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "gt": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "gte": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "in": {
+                    "items": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "lte": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "LibraryBookGetInput": {
+        "additionalProperties": false,
+        "properties": {
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "ids": {
+            "items": {
+              "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "readOnly": true,
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "type": "object"
+      },
+      "LibraryBookGetOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "list": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "notFound": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "list",
+          "notFound",
+          "state"
+        ],
+        "type": "object"
+      },
+      "LibraryBookHistoryInput": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "LibraryBookHistoryOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "entries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "type": "object"
+      },
+      "LibraryBookPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "author": {
+            "pattern": "^au_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "type": "string"
+          },
+          "isbn": {
+            "type": "string"
+          },
+          "notes": {},
+          "pages": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "publishedOn": {
+            "format": "date",
+            "type": "string"
+          },
+          "reviewer": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "available",
+              "lent",
+              "lost"
+            ],
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "description": "The title.",
+            "maxLength": 120,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryBookQueryChangesInput": {
+        "additionalProperties": false,
+        "properties": {
+          "filter": {
+            "$ref": "#/components/schemas/LibraryBookFilter"
+          },
+          "sinceQueryState": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sinceQueryState"
+        ],
+        "type": "object"
+      },
+      "LibraryBookQueryChangesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "newQueryState": {
+            "type": "string"
+          },
+          "oldQueryState": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "oldQueryState",
+          "newQueryState"
+        ],
+        "type": "object"
+      },
+      "LibraryBookQueryInput": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/LibraryBookFilter"
+          },
+          "first": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "sort": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryBookQueryOutput": {
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "pageInfo": {
+            "properties": {
+              "endCursor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPreviousPage": {
+                "type": "boolean"
+              },
+              "startCursor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "hasNextPage",
+              "hasPreviousPage",
+              "startCursor",
+              "endCursor"
+            ],
+            "type": "object"
+          },
+          "queryState": {
+            "type": "string"
+          },
+          "total": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "pageInfo"
+        ],
+        "type": "object"
+      },
+      "LibraryBookReportInput": {
+        "additionalProperties": false,
+        "properties": {
+          "ranges": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "from": {
+                  "format": "date",
+                  "type": "string"
+                },
+                "to": {
+                  "format": "date",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ranges"
+        ],
+        "type": "object"
+      },
+      "LibraryBookReportOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "total": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "type": "object"
+      },
+      "LibraryBookRestoreInput": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "LibraryBookRestoreOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "readOnly": true,
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object"
+      },
+      "LibraryBookSearchInput": {
+        "additionalProperties": false,
+        "properties": {
+          "statuses": {
+            "items": {
+              "enum": [
+                "available",
+                "lent"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "LibraryBookSearchOutput": {
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "pageInfo": {
+            "properties": {
+              "endCursor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPreviousPage": {
+                "type": "boolean"
+              },
+              "startCursor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "hasNextPage",
+              "hasPreviousPage",
+              "startCursor",
+              "endCursor"
+            ],
+            "type": "object"
+          },
+          "queryState": {
+            "type": "string"
+          },
+          "total": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "pageInfo"
+        ],
+        "type": "object"
+      },
+      "LibraryBookSetInput": {
+        "additionalProperties": false,
+        "properties": {
+          "create": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryBookSetOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "created": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "created"
+        ],
+        "type": "object"
+      },
+      "LibraryBookUpdateInput": {
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryBookUpdateOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "readOnly": true,
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object"
+      },
+      "LibraryBookWatchInput": {
+        "additionalProperties": false,
+        "properties": {
+          "filter": {
+            "$ref": "#/components/schemas/LibraryBookFilter"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryBookWatchOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "readOnly": true,
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object"
+      },
+      "LibraryEventsOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "readOnly": true,
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object"
+      },
+      "LibraryIsbnTakenProblem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Problem"
+          },
+          {
+            "description": "The ISBN exists.",
+            "properties": {
+              "code": {
+                "const": "library.isbn_taken"
+              },
+              "kind": {
+                "const": "conflict"
+              },
+              "retryable": {
+                "const": false
+              }
+            },
+            "required": [
+              "code"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "LibraryRegisterInput": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "format": "email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "type": "object"
+      },
+      "LibraryShelf": {
+        "additionalProperties": false,
+        "properties": {
+          "$masked": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "pattern": "^sh_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "readOnly": true,
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
+        "type": "object"
+      },
+      "LibraryShelfCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "type": "object"
+      },
+      "LibraryShelfFilter": {
+        "additionalProperties": false,
+        "properties": {
+          "and": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryShelfFilter"
+            },
+            "type": "array"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "pattern": "^sh_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "pattern": "^sh_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "pattern": "^sh_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "pattern": "^sh_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "pattern": "^sh_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "contains": {
+                    "type": "string"
+                  },
+                  "eq": {
+                    "type": "string"
+                  },
+                  "gt": {
+                    "type": "string"
+                  },
+                  "gte": {
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "type": "string"
+                  },
+                  "lte": {
+                    "type": "string"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "startsWith": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "not": {
+            "$ref": "#/components/schemas/LibraryShelfFilter"
+          },
+          "or": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryShelfFilter"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryShelfGetInput": {
+        "additionalProperties": false,
+        "properties": {
+          "ids": {
+            "items": {
+              "pattern": "^sh_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "readOnly": true,
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "type": "object"
+      },
+      "LibraryShelfGetOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "list": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "pattern": "^sh_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                  "readOnly": true,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "list"
+        ],
+        "type": "object"
+      },
+      "LibraryShelfPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LibraryStatsOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "books": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "books"
+        ],
+        "type": "object"
+      },
+      "PageInfo": {
+        "properties": {
+          "endCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hasNextPage": {
+            "type": "boolean"
+          },
+          "hasPreviousPage": {
+            "type": "boolean"
+          },
+          "startCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "hasNextPage",
+          "hasPreviousPage",
+          "startCursor",
+          "endCursor"
+        ],
+        "type": "object"
+      },
+      "Problem": {
+        "description": "An RFC 9457 problem; `code` identifies it everywhere (section 16.5.4).",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "details": {},
+          "instance": {
+            "type": "string"
+          },
+          "issues": {
+            "items": {
+              "properties": {
+                "message": {
+                  "type": "string"
+                },
+                "path": {
+                  "items": {
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "path",
+                "message"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "validation",
+              "unauthenticated",
+              "forbidden",
+              "not_found",
+              "conflict",
+              "rate_limited",
+              "not_implemented",
+              "unavailable",
+              "unsupported",
+              "internal"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "retryAfter": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "rules": {
+            "items": {
+              "properties": {
+                "effect": {
+                  "enum": [
+                    "allow",
+                    "deny"
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "effect"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "format": "uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "instance",
+          "kind",
+          "code",
+          "retryable",
+          "requestId"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "library",
+    "version": "sha256-libraryFixture"
+  },
+  "openapi": "3.1.1",
+  "paths": {
+    "/app/health": {
+      "get": {
+        "operationId": "appHealth",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppHealthOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "app"
+        ],
+        "x-keelwerk-action": "app.health",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "deployment"
+      }
+    },
+    "/core/me": {
+      "get": {
+        "operationId": "coreMe",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreMeOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "discriminator": {
+                    "mapping": {
+                      "core.version_mismatch": "#/components/schemas/CoreVersionMismatchProblem"
+                    },
+                    "propertyName": "code"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/CoreVersionMismatchProblem"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Problem"
+                        }
+                      ],
+                      "not": {
+                        "properties": {
+                          "code": {
+                            "enum": [
+                              "core.version_mismatch"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "code"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Precondition failed",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "core"
+        ],
+        "x-keelwerk-action": "core.me",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/authors": {
+      "get": {
+        "operationId": "libraryAuthorQuery",
+        "parameters": [
+          {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryAuthorFilter"
+                }
+              }
+            },
+            "in": "query",
+            "name": "filter",
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "first",
+            "required": false,
+            "schema": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fields separated by commas; a leading `-` sorts descending.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "fields",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryAuthorQueryOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "Link": {
+                "$ref": "#/components/headers/link"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.author.query",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/authors/get": {
+      "post": {
+        "operationId": "libraryAuthorGetPost",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryAuthorGetInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryAuthorGetOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.author.get",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-safe": true,
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/authors/query": {
+      "post": {
+        "operationId": "libraryAuthorQueryPost",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryAuthorQueryInput"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryAuthorQueryOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "Link": {
+                "$ref": "#/components/headers/link"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.author.query",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-safe": true,
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/authors/{id}": {
+      "get": {
+        "operationId": "libraryAuthorGet",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^au_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/ifNoneMatch"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryAuthor"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/etag"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/etag"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.author.get",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/books": {
+      "get": {
+        "operationId": "libraryBookQuery",
+        "parameters": [
+          {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookFilter"
+                }
+              }
+            },
+            "in": "query",
+            "name": "filter",
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "first",
+            "required": false,
+            "schema": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Fields separated by commas; a leading `-` sorts descending.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "fields",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookQueryOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "Link": {
+                "$ref": "#/components/headers/link"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.query",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      },
+      "post": {
+        "operationId": "libraryBookCreate",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/prefer"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryBookCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookCreateOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/etag"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/idempotentReplayed"
+              },
+              "Keelwerk-Command-Id": {
+                "$ref": "#/components/headers/keelwerkCommandId"
+              },
+              "Keelwerk-Effects": {
+                "$ref": "#/components/headers/keelwerkEffects"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "Location": {
+                "$ref": "#/components/headers/location"
+              },
+              "Preference-Applied": {
+                "$ref": "#/components/headers/preferenceApplied"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandReceipt"
+                }
+              }
+            },
+            "description": "The command was accepted; follow `Location` for its receipt.",
+            "headers": {
+              "Keelwerk-Command-Id": {
+                "$ref": "#/components/headers/keelwerkCommandId"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "Location": {
+                "$ref": "#/components/headers/location"
+              },
+              "Preference-Applied": {
+                "$ref": "#/components/headers/preferenceApplied"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "discriminator": {
+                    "mapping": {
+                      "library.isbn_taken": "#/components/schemas/LibraryIsbnTakenProblem"
+                    },
+                    "propertyName": "code"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/LibraryIsbnTakenProblem"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Problem"
+                        }
+                      ],
+                      "not": {
+                        "properties": {
+                          "code": {
+                            "enum": [
+                              "library.isbn_taken"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "code"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Conflict",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.create",
+        "x-keelwerk-execution": "either",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/books/changes": {
+      "get": {
+        "operationId": "libraryBookChanges",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max",
+            "required": false,
+            "schema": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookChangesOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.changes",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/books/get": {
+      "post": {
+        "operationId": "libraryBookGetPost",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryBookGetInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookGetOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.get",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-safe": true,
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/books/query": {
+      "post": {
+        "operationId": "libraryBookQueryPost",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryBookQueryInput"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookQueryOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "Link": {
+                "$ref": "#/components/headers/link"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.query",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-safe": true,
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/books/query-changes": {
+      "post": {
+        "operationId": "libraryBookQueryChanges",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryBookQueryChangesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookQueryChangesOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.queryChanges",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-safe": true,
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/books/report": {
+      "post": {
+        "operationId": "libraryBookReport",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryBookReportInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookReportOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.report",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-safe": true,
+        "x-keelwerk-scope": "backend"
+      }
+    },
+    "/library/books/search": {
+      "get": {
+        "operationId": "libraryBookSearch",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "text",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "statuses",
+            "required": false,
+            "schema": {
+              "items": {
+                "enum": [
+                  "available",
+                  "lent"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookSearchOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "Link": {
+                "$ref": "#/components/headers/link"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.search",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/books/set": {
+      "post": {
+        "operationId": "libraryBookSet",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryBookSetInput"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookSetOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/idempotentReplayed"
+              },
+              "Keelwerk-Command-Id": {
+                "$ref": "#/components/headers/keelwerkCommandId"
+              },
+              "Keelwerk-Effects": {
+                "$ref": "#/components/headers/keelwerkEffects"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.set",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/books/watch": {
+      "get": {
+        "operationId": "libraryBookWatch",
+        "parameters": [
+          {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookFilter"
+                }
+              }
+            },
+            "in": "query",
+            "name": "filter",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "x-keelwerk-item-schema": {
+                  "$ref": "#/components/schemas/LibraryBookWatchOutput"
+                }
+              }
+            },
+            "description": "A stream of server-sent events.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.watch",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/books/{id}": {
+      "delete": {
+        "operationId": "libraryBookArchive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/ifMatch"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookArchiveOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/etag"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/idempotentReplayed"
+              },
+              "Keelwerk-Command-Id": {
+                "$ref": "#/components/headers/keelwerkCommandId"
+              },
+              "Keelwerk-Effects": {
+                "$ref": "#/components/headers/keelwerkEffects"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/problem404"
+          },
+          "412": {
+            "$ref": "#/components/responses/problem412"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.archive",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      },
+      "get": {
+        "operationId": "libraryBookGet",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "fields",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "$ref": "#/components/parameters/ifNoneMatch"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBook"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/etag"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/etag"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.get",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      },
+      "patch": {
+        "operationId": "libraryBookUpdate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/ifMatch"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryBookPatch"
+              }
+            },
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryBookPatch"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookUpdateOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/etag"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/idempotentReplayed"
+              },
+              "Keelwerk-Command-Id": {
+                "$ref": "#/components/headers/keelwerkCommandId"
+              },
+              "Keelwerk-Effects": {
+                "$ref": "#/components/headers/keelwerkEffects"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/problem404"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "discriminator": {
+                    "mapping": {
+                      "library.isbn_taken": "#/components/schemas/LibraryIsbnTakenProblem"
+                    },
+                    "propertyName": "code"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/LibraryIsbnTakenProblem"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Problem"
+                        }
+                      ],
+                      "not": {
+                        "properties": {
+                          "code": {
+                            "enum": [
+                              "library.isbn_taken"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "code"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Conflict",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "discriminator": {
+                    "mapping": {
+                      "core.version_mismatch": "#/components/schemas/CoreVersionMismatchProblem"
+                    },
+                    "propertyName": "code"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/CoreVersionMismatchProblem"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Problem"
+                        }
+                      ],
+                      "not": {
+                        "properties": {
+                          "code": {
+                            "enum": [
+                              "core.version_mismatch"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "code"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Precondition failed",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.update",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/books/{id}/check-out": {
+      "post": {
+        "operationId": "libraryBookCheckOut",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/ifMatch"
+          },
+          {
+            "$ref": "#/components/parameters/prefer"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryBookCheckOutInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandReceipt"
+                }
+              }
+            },
+            "description": "The command was accepted; follow `Location` for its receipt.",
+            "headers": {
+              "Keelwerk-Command-Id": {
+                "$ref": "#/components/headers/keelwerkCommandId"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "Location": {
+                "$ref": "#/components/headers/location"
+              },
+              "Preference-Applied": {
+                "$ref": "#/components/headers/preferenceApplied"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "204": {
+            "description": "Done; no content.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/etag"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/idempotentReplayed"
+              },
+              "Keelwerk-Command-Id": {
+                "$ref": "#/components/headers/keelwerkCommandId"
+              },
+              "Keelwerk-Effects": {
+                "$ref": "#/components/headers/keelwerkEffects"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "Preference-Applied": {
+                "$ref": "#/components/headers/preferenceApplied"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/problem404"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "discriminator": {
+                    "mapping": {
+                      "library.already_lent": "#/components/schemas/LibraryAlreadyLentProblem"
+                    },
+                    "propertyName": "code"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/LibraryAlreadyLentProblem"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Problem"
+                        }
+                      ],
+                      "not": {
+                        "properties": {
+                          "code": {
+                            "enum": [
+                              "library.already_lent"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "code"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Conflict",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/problem412"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "summary": "Lends the book.",
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.checkOut",
+        "x-keelwerk-execution": "either",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/books/{id}/history": {
+      "get": {
+        "operationId": "libraryBookHistory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookHistoryOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.history",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/books/{id}/restore": {
+      "post": {
+        "operationId": "libraryBookRestore",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^bk_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/ifMatch"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryBookRestoreInput"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryBookRestoreOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/etag"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/idempotentReplayed"
+              },
+              "Keelwerk-Command-Id": {
+                "$ref": "#/components/headers/keelwerkCommandId"
+              },
+              "Keelwerk-Effects": {
+                "$ref": "#/components/headers/keelwerkEffects"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/problem404"
+          },
+          "412": {
+            "$ref": "#/components/responses/problem412"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.book.restore",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/events": {
+      "get": {
+        "operationId": "libraryEvents",
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "x-keelwerk-item-schema": {
+                  "$ref": "#/components/schemas/LibraryEventsOutput"
+                }
+              }
+            },
+            "description": "A stream of server-sent events.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.events",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/register": {
+      "post": {
+        "deprecated": true,
+        "description": "Deprecated: use accounts.register",
+        "operationId": "libraryRegister",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryRegisterInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandReceipt"
+                }
+              }
+            },
+            "description": "The command was accepted; follow `Location` for its receipt.",
+            "headers": {
+              "Keelwerk-Command-Id": {
+                "$ref": "#/components/headers/keelwerkCommandId"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "Location": {
+                "$ref": "#/components/headers/location"
+              },
+              "Preference-Applied": {
+                "$ref": "#/components/headers/preferenceApplied"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.register",
+        "x-keelwerk-contributed-by": "accounts",
+        "x-keelwerk-execution": "async",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/shelves/get": {
+      "post": {
+        "operationId": "libraryShelfGetPost",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryShelfGetInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryShelfGetOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.shelf.get",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-safe": true,
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/shelves/{id}": {
+      "get": {
+        "operationId": "libraryShelfGet",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^sh_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/ifNoneMatch"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryShelf"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/etag"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/etag"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.shelf.get",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/library/stats": {
+      "get": {
+        "operationId": "libraryStats",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryStatsOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "library"
+        ],
+        "x-keelwerk-action": "library.stats",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ],
+  "tags": [
+    {
+      "name": "app"
+    },
+    {
+      "name": "core"
+    },
+    {
+      "description": "Lending.",
+      "name": "library"
+    }
+  ],
+  "x-keelwerk-generated": {
+    "apiVersion": "2026-11-01",
+    "format": "keelwerk.openapi/1",
+    "producer": "@keelwerk/transport-rest",
+    "producerVersion": "0",
+    "surface": "sha256-libraryFixture"
+  }
+}

@@ -1,12 +1,14 @@
 import type { ApiSurface, Artifact, TransportAdapter } from '@keelwerk/core';
 import { buildRouteTable } from './build-route-table.ts';
+import { checkRestSurface } from './check/check-rest-surface.ts';
 import { createRestHandler } from './create-rest-handler.ts';
 import { inFlightHandler } from './in-flight-handler.ts';
+import { openapiArtifact } from './openapi/openapi-artifact.ts';
 import type { RestConfig } from './rest-config.ts';
 import type { RestStaticOptions } from './rest-static-options.ts';
 
 /**
- * The REST adapter (section 16.5): a pure `check` over the route table, `artifacts` for the
+ * The REST adapter (section 16.5): `check`, the REST surface check, `artifacts` for the
  * emitters, and `mount`, which builds the route table of the app's surface at `listen` and
  * registers one handler on the host under the base path (and one per host-root `rest.path`).
  */
@@ -14,19 +16,25 @@ export function createRestAdapter(
   options: RestStaticOptions = {},
 ): TransportAdapter<RestStaticOptions, RestConfig> {
   const fixed: RestStaticOptions = { basePath: '/api', openapi: '3.1', ...options };
-  const artifacts = (_surface: ApiSurface): readonly Artifact[] => [];
+  // No resolver descriptions yet: ApiSurface carries none until the principal resolvers (section 8.5) add them.
+  const artifacts = (surface: ApiSurface): readonly Artifact[] => [
+    openapiArtifact(surface, {
+      ...(fixed.basePath === undefined ? {} : { basePath: fixed.basePath }),
+      ...(fixed.openapi === undefined ? {} : { openapi: fixed.openapi }),
+    }),
+  ];
   return {
     name: 'rest',
     capabilities: { streaming: [], batching: false, binary: false },
     static: fixed,
-    check: (surface) => buildRouteTable(surface, fixed).problems,
+    check: (surface) => checkRestSurface(surface, fixed),
     artifacts,
     async mount(ctx) {
-      const table = buildRouteTable(ctx.surface, fixed);
-      const refused = table.problems[0];
+      const refused = checkRestSurface(ctx.surface, fixed)[0];
       if (refused !== undefined) {
         throw new TypeError(`${refused.code}: ${refused.subject}: ${refused.message}`);
       }
+      const table = buildRouteTable(ctx.surface, fixed);
       const basePath = fixed.basePath ?? '/api';
       const inner = createRestHandler({
         app: ctx.app,

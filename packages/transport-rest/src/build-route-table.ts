@@ -103,13 +103,11 @@ function customRoutes(
   if (action.kind === 'command') {
     return [draft('POST', instance ? 'instance' : 'body')];
   }
-  if (instance) {
-    return [draft('GET', 'instance')];
-  }
   if (queryStringRepresentable(action.input)) {
-    return [draft('GET', 'query-string')];
+    return [draft('GET', instance ? 'instance' : 'query-string')];
   }
-  return [draft('POST', 'body'), ...(options.openapi === '3.2' ? [draft('QUERY', 'body')] : [])];
+  const mode = instance ? 'instance' : 'body';
+  return [draft('POST', mode), ...(options.openapi === '3.2' ? [draft('QUERY', mode)] : [])];
 }
 
 function isExposed(action: SurfaceAction): boolean {

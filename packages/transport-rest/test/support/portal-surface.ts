@@ -15,6 +15,7 @@ function find(ref: string): SurfaceAction {
 
 const profile = 'accounts.profile';
 const permissive: FieldNode = { kind: 'json', optional: false, access: 'read-write', schema: {} };
+const looseInput: FieldNode = { kind: 'shape', optional: false, access: 'read-write', fields: {} };
 const idInput: FieldNode = {
   kind: 'shape',
   optional: false,
@@ -101,10 +102,10 @@ export function portalSurface(): ApiSurface {
       generated('update', updateInput),
       generated('archive', idInput),
       generated('restore', idInput),
-      generated('set', permissive),
-      generated('changes', permissive),
-      generated('queryChanges', permissive),
-      generated('watch', permissive, { kind: 'subscription' }),
+      generated('set', looseInput),
+      generated('changes', looseInput),
+      generated('queryChanges', looseInput),
+      generated('watch', looseInput, { kind: 'subscription' }),
       generated('history', idInput),
     ].sort((a, b) => a.ref.localeCompare(b.ref)),
     errors,
