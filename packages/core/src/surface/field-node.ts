@@ -17,7 +17,13 @@ export type FieldNode = FieldNodeBase &
         readonly min?: number;
         readonly max?: number;
       }
-    | { readonly kind: 'decimal'; readonly min?: string; readonly max?: string }
+    | {
+        readonly kind: 'decimal';
+        readonly min?: string;
+        readonly max?: string;
+        readonly precision?: number;
+        readonly scale?: number;
+      }
     | { readonly kind: 'serial'; readonly per: readonly string[] }
     | {
         readonly kind:
@@ -38,7 +44,13 @@ export type FieldNode = FieldNodeBase &
     | { readonly kind: 'id' | 'ref'; readonly target: string; readonly prefix: string }
     | { readonly kind: 'list' | 'set'; readonly item: FieldNode }
     | { readonly kind: 'shape'; readonly fields: Readonly<Record<string, FieldNode>> }
-    | { readonly kind: 'json'; readonly schema: JsonSchema }
+    | {
+        readonly kind: 'json';
+        /** The output schema; kept for readers of the first form, equal to `output`. */
+        readonly schema: JsonSchema;
+        readonly input?: JsonSchema;
+        readonly output?: JsonSchema;
+      }
     | { readonly kind: 'page'; readonly item: FieldNode }
     | { readonly kind: 'foreign'; readonly input: JsonSchema; readonly output: JsonSchema }
   );

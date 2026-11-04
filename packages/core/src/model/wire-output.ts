@@ -4,13 +4,16 @@ import type { ShapeValue } from '../fields/shape-value.ts';
 import type { PageOutput, RowOutput } from './action-part.ts';
 import type { EntityNameOf } from './entity-name-of.ts';
 import type { BaseOf, OwnerOf } from './part-source.ts';
+import type { TypedOutput } from './typed-output.ts';
 
 /** What callers receive; entity rows stay markers until the app resolves them. */
 export type WireOutput<Out, S, Default> =
-  Out extends Shape<infer F>
-    ? ShapeValue<F, OwnerOf<S>, 'stored'>
-    : Out extends EntityOutputSpec<'page', infer En>
-      ? PageOutput<`${OwnerOf<S>}.${EntityNameOf<BaseOf<S>, En>}`>
-      : Out extends EntityOutputSpec<'row', infer En>
-        ? RowOutput<`${OwnerOf<S>}.${EntityNameOf<BaseOf<S>, En>}`>
-        : Default;
+  Out extends TypedOutput<infer T>
+    ? T
+    : Out extends Shape<infer F>
+      ? ShapeValue<F, OwnerOf<S>, 'stored'>
+      : Out extends EntityOutputSpec<'page', infer En>
+        ? PageOutput<`${OwnerOf<S>}.${EntityNameOf<BaseOf<S>, En>}`>
+        : Out extends EntityOutputSpec<'row', infer En>
+          ? RowOutput<`${OwnerOf<S>}.${EntityNameOf<BaseOf<S>, En>}`>
+          : Default;

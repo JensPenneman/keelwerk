@@ -104,7 +104,12 @@ describe('contributions and conditional parts (sections 5.3 and 5.4)', () => {
     expect(registry.actions.has('accounts.whoami')).toBe(false);
     expect(registry.actions.has('auth.linkProfile')).toBe(false);
     expect(registry.entities.get('auth.credential')?.descriptor.fields.profileId).toBeUndefined();
-    expect([...registry.rules.keys()]).toEqual(['auth.credential.self', 'auth.login.open']);
+    expect([...registry.rules.keys()]).toEqual([
+      'auth.credential.self',
+      'auth.login.open',
+      'core.composition.operators',
+      'core.introspect.signedIn',
+    ]);
   });
 
   test('a conditional part keyed on a contract is present only when a module provides it', () => {
@@ -207,6 +212,8 @@ describe('rules (section 8.1)', () => {
       'auth.accounts.profile.self',
       'auth.credential.self',
       'auth.login.open',
+      'core.composition.operators',
+      'core.introspect.signedIn',
     ]);
     expect(full.rules.get('auth.accounts.profile.self')).toMatchObject({
       module: 'auth',

@@ -48,13 +48,7 @@
     "packages/testing": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": [
-        "@keelwerk/adapter-postgres",
-        "@keelwerk/client",
-        "@keelwerk/data",
-        "@keelwerk/transport-rest",
-        "fast-check"
-      ]
+      "ignoreDependencies": ["@keelwerk/adapter-postgres", "@keelwerk/data", "fast-check"]
     },
     "packages/cli": {
       "entry": ["src/**/*.test-d.ts"],

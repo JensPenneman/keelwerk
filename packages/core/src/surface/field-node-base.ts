@@ -8,7 +8,15 @@ export interface FieldNodeBase {
   readonly access: 'read-write' | 'read' | 'write';
   /** Rules may hide it per row. */
   readonly maskable?: true;
-  readonly merge?: 'lww' | 'counter' | 'set' | 'sequence' | 'richText' | 'exclusive';
+  readonly merge?:
+    | 'lww'
+    | 'max'
+    | 'min'
+    | 'counter'
+    | 'set'
+    | 'sequence'
+    | 'richText'
+    | 'exclusive';
   readonly unique?: true;
   readonly personal?: true;
   readonly tag?: number;

@@ -12,6 +12,7 @@ import { generatedHandler } from './generated-handler.ts';
 import { permissiveSchema } from './permissive-schema.ts';
 import { rowShape } from './row-shape.ts';
 import { scopeOfTenancy } from './scope-of-tenancy.ts';
+import { typedOutputSchema } from './typed-output-schema.ts';
 
 function sinceOf(module: string, app: ComposableApp): string {
   const dates =
@@ -73,6 +74,7 @@ function outputOf(
         })
       : row;
   }
+  if (output?.kind === 'typedOutput') return typedOutputSchema();
   if (output !== undefined && output.kind === 'shape') return output as unknown as StandardSchemaV1;
   if (mount.mount === 'entity' && part.kind === 'command' && mount.entity !== undefined) {
     const own = context.entities.get(`${mount.module}.${mount.entity}`);

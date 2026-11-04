@@ -8,6 +8,7 @@ import type { WithCore } from '../model/selection.ts';
 import { buildRegistry } from '../registry/build-registry.ts';
 import { composeApp } from '../registry/compose-app.ts';
 import type { Registry } from '../registry/registry.ts';
+import { surfaceProblemsOf } from '../surface/surface-problems-of.ts';
 import type { Empty } from '../types/empty.ts';
 import type { ApiVersions } from './define-api-versions.ts';
 
@@ -80,7 +81,11 @@ export function defineApp<
     api: config.api ?? null,
     flags: config.flags ?? {},
   };
-  const registry = buildRegistry(base);
+  const built = buildRegistry(base);
+  const registry: Registry = {
+    ...built,
+    problems: [...built.problems, ...surfaceProblemsOf(base, built)],
+  };
   composeApp(base, registry);
   return { ...base, registry } as unknown as App<Id, WithCore<Ms>, A, X>;
 }

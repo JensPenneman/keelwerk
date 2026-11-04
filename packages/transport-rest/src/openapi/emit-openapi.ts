@@ -13,6 +13,7 @@ import { operationFor } from './operation-for.ts';
 import { problemSchemas } from './problem-schemas.ts';
 import { schemaName } from './schema-name.ts';
 import { securitySchemes } from './security-schemes.ts';
+import { surfaceSecurityResolvers } from './surface-security-resolvers.ts';
 
 function addOnce(target: JsonObject, key: string, value: unknown, what: string): void {
   if (Object.hasOwn(target, key)) {
@@ -55,7 +56,7 @@ function hasEntity(surface: ApiSurface, action: SurfaceAction): boolean {
 export function emitOpenapi(surface: ApiSurface, options: OpenapiOptions = {}): JsonObject {
   const version = options.openapi ?? '3.1';
   const common = commonComponents();
-  const security = securitySchemes(options.resolvers ?? []);
+  const security = securitySchemes(options.resolvers ?? surfaceSecurityResolvers(surface));
   const schemas: JsonObject = {};
   const paths: Record<string, JsonObject> = {};
   const operationIds: JsonObject = {};

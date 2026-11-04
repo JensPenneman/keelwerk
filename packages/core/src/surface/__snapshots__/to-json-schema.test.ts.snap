@@ -87,7 +87,7 @@ exports[`toJsonSchema, one snapshot per kind and direction > input integer 1`] =
 
 exports[`toJsonSchema, one snapshot per kind and direction > input json 1`] = `
 {
-  "type": "number",
+  "type": "string",
 }
 `;
 

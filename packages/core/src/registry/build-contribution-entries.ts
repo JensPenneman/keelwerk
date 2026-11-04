@@ -21,6 +21,7 @@ export function buildContributionEntries(
     .filter((part) => part.kind === 'contribution')
     .map((part) => ({
       id: part.trackId,
+      kind: part.kind,
       from: part.declaredBy.id,
       to: part.target,
       when: part.whenNames,

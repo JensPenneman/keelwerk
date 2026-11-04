@@ -234,6 +234,7 @@ export { setTimer } from './dsl/set-timer.ts';
 export { settle } from './dsl/settle.ts';
 export type { SystemReason } from './dsl/system.ts';
 export { system } from './dsl/system.ts';
+export { typedOutput } from './dsl/typed-output.ts';
 export type { AnyWithin, DeclarationSection, Within } from './dsl/within.ts';
 export { within } from './dsl/within.ts';
 export type { AdmissionInput, AdmissionRule } from './edge/admission-rule.ts';
@@ -503,6 +504,7 @@ export type { Service } from './model/service.ts';
 export type { TargetName } from './model/target-name.ts';
 export type { TargetRef } from './model/target-ref.ts';
 export type { TypeAt } from './model/type-at.ts';
+export type { TypedOutput } from './model/typed-output.ts';
 export type { UnionToIntersection } from './model/union-to-intersection.ts';
 export type { UnknownPolicyTargets } from './model/unknown-policy-targets.ts';
 export type { UnknownPolicyTargetsIn } from './model/unknown-policy-targets-in.ts';
@@ -665,21 +667,38 @@ export type { WorkClassStats } from './storage/work-class-stats.ts';
 export type { WrappedScopeKey } from './storage/wrapped-scope-key.ts';
 export type { ApiSurface } from './surface/api-surface.ts';
 export type { CliHint } from './surface/cli-hint.ts';
+export { compositionReport } from './surface/composition-report.ts';
+export type {
+  CompositionContributionReport,
+  CompositionExtensionPointReport,
+  CompositionModuleReport,
+  CompositionReportDocument,
+  CompositionRuleReport,
+} from './surface/composition-report-document.ts';
 export type { CookieHint } from './surface/cookie-hint.ts';
+export { deriveSurface } from './surface/derive-surface.ts';
+export type { DerivedSurface } from './surface/derived-surface.ts';
 export type { FieldNode } from './surface/field-node.ts';
 export type { FieldNodeBase } from './surface/field-node-base.ts';
 export type { JsonSchema } from './surface/json-schema.ts';
 export type { PageSpec } from './surface/page-spec.ts';
+export type { AppGeneratedSource } from './surface/render-app-generated-file.ts';
+export { renderAppGeneratedFile } from './surface/render-app-generated-file.ts';
+export { renderSurfaceArtefact } from './surface/render-surface-artefact.ts';
 export type { ResponseHint } from './surface/response-hint.ts';
 export type { SurfaceAction } from './surface/surface-action.ts';
 export type { SurfaceEntity } from './surface/surface-entity.ts';
 export type { SurfaceError } from './surface/surface-error.ts';
 export type { SurfaceEvent } from './surface/surface-event.ts';
+export { surfaceHash } from './surface/surface-hash.ts';
 export type { SurfaceModule } from './surface/surface-module.ts';
 export type { SurfaceRelation } from './surface/surface-relation.ts';
+export type { SurfaceResolver } from './surface/surface-resolver.ts';
+export type { SurfaceSource } from './surface/surface-source.ts';
 export type { ToJsonSchemaOptions } from './surface/to-json-schema.ts';
 export { toJsonSchema } from './surface/to-json-schema.ts';
 export type { TransportHints } from './surface/transport-hints.ts';
+export type { TypeFragment } from './surface/type-fragment.ts';
 export type { Artifact } from './transport/artifact.ts';
 export type { HttpContext } from './transport/http-context.ts';
 export type { HttpHandler } from './transport/http-handler.ts';

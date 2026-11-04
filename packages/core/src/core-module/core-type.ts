@@ -1,7 +1,11 @@
+import type { RulePart } from '../dsl/define-rule.ts';
+import type { CapabilitiesDocument } from '../invoker/capabilities-document.ts';
 import type { ActionPart, PartTypes, RowOutput } from '../model/action-part.ts';
 import type { InstanceInput } from '../model/instance-input.ts';
 import type { ModuleOf } from '../model/module-of.ts';
 import type { Prettify } from '../model/prettify.ts';
+import type { ApiSurface } from '../surface/api-surface.ts';
+import type { CompositionReportDocument } from '../surface/composition-report-document.ts';
 import type { Empty } from '../types/empty.ts';
 import type { CoreBase } from './core-base-type.ts';
 
@@ -35,10 +39,18 @@ type TokenCommand<In, Out> = ActionPart<
 /** The module literal of the core: the parts the core mounts (S-26, section 3.1). */
 export interface CoreLiteral {
   readonly actions: {
-    readonly introspect: CoreQuery;
-    readonly composition: CoreQuery;
+    readonly introspect: CoreQuery<ApiSurface>;
+    readonly composition: CoreQuery<CompositionReportDocument>;
     readonly me: CoreQuery;
-    readonly capabilities: CoreQuery;
+    readonly capabilities: CoreQuery<CapabilitiesDocument>;
+  };
+  readonly policies: {
+    readonly introspect: {
+      readonly signedIn: RulePart<CoreBase, CoreQuery<ApiSurface>, readonly []>;
+    };
+    readonly composition: {
+      readonly operators: RulePart<CoreBase, CoreQuery<CompositionReportDocument>, readonly []>;
+    };
   };
   readonly entityActions: {
     readonly tenant: {

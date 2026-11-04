@@ -38,17 +38,25 @@ function jsonSchemaOf(schema: unknown, side: 'input' | 'output'): JsonSchema {
   return convert.call(converter, { target: 'draft-2020-12' }) as JsonSchema;
 }
 
-/** Explicit tags are kept; the others take the lowest free numbers in order. */
-function allocateTags(members: readonly (readonly [string, AnyField])[]): Map<string, number> {
+/**
+ * Explicit tags are kept, then the tags recorded in the module snapshot, so inserting a member
+ * never renumbers the others; the remaining members take the lowest free numbers in order.
+ */
+function allocateTags(
+  members: readonly (readonly [string, AnyField])[],
+  recorded: Readonly<Record<string, number>>,
+): Map<string, number> {
   const taken = new Set<number>();
-  for (const [, member] of members) {
-    if (member.flags.tag !== null) taken.add(member.flags.tag);
+  for (const [name, member] of members) {
+    const known = member.flags.tag ?? recorded[name];
+    if (known !== undefined) taken.add(known);
   }
   const tags = new Map<string, number>();
   let next = 1;
   for (const [name, member] of members) {
-    if (member.flags.tag !== null) {
-      tags.set(name, member.flags.tag);
+    const known = member.flags.tag ?? recorded[name];
+    if (known !== undefined) {
+      tags.set(name, known);
       continue;
     }
     while (taken.has(next)) next += 1;
@@ -56,6 +64,15 @@ function allocateTags(members: readonly (readonly [string, AnyField])[]): Map<st
     taken.add(next);
   }
   return tags;
+}
+
+function untagged(context: FieldNodeContext): FieldNodeContext {
+  return {
+    declaredBy: context.declaredBy,
+    tag: context.tag,
+    prefixOf: context.prefixOf,
+    ...(context.access === undefined ? {} : { access: context.access }),
+  };
 }
 
 function variantOf(def: AnyField, context: FieldNodeContext): Variant {
@@ -86,8 +103,14 @@ function variantOf(def: AnyField, context: FieldNodeContext): Variant {
       const per = (def.options as { readonly per?: string } | undefined)?.per;
       return { kind: 'serial', per: per === undefined ? [] : [per] };
     }
-    case 'decimal':
-      return { kind: 'decimal' };
+    case 'decimal': {
+      const options = (def.options ?? {}) as Record<string, unknown>;
+      return {
+        kind: 'decimal',
+        ...(typeof options.precision === 'number' ? { precision: options.precision } : {}),
+        ...(typeof options.scale === 'number' ? { scale: options.scale } : {}),
+      };
+    }
     case 'boolean':
     case 'float':
     case 'instant':
@@ -118,17 +141,23 @@ function variantOf(def: AnyField, context: FieldNodeContext): Variant {
     case 'json': {
       if (isShape(def.options)) {
         const members = Object.entries(def.options.fields);
-        const tags = allocateTags(members);
+        const tags = allocateTags(members, context.memberTags ?? {});
         return {
           kind: 'shape',
           fields: Object.fromEntries(
             members
               .filter(([, member]) => member.kind !== 'verifier' && member.flags.hidden !== true)
-              .map(([name, member]) => [name, build(member, context, tags.get(name))]),
+              .map(([name, member]) => [name, build(member, untagged(context), tags.get(name))]),
           ),
         };
       }
-      return { kind: 'json', schema: jsonSchemaOf(def.options, 'output') };
+      const output = jsonSchemaOf(def.options, 'output');
+      return {
+        kind: 'json',
+        schema: output,
+        input: jsonSchemaOf(def.options, 'input'),
+        output,
+      };
     }
     case 'verifier':
       throw new TypeError('a verifier field never appears in the surface');
@@ -148,7 +177,7 @@ function build(def: AnyField, context: FieldNodeContext, tag: number | undefined
       context.access ??
       (def.kind === 'secret' ? 'write' : def.kind === 'serial' ? 'read' : 'read-write'),
     ...(def.flags.maskable ? { maskable: true as const } : {}),
-    ...(merge === null || merge === 'max' || merge === 'min' ? {} : { merge }),
+    ...(merge === null ? {} : { merge }),
     ...(def.flags.unique ? { unique: true as const } : {}),
     ...(def.flags.personal === false ? {} : { personal: true as const }),
     ...(tag === undefined ? {} : { tag: def.flags.tag ?? tag }),
@@ -170,6 +199,8 @@ export interface FieldNodeContext {
   readonly tag: number;
   /** The TypeID prefix of an entity ('accounts.profile'), or `undefined` when unknown. */
   readonly prefixOf: (entityRef: string) => string | undefined;
+  /** The tags recorded in the module snapshot for the members of a `json` shape, by member name (WP-23). */
+  readonly memberTags?: Readonly<Record<string, number>>;
   /** Overrides the access: system fields are 'read'. `secret` fields default to 'write', `serial` to 'read'. */
   readonly access?: FieldNodeBase['access'];
 }

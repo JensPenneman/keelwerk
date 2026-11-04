@@ -10,12 +10,15 @@ import type { PrincipalResolver } from '../edge/principal-resolver.ts';
 import { field } from '../fields/field.ts';
 import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
 import type { Id } from '../ids/id.ts';
+import type { CapabilitiesDocument } from '../invoker/capabilities-document.ts';
 import type { ActionRef } from '../model/action-ref.ts';
 import type { AnyModule } from '../model/any-module.ts';
 import type { AnyModuleBase } from '../model/any-module-base.ts';
 import type { AppActionTree } from '../model/app-action-tree.ts';
 import type { Insert } from '../model/insert.ts';
 import type { Row } from '../model/row.ts';
+import type { ApiSurface } from '../surface/api-surface.ts';
+import type { CompositionReportDocument } from '../surface/composition-report-document.ts';
 import type { TransportAdapter } from '../transport/transport-adapter.ts';
 import { capabilities } from './actions/capabilities.ts';
 import { composition } from './actions/composition.ts';
@@ -28,6 +31,8 @@ import { coreBase } from './base.ts';
 import type { CoreBase } from './core-base-type.ts';
 import type { Core } from './core-type.ts';
 import { core } from './module.ts';
+import { operators as compositionOperators } from './policies/composition/operators.ts';
+import { signedIn as introspectSignedIn } from './policies/introspect/signed-in.ts';
 
 declare const configSchema: StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
 const status = field.enum(['active', 'suspended']).default('active');
@@ -153,6 +158,10 @@ const derived = defineModuleBase({
 const derivedCore = defineModule(coreBase, {
   actions: { introspect, composition, me, capabilities },
   entityActions: { tenant: { enter, setApiVersion }, operatorToken: { revoke } },
+  policies: {
+    introspect: { signedIn: introspectSignedIn },
+    composition: { operators: compositionOperators },
+  },
 });
 
 const app = defineApp({ id: 'only-core', modules: [] });
@@ -253,5 +262,15 @@ describe('the hand-written core module types (decision 104, S-11, S-26)', () => 
     >().toEqualTypeOf<'command'>();
     expectTypeOf<Tree['core']['entities']['tenant']['enter']['kind']>().toEqualTypeOf<'command'>();
     expectTypeOf<Tree['core']['actions']['introspect']['kind']>().toEqualTypeOf<'query'>();
+  });
+
+  test('the introspection queries answer typed documents that are not shapes', () => {
+    expectTypeOf<Tree['core']['actions']['introspect']['output']>().toEqualTypeOf<ApiSurface>();
+    expectTypeOf<
+      Tree['core']['actions']['composition']['output']
+    >().toEqualTypeOf<CompositionReportDocument>();
+    expectTypeOf<
+      Tree['core']['actions']['capabilities']['output']
+    >().toEqualTypeOf<CapabilitiesDocument>();
   });
 });

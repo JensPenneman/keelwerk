@@ -1,7 +1,8 @@
 import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
 import type { PrincipalKind } from '../principals/principal-kind.ts';
+import type { PageSpec } from '../surface/page-spec.ts';
+import type { TransportHints } from '../surface/transport-hints.ts';
 import type { ActionHandler } from './action-handler.ts';
-import type { EntityEntry } from './entity-entry.ts';
 import type { GeneratedActionKind } from './generated-action-kind.ts';
 
 /** One action as the registry holds it: the surface fields of section 16.2.2 plus the handlers, without the DSL literal. */
@@ -31,10 +32,10 @@ export interface ActionEntry {
   readonly resumable: boolean;
   /** Narrows `ctx.principal` and refuses other kinds. */
   readonly principal?: readonly PrincipalKind[];
-  readonly page?: EntityEntry['page'];
+  readonly page?: PageSpec;
   readonly timeoutMs?: number;
   /** Per-transport hints, keyed by transport id; the surface carries them verbatim. */
-  readonly hints: Readonly<Record<string, unknown>>;
+  readonly hints: TransportHints;
   /** The module that mounted the action through a contribution or a conditional part. */
   readonly contributedBy?: string;
   readonly description?: string;

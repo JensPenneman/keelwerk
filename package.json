@@ -11,6 +11,7 @@
     "keelwerk": "node --conditions=@keelwerk/source packages/cli/src/bin/keelwerk.ts",
     "sketch": "tsc -p packages/core/tsconfig.sketch.json",
     "manifests": "node scripts/generate-manifests.ts",
+    "surfaces": "node scripts/generate-surfaces.ts",
     "budgets": "node scripts/type-budgets/run-budgets.ts",
     "bench:types": "pnpm --filter @keelwerk/type-budgets bench",
     "check": "biome ci . && knip && tsc -b && vitest run",

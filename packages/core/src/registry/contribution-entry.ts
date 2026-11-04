@@ -2,6 +2,8 @@
 export interface ContributionEntry {
   /** 'auth->accounts'. */
   readonly id: string;
+  /** Whether the entry is a contribution or a conditional part. */
+  readonly kind: 'contribution' | 'conditional';
   /** The contributing module. */
   readonly from: string;
   /** The target module. */

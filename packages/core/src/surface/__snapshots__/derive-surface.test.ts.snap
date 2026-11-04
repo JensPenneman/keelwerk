@@ -1,0 +1,1816 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`deriveSurface (section 16.2) > the accounts module gives the golden surface 1`] = `
+"{
+  "actions": [
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "accounts.profile",
+      "errors": [],
+      "execution": "sync",
+      "generated": "archive",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "prof",
+            "target": "accounts.profile"
+          },
+          "ifVersion": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-e2DM-TCi-YfZ1kuOIW2MPu_l-4ZVaRUd-T89W3V9LQ0",
+      "instance": true,
+      "kind": "command",
+      "module": "accounts",
+      "mount": "entity",
+      "name": "archive",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "archivedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": true
+          },
+          "createdAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "deactivatedAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true,
+            "tag": 4
+          },
+          "displayName": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 120,
+            "merge": "lww",
+            "optional": false,
+            "tag": 1
+          },
+          "email": {
+            "access": "read-write",
+            "format": "email",
+            "kind": "string",
+            "maskable": true,
+            "merge": "exclusive",
+            "optional": false,
+            "personal": true,
+            "tag": 2,
+            "unique": true
+          },
+          "id": {
+            "access": "read",
+            "kind": "id",
+            "optional": false,
+            "prefix": "prof",
+            "target": "accounts.profile"
+          },
+          "locale": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 3
+          },
+          "updatedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "version": {
+            "access": "read",
+            "kind": "integer",
+            "optional": false,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-t2ECTYFYYZX5kTVofBHkwZocuGTJUyKfYoem-NkM0Es",
+      "ref": "accounts.profile.archive",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "accounts.profile",
+      "errors": [],
+      "execution": "sync",
+      "generated": "changes",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "max": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "since": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-ewgFfFJt_lYhSzIFWIDcG5OBwm8SyS1KTSU03B3g_VY",
+      "instance": false,
+      "kind": "query",
+      "module": "accounts",
+      "mount": "entity",
+      "name": "changes",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "archived": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "prof",
+              "target": "accounts.profile"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "changed": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "prof",
+              "target": "accounts.profile"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "created": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "prof",
+              "target": "accounts.profile"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "hasMoreChanges": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": false
+          },
+          "newState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "oldState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-03YkbL1CLd_P1GNkPEpWYd8P9zR3WRAVRCA1CFqVJTQ",
+      "ref": "accounts.profile.changes",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "accounts.profile",
+      "errors": [],
+      "execution": "sync",
+      "generated": "create",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "deactivatedAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true,
+            "tag": 4
+          },
+          "displayName": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 120,
+            "merge": "lww",
+            "optional": false,
+            "tag": 1
+          },
+          "email": {
+            "access": "read-write",
+            "format": "email",
+            "kind": "string",
+            "maskable": true,
+            "merge": "exclusive",
+            "optional": false,
+            "personal": true,
+            "tag": 2,
+            "unique": true
+          },
+          "locale": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 3
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-CTBDrmgI-96up7MUA4N_q2Jd_2x85ZqlJQ04VI7nIG8",
+      "instance": false,
+      "kind": "command",
+      "module": "accounts",
+      "mount": "entity",
+      "name": "create",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "archivedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": true
+          },
+          "createdAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "deactivatedAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true,
+            "tag": 4
+          },
+          "displayName": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 120,
+            "merge": "lww",
+            "optional": false,
+            "tag": 1
+          },
+          "email": {
+            "access": "read-write",
+            "format": "email",
+            "kind": "string",
+            "maskable": true,
+            "merge": "exclusive",
+            "optional": false,
+            "personal": true,
+            "tag": 2,
+            "unique": true
+          },
+          "id": {
+            "access": "read",
+            "kind": "id",
+            "optional": false,
+            "prefix": "prof",
+            "target": "accounts.profile"
+          },
+          "locale": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 3
+          },
+          "updatedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "version": {
+            "access": "read",
+            "kind": "integer",
+            "optional": false,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-t2ECTYFYYZX5kTVofBHkwZocuGTJUyKfYoem-NkM0Es",
+      "ref": "accounts.profile.create",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "accounts.profile",
+      "errors": [],
+      "execution": "sync",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "prof",
+            "target": "accounts.profile"
+          },
+          "ifVersion": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "tag": 3,
+            "wide": false
+          },
+          "reason": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-7igp8YRNx6cl2E_79xdQQJ1H5w_7-lSJJPEH2TJ7RwE",
+      "instance": true,
+      "kind": "command",
+      "module": "accounts",
+      "mount": "entity",
+      "name": "deactivate",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "archivedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": true
+          },
+          "createdAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "deactivatedAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true,
+            "tag": 4
+          },
+          "displayName": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 120,
+            "merge": "lww",
+            "optional": false,
+            "tag": 1
+          },
+          "email": {
+            "access": "read-write",
+            "format": "email",
+            "kind": "string",
+            "maskable": true,
+            "merge": "exclusive",
+            "optional": false,
+            "personal": true,
+            "tag": 2,
+            "unique": true
+          },
+          "id": {
+            "access": "read",
+            "kind": "id",
+            "optional": false,
+            "prefix": "prof",
+            "target": "accounts.profile"
+          },
+          "locale": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 3
+          },
+          "updatedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "version": {
+            "access": "read",
+            "kind": "integer",
+            "optional": false,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-t2ECTYFYYZX5kTVofBHkwZocuGTJUyKfYoem-NkM0Es",
+      "ref": "accounts.profile.deactivate",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "accounts.profile",
+      "errors": [],
+      "execution": "sync",
+      "generated": "get",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "asOf": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true
+          },
+          "ids": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "prof",
+              "target": "accounts.profile"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "properties": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-sDXPDBUPSQR4Ju7MicjIqZaVzinZ3tG_qWZ7CPZOH8g",
+      "instance": false,
+      "kind": "query",
+      "module": "accounts",
+      "mount": "entity",
+      "name": "get",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "list": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "archivedAt": {
+                  "access": "read",
+                  "kind": "instant",
+                  "optional": true
+                },
+                "createdAt": {
+                  "access": "read",
+                  "kind": "instant",
+                  "optional": false
+                },
+                "deactivatedAt": {
+                  "access": "read-write",
+                  "kind": "instant",
+                  "optional": true,
+                  "tag": 4
+                },
+                "displayName": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "maxLength": 120,
+                  "merge": "lww",
+                  "optional": false,
+                  "tag": 1
+                },
+                "email": {
+                  "access": "read-write",
+                  "format": "email",
+                  "kind": "string",
+                  "maskable": true,
+                  "merge": "exclusive",
+                  "optional": false,
+                  "personal": true,
+                  "tag": 2,
+                  "unique": true
+                },
+                "id": {
+                  "access": "read",
+                  "kind": "id",
+                  "optional": false,
+                  "prefix": "prof",
+                  "target": "accounts.profile"
+                },
+                "locale": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": true,
+                  "tag": 3
+                },
+                "updatedAt": {
+                  "access": "read",
+                  "kind": "instant",
+                  "optional": false
+                },
+                "version": {
+                  "access": "read",
+                  "kind": "integer",
+                  "optional": false,
+                  "wide": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "notFound": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "prof",
+              "target": "accounts.profile"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "state": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-chhNhNLfvaRPPkJvv8b0krkOrR75i8lvwT1W824m0e4",
+      "ref": "accounts.profile.get",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "accounts.profile",
+      "errors": [],
+      "execution": "sync",
+      "generated": "query",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "after": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
+          "before": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
+          "filter": {
+            "access": "read-write",
+            "input": {},
+            "kind": "json",
+            "optional": true,
+            "output": {},
+            "schema": {}
+          },
+          "first": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "last": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "properties": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          },
+          "sort": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          },
+          "total": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-uJPFZYQMYPpmQvZmSvw9HGVymZ4MhULFfxkLsygmBZ0",
+      "instance": false,
+      "kind": "query",
+      "module": "accounts",
+      "mount": "entity",
+      "name": "query",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "item": {
+          "access": "read-write",
+          "fields": {
+            "archivedAt": {
+              "access": "read",
+              "kind": "instant",
+              "optional": true
+            },
+            "createdAt": {
+              "access": "read",
+              "kind": "instant",
+              "optional": false
+            },
+            "deactivatedAt": {
+              "access": "read-write",
+              "kind": "instant",
+              "optional": true,
+              "tag": 4
+            },
+            "displayName": {
+              "access": "read-write",
+              "kind": "string",
+              "maxLength": 120,
+              "merge": "lww",
+              "optional": false,
+              "tag": 1
+            },
+            "email": {
+              "access": "read-write",
+              "format": "email",
+              "kind": "string",
+              "maskable": true,
+              "merge": "exclusive",
+              "optional": false,
+              "personal": true,
+              "tag": 2,
+              "unique": true
+            },
+            "id": {
+              "access": "read",
+              "kind": "id",
+              "optional": false,
+              "prefix": "prof",
+              "target": "accounts.profile"
+            },
+            "locale": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": true,
+              "tag": 3
+            },
+            "updatedAt": {
+              "access": "read",
+              "kind": "instant",
+              "optional": false
+            },
+            "version": {
+              "access": "read",
+              "kind": "integer",
+              "optional": false,
+              "wide": false
+            }
+          },
+          "kind": "shape",
+          "optional": false
+        },
+        "kind": "page",
+        "optional": false
+      },
+      "outputHash": "sha256-gZlSQvaH__y-0Ye2v2HeL4k2JdisVRiOzIkYnn6jgGY",
+      "page": {
+        "defaultSize": 50,
+        "defaultSort": [
+          {
+            "direction": "asc",
+            "field": "id"
+          }
+        ],
+        "maxSize": 500,
+        "sortable": [
+          "createdAt",
+          "id",
+          "updatedAt"
+        ]
+      },
+      "ref": "accounts.profile.query",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "accounts.profile",
+      "errors": [],
+      "execution": "sync",
+      "generated": "queryChanges",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "filter": {
+            "access": "read-write",
+            "input": {},
+            "kind": "json",
+            "optional": true,
+            "output": {},
+            "schema": {}
+          },
+          "maxChanges": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "sinceQueryState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "sort": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-3PUWR_YmwRzrMLACxsiseD6O7lo2hxXZtJGIvQXDyHM",
+      "instance": false,
+      "kind": "query",
+      "module": "accounts",
+      "mount": "entity",
+      "name": "queryChanges",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "added": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "id": {
+                  "access": "read-write",
+                  "kind": "ref",
+                  "optional": false,
+                  "prefix": "prof",
+                  "target": "accounts.profile"
+                },
+                "index": {
+                  "access": "read-write",
+                  "kind": "integer",
+                  "optional": false,
+                  "wide": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "newQueryState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "oldQueryState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "removed": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "prof",
+              "target": "accounts.profile"
+            },
+            "kind": "list",
+            "optional": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-IL0SgX6BqGHeejdTpqspImWAOrYOec1ol_yGJBAuSv4",
+      "page": {
+        "defaultSize": 50,
+        "defaultSort": [
+          {
+            "direction": "asc",
+            "field": "id"
+          }
+        ],
+        "maxSize": 500,
+        "sortable": [
+          "createdAt",
+          "id",
+          "updatedAt"
+        ]
+      },
+      "ref": "accounts.profile.queryChanges",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "accounts.profile",
+      "errors": [],
+      "execution": "sync",
+      "generated": "restore",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "prof",
+            "target": "accounts.profile"
+          },
+          "ifVersion": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-e2DM-TCi-YfZ1kuOIW2MPu_l-4ZVaRUd-T89W3V9LQ0",
+      "instance": true,
+      "kind": "command",
+      "module": "accounts",
+      "mount": "entity",
+      "name": "restore",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "archivedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": true
+          },
+          "createdAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "deactivatedAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true,
+            "tag": 4
+          },
+          "displayName": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 120,
+            "merge": "lww",
+            "optional": false,
+            "tag": 1
+          },
+          "email": {
+            "access": "read-write",
+            "format": "email",
+            "kind": "string",
+            "maskable": true,
+            "merge": "exclusive",
+            "optional": false,
+            "personal": true,
+            "tag": 2,
+            "unique": true
+          },
+          "id": {
+            "access": "read",
+            "kind": "id",
+            "optional": false,
+            "prefix": "prof",
+            "target": "accounts.profile"
+          },
+          "locale": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 3
+          },
+          "updatedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "version": {
+            "access": "read",
+            "kind": "integer",
+            "optional": false,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-t2ECTYFYYZX5kTVofBHkwZocuGTJUyKfYoem-NkM0Es",
+      "ref": "accounts.profile.restore",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "accounts.profile",
+      "errors": [],
+      "execution": "sync",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "after": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 3
+          },
+          "first": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "tag": 2,
+            "wide": false
+          },
+          "text": {
+            "access": "read-write",
+            "kind": "string",
+            "minLength": 3,
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-Nnd8RqvVgeyESDaWBfwWQqP59IeY_83WnirRTgvlDw8",
+      "instance": false,
+      "kind": "query",
+      "module": "accounts",
+      "mount": "entity",
+      "name": "search",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "item": {
+          "access": "read-write",
+          "fields": {
+            "archivedAt": {
+              "access": "read",
+              "kind": "instant",
+              "optional": true
+            },
+            "createdAt": {
+              "access": "read",
+              "kind": "instant",
+              "optional": false
+            },
+            "deactivatedAt": {
+              "access": "read-write",
+              "kind": "instant",
+              "optional": true,
+              "tag": 4
+            },
+            "displayName": {
+              "access": "read-write",
+              "kind": "string",
+              "maxLength": 120,
+              "merge": "lww",
+              "optional": false,
+              "tag": 1
+            },
+            "email": {
+              "access": "read-write",
+              "format": "email",
+              "kind": "string",
+              "maskable": true,
+              "merge": "exclusive",
+              "optional": false,
+              "personal": true,
+              "tag": 2,
+              "unique": true
+            },
+            "id": {
+              "access": "read",
+              "kind": "id",
+              "optional": false,
+              "prefix": "prof",
+              "target": "accounts.profile"
+            },
+            "locale": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": true,
+              "tag": 3
+            },
+            "updatedAt": {
+              "access": "read",
+              "kind": "instant",
+              "optional": false
+            },
+            "version": {
+              "access": "read",
+              "kind": "integer",
+              "optional": false,
+              "wide": false
+            }
+          },
+          "kind": "shape",
+          "optional": false
+        },
+        "kind": "page",
+        "optional": false
+      },
+      "outputHash": "sha256-gZlSQvaH__y-0Ye2v2HeL4k2JdisVRiOzIkYnn6jgGY",
+      "page": {
+        "defaultSize": 50,
+        "defaultSort": [
+          {
+            "direction": "asc",
+            "field": "id"
+          }
+        ],
+        "maxSize": 500,
+        "sortable": [
+          "createdAt",
+          "id",
+          "updatedAt"
+        ]
+      },
+      "ref": "accounts.profile.search",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "accounts.profile",
+      "errors": [],
+      "execution": "sync",
+      "generated": "set",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "archive": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "id": {
+                  "access": "read-write",
+                  "kind": "ref",
+                  "optional": false,
+                  "prefix": "prof",
+                  "target": "accounts.profile"
+                },
+                "ifVersion": {
+                  "access": "read-write",
+                  "kind": "integer",
+                  "optional": true,
+                  "wide": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          },
+          "create": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "deactivatedAt": {
+                  "access": "read-write",
+                  "kind": "instant",
+                  "optional": true,
+                  "tag": 4
+                },
+                "displayName": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "maxLength": 120,
+                  "merge": "lww",
+                  "optional": false,
+                  "tag": 1
+                },
+                "email": {
+                  "access": "read-write",
+                  "format": "email",
+                  "kind": "string",
+                  "maskable": true,
+                  "merge": "exclusive",
+                  "optional": false,
+                  "personal": true,
+                  "tag": 2,
+                  "unique": true
+                },
+                "locale": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": true,
+                  "tag": 3
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          },
+          "ifInState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
+          "restore": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "id": {
+                  "access": "read-write",
+                  "kind": "ref",
+                  "optional": false,
+                  "prefix": "prof",
+                  "target": "accounts.profile"
+                },
+                "ifVersion": {
+                  "access": "read-write",
+                  "kind": "integer",
+                  "optional": true,
+                  "wide": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          },
+          "update": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "id": {
+                  "access": "read-write",
+                  "kind": "ref",
+                  "optional": false,
+                  "prefix": "prof",
+                  "target": "accounts.profile"
+                },
+                "ifVersion": {
+                  "access": "read-write",
+                  "kind": "integer",
+                  "optional": true,
+                  "wide": false
+                },
+                "patch": {
+                  "access": "read-write",
+                  "fields": {
+                    "deactivatedAt": {
+                      "access": "read-write",
+                      "kind": "instant",
+                      "optional": true,
+                      "tag": 4
+                    },
+                    "displayName": {
+                      "access": "read-write",
+                      "kind": "string",
+                      "maxLength": 120,
+                      "merge": "lww",
+                      "optional": true,
+                      "tag": 1
+                    },
+                    "email": {
+                      "access": "read-write",
+                      "format": "email",
+                      "kind": "string",
+                      "maskable": true,
+                      "merge": "exclusive",
+                      "optional": true,
+                      "personal": true,
+                      "tag": 2,
+                      "unique": true
+                    },
+                    "locale": {
+                      "access": "read-write",
+                      "kind": "string",
+                      "optional": true,
+                      "tag": 3
+                    }
+                  },
+                  "kind": "shape",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-7P8Im9u7Bwav9mmY7NaCL7bMKU_IgTXOBBPmyAP-8gg",
+      "instance": false,
+      "kind": "command",
+      "module": "accounts",
+      "mount": "entity",
+      "name": "set",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "archived": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "prof",
+              "target": "accounts.profile"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "created": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "prof",
+              "target": "accounts.profile"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "failed": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "code": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                },
+                "id": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": true
+                },
+                "message": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                },
+                "operation": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "newState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "oldState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "restored": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "prof",
+              "target": "accounts.profile"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "updated": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "prof",
+              "target": "accounts.profile"
+            },
+            "kind": "list",
+            "optional": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-yAYilo_TwkUoSE7wIgviQYtQU-2267ANOFLhYypiCAc",
+      "ref": "accounts.profile.set",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "accounts.profile",
+      "errors": [],
+      "execution": "sync",
+      "generated": "update",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "deactivatedAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true,
+            "tag": 4
+          },
+          "displayName": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 120,
+            "merge": "lww",
+            "optional": true,
+            "tag": 1
+          },
+          "email": {
+            "access": "read-write",
+            "format": "email",
+            "kind": "string",
+            "maskable": true,
+            "merge": "exclusive",
+            "optional": true,
+            "personal": true,
+            "tag": 2,
+            "unique": true
+          },
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "prof",
+            "target": "accounts.profile"
+          },
+          "ifVersion": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "locale": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 3
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-x6dsO7KF2r9b-JUtxyixnC9S0osuDuaES93W6R_1uk4",
+      "instance": true,
+      "kind": "command",
+      "module": "accounts",
+      "mount": "entity",
+      "name": "update",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "archivedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": true
+          },
+          "createdAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "deactivatedAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true,
+            "tag": 4
+          },
+          "displayName": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 120,
+            "merge": "lww",
+            "optional": false,
+            "tag": 1
+          },
+          "email": {
+            "access": "read-write",
+            "format": "email",
+            "kind": "string",
+            "maskable": true,
+            "merge": "exclusive",
+            "optional": false,
+            "personal": true,
+            "tag": 2,
+            "unique": true
+          },
+          "id": {
+            "access": "read",
+            "kind": "id",
+            "optional": false,
+            "prefix": "prof",
+            "target": "accounts.profile"
+          },
+          "locale": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 3
+          },
+          "updatedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "version": {
+            "access": "read",
+            "kind": "integer",
+            "optional": false,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-t2ECTYFYYZX5kTVofBHkwZocuGTJUyKfYoem-NkM0Es",
+      "ref": "accounts.profile.update",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "public",
+      "changedIn": [],
+      "errors": [
+        "accounts.email_taken",
+        "accounts.registration_disabled"
+      ],
+      "execution": "sync",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "displayName": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 1
+          },
+          "email": {
+            "access": "read-write",
+            "format": "email",
+            "kind": "string",
+            "optional": false,
+            "tag": 2
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-bAaapxMrAUT9tL0Zd0VhedMm_gOe2e_NPT4gWA9IlSI",
+      "instance": false,
+      "kind": "command",
+      "module": "accounts",
+      "mount": "module",
+      "name": "register",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "profileId": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "prof",
+            "tag": 1,
+            "target": "accounts.profile"
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-afcz3e-Om7I_Bvx19i1tF6DEVsn_Y-1hu_kVJPpfbFg",
+      "ref": "accounts.register",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    }
+  ],
+  "apiVersion": "2026-11-04",
+  "app": "subject",
+  "entities": [
+    {
+      "fields": {
+        "archivedAt": {
+          "access": "read",
+          "kind": "instant",
+          "optional": true
+        },
+        "createdAt": {
+          "access": "read",
+          "kind": "instant",
+          "optional": false
+        },
+        "deactivatedAt": {
+          "access": "read-write",
+          "kind": "instant",
+          "optional": true,
+          "tag": 4
+        },
+        "displayName": {
+          "access": "read-write",
+          "kind": "string",
+          "maxLength": 120,
+          "merge": "lww",
+          "optional": false,
+          "tag": 1
+        },
+        "email": {
+          "access": "read-write",
+          "format": "email",
+          "kind": "string",
+          "maskable": true,
+          "merge": "exclusive",
+          "optional": false,
+          "personal": true,
+          "tag": 2,
+          "unique": true
+        },
+        "id": {
+          "access": "read",
+          "kind": "id",
+          "optional": false,
+          "prefix": "prof",
+          "target": "accounts.profile"
+        },
+        "locale": {
+          "access": "read-write",
+          "kind": "string",
+          "optional": true,
+          "tag": 3
+        },
+        "updatedAt": {
+          "access": "read",
+          "kind": "instant",
+          "optional": false
+        },
+        "version": {
+          "access": "read",
+          "kind": "integer",
+          "optional": false,
+          "wide": false
+        }
+      },
+      "generated": [
+        "get",
+        "query",
+        "changes",
+        "queryChanges",
+        "create",
+        "update",
+        "archive",
+        "restore",
+        "set"
+      ],
+      "history": "chain",
+      "module": "accounts",
+      "name": "profile",
+      "origin": {},
+      "page": {
+        "defaultSize": 50,
+        "defaultSort": [
+          {
+            "direction": "asc",
+            "field": "id"
+          }
+        ],
+        "maxSize": 500,
+        "sortable": [
+          "createdAt",
+          "id",
+          "updatedAt"
+        ]
+      },
+      "prefix": "prof",
+      "ref": "accounts.profile",
+      "relations": {},
+      "tenancy": "tenant"
+    }
+  ],
+  "errors": [
+    {
+      "code": "accounts.email_taken",
+      "data": {
+        "access": "read-write",
+        "fields": {
+          "email": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "kind": "conflict",
+      "message": "This e-mail address is already in use.",
+      "retryable": false
+    },
+    {
+      "code": "accounts.registration_disabled",
+      "kind": "forbidden",
+      "message": "Self-registration is disabled.",
+      "retryable": false
+    }
+  ],
+  "events": [
+    {
+      "entity": "accounts.profile",
+      "generated": true,
+      "name": "archived"
+    },
+    {
+      "entity": "accounts.profile",
+      "generated": true,
+      "name": "changed"
+    },
+    {
+      "entity": "accounts.profile",
+      "generated": true,
+      "name": "created"
+    },
+    {
+      "data": {
+        "access": "read-write",
+        "fields": {
+          "at": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": false,
+            "tag": 1
+          },
+          "reason": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 2
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "entity": "accounts.profile",
+      "generated": false,
+      "name": "deactivated"
+    },
+    {
+      "entity": "accounts.profile",
+      "generated": true,
+      "name": "erased"
+    },
+    {
+      "entity": "accounts.profile",
+      "generated": true,
+      "name": "restored"
+    }
+  ],
+  "format": "keelwerk.surface/1",
+  "modules": [
+    {
+      "id": "accounts",
+      "version": "0.1.0"
+    }
+  ],
+  "resolvers": []
+}
+"
+`;

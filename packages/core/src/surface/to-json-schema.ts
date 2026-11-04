@@ -138,7 +138,7 @@ function kindSchema(node: FieldNode, direction: Direction): Schema {
     case 'shape':
       return shapeSchema(node.fields, direction);
     case 'json':
-      return { ...node.schema };
+      return { ...(node[direction] ?? node.schema) };
     case 'foreign':
       return { ...node[direction] };
     case 'richText':

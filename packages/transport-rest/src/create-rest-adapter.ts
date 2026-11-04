@@ -16,7 +16,7 @@ export function createRestAdapter(
   options: RestStaticOptions = {},
 ): TransportAdapter<RestStaticOptions, RestConfig> {
   const fixed: RestStaticOptions = { basePath: '/api', openapi: '3.1', ...options };
-  // No resolver descriptions yet: ApiSurface carries none until the principal resolvers (section 8.5) add them.
+  // The security schemes come from `surface.resolvers`, which the surface derivation fills from the principal resolvers (section 8.5).
   const artifacts = (surface: ApiSurface): readonly Artifact[] => [
     openapiArtifact(surface, {
       ...(fixed.basePath === undefined ? {} : { basePath: fixed.basePath }),
