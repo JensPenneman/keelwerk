@@ -1,0 +1,20 @@
+/** The kinds of part `keelwerk new` scaffolds in M1 (section 16.9.8). */
+export const newKinds = [
+  'module',
+  'entity',
+  'action',
+  'rule',
+  'flag',
+  'error',
+  'service',
+  'reaction',
+  'contribution',
+  'condition',
+  'lib',
+  'shape',
+  'effect',
+  'executor',
+  'schedule',
+  'app',
+  'script',
+] as const;
