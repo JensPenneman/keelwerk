@@ -34,4 +34,13 @@ export type CoreErrorCode =
   | 'core.reaction_depth'
   | 'core.effect_outcome_unknown'
   | 'core.effect_deadline'
-  | 'core.request_not_allowed';
+  | 'core.request_not_allowed'
+  | 'core.validation'
+  | 'core.unauthenticated'
+  | 'core.not_found'
+  | 'core.conflict'
+  | 'core.rate_limited'
+  | 'core.not_implemented'
+  | 'core.unavailable'
+  | 'core.unsupported'
+  | 'core.internal';

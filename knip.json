@@ -126,8 +126,7 @@
     },
     "packages/core": {
       "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["canonicalize"]
+      "project": ["src/**/*.ts"]
     },
     "spikes/node26-rechecks": {
       "entry": ["src/**/*.test-d.ts"],
