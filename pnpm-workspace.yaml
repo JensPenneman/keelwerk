@@ -20,3 +20,10 @@ allowBuilds:
   cpu-features: false
   protobufjs: false
   ssh2: false
+
+# Transitive dependencies of the write-path spike's testcontainers chain (archiver) with
+# open advisories; the fixed releases keep the APIs archiver uses. Drop an entry once the chain
+# requires the fixed release itself.
+overrides:
+  'glob@>=9.0.0 <14.0.2': 14.0.2
+  'minimatch@<11.0.1': 11.0.1
