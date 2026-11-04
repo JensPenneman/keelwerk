@@ -11,6 +11,62 @@ export { evaluateCondition } from './conditions/evaluate-condition.ts';
 export type { EvaluateOptions, RelationMatcher } from './conditions/evaluate-options.ts';
 export { normalizeCondition } from './conditions/normalize-condition.ts';
 export { normalizeWireFilter } from './conditions/normalize-wire-filter.ts';
+export type { Ability } from './contexts/ability.ts';
+export type { AnswersOf } from './contexts/answers-of.ts';
+export type { CoreComputations } from './contexts/core-computations.ts';
+export type { DecideContext } from './contexts/decide-context.ts';
+export type { Egress } from './contexts/egress.ts';
+export type { EntityLoads } from './contexts/entity-loads.ts';
+export type { EntityWrites } from './contexts/entity-writes.ts';
+export type { EventDraftsOf } from './contexts/event-drafts-of.ts';
+export type { ExecutorBlobs } from './contexts/executor-blobs.ts';
+export type { ExecutorContext } from './contexts/executor-context.ts';
+export type { ExtensionsOf } from './contexts/extensions-of.ts';
+export type { FlagRequests } from './contexts/flag-requests.ts';
+export type { FlagResolution } from './contexts/flag-resolution.ts';
+export type { HistoryEntry } from './contexts/history-entry.ts';
+export type { LiveOf } from './contexts/live-of.ts';
+export type { LiveQueries } from './contexts/live-queries.ts';
+export type { LoadsOf } from './contexts/loads-of.ts';
+export type { Maybe } from './contexts/maybe-accessor.ts';
+export type { PrepareContext } from './contexts/prepare-context.ts';
+export type { PrincipalContext } from './contexts/principal-context.ts';
+export type { PrincipalRefOf } from './contexts/principal-ref-of.ts';
+export type { QuerySpec } from './contexts/query-spec.ts';
+export type { ReadContext } from './contexts/read-context.ts';
+export type { SecretRequests } from './contexts/secret-requests.ts';
+export type { ServicesOf } from './contexts/services-of.ts';
+export type { Sort } from './contexts/sort.ts';
+export type { SourceContext } from './contexts/source-context.ts';
+export type { WritesOf } from './contexts/writes-of.ts';
+export { cancelTimer } from './dsl/cancel-timer.ts';
+export type { Contracts } from './dsl/contracts.ts';
+export { contracts } from './dsl/contracts.ts';
+export type {
+  CommandOptions,
+  EntityCommandSpec,
+  ModuleCommandSpec,
+  PrepareOf,
+} from './dsl/define-command.ts';
+export { defineCommand } from './dsl/define-command.ts';
+export type { AnyConditionDecl, ConditionDecl } from './dsl/define-condition.ts';
+export { defineCondition } from './dsl/define-condition.ts';
+export type { AnyContract, Contract, ContractLevel } from './dsl/define-contract.ts';
+export { defineContract } from './dsl/define-contract.ts';
+export type {
+  AnyContributionDecl,
+  ContributionDecl,
+  ContributionSpec,
+  EntitiesIn,
+  EntityPatch,
+  EntityPatches,
+  WhenIn,
+} from './dsl/define-contribution.ts';
+export { defineContribution } from './dsl/define-contribution.ts';
+export type { AnyEffectPart, EffectOptions, EffectPart } from './dsl/define-effect.ts';
+export { defineEffect } from './dsl/define-effect.ts';
+export type { EffectExecutorOptions, ExecutorPart } from './dsl/define-effect-executor.ts';
+export { defineEffectExecutor } from './dsl/define-effect-executor.ts';
 export type {
   AnyEntity,
   Entity,
@@ -26,6 +82,77 @@ export type {
   Tenancy,
 } from './dsl/define-entity.ts';
 export { defineEntity } from './dsl/define-entity.ts';
+export type { FillPart } from './dsl/define-fill.ts';
+export { defineFill } from './dsl/define-fill.ts';
+export type {
+  BooleanFlag,
+  FlagBase,
+  FlagDeclaration,
+  FlagLevel,
+  FlagPurpose,
+  JsonFlag,
+  NumberFlag,
+  StringFlag,
+  VariantFlag,
+} from './dsl/define-flag.ts';
+export { defineFlag } from './dsl/define-flag.ts';
+export type { HookPart, HookPayloads } from './dsl/define-hook.ts';
+export { defineHook } from './dsl/define-hook.ts';
+export type { LiteralChecks } from './dsl/define-module.ts';
+export { defineModule } from './dsl/define-module.ts';
+export { defineModuleBase } from './dsl/define-module-base.ts';
+export type { EntityQuerySpec, ModuleQuerySpec, QueryOptions } from './dsl/define-query.ts';
+export { defineQuery } from './dsl/define-query.ts';
+export type {
+  AsyncReactionEvent,
+  EventRefsOf,
+  InlineReactionEvent,
+  ReactionEventBase,
+  ReactionEventOf,
+  ReactionPart,
+  ReactionSpec,
+} from './dsl/define-reaction.ts';
+export { defineReaction } from './dsl/define-reaction.ts';
+export type {
+  ActionRuleSpec,
+  EntityRuleSpec,
+  RuleCondition,
+  RuleFieldName,
+  RulePart,
+  RuleSpec,
+  RuleTargetOf,
+} from './dsl/define-rule.ts';
+export { defineRule } from './dsl/define-rule.ts';
+export type { SchedulePart, ScheduleSpec, ScheduleTick } from './dsl/define-schedule.ts';
+export { defineSchedule } from './dsl/define-schedule.ts';
+export { defineService } from './dsl/define-service.ts';
+export type { SubscriptionSpec } from './dsl/define-subscription.ts';
+export { defineSubscription } from './dsl/define-subscription.ts';
+export type { EnqueueOptions } from './dsl/enqueue.ts';
+export { enqueue } from './dsl/enqueue.ts';
+export type {
+  ExtensionMode,
+  ExtensionPoint,
+  ExtensionPointFactory,
+  ExtensionPointOptions,
+} from './dsl/extension-point.ts';
+export { extensionPoint } from './dsl/extension-point.ts';
+export type { InvokeOptions } from './dsl/invoke.ts';
+export { invoke } from './dsl/invoke.ts';
+export { mapItems } from './dsl/map-items.ts';
+export { mountName } from './dsl/mount-name.ts';
+export type { OutcomeShape } from './dsl/outcome-of.ts';
+export { outcomeOf } from './dsl/outcome-of.ts';
+export type { EntityOutputSpec } from './dsl/page-of.ts';
+export { pageOf } from './dsl/page-of.ts';
+export { rowOf } from './dsl/row-of.ts';
+export type { SetTimerRefSpec, SetTimerSpec, TimerWhen } from './dsl/set-timer.ts';
+export { setTimer } from './dsl/set-timer.ts';
+export { settle } from './dsl/settle.ts';
+export type { SystemReason } from './dsl/system.ts';
+export { system } from './dsl/system.ts';
+export type { AnyWithin, DeclarationSection, Within } from './dsl/within.ts';
+export { within } from './dsl/within.ts';
 export type { AdmissionInput, AdmissionRule } from './edge/admission-rule.ts';
 export type { AdmissionVerdict } from './edge/admission-verdict.ts';
 export type { BucketCharge, BucketDemand } from './edge/bucket-demand.ts';
@@ -151,17 +278,108 @@ export type { LedgerSink } from './kernel/ledger-sink.ts';
 export type { RequestAnswerer } from './kernel/request-answerer.ts';
 export type { SecretProvider } from './kernel/secret-provider.ts';
 export type { SecretResolver } from './kernel/secret-resolver.ts';
+export type { ActionOptions } from './model/action-options.ts';
+export type {
+  ActionKind,
+  ActionPart,
+  AnyActionPart,
+  Execution,
+  PageOutput,
+  PartTypes,
+  RowOutput,
+} from './model/action-part.ts';
 export type { AllKeys } from './model/all-keys.ts';
+export type {
+  AnyModule,
+  AnyNormalisedConditional,
+  AnyNormalisedContribution,
+  AnyNormalisedEntity,
+  AnyNormalisedPatch,
+  Dependency,
+} from './model/any-module.ts';
+export type { AnyModuleBase } from './model/any-module-base.ts';
+export type { BaseChecks } from './model/base-checks.ts';
+export type { Behaviour } from './model/behaviour.ts';
+export type { BuiltinActionName } from './model/builtin-action-name.ts';
+export type { CamelCase } from './model/camel-case.ts';
 export type { Check } from './model/check.ts';
+export type { ConditionalFields } from './model/conditional-fields.ts';
+export type { ConditionsOf } from './model/conditions-of.ts';
+export type { ConfigOf } from './model/config-of.ts';
+export type { ContractsIn } from './model/contracts-in.ts';
+export type { ActiveIn, ContributedFields, ContributedMember } from './model/contributed-member.ts';
+export type { ContributionsOf } from './model/contributions-of.ts';
+export type { CurrentRow } from './model/current-row.ts';
+export type { DependencyRow } from './model/dependency-row.ts';
+export type { EffectOutcome } from './model/effect-outcome.ts';
+export type { EntitiesOf, EntityAt, EntityNames } from './model/entities-of.ts';
+export type { EntityChange } from './model/entity-change.ts';
+export type { EntityNameOf, OwnEntityValue } from './model/entity-name-of.ts';
+export type { EntityTargetOf } from './model/entity-target-of.ts';
 export type { EntityType } from './model/entity-type.ts';
+export type { ErrorUnion } from './model/error-union.ts';
+export type { EventTarget } from './model/event-target.ts';
+export type { EventsOf } from './model/events-of.ts';
+export type { ExtensionValue, FillValue } from './model/extension-value.ts';
+export type { FieldsOf } from './model/fields-of.ts';
+export type { GeneratorTemplate } from './model/generator-template.ts';
+export type { HandlerOutput } from './model/handler-output.ts';
+export type { IdOf } from './model/id-of.ts';
+export type { InputSpec } from './model/input-spec.ts';
+export type { InputValue } from './model/input-value.ts';
 export type { InsertOf } from './model/insert-of.ts';
+export type { InstanceInput } from './model/instance-input.ts';
 export type { IsUnion } from './model/is-union.ts';
+export type { ListOf } from './model/list-of.ts';
+export type { LiveSource } from './model/live-source.ts';
+export type { MemberOf } from './model/member-of.ts';
+export type { MismatchedExecutors } from './model/mismatched-executors.ts';
+export type { ModuleBaseType } from './model/module-base-type.ts';
+export type { ModuleIdsIn } from './model/module-ids-in.ts';
+export type { ModuleLiteral } from './model/module-literal.ts';
+export type { ModuleOf } from './model/module-of.ts';
+export type { ModuleType } from './model/module-type.ts';
+export type { BehaviourMounts, MountsFor } from './model/mounts-for.ts';
+export type { NoOutput } from './model/no-output.ts';
 export type { OfflinePatchOf } from './model/offline-patch-of.ts';
+export type { OutputSpec } from './model/output-spec.ts';
+export type { OwnFields, OwnRow } from './model/own-row.ts';
+export type { Page } from './model/page.ts';
+export type { PageInput } from './model/page-input.ts';
+export type {
+  AppSource,
+  BaseOf,
+  ContributionTargetOf,
+  DeclarationOf,
+  OwnerOf,
+  PartSource,
+  WhenOf,
+} from './model/part-source.ts';
 export type { CrdtUpdate, PatchOf, PatchValue } from './model/patch-of.ts';
+export type {
+  ModuleById,
+  OptionalContracts,
+  OptionalIds,
+  OptionalModules,
+  PresentContracts,
+  PresentIds,
+  PresentModules,
+} from './model/present-modules.ts';
 export type { Prettify } from './model/prettify.ts';
+export type { RelationsOf } from './model/relations-of.ts';
+export type { PartialRowOf, RowOf } from './model/row-of.ts';
+export type { RowView } from './model/row-view.ts';
+export type { Service } from './model/service.ts';
+export type { TargetName } from './model/target-name.ts';
+export type { TargetRef } from './model/target-ref.ts';
 export type { TypeAt } from './model/type-at.ts';
 export type { UnionToIntersection } from './model/union-to-intersection.ts';
+export type { UnknownPolicyTargets } from './model/unknown-policy-targets.ts';
+export type { UnknownPolicyTargetsIn } from './model/unknown-policy-targets-in.ts';
+export type { UnknownRuleActions } from './model/unknown-rule-actions.ts';
+export type { UnknownRuleActionsIn } from './model/unknown-rule-actions-in.ts';
 export type { FieldCondition, FieldOps, PersonalOps, Where } from './model/where.ts';
+export type { WireOutput } from './model/wire-output.ts';
 export { camel } from './naming/camel.ts';
 export { camelFromKebab } from './naming/camel-from-kebab.ts';
 export { kebab } from './naming/kebab.ts';

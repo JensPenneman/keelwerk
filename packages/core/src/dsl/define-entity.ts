@@ -4,6 +4,7 @@ import type { Shape, ShapeFields } from '../fields/shape.ts';
 import type { ShapeValue } from '../fields/shape-value.ts';
 import type { Where } from '../model/where.ts';
 import type { Empty } from '../types/empty.ts';
+import { refuseEntityDefinition } from './refuse-entity-definition.ts';
 
 type EventPayloadOf<S> = S extends Shape<infer F> ? ShapeValue<F, string, 'stored'> : never;
 
@@ -168,6 +169,7 @@ export function defineEntity<
 >(
   definition: EntityDefinition<P, F, Ev, H, G, Rel, I>,
 ): Entity<P, IndexedFields<F, IndexedNames<I>>, NoInfer<Ev>, NoInfer<H>, NoInfer<G>, NoInfer<Rel>> {
+  refuseEntityDefinition(definition);
   const indexed = new Set<string>((definition.indexes ?? []).flatMap((index) => index.fields));
   const fields = Object.fromEntries(
     Object.entries<AnyField>(definition.fields).map(([name, member]) => [
