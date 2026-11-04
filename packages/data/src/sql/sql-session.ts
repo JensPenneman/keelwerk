@@ -16,4 +16,10 @@ export interface SqlSession {
   nested<T>(fn: (session: SqlSession) => Promise<T>): Promise<T>;
   /** Runs after a successful commit; work registered inside a rolled-back savepoint is dropped. */
   afterCommit(fn: () => void): void;
+  /**
+   * Work that runs inside the transaction, in registration order, once the unit's function has
+   * returned and just before `commit`: the commit tail of the event store and the lane counters
+   * (15.1.4). Work registered inside a rolled-back savepoint is dropped. A failure rolls the unit back.
+   */
+  beforeCommit(fn: () => Promise<void>): void;
 }

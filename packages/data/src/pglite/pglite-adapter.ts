@@ -204,6 +204,7 @@ export function pgliteAdapter(
               });
               const value = await fn(opened.unit);
               unitOptions.signal?.throwIfAborted();
+              await opened.runBeforeCommit();
               await db.query('commit');
               return { result: value, afterCommit: opened.takeAfterCommit() };
             } catch (error) {

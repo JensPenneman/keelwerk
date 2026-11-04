@@ -6,8 +6,8 @@ import type { PostgresUnitRequest } from './postgres-unit-request.ts';
 import { runPostgresSession } from './run-postgres-session.ts';
 
 /**
- * The finished `Unit` over the shared SQL unit. The event store and the job store join with their
- * work packages (WP-31, WP-36); until then touching them is `unsupported`.
+ * The finished `Unit` over the shared SQL unit. The event store and enqueue and cancel of the job
+ * store are WP-31's; the rest of the job store joins with WP-36 and is `unsupported` until then.
  */
 function toUnit(base: SqlUnit): Unit {
   return {
@@ -15,12 +15,27 @@ function toUnit(base: SqlUnit): Unit {
     scope: base.scope,
     readOnly: base.readOnly,
     rows: base.rows,
-    get events(): Unit['events'] {
-      throw postgresNotWired('unit.events');
-    },
+    events: base.events,
     receipts: base.receipts,
-    get jobs(): Unit['jobs'] {
-      throw postgresNotWired('unit.jobs');
+    jobs: {
+      provisionGroup: base.jobs.provisionGroup,
+      enqueue: base.jobs.enqueue,
+      cancel: base.jobs.cancel,
+      promote: async () => {
+        throw postgresNotWired('unit.jobs.promote');
+      },
+      take: async () => {
+        throw postgresNotWired('unit.jobs.take');
+      },
+      heartbeat: async () => {
+        throw postgresNotWired('unit.jobs.heartbeat');
+      },
+      complete: async () => {
+        throw postgresNotWired('unit.jobs.complete');
+      },
+      stats: async () => {
+        throw postgresNotWired('unit.jobs.stats');
+      },
     },
     usage: base.usage,
     buckets: base.buckets,

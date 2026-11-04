@@ -1,5 +1,6 @@
 import type { EventStore, Position, StoredEvent } from '@keelwerk/core';
 import { errors, KeelwerkError } from '@keelwerk/core';
+import { assertStreamInScope } from '../sql/assert-stream-in-scope.ts';
 import type { MemoryCounter } from './memory-counter.ts';
 import { memoryEnvelope } from './memory-envelope.ts';
 import type { MemoryLoggedEvent } from './memory-logged-event.ts';
@@ -47,9 +48,11 @@ export function memoryEventStore(ctx: MemoryUnitContext): EventStore {
       }
       const planned = new Map<string, number>();
       for (const append of batch) {
-        if (ctx.entity(append.stream.type) === undefined) {
+        const entity = ctx.entity(append.stream.type);
+        if (entity === undefined) {
           throw errors.internal(`the shape of ${append.stream.type} is unknown to this unit`);
         }
+        assertStreamInScope(entity, ctx.scope);
         const key = memoryStreamKey(append.stream.type, append.stream.id);
         const version = planned.get(key) ?? committedVersion(append.stream.type, append.stream.id);
         if (version !== append.expectedVersion) {

@@ -37,6 +37,7 @@ export async function runPostgresSession<T>(
     ...(request.options?.timeoutMs === undefined ? {} : { timeoutMs: request.options.timeoutMs }),
   });
   const callbacks: (() => void)[] = [];
+  const beforeCommit: (() => Promise<void>)[] = [];
   const committed = await request.db.connection().execute(async (db) => {
     let savepoints = 0;
     const sessionOf = (): PostgresUnitSession => ({
@@ -47,10 +48,14 @@ export async function runPostgresSession<T>(
       afterCommit: (callback) => {
         callbacks.push(callback);
       },
+      beforeCommit: (work) => {
+        beforeCommit.push(work);
+      },
       nested: async (inner) => {
         savepoints += 1;
         const name = `kw_sp_${savepoints}`;
         const mark = callbacks.length;
+        const beforeMark = beforeCommit.length;
         await run(db, `savepoint ${name}`);
         try {
           const value = await inner(sessionOf());
@@ -58,6 +63,7 @@ export async function runPostgresSession<T>(
           return value;
         } catch (error) {
           callbacks.length = mark;
+          beforeCommit.length = beforeMark;
           await run(db, `rollback to savepoint ${name}`).catch(() => undefined);
           throw mapPostgresError(error);
         }
@@ -72,7 +78,10 @@ export async function runPostgresSession<T>(
       signal?.throwIfAborted();
       // A statement error swallowed outside a savepoint leaves the transaction aborted, and
       // PostgreSQL answers `commit` with `rollback` and no error; the probe fails with 25P02 then.
+      // It runs before the commit tail, so the tail's counter and lane locks are not held for it.
       await run(db, 'select 1');
+      // The commit tail and any other work of the unit's end, in the transaction and in order.
+      for (const work of beforeCommit.splice(0)) await work();
       await run(db, 'commit');
       return { value };
     } catch (error) {

@@ -131,11 +131,12 @@ describe('error mapping', () => {
 });
 
 describe('the adapter entry points', () => {
-  test('a unit runs; the event store and the job store are not available until they are wired', async () => {
+  test('a unit runs; the event store is wired and the job store beyond enqueue and cancel is not yet', async () => {
     expect(await adapter.unit(testNamespace, scopeA, async () => 1)).toBe(1);
-    for (const store of ['events', 'jobs'] as const) {
+    expect(await adapter.unit(testNamespace, scopeA, async (u) => u.events)).toBeDefined();
+    for (const method of ['promote', 'take', 'heartbeat', 'complete', 'stats'] as const) {
       const failure = await adapter
-        .unit(testNamespace, scopeA, async (u) => u[store])
+        .unit(testNamespace, scopeA, async (u) => (u.jobs[method] as () => Promise<unknown>)())
         .catch((e: unknown) => e);
       expect(isKeelwerkError(failure)).toBe(true);
       expect(failure).toMatchObject({ kind: 'unsupported' });

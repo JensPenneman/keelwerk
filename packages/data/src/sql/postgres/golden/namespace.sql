@@ -18,6 +18,7 @@ create table "example".kw_events (
   partition_key text,
   event_id uuid not null,
   name text not null,
+  schema_version integer not null,
   shape_id bytea not null,
   data jsonb not null,
   before jsonb,
@@ -57,14 +58,15 @@ create table "example".kw_job_lane_counts (
 );
 
 create table "example".kw_job_groups (
-  id text primary key,
+  id text not null,
   scope_id uuid,
   concurrency integer,
   running integer not null default 0,
   rate text,
   tokens double precision,
   refilled_at timestamptz(3),
-  blocked_until timestamptz
+  blocked_until timestamptz,
+  unique nulls not distinct (scope_id, id)
 );
 
 create table "example".kw_jobs (

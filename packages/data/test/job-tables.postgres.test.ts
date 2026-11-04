@@ -109,7 +109,7 @@ const take = `
   from picked p cross join share s cross join lateral (
     select * from ${ns}.kw_jobs j
     where j.lane_id = p.id and j.state = 'available' and j.revision <= $6
-      and not exists (select 1 from ${ns}.kw_job_groups g where g.id = j.group_id and g.blocked_until > now())
+      and not exists (select 1 from ${ns}.kw_job_groups g where g.id = j.group_id and g.scope_id is not distinct from j.scope_id and g.blocked_until > now())
     order by j.run_at, j.id
     limit least(p.room, s.n)
     for update skip locked) j`;

@@ -15,4 +15,6 @@ export interface PostgresUnitSession {
   nested<T>(fn: (session: PostgresUnitSession) => Promise<T>): Promise<T>;
   /** Runs after a successful commit; work registered inside a rolled-back savepoint is dropped. */
   afterCommit(fn: () => void): void;
+  /** Runs inside the transaction just before `commit`; work registered inside a rolled-back savepoint is dropped. */
+  beforeCommit(fn: () => Promise<void>): void;
 }

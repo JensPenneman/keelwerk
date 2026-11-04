@@ -94,6 +94,7 @@ export { ScopingPlugin } from './sql/scoping-plugin.ts';
 export type { SqlDb } from './sql/sql-db.ts';
 export type { SqlEntityIndex } from './sql/sql-entity-index.ts';
 export { sqlEntityIndex } from './sql/sql-entity-index.ts';
+export type { SqlJobStore } from './sql/sql-job-store.ts';
 export type { SqlKeyWrapper } from './sql/sql-key-wrapper.ts';
 export type { SqlSession } from './sql/sql-session.ts';
 export type { SqlUnit, SqlUnitParts } from './sql/sql-unit.ts';

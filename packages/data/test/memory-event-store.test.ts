@@ -7,6 +7,7 @@ import { id } from './support/id.ts';
 import { openMemory } from './support/memory-fixture.ts';
 import { namespaceScope } from './support/namespace-scope.ts';
 import { newEvent } from './support/new-event.ts';
+import { setting } from './support/setting.ts';
 import { tenantScope } from './support/tenant-scope.ts';
 import { tenantTwo } from './support/tenant-two.ts';
 
@@ -86,10 +87,12 @@ describe('append, commit tail and positions (15.1.4)', () => {
   });
 
   test('each scope counts its own positions', async () => {
-    const memory = openMemory();
+    const memory = openMemory([setting]);
     await memory.run(tenantScope, (unit) => unit.events.append([append(1, [1, 2, 3])]));
     await memory.run(tenantTwo, (unit) => unit.events.append([append(1, [1])]));
-    await memory.run(backendScope, (unit) => unit.events.append([append(1, [1, 2])]));
+    await memory.run(backendScope, (unit) =>
+      unit.events.append([append(1, [1, 2], { stream: stream(1, 'app.setting') })]),
+    );
     expect(await memory.read(tenantScope, (unit) => unit.events.head())).toBe(3n);
     expect(await memory.read(tenantTwo, (unit) => unit.events.head())).toBe(1n);
     expect(await memory.read(backendScope, (unit) => unit.events.head())).toBe(2n);
@@ -117,7 +120,9 @@ describe('append, commit tail and positions (15.1.4)', () => {
 
   test('a deployment unit has a log of its own; a namespace unit has none; read-only units cannot append', async () => {
     const memory = openMemory();
-    await memory.run(deploymentScope, (unit) => unit.events.append([append(1, [1, 2])]));
+    await memory.run(deploymentScope, (unit) =>
+      unit.events.append([append(1, [1, 2], { stream: stream(1, 'app.global') })]),
+    );
     expect(await memory.read(deploymentScope, (unit) => unit.events.head())).toBe(2n);
     expect(await memory.read(tenantScope, (unit) => unit.events.head())).toBeNull();
     const moved = await memory.read(deploymentScope, (unit) =>
@@ -246,7 +251,7 @@ describe('reading', () => {
       eventId: id(2001),
       namespace: 'ns-1',
       scope: tenantScope,
-      shape: 'shape-1',
+      shape: '0f'.repeat(32),
       version: 1,
       partition: null,
       data: { n: 1 },

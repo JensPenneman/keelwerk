@@ -1,20 +1,48 @@
-import type { JobAttempt, JobStore } from '@keelwerk/core';
+import type { JobAttempt, JobGroup, JobStore } from '@keelwerk/core';
+import { errors } from '@keelwerk/core';
 import { memoryAdjustLane } from './memory-adjust-lane.ts';
 import { memoryJobComplete } from './memory-job-complete.ts';
 import { memoryJobEnqueue } from './memory-job-enqueue.ts';
 import { memoryJobFinish } from './memory-job-finish.ts';
+import { memoryJobGroups } from './memory-job-groups.ts';
 import { memoryJobScopes } from './memory-job-scopes.ts';
 import { memoryJobStats } from './memory-job-stats.ts';
 import { memoryJobTake } from './memory-job-take.ts';
+import { memoryParseRate } from './memory-parse-rate.ts';
 import type { MemoryUnitContext } from './memory-unit-context.ts';
+
+/** The job store of a unit with the provisioning of namespace groups, which `JobStore` of core lacks. */
+export interface MemoryJobStore extends JobStore {
+  provisionGroup(group: JobGroup): Promise<void>;
+}
 
 /**
  * The job store of a unit (14.3.9) over the queue tables as maps: enqueue with the lane upsert
  * and the key policies, cancel, promotion of due `scheduled` jobs, the single-writer fair take,
  * heartbeats, completion and statistics. `schedules()` arrives in M2 with the schedule store (S-03).
  */
-export function memoryJobStore(ctx: MemoryUnitContext): JobStore {
+export function memoryJobStore(ctx: MemoryUnitContext): MemoryJobStore {
   return {
+    provisionGroup: async (group) => {
+      ctx.writable();
+      if (ctx.scope.level !== 'namespace' || group.scope !== 'namespace') {
+        throw errors.internal(
+          'a namespace job group is provisioned by a namespace-scope unit only',
+        );
+      }
+      const groups = memoryJobGroups(ctx);
+      const before = groups.get('', group.id, true);
+      const rate = group.rate === undefined ? null : memoryParseRate(group.rate);
+      groups.put('', true, {
+        id: group.id,
+        concurrency: group.concurrency ?? null,
+        running: before?.running ?? 0,
+        rate,
+        tokens: before?.tokens ?? rate?.count ?? 0,
+        refilledAt: before?.refilledAt ?? ctx.clock.now(),
+        blockedUntil: before?.blockedUntil ?? null,
+      });
+    },
     enqueue: async (job) => memoryJobEnqueue(ctx, job),
     cancel: async (queue, key) => {
       ctx.writable();

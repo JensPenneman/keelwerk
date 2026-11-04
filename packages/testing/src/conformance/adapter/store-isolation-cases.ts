@@ -1,4 +1,4 @@
-import type { StorageScope } from '@keelwerk/core';
+import type { Scope, StorageScope } from '@keelwerk/core';
 import { conformanceEntities, conformanceId, conformanceScopes } from '@keelwerk/data/conformance';
 import { describe, expect, test } from 'vitest';
 import { appendOf } from './append-of.ts';
@@ -186,8 +186,13 @@ export function storeIsolationCases(subject: ConformanceSubject): void {
     });
 
     test('tenant, backend and deployment units own an event log; a namespace unit has none', async () => {
-      for (const scope of [tenantA, backend, deployment]) {
-        await subject.run(scope, (unit) => unit.events.append([appendOf(1, [1, 2])]));
+      const owned: readonly (readonly [Scope, string])[] = [
+        [tenantA, 'conf.owner'],
+        [backend, 'conf.setting'],
+        [deployment, 'conf.network'],
+      ];
+      for (const [scope, type] of owned) {
+        await subject.run(scope, (unit) => unit.events.append([appendOf(1, [1, 2], {}, type)]));
         expect(await subject.read(scope, (unit) => unit.events.head())).toBe(2n);
       }
       expect(
@@ -209,7 +214,9 @@ export function storeIsolationCases(subject: ConformanceSubject): void {
 
   describe('a nested backend view does not see the tenant buffers', () => {
     test('events a tenant appended in the unit are not backend events', async () => {
-      await subject.run(backend, (unit) => unit.events.append([appendOf(1, [1])]));
+      await subject.run(backend, (unit) =>
+        unit.events.append([appendOf(1, [1], {}, 'conf.setting')]),
+      );
       await subject.run(tenantA, async (unit) => {
         await unit.events.append([appendOf(2, [2, 3])]);
         const seen = await unit.nested(

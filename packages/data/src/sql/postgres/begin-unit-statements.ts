@@ -1,30 +1,11 @@
 import type { StorageScope, UnitOptions } from '@keelwerk/core';
+import { scopeSettings } from './scope-settings.ts';
 
 const isolationLevels = {
   'read-committed': 'read committed',
   'repeatable-read': 'repeatable read',
   serializable: 'serializable',
 } as const;
-
-function scopeSettings(
-  scope: StorageScope,
-  deploymentId: string | undefined,
-): readonly (readonly [string, string])[] {
-  switch (scope.level) {
-    case 'tenant':
-      return [['keelwerk.tenant_id', scope.tenantId]];
-    case 'backend':
-      return [['keelwerk.backend_id', scope.backendId]];
-    case 'namespace':
-      return [['keelwerk.scope', 'namespace']];
-    case 'deployment':
-      // The policies admit control-root rows only to a unit that names its deployment (F-12).
-      if (deploymentId === undefined || deploymentId === '') {
-        throw new TypeError('a deployment unit needs the deployment id');
-      }
-      return [['keelwerk.deployment_id', deploymentId]];
-  }
-}
 
 /** A statement and its parameters, for a driver that takes text. */
 export interface PostgresStatement {

@@ -35,7 +35,14 @@ test('Unit has exactly the members of S-03', () => {
 
 test('JobStore lacks schedules until M2', () => {
   expectTypeOf<keyof JobStore>().toEqualTypeOf<
-    'enqueue' | 'cancel' | 'promote' | 'take' | 'heartbeat' | 'complete' | 'stats'
+    | 'provisionGroup'
+    | 'enqueue'
+    | 'cancel'
+    | 'promote'
+    | 'take'
+    | 'heartbeat'
+    | 'complete'
+    | 'stats'
   >();
 });
 

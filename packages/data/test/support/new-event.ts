@@ -8,7 +8,7 @@ export function newEvent(n: number, over: Partial<NewEvent> = {}): NewEvent {
     eventId: id(2000 + n),
     name: n === 1 ? 'created' : 'changed',
     schemaVersion: 1,
-    shape: 'shape-1',
+    shape: '0f'.repeat(32),
     data: { n },
     before: null,
     hlc: `0000${n}` as NewEvent['hlc'],

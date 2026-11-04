@@ -11,6 +11,7 @@ export function kwEvents(root: string): readonly string[] {
   partition_key text,
   event_id uuid not null,
   name text not null,
+  schema_version integer not null,
   shape_id bytea not null,
   data jsonb not null,
   before jsonb,

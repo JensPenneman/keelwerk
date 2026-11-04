@@ -1,3 +1,4 @@
+import type { JobGroup } from '../jobs/job-group.ts';
 import type { JobAttempt } from './job-attempt.ts';
 import type { JobId } from './job-id.ts';
 import type { JobOutcome } from './job-outcome.ts';
@@ -10,6 +11,11 @@ import type { WorkClassStats } from './work-class-stats.ts';
  * with the schedule store (S-03).
  */
 export interface JobStore {
+  /**
+   * Creates or re-limits a group row. A namespace-spanning group exists only through this call from a
+   * namespace unit, so tenants never wait on each other for it (section 15.1.4); refused elsewhere.
+   */
+  provisionGroup(group: JobGroup): Promise<void>;
   /** Keys: keep, replace or coalesce a pending job with the same key and lane. */
   enqueue(job: StoredJobSpec): Promise<JobId>;
   cancel(queue: string, key: string): Promise<number>;
