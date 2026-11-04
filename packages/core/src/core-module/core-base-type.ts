@@ -183,6 +183,18 @@ export interface CoreBase {
           'enum'
         >;
         readonly attempts: DefaultedCount;
+        readonly performer: FieldDef<'executor' | 'external', NoFlags, null, 'enum'>;
+        readonly input: OptionalDocument;
+        readonly eventIds: FieldDef<readonly string[], NoFlags, null, 'list'>;
+        readonly continuation: OptionalText;
+        readonly continuationWith: OptionalDocument;
+        readonly key: OptionalText;
+        readonly runAt: OptionalMoment;
+        readonly deadline: OptionalMoment;
+        readonly output: OptionalDocument;
+        readonly error: OptionalDocument;
+        readonly outputDigest: OptionalText;
+        readonly settledAt: OptionalMoment;
       },
       Empty,
       'chain',

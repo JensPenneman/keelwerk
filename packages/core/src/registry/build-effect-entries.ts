@@ -1,3 +1,4 @@
+import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
 import type { EffectEntry } from './effect-entry.ts';
 import type { RuntimeModule } from './runtime-module.ts';
 
@@ -18,6 +19,8 @@ export function buildEffectEntries(
         performer,
         executor:
           executor !== undefined && executor !== null && performer === 'executor' ? ref : null,
+        input: Reflect.get(part, 'input') as StandardSchemaV1,
+        output: Reflect.get(part, 'output') as StandardSchemaV1,
       });
     }
   }

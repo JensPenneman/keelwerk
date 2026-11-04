@@ -8,8 +8,10 @@ import type { EventsOf } from '../model/events-of.ts';
 import type { OwnRow } from '../model/own-row.ts';
 import type { BaseOf, OwnerOf, PartSource, WhenOf } from '../model/part-source.ts';
 import type { ModuleById, PresentModules } from '../model/present-modules.ts';
+import type { ActorRef } from '../principals/actor-ref.ts';
 import type { Decision } from '../protocol/decision.ts';
 import type { Gen } from '../protocol/gen.ts';
+import type { Position } from '../storage/position.ts';
 
 type GeneratedEventName = 'created' | 'changed' | 'archived' | 'restored' | 'erased';
 type EventRefsOfModule<I extends string, M> = {
@@ -45,8 +47,11 @@ export interface ReactionEventBase<Name extends string, Data, R> {
   readonly type: Name;
   readonly stream: { readonly type: string; readonly id: string };
   readonly version: number;
+  /** The global position; `null` until the producing unit commits. */
+  readonly position: Position | null;
   readonly data: Data;
   readonly before: Partial<R> | null;
+  readonly actor: ActorRef;
   readonly commandId: string | null;
   readonly at: Temporal.Instant;
 }

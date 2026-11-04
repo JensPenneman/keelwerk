@@ -1,8 +1,11 @@
 import { hybridClock } from '../clock/hybrid-clock.ts';
+import { plannedEffectIds } from '../effects/planned-effect-ids.ts';
 import { runKernelEffects } from '../effects/run-kernel-effects.ts';
+import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { buildDecisionRecord } from '../events/build-decision-record.ts';
 import { buildEventMeta } from '../events/build-event-meta.ts';
+import type { EventMeta } from '../events/event-meta.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import type { Clock } from '../kernel/clock.ts';
@@ -14,6 +17,7 @@ import { checkWrittenItems } from './check-written-items.ts';
 import { commandOutput } from './command-output.ts';
 import { defaultNodeId } from './default-node-id.ts';
 import { draftsToEvents } from './drafts-to-events.ts';
+import { inputFingerprint } from './input-fingerprint.ts';
 import { insertPendingReceipt } from './insert-pending-receipt.ts';
 import { loadTarget } from './load-target.ts';
 import { normalizeDecision } from './normalize-decision.ts';
@@ -32,6 +36,8 @@ export interface AttemptInput {
   /** The invocation's clock: one instant for every attempt. */
   readonly clock: Clock;
   readonly prepared: unknown;
+  /** An `invoke` runs the command nested: how deep, and the command that invoked it. */
+  readonly nested?: { readonly depth: number; readonly causationId: string };
 }
 
 /**
@@ -57,6 +63,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
       request: run.request,
       ...(run.client === undefined ? {} : { client: run.client }),
       now,
+      ...(action.idempotencyWindowMs === undefined ? {} : { windowMs: action.idempotencyWindowMs }),
     }),
   );
   if (pending.kind === 'replay')
@@ -111,6 +118,9 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
 
   const reads = [...targetReads, ...decision.reads];
   const flags = [...decision.flags.values()];
+  const plannedEffects = plannedEffectIds(run.scope, commandId, decided.effects);
+  const processClock = run.hybridClock ?? hybridClock(run.nodeId ?? defaultNodeId);
+  let meta: EventMeta | undefined;
   const drafts = await sealDrafts({ registry, unit, drafts: decided.drafts });
   const written = await draftsToEvents({
     unit,
@@ -119,12 +129,13 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     drafts,
     authority,
     now,
-    meta: (recorded) =>
-      buildEventMeta({
+    meta: (recorded) => {
+      meta = buildEventMeta({
         principal: run.principal,
         commandId,
         action: action.ref,
         correlationId: run.correlationId ?? run.request.requestId,
+        ...(input.nested === undefined ? {} : { causationId: input.nested.causationId }),
         ...(run.client === undefined ? {} : { client: run.client }),
         ...(run.traceparent === undefined ? {} : { traceparent: run.traceparent }),
         build: run.build,
@@ -134,13 +145,16 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
           inputDigest: fingerprint,
           reads: recorded,
           answers: decision.answers,
-          effects: [],
+          effects: plannedEffects,
         }),
-      }),
+      });
+      return meta;
+    },
     reads,
     loaded,
-    hybridClock: run.hybridClock ?? hybridClock(run.nodeId ?? defaultNodeId),
+    hybridClock: processClock,
   });
+  if (meta === undefined) throw errors.internal('the decision wrote without building its meta');
   await writeStateRows(unit, written);
   await appendEvents(unit, written);
   await checkWrittenItems({
@@ -153,7 +167,33 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     written,
   });
 
-  const effects = await runKernelEffects({ unit, effects: decided.effects, commandId });
+  const effects = await runKernelEffects({
+    unit,
+    run,
+    commandId,
+    clock,
+    meta,
+    written,
+    effects: decided.effects,
+    hybridClock: processClock,
+    depth: input.nested?.depth ?? 0,
+    runNested: (nestedUnit, nestedRun, nested) =>
+      attemptCommand(
+        {
+          run: nestedRun,
+          commandId: nested.commandId,
+          fingerprint: inputFingerprint(
+            nestedRun.action.ref,
+            nestedRun.apiVersion,
+            nestedRun.input,
+          ),
+          clock,
+          prepared: undefined,
+          nested,
+        },
+        nestedUnit,
+      ),
+  });
   const { output, outcome } = commandOutput({
     registry,
     action,

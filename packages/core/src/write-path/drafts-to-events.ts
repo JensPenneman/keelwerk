@@ -218,6 +218,7 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
         loadedVersion: 0,
         row: next,
         events: [],
+        images: [],
       };
       written.set(key, work);
       previous = undefined;
@@ -233,6 +234,7 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
           loadedVersion: Number(row.version),
           row,
           events: [],
+          images: [],
         };
         written.set(key, work);
       }
@@ -312,6 +314,7 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
       hash,
     };
     work.events.push(event);
+    work.images.push(next);
     work.row = next;
   }
   return [...written.values()];

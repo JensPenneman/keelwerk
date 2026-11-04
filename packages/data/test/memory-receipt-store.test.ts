@@ -112,3 +112,16 @@ test("forClient lists a client's receipts after a sequence number, acknowledge s
   expect(stamped).toEqual([true, true, false]);
   expect(await memory.read(tenantScope, (unit) => unit.receipts.get('other'))).toBeDefined();
 });
+
+test('claim takes over a receipt whose expiry has passed and keeps a live one', async () => {
+  const memory = openMemory();
+  const kinds = async (fingerprint: string) =>
+    memory.run(tenantScope, (unit) => unit.receipts.claim(receipt('c1', { fingerprint })));
+  expect(await kinds('f1')).toBe('inserted');
+  expect(await kinds('f2')).toBe('exists');
+  memory.clock.advance(24 * 60 * 60 * 1000);
+  expect(await kinds('f3')).toBe('inserted');
+  expect((await memory.read(tenantScope, (unit) => unit.receipts.get('c1')))?.fingerprint).toBe(
+    'f3',
+  );
+});

@@ -2,6 +2,7 @@ import { refuseRequest } from '../../interpreter/refuse-request.ts';
 import type { Principal } from '../../principals/principal.ts';
 import type { PrincipalRef } from '../../principals/principal-ref.ts';
 import type { AnyEffect } from '../../protocol/any-effect.ts';
+import { moduleServicePrincipal } from '../../reactions/module-service-principal.ts';
 import type { StoredJobSpec } from '../../storage/stored-job-spec.ts';
 import type { InvokerEnv } from '../invoker-env.ts';
 import type { ScopeTarget } from '../scope-target.ts';
@@ -68,7 +69,7 @@ function jobOf(
       principal:
         module === undefined
           ? common.principal
-          : { resolver: 'core.invoker', principalId: `${module}.system` },
+          : (moduleServicePrincipal(module, principal).ref ?? common.principal),
       queue: 'timers',
       run: { action: effect.action, input: effect.input },
       runAt,

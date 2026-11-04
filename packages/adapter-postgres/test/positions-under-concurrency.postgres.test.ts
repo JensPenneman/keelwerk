@@ -64,8 +64,10 @@ interface Waits {
   samples: number;
   sameScope: number;
   crossScope: number;
-  /** The `pg_locks` row of every waiter that waited on the other scope's unit. */
+  /** The `pg_locks` row of every waiter that waited on the other scope's unit for a row or a transaction. */
   crossDetails: string[];
+  /** Cross-scope samples whose wait was storage-level (extension, page) or already over when sampled. */
+  crossIgnored: number;
 }
 
 /** Samples `pg_blocking_pids` on the owner's connection until `stop` is called. */
@@ -76,7 +78,13 @@ function sampleWaits(): {
   readonly seen: () => Waits;
   readonly stop: () => Promise<Waits>;
 } {
-  const waits: Waits = { samples: 0, sameScope: 0, crossScope: 0, crossDetails: [] };
+  const waits: Waits = {
+    samples: 0,
+    sameScope: 0,
+    crossScope: 0,
+    crossDetails: [],
+    crossIgnored: 0,
+  };
   const state = { running: true };
   const first: { done: () => void } = { done: () => undefined };
   const ready = new Promise<void>((resolve) => {
@@ -84,11 +92,23 @@ function sampleWaits(): {
   });
   const loop = owner(async (client) => {
     while (state.running) {
-      const found = await client.query<{ pid: number; waiter: string; blocker: string }>(
-        `select w.pid, w.application_name as waiter, b.application_name as blocker
+      const found = await client.query<{
+        pid: number;
+        waiter: string;
+        blocker: string;
+        locktype: string | null;
+        relation: string | null;
+        page: number | null;
+        tuple: number | null;
+        transactionid: string | null;
+      }>(
+        `select w.pid, w.application_name as waiter, b.application_name as blocker,
+                l.locktype, l.relation::regclass::text as relation, l.page, l.tuple,
+                l.transactionid::text as transactionid
          from pg_stat_activity w
          cross join lateral unnest(pg_blocking_pids(w.pid)) as bp (pid)
          join pg_stat_activity b on b.pid = bp.pid
+         left join pg_locks l on l.pid = w.pid and not l.granted
          where w.datname = current_database() and w.application_name like 'kwtest:%'
            and b.application_name like 'kwtest:%'`,
       );
@@ -99,14 +119,17 @@ function sampleWaits(): {
           waits.sameScope += 1;
           continue;
         }
+        // Only a row or transaction wait is a tenant waiting on another tenant's tail (15.1.4); a
+        // relation extension or page wait is storage-level, and a wait that ended before the lock
+        // row could be read says nothing about what it waited for.
+        if (wait.locktype !== 'tuple' && wait.locktype !== 'transactionid') {
+          waits.crossIgnored += 1;
+          continue;
+        }
         waits.crossScope += 1;
-        const locks = await client.query(
-          `select locktype, relation::regclass::text as relation, page, tuple, transactionid::text as transactionid
-           from pg_locks where pid = $1 and not granted`,
-          [wait.pid],
-        );
+        const { pid: _pid, waiter: _waiter, blocker: _blocker, ...lock } = wait;
         waits.crossDetails.push(
-          `${wait.waiter} waited on ${wait.blocker}: ${JSON.stringify(locks.rows)}`,
+          `${wait.waiter} waited on ${wait.blocker}: ${JSON.stringify(lock)}`,
         );
       }
       await pause(2);

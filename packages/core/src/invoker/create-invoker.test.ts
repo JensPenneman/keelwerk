@@ -86,7 +86,7 @@ describe('the order of the stages', () => {
 });
 
 describe('the prepare stage', () => {
-  test('a command that declares prepare is refused with not_implemented before execute', async () => {
+  test('a command that declares prepare reaches execute: the write path runs prepare, not the stage', async () => {
     let ran = false;
     const outcome = await invokerOf(noRules, {
       commands: async () => {
@@ -94,11 +94,8 @@ describe('the prepare stage', () => {
         return { output: {} };
       },
     }).invoke(callOf('doc.preparing', { n: 1 }, { carrier }));
-    expect(failureOf(outcome)).toMatchObject({
-      kind: 'not_implemented',
-      code: 'core.not_implemented',
-    });
-    expect(ran).toBe(false);
+    expect(outcome).toMatchObject({ ok: true });
+    expect(ran).toBe(true);
   });
 });
 

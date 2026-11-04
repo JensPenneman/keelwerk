@@ -1,6 +1,6 @@
 import type { Receipt } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
-import { addBooks, commandKit, invokeAsAda, snapshot } from './support/command-kit.ts';
+import { addBooks, commandKit, flaky, invokeAsAda, snapshot } from './support/command-kit.ts';
 import { ada, call, failure } from './support/invoker-kit.ts';
 import { namespace, tenant } from './support/run-read-kit.ts';
 
@@ -97,5 +97,69 @@ describe('ReceiptStore.claim', () => {
       return { first, second, kept: (await unit.receipts.get('k'))?.fingerprint };
     });
     expect(kinds).toEqual({ first: 'inserted', second: 'exists', kept: 'a' });
+  });
+});
+
+describe('an expired receipt', () => {
+  test('its command id runs again once the idempotency window has passed', async () => {
+    let current = Temporal.Instant.from('2026-01-01T00:00:00Z');
+    const { adapter, invoker } = commandKit({ clock: { now: () => current } });
+    const run = () =>
+      invoker.invoke(
+        call(
+          'library.addBook',
+          { title: 'Dune', isbn: `isbn-${current.toString().slice(8, 10)}` },
+          { carrier: ada, commandId: 'c1' },
+        ),
+      );
+    expect(await run()).toMatchObject({ ok: true });
+    current = current.add({ hours: 25 });
+    const again = await run();
+    expect(again).toMatchObject({ ok: true });
+    expect('replayed' in again).toBe(false);
+    expect((await snapshot(adapter, undefined, 'c1')).books).toHaveLength(2);
+  });
+});
+
+describe('failed commands', () => {
+  test('a declared error is recorded and a retry with the same id answers it from the receipt', async () => {
+    const { adapter, invoker } = commandKit();
+    await invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'a' }));
+    const first = failure(
+      await invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'b' })),
+    );
+    expect(first.code).toBe('library.isbn_taken');
+    const { receipt } = await snapshot(adapter, undefined, 'b');
+    expect(receipt).toMatchObject({
+      status: 'failed',
+      outcome: { ok: false, error: { kind: first.kind, code: 'library.isbn_taken' } },
+    });
+    const again = failure(
+      await invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'b' })),
+    );
+    expect(again).toMatchObject({ kind: first.kind, code: 'library.isbn_taken' });
+    expect(again.message).toBe(first.message);
+    expect((await snapshot(adapter)).books).toHaveLength(1);
+  });
+
+  test('a conflict retried to success records a completed receipt only', async () => {
+    const { adapter, units } = flaky(commandKit().adapter, 1);
+    const { invoker } = commandKit({ adapter });
+    const outcome = await invoker.invoke(
+      call('library.addBook', input, { carrier: ada, commandId: 'c1' }),
+    );
+    expect(outcome.ok).toBe(true);
+    expect(units()).toBe(2);
+    expect((await snapshot(adapter, undefined, 'c1')).receipt?.status).toBe('completed');
+  });
+
+  test('a conflict that outlasts the retries records nothing', async () => {
+    const { adapter } = flaky(commandKit().adapter, 10);
+    const { invoker } = commandKit({ adapter });
+    const error = failure(
+      await invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'c2' })),
+    );
+    expect(error.code).toBe('core.version_mismatch');
+    expect((await snapshot(adapter, undefined, 'c2')).receipt).toBeUndefined();
   });
 });

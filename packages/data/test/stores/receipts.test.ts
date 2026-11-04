@@ -139,3 +139,16 @@ test('claim inserts the receipt once and answers exists afterwards without chang
   const other = await memory.run(tenantTwo, (unit) => unit.receipts.claim(receipt('c1')));
   expect(other).toBe('inserted');
 });
+
+test('claim takes over a receipt whose expiry has passed and keeps a live one', async () => {
+  const claim = (fingerprint: string) =>
+    memory.run(tenantScope, (unit) => unit.receipts.claim(receipt('c1', { fingerprint })));
+  const kept = () =>
+    memory.read(tenantScope, async (unit) => (await unit.receipts.get('c1'))?.fingerprint);
+  expect(await claim('f1')).toBe('inserted');
+  expect(await claim('f2')).toBe('exists');
+  expect(await kept()).toBe('f1');
+  memory.clock.advance(24 * 60 * 60 * 1000);
+  expect(await claim('f3')).toBe('inserted');
+  expect(await kept()).toBe('f3');
+});

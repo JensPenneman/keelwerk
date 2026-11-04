@@ -1,0 +1,41 @@
+{
+  "laneCap": 4,
+  "createdAt": "2026-01-01T00:00:00Z",
+  "scope": {
+    "level": "tenant",
+    "backendId": "00000000-0000-4000-8000-0000000000b1",
+    "tenantId": "00000000-0000-4000-8000-0000000000a1"
+  },
+  "principal": {
+    "resolver": "test",
+    "principalId": "ada"
+  },
+  "causation": {
+    "commandId": "a1",
+    "actor": {
+      "kind": "user",
+      "id": "ada",
+      "via": "test"
+    }
+  },
+  "build": {
+    "id": "build-42",
+    "revision": 7
+  },
+  "apiVersion": "2026-11-01",
+  "kind": "action",
+  "queue": "commands",
+  "run": {
+    "action": "library.slow",
+    "input": {
+      "n": 1
+    },
+    "commandId": "a1"
+  },
+  "id": "1",
+  "runAt": "2026-01-01T00:00:00Z",
+  "attempt": {
+    "jobId": "1",
+    "attempt": 1
+  }
+}

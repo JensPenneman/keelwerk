@@ -32,7 +32,7 @@ describe('the item check, the invariant and the module boundary', () => {
     expect(books[0]?.version).toBe(1);
     expect(books[0]?.reservedBy).toBeUndefined();
     expect(events).toHaveLength(1);
-    expect(receipt).toBeUndefined();
+    expect(receipt).toMatchObject({ status: 'failed' });
   });
 
   test('the entity invariant is checked on every post-image', async () => {

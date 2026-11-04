@@ -1,16 +1,9 @@
-import { KeelwerkError } from '../../errors/keelwerk-error.ts';
 import type { ActionEntry } from '../../registry/action-entry.ts';
 
 /**
- * `prepare` (section 9.2): the loads and inline effects of a synchronous command that declares
- * `prepare`, outside any unit. Queries and commands without `prepare` pass; the stage for a
- * declared `prepare` arrives with the write path, and until then such a command is refused.
+ * `prepare` (section 9.2): admits the commands that declare `prepare`. The handler itself runs in
+ * the write path, outside any unit of the command (`runPrepare`, section 7.9.4 phase 2), once per
+ * invocation; this stage has nothing left to refuse because the registry already refuses `prepare`
+ * on an asynchronous or offline command at compose.
  */
-export function prepare(action: ActionEntry): void {
-  if (action.prepare === undefined) return;
-  throw new KeelwerkError({
-    kind: 'not_implemented',
-    code: 'core.not_implemented',
-    message: `"${action.ref}" declares prepare, which this release does not run.`,
-  });
-}
+export function prepare(_action: ActionEntry): void {}

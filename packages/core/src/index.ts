@@ -246,6 +246,7 @@ export type { PrincipalResolution } from './edge/principal-resolution.ts';
 export type { PrincipalResolver } from './edge/principal-resolver.ts';
 export type { ScopeDirectory, ScopeKey, ScopeKeyOwner } from './edge/scope-directory.ts';
 export type { TenantResolver } from './edge/tenant-resolver.ts';
+export { deriveEffectId } from './effects/derive-effect-id.ts';
 export type { CoreErrorCode } from './errors/core-error-code.ts';
 export { coreErrorCodes } from './errors/core-error-codes.ts';
 export { defineError } from './errors/define-error.ts';

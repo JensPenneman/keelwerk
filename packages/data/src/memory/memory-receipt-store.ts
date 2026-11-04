@@ -24,7 +24,13 @@ export function memoryReceiptStore(ctx: MemoryUnitContext): ReceiptStore {
     },
     claim: async (receipt) => {
       ctx.writable();
-      if (ctx.tx.read<Receipt>(name()).has(receipt.commandId)) return 'exists';
+      const existing = ctx.tx.read<Receipt>(name()).get(receipt.commandId);
+      if (
+        existing !== undefined &&
+        Temporal.Instant.compare(existing.expiresAt, ctx.clock.now()) > 0
+      ) {
+        return 'exists';
+      }
       ctx.tx.write<Receipt>(name()).set(receipt.commandId, receipt);
       return 'inserted';
     },

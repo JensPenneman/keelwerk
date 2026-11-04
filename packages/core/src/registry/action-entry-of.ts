@@ -1,4 +1,5 @@
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
+import { durationMs } from '../effects/duration-ms.ts';
 import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
 import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
@@ -176,6 +177,9 @@ export function actionEntryOf(
     ...(principal === undefined ? {} : { principal }),
     ...(page === undefined ? {} : { page }),
     ...(spec.timeoutMs === undefined ? {} : { timeoutMs: spec.timeoutMs }),
+    ...(spec.idempotency === undefined
+      ? {}
+      : { idempotencyWindowMs: durationMs(spec.idempotency.window) }),
     hints: spec.hints ?? {},
     ...(mount.contributedBy === undefined ? {} : { contributedBy: mount.contributedBy }),
     ...(spec.description === undefined ? {} : { description: spec.description }),

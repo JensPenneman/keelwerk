@@ -2,6 +2,7 @@ import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { Receipt } from '../storage/receipt.ts';
 import type { Unit } from '../storage/unit.ts';
+import { assertSameRequest } from './assert-same-request.ts';
 
 /** What the first statement of a command's unit found. */
 export type PendingReceipt =
@@ -24,17 +25,7 @@ export async function insertPendingReceipt(unit: Unit, receipt: Receipt): Promis
   if (existing === undefined) {
     throw errors.internal(`the receipt of command ${receipt.commandId} vanished`);
   }
-  if (
-    existing.principal?.resolver !== receipt.principal?.resolver ||
-    existing.principal?.principalId !== receipt.principal?.principalId ||
-    existing.fingerprint !== receipt.fingerprint
-  ) {
-    throw new KeelwerkError({
-      kind: 'conflict',
-      code: 'core.idempotency_mismatch',
-      message: 'The command id was used with a different request.',
-    });
-  }
+  assertSameRequest(existing, receipt);
   if (existing.status === 'pending' || existing.status === 'accepted') {
     throw new KeelwerkError({
       kind: 'conflict',

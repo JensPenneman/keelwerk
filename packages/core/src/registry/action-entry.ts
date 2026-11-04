@@ -36,6 +36,8 @@ export interface ActionEntry {
   readonly principal?: readonly PrincipalKind[];
   readonly page?: PageSpec;
   readonly timeoutMs?: number;
+  /** How long a receipt of the action answers a retry, in milliseconds; absent: 24 hours (section 7.5). */
+  readonly idempotencyWindowMs?: number;
   /** Per-transport hints, keyed by transport id; the surface carries them verbatim. */
   readonly hints: TransportHints;
   /** The module that mounted the action through a contribution or a conditional part. */

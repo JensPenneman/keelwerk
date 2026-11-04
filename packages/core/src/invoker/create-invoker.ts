@@ -107,19 +107,23 @@ async function run(
     span,
     log,
   });
-  const output = await shapeOutput({
-    registry,
-    rules,
-    action,
-    principal: session.principal,
-    scope: answered.scope,
-    outputOf: (one) => env.entityOutputOf(registry, one),
-    environment: env.options.environment,
-    output: translate('output', answered.output),
-    onDropped: (dropped) => {
-      log.warn('a row outside the read plan was dropped', { ...dropped });
-    },
-  });
+  // An accepted command has no output yet: its receipt is the answer and nothing is shaped.
+  const output =
+    answered.receipt?.status === 'accepted'
+      ? answered.output
+      : await shapeOutput({
+          registry,
+          rules,
+          action,
+          principal: session.principal,
+          scope: answered.scope,
+          outputOf: (one) => env.entityOutputOf(registry, one),
+          environment: env.options.environment,
+          output: translate('output', answered.output),
+          onDropped: (dropped) => {
+            log.warn('a row outside the read plan was dropped', { ...dropped });
+          },
+        });
   return {
     ok: true,
     value: output,

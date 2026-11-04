@@ -10,7 +10,9 @@ import { relation } from '../fields/relation.ts';
 import { shape } from '../fields/shape.ts';
 import type { Id } from '../ids/id.ts';
 import type { SubjectId } from '../ids/subject-id.ts';
+import type { ActorRef } from '../principals/actor-ref.ts';
 import type { Draft } from '../protocol/draft.ts';
+import type { Position } from '../storage/position.ts';
 import { defineCommand } from './define-command.ts';
 import { defineEntity } from './define-entity.ts';
 import { defineModuleBase } from './define-module-base.ts';
@@ -89,6 +91,8 @@ describe('policy typing (section 13.10)', () => {
       timing: 'inline',
       react: (event) => {
         expectTypeOf(event.state.id).toEqualTypeOf<Id<'accounts.profile'>>();
+        expectTypeOf(event.actor).toEqualTypeOf<ActorRef>();
+        expectTypeOf(event.position).toEqualTypeOf<Position | null>();
         expectTypeOf(event.data).toEqualTypeOf<{
           readonly at: Temporal.Instant;
           readonly reason?: string | undefined;

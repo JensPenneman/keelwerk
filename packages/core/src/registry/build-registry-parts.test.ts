@@ -25,13 +25,21 @@ const full = buildRegistry(fullApp);
 describe('services, hooks, effects, executors and schedules', () => {
   test('services, effects and executors are listed by reference', () => {
     expect(full.services.get('accounts.findByEmail')).toMatchObject({ module: 'accounts' });
-    expect(full.effects.get('hooks.post')).toEqual({
+    expect(full.effects.get('hooks.post')).toMatchObject({
       ref: 'hooks.post',
       module: 'hooks',
       name: 'post',
       performer: 'executor',
       executor: 'hooks.post',
     });
+    const post = full.effects.get('hooks.post');
+    if (post === undefined) throw new Error('no hooks.post');
+    expect(Object.keys((post.input as unknown as { fields: object }).fields)).toEqual([
+      'url',
+      'signingKey',
+      'body',
+    ]);
+    expect(Object.keys((post.output as unknown as { fields: object }).fields)).toEqual(['status']);
     expect(full.executors.get('hooks.post')).toMatchObject({
       effect: 'hooks.post',
       queue: 'effects',

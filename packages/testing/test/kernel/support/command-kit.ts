@@ -1,5 +1,6 @@
 import type {
   ActionEntry,
+  Clock,
   CommandResult,
   DataAdapter,
   EntityBehaviours,
@@ -52,13 +53,16 @@ export function commandKit(
     readonly registry?: Registry;
     readonly adapter?: DataAdapter;
     readonly behaviours?: EntityBehaviours;
+    /** The clock of the adapter and of the invoker; default: the fixed fixture instant. */
+    readonly clock?: Clock;
   } = {},
 ): CommandKit {
-  const adapter = over.adapter ?? open([bookEntity, loanEntity]);
+  const adapter = over.adapter ?? open([bookEntity, loanEntity], over.clock);
   const chosen = over.behaviours ?? behaviours;
   return kit({
     registry: over.registry ?? served,
     adapter,
+    ...(over.clock === undefined ? {} : { clock: over.clock }),
     commands: createCommandRunner({
       behaviours: () => chosen,
       retry: { sleep: async () => undefined },
@@ -138,6 +142,7 @@ export function runDirect(over: {
   readonly principal?: Principal;
   readonly behaviours?: EntityBehaviours;
   readonly signal?: AbortSignal;
+  readonly concurrentUnits?: boolean;
 }): Promise<CommandResult> {
   const registry = over.registry ?? served;
   const action = registry.actions.get(over.action);
@@ -160,7 +165,7 @@ export function runDirect(over: {
     apiVersion: '2026-11-04',
     build: { id: 'test', revision: 1 },
     behaviours: over.behaviours ?? behaviours,
-    concurrentUnits: true,
+    concurrentUnits: over.concurrentUnits ?? true,
     retry: { sleep: async () => undefined },
     ...(over.commandId === undefined ? {} : { commandId: over.commandId }),
     ...(over.signal === undefined ? {} : { signal: over.signal }),

@@ -2994,10 +2994,63 @@
                   "optional": false,
                   "tag": 2
                 },
+                "continuation": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": true,
+                  "tag": 8
+                },
+                "continuationWith": {
+                  "access": "read-write",
+                  "input": {
+                    "type": "object"
+                  },
+                  "kind": "json",
+                  "optional": true,
+                  "output": {
+                    "type": "object"
+                  },
+                  "schema": {
+                    "type": "object"
+                  },
+                  "tag": 9
+                },
                 "createdAt": {
                   "access": "read",
                   "kind": "instant",
                   "optional": false
+                },
+                "deadline": {
+                  "access": "read-write",
+                  "kind": "instant",
+                  "optional": true,
+                  "tag": 12
+                },
+                "error": {
+                  "access": "read-write",
+                  "input": {
+                    "type": "object"
+                  },
+                  "kind": "json",
+                  "optional": true,
+                  "output": {
+                    "type": "object"
+                  },
+                  "schema": {
+                    "type": "object"
+                  },
+                  "tag": 14
+                },
+                "eventIds": {
+                  "access": "read-write",
+                  "item": {
+                    "access": "read-write",
+                    "kind": "string",
+                    "optional": false
+                  },
+                  "kind": "list",
+                  "optional": false,
+                  "tag": 7
                 },
                 "id": {
                   "access": "read",
@@ -3005,6 +3058,70 @@
                   "optional": false,
                   "prefix": "eff",
                   "target": "core.effect"
+                },
+                "input": {
+                  "access": "read-write",
+                  "input": {
+                    "type": "object"
+                  },
+                  "kind": "json",
+                  "optional": true,
+                  "output": {
+                    "type": "object"
+                  },
+                  "schema": {
+                    "type": "object"
+                  },
+                  "tag": 6
+                },
+                "key": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": true,
+                  "tag": 10
+                },
+                "output": {
+                  "access": "read-write",
+                  "input": {
+                    "type": "object"
+                  },
+                  "kind": "json",
+                  "optional": true,
+                  "output": {
+                    "type": "object"
+                  },
+                  "schema": {
+                    "type": "object"
+                  },
+                  "tag": 13
+                },
+                "outputDigest": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": true,
+                  "tag": 15
+                },
+                "performer": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": false,
+                  "tag": 5,
+                  "values": [
+                    "executor",
+                    "external"
+                  ]
+                },
+                "runAt": {
+                  "access": "read-write",
+                  "kind": "instant",
+                  "optional": true,
+                  "tag": 11
+                },
+                "settledAt": {
+                  "access": "read-write",
+                  "kind": "instant",
+                  "optional": true,
+                  "tag": 16
                 },
                 "status": {
                   "access": "read-write",
@@ -3063,7 +3180,7 @@
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-Lq1E2w24w4LjxN8kTGLNEhehMMGB1uliG4Re8bu5gD4",
+      "outputHash": "sha256-IXXKXoPrWqiIXQFbeVgQ_H6gU7U7DHzD8hOdHdGU1Nw",
       "ref": "core.effect.get",
       "resumable": false,
       "scope": "tenant",
@@ -3171,10 +3288,63 @@
               "optional": false,
               "tag": 2
             },
+            "continuation": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": true,
+              "tag": 8
+            },
+            "continuationWith": {
+              "access": "read-write",
+              "input": {
+                "type": "object"
+              },
+              "kind": "json",
+              "optional": true,
+              "output": {
+                "type": "object"
+              },
+              "schema": {
+                "type": "object"
+              },
+              "tag": 9
+            },
             "createdAt": {
               "access": "read",
               "kind": "instant",
               "optional": false
+            },
+            "deadline": {
+              "access": "read-write",
+              "kind": "instant",
+              "optional": true,
+              "tag": 12
+            },
+            "error": {
+              "access": "read-write",
+              "input": {
+                "type": "object"
+              },
+              "kind": "json",
+              "optional": true,
+              "output": {
+                "type": "object"
+              },
+              "schema": {
+                "type": "object"
+              },
+              "tag": 14
+            },
+            "eventIds": {
+              "access": "read-write",
+              "item": {
+                "access": "read-write",
+                "kind": "string",
+                "optional": false
+              },
+              "kind": "list",
+              "optional": false,
+              "tag": 7
             },
             "id": {
               "access": "read",
@@ -3182,6 +3352,70 @@
               "optional": false,
               "prefix": "eff",
               "target": "core.effect"
+            },
+            "input": {
+              "access": "read-write",
+              "input": {
+                "type": "object"
+              },
+              "kind": "json",
+              "optional": true,
+              "output": {
+                "type": "object"
+              },
+              "schema": {
+                "type": "object"
+              },
+              "tag": 6
+            },
+            "key": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": true,
+              "tag": 10
+            },
+            "output": {
+              "access": "read-write",
+              "input": {
+                "type": "object"
+              },
+              "kind": "json",
+              "optional": true,
+              "output": {
+                "type": "object"
+              },
+              "schema": {
+                "type": "object"
+              },
+              "tag": 13
+            },
+            "outputDigest": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": true,
+              "tag": 15
+            },
+            "performer": {
+              "access": "read-write",
+              "kind": "enum",
+              "optional": false,
+              "tag": 5,
+              "values": [
+                "executor",
+                "external"
+              ]
+            },
+            "runAt": {
+              "access": "read-write",
+              "kind": "instant",
+              "optional": true,
+              "tag": 11
+            },
+            "settledAt": {
+              "access": "read-write",
+              "kind": "instant",
+              "optional": true,
+              "tag": 16
             },
             "status": {
               "access": "read-write",
@@ -3219,7 +3453,7 @@
         "kind": "page",
         "optional": false
       },
-      "outputHash": "sha256-abV9Rq9Vl5NSCTMcnPBoqNQO7dR1aKyVlKpwqDGYecc",
+      "outputHash": "sha256-geVs812NIxHZCb3z4B3xVdcqXtPnFgR6p6s4efY0FsU",
       "page": {
         "defaultSize": 50,
         "defaultSort": [
@@ -7957,10 +8191,63 @@
           "optional": false,
           "tag": 2
         },
+        "continuation": {
+          "access": "read-write",
+          "kind": "string",
+          "optional": true,
+          "tag": 8
+        },
+        "continuationWith": {
+          "access": "read-write",
+          "input": {
+            "type": "object"
+          },
+          "kind": "json",
+          "optional": true,
+          "output": {
+            "type": "object"
+          },
+          "schema": {
+            "type": "object"
+          },
+          "tag": 9
+        },
         "createdAt": {
           "access": "read",
           "kind": "instant",
           "optional": false
+        },
+        "deadline": {
+          "access": "read-write",
+          "kind": "instant",
+          "optional": true,
+          "tag": 12
+        },
+        "error": {
+          "access": "read-write",
+          "input": {
+            "type": "object"
+          },
+          "kind": "json",
+          "optional": true,
+          "output": {
+            "type": "object"
+          },
+          "schema": {
+            "type": "object"
+          },
+          "tag": 14
+        },
+        "eventIds": {
+          "access": "read-write",
+          "item": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "kind": "list",
+          "optional": false,
+          "tag": 7
         },
         "id": {
           "access": "read",
@@ -7968,6 +8255,70 @@
           "optional": false,
           "prefix": "eff",
           "target": "core.effect"
+        },
+        "input": {
+          "access": "read-write",
+          "input": {
+            "type": "object"
+          },
+          "kind": "json",
+          "optional": true,
+          "output": {
+            "type": "object"
+          },
+          "schema": {
+            "type": "object"
+          },
+          "tag": 6
+        },
+        "key": {
+          "access": "read-write",
+          "kind": "string",
+          "optional": true,
+          "tag": 10
+        },
+        "output": {
+          "access": "read-write",
+          "input": {
+            "type": "object"
+          },
+          "kind": "json",
+          "optional": true,
+          "output": {
+            "type": "object"
+          },
+          "schema": {
+            "type": "object"
+          },
+          "tag": 13
+        },
+        "outputDigest": {
+          "access": "read-write",
+          "kind": "string",
+          "optional": true,
+          "tag": 15
+        },
+        "performer": {
+          "access": "read-write",
+          "kind": "enum",
+          "optional": false,
+          "tag": 5,
+          "values": [
+            "executor",
+            "external"
+          ]
+        },
+        "runAt": {
+          "access": "read-write",
+          "kind": "instant",
+          "optional": true,
+          "tag": 11
+        },
+        "settledAt": {
+          "access": "read-write",
+          "kind": "instant",
+          "optional": true,
+          "tag": 16
         },
         "status": {
           "access": "read-write",
@@ -9049,7 +9400,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-Eg28X1SVZ7gZSWn1yB6gixZi_c6tLkyfvaKLN3S59nQ",
+  "hash": "sha256-cXgW2O22bqUKXsFu-PgnMBDyp9vCZcki7_NA1T4DPyY",
   "modules": [
     {
       "id": "core",

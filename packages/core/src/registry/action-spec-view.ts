@@ -17,6 +17,7 @@ export interface ActionSpecView {
   readonly scope?: 'tenant' | 'backend' | 'deployment';
   readonly idempotent?: boolean;
   readonly timeoutMs?: number;
+  readonly idempotency?: { readonly window: string };
   readonly hints?: { readonly [transport: string]: unknown };
   readonly description?: string;
   readonly deprecated?: { readonly reason: string; readonly at?: string; readonly sunset?: string };

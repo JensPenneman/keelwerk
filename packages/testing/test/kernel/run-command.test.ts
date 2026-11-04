@@ -31,7 +31,7 @@ describe('create', () => {
     expect(receipt?.outcome).toMatchObject({ ok: true, effects: [] });
   });
 
-  test('a rejected decision stores nothing', async () => {
+  test('a rejected decision stores no book and records a failed receipt', async () => {
     const { adapter, invoker } = commandKit();
     const input = { title: 'Dune', isbn: 'isbn-1' };
     await invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'c1' }));
@@ -41,7 +41,7 @@ describe('create', () => {
     expect(second.code).toBe('library.isbn_taken');
     const { books, receipt } = await snapshot(adapter, undefined, 'c2');
     expect(books).toHaveLength(1);
-    expect(receipt).toBeUndefined();
+    expect(receipt).toMatchObject({ status: 'failed' });
   });
 });
 

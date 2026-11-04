@@ -90,39 +90,55 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
     );
     return row === undefined ? undefined : receiptOf(row);
   };
-  const insert = (receipt: Receipt): Promise<{ readonly command_id: unknown } | undefined> =>
-    sqlGuard(async () =>
-      ctx
+  const valuesOf = (receipt: Receipt) => ({
+    id: commandReceiptUuid(ctx.scopeId(), receipt.commandId),
+    version: 1,
+    created_at: encodeInstant(ctx.clock.now()),
+    updated_at: encodeInstant(ctx.clock.now()),
+    command_id: receipt.commandId,
+    action: receipt.action,
+    fingerprint: receipt.fingerprint,
+    principal: receipt.principal === null ? null : JSON.stringify(receipt.principal),
+    status: receipt.status,
+    outcome: receipt.outcome === null ? null : JSON.stringify(receipt.outcome),
+    api_version: receipt.apiVersion,
+    transport: receipt.request.transport,
+    remote_address: receipt.request.remoteAddress,
+    user_agent: receipt.request.userAgent,
+    client_id: receipt.clientId,
+    client_seq: receipt.clientSeq,
+    expires_at: encodeInstant(receipt.expiresAt),
+    acknowledged_at:
+      receipt.acknowledgedAt === undefined ? null : encodeInstant(receipt.acknowledgedAt),
+  });
+  /** `takeOver`: a row whose `expires_at` is at or before the clock's now is overwritten (claim). */
+  const insert = (
+    receipt: Receipt,
+    takeOver = false,
+  ): Promise<{ readonly command_id: unknown } | undefined> =>
+    sqlGuard(async () => {
+      const values = valuesOf(receipt);
+      const { id: _id, created_at: _createdAt, ...replacement } = values;
+      return ctx
         .scopedDb()
         .insertInto(table)
-        .values({
-          id: commandReceiptUuid(ctx.scopeId(), receipt.commandId),
-          version: 1,
-          created_at: encodeInstant(ctx.clock.now()),
-          updated_at: encodeInstant(ctx.clock.now()),
-          command_id: receipt.commandId,
-          action: receipt.action,
-          fingerprint: receipt.fingerprint,
-          principal: receipt.principal === null ? null : JSON.stringify(receipt.principal),
-          status: receipt.status,
-          outcome: receipt.outcome === null ? null : JSON.stringify(receipt.outcome),
-          api_version: receipt.apiVersion,
-          transport: receipt.request.transport,
-          remote_address: receipt.request.remoteAddress,
-          user_agent: receipt.request.userAgent,
-          client_id: receipt.clientId,
-          client_seq: receipt.clientSeq,
-          expires_at: encodeInstant(receipt.expiresAt),
-          acknowledged_at:
-            receipt.acknowledgedAt === undefined ? null : encodeInstant(receipt.acknowledgedAt),
+        .values(values)
+        .onConflict((conflict) => {
+          const target = conflict.columns(['scope_id', 'command_id']);
+          return takeOver
+            ? target
+                .doUpdateSet(replacement)
+                .where(
+                  sql<boolean>`${sql.ref(`${commandReceiptTable}.expires_at`)} <= ${encodeInstant(ctx.clock.now())}`,
+                )
+            : target.doNothing();
         })
-        .onConflict((conflict) => conflict.columns(['scope_id', 'command_id']).doNothing())
         .returning('command_id')
-        .executeTakeFirst(),
-    );
+        .executeTakeFirst();
+    });
   /**
    * The claim's insert waits for a concurrent duplicate's row lock for `claimWaitMs` and then gives
-   * up with `core.command_in_progress` (section 7.5); the unit's own setting comes back afterwards.
+   * up with `core.command_in_progress` (section 7.5); an expired row is taken over; the unit's own setting comes back afterwards.
    */
   const insertWithin = async (
     receipt: Receipt,
@@ -137,7 +153,7 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
     );
     let inserted: { readonly command_id: unknown } | undefined;
     try {
-      inserted = await insert(receipt);
+      inserted = await insert(receipt, true);
     } catch (error) {
       if (sqlStateOf(error) === lockNotAvailable) {
         throw new KeelwerkError({
@@ -159,7 +175,7 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
     get: read,
     put: async (receipt) => {
       ctx.writable();
-      const inserted = await insert(receipt);
+      const inserted = await insert(receipt, true);
       if (inserted !== undefined) return;
       const existing = await read(receipt.commandId);
       if (existing !== undefined && existing.fingerprint !== receipt.fingerprint) {

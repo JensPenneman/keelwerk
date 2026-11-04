@@ -1,7 +1,10 @@
 import { type HybridClock, hybridClock } from '../clock/hybrid-clock.ts';
+import { acceptAsyncCommand } from '../effects/accept-async-command.ts';
 import type { CommandRunner } from '../invoker/command-runner.ts';
 import { defaultNodeId } from './default-node-id.ts';
 import type { EntityBehaviours } from './entity-behaviours.ts';
+import { isRecordedFailure } from './is-recorded-failure.ts';
+import { recordFailedReceipt } from './record-failed-receipt.ts';
 import { runCommand } from './run-command.ts';
 import type { RunCommandInput } from './run-command-input.ts';
 
@@ -19,13 +22,14 @@ export interface CommandRunnerOptions {
 
 /**
  * The `CommandRunner` the invoker's execute stage calls for a command (`InvokerOptions.commands`):
- * it maps what the stage hands over to `runCommand`.
+ * it maps what the stage hands over to `runCommand`, or, for an asynchronous command (an `async`
+ * one, or an `either` one the caller prefers to run asynchronously), to `acceptAsyncCommand`.
  */
 export function createCommandRunner(options: CommandRunnerOptions): CommandRunner {
   const processClock = options.hybridClock ?? hybridClock(options.nodeId ?? defaultNodeId);
   return (run) => {
     const { invocation } = run;
-    return runCommand({
+    const input: RunCommandInput = {
       registry: run.registry,
       adapter: run.target.handle.adapter,
       namespace: run.target.namespace,
@@ -55,6 +59,17 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
       hybridClock: processClock,
       ...(options.retry === undefined ? {} : { retry: options.retry }),
       ...(options.replace === undefined ? {} : { replace: options.replace }),
+    };
+    const { execution } = run.action;
+    const deferred =
+      execution === 'async' || (execution === 'either' && invocation.prefer === 'async');
+    if (deferred) return acceptAsyncCommand(input);
+    return runCommand(input).catch(async (error: unknown) => {
+      // A deterministic refusal after the unit rolled back is pinned to the command id (15.1.7).
+      if (invocation.commandId !== undefined && isRecordedFailure(error)) {
+        await recordFailedReceipt(input, invocation.commandId, error).catch(() => undefined);
+      }
+      throw error;
     });
   };
 }

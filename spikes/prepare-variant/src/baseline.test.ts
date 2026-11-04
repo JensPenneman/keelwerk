@@ -33,8 +33,8 @@ describe('the merged kernel before the variant', () => {
     const attempt = await ada.attempt('github.connect', { code: 'good-1', state: 'baseline' });
     expect(attempt.ok).toBe(false);
     if (!attempt.ok) {
-      // WP-41 runs prepare; this then becomes core.request_not_allowed from the write path.
-      expect(attempt.error.code).toBe('core.not_implemented');
+      // The pipeline runs prepare since WP-41; the write path refuses the perform inside it (S-05).
+      expect(attempt.error.code).toBe('core.request_not_allowed');
     }
   });
 

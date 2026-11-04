@@ -123,7 +123,10 @@ export function bookRow(n: number, over: Record<string, unknown> = {}): StorageR
   };
 }
 
-export function open(extra: readonly EntityDescriptor[] = [book]): DataAdapter {
+export function open(
+  extra: readonly EntityDescriptor[] = [book],
+  adapterClock: Clock = clock,
+): DataAdapter {
   const known = new Map(extra.map((entity) => [entity.ref, entity] as const));
   const environment: AdapterEnvironment = {
     deploymentId: '00000000-0000-4000-8000-0000000000d1',
@@ -132,7 +135,7 @@ export function open(extra: readonly EntityDescriptor[] = [book]): DataAdapter {
     secrets: { resolve: async () => '' },
     signal: new AbortController().signal,
   };
-  return memoryAdapter({ clock, entities: (ref) => known.get(ref) }).create(
+  return memoryAdapter({ clock: adapterClock, entities: (ref) => known.get(ref) }).create(
     { id: 'main', strategy: 'shared-tables' },
     environment,
   );

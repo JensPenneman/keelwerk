@@ -1,4 +1,5 @@
 import type { Shape, ShapeFields } from '../fields/shape.ts';
+import { shape } from '../fields/shape.ts';
 import type { ShapeValue } from '../fields/shape-value.ts';
 import type { AnyActionPart } from '../model/action-part.ts';
 import type { OwnerOf, PartSource } from '../model/part-source.ts';
@@ -21,6 +22,10 @@ export interface EffectPart<S, Din, Sin, O> {
   readonly kind: 'effect';
   readonly source: S;
   readonly performer: 'executor' | 'external';
+  /** The input shape: it states everything the effect does (F-11b change note). */
+  readonly input: Shape;
+  /** The output shape; the empty shape when the effect declares none. */
+  readonly output: Shape;
   /** The reference (`hooks.post`) `defineModule` records; it is the `type` of the effect payload. */
   readonly ref?: string;
   readonly '~types'?: { readonly input: Sin; readonly output: O };
@@ -65,5 +70,7 @@ export function defineEffect<
     kind: 'effect' as const,
     source,
     performer: spec.performer ?? ('executor' as const),
+    input: spec.input as Shape,
+    output: (spec.output ?? shape({})) as Shape,
   });
 }
