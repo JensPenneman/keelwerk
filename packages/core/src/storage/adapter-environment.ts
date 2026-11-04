@@ -1,17 +1,12 @@
-import type { SecretRef } from '../ids/secret-ref.ts';
+import type { SecretResolver } from '../kernel/secret-resolver.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Tracer } from '../observability/tracer.ts';
-
-/** Resolves secret references through the deployment's secret providers. */
-interface AdapterSecrets {
-  resolve(ref: SecretRef, reason: string): Promise<string>;
-}
 
 /** What the kernel hands an adapter at `create`. */
 export interface AdapterEnvironment {
   readonly log: Logger;
   /** OpenTelemetry; adapters open child spans per statement batch. */
   readonly tracer: Tracer;
-  readonly secrets: AdapterSecrets;
+  readonly secrets: SecretResolver;
   readonly signal: AbortSignal;
 }

@@ -1,0 +1,33 @@
+import type { ActionEntry } from './action-entry.ts';
+import type { CompositionProblem } from './composition-problem.ts';
+import type { ContributionEntry } from './contribution-entry.ts';
+import type { EntityEntry } from './entity-entry.ts';
+import type { ExtensionFillEntry } from './extension-fill-entry.ts';
+import type { ExtensionPointEntry } from './extension-point-entry.ts';
+import type { HookEntry } from './hook-entry.ts';
+import type { ModuleEntry } from './module-entry.ts';
+import type { ReactionEntry } from './reaction-entry.ts';
+import type { RuleEntry } from './rule-entry.ts';
+import type { ServiceEntry } from './service-entry.ts';
+
+/**
+ * What `compose` produces for one app and every kernel subsystem reads. Maps are keyed by
+ * reference or id and iterate in sorted order; `modules` is in topological order.
+ */
+export interface Registry {
+  /** The app id. */
+  readonly app: string;
+  readonly modules: readonly ModuleEntry[];
+  readonly entities: ReadonlyMap<string, EntityEntry>;
+  readonly actions: ReadonlyMap<string, ActionEntry>;
+  readonly rules: ReadonlyMap<string, RuleEntry>;
+  readonly reactions: ReadonlyMap<string, ReactionEntry>;
+  readonly hooks: ReadonlyMap<string, HookEntry>;
+  readonly services: ReadonlyMap<string, ServiceEntry>;
+  readonly extensionPoints: ReadonlyMap<string, ExtensionPointEntry>;
+  /** Per point reference, in fill order. */
+  readonly fills: ReadonlyMap<string, readonly ExtensionFillEntry[]>;
+  readonly contributions: readonly ContributionEntry[];
+  /** Empty for an app `defineApp` accepts. */
+  readonly problems: readonly CompositionProblem[];
+}
