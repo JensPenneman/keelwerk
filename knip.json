@@ -115,14 +115,7 @@
     "packages/data": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": [
-        "@electric-sql/pglite",
-        "@keelwerk/core",
-        "@keelwerk/testing",
-        "@types/pg",
-        "kysely",
-        "pg"
-      ]
+      "ignoreDependencies": ["@electric-sql/pglite", "@keelwerk/core", "kysely"]
     },
     "packages/core": {
       "entry": ["src/**/*.test-d.ts"],
