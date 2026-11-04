@@ -23,5 +23,6 @@ dist/
 coverage/
 
 # Tool caches
+.attest/
 .keelwerk/
 .vitest/

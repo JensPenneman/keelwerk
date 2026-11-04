@@ -34,13 +34,7 @@
     "packages/type-budgets": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": [
-        "@ark/attest",
-        "@keelwerk/core",
-        "@keelwerk/module-accounts",
-        "@keelwerk/module-auth",
-        "tsc"
-      ]
+      "ignoreDependencies": ["@keelwerk/module-accounts", "@keelwerk/module-auth", "tsc"]
     },
     "packages/adapter-postgres": {
       "entry": ["src/**/*.test-d.ts"],

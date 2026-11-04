@@ -1,0 +1,37 @@
+{
+  "basis": "synthetic budgets are the figures measured on 2026-11-04 (fold 510,100 and 1,098,895; whole program 1,599,176 and 2,762,051 instantiations) plus 15 %; the spike figures are the M0 reference measurements",
+  "synthetic": {
+    "25": {
+      "fold": 590000,
+      "wholeProgram": 1840000
+    },
+    "40": {
+      "fold": 1265000,
+      "wholeProgram": 3180000
+    }
+  },
+  "spike": {
+    "3": {
+      "fold": 24332,
+      "wholeProgram": 252727
+    },
+    "12": {
+      "fold": 133727,
+      "wholeProgram": 654194
+    },
+    "25": {
+      "fold": 391842,
+      "wholeProgram": 1334636
+    },
+    "40": {
+      "fold": 836667,
+      "wholeProgram": 2267554
+    }
+  },
+  "declarations": {
+    "manifestBytes": 6144,
+    "packageBytes": 16384,
+    "exempt": ["packages/core/test/fixtures"]
+  },
+  "apps": {}
+}

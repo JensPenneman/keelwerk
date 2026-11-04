@@ -23,7 +23,7 @@
     "dist"
   ],
   "scripts": {
-    "bench": "node --conditions=@keelwerk/source src/compose-app.bench.ts"
+    "bench": "node --conditions=@keelwerk/source src/compose-app.bench.ts --shouldFormat false --benchPercentThreshold 15 --benchErrorOnThresholdExceeded"
   },
   "dependencies": {
     "@keelwerk/core": "workspace:*",

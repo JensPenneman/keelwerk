@@ -30,7 +30,8 @@
         "!**/*.generated.ts",
         "!**/*.test.ts",
         "!**/*.test-d.ts",
-        "!**/spikes/write-path/src/main.ts"
+        "!**/spikes/write-path/src/main.ts",
+        "!**/*.bench.ts"
       ]
     }
   ]
