@@ -98,7 +98,10 @@ describe('ctx.target', () => {
     if (action === undefined) throw new Error('the probe action is missing');
     const mounted: Registry = {
       ...base.registry,
-      actions: new Map([...base.registry.actions, [base.ref, { ...action, entity: 'book' }]]),
+      actions: new Map([
+        ...base.registry.actions,
+        [base.ref, { ...action, entity: 'library.book' }],
+      ]),
     };
     const { seed, run } = runnable({ registry: mounted, action: base.ref });
     await seed([bookRow(1), bookRow(2, { addedBy: 'bob' })]);

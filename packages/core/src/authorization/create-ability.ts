@@ -48,7 +48,7 @@ export function createAbility(options: AbilityOptions): AuthorizationAbility {
 
   const planOf = (action: AuthorizedAction): Plan | undefined => {
     if (action.entity === undefined) return undefined;
-    const entity = registry.entities.get(`${action.module}.${action.entity}`);
+    const entity = registry.entities.get(action.entity);
     if (entity === undefined) return undefined;
     return memo.plan(action, () =>
       compilePlan({ rules, action, entity: entity.descriptor, context, transport }),

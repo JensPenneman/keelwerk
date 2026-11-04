@@ -43,6 +43,18 @@ function receiptOf(row: Raw): Receipt {
   };
 }
 
+/** How long a concurrent duplicate waits on the first unit's receipt row before it answers `core.command_in_progress`. */
+const claimWaitMs = 1000;
+
+/** SQLSTATE `lock_not_available`: the statement waited longer than `lock_timeout`. */
+const lockNotAvailable = '55P03';
+
+function sqlStateOf(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
+  const { code } = error;
+  return typeof code === 'string' ? code : undefined;
+}
+
 const columns = [
   'command_id',
   'action',
@@ -78,39 +90,76 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
     );
     return row === undefined ? undefined : receiptOf(row);
   };
+  const insert = (receipt: Receipt): Promise<{ readonly command_id: unknown } | undefined> =>
+    sqlGuard(async () =>
+      ctx
+        .scopedDb()
+        .insertInto(table)
+        .values({
+          id: commandReceiptUuid(ctx.scopeId(), receipt.commandId),
+          version: 1,
+          created_at: encodeInstant(ctx.clock.now()),
+          updated_at: encodeInstant(ctx.clock.now()),
+          command_id: receipt.commandId,
+          action: receipt.action,
+          fingerprint: receipt.fingerprint,
+          principal: receipt.principal === null ? null : JSON.stringify(receipt.principal),
+          status: receipt.status,
+          outcome: receipt.outcome === null ? null : JSON.stringify(receipt.outcome),
+          api_version: receipt.apiVersion,
+          transport: receipt.request.transport,
+          remote_address: receipt.request.remoteAddress,
+          user_agent: receipt.request.userAgent,
+          client_id: receipt.clientId,
+          client_seq: receipt.clientSeq,
+          expires_at: encodeInstant(receipt.expiresAt),
+          acknowledged_at:
+            receipt.acknowledgedAt === undefined ? null : encodeInstant(receipt.acknowledgedAt),
+        })
+        .onConflict((conflict) => conflict.columns(['scope_id', 'command_id']).doNothing())
+        .returning('command_id')
+        .executeTakeFirst(),
+    );
+  /**
+   * The claim's insert waits for a concurrent duplicate's row lock for `claimWaitMs` and then gives
+   * up with `core.command_in_progress` (section 7.5); the unit's own setting comes back afterwards.
+   */
+  const insertWithin = async (
+    receipt: Receipt,
+  ): Promise<{ readonly command_id: unknown } | undefined> => {
+    const db = ctx.db;
+    const before = await sqlGuard(async () =>
+      sql<{ value: string }>`select current_setting('lock_timeout') as value`.execute(db),
+    );
+    const previous = before.rows[0]?.value ?? '0';
+    await sqlGuard(async () =>
+      sql`select set_config('lock_timeout', ${`${claimWaitMs}ms`}, true)`.execute(db),
+    );
+    let inserted: { readonly command_id: unknown } | undefined;
+    try {
+      inserted = await insert(receipt);
+    } catch (error) {
+      if (sqlStateOf(error) === lockNotAvailable) {
+        throw new KeelwerkError({
+          kind: 'conflict',
+          code: 'core.command_in_progress',
+          message: 'A command with this id is still running.',
+          retryable: true,
+          cause: error,
+        });
+      }
+      throw error;
+    }
+    await sqlGuard(async () =>
+      sql`select set_config('lock_timeout', ${previous}, true)`.execute(db),
+    );
+    return inserted;
+  };
   return {
     get: read,
     put: async (receipt) => {
       ctx.writable();
-      const inserted = await sqlGuard(async () =>
-        ctx
-          .scopedDb()
-          .insertInto(table)
-          .values({
-            id: commandReceiptUuid(ctx.scopeId(), receipt.commandId),
-            version: 1,
-            created_at: encodeInstant(ctx.clock.now()),
-            updated_at: encodeInstant(ctx.clock.now()),
-            command_id: receipt.commandId,
-            action: receipt.action,
-            fingerprint: receipt.fingerprint,
-            principal: receipt.principal === null ? null : JSON.stringify(receipt.principal),
-            status: receipt.status,
-            outcome: receipt.outcome === null ? null : JSON.stringify(receipt.outcome),
-            api_version: receipt.apiVersion,
-            transport: receipt.request.transport,
-            remote_address: receipt.request.remoteAddress,
-            user_agent: receipt.request.userAgent,
-            client_id: receipt.clientId,
-            client_seq: receipt.clientSeq,
-            expires_at: encodeInstant(receipt.expiresAt),
-            acknowledged_at:
-              receipt.acknowledgedAt === undefined ? null : encodeInstant(receipt.acknowledgedAt),
-          })
-          .onConflict((conflict) => conflict.columns(['scope_id', 'command_id']).doNothing())
-          .returning('command_id')
-          .executeTakeFirst(),
-      );
+      const inserted = await insert(receipt);
       if (inserted !== undefined) return;
       const existing = await read(receipt.commandId);
       if (existing !== undefined && existing.fingerprint !== receipt.fingerprint) {
@@ -120,6 +169,10 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
           message: 'The command id was used with a different request.',
         });
       }
+    },
+    claim: async (receipt) => {
+      ctx.writable();
+      return (await insertWithin(receipt)) === undefined ? 'exists' : 'inserted';
     },
     complete: async (commandId, outcome) => {
       ctx.writable();

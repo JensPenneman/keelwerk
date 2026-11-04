@@ -17,6 +17,13 @@ type UniqueText = FieldDef<
   'string'
 >;
 type Count = FieldDef<number, NoFlags, null, 'integer'>;
+type OptionalCount = FieldDef<number, WithFlag<NoFlags, 'optional', true>, null, 'integer'>;
+type OptionalDocument = FieldDef<
+  Record<string, unknown>,
+  WithFlag<NoFlags, 'optional', true>,
+  null,
+  'json'
+>;
 type DefaultedCount = FieldDef<number, WithFlag<NoFlags, 'defaulted', true>, null, 'integer'>;
 type Moment = FieldDef<Temporal.Instant, NoFlags, null, 'instant'>;
 type OptionalMoment = FieldDef<
@@ -139,8 +146,25 @@ export interface CoreBase {
     readonly commandReceipt: Entity<
       'rcpt',
       {
-        readonly commandId: Text;
-        readonly status: FieldDef<'accepted' | 'failed' | 'succeeded', NoFlags, null, 'enum'>;
+        readonly commandId: UniqueText;
+        readonly action: Text;
+        readonly fingerprint: Text;
+        readonly principal: OptionalDocument;
+        readonly status: FieldDef<
+          'accepted' | 'completed' | 'failed' | 'pending',
+          NoFlags,
+          null,
+          'enum'
+        >;
+        readonly outcome: OptionalDocument;
+        readonly apiVersion: Text;
+        readonly transport: Text;
+        readonly remoteAddress: OptionalText;
+        readonly userAgent: OptionalText;
+        readonly clientId: OptionalText;
+        readonly clientSeq: OptionalCount;
+        readonly expiresAt: Moment;
+        readonly acknowledgedAt: OptionalMoment;
       },
       Empty,
       'state',

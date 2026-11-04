@@ -1,7 +1,17 @@
+import type { NormalizedRule } from '../authorization/normalized-rule.ts';
+import type { Clock } from '../kernel/clock.ts';
+import type { ComputePool } from '../kernel/compute-pool.ts';
+import type { KeyService } from '../kernel/key-service.ts';
+import type { Logger } from '../observability/logger.ts';
+import type { Span } from '../observability/span.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
+import type { Registry } from '../registry/registry.ts';
+import type { NamespaceRef } from '../storage/namespace-ref.ts';
+import type { StorageScope } from '../storage/storage-scope.ts';
 import type { CommandReceipt } from './command-receipt.ts';
 import type { Invocation } from './invocation.ts';
 import type { InvocationSession } from './invocation-session.ts';
+import type { RequestInfo } from './request-info.ts';
 import type { ScopeTarget } from './scope-target.ts';
 
 /** What the execute stage hands the command write path (the seam WP-38 fills). */
@@ -15,6 +25,22 @@ export interface CommandRun {
   readonly target: ScopeTarget;
   /** Aborts on the action's timeout only: a client disconnect never reaches a command (section 16.4.11). */
   readonly signal: AbortSignal;
+  /** The registry of the app the action belongs to. */
+  readonly registry: Registry;
+  /** The registry's enabled rules, normalised. */
+  readonly rules: readonly NormalizedRule[];
+  readonly request: RequestInfo;
+  readonly clock: Clock;
+  readonly keys: KeyService;
+  readonly compute: ComputePool;
+  readonly log: Logger;
+  readonly span: Span;
+  /** The build that appends the events. */
+  readonly build: { readonly id: string; readonly revision: number };
+  /** Whether a second unit can be open beside the command's (the adapter's capabilities say so). */
+  readonly concurrentUnits?: boolean;
+  /** The namespace of another scope's data, for a backend read. */
+  readonly namespaceOf?: (scope: StorageScope) => NamespaceRef;
 }
 
 /** What a command answered. */

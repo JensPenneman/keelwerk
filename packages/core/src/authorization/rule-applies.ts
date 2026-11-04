@@ -19,9 +19,7 @@ export function ruleApplies(
   if (rule.principals !== null && !rule.principals.has(principalKind)) return false;
   const { target } = rule;
   if (target.kind === 'entity') {
-    if (action.entity === undefined || `${action.module}.${action.entity}` !== target.ref) {
-      return false;
-    }
+    if (action.entity !== target.ref) return false;
   } else if (target.kind === 'module') {
     if (action.entity !== undefined || action.module !== target.module) return false;
   } else {

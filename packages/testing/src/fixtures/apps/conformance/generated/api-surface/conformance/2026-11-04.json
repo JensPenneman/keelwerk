@@ -1713,21 +1713,66 @@
             "item": {
               "access": "read-write",
               "fields": {
+                "acknowledgedAt": {
+                  "access": "read-write",
+                  "kind": "instant",
+                  "optional": true,
+                  "tag": 14
+                },
+                "action": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false,
+                  "tag": 2
+                },
+                "apiVersion": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false,
+                  "tag": 7
+                },
                 "archivedAt": {
                   "access": "read",
                   "kind": "instant",
                   "optional": true
                 },
+                "clientId": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": true,
+                  "tag": 11
+                },
+                "clientSeq": {
+                  "access": "read-write",
+                  "kind": "integer",
+                  "optional": true,
+                  "tag": 12,
+                  "wide": false
+                },
                 "commandId": {
                   "access": "read-write",
                   "kind": "string",
+                  "merge": "exclusive",
                   "optional": false,
-                  "tag": 1
+                  "tag": 1,
+                  "unique": true
                 },
                 "createdAt": {
                   "access": "read",
                   "kind": "instant",
                   "optional": false
+                },
+                "expiresAt": {
+                  "access": "read-write",
+                  "kind": "instant",
+                  "optional": false,
+                  "tag": 13
+                },
+                "fingerprint": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false,
+                  "tag": 3
                 },
                 "id": {
                   "access": "read",
@@ -1736,21 +1781,70 @@
                   "prefix": "rcpt",
                   "target": "core.commandReceipt"
                 },
+                "outcome": {
+                  "access": "read-write",
+                  "input": {
+                    "type": "object"
+                  },
+                  "kind": "json",
+                  "optional": true,
+                  "output": {
+                    "type": "object"
+                  },
+                  "schema": {
+                    "type": "object"
+                  },
+                  "tag": 6
+                },
+                "principal": {
+                  "access": "read-write",
+                  "input": {
+                    "type": "object"
+                  },
+                  "kind": "json",
+                  "optional": true,
+                  "output": {
+                    "type": "object"
+                  },
+                  "schema": {
+                    "type": "object"
+                  },
+                  "tag": 4
+                },
+                "remoteAddress": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": true,
+                  "tag": 9
+                },
                 "status": {
                   "access": "read-write",
                   "kind": "enum",
                   "optional": false,
-                  "tag": 2,
+                  "tag": 5,
                   "values": [
+                    "pending",
                     "accepted",
-                    "succeeded",
+                    "completed",
                     "failed"
                   ]
+                },
+                "transport": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false,
+                  "tag": 8
                 },
                 "updatedAt": {
                   "access": "read",
                   "kind": "instant",
                   "optional": false
+                },
+                "userAgent": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": true,
+                  "tag": 10
                 },
                 "version": {
                   "access": "read",
@@ -1786,7 +1880,7 @@
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-SQpQDNOouQiMpYYDoTwqW5VwTcwDujTyJvYJvGQIgHc",
+      "outputHash": "sha256-8-g-Fu1WBHLJUYpL9-qqAm_QZ3o_S1wKboOEg4EqK04",
       "ref": "core.commandReceipt.get",
       "resumable": false,
       "scope": "tenant",
@@ -1875,21 +1969,66 @@
         "item": {
           "access": "read-write",
           "fields": {
+            "acknowledgedAt": {
+              "access": "read-write",
+              "kind": "instant",
+              "optional": true,
+              "tag": 14
+            },
+            "action": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false,
+              "tag": 2
+            },
+            "apiVersion": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false,
+              "tag": 7
+            },
             "archivedAt": {
               "access": "read",
               "kind": "instant",
               "optional": true
             },
+            "clientId": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": true,
+              "tag": 11
+            },
+            "clientSeq": {
+              "access": "read-write",
+              "kind": "integer",
+              "optional": true,
+              "tag": 12,
+              "wide": false
+            },
             "commandId": {
               "access": "read-write",
               "kind": "string",
+              "merge": "exclusive",
               "optional": false,
-              "tag": 1
+              "tag": 1,
+              "unique": true
             },
             "createdAt": {
               "access": "read",
               "kind": "instant",
               "optional": false
+            },
+            "expiresAt": {
+              "access": "read-write",
+              "kind": "instant",
+              "optional": false,
+              "tag": 13
+            },
+            "fingerprint": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false,
+              "tag": 3
             },
             "id": {
               "access": "read",
@@ -1898,21 +2037,70 @@
               "prefix": "rcpt",
               "target": "core.commandReceipt"
             },
+            "outcome": {
+              "access": "read-write",
+              "input": {
+                "type": "object"
+              },
+              "kind": "json",
+              "optional": true,
+              "output": {
+                "type": "object"
+              },
+              "schema": {
+                "type": "object"
+              },
+              "tag": 6
+            },
+            "principal": {
+              "access": "read-write",
+              "input": {
+                "type": "object"
+              },
+              "kind": "json",
+              "optional": true,
+              "output": {
+                "type": "object"
+              },
+              "schema": {
+                "type": "object"
+              },
+              "tag": 4
+            },
+            "remoteAddress": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": true,
+              "tag": 9
+            },
             "status": {
               "access": "read-write",
               "kind": "enum",
               "optional": false,
-              "tag": 2,
+              "tag": 5,
               "values": [
+                "pending",
                 "accepted",
-                "succeeded",
+                "completed",
                 "failed"
               ]
+            },
+            "transport": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false,
+              "tag": 8
             },
             "updatedAt": {
               "access": "read",
               "kind": "instant",
               "optional": false
+            },
+            "userAgent": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": true,
+              "tag": 10
             },
             "version": {
               "access": "read",
@@ -1927,7 +2115,7 @@
         "kind": "page",
         "optional": false
       },
-      "outputHash": "sha256-WME2kSnqUG6UStahhVWSkdDl1J2WJI2-th-iYjfZH6s",
+      "outputHash": "sha256-YFLU_fEU5UBi9WOszgeTg0Ar4PVvxTpQM08RSfhUdXI",
       "page": {
         "defaultSize": 50,
         "defaultSort": [
@@ -1938,6 +2126,7 @@
         ],
         "maxSize": 500,
         "sortable": [
+          "commandId",
           "createdAt",
           "id",
           "updatedAt"
@@ -2065,6 +2254,7 @@
         ],
         "maxSize": 500,
         "sortable": [
+          "commandId",
           "createdAt",
           "id",
           "updatedAt"
@@ -8285,21 +8475,66 @@
     },
     {
       "fields": {
+        "acknowledgedAt": {
+          "access": "read-write",
+          "kind": "instant",
+          "optional": true,
+          "tag": 14
+        },
+        "action": {
+          "access": "read-write",
+          "kind": "string",
+          "optional": false,
+          "tag": 2
+        },
+        "apiVersion": {
+          "access": "read-write",
+          "kind": "string",
+          "optional": false,
+          "tag": 7
+        },
         "archivedAt": {
           "access": "read",
           "kind": "instant",
           "optional": true
         },
+        "clientId": {
+          "access": "read-write",
+          "kind": "string",
+          "optional": true,
+          "tag": 11
+        },
+        "clientSeq": {
+          "access": "read-write",
+          "kind": "integer",
+          "optional": true,
+          "tag": 12,
+          "wide": false
+        },
         "commandId": {
           "access": "read-write",
           "kind": "string",
+          "merge": "exclusive",
           "optional": false,
-          "tag": 1
+          "tag": 1,
+          "unique": true
         },
         "createdAt": {
           "access": "read",
           "kind": "instant",
           "optional": false
+        },
+        "expiresAt": {
+          "access": "read-write",
+          "kind": "instant",
+          "optional": false,
+          "tag": 13
+        },
+        "fingerprint": {
+          "access": "read-write",
+          "kind": "string",
+          "optional": false,
+          "tag": 3
         },
         "id": {
           "access": "read",
@@ -8308,21 +8543,70 @@
           "prefix": "rcpt",
           "target": "core.commandReceipt"
         },
+        "outcome": {
+          "access": "read-write",
+          "input": {
+            "type": "object"
+          },
+          "kind": "json",
+          "optional": true,
+          "output": {
+            "type": "object"
+          },
+          "schema": {
+            "type": "object"
+          },
+          "tag": 6
+        },
+        "principal": {
+          "access": "read-write",
+          "input": {
+            "type": "object"
+          },
+          "kind": "json",
+          "optional": true,
+          "output": {
+            "type": "object"
+          },
+          "schema": {
+            "type": "object"
+          },
+          "tag": 4
+        },
+        "remoteAddress": {
+          "access": "read-write",
+          "kind": "string",
+          "optional": true,
+          "tag": 9
+        },
         "status": {
           "access": "read-write",
           "kind": "enum",
           "optional": false,
-          "tag": 2,
+          "tag": 5,
           "values": [
+            "pending",
             "accepted",
-            "succeeded",
+            "completed",
             "failed"
           ]
+        },
+        "transport": {
+          "access": "read-write",
+          "kind": "string",
+          "optional": false,
+          "tag": 8
         },
         "updatedAt": {
           "access": "read",
           "kind": "instant",
           "optional": false
+        },
+        "userAgent": {
+          "access": "read-write",
+          "kind": "string",
+          "optional": true,
+          "tag": 10
         },
         "version": {
           "access": "read",
@@ -8351,6 +8635,7 @@
         ],
         "maxSize": 500,
         "sortable": [
+          "commandId",
           "createdAt",
           "id",
           "updatedAt"
@@ -9712,7 +9997,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-b2zWjKijc8hhTzjo-B4asmQVml2AGg4-UYaU1ljCXMM",
+  "hash": "sha256-AR80RSBFr1THtBhKWRiZeoYQ8DGsbNg8Pv_QG3_Owd8",
   "modules": [
     {
       "id": "core",

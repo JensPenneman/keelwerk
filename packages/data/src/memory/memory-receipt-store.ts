@@ -22,6 +22,12 @@ export function memoryReceiptStore(ctx: MemoryUnitContext): ReceiptStore {
         });
       }
     },
+    claim: async (receipt) => {
+      ctx.writable();
+      if (ctx.tx.read<Receipt>(name()).has(receipt.commandId)) return 'exists';
+      ctx.tx.write<Receipt>(name()).set(receipt.commandId, receipt);
+      return 'inserted';
+    },
     complete: async (commandId, outcome) => {
       ctx.writable();
       const existing = ctx.tx.read<Receipt>(name()).get(commandId);

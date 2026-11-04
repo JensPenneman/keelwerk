@@ -89,7 +89,7 @@ export function buildReadContext(input: ReadContextInput): ContextFactory {
     Object.freeze(flags);
     const target =
       input.action?.entity !== undefined && input.action.module === module.id
-        ? registry.entities.get(`${module.id}.${input.action.entity}`)
+        ? registry.entities.get(input.action.entity)
         : undefined;
     let ability: ReturnType<typeof createAbility> | undefined;
     let load: Readonly<Record<string, unknown>> | undefined;

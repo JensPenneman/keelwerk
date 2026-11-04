@@ -126,3 +126,16 @@ test('the row carries the UUIDv8 of scope and command id, and completing bumps i
   const scope = tenantScope.level === 'tenant' ? tenantScope.tenantId : '';
   expect(stored).toEqual({ id: deriveUuidV8(scope, 'c1'), version: 2 });
 });
+
+test('claim inserts the receipt once and answers exists afterwards without changing it', async () => {
+  const kinds = await memory.run(tenantScope, async (unit) => ({
+    first: await unit.receipts.claim(receipt('c1')),
+    second: await unit.receipts.claim(receipt('c1', { fingerprint: 'f2' })),
+  }));
+  expect(kinds).toEqual({ first: 'inserted', second: 'exists' });
+  expect((await memory.read(tenantScope, (unit) => unit.receipts.get('c1')))?.fingerprint).toBe(
+    'f1',
+  );
+  const other = await memory.run(tenantTwo, (unit) => unit.receipts.claim(receipt('c1')));
+  expect(other).toBe('inserted');
+});

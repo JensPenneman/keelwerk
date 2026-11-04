@@ -148,7 +148,7 @@ export function entityAction(
   return {
     ref: `${module}.${entity}.${name}`,
     module,
-    entity,
+    entity: `${module}.${entity}`,
     name,
     kind,
     ...(generated !== undefined && { generated }),

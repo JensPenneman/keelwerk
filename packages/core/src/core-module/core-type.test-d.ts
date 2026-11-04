@@ -35,6 +35,7 @@ import { operators as compositionOperators } from './policies/composition/operat
 import { signedIn as introspectSignedIn } from './policies/introspect/signed-in.ts';
 
 declare const configSchema: StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
+declare const document: StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
 const status = field.enum(['active', 'suspended']).default('active');
 
 // What the DSL derives from the same definitions, with isolatedDeclarations off: the hand-written
@@ -118,8 +119,20 @@ const derived = defineModuleBase({
     commandReceipt: defineEntity({
       prefix: 'rcpt',
       fields: {
-        commandId: field.string(),
-        status: field.enum(['accepted', 'succeeded', 'failed']),
+        commandId: field.string().unique(),
+        action: field.string(),
+        fingerprint: field.string(),
+        principal: field.json(document).optional(),
+        status: field.enum(['pending', 'accepted', 'completed', 'failed']),
+        outcome: field.json(document).optional(),
+        apiVersion: field.string(),
+        transport: field.string(),
+        remoteAddress: field.string().optional(),
+        userAgent: field.string().optional(),
+        clientId: field.string().optional(),
+        clientSeq: field.integer().optional(),
+        expiresAt: field.instant(),
+        acknowledgedAt: field.instant().optional(),
       },
       history: 'state',
       tenancy: 'invocation',

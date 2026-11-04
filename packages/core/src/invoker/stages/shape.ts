@@ -26,7 +26,7 @@ function plannedAs(entry: EntityEntry, invoked: ActionEntry): AuthorizedAction {
   return {
     ref: `${entry.ref}.query`,
     module: entry.module,
-    entity: entry.name,
+    entity: entry.ref,
     name: 'query',
     kind: 'query',
     generated: 'query',

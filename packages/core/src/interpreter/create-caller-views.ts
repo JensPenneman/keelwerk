@@ -12,7 +12,7 @@ function queryOf(entry: EntityEntry): AuthorizedAction {
   return {
     ref: `${entry.ref}.query`,
     module: entry.module,
-    entity: entry.name,
+    entity: entry.ref,
     name: 'query',
     kind: 'query',
     generated: 'query',
@@ -38,12 +38,7 @@ export function createCallerViews(
   return (entry, context) => {
     const known = views.get(entry.ref);
     if (known !== undefined) return known;
-    const action: AuthorizedAction =
-      invoked !== undefined &&
-      invoked.entity !== undefined &&
-      `${invoked.module}.${invoked.entity}` === entry.ref
-        ? invoked
-        : queryOf(entry);
+    const action: AuthorizedAction = invoked?.entity === entry.ref ? invoked : queryOf(entry);
     const view = callerView({
       entry,
       rules,

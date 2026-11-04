@@ -75,6 +75,10 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
         message: `"${action.ref}" is a command, and this release has no write path wired.`,
       });
     }
+    const { registry } = env.appOf(details.resolved.app);
+    const { options } = env;
+    const { capabilities } = target.handle;
+    const backendNamespace = (details.resolved.backendTarget ?? target).namespace;
     const result = await withDeadline(
       (signal) =>
         commands({
@@ -84,6 +88,19 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
           session,
           target,
           signal,
+          registry,
+          rules: env.rulesOf(registry),
+          request: requestInfo(invocation),
+          clock: options.clock,
+          keys: options.keys,
+          compute: options.compute,
+          log: input.log,
+          span: input.span,
+          build: options.build ?? { id: 'development', revision: 1 },
+          namespaceOf: (scope) => (scope.level === 'backend' ? backendNamespace : target.namespace),
+          ...(capabilities === undefined
+            ? {}
+            : { concurrentUnits: capabilities.processes !== 'single' }),
         }),
       { command: true, ...(action.timeoutMs === undefined ? {} : { timeoutMs: action.timeoutMs }) },
     );
