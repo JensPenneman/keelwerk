@@ -11,6 +11,12 @@ import { useNewWorkspace } from './support/new-workspace.ts';
 import { runCliWith } from './support/run-cli-with.ts';
 
 const execFileAsync = promisify(execFile);
+
+/** Terminal colour codes a child process may print when it believes it has a terminal. */
+function withoutAnsi(text: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: the escape byte is the point
+  return text.replace(/\u001b\[[0-9;]*m/g, '');
+}
 const workspace = useNewWorkspace();
 const { runNew, listing, read } = workspace;
 
@@ -254,6 +260,6 @@ describe('new module inside the framework repository', () => {
       { cwd: created },
     ).catch((error: { stdout?: string; stderr?: string }) => error);
     expect(tested).not.toHaveProperty('code');
-    expect(String((tested as { stdout?: string }).stdout)).toMatch(/Tests\s+2 passed/);
+    expect(withoutAnsi(String((tested as { stdout?: string }).stdout))).toMatch(/Tests\s+2 passed/);
   }, 300_000);
 });
