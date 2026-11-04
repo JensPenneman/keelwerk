@@ -1,0 +1,21 @@
+/** Flags every action command has; a field with one of these names is set with `--input`. */
+export const reservedFlags: ReadonlySet<string> = new Set([
+  'profile',
+  'backend',
+  'tenant',
+  'socket',
+  'config',
+  'output',
+  'fields',
+  'async',
+  'wait',
+  'wait-effects',
+  'command-id',
+  'if-version',
+  'explain',
+  'trace',
+  'input',
+  'follow',
+  'help',
+  'version',
+]);

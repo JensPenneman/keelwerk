@@ -67,14 +67,11 @@
       "project": ["src/**/*.ts"],
       "ignoreDependencies": [
         "@keelwerk/client",
-        "@keelwerk/core",
         "@keelwerk/data",
         "@stricli/auto-complete",
-        "@stricli/core",
         "pino",
         "tsc",
-        "typescript-6",
-        "yaml"
+        "typescript-6"
       ]
     },
     "packages/module-accounts": {
