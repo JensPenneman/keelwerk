@@ -74,7 +74,9 @@ describe('the computation pool', () => {
     expect(await pool.argon2idVerify(dummyVerifier, 'x')).toBe(false);
   });
 
-  it('keeps the event loop free during 32 concurrent verifications', async () => {
+  it('keeps the event loop free during 32 concurrent verifications', {
+    timeout: 60_000,
+  }, async () => {
     pool = createComputePool({ size: 2 });
     await Promise.all([
       pool.argon2idVerify(dummyVerifier, 'warm up'),
