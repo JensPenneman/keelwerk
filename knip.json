@@ -44,15 +44,7 @@
     },
     "packages/adapter-postgres": {
       "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts"],
-      "ignoreDependencies": [
-        "@keelwerk/core",
-        "@keelwerk/data",
-        "@keelwerk/testing",
-        "@types/pg",
-        "kysely",
-        "pg"
-      ]
+      "project": ["src/**/*.ts"]
     },
     "packages/module-auth": {
       "entry": ["src/**/*.test-d.ts"],

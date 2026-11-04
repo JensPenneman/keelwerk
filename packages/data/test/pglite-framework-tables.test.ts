@@ -77,8 +77,10 @@ describe('the control store on PGlite', () => {
     expect(found.rows).toHaveLength(0);
   });
 
-  test('a deployment unit without a deployment id is refused', { timeout: 60_000 }, async () => {
-    const bare = pgliteAdapter();
+  test('a deployment unit with an empty deployment id is refused', {
+    timeout: 60_000,
+  }, async () => {
+    const bare = pgliteAdapter({ deploymentId: '' });
     await bare.connect();
     try {
       await expect(bare.unit(namespaceRef, deploymentScope, async () => 'never')).rejects.toThrow(

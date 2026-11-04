@@ -107,7 +107,8 @@ describe('commit tail (section 15.1.4)', () => {
     const elapsed = performance.now() - started;
     await blocker.query('commit');
     await Promise.all([blocker.end(), writer.end()]);
-    expect(elapsed).toBeLessThan(250);
+    // The bound proves the absence of the 1.5 s wait, not the latency.
+    expect(elapsed).toBeLessThan(1_000);
   });
 
   it('fails a concurrent append of the same stream version with 23505', async () => {

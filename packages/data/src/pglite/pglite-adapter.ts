@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { PGlite } from '@electric-sql/pglite';
 import type {
   AdapterCapabilities,
+  AdapterEnvironment,
   DataAdapter,
   NamespaceRef,
   StorageScope,
@@ -15,7 +16,7 @@ import { pgliteIdentity } from './pglite-identity.ts';
 import { PgliteReentrantUnitError } from './pglite-reentrant-unit-error.ts';
 import { type PgliteUnit, pgliteUnit } from './pglite-unit.ts';
 
-function scopeIdOf(scope: StorageScope, deploymentId: string | undefined): string | undefined {
+function scopeIdOf(scope: StorageScope, deploymentId: string): string | undefined {
   switch (scope.level) {
     case 'tenant':
       return scope.tenantId;
@@ -35,8 +36,6 @@ export interface PgliteAdapterOptions {
   readonly placementId?: string;
   /** The role every unit drops to; provision it with `provisionApplicationRole`. Default `kw_app`. */
   readonly role?: string;
-  /** Named by deployment-scope units: becomes `keelwerk.deployment_id`. */
-  readonly deploymentId?: string;
   /**
    * Receives the error of an `afterCommit` callback that threw. Default: rethrown from a
    * microtask, so it surfaces as an uncaught error without rejecting the committed unit.
@@ -69,7 +68,10 @@ export interface PgliteAdapter extends Omit<DataAdapter, 'unit' | 'schema'> {
  * application role so row-level security applies (S-14); a unit that commits in a scope wakes the
  * in-process change feed afterwards.
  */
-export function pgliteAdapter(options: PgliteAdapterOptions = {}): PgliteAdapter {
+export function pgliteAdapter(
+  env: Pick<AdapterEnvironment, 'deploymentId'>,
+  options: PgliteAdapterOptions = {},
+): PgliteAdapter {
   const role = assertRoleName(options.role ?? 'kw_app');
   const inside = new AsyncLocalStorage<true>();
   const feed = pgliteChangeFeed();
@@ -154,7 +156,7 @@ export function pgliteAdapter(options: PgliteAdapterOptions = {}): PgliteAdapter
         scope,
         readOnly,
         role,
-        ...(options.deploymentId === undefined ? {} : { deploymentId: options.deploymentId }),
+        deploymentId: env.deploymentId,
         ...(unitOptions.isolation === undefined ? {} : { isolation: unitOptions.isolation }),
         ...(unitOptions.timeoutMs === undefined ? {} : { timeoutMs: unitOptions.timeoutMs }),
       });
@@ -175,7 +177,7 @@ export function pgliteAdapter(options: PgliteAdapterOptions = {}): PgliteAdapter
           throw error;
         }
       });
-      const scopeId = scopeIdOf(scope, options.deploymentId);
+      const scopeId = scopeIdOf(scope, env.deploymentId);
       if (!readOnly && scopeId !== undefined) feed.publish(namespace.id, [scopeId]);
       // The unit has committed: a callback that throws is reported, never allowed to reject the
       // call (a caller would retry a command that already committed) or to stop the others.

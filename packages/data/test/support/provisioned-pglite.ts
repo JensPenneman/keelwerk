@@ -37,7 +37,7 @@ async function provision(adapter: PgliteAdapter): Promise<void> {
 export async function provisionedPglite(
   options: PgliteAdapterOptions = {},
 ): Promise<PgliteAdapter> {
-  const adapter = pgliteAdapter({ deploymentId: deployment, ...options });
+  const adapter = pgliteAdapter({ deploymentId: deployment }, options);
   await adapter.connect();
   await provision(adapter);
   return adapter;

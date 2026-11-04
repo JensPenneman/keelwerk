@@ -5,6 +5,7 @@ import {
   pgliteAdapter,
   pgliteCapabilities,
 } from '../src/pglite/index.ts';
+import { deployment as deploymentId } from './support/deployment.ts';
 import { insertSerial } from './support/insert-serial.ts';
 import { namespaceRef } from './support/namespace-ref.ts';
 import { ns } from './support/ns.ts';
@@ -207,12 +208,12 @@ describe('the adapter and its application role', () => {
   });
 
   test('a role name that is not a plain role name is refused when the adapter is created', () => {
-    expect(() => pgliteAdapter({ role: 'pg_monitor' })).toThrow(TypeError);
-    expect(() => pgliteAdapter({ role: 'a"b' })).toThrow(TypeError);
+    expect(() => pgliteAdapter({ deploymentId }, { role: 'pg_monitor' })).toThrow(TypeError);
+    expect(() => pgliteAdapter({ deploymentId }, { role: 'a"b' })).toThrow(TypeError);
   });
 
   test('connect refuses a role that is a superuser', async () => {
-    const adapter = pgliteAdapter({ role: 'postgres' });
+    const adapter = pgliteAdapter({ deploymentId }, { role: 'postgres' });
     await expect(adapter.connect()).rejects.toThrow(/bypass row-level security/);
     await adapter.close(1000);
   }, 60_000);

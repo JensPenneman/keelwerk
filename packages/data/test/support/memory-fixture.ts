@@ -39,6 +39,7 @@ export function openMemory(
   const clock = testClock(stamp);
   const known = new Map([...entities, ...extra.map((entity) => [entity.ref, entity] as const)]);
   const environment: AdapterEnvironment = {
+    deploymentId: '00000000-0000-4000-8000-0000000000d1',
     log: silent,
     tracer: {} as AdapterEnvironment['tracer'],
     secrets: { resolve: async () => '' },
