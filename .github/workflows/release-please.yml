@@ -1,8 +1,9 @@
 name: Release Please
 
+# Releases start at the end of milestone M1 (the first runnable slice). Until then the workflow
+# runs only by hand, so no release pull request is opened for an empty toolchain.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions: {}
 
