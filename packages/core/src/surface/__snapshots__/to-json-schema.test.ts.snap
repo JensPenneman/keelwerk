@@ -1,0 +1,632 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`toJsonSchema, one snapshot per kind and direction > input binary 1`] = `
+{
+  "contentEncoding": "base64url",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input blob 1`] = `
+{
+  "properties": {
+    "key": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "key",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input boolean 1`] = `
+{
+  "type": "boolean",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input date 1`] = `
+{
+  "format": "date",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input decimal 1`] = `
+{
+  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input enum 1`] = `
+{
+  "enum": [
+    "open",
+    "closed",
+  ],
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input float 1`] = `
+{
+  "type": "number",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input foreign 1`] = `
+{
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input id 1`] = `
+{
+  "pattern": "^book_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input instant 1`] = `
+{
+  "format": "date-time",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input integer 1`] = `
+{
+  "maximum": 10,
+  "minimum": 0,
+  "type": "integer",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input json 1`] = `
+{
+  "type": "number",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input list 1`] = `
+{
+  "items": {
+    "type": "string",
+  },
+  "type": "array",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input page 1`] = `
+{
+  "properties": {
+    "items": {
+      "items": {
+        "type": "string",
+      },
+      "type": "array",
+    },
+    "pageInfo": {
+      "properties": {
+        "endCursor": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "hasNextPage": {
+          "type": "boolean",
+        },
+        "hasPreviousPage": {
+          "type": "boolean",
+        },
+        "startCursor": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+      },
+      "required": [
+        "hasNextPage",
+        "hasPreviousPage",
+        "startCursor",
+        "endCursor",
+      ],
+      "type": "object",
+    },
+    "queryState": {
+      "type": "string",
+    },
+    "total": {
+      "minimum": 0,
+      "type": "integer",
+    },
+  },
+  "required": [
+    "items",
+    "pageInfo",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input plainInteger 1`] = `
+{
+  "maximum": 9007199254740991,
+  "minimum": -9007199254740991,
+  "type": "integer",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input ref 1`] = `
+{
+  "pattern": "^book_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input richText 1`] = `
+{
+  "anyOf": [
+    {
+      "type": "string",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "crdt": {
+          "additionalProperties": false,
+          "properties": {
+            "codec": {
+              "type": "string",
+            },
+            "update": {
+              "contentEncoding": "base64url",
+              "type": "string",
+            },
+          },
+          "required": [
+            "codec",
+            "update",
+          ],
+          "type": "object",
+        },
+      },
+      "required": [
+        "crdt",
+      ],
+      "type": "object",
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "codec": {
+          "type": "string",
+        },
+        "delta": {
+          "items": {
+            "properties": {
+              "attributes": {
+                "type": "object",
+              },
+              "insert": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "insert",
+            ],
+            "type": "object",
+          },
+          "type": "array",
+        },
+        "text": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "codec",
+        "text",
+        "delta",
+      ],
+      "type": "object",
+    },
+  ],
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input secret 1`] = `
+{
+  "type": "string",
+  "writeOnly": true,
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input serial 1`] = `
+{
+  "minimum": 0,
+  "readOnly": true,
+  "type": "integer",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input set 1`] = `
+{
+  "items": {
+    "maximum": 9007199254740991,
+    "minimum": -9007199254740991,
+    "type": "integer",
+  },
+  "type": "array",
+  "uniqueItems": true,
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input shape 1`] = `
+{
+  "additionalProperties": false,
+  "properties": {
+    "masked": {
+      "type": "string",
+    },
+    "note": {
+      "type": "string",
+    },
+    "password": {
+      "type": "string",
+      "writeOnly": true,
+    },
+    "title": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "title",
+    "password",
+    "masked",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input string 1`] = `
+{
+  "format": "email",
+  "maxLength": 80,
+  "minLength": 1,
+  "pattern": "^[a-z]+$",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input subject 1`] = `
+{
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input text 1`] = `
+{
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input timeZone 1`] = `
+{
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input void 1`] = `{}`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > input wideInteger 1`] = `
+{
+  "pattern": "^-?[0-9]+$",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output binary 1`] = `
+{
+  "contentEncoding": "base64url",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output blob 1`] = `
+{
+  "properties": {
+    "key": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "key",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output boolean 1`] = `
+{
+  "type": "boolean",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output date 1`] = `
+{
+  "format": "date",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output decimal 1`] = `
+{
+  "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output enum 1`] = `
+{
+  "enum": [
+    "open",
+    "closed",
+  ],
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output float 1`] = `
+{
+  "type": "number",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output foreign 1`] = `
+{
+  "type": "number",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output id 1`] = `
+{
+  "pattern": "^book_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output instant 1`] = `
+{
+  "format": "date-time",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output integer 1`] = `
+{
+  "maximum": 10,
+  "minimum": 0,
+  "type": "integer",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output json 1`] = `
+{
+  "type": "number",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output list 1`] = `
+{
+  "items": {
+    "type": "string",
+  },
+  "type": "array",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output page 1`] = `
+{
+  "properties": {
+    "items": {
+      "items": {
+        "type": "string",
+      },
+      "type": "array",
+    },
+    "pageInfo": {
+      "properties": {
+        "endCursor": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "hasNextPage": {
+          "type": "boolean",
+        },
+        "hasPreviousPage": {
+          "type": "boolean",
+        },
+        "startCursor": {
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+      },
+      "required": [
+        "hasNextPage",
+        "hasPreviousPage",
+        "startCursor",
+        "endCursor",
+      ],
+      "type": "object",
+    },
+    "queryState": {
+      "type": "string",
+    },
+    "total": {
+      "minimum": 0,
+      "type": "integer",
+    },
+  },
+  "required": [
+    "items",
+    "pageInfo",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output plainInteger 1`] = `
+{
+  "maximum": 9007199254740991,
+  "minimum": -9007199254740991,
+  "type": "integer",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output ref 1`] = `
+{
+  "pattern": "^book_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output richText 1`] = `
+{
+  "properties": {
+    "codec": {
+      "type": "string",
+    },
+    "delta": {
+      "items": {
+        "properties": {
+          "attributes": {
+            "type": "object",
+          },
+          "insert": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "insert",
+        ],
+        "type": "object",
+      },
+      "type": "array",
+    },
+    "text": {
+      "type": "string",
+    },
+    "version": {
+      "contentEncoding": "base64url",
+      "type": "string",
+    },
+  },
+  "required": [
+    "codec",
+    "text",
+    "delta",
+    "version",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output secret 1`] = `
+{
+  "type": "string",
+  "writeOnly": true,
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output serial 1`] = `
+{
+  "minimum": 0,
+  "readOnly": true,
+  "type": "integer",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output set 1`] = `
+{
+  "items": {
+    "maximum": 9007199254740991,
+    "minimum": -9007199254740991,
+    "type": "integer",
+  },
+  "type": "array",
+  "uniqueItems": true,
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output shape 1`] = `
+{
+  "additionalProperties": false,
+  "properties": {
+    "masked": {
+      "type": "string",
+    },
+    "note": {
+      "type": "string",
+    },
+    "serial": {
+      "minimum": 0,
+      "readOnly": true,
+      "type": "integer",
+    },
+    "title": {
+      "type": "string",
+    },
+  },
+  "required": [
+    "title",
+    "serial",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output string 1`] = `
+{
+  "format": "email",
+  "maxLength": 80,
+  "minLength": 1,
+  "pattern": "^[a-z]+$",
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output subject 1`] = `
+{
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output text 1`] = `
+{
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output timeZone 1`] = `
+{
+  "type": "string",
+}
+`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output void 1`] = `{}`;
+
+exports[`toJsonSchema, one snapshot per kind and direction > output wideInteger 1`] = `
+{
+  "pattern": "^-?[0-9]+$",
+  "type": "string",
+}
+`;
