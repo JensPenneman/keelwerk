@@ -79,7 +79,9 @@ criterion 3 writes up the `prepare` comparison from Trail's code.
 
 Packages and artefacts:
 
-- Root workspace on Node 26 (`"engines": { "node": ">=26" }`, decision 28a): pnpm 11 workspace,
+- Root workspace on Node 26 (decision 28a; pinned by `.nvmrc`, `packageManager` and the CI Node
+  setup rather than by `engines` fields, which Dependabot's updater refuses while it runs Node 24,
+  see the note in `.github/dependabot.yml`): pnpm 11 workspace,
   TypeScript 7.0.2 with project references and the base configuration of architecture.md section
   13.3, Biome 2.5.15, Vitest 5.0.3 with type checking, CI on GitHub Actions on Node 26 (the
   repository private or public, as Jens chooses, decision 83), branch protection that requires
@@ -233,6 +235,9 @@ Exit criteria:
     each acceleration it ships.
 11. Moving a part file changes its reference in the generated manifest and `keelwerk surface diff`
     reports the change as breaking; a stale manifest fails `keelwerk generate --check`.
+12. The published packages carry `"engines": { "node": ">=26" }` again before the first publish:
+    Dependabot's updater runs Node 26 by then, or the lead decides between the `engines` field and
+    Dependabot's version updates.
 
 ### M2. Execution and live updates
 

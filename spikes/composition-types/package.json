@@ -5,9 +5,6 @@
   "description": "M0 spike: the type-level model of keelwerk, proved before any core code exists.",
   "license": "FSL-1.1-ALv2",
   "type": "module",
-  "engines": {
-    "node": ">=26"
-  },
   "exports": {
     ".": {
       "@keelwerk/source": "./src/index.ts",

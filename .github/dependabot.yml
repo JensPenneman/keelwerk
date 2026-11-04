@@ -1,9 +1,11 @@
 version: 2
 
 updates:
-  # The root package carries no engines field: Dependabot runs the Node release it
-  # ships (24 on 2026-11-04) and refuses manifests whose engines it cannot satisfy.
-  # .nvmrc, packageManager, CI and the published packages pin the runtime instead.
+  # No package.json in the workspace carries an engines field: Dependabot runs the Node
+  # release it ships (24 on 2026-11-04) and refuses a workspace whose engines fields it
+  # cannot satisfy, including those of workspace members. .nvmrc, packageManager and the
+  # CI Node setup pin the runtime; the engines fields return before the first publish
+  # (roadmap, M1 exit criteria).
   - package-ecosystem: npm
     directory: /
     schedule:
