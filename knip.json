@@ -127,7 +127,7 @@
     "packages/core": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["canonicalize", "fast-check", "uuid"]
+      "ignoreDependencies": ["canonicalize"]
     },
     "spikes/node26-rechecks": {
       "entry": ["src/**/*.test-d.ts"],

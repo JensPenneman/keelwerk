@@ -1,4 +1,4 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
 import type { ErrorKind } from './error-kind.ts';
 
 /** What `defineError` takes beside the code: the kind, the message and the schema of `details`. */

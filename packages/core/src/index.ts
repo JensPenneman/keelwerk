@@ -1,6 +1,21 @@
 export type { Condition } from './conditions/condition.ts';
 export type { ConditionInput } from './conditions/condition-input.ts';
 export type { ConditionOp } from './conditions/condition-op.ts';
+export type {
+  AnyEntity,
+  Entity,
+  EntityDefinition,
+  EntityIndex,
+  EntityState,
+  EventShapes,
+  GeneratedOptions,
+  HistoryMode,
+  IndexedFields,
+  Relations,
+  SearchIndex,
+  Tenancy,
+} from './dsl/define-entity.ts';
+export { defineEntity } from './dsl/define-entity.ts';
 export type { CoreErrorCode } from './errors/core-error-code.ts';
 export type { ErrorAudience } from './errors/error-audience.ts';
 export type { ErrorIssue } from './errors/error-issue.ts';
@@ -24,8 +39,58 @@ export type { StateToken } from './events/state-token.ts';
 export type { StoredEvent } from './events/stored-event.ts';
 export type { StreamAppend } from './events/stream-append.ts';
 export type { StreamRef } from './events/stream-ref.ts';
+export type { FieldBuilders, RefBuilders } from './fields/field.ts';
+export { field } from './fields/field.ts';
+export type {
+  AbsoluteRef,
+  AnyField,
+  FieldDef,
+  FieldRef,
+  OwnRef,
+  ValueOfField,
+} from './fields/field-def.ts';
+export type { FieldFlags, MergeType, NoFlags, WithFlag } from './fields/field-flags.ts';
+export type {
+  BlobOptions,
+  DecimalOptions,
+  FieldOptions,
+  IntegerOptions,
+  SerialOptions,
+  StringOptions,
+} from './fields/field-options.ts';
+export type { LeakOf, PersonalFlags, PersonalLeak } from './fields/personal-flags.ts';
+export type {
+  CustomNormalizer,
+  Normalizer,
+  PersonalOptions,
+} from './fields/personal-options.ts';
+export type { EntityNamesOf, RefModule } from './fields/ref-module.ts';
+export type {
+  AnyRelation,
+  Relation,
+  RelationBuilders,
+  RelationKeys,
+  RelationTo,
+} from './fields/relation.ts';
+export { relation } from './fields/relation.ts';
+export type { Shape, ShapeFields } from './fields/shape.ts';
+export { shape } from './fields/shape.ts';
+export type { FieldValue, ShapeValue, ValueMode } from './fields/shape-value.ts';
+export type {
+  StandardIssue,
+  StandardOutput,
+  StandardResult,
+  StandardSchemaProps,
+  StandardSchemaV1,
+} from './fields/standard-schema-v1.ts';
+export type { SystemFields } from './fields/system-fields.ts';
+export type { ValidateOptions } from './fields/validate-value.ts';
+export { validateValue } from './fields/validate-value.ts';
 export type { BlobRef } from './ids/blob-ref.ts';
 export type { Id } from './ids/id.ts';
+export { newUuidV7 } from './ids/new-uuid-v7.ts';
+export { parseTypeId } from './ids/parse-type-id.ts';
+export { renderTypeId } from './ids/render-type-id.ts';
 export type { RichText } from './ids/rich-text.ts';
 export type { SecretRef } from './ids/secret-ref.ts';
 export type { SubjectId } from './ids/subject-id.ts';
@@ -33,6 +98,17 @@ export type { JobGroup } from './jobs/job-group.ts';
 export type { JobRetry } from './jobs/job-retry.ts';
 export type { JobRun } from './jobs/job-run.ts';
 export type { JobSpec } from './jobs/job-spec.ts';
+export type { AllKeys } from './model/all-keys.ts';
+export type { Check } from './model/check.ts';
+export type { EntityType } from './model/entity-type.ts';
+export type { InsertOf } from './model/insert-of.ts';
+export type { IsUnion } from './model/is-union.ts';
+export type { OfflinePatchOf } from './model/offline-patch-of.ts';
+export type { CrdtUpdate, PatchOf, PatchValue } from './model/patch-of.ts';
+export type { Prettify } from './model/prettify.ts';
+export type { TypeAt } from './model/type-at.ts';
+export type { UnionToIntersection } from './model/union-to-intersection.ts';
+export type { FieldCondition, FieldOps, PersonalOps, Where } from './model/where.ts';
 export type { Logger } from './observability/logger.ts';
 export type { Meter } from './observability/meter.ts';
 export type { Span } from './observability/span.ts';

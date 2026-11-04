@@ -1,4 +1,4 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
 import type { Empty } from '../types/empty.ts';
 import type { AdapterEnvironment } from './adapter-environment.ts';
 import type { DataAdapter } from './data-adapter.ts';
