@@ -23,6 +23,11 @@
       "@keelwerk/source": "./src/crypto/index.ts",
       "types": "./dist/crypto/index.d.ts",
       "default": "./dist/crypto/index.js"
+    },
+    "./manifest": {
+      "@keelwerk/source": "./src/manifest/index.ts",
+      "types": "./dist/manifest/index.d.ts",
+      "default": "./dist/manifest/index.js"
     }
   },
   "publishConfig": {
@@ -42,6 +47,10 @@
       "./crypto": {
         "types": "./dist/crypto/index.d.ts",
         "default": "./dist/crypto/index.js"
+      },
+      "./manifest": {
+        "types": "./dist/manifest/index.d.ts",
+        "default": "./dist/manifest/index.js"
       }
     }
   },

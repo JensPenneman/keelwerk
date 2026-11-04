@@ -1,0 +1,172 @@
+import { readFile } from 'node:fs/promises';
+
+type Mounts = Map<string, string>;
+
+const TOKEN = /[A-Za-z_$][\w$]*|'[^']*'|\S/g;
+
+function importedPaths(text: string): Map<string, string> {
+  const paths = new Map<string, string>();
+  for (const match of text.matchAll(/import\s*\{([^}]*)\}\s*from\s*'([^']+)'/g)) {
+    for (const specifier of (match[1] ?? '').split(',')) {
+      const words = specifier.trim().split(/\s+/);
+      const local = words.at(-1);
+      if (local && words[0] !== 'type' && match[2]?.startsWith('.')) paths.set(local, match[2]);
+    }
+  }
+  return paths;
+}
+
+function skipValue(tokens: string[], at: { index: number }): void {
+  let depth = 0;
+  while (at.index < tokens.length) {
+    const token = tokens[at.index];
+    if (token === '(') depth += 1;
+    if (token === ')') depth -= 1;
+    if (depth === 0 && (token === ',' || token === '}')) return;
+    at.index += 1;
+  }
+}
+
+function readObject(tokens: string[], at: { index: number }, trail: string[], out: Mounts): void {
+  at.index += 1;
+  while (at.index < tokens.length && tokens[at.index] !== '}') {
+    const key = tokens[at.index] as string;
+    const path = [...trail, key];
+    at.index += 1;
+    if (tokens[at.index] !== ':') out.set(path.join('.'), key);
+    else {
+      at.index += 1;
+      if (tokens[at.index] === '{') readObject(tokens, at, path, out);
+      else {
+        const value = tokens[at.index] as string;
+        skipValue(tokens, at);
+        out.set(path.join('.'), value);
+      }
+    }
+    if (tokens[at.index] === ',') at.index += 1;
+  }
+  at.index += 1;
+}
+
+/** The import path mounted at each key path of the literal, read from the generated format. */
+function mountsOf(text: string): Mounts {
+  const out: Mounts = new Map();
+  const paths = importedPaths(text);
+  const start = text.search(/=\s*defineModule\(\s*\w+\s*,\s*\{/);
+  if (start < 0) return out;
+  const literal = text.slice(text.indexOf('{', text.indexOf(',', start)));
+  const tokens = literal.match(TOKEN) ?? [];
+  const raw: Mounts = new Map();
+  readObject(tokens, { index: 0 }, [], raw);
+  for (const [path, local] of raw) {
+    const source = paths.get(local);
+    if (source !== undefined) out.set(path, source);
+  }
+  return out;
+}
+
+/**
+ * `entityActions.book.add` is the reference `library.book.add`; a contribution's names its target
+ * after the module id (`auth.accounts.profile.self`, section 23.2).
+ */
+function referenceOf(id: string, path: string): string {
+  const keys = path.split('.');
+  const [first, scope, ...scoped] = keys;
+  if ((first === 'contributes' || first === 'conditional') && scope !== undefined) {
+    const target = scope.replace(/^(to|when)(?=[A-Z])/, '');
+    const name = target.charAt(0).toLowerCase() + target.slice(1);
+    return referenceOf(`${id}.${name}`, scoped.join('.'));
+  }
+  return [id, ...keys.slice(1)].join('.');
+}
+
+/** The sort of part a mount key path holds; an entity action is an action moved under an entity. */
+function kindOf(path: string): string {
+  const keys = path.split('.');
+  const scoped = keys[0] === 'contributes' || keys[0] === 'conditional';
+  const section = (scoped ? keys[2] : keys[0]) ?? '';
+  return `${scoped ? keys.slice(0, 2).join('.') : ''}/${section === 'entityActions' ? 'actions' : section}`;
+}
+
+function bare(source: string): string {
+  return source.replace(/^\.\//, '');
+}
+
+function differences(id: string, committed: string, expected: string): string[] {
+  const have = mountsOf(committed);
+  const want = mountsOf(expected);
+  const problems: string[] = [];
+  const removed = [...have].filter(([path]) => !want.has(path));
+  const added = [...want].filter(([path]) => !have.has(path));
+  const paired = new Set<string>();
+  for (const [path, source] of removed) {
+    const sameKind = (other: [string, string]) => kindOf(other[0]) === kindOf(path);
+    const matches = added.filter(sameKind);
+    if (removed.filter(sameKind).length === 1 && matches.length === 1) {
+      const [target, now] = matches[0] as [string, string];
+      paired.add(path).add(target);
+      problems.push(
+        `${id}: ${referenceOf(id, path)} is now ${referenceOf(id, target)} (${bare(source)} is now ${bare(now)})`,
+      );
+    }
+  }
+  for (const [path, source] of removed) {
+    if (!paired.has(path)) {
+      problems.push(`${id}: ${referenceOf(id, path)} (${bare(source)}) is no longer mounted`);
+    }
+  }
+  for (const [path, source] of added) {
+    if (!paired.has(path)) {
+      problems.push(`${id}: ${referenceOf(id, path)} (${bare(source)}) is not mounted yet`);
+    }
+  }
+  for (const [path, source] of have) {
+    const now = want.get(path);
+    if (now !== undefined && now !== source) {
+      problems.push(`${id}: ${referenceOf(id, path)} comes from ${bare(now)}, not ${bare(source)}`);
+    }
+  }
+  return problems;
+}
+
+/**
+ * The header names the generator's version (section 13.7); a release bumps it without changing what
+ * the directories imply, so the comparison reads both texts with the version taken out.
+ */
+function withoutGeneratorVersion(text: string): string {
+  return text.replace(/^(\/\/ Generated by keelwerk )\S+/, '$1');
+}
+
+/** The outcome of comparing a committed manifest with the text the directories imply. */
+export interface ManifestCheck {
+  readonly current: boolean;
+  /** One line per difference, each naming the module and the reference that changed. */
+  readonly problems: readonly string[];
+}
+
+/**
+ * Compares the manifest at `path` with the text the directories imply (`keelwerk generate
+ * --check`). A moved or renamed part file changes its reference, so the problems name the module
+ * and the reference before and after (section 23.5).
+ */
+export async function checkModuleManifest(
+  path: string,
+  id: string,
+  expected: string,
+): Promise<ManifestCheck> {
+  const committed = await readFile(path, 'utf8').catch((error: unknown) => {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined;
+    throw error;
+  });
+  if (committed === undefined) {
+    return { current: false, problems: [`${id}: ${path} does not exist; run pnpm manifests`] };
+  }
+  if (withoutGeneratorVersion(committed) === withoutGeneratorVersion(expected)) {
+    return { current: true, problems: [] };
+  }
+  const problems = differences(id, committed, expected);
+  if (problems.length === 0) {
+    problems.push(`${id}: ${path} differs from the text its directories imply; run pnpm manifests`);
+  }
+  return { current: false, problems };
+}

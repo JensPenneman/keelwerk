@@ -31,6 +31,14 @@ function stampEntityActions(
   }
 }
 
+/** A rule directly under `policies` is a module-level rule; any other object groups an entity's rules. */
+function stampPolicies(policies: Mounted | undefined, prefix: string): void {
+  for (const [name, part] of Object.entries(policies ?? {})) {
+    if (Reflect.get(part, 'kind') === 'rule') stamp(part, `${prefix}.${name}`);
+    else stampAll(part as Mounted, `${prefix}.${name}`);
+  }
+}
+
 /**
  * Records the reference of every action part and effect a module literal mounts
  * (`auth.credential.revoke`), so `invoke`, `enqueue`, `setTimer` and `continueWith` can name a part
@@ -44,18 +52,18 @@ export function stampRefs(base: AnyModuleBase, literal: ModuleLiteral): void {
   stampAll(literal.services, base.id);
   stampAll(literal.reactions, base.id);
   stampAll(literal.schedules, base.id);
-  stampEntityActions(literal.policies, base.id);
+  stampPolicies(literal.policies, base.id);
   for (const [key, behaviour] of Object.entries(literal.contributes ?? {})) {
     const target = base.contributions?.[key]?.to.id ?? base.id;
     stampAll(behaviour.actions, target);
     stampEntityActions(behaviour.entityActions, target);
     stampAll(behaviour.reactions, target);
-    stampEntityActions(behaviour.policies, target);
+    stampPolicies(behaviour.policies, target);
   }
   for (const behaviour of Object.values(literal.conditional ?? {})) {
     stampAll(behaviour.actions, base.id);
     stampEntityActions(behaviour.entityActions, base.id);
     stampAll(behaviour.reactions, base.id);
-    stampEntityActions(behaviour.policies, base.id);
+    stampPolicies(behaviour.policies, base.id);
   }
 }

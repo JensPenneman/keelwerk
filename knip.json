@@ -65,7 +65,6 @@
       "ignoreDependencies": [
         "@keelwerk/adapter-postgres",
         "@keelwerk/client",
-        "@keelwerk/core",
         "@keelwerk/data",
         "@keelwerk/transport-rest",
         "fast-check"

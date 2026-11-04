@@ -308,6 +308,16 @@ export type { LedgerSink } from './kernel/ledger-sink.ts';
 export type { RequestAnswerer } from './kernel/request-answerer.ts';
 export type { SecretProvider } from './kernel/secret-provider.ts';
 export type { SecretResolver } from './kernel/secret-resolver.ts';
+export type { PartKind } from './manifest/part-conventions.ts';
+export type { ManifestSource } from './manifest/render-module-manifest.ts';
+export { renderModuleManifest } from './manifest/render-module-manifest.ts';
+export type {
+  PartScope,
+  ScannedModule,
+  ScannedPart,
+  UnplacedFile,
+} from './manifest/scan-module-directory.ts';
+export { scanModuleDirectory } from './manifest/scan-module-directory.ts';
 export type { ActionOptions } from './model/action-options.ts';
 export type {
   ActionKind,
