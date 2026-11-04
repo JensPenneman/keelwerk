@@ -1,6 +1,13 @@
+export { compareCodePoints } from './conditions/compare-code-points.ts';
 export type { Condition } from './conditions/condition.ts';
+export type { ConditionFields } from './conditions/condition-fields.ts';
+export { conditionFields } from './conditions/condition-fields.ts';
 export type { ConditionInput } from './conditions/condition-input.ts';
 export type { ConditionOp } from './conditions/condition-op.ts';
+export { evaluateCondition } from './conditions/evaluate-condition.ts';
+export type { EvaluateOptions, RelationMatcher } from './conditions/evaluate-options.ts';
+export { normalizeCondition } from './conditions/normalize-condition.ts';
+export { normalizeWireFilter } from './conditions/normalize-wire-filter.ts';
 export type {
   AnyEntity,
   Entity,
