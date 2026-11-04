@@ -9,5 +9,7 @@ export type Outcome<O> =
       readonly receipt?: CommandReceipt;
       /** Ids of the deferred effects (section 7.9.5). */
       readonly effects?: readonly string[];
+      /** Set by the invoker on an idempotent replay (section 16.4.8). */
+      readonly replayed?: true;
     }
   | { readonly ok: false; readonly error: KeelwerkError };

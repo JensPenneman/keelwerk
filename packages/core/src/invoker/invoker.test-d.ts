@@ -36,6 +36,7 @@ test('Outcome narrows on ok', () => {
   if (outcome.ok) {
     expectTypeOf(outcome.value).toEqualTypeOf<number>();
     expectTypeOf(outcome.receipt).toEqualTypeOf<CommandReceipt | undefined>();
+    expectTypeOf(outcome.replayed).toEqualTypeOf<true | undefined>();
     expectTypeOf(outcome).not.toHaveProperty('error');
   } else {
     expectTypeOf(outcome.error).toEqualTypeOf<KeelwerkError>();

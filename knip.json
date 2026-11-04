@@ -87,13 +87,7 @@
     "packages/transport-rest": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": [
-        "@keelwerk/core",
-        "@keelwerk/testing",
-        "@scalar/hono-api-reference",
-        "@scalar/openapi-parser",
-        "hono"
-      ]
+      "ignoreDependencies": ["@keelwerk/testing", "@scalar/openapi-parser"]
     },
     "packages/client": {
       "entry": ["src/**/*.test-d.ts"],

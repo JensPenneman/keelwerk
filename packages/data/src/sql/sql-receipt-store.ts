@@ -1,6 +1,6 @@
 // biome-ignore-all lint/style/useNamingConvention: the keys are the column names of the framework tables
 import type { PrincipalRef, Receipt, ReceiptOutcome, ReceiptStore } from '@keelwerk/core';
-import { deriveUuidV8, errors, KeelwerkError } from '@keelwerk/core';
+import { commandReceiptUuid, errors, KeelwerkError } from '@keelwerk/core';
 import { sql } from 'kysely';
 import { decodeInstant } from './decode-instant.ts';
 import { encodeInstant } from './encode-instant.ts';
@@ -87,7 +87,7 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
           .scopedDb()
           .insertInto(table)
           .values({
-            id: deriveUuidV8(ctx.scopeId(), receipt.commandId),
+            id: commandReceiptUuid(ctx.scopeId(), receipt.commandId),
             version: 1,
             created_at: encodeInstant(ctx.clock.now()),
             updated_at: encodeInstant(ctx.clock.now()),

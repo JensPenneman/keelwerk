@@ -1,0 +1,656 @@
+{
+  "format": "keelwerk.surface/1",
+  "app": "portal",
+  "apiVersion": "2026-11-01",
+  "hash": "sha256-portalFixture",
+  "modules": [
+    {
+      "id": "accounts",
+      "version": "0.1.0"
+    },
+    {
+      "id": "auth",
+      "version": "0.1.0"
+    }
+  ],
+  "entities": [
+    {
+      "ref": "accounts.profile",
+      "module": "accounts",
+      "name": "profile",
+      "prefix": "prof",
+      "history": "chain",
+      "tenancy": "tenant",
+      "fields": {
+        "id": {
+          "kind": "id",
+          "optional": false,
+          "access": "read",
+          "target": "accounts.profile",
+          "prefix": "prof"
+        },
+        "name": {
+          "kind": "string",
+          "optional": false,
+          "access": "read-write",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "The display name."
+        }
+      },
+      "relations": {},
+      "generated": ["get", "query", "create"],
+      "page": {
+        "sortable": ["displayName"],
+        "defaultSort": [
+          {
+            "field": "displayName",
+            "direction": "asc"
+          }
+        ],
+        "defaultSize": 25,
+        "maxSize": 100
+      },
+      "origin": {}
+    }
+  ],
+  "actions": [
+    {
+      "ref": "accounts.profile.create",
+      "module": "accounts",
+      "name": "create",
+      "mount": "entity",
+      "kind": "command",
+      "instance": false,
+      "input": {
+        "kind": "shape",
+        "optional": false,
+        "access": "read-write",
+        "fields": {
+          "name": {
+            "kind": "string",
+            "optional": false,
+            "access": "read-write",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "The display name."
+          },
+          "bio": {
+            "kind": "text",
+            "optional": true,
+            "access": "read-write"
+          },
+          "age": {
+            "kind": "integer",
+            "optional": true,
+            "access": "read-write",
+            "wide": false,
+            "min": 0,
+            "max": 150
+          },
+          "balance": {
+            "kind": "integer",
+            "optional": true,
+            "access": "read-write",
+            "wide": true
+          },
+          "price": {
+            "kind": "decimal",
+            "optional": true,
+            "access": "read-write"
+          },
+          "score": {
+            "kind": "float",
+            "optional": true,
+            "access": "read-write"
+          },
+          "active": {
+            "kind": "boolean",
+            "optional": true,
+            "access": "read-write"
+          },
+          "joinedAt": {
+            "kind": "instant",
+            "optional": true,
+            "access": "read-write"
+          },
+          "birthday": {
+            "kind": "date",
+            "optional": true,
+            "access": "read-write"
+          },
+          "zone": {
+            "kind": "timeZone",
+            "optional": true,
+            "access": "read-write"
+          },
+          "role": {
+            "kind": "enum",
+            "optional": true,
+            "access": "read-write",
+            "values": ["admin", "member", "guest"]
+          },
+          "owner": {
+            "kind": "ref",
+            "optional": true,
+            "access": "read-write",
+            "target": "accounts.profile",
+            "prefix": "prof"
+          },
+          "tags": {
+            "kind": "list",
+            "optional": true,
+            "access": "read-write",
+            "item": {
+              "kind": "string",
+              "optional": false,
+              "access": "read-write"
+            }
+          },
+          "roles": {
+            "kind": "set",
+            "optional": true,
+            "access": "read-write",
+            "item": {
+              "kind": "enum",
+              "optional": false,
+              "access": "read-write",
+              "values": ["admin", "member", "guest"]
+            }
+          },
+          "address": {
+            "kind": "shape",
+            "optional": true,
+            "access": "read-write",
+            "fields": {
+              "city": {
+                "kind": "string",
+                "optional": true,
+                "access": "read-write"
+              },
+              "postcode": {
+                "kind": "string",
+                "optional": true,
+                "access": "read-write"
+              },
+              "geo": {
+                "kind": "shape",
+                "optional": true,
+                "access": "read-write",
+                "fields": {
+                  "lat": {
+                    "kind": "float",
+                    "optional": true,
+                    "access": "read-write"
+                  }
+                }
+              }
+            }
+          },
+          "settings": {
+            "kind": "json",
+            "optional": true,
+            "access": "read-write",
+            "schema": {
+              "type": "object"
+            }
+          },
+          "avatar": {
+            "kind": "binary",
+            "optional": true,
+            "access": "read-write"
+          },
+          "notes": {
+            "kind": "richText",
+            "optional": true,
+            "access": "read-write"
+          },
+          "password": {
+            "kind": "secret",
+            "optional": false,
+            "access": "write"
+          },
+          "subject": {
+            "kind": "subject",
+            "optional": true,
+            "access": "read-write"
+          },
+          "extra": {
+            "kind": "foreign",
+            "optional": true,
+            "access": "read-write",
+            "input": {
+              "type": "object"
+            },
+            "output": {
+              "type": "object"
+            }
+          },
+          "attachment": {
+            "kind": "blob",
+            "optional": true,
+            "access": "read-write"
+          },
+          "seq": {
+            "kind": "serial",
+            "optional": false,
+            "access": "read",
+            "per": []
+          },
+          "createdAt": {
+            "kind": "instant",
+            "optional": false,
+            "access": "read"
+          },
+          "output": {
+            "kind": "string",
+            "optional": true,
+            "access": "read-write"
+          }
+        }
+      },
+      "output": {
+        "kind": "id",
+        "optional": false,
+        "access": "read",
+        "target": "accounts.profile",
+        "prefix": "prof"
+      },
+      "errors": ["accounts.name_taken"],
+      "auth": "policy",
+      "scope": "tenant",
+      "execution": "either",
+      "idempotent": false,
+      "offline": false,
+      "resumable": true,
+      "hints": {},
+      "since": "2026-11-01",
+      "changedIn": [],
+      "inputHash": "sha256-fixture-in",
+      "outputHash": "sha256-fixture-out",
+      "entity": "accounts.profile",
+      "generated": "create",
+      "description": "Creates a profile."
+    },
+    {
+      "ref": "accounts.profile.deactivate",
+      "module": "accounts",
+      "name": "deactivate",
+      "mount": "entity",
+      "kind": "command",
+      "instance": true,
+      "input": {
+        "kind": "shape",
+        "optional": false,
+        "access": "read-write",
+        "fields": {
+          "id": {
+            "kind": "id",
+            "optional": false,
+            "access": "read",
+            "target": "accounts.profile",
+            "prefix": "prof"
+          },
+          "reason": {
+            "kind": "string",
+            "optional": false,
+            "access": "read-write"
+          },
+          "ifVersion": {
+            "kind": "integer",
+            "optional": true,
+            "access": "read-write",
+            "wide": false
+          }
+        }
+      },
+      "output": {
+        "kind": "void",
+        "optional": false,
+        "access": "read-write"
+      },
+      "errors": [],
+      "auth": "policy",
+      "scope": "tenant",
+      "execution": "either",
+      "idempotent": false,
+      "offline": false,
+      "resumable": true,
+      "hints": {
+        "cli": {
+          "positional": ["reason"],
+          "aliases": ["deactivate"]
+        }
+      },
+      "since": "2026-11-01",
+      "changedIn": [],
+      "inputHash": "sha256-fixture-in",
+      "outputHash": "sha256-fixture-out",
+      "entity": "accounts.profile",
+      "description": "Deactivates a profile."
+    },
+    {
+      "ref": "accounts.profile.get",
+      "module": "accounts",
+      "name": "get",
+      "mount": "entity",
+      "kind": "query",
+      "instance": false,
+      "input": {
+        "kind": "shape",
+        "optional": false,
+        "access": "read-write",
+        "fields": {
+          "ids": {
+            "kind": "list",
+            "optional": false,
+            "access": "read-write",
+            "item": {
+              "kind": "id",
+              "optional": false,
+              "access": "read",
+              "target": "accounts.profile",
+              "prefix": "prof"
+            }
+          }
+        }
+      },
+      "output": {
+        "kind": "page",
+        "optional": false,
+        "access": "read-write",
+        "item": {
+          "kind": "shape",
+          "optional": false,
+          "access": "read-write",
+          "fields": {
+            "id": {
+              "kind": "id",
+              "optional": false,
+              "access": "read",
+              "target": "accounts.profile",
+              "prefix": "prof"
+            }
+          }
+        }
+      },
+      "errors": [],
+      "auth": "policy",
+      "scope": "tenant",
+      "execution": "sync",
+      "idempotent": false,
+      "offline": false,
+      "resumable": true,
+      "hints": {},
+      "since": "2026-11-01",
+      "changedIn": [],
+      "inputHash": "sha256-fixture-in",
+      "outputHash": "sha256-fixture-out",
+      "entity": "accounts.profile",
+      "generated": "get",
+      "page": {
+        "sortable": ["displayName"],
+        "defaultSort": [
+          {
+            "field": "displayName",
+            "direction": "asc"
+          }
+        ],
+        "defaultSize": 25,
+        "maxSize": 100
+      }
+    },
+    {
+      "ref": "accounts.profile.query",
+      "module": "accounts",
+      "name": "query",
+      "mount": "entity",
+      "kind": "query",
+      "instance": false,
+      "input": {
+        "kind": "shape",
+        "optional": false,
+        "access": "read-write",
+        "fields": {
+          "limit": {
+            "kind": "integer",
+            "optional": true,
+            "access": "read-write",
+            "wide": false
+          }
+        }
+      },
+      "output": {
+        "kind": "page",
+        "optional": false,
+        "access": "read-write",
+        "item": {
+          "kind": "shape",
+          "optional": false,
+          "access": "read-write",
+          "fields": {
+            "id": {
+              "kind": "id",
+              "optional": false,
+              "access": "read",
+              "target": "accounts.profile",
+              "prefix": "prof"
+            },
+            "name": {
+              "kind": "string",
+              "optional": false,
+              "access": "read-write"
+            }
+          }
+        }
+      },
+      "errors": [],
+      "auth": "policy",
+      "scope": "tenant",
+      "execution": "sync",
+      "idempotent": false,
+      "offline": false,
+      "resumable": true,
+      "hints": {},
+      "since": "2026-11-01",
+      "changedIn": [],
+      "inputHash": "sha256-fixture-in",
+      "outputHash": "sha256-fixture-out",
+      "entity": "accounts.profile",
+      "generated": "query",
+      "page": {
+        "sortable": ["displayName"],
+        "defaultSort": [
+          {
+            "field": "displayName",
+            "direction": "asc"
+          }
+        ],
+        "defaultSize": 25,
+        "maxSize": 100
+      }
+    },
+    {
+      "ref": "accounts.register",
+      "module": "accounts",
+      "name": "register",
+      "mount": "module",
+      "kind": "command",
+      "instance": false,
+      "input": {
+        "kind": "shape",
+        "optional": false,
+        "access": "read-write",
+        "fields": {
+          "displayName": {
+            "kind": "string",
+            "optional": false,
+            "access": "read-write"
+          },
+          "email": {
+            "kind": "string",
+            "optional": false,
+            "access": "read-write",
+            "format": "email"
+          }
+        }
+      },
+      "output": {
+        "kind": "void",
+        "optional": false,
+        "access": "read-write"
+      },
+      "errors": [],
+      "auth": "policy",
+      "scope": "tenant",
+      "execution": "either",
+      "idempotent": false,
+      "offline": false,
+      "resumable": true,
+      "hints": {},
+      "since": "2026-11-01",
+      "changedIn": [],
+      "inputHash": "sha256-fixture-in",
+      "outputHash": "sha256-fixture-out",
+      "description": "Registers an account."
+    },
+    {
+      "ref": "app.health",
+      "module": "app",
+      "name": "health",
+      "mount": "app",
+      "kind": "query",
+      "instance": false,
+      "input": {
+        "kind": "void",
+        "optional": false,
+        "access": "read-write"
+      },
+      "output": {
+        "kind": "json",
+        "optional": false,
+        "access": "read-write",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "errors": [],
+      "auth": "public",
+      "scope": "deployment",
+      "execution": "sync",
+      "idempotent": false,
+      "offline": false,
+      "resumable": true,
+      "hints": {
+        "cli": {
+          "aliases": ["health"]
+        }
+      },
+      "since": "2026-11-01",
+      "changedIn": [],
+      "inputHash": "sha256-fixture-in",
+      "outputHash": "sha256-fixture-out"
+    },
+    {
+      "ref": "auth.login",
+      "module": "auth",
+      "name": "login",
+      "mount": "module",
+      "kind": "command",
+      "instance": false,
+      "input": {
+        "kind": "shape",
+        "optional": false,
+        "access": "read-write",
+        "fields": {
+          "email": {
+            "kind": "string",
+            "optional": false,
+            "access": "read-write"
+          },
+          "password": {
+            "kind": "secret",
+            "optional": false,
+            "access": "write"
+          }
+        }
+      },
+      "output": {
+        "kind": "shape",
+        "optional": false,
+        "access": "read-write",
+        "fields": {
+          "token": {
+            "kind": "string",
+            "optional": false,
+            "access": "read-write"
+          }
+        }
+      },
+      "errors": [],
+      "auth": "public",
+      "scope": "tenant",
+      "execution": "either",
+      "idempotent": false,
+      "offline": false,
+      "resumable": true,
+      "hints": {
+        "cli": {
+          "login": {
+            "tokenField": "token"
+          }
+        }
+      },
+      "since": "2026-11-01",
+      "changedIn": [],
+      "inputHash": "sha256-fixture-in",
+      "outputHash": "sha256-fixture-out"
+    },
+    {
+      "ref": "auth.sessionEvents",
+      "module": "auth",
+      "name": "sessionEvents",
+      "mount": "module",
+      "kind": "subscription",
+      "instance": false,
+      "input": {
+        "kind": "void",
+        "optional": false,
+        "access": "read-write"
+      },
+      "output": {
+        "kind": "shape",
+        "optional": false,
+        "access": "read-write",
+        "fields": {
+          "kind": {
+            "kind": "string",
+            "optional": false,
+            "access": "read-write"
+          }
+        }
+      },
+      "errors": [],
+      "auth": "policy",
+      "scope": "tenant",
+      "execution": "sync",
+      "idempotent": false,
+      "offline": false,
+      "resumable": true,
+      "hints": {},
+      "since": "2026-11-01",
+      "changedIn": [],
+      "inputHash": "sha256-fixture-in",
+      "outputHash": "sha256-fixture-out"
+    }
+  ],
+  "errors": [
+    {
+      "code": "accounts.name_taken",
+      "kind": "conflict",
+      "message": "The name is taken.",
+      "retryable": false
+    }
+  ],
+  "events": []
+}

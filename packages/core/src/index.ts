@@ -689,3 +689,5 @@ export type { TransportProblem } from './transport/transport-problem.ts';
 export type { WebSocketHandler } from './transport/web-socket-handler.ts';
 export type { Empty } from './types/empty.ts';
 export { version } from './version.ts';
+export { commandReceiptId } from './write-path/command-receipt-id.ts';
+export { commandReceiptUuid } from './write-path/command-receipt-uuid.ts';

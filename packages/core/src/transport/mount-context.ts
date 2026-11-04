@@ -14,4 +14,6 @@ export interface MountContext<Config> {
   readonly config: (scope: Scope) => Config;
   readonly telemetry: Telemetry;
   readonly log: Logger;
+  /** Set by the runtime in development: a transport picks the `development` error audience and enables its docs page from it. */
+  readonly development?: boolean;
 }
