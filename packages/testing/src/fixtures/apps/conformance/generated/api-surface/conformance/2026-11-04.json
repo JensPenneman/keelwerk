@@ -9391,6 +9391,12 @@
       "retryable": false
     },
     {
+      "code": "core.reference_missing",
+      "kind": "conflict",
+      "message": "The row refers to a target that does not exist.",
+      "retryable": false
+    },
+    {
       "code": "core.request_not_allowed",
       "kind": "internal",
       "message": "The request is not allowed or not answered by this release.",
@@ -9706,7 +9712,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-gvhbybJt5hfXjn8XWA4h-tzr3KyECdB48p_ToNxoba0",
+  "hash": "sha256-b2zWjKijc8hhTzjo-B4asmQVml2AGg4-UYaU1ljCXMM",
   "modules": [
     {
       "id": "core",
