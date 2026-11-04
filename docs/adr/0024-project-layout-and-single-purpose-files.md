@@ -4,7 +4,7 @@ Date: 2026-10-24 (revised in place on 2026-10-28 for decisions 58a, 59b, 60b and
 
 ## Status
 
-Proposed. Jens decided the points this ADR left open on 2026-10-28: kebab-case names derived from
+Accepted (2026-11-04). Jens decided the points this ADR left open on 2026-10-28: kebab-case names derived from
 the export (decision 58a, item 3), a generated manifest instead of explicit assembly (decision 59b,
 item 4), one rule per file instead of one policy file per target (decision 60b, items 2 and 3), and,
 through 59b, scaffolds that create files only (question 61 closed, item 7). The reserved command

@@ -4,7 +4,7 @@ Date: 2026-10-24
 
 ## Status
 
-Proposed. Jens decided on 2026-10-28 that flags live in the framework core with experiments as a
+Accepted (2026-11-04). Jens decided on 2026-10-28 that flags live in the framework core with experiments as a
 module (decision 51a) and that the first statistics are fixed-horizon frequentist tests (decision
 57a), as this ADR assumed.
 

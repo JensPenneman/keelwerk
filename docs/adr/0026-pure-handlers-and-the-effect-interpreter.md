@@ -4,7 +4,7 @@ Date: 2026-10-25 (notes of 2026-10-28)
 
 ## Status
 
-Proposed. Decision 50a of the register (2026-10-25): option a, fully strict; option c, the split
+Accepted (2026-11-04). Decision 50a of the register (2026-10-25): option a, fully strict; option c, the split
 model, is the fallback. Amends [ADR 0004](0004-actions-as-the-unit-of-behaviour.md) (decisions 3
 and 7, and the mentions of `ctx.invoke` and `unresumable` in decisions 2 and 9) and gives
 [ADR 0015](0015-jobs-timers-and-schedules.md) (decision 6) and

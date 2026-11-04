@@ -4,7 +4,7 @@ Date: 2026-10-25
 
 ## Status
 
-Proposed. Decision 7b of the register (2026-10-25) is taken; Jens decided the defaults below on
+Accepted (2026-11-04). Decision 7b of the register (2026-10-25) is taken; Jens decided the defaults below on
 2026-10-28 as written (decisions 65a, 66a, 69a, 70a, 71a and 72a), while 67 and 68, on mail search,
 are parked with the mail server. Amends ADR 0009, decision 2.
 Architecture.md section 14.7.9 specifies the design.

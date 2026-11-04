@@ -4,7 +4,7 @@ Date: 2026-10-11 (revised after review the same day, and on 2026-10-24 for API v
 
 ## Status
 
-Proposed
+Accepted (2026-11-04)
 
 ## Context
 

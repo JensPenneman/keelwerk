@@ -4,7 +4,7 @@ Date: 2026-10-25 (notes of 2026-10-28)
 
 ## Status
 
-Proposed. Amends ADR 0015 (decisions 3, 6 and 7). Jens decided for the kernel queue on 2026-10-26
+Accepted (2026-11-04). Amends ADR 0015 (decisions 3, 6 and 7). Jens decided for the kernel queue on 2026-10-26
 (decision 6a), as this ADR assumes. Singleton leases stay with ADR 0018, the executor contract with
 [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) (decision 50a, architecture.md section
 7.9.5). On 2026-10-28 Jens decided the command name `keelwerk fleet` (62a), the scaler with the

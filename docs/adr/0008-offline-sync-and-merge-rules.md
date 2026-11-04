@@ -4,7 +4,7 @@ Date: 2026-10-11 (revised after review the same day; amended 2026-10-25)
 
 ## Status
 
-Proposed. Item 5 is amended by [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md)
+Accepted (2026-11-04). Item 5 is amended by [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md)
 (decision 50a): `handle` no longer exists, and offline commands may not use `prepare`, random values
 or issued secrets.
 

@@ -4,7 +4,7 @@ Date: 2026-10-24 (revised in place on 2026-10-28 for decisions 52a, 53 and 23c)
 
 ## Status
 
-Proposed. Jens decided on 2026-10-28 for dated versions with version-change transforms (decision
+Accepted (2026-11-04). Jens decided on 2026-10-28 for dated versions with version-change transforms (decision
 52a) and for the support window of item 5 (decision 53): 12 months of deprecation, then retirement
 regardless of use, without the zero-use condition first proposed.
 

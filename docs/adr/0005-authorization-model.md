@@ -4,7 +4,7 @@ Date: 2026-10-08 (revised 2026-10-11 and 2026-10-24; amended 2026-10-25; notes o
 
 ## Status
 
-Proposed. Jens decided decision points 4 and 5 of architecture.md section 26 on 2026-10-24 as items
+Accepted (2026-11-04). Jens decided decision points 4 and 5 of architecture.md section 26 on 2026-10-24 as items
 6 and 3 state them, adding the shape-stage row check of item 5. Item 6 is amended by
 [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) (decision 50a): loads and drafts
 replace repository calls, and the escalation is an effect. Since decision 60b (2026-10-28, ADR

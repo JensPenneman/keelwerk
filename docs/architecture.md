@@ -2,7 +2,7 @@
 
 Date: 2026-10-28 (first version 2026-10-08, consolidated 2026-10-11). Status: specification,
 complete: every question of the decision register is decided or, for the mail server, parked;
-awaiting Jens's approval (the name keelwerk was settled on 2026-10-28). Authors: the core architect and the data, interfaces
+approved by Jens on 2026-11-04 (the name keelwerk was settled on 2026-10-28). Authors: the core architect and the data, interfaces
 and platforms designers; consolidated with the review findings of 2026-10-11 by the synthesis
 editor; the versioning and project-layout designs of addendum 3 and Jens's decisions of 2026-10-24
 merged by the integration editor on 2026-10-24; the jobs, nodes and autoscaling design, the

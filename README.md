@@ -80,3 +80,19 @@ The code and the design documents are public from the moment Jens chooses; the l
 from the first commit, and the platforms and later modules carry the same licence. Outside
 contributions are not accepted until a contributor licence agreement exists; issues and
 discussions are welcome.
+
+## Working on keelwerk
+
+The repository is a pnpm workspace (`packages/*`, `examples/*`, `spikes/*`). You need the current
+Node.js LTS (`.nvmrc` is `lts/*`, `engines.node` is `>=26`) and pnpm 11.21.0 (`corepack enable`
+picks the version from `package.json`).
+
+```sh
+pnpm install   # dependencies and Git hooks
+pnpm check     # biome ci, tsc -b, vitest run, knip
+```
+
+Single steps: `pnpm lint`, `pnpm format`, `pnpm build` (`tsc -b`), `pnpm test` (Vitest with type
+checking) and `pnpm knip`. CI runs the same four checks in this order on every push and pull
+request: `biome ci`, `tsc -b`, `vitest run`, `knip`. See [CONTRIBUTING.md](CONTRIBUTING.md) for
+signed commits, Conventional Commits and the single-purpose file rule.

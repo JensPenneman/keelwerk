@@ -4,7 +4,7 @@ Date: 2026-10-08 (revised 2026-10-11, 2026-10-24 and 2026-10-25)
 
 ## Status
 
-Proposed. Decisions 3 and 7, and the mentions of `ctx.invoke` in decision 2 and of `unresumable`
+Accepted (2026-11-04). Decisions 3 and 7, and the mentions of `ctx.invoke` in decision 2 and of `unresumable`
 in decision 9, are amended by [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md)
 (decision 50a, 2026-10-25): every handler is pure, and architecture.md section 7.9 specifies the
 forms.

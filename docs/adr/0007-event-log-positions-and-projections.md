@@ -5,7 +5,7 @@ Date: 2026-10-11 (revised after review the same day; revised in place on 2026-10
 
 ## Status
 
-Proposed. Item 13 follows decision 35b (2026-10-27): chain heads are anchored outside the
+Accepted (2026-11-04). Item 13 follows decision 35b (2026-10-27): chain heads are anchored outside the
 database from the start, instead of being left to a later audit module.
 
 ## Context

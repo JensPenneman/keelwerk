@@ -5,7 +5,7 @@ Date: 2026-10-11 (revised after review the same day; revised in place on 2026-10
 
 ## Status
 
-Proposed. Item 5 is reversed by decision 15b (2026-10-26): oRPC ships in the first release, beside
+Accepted (2026-11-04). Item 5 is reversed by decision 15b (2026-10-26): oRPC ships in the first release, beside
 tRPC. Item 2's operation limits follow decision 37a (2026-10-27): own validation rules, with the
 rule that an entity type never appears twice on one selection path.
 

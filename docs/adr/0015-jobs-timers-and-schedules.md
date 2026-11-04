@@ -4,7 +4,7 @@ Date: 2026-10-11 (revised 2026-10-24 and 2026-10-25)
 
 ## Status
 
-Proposed. Amended by [ADR 0025](0025-nodes-capacity-and-autoscaling.md) (decisions 3, 6 and 7, on
+Accepted (2026-11-04). Amended by [ADR 0025](0025-nodes-capacity-and-autoscaling.md) (decisions 3, 6 and 7, on
 2026-10-25); [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) (decision 50a) gives
 decision 6 its effect contract. Architecture.md sections 7.9, 9.5 and 21 specify the result.
 

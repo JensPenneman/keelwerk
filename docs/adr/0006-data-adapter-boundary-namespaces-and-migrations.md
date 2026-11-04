@@ -5,7 +5,7 @@ Date: 2026-10-11 (revised after review the same day; amended 2026-10-25; revised
 
 ## Status
 
-Proposed. Item 5's SQL escape hatch is amended by
+Accepted (2026-11-04). Item 5's SQL escape hatch is amended by
 [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) (decision 50a): it is a read request,
 `ctx.load.sql(build)`, and handlers have no SQL writes. Item 5 follows brief addendum 5 (datastore
 agnosticism, 2026-10-26) and decision 12a (2026-10-26): capabilities are accelerations with kernel

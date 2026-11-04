@@ -4,7 +4,7 @@ Date: 2026-10-24 (revised in place on 2026-10-28 for decisions 54a and 55b)
 
 ## Status
 
-Proposed. Jens decided automatic finalization after the grace period (decision 54a, 2026-10-28)
+Accepted (2026-11-04). Jens decided automatic finalization after the grace period (decision 54a, 2026-10-28)
 and reversed the rename rule of item 4 (decision 55b, 2026-10-28): a rename renames the column
 through expand, dual write, backfill and contract, and physical names always equal the derived
 names. The mail listeners' own container (item 7, question 56) is parked with the mail server.

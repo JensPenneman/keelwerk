@@ -4,7 +4,7 @@ Date: 2026-10-08 (revised 2026-10-11, 2026-10-24 and 2026-10-25; notes of 2026-1
 
 ## Status
 
-Proposed. Jens decided decision points 1 (the compiled catalogue, with exact types per app in
+Accepted (2026-11-04). Jens decided decision points 1 (the compiled catalogue, with exact types per app in
 development) and 2 (hard dependencies stay; a module switches off with its dependants) on
 2026-10-25, as the consequences below state them. The module-local context of item 1 is the pure
 context of [ADR 0026](0026-pure-handlers-and-the-effect-interpreter.md) since 2026-10-25. Since

@@ -5,7 +5,7 @@ for ADRs 0025, 0026 and 0027, and in place on 2026-10-28 for decisions 16b, 81a,
 
 ## Status
 
-Proposed. Items 1 and 2 follow decisions 16b and 81a (2026-10-26): action commands sit under one
+Accepted (2026-11-04). Items 1 and 2 follow decisions 16b and 81a (2026-10-26): action commands sit under one
 verb, `keelwerk call <module.entity.action>`, and no module id is reserved because of the CLI, an
 integration, a plugin or a module. Item 7 follows decision 59b (2026-10-28): scaffolds create files
 only, and the generated manifest does the wiring (question 61 closed). The `fleet` command group is

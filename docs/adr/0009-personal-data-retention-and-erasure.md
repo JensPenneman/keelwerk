@@ -4,7 +4,7 @@ Date: 2026-10-11 (revised after review the same day; amended 2026-10-25; note of
 
 ## Status
 
-Proposed. Decision 2's plaintext state tables, and the consequence about plaintext in backups of
+Accepted (2026-11-04). Decision 2's plaintext state tables, and the consequence about plaintext in backups of
 state tables, are superseded by [ADR 0027](0027-encrypted-personal-data-and-queries.md) (decision 7b
 of 2026-10-25). Item 7 follows decision 47c (2026-10-27): Launchway's modules suggest no rules, and
 streams such as effect attempts and deployment logs keep their records unless a rule is adopted.
