@@ -48,6 +48,8 @@ export interface ActionEntry {
   readonly since: string;
   /** The API versions whose version changes touched it. */
   readonly changedIn: readonly string[];
+  /** Commands with `trace: { input: 'sealed' }`: the decision record keeps the sealed input. */
+  readonly trace?: { readonly input: 'sealed'; readonly retention?: string };
   /** `decide`, `read` or `source`. */
   readonly handler: ActionHandler;
   /** Sync commands only (section 7.9.4, phase 2). */

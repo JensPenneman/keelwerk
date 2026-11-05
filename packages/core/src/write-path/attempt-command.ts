@@ -6,13 +6,16 @@ import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { buildDecisionRecord } from '../events/build-decision-record.ts';
 import { buildEventMeta } from '../events/build-event-meta.ts';
 import type { EventMeta } from '../events/event-meta.ts';
+import type { RecordedAnswer } from '../events/recorded-answer.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
+import { sealDecisionInput } from '../events/seal-decision-input.ts';
 import { generatedEntity } from '../generated-actions/generated-entity.ts';
 import { generatedHandlerOf } from '../generated-actions/generated-handler-of.ts';
 import { generatedSet } from '../generated-actions/generated-set.ts';
 import { setResultWithState } from '../generated-actions/set-result-with-state.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import type { Clock } from '../kernel/clock.ts';
+import { sealedValueText } from '../keys/sealed-value-text.ts';
 import { decodeRow } from '../repositories/decode-row.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
@@ -132,7 +135,30 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   const plannedEffects = plannedEffectIds(run.scope, commandId, decided.effects);
   const processClock = run.hybridClock ?? hybridClock(run.nodeId ?? defaultNodeId);
   let meta: EventMeta | undefined;
-  const drafts = await sealDrafts({ registry, unit, drafts: decided.drafts });
+  const sealedVerifiers = new Map<string, string>();
+  const drafts = await sealDrafts({ registry, unit, drafts: decided.drafts, sealedVerifiers });
+  // The record keeps an issued verifier sealed, never plain: the row's own sealed text, or a value
+  // of its own under the decision when no row took it (7.9.3, 14.7.4).
+  const answers: RecordedAnswer[] = [];
+  for (const answer of decision.answers) {
+    if (answer.kind !== 'secret') {
+      answers.push(answer);
+      continue;
+    }
+    const text =
+      sealedVerifiers.get(answer.verifier) ??
+      sealedValueText(
+        await unit.keys.sealValue(
+          { entity: 'core.decision', id: commandId, field: `verifier.${answer.publicId}` },
+          new TextEncoder().encode(answer.verifier),
+        ),
+      );
+    answers.push({ ...answer, verifier: text });
+  }
+  const sealedInput =
+    action.trace?.input === 'sealed'
+      ? await sealDecisionInput(unit, commandId, action.input, run.input)
+      : undefined;
   const written = await draftsToEvents({
     unit,
     registry,
@@ -155,7 +181,8 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
           part: action.ref,
           inputDigest: fingerprint,
           reads: recorded,
-          answers: decision.answers,
+          answers,
+          ...(sealedInput === undefined ? {} : { input: sealedInput }),
           effects: plannedEffects,
         }),
       });

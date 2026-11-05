@@ -44,7 +44,7 @@ export function createRuntimeControl(input: {
       }
       placementHosts(backend.placement, app.id);
       versionKnown(app, backend.apiVersion);
-      const created = await createBackend(control, backend);
+      const created = await createBackend(control, backend, app.source.modules);
       migrated.directory.invalidate();
       const record = await lookup.backend(created.id);
       const handle = connected.placements.get(backend.placement);

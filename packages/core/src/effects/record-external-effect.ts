@@ -8,8 +8,9 @@ import { commandActionOf } from './command-action-of.ts';
 import { durationMs } from './duration-ms.ts';
 import type { EffectScene } from './effect-scene.ts';
 import { jobInput } from './job-input.ts';
+import { personalInputField } from './personal-input-field.ts';
 import { requestedEffectDraft } from './requested-effect-draft.ts';
-import { sealedInputField } from './sealed-input-field.ts';
+import { sealEffectInput } from './seal-effect-input.ts';
 import { validateEffectInput } from './validate-effect-input.ts';
 import { writeEffectRecord } from './write-effect-record.ts';
 
@@ -55,8 +56,8 @@ async function enqueueEffectJob(
 
 /**
  * Records an external effect a decision requested (section 7.9.6): the `requested` row of the
- * stream `core.effect/<id>` in this unit, with the input as declared (validated, secrets as
- * references), the command and events it accompanies, its continuation, key and deadline; and,
+ * stream `core.effect/<id>` in this unit, with the input as declared (validated, secrets sealed
+ * as references), the command and events it accompanies, its continuation, key and deadline; and,
  * for an effect with an executor, the effect job a worker takes after commit. An effect with an
  * outside performer has the record only; the performer finds it through the live subscription.
  * The record and the job commit or roll back with the unit, and a repeated decision requests the
@@ -72,14 +73,19 @@ export async function recordExternalEffect(
   if (entry === undefined) {
     throw refuseRequest(`the effect "${effect.type}"`, 'no module of this app declares it');
   }
-  const sealed = sealedInputField(entry.input);
-  if (sealed !== undefined) {
+  const personal = personalInputField(entry.input);
+  if (personal !== undefined) {
     throw refuseRequest(
       `the effect "${entry.ref}"`,
-      `its input declares the personal or secret field "${sealed}", and sealing arrives with the key service (WP-48, WP-53); the record would hold it in plaintext`,
+      `its input declares the personal field "${personal}", and sealing personal values arrives with WP-53; the record would hold it in plaintext`,
     );
   }
-  const input = validateEffectInput(entry.input, effect.input, `the effect "${entry.ref}"`);
+  const input = await sealEffectInput(
+    scene.unit,
+    id,
+    entry.input,
+    validateEffectInput(entry.input, effect.input, `the effect "${entry.ref}"`),
+  );
   if (effect.continueWith !== undefined)
     commandActionOf(registry, effect.continueWith, 'continueWith');
   await writeEffectRecord(scene, requestedEffectDraft(scene, effect, entry, id, input));

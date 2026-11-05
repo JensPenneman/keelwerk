@@ -172,7 +172,7 @@ describe('external effect records', () => {
     expect([effects.length, jobs.length, books.length]).toEqual([0, 0, 0]);
   });
 
-  test('an effect whose input declares a personal or secret field is refused until sealing ships', async () => {
+  test('an effect whose input declares a personal field is refused until sealing ships; a secret field is sealed', async () => {
     const declared = externalEffect(
       'notify',
       async () => ({ ok: true }),
@@ -191,16 +191,20 @@ describe('external effect records', () => {
       actions: [
         command('sendPersonal', () => ({ effects: [notify()] })),
         command('sendSecret', () => ({
-          effects: [{ kind: 'external', type: 'library.token', input: { key: 'ref' } }],
+          effects: [{ kind: 'external', type: 'library.token', input: { key: 'plain-value' } }],
         })),
       ],
     });
     const { adapter, invoke } = effectsKit(registry);
-    for (const action of ['library.sendPersonal', 'library.sendSecret']) {
-      const outcome = await invoke(action, {});
-      expect(!outcome.ok && outcome.error.code).toBe('core.request_not_allowed');
-    }
+    const personal = await invoke('library.sendPersonal', {});
+    expect(!personal.ok && personal.error.code).toBe('core.request_not_allowed');
+    expect({ ...(await stored(adapter)) }).toMatchObject({ effects: [], jobs: [] });
+    const sealed = await invoke('library.sendSecret', {});
+    expect(sealed.ok).toBe(true);
     const { effects, jobs } = await stored(adapter);
-    expect([effects.length, jobs.length]).toEqual([0, 0]);
+    expect([effects.length, jobs.length]).toEqual([1, 1]);
+    const text = JSON.stringify(effects[0]?.input);
+    expect(text).toMatch(/^\{"key":"kwv1\.[^."]+\.[^."]+\.[^."]+"\}$/);
+    expect(text).not.toContain('plain-value');
   });
 });

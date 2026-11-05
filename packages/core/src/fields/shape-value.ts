@@ -16,8 +16,8 @@ type OptionalIn<Fd, Mode extends ValueMode> = Fd extends {
 
 /**
  * How a field's value is seen: `input` (an action input: secrets are plain strings, defaulted
- * fields may be omitted), `draft` (what a handler writes: defaulted fields may be omitted, secrets
- * are references), `stored` (what is read back: defaulted fields are present, secrets are
+ * fields may be omitted), `draft` (what a handler writes: defaulted fields may be omitted, a secret is a new plain
+ * value or the loaded reference), `stored` (what is read back: defaulted fields are present, secrets are
  * references) and `value` (what validation returns: defaulted fields are present, secrets are plain strings).
  */
 export type ValueMode = 'input' | 'draft' | 'stored' | 'value';
@@ -30,7 +30,9 @@ export type FieldValue<Fd, Owner extends string, Mode extends ValueMode> =
       : K extends 'secret'
         ? Mode extends 'input' | 'value'
           ? string
-          : SecretRef
+          : Mode extends 'draft'
+            ? string | SecretRef
+            : SecretRef
         : T
     : never;
 

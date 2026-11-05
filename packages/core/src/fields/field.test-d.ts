@@ -150,7 +150,10 @@ describe('self-typed field modifiers', () => {
       readonly at?: Temporal.Instant | undefined;
     }>();
     expectTypeOf<ShapeValue<typeof fields, 'm', 'input'>['key']>().toEqualTypeOf<string>();
-    expectTypeOf<ShapeValue<typeof fields, 'm', 'draft'>['key']>().toEqualTypeOf<SecretRef>();
+    expectTypeOf<ShapeValue<typeof fields, 'm', 'draft'>['key']>().toEqualTypeOf<
+      string | SecretRef
+    >();
+    expectTypeOf<ShapeValue<typeof fields, 'm', 'stored'>['key']>().toEqualTypeOf<SecretRef>();
     expectTypeOf<ShapeValue<typeof fields, 'm', 'input'>>()
       .toHaveProperty('size')
       .toEqualTypeOf<number | undefined>();
@@ -203,7 +206,7 @@ describe('write shapes', () => {
       readonly lines: readonly string[];
       readonly body: RichText;
       readonly email: string;
-      readonly key: SecretRef;
+      readonly key: string | SecretRef;
       readonly note?: string | undefined;
       readonly locale?: string | undefined;
     }>();
@@ -220,7 +223,7 @@ describe('write shapes', () => {
       readonly note?: string | null;
       readonly email?: string;
       readonly locale?: string;
-      readonly key?: SecretRef;
+      readonly key?: string | SecretRef;
     }>();
   });
 

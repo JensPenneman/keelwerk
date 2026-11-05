@@ -1,12 +1,17 @@
 import type { EventStore } from '../events/event-store.ts';
 import type { StreamAppend } from '../events/stream-append.ts';
+import type { SubjectKeyStore } from '../storage/subject-key-store.ts';
 import type { Unit } from '../storage/unit.ts';
 
 /**
  * The unit with its event store wrapped so every `append` batch is handed to `record` before it
- * is buffered. Savepoints hand out wrapped units too, so what a nested command appends is seen.
+ * is buffered, and its value keys through `keysOf` (the dry run keeps new ones in memory). Savepoints hand out wrapped units too, so what a nested command appends is seen.
  */
-export function recordingUnit(unit: Unit, record: (batch: readonly StreamAppend[]) => void): Unit {
+export function recordingUnit(
+  unit: Unit,
+  record: (batch: readonly StreamAppend[]) => void,
+  keysOf: (inner: SubjectKeyStore) => SubjectKeyStore = (inner) => inner,
+): Unit {
   const { events } = unit;
   const recording: EventStore = {
     append: (batch) => {
@@ -29,10 +34,11 @@ export function recordingUnit(unit: Unit, record: (batch: readonly StreamAppend[
     jobs: unit.jobs,
     usage: unit.usage,
     buckets: unit.buckets,
-    keys: unit.keys,
+    keys: keysOf(unit.keys),
     serials: unit.serials,
     ...(unit.scopeKeys === undefined ? {} : { scopeKeys: unit.scopeKeys }),
-    nested: (fn, options) => unit.nested((inner) => fn(recordingUnit(inner, record)), options),
+    nested: (fn, options) =>
+      unit.nested((inner) => fn(recordingUnit(inner, record, keysOf)), options),
     afterCommit: (fn) => {
       unit.afterCommit(fn);
     },

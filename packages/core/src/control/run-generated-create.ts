@@ -2,6 +2,7 @@ import { trace } from '@opentelemetry/api';
 import { normalizeRule } from '../authorization/normalize-rule.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
 import { errors } from '../errors/errors.ts';
+import type { RequestAnswerer } from '../kernel/request-answerer.ts';
 import type { OperatorPrincipal } from '../principals/operator-principal.ts';
 import { registryBehaviours } from '../write-path/registry-behaviours.ts';
 import { runCommand } from '../write-path/run-command.ts';
@@ -22,16 +23,22 @@ const runtimeOperator: OperatorPrincipal = {
   ref: null,
 };
 
+/** An id answerer that hands out the pinned id, which the row about to be created already carries in sealed values. */
+function pinnedId(id: string): RequestAnswerer['id'] {
+  return async () => id;
+}
+
 /**
  * Runs the generated `create` of a control entity (`core.backend.create`, `core.tenant.create`) in
  * the control store as the runtime's operator: the write path a request takes, below the pipeline,
  * so the events, the item check against the entity's rules and the inline reactions are the same.
- * Answers the id of the new row.
+ * Answers the id of the new row; `id` pins it (the runtime's own seam, never a client's input).
  */
 export async function runGeneratedCreate(
   store: ControlStore,
   entity: 'backend' | 'tenant',
   input: Readonly<Record<string, unknown>>,
+  id?: string,
 ): Promise<{ readonly id: string }> {
   const { registry } = store;
   const action = registry.actions.get(`core.${entity}.create`);
@@ -47,6 +54,7 @@ export async function runGeneratedCreate(
       scope: { level: 'deployment' },
       action,
       input,
+      ...(id === undefined ? {} : { replace: { id: pinnedId(id) } }),
       principal: runtimeOperator,
       request: { transport: 'runtime', requestId: globalThis.crypto.randomUUID() },
       clock: store.clock,

@@ -180,6 +180,7 @@ export function actionEntryOf(
     ...(spec.idempotency === undefined
       ? {}
       : { idempotencyWindowMs: durationMs(spec.idempotency.window) }),
+    ...(spec.trace === undefined || part.kind !== 'command' ? {} : { trace: spec.trace }),
     hints: spec.hints ?? {},
     ...(mount.contributedBy === undefined ? {} : { contributedBy: mount.contributedBy }),
     ...(spec.description === undefined ? {} : { description: spec.description }),

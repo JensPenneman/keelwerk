@@ -32,6 +32,17 @@ function effectOf(registry: Registry, id: string, data: unknown): DryRunEffect {
   };
 }
 
+/** The record without what a dry run's uncommitted keys sealed: the sealed input, and an issued verifier's sealed text. */
+function redactedRecord(record: EncodedDecisionRecord): EncodedDecisionRecord {
+  const { input: _input, ...rest } = record;
+  return {
+    ...rest,
+    answers: record.answers.map((answer) =>
+      answer.kind === 'secret' ? { ...answer, verifier: '[redacted]' } : answer,
+    ),
+  };
+}
+
 /**
  * What a dry run reports, read from what the unit appended: each entity event with its
  * before-image, each `core.effect` record as an effect with its type, input and continuation, the
@@ -55,7 +66,7 @@ export function buildDryRunReport(input: {
     const entry = registry.entities.get(type);
     for (const [index, event] of batch.events.entries()) {
       const own = event.meta.commandId === input.commandId ? event.meta.decision : null;
-      if (decision === null && own !== null) decision = encodeDecisionRecord(own);
+      if (decision === null && own !== null) decision = redactedRecord(encodeDecisionRecord(own));
       if (type === effectStream) {
         if (event.name === 'created') effects.push(effectOf(registry, id, event.data));
         continue;

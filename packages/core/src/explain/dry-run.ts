@@ -7,10 +7,12 @@ import { inputFingerprint } from '../write-path/input-fingerprint.ts';
 import type { RunCommandInput } from '../write-path/run-command-input.ts';
 import { runPrepare } from '../write-path/run-prepare.ts';
 import { buildDryRunReport } from './build-dry-run-report.ts';
+import { dryRunKeys } from './dry-run-keys.ts';
 import { dryRunPerform } from './dry-run-perform.ts';
 import type { DryRunReport } from './dry-run-report.ts';
 import { DryRunRollback } from './dry-run-rollback.ts';
 import { DryRunStop } from './dry-run-stop.ts';
+import { dryRunValueKeys } from './dry-run-value-keys.ts';
 import { recordingUnit } from './recording-unit.ts';
 import { redactEffectInput } from './redact-effect-input.ts';
 
@@ -40,8 +42,10 @@ export async function dryRun(input: DryRunInput): Promise<DryRunReport> {
   const commandId = base.commandId ?? newUuidV7();
   const now = base.clock.now();
   const clock = { now: () => now };
+  // New scope keys and value keys stay in memory: the rollback cannot undo a key the key service commits itself.
   const run: RunCommandInput = {
     ...base,
+    keys: dryRunKeys(base.keys),
     clock,
     replace: { ...base.replace, perform: dryRunPerform(answers) },
   };
@@ -59,6 +63,7 @@ export async function dryRun(input: DryRunInput): Promise<DryRunReport> {
   }
   const fingerprint = inputFingerprint(action.ref, base.apiVersion, base.input);
   const batches: StreamAppend[] = [];
+  const valueKeys = dryRunValueKeys();
   const held: { result?: CommandResult } = {};
   try {
     await base.adapter.unit(
@@ -67,9 +72,13 @@ export async function dryRun(input: DryRunInput): Promise<DryRunReport> {
       async (unit) => {
         held.result = await attemptCommand(
           { run, commandId, fingerprint, clock, prepared },
-          recordingUnit(unit, (batch) => {
-            batches.push(...batch);
-          }),
+          recordingUnit(
+            unit,
+            (batch) => {
+              batches.push(...batch);
+            },
+            valueKeys,
+          ),
         );
         throw new DryRunRollback();
       },

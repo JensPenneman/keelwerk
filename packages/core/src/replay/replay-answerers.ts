@@ -1,4 +1,5 @@
 import type { RecordedAnswer } from '../events/recorded-answer.ts';
+import { answerSecret } from '../interpreter/answer-secret.ts';
 import type { RequestAnswerer } from '../kernel/request-answerer.ts';
 import { replayMismatch } from './replay-mismatch.ts';
 
@@ -9,9 +10,10 @@ import { replayMismatch } from './replay-mismatch.ts';
  */
 export function replayAnswerers(
   recorded: readonly RecordedAnswer[],
-): Pick<RequestAnswerer, 'id' | 'random'> {
+): Pick<RequestAnswerer, 'id' | 'random' | 'secret'> {
   const ids = recorded.filter((answer) => answer.kind === 'id');
   const randoms = recorded.filter((answer) => answer.kind === 'random');
+  const secrets = recorded.filter((answer) => answer.kind === 'secret');
   return {
     async id(request, context) {
       const next = ids.shift();
@@ -28,6 +30,15 @@ export function replayAnswerers(
       }
       context.record.answer(next);
       return new Uint8Array(Buffer.from(next.value, 'base64url'));
+    },
+    async secret(request, context) {
+      // Reveals and verifications record nothing and run as they did.
+      if (request.op !== 'issue') return answerSecret(request, context);
+      const next = secrets.shift();
+      if (next === undefined) throw replayMismatch('the handler issues a secret the record lacks');
+      context.record.answer(next);
+      // The verifier stays in its sealed form; the plaintext token is not kept and is not replayed.
+      return { publicId: next.publicId, plain: '', verifier: next.verifier };
     },
   };
 }

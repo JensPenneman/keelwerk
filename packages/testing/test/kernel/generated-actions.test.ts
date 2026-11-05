@@ -13,6 +13,18 @@ type Page = {
 };
 
 describe.each(['memory', 'pglite'] as const)('the generated actions on %s', (kind) => {
+  test('a client-supplied id on a create is refused', { timeout: 90_000 }, async () => {
+    const { runtime, tenant } = await tenantOf(kind);
+    const call = caller(runtime, tenant);
+    const refused = await call('library.book.create', {
+      id: '018f0000-0000-7000-8000-000000000000',
+      title: 'Dune',
+      isbn: '1',
+      addedBy: 'ada',
+    });
+    expect(refused).toMatchObject({ ok: false, error: { kind: 'validation' } });
+  });
+
   test('create, get, update, archive, restore and query', { timeout: 90_000 }, async () => {
     const { runtime, tenant } = await tenantOf(kind);
     const call = caller(runtime, tenant);

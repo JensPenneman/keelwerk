@@ -2,7 +2,11 @@ export type { Conformance as ConformanceApp } from './apps/conformance/src/app.t
 export { conformance as conformanceApp } from './apps/conformance/src/app.ts';
 export type { Library as LibraryApp } from './apps/library/src/app.ts';
 export { library as libraryApp } from './apps/library/src/app.ts';
+export type { Vault as VaultApp } from './apps/vault/src/app.ts';
+export { vault as vaultApp } from './apps/vault/src/app.ts';
 export type { Library } from './modules/library/src/module.generated.ts';
 export { library } from './modules/library/src/module.generated.ts';
 export type { Loans } from './modules/loans/src/module.generated.ts';
 export { loans } from './modules/loans/src/module.generated.ts';
+export type { Vault } from './modules/vault/src/module.generated.ts';
+export { vault } from './modules/vault/src/module.generated.ts';

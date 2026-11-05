@@ -21,10 +21,7 @@ describe('what a query may not request (S-06, S-05)', () => {
     ['random bytes', forged('random', { bytes: 8 })],
     ['an issued secret', forged('secret', { op: 'issue', args: [{ prefix: 'x' }] })],
     ['an inline effect', forged('perform', { effect: { kind: 'external' } })],
-    [
-      'a reveal, which this release does not answer',
-      forged('secret', { op: 'reveal', args: [{ ref: 'x' }, 'why'] }),
-    ],
+    ['a reveal without a reason', forged('secret', { op: 'reveal', args: [{ ref: 'x' }, ''] })],
   ])('%s fails with core.request_not_allowed', async (_name, handler) => {
     const probe = withQuery('forged', handler);
     const { run } = runnable({ registry: probe.registry, action: probe.ref });

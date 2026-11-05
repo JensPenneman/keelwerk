@@ -146,9 +146,9 @@ describe('defineEntity', () => {
     expectTypeOf(bad).toExtend<object>();
   });
 
-  test('a secret field is a reference in entities', () => {
+  test('a secret field takes a new plain value or the loaded reference in entities', () => {
     const vault = defineEntity({ prefix: 'vlt', fields: { token: field.secret() } });
-    expectTypeOf<InsertOf<typeof vault.fields>['token']>().toEqualTypeOf<SecretRef>();
+    expectTypeOf<InsertOf<typeof vault.fields>['token']>().toEqualTypeOf<string | SecretRef>();
     expectTypeOf<
       Entity<
         'vlt',

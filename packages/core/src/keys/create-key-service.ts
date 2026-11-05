@@ -1,10 +1,14 @@
 import { errors } from '../errors/errors.ts';
-import type { KeyService } from '../kernel/key-service.ts';
+import type { StorageScope } from '../storage/storage-scope.ts';
+import { configSecrets } from './config-secrets.ts';
 import { defaultRandomSource } from './default-random-source.ts';
 import { deriveHkdf } from './derive-hkdf.ts';
+import type { DeriveScopeKey } from './derive-scope-key.ts';
+import type { ForkableKeyService } from './forkable-key-service.ts';
 import { issueSecret } from './issue-secret.ts';
 import { createKeyCache } from './key-cache.ts';
 import type { KeyServiceOptions } from './key-service-options.ts';
+import { overlayScopeKeys } from './overlay-scope-keys.ts';
 import { parseSealedValueRef } from './parse-sealed-value-ref.ts';
 import { scopeKeyTarget } from './scope-key-target.ts';
 import { unwrapKey } from './unwrap-key.ts';
@@ -17,7 +21,7 @@ import { wrapKey } from './wrap-key.ts';
  * are cached for 60 seconds. A key created by this call is not cached until it is read back, so
  * a rolled-back creation never leaves a phantom key behind.
  */
-export function createKeyService(options: KeyServiceOptions): KeyService {
+export function createKeyService(options: KeyServiceOptions): ForkableKeyService {
   const random = options.random ?? defaultRandomSource;
   const cache = createKeyCache<Uint8Array>(options.cache);
   const creating = new Map<string, Promise<Uint8Array>>();
@@ -82,14 +86,29 @@ export function createKeyService(options: KeyServiceOptions): KeyService {
   };
 
   const scopeKey = async (
-    scope: Parameters<KeyService['issue']>[0],
+    scope: StorageScope,
     create: boolean,
   ): Promise<Uint8Array | undefined> => {
     const target = scopeKeyTarget(scope, options.deploymentId);
     return cache.get(`${target.level}:${target.scopeId}`) ?? (await load(target, create));
   };
 
+  const derive: DeriveScopeKey = async (scope, info, length) => {
+    const key = await scopeKey(scope, true);
+    if (key === undefined) throw errors.internal('the scope key could not be created');
+    return deriveHkdf(key, '', info, length);
+  };
+
+  // Opening never creates a key: a text naming a backend without one is `undefined`, not a new key.
+  const deriveExisting: DeriveScopeKey = async (scope, info, length) => {
+    const key = await scopeKey(scope, false);
+    if (key === undefined) throw errors.not_found('the configuration secret is gone');
+    return deriveHkdf(key, '', info, length);
+  };
+
   return {
+    fork: () =>
+      createKeyService({ ...options, withScopeKeys: overlayScopeKeys(options.withScopeKeys) }),
     async issue(scope, issueOptions) {
       const key = await scopeKey(scope, true);
       if (key === undefined) throw errors.internal('the scope key could not be created');
@@ -100,17 +119,19 @@ export function createKeyService(options: KeyServiceOptions): KeyService {
       return key !== undefined && verifySecret(key, token, verifier);
     },
     async reveal(unit, ref, reason) {
+      if (configSecrets.isText(ref.ref)) {
+        options.log?.info('secret revealed', { reason });
+        const plain = await configSecrets.open(deriveExisting, ref.ref);
+        if (plain === undefined) throw errors.not_found('the configuration secret is gone');
+        return plain;
+      }
       const sealed = parseSealedValueRef(ref);
       options.log?.info('secret revealed', { reason, keyId: sealed?.keyId });
       const plain = sealed === undefined ? undefined : await unit.keys.openValue(sealed);
       if (plain === undefined) throw errors.not_found('the secret value is gone');
       return new TextDecoder().decode(plain);
     },
-    async derive(scope, info, length) {
-      const key = await scopeKey(scope, true);
-      if (key === undefined) throw errors.internal('the scope key could not be created');
-      return deriveHkdf(key, '', info, length);
-    },
+    derive,
     invalidate(scope) {
       const target = scopeKeyTarget(scope, options.deploymentId);
       cache.delete(`${target.level}:${target.scopeId}`);

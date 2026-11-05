@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { fieldDescriptor } from '../../test/authorization/fixtures.ts';
+import { secretRefOwner } from '../keys/secret-ref-owner.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 import type { EntityDescriptor } from '../storage/entity-descriptor.ts';
 import { decodeRow } from './decode-row.ts';
@@ -29,7 +30,11 @@ const row = {
   internal: 'i',
   note: 'n',
   badge: 'gold',
-  apiSecret: { sealed: true },
+  apiSecret: {
+    keyId: 'k1',
+    nonce: new Uint8Array([1, 2, 3]),
+    ciphertext: new Uint8Array([4, 5, 6]),
+  },
   $masked: ['label'],
 };
 
@@ -40,15 +45,22 @@ describe('decodeRow', () => {
       label: 'laptop',
       passwordHash: '$argon2id$x',
       internal: 'i',
-      apiSecret: { ref: 'auth.credential/c1/apiSecret' },
+      apiSecret: { ref: 'kwv1.k1.AQID.BAUG' },
       $masked: ['label'],
     });
     expect(decoded).not.toHaveProperty('note');
   });
 
-  test('another module does not read hidden or verifier fields', () => {
+  test('another module does not read hidden, secret or verifier fields', () => {
     const decoded = decodeRow(entry, row, 'accounts');
-    expect(Object.keys(decoded).sort()).toEqual(['$masked', 'apiSecret', 'id', 'label', 'version']);
+    expect(Object.keys(decoded).sort()).toEqual(['$masked', 'id', 'label', 'version']);
+  });
+
+  test('the secret reference is stamped with its owner and the stamp does not enumerate', () => {
+    const { apiSecret } = decodeRow(entry, row, 'auth') as { apiSecret: object };
+    expect(Reflect.get(apiSecret, secretRefOwner)).toBe('auth');
+    expect(Object.keys(apiSecret)).toEqual(['ref']);
+    expect(JSON.stringify(apiSecret)).toBe('{"ref":"kwv1.k1.AQID.BAUG"}');
   });
 
   test('the contributor of a field reads it when hidden', () => {

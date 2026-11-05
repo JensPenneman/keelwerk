@@ -5,6 +5,7 @@ import type { AnyDraft } from '../protocol/any-draft.ts';
 import type { IdRequest } from '../protocol/id-request.ts';
 import type { PerformRequest } from '../protocol/perform-request.ts';
 import type { RandomRequest } from '../protocol/random-request.ts';
+import type { SecretRequest } from '../protocol/secret-request.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 
@@ -137,6 +138,15 @@ export function buildDecideContext(input: DecideContextInput): Constructors {
     },
     random: (bytes: number) =>
       createRequest<RandomRequest>(authorities, { kind: 'random', bytes }, module),
+    secrets: Object.freeze({
+      ...(input.base.secrets as object),
+      issue: (options: unknown) =>
+        createRequest<SecretRequest>(
+          authorities,
+          { kind: 'secret', op: 'issue', args: Object.freeze([options]) },
+          module,
+        ),
+    }),
   };
   if (input.withPerform === true) {
     extra.perform = (effect: PerformRequest['effect']) =>
