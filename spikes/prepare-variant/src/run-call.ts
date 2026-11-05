@@ -50,7 +50,8 @@ export function runCall(world: SpikeWorld, call: CallOptions): Promise<CommandRe
     input: call.input,
     principal,
     request: { transport: 'test', requestId: 'req-1' },
-    clock: { now: () => Temporal.Instant.from('2026-11-04T10:00:00Z') },
+    // The harness adapter reads the system clock when it checks a receipt's window.
+    clock: { now: () => Temporal.Now.instant() },
     keys: {} as never,
     compute: {} as never,
     log: silent,
