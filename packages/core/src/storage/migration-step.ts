@@ -15,7 +15,13 @@ export type MigrationStep =
       readonly column: ColumnSpec;
     }
   /** Contract step. */
-  | { readonly op: 'dropColumn'; readonly entity: string; readonly field: string }
+  | {
+      readonly op: 'dropColumn';
+      readonly entity: string;
+      readonly field: string;
+      /** The physical columns that go; absent: the field's own column (and a CRDT field's value column). */
+      readonly columns?: readonly string[];
+    }
   | {
       readonly op: 'alterColumn';
       readonly entity: string;

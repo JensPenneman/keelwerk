@@ -22,8 +22,8 @@ export interface RenderContext {
  * The PostgreSQL statements of one neutral step in the namespace root `root` (section 14.6.2),
  * one per entry. Tables, columns, indexes and constraints render through Kysely's schema builder;
  * row-level security, grants and the backfill are written out, since the builder has no such
- * statements. A `dropColumn` drops the one column its `field` names: a field's own column by the
- * field's name, a derived column (a tag column, a CRDT value column) by its physical name. A new
+ * statements. A `dropColumn` drops the columns it names: a field's own column by the
+ * field's name, a derived column (a tag column, a CRDT value column) by its physical name in `columns`. A new
  * table also gets its indexes, its forced row-level security with the `scoped` and `maintenance` policies, and a grant to the context's role. `rebuild` is a comment:
  * the kernel re-projects from the log, the database has nothing to run. An `sql` step without
  * PostgreSQL statements and a step of a later milestone fail closed.
@@ -64,12 +64,13 @@ export function renderStep(
       ];
     }
     case 'dropColumn':
-      return [
-        builder
-          .alterTable(tableOfEntity(step.entity))
-          .dropColumn(physicalColumnName(step.field), (drop) => drop.ifExists())
-          .compile().sql,
-      ];
+      return (step.columns ?? [physicalColumnName(step.field)]).map(
+        (column) =>
+          builder
+            .alterTable(tableOfEntity(step.entity))
+            .dropColumn(column, (drop) => drop.ifExists())
+            .compile().sql,
+      );
     case 'alterColumn':
       return alterColumnStatements(schema, step);
     case 'copyColumn': {

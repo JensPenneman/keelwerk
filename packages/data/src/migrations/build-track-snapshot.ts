@@ -7,7 +7,7 @@ import type {
   TableSpec,
   TrackSnapshot,
 } from '@keelwerk/core';
-import { errors } from '@keelwerk/core';
+import { errors, unicodeVersion } from '@keelwerk/core';
 import { sha256 } from '@keelwerk/core/crypto';
 import { entityForeignKeys } from './entity-foreign-keys.ts';
 import { entityIndexes } from './entity-indexes.ts';
@@ -116,7 +116,12 @@ export function buildTrackSnapshot(
       const column = `kw_search_${search.name}`;
       const empty = { field: null, nullable: true, default: null, constraints: {} } as const;
       piece.columns.push(
-        { ...empty, name: column, kind: 'tags' },
+        {
+          ...empty,
+          name: column,
+          kind: 'tags',
+          derived: { query: 'search', kind: 'tagSet', unicode: unicodeVersion() },
+        },
         { ...empty, name: `${column}_counts`, kind: 'sealed' },
       );
     }

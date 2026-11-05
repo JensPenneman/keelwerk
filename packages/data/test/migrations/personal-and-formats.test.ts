@@ -106,6 +106,7 @@ describe('personal and CRDT fields', () => {
           name: 'email__ore',
           field: 'email',
           kind: 'tags',
+          derived: { query: 'order', kind: 'ore' },
           nullable: true,
           default: null,
           constraints: {},

@@ -30,7 +30,7 @@ export async function runInMemory(
     };
     if (options.rows !== undefined) {
       const rows = options.rows;
-      await runtime.adapter.unit(address.namespace, address.scope, (unit) =>
+      await runtime.sealed.unit(address.namespace, address.scope, (unit) =>
         seedRows({
           unit,
           registry: app.registry,
@@ -69,7 +69,7 @@ export async function runInMemory(
       outcome: answer.ok ? { ok: true, value: answer.value } : { ok: false, error: answer.error },
       events,
       rows: (entity) =>
-        runtime.adapter.unit(
+        runtime.sealed.unit(
           address.namespace,
           address.scope,
           async (unit) => (await unit.rows.find(entityOf(entity), {})).rows,

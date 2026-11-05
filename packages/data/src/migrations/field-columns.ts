@@ -28,7 +28,7 @@ function columnConstraints(constraints: FieldConstraints): FieldConstraints {
 export function fieldColumns(
   name: string,
   descriptor: FieldDescriptor,
-  derived: readonly Pick<DerivedIndexField, 'column'>[],
+  derived: readonly Pick<DerivedIndexField, 'column' | 'query' | 'kind' | 'unicode'>[],
   forceNullable: boolean,
 ): readonly ColumnSpec[] {
   if (descriptor.personal !== false) {
@@ -49,6 +49,7 @@ export function fieldColumns(
           nullable: true,
           default: null,
           constraints: {},
+          derived: { query: index.query, kind: index.kind, unicode: index.unicode },
         }),
       ),
     ];

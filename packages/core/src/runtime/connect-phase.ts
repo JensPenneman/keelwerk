@@ -15,6 +15,7 @@ import { resolveDeploymentId } from '../control/resolve-deployment-id.ts';
 import { withScopeKeys } from '../control/scope-keys.ts';
 import { sha256 } from '../crypto/sha256.ts';
 import type { EnvRef } from '../dsl/env.ts';
+import { sealingAdapter } from '../encryption/sealing-adapter.ts';
 import { errors } from '../errors/errors.ts';
 import { buildIdentity } from '../events/build-identity.ts';
 import type { PlacementHandle } from '../invoker/placement-handle.ts';
@@ -249,7 +250,20 @@ export async function connectPhase(input: ConnectInput): Promise<Connected> {
       opened.push(adapter);
       const capabilities = await adapter.connect();
       recordFallbacks(name, capabilities);
-      placements.set(name, { adapter, capabilities });
+      // The kernel reaches a placement through the sealing layer: personal values are sealed and
+      // queried by tag on the way to the adapter (14.7.9).
+      const sealing = keys;
+      if (sealing === undefined) throw errors.internal('The key service is not open.');
+      placements.set(name, {
+        adapter: sealingAdapter(adapter, {
+          keys: sealing,
+          maxScan: capabilities.encryptedQueries.maxScan,
+          describe: (namespace, ref) =>
+            served.find((app) => app.id === namespace.appId)?.registry.entities.get(ref)
+              ?.descriptor,
+        }),
+        capabilities,
+      });
     }
     const placementIds = await registerPlacements(control, deployment.placements);
 

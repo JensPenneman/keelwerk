@@ -1,4 +1,5 @@
 import type { HybridClock } from '../clock/hybrid-clock.ts';
+import { personalSealerOf } from '../encryption/personal-sealer-of.ts';
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { chainHash } from '../events/chain-hash.ts';
@@ -13,84 +14,22 @@ import type { Registry } from '../registry/registry.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
 import { applyDomainEvolve } from './apply-domain-evolve.ts';
+import { assertBoundary } from './assert-boundary.ts';
 import { beforeImage } from './before-image.ts';
 import { changedOpsOf } from './changed-ops-of.ts';
 import { checkInvariant } from './check-invariant.ts';
+import { createdValues } from './created-values.ts';
 import { encodeEventValue } from './encode-event-value.ts';
 import type { EntityBehaviours } from './entity-behaviours.ts';
 import type { EvolvingEvent } from './evolving-event.ts';
 import { genericEvolve } from './generic-evolve.ts';
+import { missingFields } from './missing-fields.ts';
 import { resolveDraftById } from './resolve-draft-by-id.ts';
 import { transientRecords } from './transient-records.ts';
 import type { WrittenRow } from './written-row.ts';
 
 /** The event schema version generated and domain events are written with (section 15.1.9). */
 const schemaVersion = 1;
-
-const systemFields = new Set([
-  'id',
-  'createdAt',
-  'updatedAt',
-  'archivedAt',
-  'version',
-  'kwLastHlc',
-  'kwLastHash',
-  'kwErasedAt',
-]);
-
-function forbidden(message: string, draft: AnyDraft): KeelwerkError {
-  return new KeelwerkError({
-    kind: 'forbidden',
-    code: 'core.forbidden',
-    message,
-    details: { entity: draft.entity, draft: draft.kind },
-  });
-}
-
-/** A draft outside the module boundary is `forbidden`, never ignored (section 8.4). */
-function assertBoundary(entry: EntityEntry, draft: AnyDraft, authority: string): void {
-  if (entry.module === authority) return;
-  const fields = Object.keys(draft.values);
-  const allContributed =
-    fields.length > 0 && fields.every((name) => entry.origin[name] === authority);
-  if (draft.kind === 'update' && allContributed) return;
-  throw forbidden(
-    `"${authority}" may not write ${entry.ref}: a module changes another module's entity only in the fields it contributed.`,
-    draft,
-  );
-}
-
-function missingFields(
-  entry: EntityEntry,
-  values: Readonly<Record<string, unknown>>,
-): readonly string[] {
-  return Object.entries(entry.descriptor.fields)
-    .filter(
-      ([name, field]) => !field.optional && field.kind !== 'serial' && values[name] === undefined,
-    )
-    .map(([name]) => name);
-}
-
-/** The `created` event's values: every field after defaults, `stateOnly` fields apart. */
-function createdValues(
-  entry: EntityEntry,
-  values: Readonly<Record<string, unknown>>,
-): { full: Record<string, unknown>; stored: Record<string, unknown> } {
-  const full: Record<string, unknown> = {};
-  const stored: Record<string, unknown> = {};
-  for (const [name, value] of Object.entries(values)) {
-    if (value === undefined) continue;
-    const field = entry.descriptor.fields[name];
-    if (field === undefined || systemFields.has(name)) {
-      throw errors.validation(`${entry.ref} has no field "${name}"`, {
-        issues: [{ path: [name], message: 'Unknown field.' }],
-      });
-    }
-    full[name] = encodeEventValue(value);
-    if (!field.stateOnly) stored[name] = full[name];
-  }
-  return { full, stored };
-}
 
 /** What the drafts of a decision are turned into events with. */
 export interface DraftsToEventsInput {
@@ -113,6 +52,8 @@ export interface DraftsToEventsInput {
   readonly loaded: ReadonlyMap<string, StorageRow>;
   /** The process clock the events' readings are taken from (section 14.5.3). */
   readonly hybridClock: HybridClock;
+  /** Seal the personal values of each event (14.7.4); default true. A re-decide compares plain payloads and writes nothing. */
+  readonly sealEvents?: boolean;
 }
 
 /**
@@ -218,6 +159,7 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
         loadedVersion: 0,
         row: next,
         events: [],
+        opened: [],
         images: [],
       };
       written.set(key, work);
@@ -234,6 +176,7 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
           loadedVersion: Number(row.version),
           row,
           events: [],
+          opened: [],
           images: [],
         };
         written.set(key, work);
@@ -277,7 +220,24 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
     }
     checkInvariant(entry, behaviour, next);
     const eventId = newUuidV7();
-    const before = previous === undefined || transient ? null : beforeImage(entry, previous, next);
+    const plainBefore =
+      previous === undefined || transient ? null : beforeImage(entry, previous, next);
+    // The chain covers the sealed form: personal values are sealed before the hash (14.7.4).
+    const sealer = input.sealEvents === false ? undefined : personalSealerOf(input.unit);
+    const sealedPayload =
+      sealer === undefined
+        ? { data: stored, before: plainBefore }
+        : await sealer.sealEvent({
+            entry,
+            streamId: draft.id,
+            eventId,
+            name,
+            data: stored,
+            before: plainBefore,
+            row: next,
+          });
+    const before = sealedPayload.before;
+    const sealedData = sealedPayload.data;
     const prevHash = transient ? null : ((previous?.kwLastHash as string | undefined) ?? null);
     const hash = transient
       ? null
@@ -287,7 +247,7 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
           version: Number(next.version),
           name,
           schemaVersion,
-          data: stored,
+          data: sealedData,
           before,
           hlc,
           recordedAt,
@@ -304,7 +264,7 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
       name,
       schemaVersion,
       shape: entry.descriptor.shape.id,
-      data: stored,
+      data: sealedData,
       before,
       hlc,
       recordedAt,
@@ -314,6 +274,7 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
       hash,
     };
     work.events.push(event);
+    work.opened.push({ data: stored, before: plainBefore });
     work.images.push(next);
     work.row = next;
   }

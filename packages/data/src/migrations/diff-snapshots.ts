@@ -25,14 +25,17 @@ function entityOfTable(snapshot: TrackSnapshot | null): ReadonlyMap<string, stri
 }
 
 /**
- * What a `dropColumn` step names for a column that goes: the field when the column is the field's
- * own, otherwise the column's physical name, so a derived column (a tag column, a CRDT value
- * column) leaves alone and never takes a sibling field's column with it (SPEC GAP, section 14.6.2:
- * the step names a field, not columns).
+ * The `dropColumn` step for a column that goes: the field when the column is the field's own,
+ * otherwise the column's physical name in both `field` and `columns`, so a derived column (a tag
+ * column, a CRDT value column) leaves alone and never takes a sibling field's column with it
+ * (section 14.6.2: the step names the columns that go).
  */
-function droppedName(column: ColumnSpec): string {
+function dropStep(entity: string, column: ColumnSpec): MigrationStep {
   const field = column.field;
-  return field !== null && physicalColumnName(field) === column.name ? field : column.name;
+  if (field !== null && physicalColumnName(field) === column.name) {
+    return { op: 'dropColumn', entity, field };
+  }
+  return { op: 'dropColumn', entity, field: column.name, columns: [column.name] };
 }
 
 /** The renames the author confirms: each removed field is offered the added fields of its kind, once. */
@@ -183,7 +186,7 @@ export async function diffSnapshots(
     const keptColumns = byName(kept?.columns ?? []);
     for (const column of table.columns) {
       if (keptColumns.has(column.name)) continue;
-      dropped.push({ op: 'dropColumn', entity, field: droppedName(column) });
+      dropped.push(dropStep(entity, column));
     }
     const keptIndexes = byName(kept?.indexes ?? []);
     for (const index of table.indexes) {

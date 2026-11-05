@@ -1,5 +1,5 @@
 import type { MigrationStep, TableSpec } from '@keelwerk/core';
-import { errors, KeelwerkError } from '@keelwerk/core';
+import { errors, KeelwerkError, physicalColumnName } from '@keelwerk/core';
 import type { MemoryCollection } from './memory-collection.ts';
 
 function conflict(message: string): KeelwerkError {
@@ -72,14 +72,26 @@ export function memoryApplyStep(draft: MemorySchemaDraft, step: MigrationStep): 
     }
     case 'dropColumn': {
       const table = tableOf(draft, step.entity);
+      const named = new Set(step.columns ?? []);
+      const gone = table.columns.filter((column) =>
+        step.columns === undefined ? column.field === step.field : named.has(column.name),
+      );
+      // A row holds a field's value under the field's name and a derived column under its own.
+      const keys = new Set(
+        gone.map((column) =>
+          column.field !== null && physicalColumnName(column.field) === column.name
+            ? column.field
+            : column.name,
+        ),
+      );
+      if (step.columns === undefined) keys.add(step.field);
       draft.tables.set(table.name, {
         ...table,
-        columns: table.columns.filter((column) => column.field !== step.field),
+        columns: table.columns.filter((column) => !gone.includes(column)),
       });
-      rewriteRows(draft, table.name, (row) => {
-        const { [step.field]: _dropped, ...rest } = row;
-        return rest;
-      });
+      rewriteRows(draft, table.name, (row) =>
+        Object.fromEntries(Object.entries(row).filter(([key]) => !keys.has(key))),
+      );
       return;
     }
     case 'alterColumn': {

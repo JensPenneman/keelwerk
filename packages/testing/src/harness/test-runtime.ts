@@ -11,6 +11,11 @@ import type { TestTenant } from './test-tenant.ts';
 export interface TestRuntime<App, Name extends string = string> {
   readonly app: App;
   readonly adapter: DataAdapter;
+  /**
+   * The placement as the kernel sees it: personal values are sealed on the way in and opened on the
+   * way out, and conditions are rewritten onto the tags. `adapter` is the raw store beneath it.
+   */
+  readonly sealed: DataAdapter;
   /** The backend the runtime created for the app. */
   readonly backendId: string;
   /** The namespace the runtime provisioned for the app on its placement; every tenant's scope opens it. */

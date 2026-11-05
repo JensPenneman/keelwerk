@@ -18,8 +18,10 @@ export function reactionEventsOf(
       stream: { type: item.entry.ref, id: item.id },
       version: item.loadedVersion + index + 1,
       position: null,
-      data: event.data,
-      before: event.before as Partial<Readonly<Record<string, unknown>>> | null,
+      data: item.opened[index]?.data ?? event.data,
+      before: (item.opened[index]?.before ?? event.before) as Partial<
+        Readonly<Record<string, unknown>>
+      > | null,
       actor: event.meta.actor,
       commandId: event.meta.commandId,
       at: event.recordedAt,

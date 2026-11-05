@@ -1,4 +1,6 @@
 import { hybridClock } from '../clock/hybrid-clock.ts';
+import { alignSealedValues } from '../encryption/align-sealed-values.ts';
+import { personalSealerOf } from '../encryption/personal-sealer-of.ts';
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { buildDecisionRecord } from '../events/build-decision-record.ts';
@@ -110,6 +112,10 @@ async function replayIn(unit: Unit, input: RedecideInput): Promise<RedecideResul
   };
 
   const recordedEvents = events.map(comparableOfStored);
+  // Compared opened (personal values readable) and aligned on what stays sealed (S-82); shown as stored.
+  const sealer = personalSealerOf(unit);
+  const openedEvents = sealer === undefined ? events : await sealer.openEvents(events);
+  const recordedOpened = openedEvents.map(comparableOfStored);
   const recordedRecord = encodeDecisionRecord(record);
   const failed = (message: string): RedecideResult => ({
     commandId,
@@ -202,6 +208,7 @@ async function replayIn(unit: Unit, input: RedecideInput): Promise<RedecideResul
       reads,
       loaded: resolved,
       hybridClock: hybridClock(defaultNodeId),
+      sealEvents: false,
     });
     const redecidedEvents = written.flatMap((row) =>
       row.events.map(
@@ -216,7 +223,13 @@ async function replayIn(unit: Unit, input: RedecideInput): Promise<RedecideResul
         }),
       ),
     );
-    const differences = [...compareEvents(recordedEvents, redecidedEvents)];
+    const alignedTo = (base: readonly ComparableEvent[]): readonly ComparableEvent[] =>
+      redecidedEvents.map((event, index) => ({
+        ...event,
+        data: alignSealedValues(base[index]?.data, event.data),
+        before: alignSealedValues(base[index]?.before, event.before),
+      }));
+    const differences = [...compareEvents(recordedOpened, alignedTo(recordedOpened))];
     if (!sameEffectCount) {
       differences.push(
         `${record.effects.length} effects were recorded and ${decided.effects.length} were re-decided`,
@@ -238,7 +251,7 @@ async function replayIn(unit: Unit, input: RedecideInput): Promise<RedecideResul
       differences,
       recorded: { events: recordedEvents, effects: record.effects, decision: recordedRecord },
       redecided: {
-        events: redecidedEvents,
+        events: alignedTo(recordedEvents),
         effects: decided.effects.map((effect) => effect.kind),
         decision: encoded,
         result: decided.result,

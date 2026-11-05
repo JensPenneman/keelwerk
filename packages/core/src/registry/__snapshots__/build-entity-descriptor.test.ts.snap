@@ -10,6 +10,7 @@ exports[`entity descriptors (section 14.3.2) > a profile with every contribution
       "keyVersion": 1,
       "kind": "binary",
       "query": "eq",
+      "unicode": "<runtime>",
     },
     "email__prefix": {
       "column": "email__prefix",
@@ -17,6 +18,7 @@ exports[`entity descriptors (section 14.3.2) > a profile with every contribution
       "keyVersion": 1,
       "kind": "tagSet",
       "query": "prefix",
+      "unicode": "<runtime>",
     },
   },
   "external": null,

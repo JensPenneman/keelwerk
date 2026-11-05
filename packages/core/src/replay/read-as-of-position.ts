@@ -1,3 +1,4 @@
+import { openStoredEvents } from '../encryption/open-stored-events.ts';
 import { errors } from '../errors/errors.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 import type { Position } from '../storage/position.ts';
@@ -43,7 +44,8 @@ export async function readAsOfPosition(input: AsOfInput): Promise<readonly Stora
       limit: pageSize,
       selector: { streamTypes: [entry.ref] },
     });
-    for (const event of batch.events) {
+    const events = await openStoredEvents(unit, batch.events);
+    for (const event of events) {
       if (event.position > at) return [...rows.values()];
       const id = event.stream.id;
       const name = event.type.slice(entry.ref.length + 1);

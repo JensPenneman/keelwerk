@@ -229,14 +229,23 @@ export const postgresCodecs: DialectCodecs = {
       case 'binary':
         return bytea;
       case 'tagSet':
-        return {
-          encode: (value) =>
-            Array.isArray(value) ? value.map((tag) => String(tag)) : fail('a tag list', value),
-          decode: (value) =>
-            Array.isArray(value) ? value.map((tag) => BigInt(String(tag))) : value,
-          sqlType: 'bigint[]',
-          readAsText: false,
-        };
+        // Trigram tags are 12-bit values in a smallint[]; prefix and token tags are 64-bit values.
+        return index.query === 'contains'
+          ? {
+              encode: (value) =>
+                Array.isArray(value) ? value.map((tag) => Number(tag)) : fail('a tag list', value),
+              decode: (value) => (Array.isArray(value) ? value.map((tag) => Number(tag)) : value),
+              sqlType: 'smallint[]',
+              readAsText: false,
+            }
+          : {
+              encode: (value) =>
+                Array.isArray(value) ? value.map((tag) => String(tag)) : fail('a tag list', value),
+              decode: (value) =>
+                Array.isArray(value) ? value.map((tag) => BigInt(String(tag))) : value,
+              sqlType: 'bigint[]',
+              readAsText: false,
+            };
       case 'ore':
         throw new KeelwerkError({
           kind: 'unsupported',

@@ -1,5 +1,6 @@
 import { allOf } from '../authorization/all-of.ts';
 import { checkFilterFields } from '../authorization/check-filter-fields.ts';
+import { openStoredEvents } from '../encryption/open-stored-events.ts';
 import { errors } from '../errors/errors.ts';
 import type { StoredEvent } from '../events/stored-event.ts';
 import { createEntityRepository } from '../repositories/entity-repository.ts';
@@ -77,7 +78,10 @@ export const generatedHistory: GeneratedRead = async (input) => {
   });
   if (found.rows.length === 0) throw errors.not_found(`${entry.ref} ${id} does not exist`);
   const at = args.asOf === undefined || args.asOf === null ? undefined : asOfInstant(args.asOf);
-  const events: readonly StoredEvent[] = await unit.events.readStream({ type: entry.ref, id });
+  const events: readonly StoredEvent[] = await openStoredEvents(
+    unit,
+    await unit.events.readStream({ type: entry.ref, id }),
+  );
   const shown = (name: string): boolean => {
     const field = entry.descriptor.fields[name];
     if (field === undefined) return false;

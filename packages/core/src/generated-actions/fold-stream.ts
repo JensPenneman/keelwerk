@@ -1,3 +1,4 @@
+import { openStoredEvents } from '../encryption/open-stored-events.ts';
 import { errors } from '../errors/errors.ts';
 import type { StoredEvent } from '../events/stored-event.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
@@ -44,7 +45,10 @@ export interface FoldStreamInput {
  */
 export async function foldStream(input: FoldStreamInput): Promise<FoldedStream> {
   const { entry } = input;
-  const events = await input.unit.events.readStream({ type: entry.ref, id: input.id });
+  const events = await openStoredEvents(
+    input.unit,
+    await input.unit.events.readStream({ type: entry.ref, id: input.id }),
+  );
   const behaviours = registryBehaviours(input.registry);
   const kept: StoredEvent[] = [];
   let row: StorageRow | undefined;

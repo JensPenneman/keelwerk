@@ -76,6 +76,7 @@ export function createPostgresInstance(
   };
   const entities = sqlEntityIndex(options.entities);
   const clock: Clock = options.clock ?? { now: () => Temporal.Now.instant() };
+  const keyWrapper = options.keyWrapper ?? env.keyWrapper;
   const request = (
     namespace: NamespaceRef,
     scope: StorageScope,
@@ -92,7 +93,7 @@ export function createPostgresInstance(
       deploymentId: env.deploymentId,
       clock,
       entities,
-      ...(options.keyWrapper === undefined ? {} : { keyWrapper: options.keyWrapper }),
+      ...(keyWrapper === undefined ? {} : { keyWrapper }),
     },
   });
   return {

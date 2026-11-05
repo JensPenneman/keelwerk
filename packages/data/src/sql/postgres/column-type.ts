@@ -5,17 +5,24 @@ const text = 'text';
 const collated = 'text collate "C"';
 
 /**
- * The type of a tag column by the query it serves. The registry names a derived column
- * `<field>__<query>` (`__eq`, `__prefix`, `__contains`, `__order`) while section 14.7.9.6 spells the
- * trigram column `__ngram` and the order column `__ore`; both spellings are read (SPEC GAP).
+ * The type of a tag column by the derived index field it carries (section 14.7.9.6): a blind index
+ * tag is `bytea`, trigram tags `smallint[]`, prefix and token tags `bigint[]`.
  */
-function tagsType(name: string): string {
-  if (name.endsWith('__eq')) return 'bytea';
-  if (name.endsWith('__contains') || name.endsWith('__ngram')) return 'smallint[]';
-  if (name.endsWith('__order') || name.endsWith('__ore')) {
-    throw errors.unsupported(`${name}: order tokens need the ore type, which arrives with M5`);
+function tagsType(column: ColumnSpec): string {
+  const derived = column.derived;
+  if (derived === undefined) {
+    throw errors.internal(`${column.name}: a tag column names the index it answers`);
   }
-  return 'bigint[]';
+  switch (derived.kind) {
+    case 'binary':
+      return 'bytea';
+    case 'ore':
+      throw errors.unsupported(
+        `${column.name}: order tokens need the ore type, which arrives with M5`,
+      );
+    case 'tagSet':
+      return derived.query === 'contains' ? 'smallint[]' : 'bigint[]';
+  }
 }
 
 /**
@@ -63,6 +70,6 @@ export function columnType(column: ColumnSpec): string {
     case 'sealed':
       return 'bytea';
     case 'tags':
-      return tagsType(column.name);
+      return tagsType(column);
   }
 }

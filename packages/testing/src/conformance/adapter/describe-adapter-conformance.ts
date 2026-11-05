@@ -13,6 +13,7 @@ import { codecCases } from './codec-cases.ts';
 import { conditionCases } from './condition-cases.ts';
 import type { ConformanceSubject } from './conformance-subject.ts';
 import type { ConformanceTarget } from './conformance-target.ts';
+import { encryptedQueryCases } from './encrypted-query-cases.ts';
 import { eventStoreCases } from './event-store-cases.ts';
 import { jobStoreCases } from './job-store-cases.ts';
 import { migrationCases } from './migration-cases.ts';
@@ -101,5 +102,6 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('migrations', () => migrationCases(subject));
     describe('toggle then rebuild', () => toggleRebuildCases(subject));
     describe('capability honesty', () => capabilityHonestyCases(subject));
+    describe('encrypted queries', () => encryptedQueryCases(subject));
   });
 }

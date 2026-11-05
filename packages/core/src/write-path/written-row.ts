@@ -14,6 +14,8 @@ export interface WrittenRow {
   /** The row after its last event. */
   row: StorageRow;
   readonly events: NewEvent[];
+  /** The payload of each event before its personal values were sealed, in step with `events`: what an inline reaction reads. */
+  readonly opened: { readonly data: unknown; readonly before: unknown | null }[];
   /** The row right after each event, in step with `events` (what an inline reaction sees). */
   readonly images: StorageRow[];
 }

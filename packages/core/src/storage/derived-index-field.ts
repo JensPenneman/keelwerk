@@ -11,4 +11,6 @@ export interface DerivedIndexField {
   readonly column: string;
   /** The index key version (section 14.7.9.7). */
   readonly keyVersion: number;
+  /** The Unicode version the index was built under; `keelwerk doctor` compares it with the runtime's (section 14.7.9.3). */
+  readonly unicode?: string;
 }

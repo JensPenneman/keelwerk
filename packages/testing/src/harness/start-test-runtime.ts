@@ -5,9 +5,17 @@ import type {
   EntityDescriptor,
   NamespaceRef,
 } from '@keelwerk/core';
-import { coreApiVersions, KeelwerkError, secret, startRuntime } from '@keelwerk/core';
+import {
+  coreApiVersions,
+  createKeyService,
+  KeelwerkError,
+  sealingAdapter,
+  secret,
+  startRuntime,
+} from '@keelwerk/core';
 import { memoryAdapter, schemaPlanner } from '@keelwerk/data';
 import type { TestApp } from './test-app.ts';
+import { testMasterKeyBytes } from './test-master-key-bytes.ts';
 import { testMasterKeyName } from './test-master-key-name.ts';
 import type { TestRuntime } from './test-runtime.ts';
 import type { TestRuntimeOptions } from './test-runtime-options.ts';
@@ -42,14 +50,23 @@ export async function startTestRuntime<
   const created: DataAdapter[] = [];
   const namespaces: NamespaceRef[] = [];
   let environment: AdapterEnvironment | undefined;
+  // The control store holds the scope keys the sealing layer's index keys come from.
+  let control: { adapter: DataAdapter; namespace?: NamespaceRef } | undefined;
+  let maxScan = 0;
   // The runtime provisions the namespaces; the harness only notes which ones, to address them.
   const observed = (adapter: DataAdapter): DataAdapter => ({
     ...adapter,
+    connect: async () => {
+      const capabilities = await adapter.connect();
+      maxScan = capabilities.encryptedQueries.maxScan;
+      return capabilities;
+    },
     schema: {
       ...adapter.schema,
       provision: async (namespace, snapshots, options) => {
         await adapter.schema.provision(namespace, snapshots, options);
         namespaces.push(namespace);
+        if (namespace.id === 'ns-control' && control !== undefined) control.namespace = namespace;
       },
     },
   });
@@ -61,6 +78,7 @@ export async function startTestRuntime<
           ...memory,
           create: (placement, env) => {
             const adapter = observed(memory.create(placement, env));
+            if (placement.id === 'control') control = { adapter };
             if (placement.id === placementName) {
               created.push(adapter);
               environment = env;
@@ -73,6 +91,7 @@ export async function startTestRuntime<
           id: 'given',
           create: (_placement, env) => {
             const adapter = observed(given);
+            control = { adapter };
             created.push(adapter);
             environment = env;
             return adapter;
@@ -110,9 +129,28 @@ export async function startTestRuntime<
   if (adapter === undefined || environment === undefined || namespace === undefined) {
     throw new Error('the test runtime did not open its placement');
   }
+  if (control?.namespace === undefined)
+    throw new Error('the test runtime did not open its control store');
+  const { adapter: controlAdapter, namespace: controlNamespace } = control;
+  const master = { version: 1, material: testMasterKeyBytes };
+  const keys = createKeyService({
+    master: { current: async () => master, byVersion: async () => master },
+    deploymentId: environment.deploymentId,
+    withScopeKeys: (fn) =>
+      controlAdapter.unit(controlNamespace, { level: 'deployment' }, (unit) => {
+        if (unit.scopeKeys === undefined) throw new Error('the control store has no scope keys');
+        return fn(unit.scopeKeys);
+      }),
+    clock,
+  });
   return {
     app,
     adapter,
+    sealed: sealingAdapter(adapter, {
+      keys,
+      maxScan,
+      describe: (_namespace, ref) => descriptors.get(ref),
+    }),
     backendId: backend.id,
     namespace,
     log: environment.log,

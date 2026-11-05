@@ -1,6 +1,7 @@
 import type { ConditionInput } from '../conditions/condition-input.ts';
 import { normalizeCondition } from '../conditions/normalize-condition.ts';
 import { sha256 } from '../crypto/sha256.ts';
+import { unicodeVersion } from '../encryption/unicode-version.ts';
 import type { AnyField } from '../fields/field-def.ts';
 import { canonicalizeJson } from '../json/canonicalize-json.ts';
 import type { DerivedIndexField } from '../storage/derived-index-field.ts';
@@ -59,7 +60,7 @@ function derivedIndexesOf(
       const kind = derivedKinds[query];
       if (kind === null) continue;
       const column = `${descriptor.column}__${query}`;
-      derived[column] = { field, kind, query, column, keyVersion: 1 };
+      derived[column] = { field, kind, query, column, keyVersion: 1, unicode: unicodeVersion() };
     }
   }
   return derived;

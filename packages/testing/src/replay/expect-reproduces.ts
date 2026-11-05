@@ -25,7 +25,7 @@ export async function expectReproduces(
   const address = tenantAddress(runtime, options.tenant);
   const result = await redecide({
     registry: app.registry,
-    adapter: runtime.adapter,
+    adapter: runtime.sealed,
     namespace: address.namespace,
     scope: address.scope,
     commandId: options.commandId,

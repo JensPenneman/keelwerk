@@ -6,6 +6,7 @@ import { defineApp } from '../dsl/define-app.ts';
 import { defineEntity } from '../dsl/define-entity.ts';
 import { defineModule } from '../dsl/define-module.ts';
 import { defineModuleBase } from '../dsl/define-module-base.ts';
+import { unicodeVersion } from '../encryption/unicode-version.ts';
 import { field } from '../fields/field.ts';
 import { relation } from '../fields/relation.ts';
 import { buildRegistry } from './build-registry.ts';
@@ -20,7 +21,20 @@ const profile = full.entities.get('accounts.profile');
 
 describe('entity descriptors (section 14.3.2)', () => {
   test('a profile with every contribution active', () => {
-    expect(profile?.descriptor).toMatchSnapshot();
+    const descriptor = profile?.descriptor;
+    // Each index records the Unicode version of the runtime, which the snapshot must not depend on.
+    for (const index of Object.values(descriptor?.derivedIndexes ?? {})) {
+      expect(index.unicode).toBe(unicodeVersion());
+    }
+    expect({
+      ...descriptor,
+      derivedIndexes: Object.fromEntries(
+        Object.entries(descriptor?.derivedIndexes ?? {}).map(([column, index]) => [
+          column,
+          { ...index, unicode: '<runtime>' },
+        ]),
+      ),
+    }).toMatchSnapshot();
   });
 
   test('physical names are the core functions of the names (S-59)', () => {
@@ -228,6 +242,7 @@ describe('entity descriptors (section 14.3.2)', () => {
       query: 'order',
       column: 'email__order',
       keyVersion: 1,
+      unicode: unicodeVersion(),
     });
     expect(descriptor?.fields.email?.constraints).toEqual({ maxLength: 120 });
     expect(descriptor?.fields.owner?.personal).toBe(false);

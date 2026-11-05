@@ -1,3 +1,4 @@
+import { errors } from '../errors/errors.ts';
 import type { AnyField } from '../fields/field-def.ts';
 import type { PersonalOptions } from '../fields/personal-options.ts';
 import type { FieldConstraints } from '../storage/field-constraints.ts';
@@ -57,10 +58,29 @@ function paramsOf(options: PersonalOptions): PersonalParams {
   };
 }
 
+/** What a personal field's options may not say (14.7.9.4, 14.7.9.7; a unique field is refused by `defineEntity`): refused where the app is composed, not at the first write. */
+function checkPersonalOptions(options: PersonalOptions): void {
+  const bits = options.eq?.bits;
+  if (bits !== undefined && (!Number.isInteger(bits) || bits < 8 || bits > 128)) {
+    throw errors.validation(`A personal field's eq.bits is 8 to 128 (got ${bits}).`);
+  }
+  if (typeof options.normalize === 'object') {
+    throw errors.unsupported(
+      `A custom normaliser ("${options.normalize.id}") is not supported in M1: use exact, nfc, caseless or email.`,
+    );
+  }
+  if (options.keys === 'subject') {
+    throw errors.unsupported(
+      "Personal fields with keys: 'subject' arrive with the mail store; use keys: 'tenant'.",
+    );
+  }
+}
+
 function personalOf(def: AnyField, context: FieldContext): FieldDescriptor['personal'] {
   const flag = def.flags.personal;
   if (flag === false) return false;
   const options = def.personalOptions ?? {};
+  checkPersonalOptions(options);
   return {
     subject: flag.subject ?? context.dataSubject ?? 'id',
     queries: flag.queries,

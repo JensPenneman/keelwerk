@@ -62,6 +62,7 @@ describe('dropColumn drops the columns of one field only', () => {
       op: 'dropColumn',
       entity: 'people.person',
       field: 'email__prefix',
+      columns: ['email__prefix'],
     });
     expect(renderStep('people', steps.at(-1) as never)).toEqual([
       'alter table "people"."people__person" drop column if exists "email__prefix"',

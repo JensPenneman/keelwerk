@@ -10,4 +10,5 @@ export interface ConformanceEntitySet {
   readonly account: EntityDescriptor;
   readonly setting: EntityDescriptor;
   readonly network: EntityDescriptor;
+  readonly person: EntityDescriptor;
 }

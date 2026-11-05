@@ -13,3 +13,4 @@ export { oracleSelect } from './oracle-select.ts';
 export { randomConditions } from './random-conditions.ts';
 export type { RandomDataset } from './random-dataset.ts';
 export { randomRows } from './random-rows.ts';
+export { unsealingOracle } from './unsealing-oracle.ts';
