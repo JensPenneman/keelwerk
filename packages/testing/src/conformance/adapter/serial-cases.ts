@@ -1,5 +1,6 @@
-import { conformanceEntities, conformanceScopes } from '@keelwerk/data/conformance';
+import { conformanceEntities, conformanceId, conformanceScopes } from '@keelwerk/data/conformance';
 import { describe, expect, test } from 'vitest';
+import { appendOf } from './append-of.ts';
 import type { ConformanceSubject } from './conformance-subject.ts';
 import { failureOf } from './failure-of.ts';
 
@@ -32,22 +33,34 @@ export function serialCases(subject: ConformanceSubject): void {
     });
 
     test('concurrent units get distinct values that ascend in commit order', async () => {
-      const committed: bigint[] = [];
-      const taken: bigint[] = [];
+      // The order in which the unit promises resolve is not the commit order: the commit returns to
+      // the caller after a network hop of its own. The database records the commit order itself, as
+      // the position of an event each unit appends next to its serial (15.1.4), so the values are
+      // compared with that.
+      const taken = new Map<number, bigint>();
+      const count = subject.networked ? 20 : 10;
       await Promise.all(
-        Array.from({ length: subject.networked ? 20 : 10 }, async (_, index) => {
+        Array.from({ length: count }, async (_, index) => {
           await subject.run(tenantA, async (unit) => {
             await new Promise((resolve) => setTimeout(resolve, (index * 7) % 5));
-            const value = await unit.serials.next(ticket, 'seq', ['box']);
-            taken.push(value);
-            unit.afterCommit(() => committed.push(value));
+            taken.set(index, await unit.serials.next(ticket, 'seq', ['box']));
+            await unit.events.append([appendOf(1 + index, [1])]);
           });
         }),
       );
-      expect(new Set(taken).size).toBe(taken.length);
-      expect(committed).toHaveLength(taken.length);
-      expect(committed).toEqual([...committed].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
-      expect(committed.at(-1)).toBe(BigInt(taken.length));
+      const values = [...taken.values()];
+      expect(new Set(values).size).toBe(count);
+      const log = await subject.read(tenantA, (unit) =>
+        unit.events.readAll(null, { limit: count + 10 }),
+      );
+      const inCommitOrder = log.events.map((event) => {
+        const index = Array.from(taken.keys()).find(
+          (candidate) => conformanceId(1 + candidate) === event.stream.id,
+        );
+        return index === undefined ? undefined : taken.get(index);
+      });
+      expect(inCommitOrder).toHaveLength(count);
+      expect(inCommitOrder).toEqual(Array.from({ length: count }, (_, n) => BigInt(n + 1)));
     });
 
     test('a field that is not a serial, or a count below one, is refused', async () => {
