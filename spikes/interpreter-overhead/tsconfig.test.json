@@ -10,5 +10,9 @@
     "noEmit": true
   },
   "include": ["src"],
-  "references": []
+  "references": [
+    { "path": "../../packages/adapter-postgres" },
+    { "path": "../../packages/core" },
+    { "path": "../../packages/testing" }
+  ]
 }

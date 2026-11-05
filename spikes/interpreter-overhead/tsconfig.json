@@ -6,5 +6,9 @@
   },
   "include": ["src"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test-d.ts"],
-  "references": []
+  "references": [
+    { "path": "../../packages/adapter-postgres" },
+    { "path": "../../packages/core" },
+    { "path": "../../packages/testing" }
+  ]
 }

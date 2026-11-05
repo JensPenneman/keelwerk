@@ -86,7 +86,6 @@
       "project": ["src/**/*.ts"]
     },
     "spikes/interpreter-overhead": {
-      "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"]
     },
     "examples/portal": {

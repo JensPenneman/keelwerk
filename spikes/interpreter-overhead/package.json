@@ -5,7 +5,16 @@
   "description": "Throwaway interpreter-overhead spike of milestone M1.",
   "license": "FSL-1.1-ALv2",
   "type": "module",
+  "scripts": {
+    "measure": "node --conditions=@keelwerk/source src/main.ts"
+  },
   "devDependencies": {
+    "@keelwerk/adapter-postgres": "workspace:*",
+    "@keelwerk/core": "workspace:*",
+    "@keelwerk/testing": "workspace:*",
+    "@testcontainers/postgresql": "12.2.1",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1",
     "vitest": "5.0.5"
   }
 }
