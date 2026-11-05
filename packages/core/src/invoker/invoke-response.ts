@@ -8,6 +8,8 @@ export type InvokeResponse =
       readonly value: unknown;
       readonly commandId?: string;
       readonly receipt?: CommandReceipt;
+      /** What `core.commandReceipt.get` reads the receipt by, for an accepted command whose receipt is in the session's own scope. */
+      readonly receiptId?: string;
       readonly effects?: readonly string[];
     }
   | { readonly ok: false; readonly error: WireError };

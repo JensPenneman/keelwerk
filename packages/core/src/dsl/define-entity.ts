@@ -25,6 +25,8 @@ export interface GeneratedOptions {
   readonly changes?: boolean;
   readonly queryChanges?: boolean;
   readonly set?: boolean;
+  /** `false` leaves the generated `create` (and the create items of `set`) off: an explicit command creates the rows. */
+  readonly create?: boolean;
   readonly history?: boolean;
   readonly watch?: boolean;
 }

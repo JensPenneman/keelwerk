@@ -155,7 +155,7 @@ describe.each(kinds)('generated updates of the core entities on %s', (kind) => {
     expect(pinned).toMatchObject({ ok: true });
   });
 
-  test('a client create of a tenant or backend is refused; the runtime control path still works', {
+  test('a create of a tenant or backend over the invoker goes through the control path, which checks the catalogue; Runtime.control works too', {
     timeout: 60_000,
   }, async () => {
     const runtime = await boot(deploymentOf(kind), { clock: testClock().clock });
@@ -172,14 +172,14 @@ describe.each(kinds)('generated updates of the core entities on %s', (kind) => {
         placement: 'nowhere',
         apiVersion: '1999-01-01',
       }),
-    ).toMatchObject({ ok: false, error: { kind: 'forbidden' } });
+    ).toMatchObject({ ok: false, error: { kind: 'validation' } });
     expect(
       await call(runtime.invoker, local, 'core.backend.create', {
         name: 'ghost',
         app: 'unserved',
         placement: 'nowhere',
       }),
-    ).toMatchObject({ ok: false, error: { kind: 'forbidden' } });
+    ).toMatchObject({ ok: false, error: { kind: 'validation' } });
     const tenant = await runtime.control.createTenant({ backendId: backend.id, name: 'acme' });
     expect(tenant.id).toBeTruthy();
   });

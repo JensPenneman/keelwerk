@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { receiptScopeId } from '../src/receipt-scope-id.ts';
+import { receiptScopeId } from './receipt-scope-id.ts';
 
 const deploymentId = '0198a1e0-0000-7000-8000-00000000d001';
 

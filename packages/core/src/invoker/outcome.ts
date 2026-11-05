@@ -11,5 +11,7 @@ export type Outcome<O> =
       readonly effects?: readonly string[];
       /** Set by the invoker on an idempotent replay (section 16.4.8). */
       readonly replayed?: true;
+      /** The id `core.commandReceipt.get` reads an accepted command's receipt by; set only when the receipt is in the session's own scope (S-102). */
+      readonly receiptId?: string;
     }
   | { readonly ok: false; readonly error: KeelwerkError };

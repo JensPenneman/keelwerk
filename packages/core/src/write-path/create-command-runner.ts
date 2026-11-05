@@ -1,9 +1,11 @@
 import { type HybridClock, hybridClock } from '../clock/hybrid-clock.ts';
 import { acceptAsyncCommand } from '../effects/accept-async-command.ts';
 import type { CommandRunner } from '../invoker/command-runner.ts';
+import { commandReceiptId } from './command-receipt-id.ts';
 import { defaultNodeId } from './default-node-id.ts';
 import type { EntityBehaviours } from './entity-behaviours.ts';
 import { isRecordedFailure } from './is-recorded-failure.ts';
+import { receiptScopeId } from './receipt-scope-id.ts';
 import { recordFailedReceipt } from './record-failed-receipt.ts';
 import { registryBehaviours } from './registry-behaviours.ts';
 import { runCommand } from './run-command.ts';
@@ -11,6 +13,8 @@ import type { RunCommandInput } from './run-command-input.ts';
 
 /** What the runtime wires the write path with. */
 export interface CommandRunnerOptions {
+  /** The deployment id, the scope id of deployment-scope receipts (S-69); part of an accepted command's `receiptId`. */
+  readonly deploymentId: string;
   /** Overrides the entity behaviour; default: what the registry records on each `EntityEntry` (F-10 change note, WP-43). */
   readonly behaviours?: (app: string) => EntityBehaviours;
   /** The process's clock node id (section 14.5.3). */
@@ -66,7 +70,19 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
     const { execution } = run.action;
     const deferred =
       execution === 'async' || (execution === 'either' && invocation.prefer === 'async');
-    if (deferred) return acceptAsyncCommand(input);
+    if (deferred) {
+      return acceptAsyncCommand(input).then((result) =>
+        result.receipt === undefined
+          ? result
+          : {
+              ...result,
+              receiptId: commandReceiptId(
+                receiptScopeId(run.target.scope, options.deploymentId),
+                result.receipt.commandId,
+              ),
+            },
+      );
+    }
     return runCommand(input).catch(async (error: unknown) => {
       // A deterministic refusal after the unit rolled back is pinned to the command id (15.1.7).
       if (invocation.commandId !== undefined && isRecordedFailure(error)) {

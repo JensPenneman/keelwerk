@@ -60,7 +60,12 @@ export function checkReservedNames(
         );
       };
       for (const name of Object.keys(definition.actions)) {
-        if (generatedActionNames.has(name)) flag('reservedActionNames', name, 'an action');
+        // The core names an explicit action after a generated one its own entity switches off (S-109).
+        const switchedOff =
+          module.id === 'core' && Reflect.get(definition.generated ?? {}, name) === false;
+        if (generatedActionNames.has(name) && !switchedOff) {
+          flag('reservedActionNames', name, 'an action');
+        }
       }
       for (const name of Object.keys(definition.events)) {
         if (generatedEventNames.has(name)) flag('reservedEventNames', name, 'an event');

@@ -62,6 +62,24 @@ describe('core.me and core.capabilities (sections 8.7 and 18.7)', () => {
     expect(anonymous.principal).toMatchObject({ kind: 'anonymous' });
   });
 
+  test('core.me takes no input at all over a tenant session', async () => {
+    const runtime = await booted();
+    const backend = await runtime.control.createBackend({
+      name: 'library',
+      app: 'library',
+      placement: 'main',
+    });
+    const tenant = await runtime.control.createTenant({ backendId: backend.id, name: 'acme' });
+    const outcome = await runtime.invoker.invoke({
+      action: 'core.me',
+      input: undefined,
+      carrier: testCarrier({ name: 'acme', id: tenant.id }, ada),
+      requestId: crypto.randomUUID(),
+      signal: new AbortController().signal,
+    });
+    expect(outcome).toMatchObject({ ok: true, value: { principal: { kind: 'user', id: 'ada' } } });
+  });
+
   test('an operator sees the core rules as plain entries', () => {
     const core = defineApp({ id: 'only-core', modules: [] });
     const operator = { ...runtimeOperator, id: 'ops' };

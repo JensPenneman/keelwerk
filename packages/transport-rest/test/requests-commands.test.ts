@@ -116,7 +116,7 @@ describe('command requests', () => {
     expect(lastCall(calls).prefer).toBeUndefined();
   });
 
-  describe('the Location of an accepted command (S-102: receipt reads are tenant-scope until WP-55b)', () => {
+  describe('the Location of an accepted command (S-102: receipt reads accept tenant, backend and deployment sessions)', () => {
     const accepted = (inv: { readonly commandId?: string }) => ({
       ok: true as const,
       value: undefined,
@@ -153,18 +153,19 @@ describe('command requests', () => {
       expect(await response.json()).toEqual({ commandId: 'order-18', status: 'accepted' });
     });
 
-    test('a backend session gets no Location, since the receipt read refuses it', async () => {
+    test('a backend session running a backend-scope command is told where its receipt is', async () => {
       const response = await create('backend', { scope: { level: 'backend', backendId: 'b1' } });
       expect(response.status).toBe(202);
-      expect(response.headers.has('location')).toBe(false);
+      expect(response.headers.get('location')).toBe(
+        `/api/core/command-receipts/${commandReceiptId('b1', 'order-18')}`,
+      );
     });
 
-    test('a deployment session gets no Location either, and no link carries the deployment id', async () => {
+    test('a deployment session running a deployment-scope command is told where its receipt is', async () => {
       const response = await create('deployment', { scope: { level: 'deployment' } });
       expect(response.status).toBe(202);
-      expect(response.headers.has('location')).toBe(false);
-      expect(JSON.stringify([...response.headers])).not.toContain(
-        commandReceiptId('0198a1e0-0000-7000-8000-00000000d001', 'order-18'),
+      expect(response.headers.get('location')).toBe(
+        `/api/core/command-receipts/${commandReceiptId('0198a1e0-0000-7000-8000-00000000d001', 'order-18')}`,
       );
     });
   });

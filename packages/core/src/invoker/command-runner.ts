@@ -60,6 +60,8 @@ export interface CommandResult {
    * the first answer did (section 15.1.7).
    */
   readonly replayRef?: { readonly entity: string; readonly id: string; readonly version: number };
+  /** The `rcpt_` id of the receipt of an accepted command (section 15.1.7). */
+  readonly receiptId?: string;
 }
 
 /** Runs one command below the pipeline; an error is thrown and the invoker maps it. */

@@ -173,10 +173,19 @@ describe('the action table (section 16.2.2)', () => {
     expect(registry.actions.get('app.health')).toMatchObject({ module: 'app', mount: 'app' });
   });
 
-  test('the core entities have their generated create (S-26) and none the sets they switch off', () => {
-    expect(full.actions.has('core.backend.create')).toBe(true);
-    expect(full.actions.has('core.tenant.create')).toBe(true);
-    expect(full.actions.get('core.tenant.create')).toMatchObject({ scope: 'deployment' });
+  test('backend and tenant have the explicit create commands, not the generated one (S-109), and none the sets they switch off', () => {
+    for (const ref of ['core.backend.create', 'core.tenant.create']) {
+      const action = full.actions.get(ref);
+      expect(action).toMatchObject({
+        scope: 'deployment',
+        kind: 'command',
+        principal: ['operator'],
+      });
+      expect(action?.generated).toBeUndefined();
+    }
+    expect(full.entities.get('core.backend')?.generated).not.toContain('create');
+    expect(full.entities.get('core.tenant')?.generated).not.toContain('create');
+    expect(full.entities.get('core.backend')?.generated).toContain('update');
     expect(full.actions.has('core.commandReceipt.create')).toBe(false);
     expect(full.actions.has('core.domain.update')).toBe(false);
     expect(full.entities.get('core.commandReceipt')?.generated).toEqual([

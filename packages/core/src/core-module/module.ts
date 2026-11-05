@@ -1,10 +1,12 @@
 import { defineModule } from '../dsl/define-module.ts';
+import { create as createBackend } from './actions/backend/create.ts';
 import { capabilities } from './actions/capabilities.ts';
 import { composition } from './actions/composition.ts';
 import { introspect } from './actions/introspect.ts';
 import { me } from './actions/me.ts';
 import { issue } from './actions/operator-token/issue.ts';
 import { revoke } from './actions/operator-token/revoke.ts';
+import { create as createTenant } from './actions/tenant/create.ts';
 import { enter } from './actions/tenant/enter.ts';
 import { setApiVersion } from './actions/tenant/set-api-version.ts';
 import { coreBase } from './base.ts';
@@ -22,7 +24,11 @@ import { syncDomainsOnChange } from './reactions/sync-domains-on-change.ts';
 /** The implicit core module, always first in a selection (section 4.7). */
 export const core: Core = defineModule(coreBase, {
   actions: { introspect, composition, me, capabilities },
-  entityActions: { tenant: { enter, setApiVersion }, operatorToken: { issue, revoke } },
+  entityActions: {
+    backend: { create: createBackend },
+    tenant: { create: createTenant, enter, setApiVersion },
+    operatorToken: { issue, revoke },
+  },
   policies: {
     introspect: { signedIn },
     composition: { operators },

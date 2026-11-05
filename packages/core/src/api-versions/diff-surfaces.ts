@@ -61,7 +61,14 @@ function diffActions(base: ApiSurface, head: ApiSurface): readonly Found[] {
         message: `The action's auth changed from ${action.auth} to ${next.auth}.`,
       });
     }
-    if (action.scope !== next.scope) {
+    if (action.scope !== next.scope && next.scope === 'invocation') {
+      // `invocation` accepts every scope level, so a client of the old scope still works (S-109).
+      found.push({
+        kind: 'metadataChanged',
+        ref,
+        message: `The action's scope widened from ${action.scope} to invocation.`,
+      });
+    } else if (action.scope !== next.scope) {
       found.push({
         kind: 'scopeChanged',
         ref,

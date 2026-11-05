@@ -188,6 +188,9 @@ export async function generatedSet(input: GeneratedSetInput): Promise<unknown> {
 
   for (const [index, raw] of listOf(args.create, 'create').entries()) {
     try {
+      if (!entry.generated.includes('create')) {
+        throw errors.unsupported(`create.${index} is switched off for this entity.`);
+      }
       const refusal = gate('create');
       if (refusal !== undefined) throw refusal;
       const values = await validated(schemaOf('create'), raw, `create.${index}`);

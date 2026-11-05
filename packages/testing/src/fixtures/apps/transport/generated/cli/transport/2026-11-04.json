@@ -50,22 +50,12 @@
       "flags": [
         {
           "kind": "string",
-          "name": "api-version",
-          "required": false
+          "name": "name",
+          "required": true
         },
         {
           "kind": "string",
           "name": "app",
-          "required": true
-        },
-        {
-          "kind": "json",
-          "name": "config-json",
-          "required": false
-        },
-        {
-          "kind": "string",
-          "name": "name",
           "required": true
         },
         {
@@ -74,9 +64,14 @@
           "required": true
         },
         {
-          "kind": "enum",
-          "name": "status",
-          "required": true
+          "kind": "string",
+          "name": "api-version",
+          "required": false
+        },
+        {
+          "kind": "json",
+          "name": "config-json",
+          "required": false
         }
       ],
       "kind": "command",
@@ -351,7 +346,7 @@
       "positionals": [],
       "ref": "core.commandReceipt.changes",
       "route": "call core.commandReceipt.changes",
-      "scope": "tenant"
+      "scope": "invocation"
     },
     {
       "aliases": [],
@@ -382,7 +377,7 @@
       "positionals": [],
       "ref": "core.commandReceipt.get",
       "route": "call core.commandReceipt.get",
-      "scope": "tenant"
+      "scope": "invocation"
     },
     {
       "aliases": [],
@@ -448,7 +443,7 @@
       "positionals": [],
       "ref": "core.commandReceipt.query",
       "route": "call core.commandReceipt.query",
-      "scope": "tenant"
+      "scope": "invocation"
     },
     {
       "aliases": [],
@@ -479,7 +474,7 @@
       "positionals": [],
       "ref": "core.commandReceipt.queryChanges",
       "route": "call core.commandReceipt.queryChanges",
-      "scope": "tenant"
+      "scope": "invocation"
     },
     {
       "aliases": [],
@@ -674,7 +669,7 @@
       "positionals": [],
       "ref": "core.effect.changes",
       "route": "call core.effect.changes",
-      "scope": "tenant"
+      "scope": "invocation"
     },
     {
       "aliases": [],
@@ -710,7 +705,7 @@
       "positionals": [],
       "ref": "core.effect.get",
       "route": "call core.effect.get",
-      "scope": "tenant"
+      "scope": "invocation"
     },
     {
       "aliases": [],
@@ -776,7 +771,7 @@
       "positionals": [],
       "ref": "core.effect.query",
       "route": "call core.effect.query",
-      "scope": "tenant"
+      "scope": "invocation"
     },
     {
       "aliases": [],
@@ -807,7 +802,7 @@
       "positionals": [],
       "ref": "core.effect.queryChanges",
       "route": "call core.effect.queryChanges",
-      "scope": "tenant"
+      "scope": "invocation"
     },
     {
       "aliases": [],
@@ -1544,18 +1539,8 @@
       "auth": "policy",
       "flags": [
         {
-          "kind": "string",
-          "name": "api-version",
-          "required": false
-        },
-        {
           "kind": "ref",
           "name": "backend-id",
-          "required": true
-        },
-        {
-          "kind": "list",
-          "name": "domains",
           "required": true
         },
         {
@@ -1569,9 +1554,14 @@
           "required": false
         },
         {
-          "kind": "enum",
-          "name": "status",
-          "required": true
+          "kind": "string",
+          "name": "api-version",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "domains",
+          "required": false
         }
       ],
       "kind": "command",
@@ -2522,5 +2512,5 @@
     "wait-effects"
   ],
   "format": "keelwerk.cli/1",
-  "surface": "sha256-byybczUwEEZpvkk5Pp4Eo4pdj4LUwcBrES1zTMemUA4"
+  "surface": "sha256-se-bpkQg3J1xZG6K22ZsTT6Xpl4n7gba0dB71yVTYBI"
 }

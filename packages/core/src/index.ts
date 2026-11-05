@@ -837,5 +837,6 @@ export { createCommandRunner } from './write-path/create-command-runner.ts';
 export type { EntityBehaviour } from './write-path/entity-behaviour.ts';
 export type { EntityBehaviours } from './write-path/entity-behaviours.ts';
 export { entityBehavioursOf } from './write-path/entity-behaviours-of.ts';
+export { receiptScopeId } from './write-path/receipt-scope-id.ts';
 export { runCommand } from './write-path/run-command.ts';
 export type { RunCommandInput } from './write-path/run-command-input.ts';

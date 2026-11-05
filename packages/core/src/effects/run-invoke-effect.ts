@@ -76,7 +76,15 @@ export async function runInvokeEffect(
     );
   }
   if (scene.depth >= maxReactionDepth) throw reactionDepthError(`The command "${action.ref}"`);
-  const { client: _client, commandId: _commandId, ...outer } = run;
+  // A nested command is no control path and has its own input to fingerprint.
+  const {
+    client: _client,
+    commandId: _commandId,
+    controlPath: _controlPath,
+    fingerprintInput: _fingerprintInput,
+    replayOnly: _replayOnly,
+    ...outer
+  } = run;
   const result = await unit.nested((nested) =>
     scene.runNested(
       nested,

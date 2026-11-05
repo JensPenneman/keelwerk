@@ -22,7 +22,7 @@ export interface SurfaceAction {
   /** Declared error codes, sorted. */
   readonly errors: readonly string[];
   readonly auth: 'policy' | 'public';
-  readonly scope: 'tenant' | 'backend' | 'deployment';
+  readonly scope: 'tenant' | 'backend' | 'deployment' | 'invocation';
   /** Effective, after `defineApp({ execution })`; queries are 'sync'. */
   readonly execution: 'sync' | 'async' | 'either';
   readonly idempotent: boolean;

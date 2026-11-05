@@ -21,6 +21,12 @@
     },
     {
       "path": "../client"
+    },
+    {
+      "path": "../testing"
+    },
+    {
+      "path": "../transport-http"
     }
   ]
 }

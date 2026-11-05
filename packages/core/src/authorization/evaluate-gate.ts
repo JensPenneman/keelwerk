@@ -13,6 +13,7 @@ const scopeLevels = {
   tenant: ['tenant'],
   backend: ['backend', 'tenant'],
   deployment: ['deployment'],
+  invocation: ['tenant', 'backend', 'deployment'],
 } as const;
 
 function refusal(reason: string): GateResult {

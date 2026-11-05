@@ -36,11 +36,14 @@ export async function runOperatorAction(
   action: string,
   input: Readonly<Record<string, unknown>>,
   present: (value: unknown) => unknown = (value) => value,
-  options: { readonly allPages?: boolean } = {},
+  options: { readonly allPages?: boolean; readonly commandId?: string } = {},
 ): Promise<void> {
   const scoped = scopeOutput(context, flags);
   try {
-    let response = await scoped.client.invoke(action, input, { signal: scoped.signal });
+    let response = await scoped.client.invoke(action, input, {
+      signal: scoped.signal,
+      ...(options.commandId !== undefined && { commandId: options.commandId }),
+    });
     if (!response.ok) throw new CliFailure(response.error, response.error.message);
     let value = response.value;
     // A page answer holds `items` and `pageInfo`: with `allPages`, follow `endCursor` to the last page.

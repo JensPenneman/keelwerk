@@ -8,6 +8,7 @@ const accepted: Readonly<Record<ActionEntry['scope'], readonly Scope['level'][]>
   tenant: ['tenant'],
   backend: ['backend', 'tenant'],
   deployment: ['deployment'],
+  invocation: ['tenant', 'backend', 'deployment'],
 };
 
 /**

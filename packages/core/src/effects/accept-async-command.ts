@@ -3,7 +3,7 @@ import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import { assertSameRequest } from '../write-path/assert-same-request.ts';
-import { inputFingerprint } from '../write-path/input-fingerprint.ts';
+import { commandFingerprint } from '../write-path/command-fingerprint.ts';
 import { receiptRow } from '../write-path/receipt-row.ts';
 import { replayReceipt } from '../write-path/replay-receipt.ts';
 import { retryUnit } from '../write-path/retry-unit.ts';
@@ -26,7 +26,7 @@ export async function acceptAsyncCommand(input: RunCommandInput): Promise<Comman
   input.signal?.throwIfAborted();
   const commandId = input.commandId ?? newUuidV7();
   const now = input.clock.now();
-  const fingerprint = inputFingerprint(action.ref, input.apiVersion, input.input);
+  const fingerprint = await commandFingerprint(input);
   const receipt = {
     ...receiptRow({
       commandId,

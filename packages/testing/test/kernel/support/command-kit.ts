@@ -64,6 +64,7 @@ export function commandKit(
     adapter,
     ...(over.clock === undefined ? {} : { clock: over.clock }),
     commands: createCommandRunner({
+      deploymentId: '0198a1e0-0000-7000-8000-00000000d001',
       behaviours: () => chosen,
       retry: { sleep: async () => undefined },
     }),

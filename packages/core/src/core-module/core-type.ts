@@ -31,6 +31,20 @@ type TenantCommand<In> = ActionPart<
     never
   >
 >;
+type BackendCreate<In, Out> = ActionPart<
+  'command',
+  CoreBase,
+  'backend',
+  'sync',
+  PartTypes<Prettify<In & {}>, Out, never, never>
+>;
+type TenantCreate<In, Out> = ActionPart<
+  'command',
+  CoreBase,
+  'tenant',
+  'sync',
+  PartTypes<Prettify<In & {}>, Out, never, never>
+>;
 type TokenCreate<In, Out> = ActionPart<
   'command',
   CoreBase,
@@ -76,7 +90,29 @@ export interface CoreLiteral {
     readonly syncDomainsOnChange: ReactionPart<CoreBase>;
   };
   readonly entityActions: {
+    readonly backend: {
+      readonly create: BackendCreate<
+        {
+          readonly name: string;
+          readonly app: string;
+          readonly placement: string;
+          readonly apiVersion?: string | undefined;
+          readonly config?: Record<string, unknown> | undefined;
+        },
+        { readonly id: Id<'core.backend'> }
+      >;
+    };
     readonly tenant: {
+      readonly create: TenantCreate<
+        {
+          readonly backendId: Id<'core.backend'>;
+          readonly name: string;
+          readonly placement?: string | undefined;
+          readonly apiVersion?: string | undefined;
+          readonly domains?: readonly string[] | undefined;
+        },
+        { readonly id: Id<'core.tenant'> }
+      >;
       readonly enter: TenantCommand<{ readonly reason: string }>;
       readonly setApiVersion: TenantCommand<{ readonly apiVersion: string }>;
     };

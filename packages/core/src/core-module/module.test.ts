@@ -34,7 +34,8 @@ describe('the core module (S-11, S-26)', () => {
 
   test('mounts the M1 actions', () => {
     expect(Object.keys(core.actions)).toEqual(['introspect', 'composition', 'me', 'capabilities']);
-    expect(Object.keys(core.entities.tenant.actions)).toEqual(['enter', 'setApiVersion']);
+    expect(Object.keys(core.entities.backend.actions)).toEqual(['create']);
+    expect(Object.keys(core.entities.tenant.actions)).toEqual(['create', 'enter', 'setApiVersion']);
     expect(Object.keys(core.entities.operatorToken.actions)).toEqual(['issue', 'revoke']);
     expect(core.actions.introspect.ref).toBe('core.introspect');
     expect(core.entities.tenant.actions.enter.ref).toBe('core.tenant.enter');

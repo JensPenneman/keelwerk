@@ -46,7 +46,7 @@ export function commonFlags(): Readonly<Record<string, FlagParameter>> {
     input: parsed('The whole input as JSON, @file or - for standard input.', 'json|@file|-'),
     async: toggle('Accept the command and return its receipt.'),
     wait: parsed(
-      'Accepted and ignored in this release (live updates are not served).',
+      'Waits until an accepted command settles, then prints its value or error; no limit without seconds.',
       'seconds',
       waitSeconds,
       true,

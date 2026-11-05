@@ -32,6 +32,7 @@ describe('the library fixture app', () => {
     expect(registry.actions.get('library.findByIsbn')?.kind).toBe('query');
     expect([...registry.rules.keys()].filter((id) => id.startsWith('library.'))).toEqual([
       'library.addBook.signedIn',
+      'library.book.operators',
       'library.book.readers',
       'library.book.writers',
       'library.findByIsbn.signedIn',

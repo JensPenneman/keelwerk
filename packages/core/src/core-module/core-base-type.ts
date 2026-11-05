@@ -48,6 +48,7 @@ type OptionalOwnId<E extends string> = FieldDef<
 >;
 type Status = FieldDef<'active' | 'suspended', WithFlag<NoFlags, 'defaulted', true>, null, 'enum'>;
 type NoSet = { readonly set: false };
+type NoCreate = { readonly create: false };
 
 /** The base of the implicit core module, written out because the core compiles with isolatedDeclarations (decision 104). */
 export interface CoreBase {
@@ -77,7 +78,7 @@ export interface CoreBase {
       },
       Empty,
       'chain',
-      Empty,
+      NoCreate,
       Empty
     >;
     readonly tenant: Entity<
@@ -96,7 +97,7 @@ export interface CoreBase {
         readonly hookCompleted: Shape<{ readonly hook: Text }>;
       },
       'chain',
-      { readonly history: true },
+      { readonly history: true; readonly create: false },
       Empty
     >;
     readonly domain: Entity<

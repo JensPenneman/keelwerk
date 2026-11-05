@@ -1,28 +1,10 @@
 import { KeelwerkError } from '../../errors/keelwerk-error.ts';
-import type { Scope } from '../../storage/scope.ts';
 import type { Carrier } from '../carrier.ts';
 import { applyTenantResolvers } from '../edge/apply-tenant-resolvers.ts';
 import { atOperatorHost } from '../edge/at-operator-host.ts';
 import type { InvokerEnv } from '../invoker-env.ts';
 import type { ResolvedScope } from '../resolved-scope.ts';
-import type { ScopeTarget } from '../scope-target.ts';
-
-function unavailable(message: string): KeelwerkError {
-  return new KeelwerkError({ kind: 'unavailable', code: 'core.unavailable', message });
-}
-
-function targetOf(
-  env: InvokerEnv,
-  placementId: string,
-  namespace: ScopeTarget['namespace'],
-  scope: Scope,
-): ScopeTarget {
-  const handle = env.options.placement(placementId);
-  if (handle === undefined) {
-    throw unavailable(`Placement "${placementId}" is not connected to this process.`);
-  }
-  return { scope, namespace, handle };
-}
+import { tenantScopeOf } from './tenant-scope-of.ts';
 
 /**
  * `resolveScope` (section 9.2): the operator's local carrier, and a carrier with an operator token at an operator host name (section 3.5), are the deployment scope; every other
@@ -48,32 +30,5 @@ export async function resolveScope(env: InvokerEnv, carrier: Carrier): Promise<R
       message: 'No backend or tenant answers this request.',
     });
   }
-  const { backend, tenant, resolvedBy } = found;
-  if (backend.status !== 'active') throw unavailable('The backend is suspended.');
-  if (tenant !== null && tenant.status !== 'active') throw unavailable('The tenant is suspended.');
-  env.appOf(backend.app);
-  const backendScope: Scope = { level: 'backend', backendId: backend.id };
-  const backendTarget = targetOf(env, backend.placementId, backend.namespace, backendScope);
-  if (tenant === null) {
-    return {
-      scope: backendScope,
-      app: backend.app,
-      resolvedBy,
-      target: backendTarget,
-      backendTarget: null,
-      ...(backend.config === undefined ? {} : { backendConfig: backend.config }),
-      ...(backend.apiVersion === undefined ? {} : { pinnedVersion: backend.apiVersion }),
-    };
-  }
-  const scope: Scope = { level: 'tenant', backendId: backend.id, tenantId: tenant.id };
-  const pinned = tenant.apiVersion ?? backend.apiVersion;
-  return {
-    scope,
-    app: backend.app,
-    resolvedBy,
-    target: targetOf(env, tenant.placementId, tenant.namespace, scope),
-    backendTarget,
-    ...(backend.config === undefined ? {} : { backendConfig: backend.config }),
-    ...(pinned === undefined ? {} : { pinnedVersion: pinned }),
-  };
+  return tenantScopeOf(env, found.backend, found.tenant, found.resolvedBy);
 }

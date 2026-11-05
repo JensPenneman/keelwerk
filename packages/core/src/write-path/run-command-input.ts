@@ -27,6 +27,12 @@ export interface RunCommandInput {
   readonly action: ActionEntry;
   /** The validated input; instance commands carry `id` and an optional `ifVersion`. */
   readonly input: unknown;
+  /** What the receipt's fingerprint covers when it is not `input`: the client's own input, for a command whose `input` holds values sealed on the way in (S-109). */
+  readonly fingerprintInput?: unknown;
+  /** Set by the runtime's control path only: it alone may run `core.backend.create` and `core.tenant.create` (S-109). */
+  readonly controlPath?: boolean;
+  /** Set by the control path when it saw a live receipt and skipped its checks: the command must replay, never run. If the receipt turns out to be gone (it expired before the claim), the unit rolls back with a retryable `core.command_in_progress` and the retry takes the full path (S-111). */
+  readonly replayOnly?: boolean;
   readonly principal: Principal;
   readonly request: RequestInfo;
   readonly clock: Clock;

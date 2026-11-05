@@ -14,16 +14,17 @@ import type { Id } from '../ids/id.ts';
 import type { ActionRef } from '../model/action-ref.ts';
 import type { AnyModule } from '../model/any-module.ts';
 import type { AnyModuleBase } from '../model/any-module-base.ts';
-import type { AppActionTree } from '../model/app-action-tree.ts';
 import type { Insert } from '../model/insert.ts';
 import type { Row } from '../model/row.ts';
 import type { TransportAdapter } from '../transport/transport-adapter.ts';
+import { create as createBackend } from './actions/backend/create.ts';
 import { capabilities } from './actions/capabilities.ts';
 import { composition } from './actions/composition.ts';
 import { introspect } from './actions/introspect.ts';
 import { me } from './actions/me.ts';
 import { issue } from './actions/operator-token/issue.ts';
 import { revoke } from './actions/operator-token/revoke.ts';
+import { create as createTenant } from './actions/tenant/create.ts';
 import { enter } from './actions/tenant/enter.ts';
 import { setApiVersion } from './actions/tenant/set-api-version.ts';
 import { coreBase } from './base.ts';
@@ -67,6 +68,7 @@ const derived = defineModuleBase({
         status,
       },
       tenancy: 'deployment',
+      generated: { create: false },
     }),
     tenant: defineEntity({
       prefix: 'tnt',
@@ -89,7 +91,7 @@ const derived = defineModuleBase({
         hookCompleted: (state) => state,
       },
       tenancy: 'deployment',
-      generated: { history: true },
+      generated: { history: true, create: false },
     }),
     domain: defineEntity({
       prefix: 'dom',
@@ -202,7 +204,11 @@ const derived = defineModuleBase({
 // What `defineModule` derives from the same base and the same parts.
 const derivedCore = defineModule(coreBase, {
   actions: { introspect, composition, me, capabilities },
-  entityActions: { tenant: { enter, setApiVersion }, operatorToken: { issue, revoke } },
+  entityActions: {
+    backend: { create: createBackend },
+    tenant: { create: createTenant, enter, setApiVersion },
+    operatorToken: { issue, revoke },
+  },
   policies: {
     introspect: { signedIn: introspectSignedIn },
     composition: { operators: compositionOperators },
@@ -217,7 +223,6 @@ const derivedCore = defineModule(coreBase, {
 
 const app = defineApp({ id: 'only-core', modules: [] });
 type OnlyCore = typeof app;
-type Tree = AppActionTree<OnlyCore>;
 
 describe('the hand-written core module types (decision 104, S-11, S-26)', () => {
   test('CoreBase is what the DSL derives from the entity definitions', () => {
@@ -253,7 +258,7 @@ describe('the hand-written core module types (decision 104, S-11, S-26)', () => 
     expectTypeOf<Row<OnlyCore, 'core.operatorToken'>>().not.toHaveProperty('verifier');
   });
 
-  test('the generated create takes what the api sketch passes', () => {
+  test('the rows keep the insert shape the api sketch passes', () => {
     expectTypeOf<{
       name: 'acme';
       app: 'portal';
@@ -264,9 +269,6 @@ describe('the hand-written core module types (decision 104, S-11, S-26)', () => 
       name: 'Acme NV';
       domains: readonly ['acme.example'];
     }>().toExtend<Insert<OnlyCore, 'core.tenant'>>();
-    expectTypeOf<Tree['core']['entities']['backend']['create']['input']>().toEqualTypeOf<
-      Insert<OnlyCore, 'core.backend'>
-    >();
   });
 
   test('the actions of M1 are references of every app; set operations are off where S-26 says', () => {

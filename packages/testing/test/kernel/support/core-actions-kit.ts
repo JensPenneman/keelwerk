@@ -82,3 +82,21 @@ export async function issued(
   const value = await ok(call(runtime.invoker, local, 'core.operatorToken.issue', input));
   return value as { id: string; token: string; expiresAt: Temporal.Instant };
 }
+
+/** An operator call over the in-process carrier with a command id, as the operator socket makes it. */
+export function callWithId(
+  invoker: Invoker,
+  action: string,
+  input: unknown,
+  commandId: string,
+  carrier: Carrier = local,
+) {
+  return invoker.invoke<unknown, Record<string, unknown>>({
+    action,
+    input,
+    carrier,
+    requestId: crypto.randomUUID(),
+    signal: new AbortController().signal,
+    commandId,
+  });
+}

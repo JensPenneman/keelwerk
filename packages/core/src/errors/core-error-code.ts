@@ -10,6 +10,7 @@ export type CoreErrorCode =
   | 'core.payload_too_large'
   | 'core.csrf'
   | 'core.token_scope_mismatch'
+  | 'core.tenant_not_entered'
   | 'core.live_unavailable'
   | 'core.quota_exceeded'
   | 'core.timeout'

@@ -1,6 +1,6 @@
 import type { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { toWire } from '../errors/to-wire.ts';
-import { inputFingerprint } from './input-fingerprint.ts';
+import { commandFingerprint } from './command-fingerprint.ts';
 import { receiptRow } from './receipt-row.ts';
 import type { RunCommandInput } from './run-command-input.ts';
 
@@ -19,7 +19,7 @@ export async function recordFailedReceipt(
   const receipt = receiptRow({
     commandId,
     action: action.ref,
-    fingerprint: inputFingerprint(action.ref, input.apiVersion, input.input),
+    fingerprint: await commandFingerprint(input),
     principal: input.principal,
     apiVersion: input.apiVersion,
     request: input.request,

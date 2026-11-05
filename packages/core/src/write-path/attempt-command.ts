@@ -21,10 +21,10 @@ import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
 import { appendEvents } from './append-events.ts';
 import { checkWrittenItems } from './check-written-items.ts';
+import { commandFingerprint } from './command-fingerprint.ts';
 import { commandOutput } from './command-output.ts';
 import { defaultNodeId } from './default-node-id.ts';
 import { draftsToEvents } from './drafts-to-events.ts';
-import { inputFingerprint } from './input-fingerprint.ts';
 import { insertPendingReceipt } from './insert-pending-receipt.ts';
 import { loadTarget } from './load-target.ts';
 import { normalizeDecision } from './normalize-decision.ts';
@@ -77,6 +77,14 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
       ...(action.idempotencyWindowMs === undefined ? {} : { windowMs: action.idempotencyWindowMs }),
     }),
   );
+  if (pending.kind === 'inserted' && run.replayOnly === true) {
+    throw new KeelwerkError({
+      kind: 'conflict',
+      code: 'core.command_in_progress',
+      message: 'The receipt of this command expired while it was replayed: send it again.',
+      retryable: true,
+    });
+  }
   if (pending.kind === 'replay')
     return replayReceipt(unit, registry, action, authority, pending.receipt);
 
@@ -219,16 +227,12 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     effects: decided.effects,
     hybridClock: processClock,
     depth: input.nested?.depth ?? 0,
-    runNested: (nestedUnit, nestedRun, nested) =>
+    runNested: async (nestedUnit, nestedRun, nested) =>
       attemptCommand(
         {
           run: nestedRun,
           commandId: nested.commandId,
-          fingerprint: inputFingerprint(
-            nestedRun.action.ref,
-            nestedRun.apiVersion,
-            nestedRun.input,
-          ),
+          fingerprint: await commandFingerprint(nestedRun),
           clock,
           prepared: undefined,
           nested,

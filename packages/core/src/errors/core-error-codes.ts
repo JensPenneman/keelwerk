@@ -29,6 +29,10 @@ export const coreErrorCodes: Readonly<Record<CoreErrorCode, ErrorSpec>> = Object
     kind: 'validation',
     message: 'The token belongs to another scope.',
   },
+  'core.tenant_not_entered': {
+    kind: 'forbidden',
+    message: 'The operator has not entered this tenant.',
+  },
   'core.live_unavailable': {
     kind: 'unavailable',
     message: 'Live updates are not available in this release.',

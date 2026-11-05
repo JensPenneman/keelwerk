@@ -9,7 +9,7 @@ import type { Scope } from '../storage/scope.ts';
  * enqueue effect): the lead decides on a post-commit enqueue in a short unit of the target scope.
  */
 export function sameScopeAction(scope: Scope, action: ActionEntry, effect: string): void {
-  if (action.scope === scope.level) return;
+  if (action.scope === scope.level || action.scope === 'invocation') return;
   throw refuseRequest(
     `${effect} of "${action.ref}"`,
     `the command runs at the ${action.scope} level and this unit is at the ${scope.level} level; commands of another scope have no path in this release`,

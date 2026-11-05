@@ -1,4 +1,4 @@
-import type { Scope } from '@keelwerk/core';
+import type { Scope } from '../storage/scope.ts';
 
 /**
  * The id the scope has in the receipt store: tenant id, backend id, or the deployment id (S-69)

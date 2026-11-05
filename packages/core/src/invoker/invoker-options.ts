@@ -43,6 +43,14 @@ export interface InvokerOptions {
   readonly operatorTokens?: (token: string) => Promise<OperatorPrincipal>;
   /** The operator host names (`operator.hosts` of the deployment); an operator token is honoured at these hosts only (sections 3.5 and 8.8). */
   readonly operatorHosts?: readonly string[];
+  /**
+   * When the operator `actor` last entered the tenant (`core.tenant.entered`, section 8.8), undefined
+   * if it never did. Without it every tenant marker on an operator carrier is refused.
+   */
+  readonly tenantEntry?: (
+    tenantId: string,
+    actor: { readonly via: string; readonly id: string },
+  ) => Promise<Temporal.Instant | undefined>;
   /** The command write path (WP-38); without it a command is `not_implemented`. */
   readonly commands?: CommandRunner;
 }

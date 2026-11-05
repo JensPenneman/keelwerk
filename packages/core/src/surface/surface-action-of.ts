@@ -1,4 +1,5 @@
 import { compareCodePoints } from '../conditions/compare-code-points.ts';
+import { isEmptyShape } from '../fields/is-empty-shape.ts';
 import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import { compositionError } from '../registry/composition-error.ts';
@@ -36,7 +37,7 @@ function isRowOf(schema: StandardSchemaV1, names: ReadonlySet<string> | undefine
 }
 
 function withoutEmptyShape(node: FieldNode): FieldNode {
-  return node.kind === 'shape' && Object.keys(node.fields).length === 0 ? voidNode : node;
+  return isEmptyShape(node) ? voidNode : node;
 }
 
 /** The `id` of an instance command is the entity's reference, whatever the registry's plain string said. */

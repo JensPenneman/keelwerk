@@ -66,6 +66,16 @@ describe('diffSurfaces fails closed on what clients rely on', () => {
     expect(change({ instance: true })).toEqual(['instanceChanged:breaking']);
   });
 
+  test('a scope widened to invocation still accepts the old scope and is not breaking', () => {
+    const tenant = actionOf('library.add', { scope: 'tenant' });
+    expect(classes(tenant, actionOf('library.add', { scope: 'invocation' }))).toEqual([
+      'metadataChanged:neutral',
+    ]);
+    expect(classes(actionOf('library.add', { scope: 'invocation' }), tenant)).toEqual([
+      'scopeChanged:breaking',
+    ]);
+  });
+
   test('mount and idempotent changes are reported as metadata', () => {
     expect(change({ mount: 'app' })).toEqual(['metadataChanged:neutral']);
     expect(change({ idempotent: true })).toEqual(['metadataChanged:neutral']);

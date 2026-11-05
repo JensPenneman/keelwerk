@@ -135,6 +135,9 @@ async function run(
     ...(answered.receipt === undefined ? {} : { receipt: answered.receipt }),
     ...(answered.effects === undefined ? {} : { effects: answered.effects }),
     ...(answered.replayed === undefined ? {} : { replayed: answered.replayed }),
+    ...(answered.receiptId === undefined || answered.scope.level !== scope.level
+      ? {}
+      : { receiptId: answered.receiptId }),
   };
 }
 

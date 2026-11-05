@@ -79,6 +79,7 @@ export async function invokeOne(
           ok: true,
           value: outcome.receipt,
           receipt: outcome.receipt,
+          ...(outcome.receiptId !== undefined && { receiptId: outcome.receiptId }),
           ...echoed,
           ...(outcome.effects !== undefined && { effects: outcome.effects }),
         },

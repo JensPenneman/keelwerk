@@ -207,6 +207,7 @@ describe('admission rules', () => {
       adapter,
       keys,
       commands: createCommandRunner({
+        deploymentId: '0198a1e0-0000-7000-8000-00000000d001',
         behaviours: () => entityBehavioursOf(conformanceApp.modules),
         retry: { sleep: async () => undefined },
       }),

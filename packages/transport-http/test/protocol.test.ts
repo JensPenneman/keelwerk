@@ -120,6 +120,7 @@ describe('receipts', () => {
           ok: true,
           value: undefined,
           receipt: { commandId: 'c1', status: 'accepted' },
+          receiptId: 'rcpt_01j0000000000000000000000a',
           effects: ['e1'],
         }),
       },
@@ -138,6 +139,7 @@ describe('receipts', () => {
       ok: true,
       value: { commandId: 'c1', status: 'accepted' },
       receipt: { commandId: 'c1', status: 'accepted' },
+      receiptId: 'rcpt_01j0000000000000000000000a',
       effects: ['e1'],
     });
     expect(seen.invoked[0]?.prefer).toBe('async');

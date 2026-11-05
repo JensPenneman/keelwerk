@@ -1,5 +1,6 @@
 import { connectRewindCheck } from '../anchors/connect-rewind-check.ts';
 import { startAnchoring } from '../anchors/start-anchoring.ts';
+import { latestTenantEntry } from '../control/latest-tenant-entry.ts';
 import { setProcessState } from '../control/set-process-state.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
 import { defineApp } from '../dsl/define-app.ts';
@@ -18,6 +19,7 @@ import { anchorScopes } from './anchor-scopes.ts';
 import { answerRuntimeQueries } from './answer-runtime-queries.ts';
 import { composePhase } from './compose-phase.ts';
 import { connectPhase } from './connect-phase.ts';
+import { createControlPath } from './create-control-path.ts';
 import { createRuntimeControl } from './create-runtime-control.ts';
 import { defaultLogger } from './default-logger.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
@@ -26,6 +28,7 @@ import { listenPhase } from './listen-phase.ts';
 import type { Listening } from './listening.ts';
 import { migratePhase } from './migrate-phase.ts';
 import { refuseUnknownApiVersion } from './refuse-unknown-api-version.ts';
+import { routeControlCommands } from './route-control-commands.ts';
 import type { Runtime } from './runtime.ts';
 import { runtimeEnvironment } from './runtime-environment.ts';
 import type { RuntimeOptions } from './runtime-options.ts';
@@ -96,6 +99,7 @@ export async function startRuntime(
       head: coreApiVersions.dates.at(-1) ?? '',
       api: coreApiVersions,
     });
+    const controlPath = createControlPath({ deployment, served, connected, migrated });
     const invokerOptions: InvokerOptions = {
       apps,
       directory: migrated.directory.lookup,
@@ -114,16 +118,21 @@ export async function startRuntime(
       clock,
       epochOf: (scope) => connected.control.epochOf(scope),
       operatorTokens: createOperatorTokenResolver(connected.control),
+      tenantEntry: (tenantId, actor) => latestTenantEntry(connected.control, tenantId, actor),
       operatorHosts: deployment.operator?.hosts ?? [],
       keys: connected.keys,
       compute: connected.compute,
       log,
       environment,
       build: connected.build,
-      commands: createCommandRunner({
-        nodeId: connected.nodeId,
-        hybridClock: connected.hybridClock,
-      }),
+      commands: routeControlCommands(
+        createCommandRunner({
+          deploymentId: connected.control.deploymentId,
+          nodeId: connected.nodeId,
+          hybridClock: connected.hybridClock,
+        }),
+        controlPath,
+      ),
     };
     const inner = createInvoker(invokerOptions);
     const servedById = new Map(served.map((app) => [app.id, app]));
@@ -204,7 +213,7 @@ export async function startRuntime(
         return app.source.registry;
       },
       ...(listening.host === undefined ? {} : { host: listening.host }),
-      control: createRuntimeControl({ deployment, served, connected, migrated, anchoring }),
+      control: createRuntimeControl({ path: controlPath, served, connected, migrated, anchoring }),
       stop: (deadlineMs) => {
         log.debug('phase', { phase: 'stop' });
         stopping ??= stopPhase(

@@ -238,7 +238,6 @@
       "entity": "core.backend",
       "errors": [],
       "execution": "sync",
-      "generated": "create",
       "hints": {},
       "idempotent": false,
       "input": {
@@ -274,33 +273,20 @@
           "name": {
             "access": "read-write",
             "kind": "string",
-            "merge": "exclusive",
             "optional": false,
-            "tag": 1,
-            "unique": true
+            "tag": 1
           },
           "placement": {
             "access": "read-write",
             "kind": "string",
             "optional": false,
             "tag": 3
-          },
-          "status": {
-            "access": "read-write",
-            "default": "active",
-            "kind": "enum",
-            "optional": false,
-            "tag": 6,
-            "values": [
-              "active",
-              "suspended"
-            ]
           }
         },
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-91L5Mp6UCP6IK90Aro7T_wFJAs7FFwcZaYkPRahYouk",
+      "inputHash": "sha256-8ogie4uFZgzNs4AGiCgRosmQN99mBbaHPzv8dKaPVFQ",
       "instance": false,
       "kind": "command",
       "module": "core",
@@ -310,91 +296,19 @@
       "output": {
         "access": "read-write",
         "fields": {
-          "apiVersion": {
-            "access": "read-write",
-            "kind": "string",
-            "optional": true,
-            "tag": 4
-          },
-          "app": {
-            "access": "read-write",
-            "kind": "string",
-            "optional": false,
-            "tag": 2
-          },
-          "archivedAt": {
-            "access": "read",
-            "kind": "instant",
-            "optional": true
-          },
-          "config": {
-            "access": "read-write",
-            "input": {
-              "type": "object"
-            },
-            "kind": "json",
-            "optional": true,
-            "output": {
-              "type": "object"
-            },
-            "schema": {
-              "type": "object"
-            },
-            "tag": 5
-          },
-          "createdAt": {
-            "access": "read",
-            "kind": "instant",
-            "optional": false
-          },
           "id": {
-            "access": "read",
-            "kind": "id",
+            "access": "read-write",
+            "kind": "ref",
             "optional": false,
             "prefix": "bknd",
-            "target": "core.backend"
-          },
-          "name": {
-            "access": "read-write",
-            "kind": "string",
-            "merge": "exclusive",
-            "optional": false,
             "tag": 1,
-            "unique": true
-          },
-          "placement": {
-            "access": "read-write",
-            "kind": "string",
-            "optional": false,
-            "tag": 3
-          },
-          "status": {
-            "access": "read-write",
-            "default": "active",
-            "kind": "enum",
-            "optional": false,
-            "tag": 6,
-            "values": [
-              "active",
-              "suspended"
-            ]
-          },
-          "updatedAt": {
-            "access": "read",
-            "kind": "instant",
-            "optional": false
-          },
-          "version": {
-            "access": "read",
-            "kind": "integer",
-            "optional": false,
-            "wide": false
+            "target": "core.backend"
           }
         },
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-KI_34uH-aCwLIkGRTJnUqdAGJ8wF373lURvU1Ypsn64",
+      "outputHash": "sha256-JNd1Lxby_bPKeUbcxKBJWTY0uHxSYfb6rRBGcG3fBp8",
       "ref": "core.backend.create",
       "resumable": false,
       "scope": "deployment",
@@ -1716,7 +1630,7 @@
       "outputHash": "sha256-gVhIpgoQlYR62rDV4QfI7pAAwz6aX2fY3SSHD3I5zkk",
       "ref": "core.commandReceipt.changes",
       "resumable": false,
-      "scope": "tenant",
+      "scope": "invocation",
       "since": "2026-11-04"
     },
     {
@@ -1944,7 +1858,7 @@
       "outputHash": "sha256-yuzgGFDunsfY4_GeKHiLRl-_PcykhS9DsF2PrRBDL7w",
       "ref": "core.commandReceipt.get",
       "resumable": false,
-      "scope": "tenant",
+      "scope": "invocation",
       "since": "2026-11-04"
     },
     {
@@ -2213,7 +2127,7 @@
       },
       "ref": "core.commandReceipt.query",
       "resumable": false,
-      "scope": "tenant",
+      "scope": "invocation",
       "since": "2026-11-04"
     },
     {
@@ -2357,7 +2271,7 @@
       },
       "ref": "core.commandReceipt.queryChanges",
       "resumable": false,
-      "scope": "tenant",
+      "scope": "invocation",
       "since": "2026-11-04"
     },
     {
@@ -3061,7 +2975,7 @@
       "outputHash": "sha256-HMD2JMlntANlsw60vW09EPH8KJr5sYbgBPN48jvKUVo",
       "ref": "core.effect.changes",
       "resumable": false,
-      "scope": "tenant",
+      "scope": "invocation",
       "since": "2026-11-04"
     },
     {
@@ -3335,7 +3249,7 @@
       "outputHash": "sha256-IXXKXoPrWqiIXQFbeVgQ_H6gU7U7DHzD8hOdHdGU1Nw",
       "ref": "core.effect.get",
       "resumable": false,
-      "scope": "tenant",
+      "scope": "invocation",
       "since": "2026-11-04"
     },
     {
@@ -3644,7 +3558,7 @@
       },
       "ref": "core.effect.query",
       "resumable": false,
-      "scope": "tenant",
+      "scope": "invocation",
       "since": "2026-11-04"
     },
     {
@@ -3787,7 +3701,7 @@
       },
       "ref": "core.effect.queryChanges",
       "resumable": false,
-      "scope": "tenant",
+      "scope": "invocation",
       "since": "2026-11-04"
     },
     {
@@ -6648,7 +6562,6 @@
       "entity": "core.tenant",
       "errors": [],
       "execution": "sync",
-      "generated": "create",
       "hints": {},
       "idempotent": false,
       "input": {
@@ -6676,7 +6589,7 @@
               "optional": false
             },
             "kind": "list",
-            "optional": false,
+            "optional": true,
             "tag": 5
           },
           "name": {
@@ -6690,23 +6603,12 @@
             "kind": "string",
             "optional": true,
             "tag": 3
-          },
-          "status": {
-            "access": "read-write",
-            "default": "active",
-            "kind": "enum",
-            "optional": false,
-            "tag": 6,
-            "values": [
-              "active",
-              "suspended"
-            ]
           }
         },
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-P_xZQcm3gCwmpJJvZYCnRz4iSrHwDOyYE5lRWl3Z9Gk",
+      "inputHash": "sha256-XS7WosGB301Sml2M3HQCNDLLV14QtNiu9dkQSGj7COQ",
       "instance": false,
       "kind": "command",
       "module": "core",
@@ -6716,87 +6618,19 @@
       "output": {
         "access": "read-write",
         "fields": {
-          "apiVersion": {
-            "access": "read-write",
-            "kind": "string",
-            "optional": true,
-            "tag": 4
-          },
-          "archivedAt": {
-            "access": "read",
-            "kind": "instant",
-            "optional": true
-          },
-          "backendId": {
+          "id": {
             "access": "read-write",
             "kind": "ref",
             "optional": false,
-            "prefix": "bknd",
-            "tag": 1,
-            "target": "core.backend"
-          },
-          "createdAt": {
-            "access": "read",
-            "kind": "instant",
-            "optional": false
-          },
-          "domains": {
-            "access": "read-write",
-            "item": {
-              "access": "read-write",
-              "kind": "string",
-              "optional": false
-            },
-            "kind": "list",
-            "optional": false,
-            "tag": 5
-          },
-          "id": {
-            "access": "read",
-            "kind": "id",
-            "optional": false,
             "prefix": "tnt",
+            "tag": 1,
             "target": "core.tenant"
-          },
-          "name": {
-            "access": "read-write",
-            "kind": "string",
-            "optional": false,
-            "tag": 2
-          },
-          "placement": {
-            "access": "read-write",
-            "kind": "string",
-            "optional": true,
-            "tag": 3
-          },
-          "status": {
-            "access": "read-write",
-            "default": "active",
-            "kind": "enum",
-            "optional": false,
-            "tag": 6,
-            "values": [
-              "active",
-              "suspended"
-            ]
-          },
-          "updatedAt": {
-            "access": "read",
-            "kind": "instant",
-            "optional": false
-          },
-          "version": {
-            "access": "read",
-            "kind": "integer",
-            "optional": false,
-            "wide": false
           }
         },
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-t_mh14Q5qa09C-71GNPUwvn4PFhgEqMBjGkc7GToKIA",
+      "outputHash": "sha256-bIIxAtreTpnxcJzTtrgy1V39thnd_VWWBGBfaHVVZ1c",
       "ref": "core.tenant.create",
       "resumable": false,
       "scope": "deployment",
@@ -11214,7 +11048,6 @@
         "query",
         "changes",
         "queryChanges",
-        "create",
         "update",
         "archive",
         "restore",
@@ -12162,7 +11995,6 @@
         "query",
         "changes",
         "queryChanges",
-        "create",
         "update",
         "archive",
         "restore",
@@ -12633,6 +12465,12 @@
       "retryable": false
     },
     {
+      "code": "core.tenant_not_entered",
+      "kind": "forbidden",
+      "message": "The operator has not entered this tenant.",
+      "retryable": false
+    },
+    {
       "code": "core.timeout",
       "kind": "unavailable",
       "message": "The command exceeded its timeout and was rolled back.",
@@ -12966,7 +12804,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-XETOko7F8ZiOKZEplml_gtDBcLoELb0KHvlD0tnCGAs",
+  "hash": "sha256-6QlQkqUth59uxCYiaYREEthcXc2I4n7HFG-QMY0J284",
   "modules": [
     {
       "id": "core",

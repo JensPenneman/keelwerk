@@ -2,6 +2,7 @@ import { isKeelwerkError } from '../errors/is-keelwerk-error.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { Span } from '../observability/span.ts';
 import type { Carrier } from './carrier.ts';
+import { applyTenantEntry } from './edge/apply-tenant-entry.ts';
 import { performResolverEffects } from './edge/perform-resolver-effects.ts';
 import type { InvocationSession } from './invocation-session.ts';
 import type { InvokerEnv } from './invoker-env.ts';
@@ -25,8 +26,9 @@ async function open(
       message: 'The request was cancelled.',
     });
   }
-  const resolved = await resolveScope(env, carrier);
-  const found = await resolvePrincipal(env, carrier, resolved, { requestId, span });
+  const deployed = await resolveScope(env, carrier);
+  const found = await resolvePrincipal(env, carrier, deployed, { requestId, span });
+  const resolved = await applyTenantEntry(env, carrier, deployed, found.principal);
   const version = resolveVersion(env, resolved, carrier, found.principal);
   if (resolved.target !== null) {
     await performResolverEffects(

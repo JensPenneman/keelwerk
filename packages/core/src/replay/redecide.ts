@@ -12,9 +12,9 @@ import { canonicalizeJson } from '../json/canonicalize-json.ts';
 import { decodeRow } from '../repositories/decode-row.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
+import { commandFingerprint } from '../write-path/command-fingerprint.ts';
 import { defaultNodeId } from '../write-path/default-node-id.ts';
 import { draftsToEvents } from '../write-path/drafts-to-events.ts';
-import { inputFingerprint } from '../write-path/input-fingerprint.ts';
 import { loadTarget } from '../write-path/load-target.ts';
 import { normalizeDecision } from '../write-path/normalize-decision.ts';
 import { openDecision } from '../write-path/open-decision.ts';
@@ -72,7 +72,7 @@ async function replayIn(unit: Unit, input: RedecideInput): Promise<RedecideResul
       `"${action.ref}" has a generated handler or a prepare; this release re-decides decide only.`,
     );
   }
-  const fingerprint = inputFingerprint(action.ref, input.apiVersion, input.input);
+  const fingerprint = await commandFingerprint({ ...input, action });
   if (fingerprint !== record.inputDigest) {
     throw errors.validation('The input is not the one the decision recorded.');
   }

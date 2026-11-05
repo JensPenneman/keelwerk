@@ -1,5 +1,5 @@
 import type { InvocationSession, Outcome, ResponseHint } from '@keelwerk/core';
-import { commandReceiptId, errors } from '@keelwerk/core';
+import { commandReceiptId, errors, receiptScopeId } from '@keelwerk/core';
 import { applyCookieHint } from '@keelwerk/core/http';
 import { toWire } from '@keelwerk/core/wire';
 import { deprecationHeaders } from './deprecation-headers.ts';
@@ -7,7 +7,6 @@ import { encodeRow } from './encode-row.ts';
 import { etagOf } from './etag-of.ts';
 import { noneMatchHit } from './none-match-hit.ts';
 import { pageLinks } from './page-links.ts';
-import { receiptScopeId } from './receipt-scope-id.ts';
 import type { RestRoute } from './rest-route.ts';
 
 type Success = Extract<Outcome<unknown>, { readonly ok: true }>;
@@ -201,11 +200,11 @@ export function encodeResponse(outcome: Success, context: ResponseContext): Resp
   }
   deprecationHeaders(headers, action.deprecated, `${context.mountPath}/docs`);
   if (outcome.receipt !== undefined) {
-    // The receipt lives in the scope the command ran in. Its `get` has scope `tenant`, and the gate
-    // refuses backend and deployment sessions on it until WP-55b (S-102, open item), so only a
-    // tenant session running a tenant-scope command gets a `Location`; a backend command of a
-    // tenant session has its receipt in the backend, which the tenant cannot read.
-    if (session.scope.level === 'tenant' && action.scope === session.scope.level) {
+    // The receipt lives in the scope the command ran in, and `core.commandReceipt.get` reads in the
+    // session's own scope (S-102): the link is written only when the receipt's scope is the
+    // session's; a backend command of a tenant session has its receipt in the backend, which the
+    // tenant cannot read.
+    if (action.scope === session.scope.level) {
       headers.set(
         'location',
         `${context.mountPath}/core/command-receipts/${commandReceiptId(

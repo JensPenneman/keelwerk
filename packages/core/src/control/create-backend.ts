@@ -3,10 +3,11 @@ import type { Shape } from '../fields/shape.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import { configSecrets } from '../keys/config-secrets.ts';
 import { nestedCredentialField } from '../keys/nested-credential-field.ts';
+import type { ControlRun } from './control-run.ts';
 import type { ControlStore } from './control-store.ts';
 import { coreBackendConfig } from './core-backend-config.ts';
 import { findControlRows } from './find-control-rows.ts';
-import { runGeneratedCreate } from './run-generated-create.ts';
+import { runControlCreate } from './run-control-create.ts';
 
 /** A configuration secret waiting to be sealed: where it goes and its plain value. */
 interface PendingSecret {
@@ -121,19 +122,40 @@ export interface BackendInput {
   readonly config?: Readonly<Record<string, unknown>>;
 }
 
+/** How a backend create is told apart from a retry: `replay` is set when the command id already has a receipt. */
+export interface BackendCreateOptions {
+  readonly modules?: readonly ConfigurableModule[];
+  /** The command id has a receipt: nothing is checked or sealed, and the write path replays it. */
+  readonly replay?: boolean;
+}
+
 /**
- * Creates a backend row through the generated
- * `core.backend.create` (S-26); the name is unique. The
+ * Creates a backend row through `core.backend.create` (S-26, S-109); the name is unique. The
  * backend's `config` is checked against the selected modules' config shapes and the name is checked
- * free before its secrets are sealed, then the row is written.
+ * free before its secrets are sealed, then the command runs with the sealed values; the receipt's
+ * fingerprint covers the client's input, never the sealed values.
  */
 export async function createBackend(
   store: ControlStore,
   input: BackendInput,
-  modules: readonly ConfigurableModule[] = [],
-): Promise<{ readonly id: string }> {
+  who: ControlRun,
+  options: BackendCreateOptions = {},
+): Promise<{ readonly id: string; readonly replayed: boolean }> {
+  const fingerprintInput = { ...input };
+  if (options.replay === true) {
+    return runControlCreate(
+      store,
+      'backend',
+      { values: fingerprintInput, fingerprintInput, replayOnly: true },
+      who,
+    );
+  }
+  // Known leftover (S-70): the receipt is claimed in the write path's unit, after the sealing, so
+  // two first creates with the same command id both seal under their own minted id and the loser
+  // leaves a scope key no row refers to. The key holds no data and the receipt still lets one
+  // create win; claiming the receipt before sealing needs the claim split from the unit.
   const id = newUuidV7();
-  const checked = checkedConfig(input.config ?? {}, modules);
+  const checked = checkedConfig(input.config ?? {}, options.modules ?? []);
   // Everything that can refuse the backend is checked before a secret creates the backend's key.
   if ((await findControlRows(store, 'core.backend', { name: input.name })).length > 0) {
     throw errors.conflict(`A backend named "${input.name}" already exists.`);
@@ -150,17 +172,12 @@ export async function createBackend(
     );
   }
   // The id is minted before the row so the config secrets can be bound to it.
-  await runGeneratedCreate(
-    store,
-    'backend',
-    {
-      name: input.name,
-      app: input.app,
-      placement: input.placement,
-      ...(input.apiVersion === undefined ? {} : { apiVersion: input.apiVersion }),
-      ...(config === undefined ? {} : { config }),
-    },
-    id,
-  );
-  return { id };
+  const values = {
+    name: input.name,
+    app: input.app,
+    placement: input.placement,
+    ...(input.apiVersion === undefined ? {} : { apiVersion: input.apiVersion }),
+    ...(config === undefined ? {} : { config }),
+  };
+  return runControlCreate(store, 'backend', { values, fingerprintInput, id }, who);
 }

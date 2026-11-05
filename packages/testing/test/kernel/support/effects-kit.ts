@@ -31,6 +31,7 @@ function invoker(registry: Registry, adapter: DataAdapter) {
     adapter,
     build: { id: 'build-42', revision: 7 },
     commands: createCommandRunner({
+      deploymentId: '0198a1e0-0000-7000-8000-00000000d001',
       behaviours: () => behaviours,
       retry: { sleep: async () => undefined },
     }),

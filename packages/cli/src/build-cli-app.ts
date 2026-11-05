@@ -22,16 +22,20 @@ import { surfaceRoutes } from './commands/surface/surface-routes.ts';
 import { tenantRoutes } from './commands/tenant/tenant-routes.ts';
 import type { CliContext } from './context/cli-context.ts';
 import { determineExitCode } from './determine-exit-code.ts';
+import type { ActionRoutesOptions } from './routes/build-action-routes.ts';
 import { version } from './version.ts';
 
 /**
  * The `keelwerk` application (section 16.9.2): the action routes under `call` come from the
  * surface, every other command group contributes the routes of its own file.
  */
-export function buildCliApp(surface: ApiSurface | undefined): Application<CliContext> {
+export function buildCliApp(
+  surface: ApiSurface | undefined,
+  options: ActionRoutesOptions = {},
+): Application<CliContext> {
   const root = buildRouteMap<string, CliContext>({
     routes: {
-      ...callRoutes(surface),
+      ...callRoutes(surface, options),
       ...profileRoutes,
       ...completionRoutes,
       ...loginRoutes,

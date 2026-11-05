@@ -63,7 +63,8 @@ export async function answerAsk(
     return driveHandler(action.handler(request.input, ctx), asked.answer);
   };
   const level = context.scope.level;
-  if (action.scope === level) return run(context.unit, context.scope);
+  if (action.scope === level || action.scope === 'invocation')
+    return run(context.unit, context.scope);
   if (action.scope === 'backend' && context.scope.level === 'tenant') {
     const target: Scope = { level: 'backend', backendId: context.scope.backendId };
     return deps.inScope(context.unit, target, (unit) => run(unit, target));

@@ -15,4 +15,5 @@ export const backend: CoreBase['entities']['backend'] = defineEntity({
     status: field.enum(['active', 'suspended']).default('active'),
   },
   tenancy: 'deployment',
+  generated: { create: false },
 });

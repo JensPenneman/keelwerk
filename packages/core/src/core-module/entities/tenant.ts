@@ -25,5 +25,5 @@ export const tenant: CoreBase['entities']['tenant'] = defineEntity({
     hookCompleted: (state) => state,
   },
   tenancy: 'deployment',
-  generated: { history: true },
+  generated: { history: true, create: false },
 });

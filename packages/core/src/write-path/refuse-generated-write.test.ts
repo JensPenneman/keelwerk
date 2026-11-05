@@ -10,7 +10,7 @@ const client = { ...runtimeOperator, id: 'op_1', via: 'core.operatorToken' };
 function runOf(
   ref: string,
   entity: string,
-  generated: string,
+  generated: string | undefined,
   input: unknown,
   principal = client,
 ): RunCommandInput {
@@ -22,22 +22,27 @@ function runOf(
   } as unknown as RunCommandInput;
 }
 
-describe('generated writes only the control path makes', () => {
+describe('writes only the control path makes', () => {
   it.each([
-    ['core.tenant.create', 'core.tenant', { placement: 'nowhere', apiVersion: '1999-01-01' }],
-    ['core.backend.create', 'core.backend', { app: 'unserved', placement: 'nowhere' }],
-  ])('refuses %s from a client, naming the control operation', (ref, entity, input) => {
-    expect(() => refuseGeneratedWrite(runOf(ref, entity, 'create', input))).toThrowError(
-      /Runtime\.control\.create(Tenant|Backend)/,
-    );
+    ['core.tenant.create', 'core.tenant', 'control.createTenant'],
+    ['core.backend.create', 'core.backend', 'control.createBackend'],
+  ])('refuses %s outside the control path, even for the runtime operator', (ref, entity, via) => {
+    for (const principal of [client, runtimeOperator]) {
+      expect(() =>
+        refuseGeneratedWrite(runOf(ref, entity, undefined, { name: 'x' }, principal)),
+      ).toThrowError(new RegExp(`Runtime\\.${via.replace('.', '\\.')}`));
+    }
   });
 
-  it('lets the runtime operator create', () => {
-    expect(() =>
-      refuseGeneratedWrite(
-        runOf('core.tenant.create', 'core.tenant', 'create', { name: 't' }, runtimeOperator),
-      ),
-    ).not.toThrow();
+  it('lets the control path create', () => {
+    for (const ref of ['core.tenant.create', 'core.backend.create']) {
+      expect(() =>
+        refuseGeneratedWrite({
+          ...runOf(ref, 'core.x', undefined, { name: 't' }),
+          controlPath: true,
+        }),
+      ).not.toThrow();
+    }
   });
 
   it('refuses a placement change and a pin on a nested attempt, before any unit work', async () => {
@@ -70,7 +75,7 @@ describe('generated writes only the control path makes', () => {
       message: expect.stringMatching(/not supported in M1/),
     });
     await expect(
-      attempt(runOf('core.tenant.create', 'core.tenant', 'create', { name: 't' })),
+      attempt(runOf('core.tenant.create', 'core.tenant', undefined, { name: 't' })),
     ).rejects.toMatchObject({ kind: 'forbidden' });
   });
 });

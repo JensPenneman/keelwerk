@@ -2,7 +2,7 @@ import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import { attemptCommand } from './attempt-command.ts';
-import { inputFingerprint } from './input-fingerprint.ts';
+import { commandFingerprint } from './command-fingerprint.ts';
 import { refuseGeneratedWrite } from './refuse-generated-write.ts';
 import { retryUnit } from './retry-unit.ts';
 import type { RunCommandInput } from './run-command-input.ts';
@@ -46,7 +46,7 @@ export async function runCommand(input: RunCommandInput): Promise<CommandResult>
   const commandId = input.commandId ?? newUuidV7();
   const now = input.clock.now();
   const clock = { now: () => now };
-  const fingerprint = inputFingerprint(action.ref, input.apiVersion, input.input);
+  const fingerprint = await commandFingerprint(input);
   const run: RunCommandInput = { ...input, clock };
   const prepared = action.prepare === undefined ? undefined : await runPrepare(run, input.input);
   return retryUnit(
