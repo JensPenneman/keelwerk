@@ -2,6 +2,7 @@ import type { Runtime } from '@keelwerk/core';
 import { startRuntime } from '@keelwerk/core';
 import { CliFailure } from '../context/cli-failure.ts';
 import type { CliHost } from '../context/cli-host.ts';
+import { projectRootOf } from '../context/project-root-of.ts';
 import type { ResolvedProfile } from '../context/resolved-profile.ts';
 import { usageFailure } from '../context/usage-failure.ts';
 import { loadDefinition } from '../db/load-definition.ts';
@@ -9,10 +10,13 @@ import { inProcessLink } from './in-process-link.ts';
 import type { OpenedConnection } from './opened-connection.ts';
 import { socketConnection } from './socket-connection.ts';
 
-/** The project root of a deployment file: the file's directory, or its parent for `.launchway/deployment.ts`. */
-function rootOf(configPath: string): string {
-  const directory = configPath.slice(0, Math.max(configPath.lastIndexOf('/'), 0));
-  return directory.endsWith('/.launchway') ? directory.slice(0, -'/.launchway'.length) : directory;
+/**
+ * Where the dev app of the project listens: the path `keelwerk dev` recorded (a long project path
+ * moves the socket to a short fallback), else `.keelwerk/dev.sock`.
+ */
+async function devSocketOf(host: CliHost, root: string): Promise<string> {
+  const recorded = (await host.files.readText(`${root}/.keelwerk/dev-socket`))?.trim();
+  return recorded !== undefined && recorded !== '' ? recorded : `${root}/.keelwerk/dev.sock`;
 }
 
 /** Whether a process listens on the socket: a stale file refuses the connection. */
@@ -71,7 +75,7 @@ export async function projectConnection(
 ): Promise<OpenedConnection> {
   const { configPath } = profile;
   if (configPath === undefined) throw usageFailure('The project has no deployment file.');
-  const devSocket = `${rootOf(configPath)}/.keelwerk/dev.sock`;
+  const devSocket = await devSocketOf(host, projectRootOf(configPath));
   if ((await host.files.exists(devSocket)) && (await answers(host, devSocket))) {
     return socketConnection(host, {
       ...profile,

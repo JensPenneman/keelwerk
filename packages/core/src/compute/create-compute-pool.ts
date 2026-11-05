@@ -1,4 +1,5 @@
 import { availableParallelism } from 'node:os';
+import process from 'node:process';
 import { Worker } from 'node:worker_threads';
 import { errors } from '../errors/errors.ts';
 import type { ComputePool } from '../kernel/compute-pool.ts';
@@ -17,6 +18,28 @@ interface Pending {
 interface Slot {
   readonly worker: Worker;
   current: { readonly id: number; readonly pending: Pending } | undefined;
+}
+
+/**
+ * The options a worker inherits from its process: those that only make sense for the main
+ * script (`--input-type`, and the script text of `-e`/`--eval`/`-p`/`--print`) are dropped, or
+ * the worker refuses to start when the process itself runs from a string.
+ */
+function workerExecArgv(argv: readonly string[]): string[] {
+  const kept: string[] = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const option = argv[i] ?? '';
+    if (option.startsWith('--input-type')) {
+      if (option === '--input-type') i += 1;
+      continue;
+    }
+    if (['-e', '--eval', '-p', '--print', '-pe'].includes(option)) {
+      i += 1;
+      continue;
+    }
+    kept.push(option);
+  }
+  return kept;
 }
 
 /** Options of the pool. */
@@ -55,7 +78,7 @@ export function createComputePool(options: ComputePoolOptions = {}): ComputePool
   };
 
   const spawn = (): Slot => {
-    const worker = new Worker(workerUrl);
+    const worker = new Worker(workerUrl, { execArgv: workerExecArgv(process.execArgv) });
     worker.unref();
     const slot: Slot = { worker, current: undefined };
     worker.on('message', (result: Argon2idJobResult) => {

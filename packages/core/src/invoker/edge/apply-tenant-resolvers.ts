@@ -1,6 +1,7 @@
 import { normalizeHost } from '../../core-module/normalize-host.ts';
 import type { TenantResolver } from '../../edge/tenant-resolver.ts';
 import { isKeelwerkError } from '../../errors/is-keelwerk-error.ts';
+import { parseTypeId } from '../../ids/parse-type-id.ts';
 import type { BackendRecord } from '../backend-record.ts';
 import type { Carrier } from '../carrier.ts';
 import type { ScopeLookup } from '../scope-lookup.ts';
@@ -14,6 +15,15 @@ function hostOf(host: string): string | undefined {
     if (isKeelwerkError(error) && error.kind === 'validation') return undefined;
     throw error;
   }
+}
+
+/**
+ * The id a header value names: a TypeID of the prefix decodes to its uuid and any other TypeID
+ * shape (an underscore, a wrong prefix, a bad suffix) names nothing; text without an underscore
+ * is an id as stored and is looked up as it is.
+ */
+function idOf(value: string, prefix: string): string | undefined {
+  return value.includes('_') ? parseTypeId(value, prefix) : value;
 }
 
 async function byTenantId(
@@ -45,11 +55,18 @@ async function resolveOne(
   }
   if (resolver.kind === 'header') {
     const tenantValue = carrier.headers?.[resolver.header.toLowerCase()];
-    const backendValue =
+    const backendText =
       resolver.backendHeader === undefined
         ? undefined
         : carrier.headers?.[resolver.backendHeader.toLowerCase()];
-    if (tenantValue !== undefined) return byTenantId(directory, tenantValue, backendValue);
+    const backendValue = backendText === undefined ? undefined : idOf(backendText, 'bknd');
+    if (backendText !== undefined && backendValue === undefined) return undefined;
+    if (tenantValue !== undefined) {
+      // The header carries the tenant's TypeID; the directory is keyed by its uuid.
+      const tenantId = idOf(tenantValue, 'tnt');
+      if (tenantId === undefined) return undefined;
+      return byTenantId(directory, tenantId, backendValue);
+    }
     if (backendValue === undefined) return undefined;
     const backend = await directory.backend(backendValue);
     return backend === undefined ? undefined : { backend, tenant: null };

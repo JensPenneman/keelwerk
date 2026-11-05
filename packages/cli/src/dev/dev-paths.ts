@@ -9,6 +9,8 @@ export interface DevPaths {
   readonly database: string;
   /** The operator socket of the app child. */
   readonly socket: string;
+  /** The file that records where the running app's operator socket really is (a long path moves it). */
+  readonly socketRecord: string;
   /** The ledger sink: a file outside the database. */
   readonly ledger: string;
   /** The generated deployment file the children load. */
@@ -25,6 +27,7 @@ export function devPathsOf(root: string): DevPaths {
     state,
     database: join(state, 'dev-db'),
     socket: join(state, 'dev.sock'),
+    socketRecord: join(state, 'dev-socket'),
     ledger: join(state, 'ledger.log'),
     deployment: join(state, 'dev-deployment.ts'),
     masterKey: join(state, 'dev-master-key'),

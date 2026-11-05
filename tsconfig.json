@@ -80,6 +80,9 @@
       "path": "examples/portal/apps/portal/tsconfig.test.json"
     },
     {
+      "path": "examples/portal/.launchway"
+    },
+    {
       "path": "spikes/write-path"
     },
     {

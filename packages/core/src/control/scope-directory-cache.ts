@@ -7,6 +7,8 @@ import type { ControlStore } from './control-store.ts';
 import { findControlRows } from './find-control-rows.ts';
 import type { NamespaceBook } from './namespace-book.ts';
 
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 function statusOf(row: StorageRow): 'active' | 'suspended' {
   return row.status === 'suspended' ? 'suspended' : 'active';
 }
@@ -64,6 +66,8 @@ export function createScopeDirectoryCache(options: {
       return found;
     },
     backend: async (id) => {
+      // Row ids are uuids; text that is none names no backend (and must not reach a uuid column).
+      if (!uuidPattern.test(id)) return undefined;
       const known = backends.get(id);
       if (known !== undefined) return known;
       const row = await backendRow(id);
@@ -82,6 +86,7 @@ export function createScopeDirectoryCache(options: {
       return record;
     },
     tenant: async (id) => {
+      if (!uuidPattern.test(id)) return undefined;
       const known = tenants.get(id);
       if (known !== undefined) return known;
       const [row] = await findControlRows(store, 'core.tenant', { id });

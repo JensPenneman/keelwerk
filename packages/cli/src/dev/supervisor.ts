@@ -79,6 +79,9 @@ export async function runSupervisor(input: SupervisorInput): Promise<void> {
               input.note('the app exited; it starts again after the next change');
             }
           });
+          if (outcome.ready.socket !== undefined) {
+            await host.files.writeText(paths.socketRecord, `${outcome.ready.socket}\n`, 0o600);
+          }
           show({
             app: 'running',
             port: outcome.ready.port,

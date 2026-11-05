@@ -8,7 +8,9 @@
   "dependencies": {
     "@keelwerk-examples/app-portal": "workspace:*",
     "@keelwerk/adapter-postgres": "workspace:*",
-    "@keelwerk/core": "workspace:*"
+    "@keelwerk/core": "workspace:*",
+    "@keelwerk/data": "workspace:*",
+    "@keelwerk/transport-http": "workspace:*"
   },
   "devDependencies": {
     "@keelwerk/cli": "workspace:*"

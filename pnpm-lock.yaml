@@ -53,6 +53,12 @@ importers:
       '@keelwerk/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@keelwerk/data':
+        specifier: workspace:*
+        version: link:../../packages/data
+      '@keelwerk/transport-http':
+        specifier: workspace:*
+        version: link:../../packages/transport-http
     devDependencies:
       '@keelwerk/cli':
         specifier: workspace:*

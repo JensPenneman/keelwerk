@@ -2,11 +2,11 @@ import type { Command } from '@stricli/core';
 import { buildCommand } from '@stricli/core';
 import type { CliContext } from '../../context/cli-context.ts';
 import { findDeploymentFile } from '../../context/find-deployment-file.ts';
+import { projectRootOf } from '../../context/project-root-of.ts';
 import { usageFailure } from '../../context/usage-failure.ts';
 import { runSupervisor } from '../../dev/supervisor.ts';
 import { typeCheckerCommand } from '../../dev/type-checker-command.ts';
 import { handleFailure } from '../../routes/handle-failure.ts';
-import { findWorkspaceRoot } from '../doctor/find-workspace-root.ts';
 import { devFlags } from './dev-flags.ts';
 
 /**
@@ -39,7 +39,7 @@ export const devCommand: Command<CliContext> = buildCommand<
       }
       await runSupervisor({
         host: this.host,
-        root: await findWorkspaceRoot(this.host),
+        root: projectRootOf(deploymentFile),
         deploymentFile,
         print: (line) => this.output.line(line),
         note: (line) => this.output.note(line),
