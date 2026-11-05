@@ -235,6 +235,9 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@keelwerk/adapter-postgres':
+        specifier: workspace:*
+        version: link:../adapter-postgres
       '@keelwerk/testing':
         specifier: workspace:*
         version: link:../testing
@@ -251,6 +254,9 @@ importers:
         specifier: workspace:*
         version: link:../module-accounts
     devDependencies:
+      '@keelwerk/adapter-postgres':
+        specifier: workspace:*
+        version: link:../adapter-postgres
       '@keelwerk/testing':
         specifier: workspace:*
         version: link:../testing

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { TrackSnapshot } from '@keelwerk/core';
+import type { EntityEntry, TrackSnapshot } from '@keelwerk/core';
 import {
   buildTrackSnapshot,
   loadMigrations,
@@ -12,7 +12,38 @@ import {
 import type { AppDerivation } from './app-derivation.ts';
 import type { MigrationTarget } from './migration-target.ts';
 import { moduleDirectories } from './module-directories.ts';
+import { standaloneModule } from './standalone-module-app.ts';
 import { trackOfField } from './track-of-field.ts';
+
+interface TargetSource {
+  readonly id: string;
+  readonly entries: readonly EntityEntry[];
+}
+
+/**
+ * The module packages of the workspace that no app reaches, each composed alone, so a package such
+ * as an auth module is checked against its own snapshot even when no app of the workspace uses it.
+ */
+async function aloneSources(
+  modules: ReadonlyMap<string, string>,
+  sources: readonly TargetSource[],
+  shippedOnly: boolean,
+): Promise<readonly TargetSource[]> {
+  const reached = new Set<string>();
+  for (const source of sources) {
+    for (const track of buildTrackSnapshot(source.entries, { trackOfField }).keys()) {
+      reached.add(parseTrackId(track).module);
+    }
+  }
+  const alone: TargetSource[] = [];
+  for (const [module, moduleRoot] of modules) {
+    if (reached.has(module) || moduleRoot.includes('/test/fixtures/')) continue;
+    if (shippedOnly && !existsSync(join(moduleRoot, 'migrations'))) continue;
+    const found = await standaloneModule(moduleRoot);
+    if (found !== undefined) alone.push(found);
+  }
+  return alone;
+}
 
 async function committedOf(
   module: string,
@@ -41,8 +72,13 @@ export async function migrationTargets(
   const modules = await moduleDirectories(root);
   const targets: MigrationTarget[] = [];
   const seen = new Set<string>();
-  for (const app of apps) {
-    const entries = [...app.app.registry.entities.values()];
+  const sources: TargetSource[] = apps.map((app) => ({
+    id: app.app.id,
+    entries: [...app.app.registry.entities.values()],
+  }));
+  sources.push(...(await aloneSources(modules, sources, shippedOnly)));
+  for (const app of sources) {
+    const entries = app.entries;
     const bare = buildTrackSnapshot(entries, { trackOfField });
     const previous = new Map<string, TrackSnapshot>();
     const committed = new Map<string, TrackMigrations>();
@@ -67,7 +103,7 @@ export async function migrationTargets(
       targets.push({
         track,
         module: parseTrackId(track).module,
-        app: app.app.id,
+        app: app.id,
         directory,
         desired: snapshot,
         committed: loaded,

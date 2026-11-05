@@ -25,6 +25,7 @@
     "@keelwerk/core": "workspace:*"
   },
   "devDependencies": {
+    "@keelwerk/adapter-postgres": "workspace:*",
     "@keelwerk/testing": "workspace:*",
     "vitest": "5.0.5"
   }

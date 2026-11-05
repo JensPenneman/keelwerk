@@ -72,12 +72,16 @@ export async function startTestRuntime<
   });
   const given = typeof options.adapter === 'object' ? options.adapter : undefined;
   const kind = options.adapter === 'pglite' ? 'pglite' : 'memory';
+  const external = options.external;
   const base: DataAdapterFactory =
-    kind === 'pglite'
-      ? (await import('./pglite-factory.ts')).pgliteFactory({
-          entities: (ref) => descriptors.get(ref),
-        })
-      : memoryAdapter({ clock, entities: (ref) => descriptors.get(ref) });
+    external !== undefined
+      ? external.factory
+      : kind === 'pglite'
+        ? (await import('./pglite-factory.ts')).pgliteFactory({
+            clock,
+            entities: (ref) => descriptors.get(ref),
+          })
+        : memoryAdapter({ clock, entities: (ref) => descriptors.get(ref) });
   const factory: DataAdapterFactory =
     given === undefined
       ? {
@@ -110,20 +114,30 @@ export async function startTestRuntime<
       infrastructure: [
         factory,
         schemaPlanner(),
-        ...(kind === 'pglite' ? [fallbackReporter()] : []),
+        ...(kind === 'pglite' || external !== undefined ? [fallbackReporter()] : []),
         testSecrets,
       ],
-      control: { adapter: given === undefined ? kind : 'memory' },
+      control:
+        external === undefined
+          ? { adapter: given === undefined ? kind : 'memory' }
+          : { adapter: base.id, url: external.url },
       placements: {
         [placementName]: {
-          adapter: given === undefined ? kind : 'given',
+          adapter: external !== undefined ? base.id : given === undefined ? kind : 'given',
           strategy: 'shared-tables',
+          ...(external === undefined ? {} : { url: external.url }),
         },
       },
       tenantResolution: [{ kind: 'header', header: 'x-tenant' }],
       keys: { masterKey: secret(testMasterKeyName) },
     },
-    { role: 'all', listen: false, environment: 'test', clock },
+    {
+      role: 'all',
+      listen: false,
+      environment: 'test',
+      clock,
+      ...(options.logger === undefined ? {} : { logger: options.logger }),
+    },
   );
   const backend = await runtime.control.createBackend({
     name: 'test',

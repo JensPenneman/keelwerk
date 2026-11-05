@@ -1,4 +1,4 @@
-import type { DataAdapter, DataAdapterFactory, EntityDescriptor } from '@keelwerk/core';
+import type { Clock, DataAdapter, DataAdapterFactory, EntityDescriptor } from '@keelwerk/core';
 import { errors } from '@keelwerk/core';
 import { withCommandReceipts } from '@keelwerk/data';
 import { pgliteAdapter, pgliteSchemaConnection } from '@keelwerk/data/pglite';
@@ -9,6 +9,8 @@ const role = 'kw_app';
 export interface PgliteFactoryOptions {
   /** Finds the descriptor of a relation's target by entity ref. */
   readonly entities?: (ref: string) => EntityDescriptor | undefined;
+  /** The time source of bucket refills and key timestamps; default: the system clock. */
+  readonly clock?: Clock;
   /** Receives every adapter the factory creates, by placement id. */
   readonly onCreate?: (placementId: string, adapter: DataAdapter) => void;
 }
@@ -36,6 +38,7 @@ export function pgliteFactory(options: PgliteFactoryOptions = {}): DataAdapterFa
         {
           placementId: placement.id,
           role,
+          ...(options.clock === undefined ? {} : { clock: options.clock }),
           ...(options.entities === undefined ? {} : { entities: options.entities }),
           ...(env.keyWrapper === undefined ? {} : { keyWrapper: env.keyWrapper }),
         },

@@ -28,6 +28,13 @@ export interface DeclarationBudget {
   readonly packageBytes: number;
   /** Path prefixes whose measurements are reported but exempt from both limits. */
   readonly exempt: readonly string[];
+  /** Limits of single packages by name, each with the reason it differs from the default. */
+  readonly overrides?: Readonly<
+    Record<
+      string,
+      { readonly manifestBytes?: number; readonly packageBytes?: number; readonly reason: string }
+    >
+  >;
 }
 
 /** Measures the `.d.ts` files under `directory`, which holds one module package's emit. */

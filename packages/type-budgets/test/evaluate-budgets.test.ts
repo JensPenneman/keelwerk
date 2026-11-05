@@ -97,3 +97,20 @@ test('a budgeted module count without a measurement fails', () => {
   };
   expect(evaluateBudgets(within, two).failures).toEqual(['synthetic 40 modules: no measurement']);
 });
+
+test('a package override replaces the default limit of that package alone', () => {
+  const overridden: Budgets = {
+    ...budgets,
+    declarations: {
+      ...budgets.declarations,
+      overrides: { 'packages/big': { packageBytes: 30000, reason: 'test' } },
+    },
+  };
+  const measured: Measurements = {
+    ...within,
+    modulePackages: [size('packages/big', 3000, 25000), size('packages/other', 3000, 25000)],
+  };
+  expect(evaluateBudgets(measured, overridden).failures).toEqual([
+    'packages/other: declarations total 25000 B, over 16384 B',
+  ]);
+});

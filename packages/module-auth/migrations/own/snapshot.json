@@ -1,0 +1,860 @@
+{
+  "entities": {
+    "auth.credential": {
+      "events": {
+        "revoked": 1,
+        "signedUp": 1
+      },
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "identifier": {
+          "codec": null,
+          "column": "identifier",
+          "constraints": {
+            "format": "email"
+          },
+          "hidden": false,
+          "indexed": true,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": {
+            "keys": "tenant",
+            "normalize": {
+              "id": "email",
+              "version": 1
+            },
+            "params": {
+              "contains": {
+                "bits": 12
+              },
+              "eq": {
+                "bits": 128
+              },
+              "order": {
+                "bytes": 16
+              },
+              "prefix": {
+                "max": 32,
+                "min": 3
+              }
+            },
+            "queries": ["eq"],
+            "subject": "subject"
+          },
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 3,
+          "unique": false
+        },
+        "kind": {
+          "codec": null,
+          "column": "kind",
+          "constraints": {
+            "values": ["password", "passkey"]
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "enum",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 2,
+          "unique": false
+        },
+        "label": {
+          "codec": null,
+          "column": "label",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 5,
+          "unique": false
+        },
+        "lastUsedAt": {
+          "codec": null,
+          "column": "last_used_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": true,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 6,
+          "unique": false
+        },
+        "revokedAt": {
+          "codec": null,
+          "column": "revoked_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 7,
+          "unique": false
+        },
+        "subject": {
+          "codec": null,
+          "column": "subject",
+          "constraints": {},
+          "hidden": false,
+          "indexed": true,
+          "inner": null,
+          "kind": "subject",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": false
+        },
+        "verifier": {
+          "codec": null,
+          "column": "verifier",
+          "constraints": {},
+          "hidden": {
+            "history": false
+          },
+          "indexed": false,
+          "inner": null,
+          "kind": "verifier",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": true,
+          "stateOnly": false,
+          "tag": 4,
+          "unique": false
+        }
+      },
+      "history": "chain",
+      "mergeState": false,
+      "renames": []
+    },
+    "auth.session": {
+      "events": {},
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "absoluteExpiresAt": {
+          "codec": null,
+          "column": "absolute_expires_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 8,
+          "unique": false
+        },
+        "address": {
+          "codec": null,
+          "column": "address",
+          "constraints": {
+            "maxLength": 64
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": {
+            "keys": "tenant",
+            "normalize": {
+              "id": "nfc",
+              "version": 1
+            },
+            "params": {
+              "contains": {
+                "bits": 12
+              },
+              "eq": {
+                "bits": 128
+              },
+              "order": {
+                "bytes": 16
+              },
+              "prefix": {
+                "max": 32,
+                "min": 3
+              }
+            },
+            "queries": [],
+            "subject": "subject"
+          },
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 12,
+          "unique": false
+        },
+        "authenticatedAt": {
+          "codec": null,
+          "column": "authenticated_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 5,
+          "unique": false
+        },
+        "credentialId": {
+          "codec": null,
+          "column": "credential_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "ref",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": {
+            "entity": "auth.credential",
+            "foreignKey": true
+          },
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 2,
+          "unique": false
+        },
+        "idleExpiresAt": {
+          "codec": null,
+          "column": "idle_expires_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 7,
+          "unique": false
+        },
+        "lastSeenAt": {
+          "codec": null,
+          "column": "last_seen_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 6,
+          "unique": false
+        },
+        "publicId": {
+          "codec": null,
+          "column": "public_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "exclusive",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 3,
+          "unique": true
+        },
+        "revokedAt": {
+          "codec": null,
+          "column": "revoked_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 9,
+          "unique": false
+        },
+        "rotatedFrom": {
+          "codec": null,
+          "column": "rotated_from",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "ref",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": {
+            "entity": "auth.session",
+            "foreignKey": true
+          },
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 10,
+          "unique": false
+        },
+        "subject": {
+          "codec": null,
+          "column": "subject",
+          "constraints": {},
+          "hidden": false,
+          "indexed": true,
+          "inner": null,
+          "kind": "subject",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": false
+        },
+        "tokenVerifier": {
+          "codec": null,
+          "column": "token_verifier",
+          "constraints": {},
+          "hidden": {
+            "history": false
+          },
+          "indexed": false,
+          "inner": null,
+          "kind": "verifier",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": true,
+          "stateOnly": false,
+          "tag": 4,
+          "unique": false
+        },
+        "userAgent": {
+          "codec": null,
+          "column": "user_agent",
+          "constraints": {
+            "maxLength": 512
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": {
+            "keys": "tenant",
+            "normalize": {
+              "id": "nfc",
+              "version": 1
+            },
+            "params": {
+              "contains": {
+                "bits": 12
+              },
+              "eq": {
+                "bits": 128
+              },
+              "order": {
+                "bytes": 16
+              },
+              "prefix": {
+                "max": 32,
+                "min": 3
+              }
+            },
+            "queries": [],
+            "subject": "subject"
+          },
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 11,
+          "unique": false
+        }
+      },
+      "history": "state",
+      "mergeState": false,
+      "renames": []
+    }
+  },
+  "format": "keelwerk.snapshot/1",
+  "tables": [
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "tenant_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "created_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "updated_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "archived_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": 1,
+          "field": null,
+          "kind": "integer",
+          "name": "version",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hlc",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hash",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "kw_erased_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "subject",
+          "kind": "subject",
+          "name": "subject",
+          "nullable": false
+        },
+        {
+          "constraints": {
+            "values": ["password", "passkey"]
+          },
+          "default": null,
+          "field": "kind",
+          "kind": "enum",
+          "name": "kind",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "identifier",
+          "kind": "sealed",
+          "name": "identifier",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "derived": {
+            "kind": "binary",
+            "query": "eq",
+            "unicode": "17.0"
+          },
+          "field": "identifier",
+          "kind": "tags",
+          "name": "identifier__eq",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "verifier",
+          "kind": "verifier",
+          "name": "verifier",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "label",
+          "kind": "string",
+          "name": "label",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "lastUsedAt",
+          "kind": "instant",
+          "name": "last_used_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "revokedAt",
+          "kind": "instant",
+          "name": "revoked_at",
+          "nullable": true
+        }
+      ],
+      "foreignKeys": [],
+      "indexes": [
+        {
+          "columns": ["tenant_id", "subject"],
+          "method": "btree",
+          "name": "auth__credential__subject_ix",
+          "unique": false,
+          "where": null
+        },
+        {
+          "columns": ["tenant_id", "identifier__eq"],
+          "method": "btree",
+          "name": "auth__credential__identifier__eq_ix",
+          "unique": false,
+          "where": null
+        },
+        {
+          "columns": ["tenant_id", "identifier__eq"],
+          "method": "btree",
+          "name": "auth__credential__identifier_uq",
+          "unique": true,
+          "where": {
+            "conditions": [
+              {
+                "field": "kind",
+                "op": "eq",
+                "value": "password"
+              },
+              {
+                "field": "revokedAt",
+                "op": "isNull",
+                "value": true
+              }
+            ],
+            "op": "and"
+          }
+        }
+      ],
+      "name": "auth__credential",
+      "primaryKey": ["tenant_id", "id"],
+      "scoped": "tenant"
+    },
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "tenant_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "created_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "updated_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "archived_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": 1,
+          "field": null,
+          "kind": "integer",
+          "name": "version",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hlc",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hash",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "kw_erased_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "subject",
+          "kind": "subject",
+          "name": "subject",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "credentialId",
+          "kind": "ref",
+          "name": "credential_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "publicId",
+          "kind": "string",
+          "name": "public_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "tokenVerifier",
+          "kind": "verifier",
+          "name": "token_verifier",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "authenticatedAt",
+          "kind": "instant",
+          "name": "authenticated_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "lastSeenAt",
+          "kind": "instant",
+          "name": "last_seen_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "idleExpiresAt",
+          "kind": "instant",
+          "name": "idle_expires_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "absoluteExpiresAt",
+          "kind": "instant",
+          "name": "absolute_expires_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "revokedAt",
+          "kind": "instant",
+          "name": "revoked_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "rotatedFrom",
+          "kind": "ref",
+          "name": "rotated_from",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "userAgent",
+          "kind": "sealed",
+          "name": "user_agent",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "address",
+          "kind": "sealed",
+          "name": "address",
+          "nullable": true
+        }
+      ],
+      "foreignKeys": [
+        {
+          "columns": ["tenant_id", "credential_id"],
+          "name": "auth__session__credential_id_fk",
+          "references": {
+            "columns": ["tenant_id", "id"],
+            "table": "auth__credential"
+          }
+        },
+        {
+          "columns": ["tenant_id", "rotated_from"],
+          "name": "auth__session__rotated_from_fk",
+          "references": {
+            "columns": ["tenant_id", "id"],
+            "table": "auth__session"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "columns": ["tenant_id", "subject"],
+          "method": "btree",
+          "name": "auth__session__subject_ix",
+          "unique": false,
+          "where": null
+        },
+        {
+          "columns": ["tenant_id", "public_id"],
+          "method": "btree",
+          "name": "auth__session__public_id_uq",
+          "unique": true,
+          "where": {
+            "field": "archivedAt",
+            "op": "isNull",
+            "value": true
+          }
+        }
+      ],
+      "name": "auth__session",
+      "primaryKey": ["tenant_id", "id"],
+      "scoped": "tenant"
+    }
+  ],
+  "track": "auth",
+  "version": 1
+}

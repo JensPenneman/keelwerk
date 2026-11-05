@@ -31,7 +31,13 @@
   "declarations": {
     "manifestBytes": 6144,
     "packageBytes": 16384,
-    "exempt": ["packages/core/test/fixtures"]
+    "exempt": ["packages/core/test/fixtures"],
+    "overrides": {
+      "packages/module-auth": {
+        "packageBytes": 28416,
+        "reason": "auth: five action rules repeat their action type; entities with sealed metadata (24,687 B measured plus 15 %, rounded up to 256 B)"
+      }
+    }
   },
   "apps": {}
 }

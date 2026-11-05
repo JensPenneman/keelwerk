@@ -8,14 +8,19 @@ export function declarationFailures(
   const checked = sizes.filter(
     (size) => !budget.exempt.some((prefix) => size.name.startsWith(prefix)),
   );
-  return checked.flatMap((size) => [
-    ...(size.manifestBytes > budget.manifestBytes
-      ? [
-          `${size.name}: module.generated.d.ts is ${size.manifestBytes} B, over ${budget.manifestBytes} B`,
-        ]
-      : []),
-    ...(size.totalBytes > budget.packageBytes
-      ? [`${size.name}: declarations total ${size.totalBytes} B, over ${budget.packageBytes} B`]
-      : []),
-  ]);
+  return checked.flatMap((size) => {
+    const override = budget.overrides?.[size.name];
+    const manifestBytes = override?.manifestBytes ?? budget.manifestBytes;
+    const packageBytes = override?.packageBytes ?? budget.packageBytes;
+    return [
+      ...(size.manifestBytes > manifestBytes
+        ? [
+            `${size.name}: module.generated.d.ts is ${size.manifestBytes} B, over ${manifestBytes} B`,
+          ]
+        : []),
+      ...(size.totalBytes > packageBytes
+        ? [`${size.name}: declarations total ${size.totalBytes} B, over ${packageBytes} B`]
+        : []),
+    ];
+  });
 }

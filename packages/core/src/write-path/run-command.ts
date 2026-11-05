@@ -62,6 +62,7 @@ export async function runCommand(input: RunCommandInput): Promise<CommandResult>
       ),
     {
       ...input.retry,
+      retryUnique: true,
       ...(input.signal === undefined ? {} : { signal: input.signal }),
     },
   );

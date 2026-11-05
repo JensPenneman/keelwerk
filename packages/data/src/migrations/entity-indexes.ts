@@ -1,7 +1,26 @@
 import type { Condition, EntityDescriptor, IndexSpec } from '@keelwerk/core';
-import { physicalColumnName, physicalTableName } from '@keelwerk/core';
+import { errors, physicalColumnName, physicalTableName } from '@keelwerk/core';
 
 const notArchived: Condition = { op: 'isNull', field: 'archivedAt', value: true };
+
+/**
+ * The column a declared index uses for a field. A personal field is sealed with a fresh nonce per
+ * row, so its ciphertext column never repeats: the index goes on the blind-index equality column,
+ * and a personal field without one cannot be indexed.
+ */
+function indexColumn(descriptor: EntityDescriptor, indexName: string, name: string): string {
+  const field = descriptor.fields[name];
+  if (field === undefined || field.personal === false) return physicalColumnName(name);
+  const eq = Object.values(descriptor.derivedIndexes).find(
+    (derived) => derived.field === name && derived.query === 'eq',
+  );
+  if (eq === undefined) {
+    throw errors.unsupported(
+      `${descriptor.ref}: index ${indexName} names the personal field ${name}, which has no eq index; declare queries: ['eq'] on it or leave it out of the index`,
+    );
+  }
+  return eq.column;
+}
 
 /** An index and the fields whose columns it needs (its track is the latest of theirs). */
 export interface OwnedIndex {
@@ -61,7 +80,10 @@ export function entityIndexes(
     add({
       spec: {
         name: index.name,
-        columns: [...lead, ...index.fields.map((field) => physicalColumnName(field))],
+        columns: [
+          ...lead,
+          ...index.fields.map((field) => indexColumn(descriptor, index.name, field)),
+        ],
         unique: index.unique,
         method: 'btree',
         where: index.where,

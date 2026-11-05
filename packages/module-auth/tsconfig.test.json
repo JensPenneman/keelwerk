@@ -24,6 +24,9 @@
     },
     {
       "path": "../testing"
+    },
+    {
+      "path": "../adapter-postgres"
     }
   ]
 }

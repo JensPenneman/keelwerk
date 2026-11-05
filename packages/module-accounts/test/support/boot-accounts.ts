@@ -4,6 +4,7 @@ import {
   startTestRuntime,
   type TestPrincipal,
   type TestRuntime,
+  type TestRuntimeOptions,
 } from '@keelwerk/testing';
 import { accounts } from '../../src/module.generated.ts';
 
@@ -27,12 +28,14 @@ export interface BootedAccounts {
 export async function bootAccounts(
   kind: StorageKind,
   settings: { readonly allowSelfRegistration?: boolean } = {},
+  external?: TestRuntimeOptions['external'],
 ): Promise<BootedAccounts> {
   const runtime = await startTestRuntime(accountsApp, {
     adapter: kind,
     operators: true,
     tenants: ['acme', 'globex'],
     config: { accounts: settings },
+    ...(external === undefined ? {} : { external }),
   });
   return {
     runtime,

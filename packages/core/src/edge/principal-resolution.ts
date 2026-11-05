@@ -8,10 +8,14 @@ export interface PrincipalResolution {
   readonly effects?: readonly AnyEffect[];
   /** Cookie names the host clears, returned with an anonymous principal for a stale session (sections 16.3.4 and 16.4.10). */
   readonly clearCookies?: readonly string[];
-  /** What the kernel caches the session under and which change record drops it (section 17.2.4 step 4). */
-  readonly cache?: {
-    readonly key: string;
-    readonly entity: string;
-    readonly id: string;
-  };
+  /**
+   * What the kernel caches the session under and which change records drop it (section 17.2.4
+   * step 4): one row (`entity`, `id`), or `drops` for several, such as a session and its credential.
+   */
+  readonly cache?:
+    | { readonly key: string; readonly entity: string; readonly id: string }
+    | {
+        readonly key: string;
+        readonly drops: readonly { readonly entity: string; readonly id: string }[];
+      };
 }

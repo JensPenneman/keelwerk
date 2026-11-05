@@ -10,6 +10,18 @@ describe('mapPostgresError', () => {
     expect(mapped).toMatchObject({ kind: 'conflict', cause: driver });
   });
 
+  test('23505 names the violated constraint and marks the conflict unique', () => {
+    const driver = Object.assign(new Error('duplicate key'), {
+      code: '23505',
+      constraint: 'accounts_email_key',
+    });
+    expect(mapPostgresError(driver)).toMatchObject({
+      kind: 'conflict',
+      code: 'core.conflict',
+      details: { unique: true, constraint: 'accounts_email_key' },
+    });
+  });
+
   test('23503 is a conflict that says a referenced row is missing', () => {
     const driver = Object.assign(new Error('foreign key'), { code: '23503' });
     expect(mapPostgresError(driver)).toMatchObject({

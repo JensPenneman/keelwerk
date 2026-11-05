@@ -1,9 +1,21 @@
-import { coreErrorCodes, errors, KeelwerkError, RetryableUnitError } from '@keelwerk/core';
+import {
+  coreErrorCodes,
+  errors,
+  KeelwerkError,
+  RetryableUnitError,
+  uniqueConflict,
+} from '@keelwerk/core';
 
 function codeOf(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
   const { code } = error;
   return typeof code === 'string' ? code : undefined;
+}
+
+function constraintOf(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('constraint' in error)) return undefined;
+  const { constraint } = error;
+  return typeof constraint === 'string' ? constraint : undefined;
 }
 
 /**
@@ -14,7 +26,7 @@ function codeOf(error: unknown): string | undefined {
 export function mapSqlError(error: unknown): unknown {
   switch (codeOf(error)) {
     case '23505':
-      return errors.conflict('A unique value is already taken.', { cause: error });
+      return uniqueConflict(constraintOf(error), error);
     case '23503':
       return new KeelwerkError({
         ...coreErrorCodes['core.reference_missing'],
