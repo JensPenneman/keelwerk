@@ -12,12 +12,12 @@ import { auth } from '../../src/module.generated.ts';
 const authApp = defineApp({ id: 'auth', modules: [auth] as const });
 
 /** A clock a test moves by hand. */
-interface HandClock {
+export interface HandClock {
   now(): Temporal.Instant;
   advance(duration: Temporal.DurationLike): void;
 }
 
-function handClock(): HandClock {
+export function handClock(): HandClock {
   let instant = Temporal.Instant.from('2026-11-05T09:00:00Z');
   return {
     now: () => instant,

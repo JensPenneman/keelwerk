@@ -2,6 +2,7 @@ import {
   defineFill,
   enqueue,
   errors,
+  type Id,
   type Principal,
   type PrincipalResolution,
   within,
@@ -16,6 +17,7 @@ import { sessionCookieName } from '../../../lib/session-cookie-name.ts';
 import { toCore } from '../contribution.ts';
 
 const resolverId = 'auth.session';
+const profileSubjectRef = 'accounts.profile';
 
 /** The session resolver of 17.2.4: a cookie or a bearer token to a user principal, or to nothing. */
 export const principalResolversFill = defineFill(
@@ -67,6 +69,8 @@ export const principalResolversFill = defineFill(
         ) {
           return stale();
         }
+        // With accounts selected the credential holds the profile it belongs to, and the subject is its id (17.2.1).
+        const profileId: string | undefined = Reflect.get(credential, 'profileId');
         const ref = {
           resolver: resolverId,
           principalId: row.id,
@@ -76,8 +80,9 @@ export const principalResolversFill = defineFill(
         const principal: Principal = {
           kind: 'user',
           subject: row.subject,
-          subjectRef: null,
-          subjectAs: () => null,
+          subjectRef: profileId === undefined ? null : profileSubjectRef,
+          subjectAs: <R extends string>(ref: R) =>
+            profileId !== undefined && ref === profileSubjectRef ? (profileId as Id<R>) : null,
           scope: where,
           claims: {},
           roles: [],

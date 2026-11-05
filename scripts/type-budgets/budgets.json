@@ -34,8 +34,9 @@
     "exempt": ["packages/core/test/fixtures"],
     "overrides": {
       "packages/module-auth": {
-        "packageBytes": 28416,
-        "reason": "auth: five action rules repeat their action type; entities with sealed metadata (24,687 B measured plus 15 %, rounded up to 256 B)"
+        "manifestBytes": 11776,
+        "packageBytes": 56064,
+        "reason": "auth with accounts: contribution, conditional parts, reset flow and four more actions (10,188 B manifest and 48,749 B package measured plus 15 %, rounded up to 256 B)"
       }
     }
   },

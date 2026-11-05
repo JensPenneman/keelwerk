@@ -2,15 +2,17 @@ import type { SchemaTrack, SurfaceSource } from '@keelwerk/core';
 import { schemaPlanner } from '@keelwerk/data';
 
 /**
- * The migration tracks an app's modules ship (the packages that have a `migrations/` directory,
+ * The migration tracks an app's modules ship and the app selects (the packages that have a `migrations/` directory,
  * S-08), loaded through the planner and in run order (section 14.6.3).
  */
 export async function tracksOfApp(app: SurfaceSource): Promise<readonly SchemaTrack[]> {
   const planner = schemaPlanner();
   const loaded: SchemaTrack[] = [];
+  const selected = app.modules.map((module) => module.id);
   for (const module of app.modules) {
-    if (module.migrations !== undefined) {
-      loaded.push(...(await planner.loadTracks(module.id, module.migrations)));
+    if (module.migrations === undefined) continue;
+    for (const track of await planner.loadTracks(module.id, module.migrations)) {
+      if (planner.isTrackActive(track.track, selected)) loaded.push(track);
     }
   }
   const order = planner.orderTracks(

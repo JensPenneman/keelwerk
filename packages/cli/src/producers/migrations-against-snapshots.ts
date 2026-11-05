@@ -19,7 +19,14 @@ export async function produceMigrationsAgainstSnapshots(
   const written: string[] = [];
   const notes: string[] = [];
   const failures: string[] = [];
-  for (const target of await migrationTargets(root, apps, true)) {
+  let targets: Awaited<ReturnType<typeof migrationTargets>>;
+  try {
+    targets = await migrationTargets(root, apps, true);
+  } catch (error) {
+    // A module that cannot be composed is a failure of this producer, not a crash of the run.
+    return { written, notes, failures: [error instanceof Error ? error.message : String(error)] };
+  }
+  for (const target of targets) {
     const plan = await planTrack({
       previous: target.committed.snapshot,
       desired: target.desired,

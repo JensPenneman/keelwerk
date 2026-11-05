@@ -1,0 +1,81 @@
+{
+  "entities": {
+    "accounts.profile": {
+      "events": {
+        "deactivated": 1
+      },
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "emailVerifiedAt": {
+          "codec": null,
+          "column": "email_verified_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 2,
+          "unique": false
+        },
+        "lastLoginAt": {
+          "codec": null,
+          "column": "last_login_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": true,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": false
+        }
+      },
+      "history": "chain",
+      "mergeState": false,
+      "renames": []
+    }
+  },
+  "format": "keelwerk.snapshot/1",
+  "tables": [
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": "lastLoginAt",
+          "kind": "instant",
+          "name": "last_login_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "emailVerifiedAt",
+          "kind": "instant",
+          "name": "email_verified_at",
+          "nullable": true
+        }
+      ],
+      "foreignKeys": [],
+      "indexes": [],
+      "name": "accounts__profile",
+      "primaryKey": [],
+      "scoped": "tenant"
+    }
+  ],
+  "track": "auth->accounts",
+  "version": 1
+}

@@ -37,13 +37,17 @@ export function bindServices(
   }
   for (const id of module.optional) {
     const provider = find(id);
-    services[provider?.contextName ?? camelFromKebab(id)] = buildMaybeAccessor(
+    const maybe = buildMaybeAccessor(
       id,
       provider !== undefined,
       () => (provider === undefined ? {} : servicesOf(provider)),
       module.id,
       authorities,
     );
+    // A part under a condition that names the module is typed with the module present, so its
+    // services sit beside `ifPresent` when the app selects it.
+    services[provider?.contextName ?? camelFromKebab(id)] =
+      provider === undefined ? maybe : Object.freeze({ ...servicesOf(provider), ...maybe });
   }
   return Object.freeze(services);
 }

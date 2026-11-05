@@ -12,6 +12,7 @@ import { operator as profileOperator } from './policies/profile/operator.ts';
 import { open } from './policies/register/open.ts';
 import { operator as registerOperator } from './policies/register/operator.ts';
 import { findByEmail } from './services/find-by-email.ts';
+import { registrationOpen } from './services/registration-open.ts';
 
 const accountsDef = defineModule(accountsBase, {
   actions: { identities, register },
@@ -21,7 +22,7 @@ const accountsDef = defineModule(accountsBase, {
     profile: { directory, frozen, operator: profileOperator },
     register: { open, operator: registerOperator },
   },
-  services: { findByEmail },
+  services: { findByEmail, registrationOpen },
   migrations: new URL('../migrations/', import.meta.url),
 });
 

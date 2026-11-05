@@ -12,6 +12,7 @@ import {
 import type { AppDerivation } from './app-derivation.ts';
 import type { MigrationTarget } from './migration-target.ts';
 import { moduleDirectories } from './module-directories.ts';
+import { pairedModule } from './paired-module.ts';
 import { standaloneModule } from './standalone-module-app.ts';
 import { trackOfField } from './track-of-field.ts';
 
@@ -30,12 +31,18 @@ async function aloneSources(
   shippedOnly: boolean,
 ): Promise<readonly TargetSource[]> {
   const reached = new Set<string>();
+  const alone: TargetSource[] = [];
   for (const source of sources) {
     for (const track of buildTrackSnapshot(source.entries, { trackOfField }).keys()) {
       reached.add(parseTrackId(track).module);
     }
   }
-  const alone: TargetSource[] = [];
+  for (const moduleRoot of modules.values()) {
+    if (moduleRoot.includes('/test/fixtures/')) continue;
+    if (shippedOnly && !existsSync(join(moduleRoot, 'migrations'))) continue;
+    const paired = await pairedModule(moduleRoot);
+    if (paired !== undefined) alone.push(paired);
+  }
   for (const [module, moduleRoot] of modules) {
     if (reached.has(module) || moduleRoot.includes('/test/fixtures/')) continue;
     if (shippedOnly && !existsSync(join(moduleRoot, 'migrations'))) continue;

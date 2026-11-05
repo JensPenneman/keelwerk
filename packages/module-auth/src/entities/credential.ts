@@ -11,6 +11,7 @@ const credentialDef = defineEntity({
     label: field.string().optional().merge('lww'),
     lastUsedAt: field.instant().optional().maskable(),
     revokedAt: field.instant().optional(),
+    linkPending: field.boolean().optional(),
   },
   indexes: [
     {

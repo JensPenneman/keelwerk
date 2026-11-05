@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "auth.credential": {
+      "events": {
+        "revoked": 1,
+        "signedUp": 1
+      },
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "profileId": {
+          "codec": null,
+          "column": "profile_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": true,
+          "inner": null,
+          "kind": "ref",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": {
+            "entity": "accounts.profile",
+            "foreignKey": true
+          },
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": false
+        }
+      },
+      "history": "chain",
+      "mergeState": false,
+      "renames": []
+    }
+  },
+  "format": "keelwerk.snapshot/1",
+  "tables": [
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": "profileId",
+          "kind": "ref",
+          "name": "profile_id",
+          "nullable": true
+        }
+      ],
+      "foreignKeys": [
+        {
+          "columns": ["tenant_id", "profile_id"],
+          "name": "auth__credential__profile_id_fk",
+          "references": {
+            "columns": ["tenant_id", "id"],
+            "table": "accounts__profile"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "columns": ["tenant_id", "profile_id"],
+          "method": "btree",
+          "name": "auth__credential__profile_id_ix",
+          "unique": false,
+          "where": null
+        }
+      ],
+      "name": "auth__credential",
+      "primaryKey": [],
+      "scoped": "tenant"
+    }
+  ],
+  "track": "auth[accounts]",
+  "version": 1
+}

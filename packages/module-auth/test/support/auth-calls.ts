@@ -3,6 +3,11 @@ import type { BootedAuth } from './boot-auth.ts';
 
 type Outcome = Awaited<ReturnType<BootedAuth['request']>>;
 
+/** Anything that sends requests like a booted app does: the auth app alone or together with accounts. */
+export interface Requester {
+  readonly request: BootedAuth['request'];
+}
+
 /** A person the tests sign up. */
 export interface Person {
   readonly identifier: string;
@@ -36,7 +41,7 @@ export const asBearer = (token: string): Record<string, string> => ({
 
 /** Signs a person up and returns the credential's id. */
 export async function enrol(
-  auth: BootedAuth,
+  auth: Requester,
   person: Person = ada,
   tenant: 'acme' | 'globex' = 'acme',
 ): Promise<string> {
@@ -47,7 +52,7 @@ export async function enrol(
 
 /** Logs a person in and returns the session. */
 export async function signIn(
-  auth: BootedAuth,
+  auth: Requester,
   person: Person = ada,
   tenant: 'acme' | 'globex' = 'acme',
 ): Promise<Session> {
@@ -57,7 +62,7 @@ export async function signIn(
 }
 
 /** What `auth.whoami` answers for a request that carries these headers. */
-export async function whoami(auth: BootedAuth, headers: Record<string, string>) {
+export async function whoami(auth: Requester, headers: Record<string, string>) {
   return auth.request('auth.whoami', {}, { headers });
 }
 
@@ -65,7 +70,7 @@ export async function whoami(auth: BootedAuth, headers: Record<string, string>) 
  * A public action called with a presented token: a stale cookie runs it as anonymous (its own
  * answer), while a stale bearer token fails before the action (17.2.4).
  */
-export function probe(auth: BootedAuth, headers: Record<string, string>) {
+export function probe(auth: Requester, headers: Record<string, string>) {
   return auth.request(
     'auth.login',
     { identifier: 'nobody@example.org', password: 'nothing' },
@@ -74,7 +79,7 @@ export function probe(auth: BootedAuth, headers: Record<string, string>) {
 }
 
 /** The subject a session stands for. */
-export async function subjectOf(auth: BootedAuth, session: Session): Promise<string> {
+export async function subjectOf(auth: Requester, session: Session): Promise<string> {
   const done = await whoami(auth, asBearer(session.sessionToken));
   expect(done.ok).toBe(true);
   return (done.ok ? (done.value as { subject: string }).subject : '') as string;

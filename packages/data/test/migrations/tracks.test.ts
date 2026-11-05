@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  isTrackActive,
   orderTracks,
   parseTrackId,
   trackDirectoryName,
@@ -25,6 +26,20 @@ describe('track ids and directories', () => {
       when: ['billing', 'teams'],
     });
     expect(() => parseTrackId('Auth')).toThrow(TypeError);
+  });
+
+  test.each([
+    ['auth', ['auth'], true],
+    ['auth', ['accounts'], false],
+    ['auth->accounts', ['auth'], false],
+    ['auth->accounts', ['accounts', 'auth'], true],
+    ['auth->accounts', ['accounts'], false],
+    ['auth[accounts]', ['auth'], false],
+    ['auth[accounts]', ['auth', 'accounts'], true],
+    ['auth->projects[billing,teams]', ['auth', 'projects', 'billing'], false],
+    ['auth->projects[billing,teams]', ['auth', 'projects', 'billing', 'teams'], true],
+  ])('%s is active for %j: %s', (track, selected, active) => {
+    expect(isTrackActive(track, selected)).toBe(active);
   });
 
   test.each([

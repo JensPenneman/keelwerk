@@ -29,13 +29,14 @@ export function buildLoadConstructors(
   }
   for (const id of module.optional) {
     const found = find(id);
-    loads[found?.contextName ?? camelFromKebab(id)] = buildMaybeAccessor(
-      id,
-      found !== undefined,
-      () => (found === undefined ? {} : buildModuleLoads(registry, found, module.id, authorities)),
-      module.id,
-      authorities,
-    );
+    const present = (): unknown =>
+      found === undefined ? {} : buildModuleLoads(registry, found, module.id, authorities);
+    const maybe = buildMaybeAccessor(id, found !== undefined, present, module.id, authorities);
+    // Every part of a module that names the optional module may be under a condition on it, and
+    // such a part is typed with the module present, so the loads sit beside `ifPresent` whenever
+    // the app selects the module.
+    loads[found?.contextName ?? camelFromKebab(id)] =
+      found === undefined ? maybe : Object.freeze({ ...(present() as object), ...maybe });
   }
   return Object.freeze(loads);
 }

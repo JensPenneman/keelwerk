@@ -106,6 +106,24 @@
           "tag": 6,
           "unique": false
         },
+        "linkPending": {
+          "codec": null,
+          "column": "link_pending",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "boolean",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 8,
+          "unique": false
+        },
         "revokedAt": {
           "codec": null,
           "column": "revoked_at",
@@ -164,6 +182,128 @@
         }
       },
       "history": "chain",
+      "mergeState": false,
+      "renames": []
+    },
+    "auth.resetToken": {
+      "events": {},
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "credentialId": {
+          "codec": null,
+          "column": "credential_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "ref",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": {
+            "entity": "auth.credential",
+            "foreignKey": true
+          },
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 2,
+          "unique": false
+        },
+        "expiresAt": {
+          "codec": null,
+          "column": "expires_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 5,
+          "unique": false
+        },
+        "publicId": {
+          "codec": null,
+          "column": "public_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "exclusive",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 3,
+          "unique": true
+        },
+        "subject": {
+          "codec": null,
+          "column": "subject",
+          "constraints": {},
+          "hidden": false,
+          "indexed": true,
+          "inner": null,
+          "kind": "subject",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": false
+        },
+        "tokenVerifier": {
+          "codec": null,
+          "column": "token_verifier",
+          "constraints": {},
+          "hidden": {
+            "history": false
+          },
+          "indexed": false,
+          "inner": null,
+          "kind": "verifier",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": true,
+          "stateOnly": false,
+          "tag": 4,
+          "unique": false
+        },
+        "usedAt": {
+          "codec": null,
+          "column": "used_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 6,
+          "unique": false
+        }
+      },
+      "history": "state",
       "mergeState": false,
       "renames": []
     },
@@ -597,6 +737,14 @@
           "kind": "instant",
           "name": "revoked_at",
           "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "linkPending",
+          "kind": "boolean",
+          "name": "link_pending",
+          "nullable": true
         }
       ],
       "foreignKeys": [],
@@ -638,6 +786,163 @@
         }
       ],
       "name": "auth__credential",
+      "primaryKey": ["tenant_id", "id"],
+      "scoped": "tenant"
+    },
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "tenant_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "created_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "updated_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "archived_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": 1,
+          "field": null,
+          "kind": "integer",
+          "name": "version",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hlc",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hash",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "kw_erased_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "subject",
+          "kind": "subject",
+          "name": "subject",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "credentialId",
+          "kind": "ref",
+          "name": "credential_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "publicId",
+          "kind": "string",
+          "name": "public_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "tokenVerifier",
+          "kind": "verifier",
+          "name": "token_verifier",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "expiresAt",
+          "kind": "instant",
+          "name": "expires_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "usedAt",
+          "kind": "instant",
+          "name": "used_at",
+          "nullable": true
+        }
+      ],
+      "foreignKeys": [
+        {
+          "columns": ["tenant_id", "credential_id"],
+          "name": "auth__reset_token__credential_id_fk",
+          "references": {
+            "columns": ["tenant_id", "id"],
+            "table": "auth__credential"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "columns": ["tenant_id", "subject"],
+          "method": "btree",
+          "name": "auth__reset_token__subject_ix",
+          "unique": false,
+          "where": null
+        },
+        {
+          "columns": ["tenant_id", "public_id"],
+          "method": "btree",
+          "name": "auth__reset_token__public_id_uq",
+          "unique": true,
+          "where": {
+            "field": "archivedAt",
+            "op": "isNull",
+            "value": true
+          }
+        }
+      ],
+      "name": "auth__reset_token",
       "primaryKey": ["tenant_id", "id"],
       "scoped": "tenant"
     },
@@ -856,5 +1161,5 @@
     }
   ],
   "track": "auth",
-  "version": 1
+  "version": 2
 }

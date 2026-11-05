@@ -7,11 +7,6 @@ import type { TrackSnapshot } from '../storage/track-snapshot.ts';
 import type { SchemaPlanner, SchemaTrack } from './schema-planner.ts';
 import type { ServedApp } from './served-app.ts';
 
-/** The module a track belongs to: 'auth', 'auth->accounts' and 'auth[accounts]' all belong to 'auth'. */
-function moduleOfTrack(track: string): string {
-  return track.split(/->|\[/)[0] ?? track;
-}
-
 /** What `prepareNamespace` works from. */
 export interface PrepareInput {
   readonly planner: SchemaPlanner | undefined;
@@ -33,8 +28,8 @@ export interface PrepareInput {
 export async function prepareNamespace(input: PrepareInput): Promise<void> {
   const { planner, adapter, namespace, app } = input;
   if (planner === undefined) return;
-  const modules = new Set(app.source.modules.map((module) => module.id));
-  const own = input.tracks.filter((track) => modules.has(moduleOfTrack(track.track)));
+  const selected = app.source.modules.map((module) => module.id);
+  const own = input.tracks.filter((track) => planner.isTrackActive(track.track, selected));
   const files = own.filter((track) => track.files.length > 0);
   if (!input.development) {
     const history = await adapter.schema.history(namespace);

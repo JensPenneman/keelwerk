@@ -29,6 +29,7 @@ export type {
 } from './migrations/diff-snapshots.ts';
 export { diffSnapshots } from './migrations/diff-snapshots.ts';
 export { isContractStep } from './migrations/is-contract-step.ts';
+export { isTrackActive } from './migrations/is-track-active.ts';
 export type { LiveCatalogue } from './migrations/live-catalogue.ts';
 export type { TrackMigrations } from './migrations/load-migrations.ts';
 export { loadMigrations } from './migrations/load-migrations.ts';

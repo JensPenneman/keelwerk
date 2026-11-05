@@ -36,6 +36,8 @@ export interface SchemaPlanner {
     }[],
     tracks: readonly string[],
   ): readonly string[];
+  /** Whether a track is active for an app that selects these modules (`isTrackActive`). */
+  isTrackActive(track: string, selected: readonly string[]): boolean;
   /** The tracks of a module package's `migrations` directory (`loadMigrations`). */
   loadTracks(module: string, migrations: URL): Promise<readonly SchemaTrack[]>;
   /** Applies the pending files under the namespace lock; drift refuses (`applyPending`). */

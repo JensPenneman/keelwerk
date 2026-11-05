@@ -14,6 +14,7 @@ import { operator } from './policies/profile/operator.ts';
 import { open } from './policies/register/open.ts';
 import { operator as registerOperator } from './policies/register/operator.ts';
 import { findByEmail } from './services/find-by-email.ts';
+import { registrationOpen } from './services/registration-open.ts';
 
 describe('the accounts manifest', () => {
   test('has the type of the same module written in one file', () => {
@@ -25,7 +26,7 @@ describe('the accounts manifest', () => {
         profile: { directory, frozen, operator },
         register: { open, operator: registerOperator },
       },
-      services: { findByEmail },
+      services: { findByEmail, registrationOpen },
       migrations: new URL('../migrations/', import.meta.url),
     });
     expectTypeOf<Accounts>().toEqualTypeOf<typeof written>();

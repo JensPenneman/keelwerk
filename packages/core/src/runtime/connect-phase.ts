@@ -117,7 +117,9 @@ export async function connectPhase(input: ConnectInput): Promise<Connected> {
     ).values(),
   ];
   const { planner } = composed.infrastructure;
-  const tracks = planner === undefined ? [] : await loadModuleMigrations(planner, modules);
+  const selections = served.map((app) => app.source.modules.map((module) => module.id));
+  const tracks =
+    planner === undefined ? [] : await loadModuleMigrations(planner, modules, selections);
   const build = buildIdentity(
     buildManifestOf({
       modules,
