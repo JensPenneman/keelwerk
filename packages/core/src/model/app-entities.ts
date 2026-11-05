@@ -7,7 +7,7 @@ import type { AnyModule } from './any-module.ts';
 import type { EntityNames } from './entities-of.ts';
 import type { Prettify } from './prettify.ts';
 import type { RowOf } from './row-of.ts';
-import type { ActiveConditionals, ActiveContributions, ById, Ids } from './selection.ts';
+import type { ActiveConditionals, ById, ContributionsTo, Ids } from './selection.ts';
 import type { UnionToIntersection } from './union-to-intersection.ts';
 
 /** Own references name an entity of the declaring or contributing module; resolved per source. */
@@ -38,9 +38,8 @@ type ConditionalSources<Ms extends readonly AnyModule[], I extends string, E ext
       : never
     : never;
 type ContributedSources<Ms extends readonly AnyModule[], I extends string, E extends string> =
-  ActiveContributions<Ms> extends infer C
+  ContributionsTo<Ms, I> extends infer C
     ? C extends {
-        readonly to: { readonly id: I };
         readonly from: infer From extends string;
         readonly entities: { readonly [K in E]: { readonly fields: infer F } };
       }

@@ -15,7 +15,7 @@ const forgedPerform = function* (): Generator<unknown, unknown, unknown> {
 };
 
 describe('what runCommand refuses', () => {
-  test('a generated command is not_implemented, not internal', async () => {
+  test('a generated command that names no entity is internal', async () => {
     const probe = withCommand('generatedProbe', () => [], 'library.addBook', {
       generated: 'create',
     });
@@ -25,7 +25,7 @@ describe('what runCommand refuses', () => {
       action: probe.ref,
       input: {},
     }).catch((caught: unknown) => caught);
-    expect(error).toMatchObject({ kind: 'not_implemented', code: 'core.not_implemented' });
+    expect(error).toMatchObject({ kind: 'internal', code: 'core.internal' });
   });
 
   test('an async command is not_implemented and stores no receipt', async () => {

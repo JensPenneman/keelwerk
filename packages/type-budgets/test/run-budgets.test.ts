@@ -17,8 +17,8 @@ const size = {
 };
 const clean = {
   synthetic: [
-    { modules: 25, fold: 400000, wholeProgram: 1500000, sizes: [size], portability: [] },
-    { modules: 40, fold: 900000, wholeProgram: 2500000, sizes: [size], portability: [] },
+    { modules: 25, fold: 200000, wholeProgram: 1000000, sizes: [size], portability: [] },
+    { modules: 40, fold: 300000, wholeProgram: 1800000, sizes: [size], portability: [] },
   ],
   apps: {},
   modulePackages: [],
@@ -48,10 +48,10 @@ test('exits 0 when every count is within its budget', () => {
 test('exits 1 for an injected over-budget count', () => {
   const run = gate({
     ...clean,
-    synthetic: [{ ...clean.synthetic[0], fold: 590001 }, clean.synthetic[1]],
+    synthetic: [{ ...clean.synthetic[0], fold: 246001 }, clean.synthetic[1]],
   });
   expect(run.status).toBe(1);
-  expect(run.stderr).toContain('fold 590,001 instantiations, over 590,000');
+  expect(run.stderr).toContain('fold 246,001 instantiations, over 246,000');
 });
 
 test('exits 1 for an injected TS2883', () => {

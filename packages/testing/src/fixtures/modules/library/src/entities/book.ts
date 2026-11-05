@@ -8,15 +8,7 @@ const bookDef = defineEntity({
     isbn: field.string({ maxLength: 17 }).unique(),
     addedBy: field.subject().index(),
   },
-  generated: {
-    get: false,
-    query: false,
-    changes: false,
-    queryChanges: false,
-    set: false,
-    history: false,
-    watch: false,
-  },
+  generated: { history: true, watch: false },
 });
 
 export interface Book extends EntityType<typeof bookDef> {}

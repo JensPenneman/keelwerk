@@ -49,6 +49,7 @@ export async function loadTarget(input: LoadTargetInput): Promise<StorageRow> {
     select: chainSelect(Object.keys(input.entry.descriptor.fields)),
     page: { first: 1 },
     forUpdate: true,
+    ...(input.action.generated === 'restore' ? { includeArchived: true } : {}),
   });
   const row = found.rows[0];
   if (row === undefined) throw errors.not_found(`${input.entry.ref} ${id} does not exist`);

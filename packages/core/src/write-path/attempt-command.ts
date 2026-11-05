@@ -7,6 +7,10 @@ import { buildDecisionRecord } from '../events/build-decision-record.ts';
 import { buildEventMeta } from '../events/build-event-meta.ts';
 import type { EventMeta } from '../events/event-meta.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
+import { generatedEntity } from '../generated-actions/generated-entity.ts';
+import { generatedHandlerOf } from '../generated-actions/generated-handler-of.ts';
+import { generatedSet } from '../generated-actions/generated-set.ts';
+import { setResultWithState } from '../generated-actions/set-result-with-state.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import type { Clock } from '../kernel/clock.ts';
 import { decodeRow } from '../repositories/decode-row.ts';
@@ -107,11 +111,18 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     ...(entry === undefined || target === undefined ? {} : { target: { entry, row: target } }),
   });
   let handled: unknown;
-  if (entry !== undefined && target !== undefined) {
-    const { id: _id, ifVersion: _ifVersion, ...rest } = run.input as Record<string, unknown>;
-    handled = action.handler(rest, decodeRow(entry, target, authority), decision.ctx);
+  const generated = action.generated === undefined ? undefined : generatedEntity(registry, action);
+  if (action.generated === 'set' && generated !== undefined) {
+    handled = await generatedSet({ run, unit, entry: generated, decision });
   } else {
-    handled = action.handler(run.input, decision.ctx);
+    const handler =
+      generated === undefined ? action.handler : generatedHandlerOf(action, generated);
+    if (entry !== undefined && target !== undefined) {
+      const { id: _id, ifVersion: _ifVersion, ...rest } = run.input as Record<string, unknown>;
+      handled = handler(rest, decodeRow(entry, target, authority), decision.ctx);
+    } else {
+      handled = handler(run.input, decision.ctx);
+    }
   }
   const decided = normalizeDecision(await decision.drive(handled));
   run.signal?.throwIfAborted();
@@ -200,7 +211,10 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     authority,
     written,
     target,
-    result: decided.result,
+    result:
+      action.generated === 'set' && generated !== undefined
+        ? setResultWithState(run, unit, generated, decided.result)
+        : decided.result,
     effects,
   });
   run.signal?.throwIfAborted();

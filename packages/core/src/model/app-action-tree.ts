@@ -12,7 +12,7 @@ import type { InsertAt } from './insert-at.ts';
 import type { InstanceInput } from './instance-input.ts';
 import type { Page } from './page.ts';
 import type { PatchAt } from './patch-at.ts';
-import type { ActiveConditionals, ActiveContributions, ById, Ids } from './selection.ts';
+import type { ActiveConditionals, ById, ContributionsTo, Ids } from './selection.ts';
 import type { TypeAt } from './type-at.ts';
 import type { Where } from './where.ts';
 
@@ -24,8 +24,8 @@ interface Generated<K extends string, T> {
 
 type ModuleActionDefs<Ms extends readonly AnyModule[], I extends string> =
   | (ById<Ms, I> extends { readonly actions: infer A } ? A : never)
-  | (ActiveContributions<Ms> extends infer C
-      ? C extends { readonly to: { readonly id: I }; readonly actions: infer A }
+  | (ContributionsTo<Ms, I> extends infer C
+      ? C extends { readonly actions: infer A }
         ? A
         : never
       : never)
@@ -38,9 +38,8 @@ type EntityActionDefs<Ms extends readonly AnyModule[], I extends string, E exten
   | (ById<Ms, I> extends { readonly entities: { readonly [K in E]: { readonly actions: infer A } } }
       ? A
       : never)
-  | (ActiveContributions<Ms> extends infer C
+  | (ContributionsTo<Ms, I> extends infer C
       ? C extends {
-          readonly to: { readonly id: I };
           readonly entities: { readonly [K in E]: { readonly actions: infer A } };
         }
         ? A

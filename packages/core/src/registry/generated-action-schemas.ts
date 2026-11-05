@@ -45,12 +45,18 @@ export function generatedActionSchemas(
           ids: field.list(field.string()),
           properties: field.list(field.string()).optional(),
           asOf: field.instant().optional(),
+          includeArchived: field.boolean().optional(),
         }),
         output: permissiveSchema(),
       };
     case 'history':
       return {
-        input: shape({ id: field.string(), asOf: field.instant().optional() }),
+        input: shape({
+          id: field.string(),
+          asOf: field.instant().optional(),
+          fromVersion: field.integer().optional(),
+          limit: field.integer().optional(),
+        }),
         output: permissiveSchema(),
       };
     default:

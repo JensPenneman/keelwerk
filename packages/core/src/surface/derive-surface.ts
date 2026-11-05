@@ -8,8 +8,10 @@ import { orderModules } from '../registry/order-modules.ts';
 import { selectModules } from '../registry/select-modules.ts';
 import type { ApiSurface } from './api-surface.ts';
 import { declaredErrorsOf } from './declared-errors-of.ts';
+import type { DeriveSurfaceOptions } from './derive-surface-options.ts';
 import type { DerivedSurface } from './derived-surface.ts';
 import { entityModelsOf } from './entity-models-of.ts';
+import { recordedMemberTags } from './recorded-member-tags.ts';
 import { securityDescriptionsOf } from './security-descriptions-of.ts';
 import { surfaceActionOf } from './surface-action-of.ts';
 import type { SurfaceEntity } from './surface-entity.ts';
@@ -31,7 +33,11 @@ const appModule: SurfaceModule = { id: 'app', version: '0.0.0' };
  * the same bytes whatever the order of its module tuple. An action of the app's modules introduced after
  * the version is left out; the core's actions follow the core's own calendar and are always there. Anything the surface cannot describe is a problem beside the surface, never a throw.
  */
-export function deriveSurface(app: SurfaceSource, apiVersion: string): DerivedSurface {
+export function deriveSurface(
+  app: SurfaceSource,
+  apiVersion: string,
+  options: DeriveSurfaceOptions = {},
+): DerivedSurface {
   const { registry } = app;
   const problems: CompositionProblem[] = [];
   const versions = app.api?.dates ?? coreApiVersions.dates;
@@ -59,7 +65,7 @@ export function deriveSurface(app: SurfaceSource, apiVersion: string): DerivedSu
   for (const model of [...models.values()].sort((left, right) =>
     compareCodePoints(left.entry.ref, right.entry.ref),
   )) {
-    const result = surfaceEntityOf(model, prefixOf);
+    const result = surfaceEntityOf(model, prefixOf, recordedMemberTags(options.snapshots));
     entities.push(result.entity);
     problems.push(...result.problems);
   }

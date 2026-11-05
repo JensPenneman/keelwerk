@@ -45,6 +45,7 @@ export interface SurfaceEntityResult {
 export function surfaceEntityOf(
   model: EntityModel,
   prefixOf: (entityRef: string) => string | undefined,
+  recorded?: (entityRef: string, field: string) => Readonly<Record<string, number>> | undefined,
 ): SurfaceEntityResult {
   const { entry } = model;
   const problems: CompositionProblem[] = [];
@@ -56,6 +57,9 @@ export function surfaceEntityOf(
         declaredBy: entry.origin[name] ?? entry.module,
         tag: entry.descriptor.fields[name]?.tag ?? 1,
         prefixOf,
+        ...(recorded?.(entry.ref, name) === undefined
+          ? {}
+          : { memberTags: recorded(entry.ref, name) as Readonly<Record<string, number>> }),
       });
     } catch (error) {
       if (!(error instanceof TypeError)) throw error;

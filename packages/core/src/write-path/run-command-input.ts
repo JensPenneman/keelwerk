@@ -52,6 +52,8 @@ export interface RunCommandInput {
   readonly traceparent?: string;
   /** Default: the request id. */
   readonly correlationId?: string;
+  /** The scope's epoch, part of every state token (section 15.2.6); default 0. */
+  readonly epoch?: number;
   /** Aborts on the action's timeout: the unit rolls back and `runCommand` rejects with the reason. */
   readonly signal?: AbortSignal;
   /** Whether a second unit can be open beside this one (see `RunReadInput.concurrentUnits`). */

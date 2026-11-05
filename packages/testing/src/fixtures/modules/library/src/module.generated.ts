@@ -5,13 +5,14 @@ import { findByIsbn } from './actions/find-by-isbn.ts';
 import { libraryBase } from './base.ts';
 import { signedIn as addBookSignedIn } from './policies/add-book/signed-in.ts';
 import { readers } from './policies/book/readers.ts';
+import { writers } from './policies/book/writers.ts';
 import { signedIn as findByIsbnSignedIn } from './policies/find-by-isbn/signed-in.ts';
 
 const libraryDef = defineModule(libraryBase, {
   actions: { addBook, findByIsbn },
   policies: {
     addBook: { signedIn: addBookSignedIn },
-    book: { readers },
+    book: { readers, writers },
     findByIsbn: { signedIn: findByIsbnSignedIn },
   },
 });

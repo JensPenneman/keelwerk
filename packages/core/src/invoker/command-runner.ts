@@ -37,6 +37,8 @@ export interface CommandRun {
   readonly span: Span;
   /** The build that appends the events. */
   readonly build: { readonly id: string; readonly revision: number };
+  /** The scope's epoch, part of every state token (section 15.2.6); default 0. */
+  readonly epoch?: number;
   /** Whether a second unit can be open beside the command's (the adapter's capabilities say so). */
   readonly concurrentUnits?: boolean;
   /** The namespace of another scope's data, for a backend read. */

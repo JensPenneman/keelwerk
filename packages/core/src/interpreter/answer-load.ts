@@ -208,7 +208,11 @@ export async function answerLoad(
         return {
           items: await finish(items),
           pageInfo: { hasNextPage: page.pageInfo.hasNextPage, endCursor: page.pageInfo.endCursor },
-          queryState: deps.queryState(position, unit.scope),
+          queryState: deps.queryState(position, unit.scope, {
+            entity: entry.ref,
+            filter: planned.query.where,
+            sort: planned.query.sort ?? [],
+          }),
         };
       }
     }

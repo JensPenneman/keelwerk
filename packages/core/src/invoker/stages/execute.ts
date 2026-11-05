@@ -1,9 +1,11 @@
 import { KeelwerkError } from '../../errors/keelwerk-error.ts';
+import { runGeneratedRead } from '../../generated-actions/run-generated-read.ts';
 import { runRead } from '../../interpreter/run-read.ts';
 import type { Logger } from '../../observability/logger.ts';
 import type { Span } from '../../observability/span.ts';
 import type { ActionEntry } from '../../registry/action-entry.ts';
 import type { Scope } from '../../storage/scope.ts';
+import { stateTokenEncoder } from '../../tokens/state-token-encoder.ts';
 import type { CommandResult } from '../command-runner.ts';
 import type { Invocation } from '../invocation.ts';
 import type { InvocationSession } from '../invocation-session.ts';
@@ -26,6 +28,10 @@ function targetOf(action: ActionEntry, details: SessionDetails): ScopeTarget {
       : resolved.target;
   if (target === null) throw unavailable('No store is connected for this scope.');
   return target;
+}
+
+function epochOf(epochOf: InvokerEnv['options']['epochOf'], scope: Scope): number {
+  return epochOf === undefined ? 0 : epochOf(scope);
 }
 
 function requestInfo(invocation: Invocation<unknown>): RequestInfo {
@@ -98,6 +104,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
           span: input.span,
           build: options.build ?? { id: 'development', revision: 1 },
           namespaceOf: (scope) => (scope.level === 'backend' ? backendNamespace : target.namespace),
+          epoch: epochOf(options.epochOf, target.scope),
           ...(capabilities === undefined
             ? {}
             : { concurrentUnits: capabilities.processes !== 'single' }),
@@ -117,8 +124,24 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
   const { options } = env;
   const { capabilities } = target.handle;
   const backendNamespace = (details.resolved.backendTarget ?? target).namespace;
+  const rules = env.rulesOf(registry);
+  const epoch = epochOf(options.epochOf, target.scope);
   const output = await withDeadline(
     async (signal) => {
+      if (action.generated !== undefined) {
+        return runGeneratedRead({
+          signal,
+          registry,
+          adapter: target.handle.adapter,
+          namespace: target.namespace,
+          scope: target.scope,
+          action,
+          input: input.value,
+          principal: session.principal,
+          rules,
+          epoch,
+        });
+      }
       const result = await runRead({
         signal,
         registry,
@@ -134,7 +157,8 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
         compute: options.compute,
         log: input.log,
         trace: input.span,
-        rules: env.rulesOf(registry),
+        rules,
+        queryState: stateTokenEncoder({ registry, rules, principal: session.principal, epoch }),
         namespaceOf: (scope) => (scope.level === 'backend' ? backendNamespace : target.namespace),
         ...(capabilities === undefined
           ? {}

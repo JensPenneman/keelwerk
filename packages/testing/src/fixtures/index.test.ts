@@ -29,7 +29,7 @@ describe('the library fixture module', () => {
     expect(Object.keys(library.entities)).toEqual(['book']);
     expect(library.actions.addBook.ref).toBe('library.addBook');
     expect(library.actions.findByIsbn.ref).toBe('library.findByIsbn');
-    expect(Object.keys(library.policies.book ?? {})).toEqual(['readers']);
+    expect(Object.keys(library.policies.book ?? {})).toEqual(['readers', 'writers']);
   });
 });
 

@@ -16,12 +16,24 @@ describe('the library fixture app', () => {
       'library.book',
     ]);
     expect(registry.entities.get('library.book')?.descriptor.table).toBe('library__book');
-    expect(registry.entities.get('library.book')?.generated).toEqual([]);
+    expect(registry.entities.get('library.book')?.generated).toEqual([
+      'get',
+      'query',
+      'changes',
+      'queryChanges',
+      'create',
+      'update',
+      'archive',
+      'restore',
+      'set',
+      'history',
+    ]);
     expect(registry.actions.get('library.addBook')?.kind).toBe('command');
     expect(registry.actions.get('library.findByIsbn')?.kind).toBe('query');
     expect([...registry.rules.keys()].filter((id) => id.startsWith('library.'))).toEqual([
       'library.addBook.signedIn',
       'library.book.readers',
+      'library.book.writers',
       'library.findByIsbn.signedIn',
     ]);
   });

@@ -2,6 +2,7 @@ import { checkItem } from '../authorization/check-item.ts';
 import { compilePlan } from '../authorization/compile-plan.ts';
 import { createRowMatcher } from '../authorization/create-row-matcher.ts';
 import { forbiddenError } from '../authorization/forbidden-error.ts';
+import { itemAction } from '../authorization/item-action.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import { principalContextOf } from '../interpreter/principal-context-of.ts';
 import type { Principal } from '../principals/principal.ts';
@@ -12,6 +13,13 @@ import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
 import { encodeEventValue } from './encode-event-value.ts';
 import type { WrittenRow } from './written-row.ts';
+
+/** The operation a row of a batch `set` was written by: its last event names it. */
+function operationOfWritten(item: WrittenRow): 'create' | 'update' | 'archive' | 'restore' {
+  if (item.created) return 'create';
+  const last = item.events.at(-1)?.name;
+  return last === 'archived' ? 'archive' : last === 'restored' ? 'restore' : 'update';
+}
 
 function changedFields(
   names: readonly string[],
@@ -52,19 +60,22 @@ export async function checkWrittenItems(input: CheckWrittenItemsInput): Promise<
   if (own.length === 0) return;
   const entry = own[0]?.entry;
   if (entry === undefined) return;
-  const plan = compilePlan({
-    rules: input.rules,
-    action,
-    entity: entry.descriptor,
-    context: principalContextOf(input.registry, input.principal, input.scope),
-  });
-  const clauses = [...plan.allows, ...plan.denies, ...plan.fieldDenies];
-  const conditions = clauses.flatMap((clause) =>
-    clause.check === null ? [clause.where] : [clause.where, clause.check],
-  );
+  const context = principalContextOf(input.registry, input.principal, input.scope);
+  const planOf = (item: WrittenRow) =>
+    compilePlan({
+      rules: input.rules,
+      action: action.generated === 'set' ? itemAction(action, operationOfWritten(item)) : action,
+      entity: entry.descriptor,
+      context,
+    });
   const names = Object.keys(entry.descriptor.fields);
   for (const item of own) {
+    const plan = planOf(item);
     if (item.created !== (plan.operation === 'create')) continue;
+    const clauses = [...plan.allows, ...plan.denies, ...plan.fieldDenies];
+    const conditions = clauses.flatMap((clause) =>
+      clause.check === null ? [clause.where] : [clause.where, clause.check],
+    );
     const rows = item.loaded === undefined ? [item.row] : [item.loaded, item.row];
     const matcher = await createRowMatcher(conditions, rows, {
       entity: entry.ref,

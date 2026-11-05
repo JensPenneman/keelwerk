@@ -7,6 +7,24 @@ import { retryUnit } from './retry-unit.ts';
 import type { RunCommandInput } from './run-command-input.ts';
 import { runPrepare } from './run-prepare.ts';
 
+const writes: ReadonlySet<string> = new Set(['update', 'archive', 'restore', 'set']);
+
+/** A generated `set` that names a state: two of them must not both commit on the same token (section 6.7). */
+function carriesState(kind: string | undefined, input: unknown): boolean {
+  if (kind !== 'set' || typeof input !== 'object' || input === null) return false;
+  const state: unknown = Reflect.get(input, 'ifInState');
+  return state !== undefined && state !== null;
+}
+
+/**
+ * The generated writes of the core's control entities other than `create` (a tenant moved to
+ * another backend, a domain added around `syncDomains`) stay refused until the specification rules
+ * on who may run them (section 17).
+ */
+function refusedControlWrite(module: string, kind: string | undefined): boolean {
+  return module === 'core' && kind !== undefined && kind !== 'create' && writes.has(kind);
+}
+
 /**
  * Runs a command below the pipeline (section 7.9.4, phases 2 to 7): `prepare` once outside any
  * unit, then the read-write unit of the scope, repeated up to three times on a version conflict,
@@ -26,11 +44,11 @@ export async function runCommand(input: RunCommandInput): Promise<CommandResult>
       details: { request: action.ref, reason: 'not a command' },
     });
   }
-  if (action.generated !== undefined) {
+  if (refusedControlWrite(action.module, action.generated)) {
     throw new KeelwerkError({
       kind: 'not_implemented',
       code: 'core.not_implemented',
-      message: `"${action.ref}" is a generated command, which this release does not run.`,
+      message: `"${action.ref}" is a generated write on a control entity, which this release does not run: the operator actions of WP-56 take its place.`,
     });
   }
   if (action.execution === 'async') {
@@ -53,7 +71,10 @@ export async function runCommand(input: RunCommandInput): Promise<CommandResult>
         input.namespace,
         input.scope,
         (unit) => attemptCommand({ run, commandId, fingerprint, clock, prepared }, unit),
-        input.signal === undefined ? {} : { signal: input.signal },
+        {
+          ...(input.signal === undefined ? {} : { signal: input.signal }),
+          ...(carriesState(action.generated, input.input) ? { isolation: 'serializable' } : {}),
+        },
       ),
     {
       ...input.retry,

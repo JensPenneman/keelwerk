@@ -54,18 +54,50 @@ type RelationRows<B extends AnyModuleBase, Rels> = {
     : RelatedRow<B, Rels[K]>;
 };
 
-type UnknownKeys<C, Allowed, Depth extends readonly unknown[] = []> = Depth['length'] extends 8
+type QuantifierOp = 'some' | 'none' | 'every' | 'is';
+
+/** The unknown keys inside the quantifiers of one relation: its related entity's fields and relations apply there. */
+type UnknownInRelation<
+  Q,
+  Rel,
+  B extends AnyModuleBase,
+  Depth extends readonly unknown[],
+> = Rel extends { readonly target: OwnRef<infer E> }
+  ? Q extends object
+    ? {
+        [O in keyof Q]-?: O extends QuantifierOp
+          ? UnknownKeys<
+              Q[O],
+              keyof OwnRow<B, E, 'dependency'> | keyof RelationsOf<EntityAt<B, E>>,
+              RelationsOf<EntityAt<B, E>>,
+              B,
+              [...Depth, unknown]
+            >
+          : never;
+      }[keyof Q]
+    : never
+  : never;
+
+type UnknownKeys<
+  C,
+  Allowed,
+  Rels,
+  B extends AnyModuleBase,
+  Depth extends readonly unknown[] = [],
+> = Depth['length'] extends 8
   ? never
   : C extends object
     ? {
         [K in keyof C]-?: K extends 'or' | 'and'
           ? C[K] extends readonly (infer I)[]
-            ? UnknownKeys<I, Allowed, [...Depth, unknown]>
+            ? UnknownKeys<I, Allowed, Rels, B, [...Depth, unknown]>
             : never
           : K extends 'not'
-            ? UnknownKeys<C[K], Allowed, [...Depth, unknown]>
+            ? UnknownKeys<C[K], Allowed, Rels, B, [...Depth, unknown]>
             : K extends Allowed
-              ? never
+              ? K extends keyof Rels
+                ? UnknownInRelation<C[K], Rels[K], B, Depth>
+                : never
               : K & string;
       }[keyof C]
     : never;
@@ -129,7 +161,10 @@ export type RuleSpec<
 > = T extends AnyActionPart
   ? ActionRuleSpec<Pk>
   : EntityRuleSpec<S, T, A, Pk, Cw, Ck> &
-      Check<UnknownKeys<Cw | Ck, ConditionKeys<S, T>>, 'unknownConditionFields'>;
+      Check<
+        UnknownKeys<Cw | Ck, ConditionKeys<S, T>, RuleRelations<S, T>, BaseOf<S>>,
+        'unknownConditionFields'
+      >;
 
 /**
  * A rule part: its base, its target and the action names it lists; the id comes from where the

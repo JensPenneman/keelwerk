@@ -147,6 +147,11 @@
             "optional": true,
             "wide": false
           },
+          "partition": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
           "since": {
             "access": "read-write",
             "kind": "string",
@@ -156,7 +161,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-ewgFfFJt_lYhSzIFWIDcG5OBwm8SyS1KTSU03B3g_VY",
+      "inputHash": "sha256-b3niwumxsQYaLcsIcE9n-6794P-vj8pNzePh8iQ0_8Y",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -424,6 +429,11 @@
             "kind": "list",
             "optional": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "properties": {
             "access": "read-write",
             "item": {
@@ -438,7 +448,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-7jOM86UY3rS39crcbCVrcGG7bPAEjRg77w07V1BYvFA",
+      "inputHash": "sha256-LBtI-r6iuq996edIUDTQnDpFzKyqKc4GtGrjwQbdiGw",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -603,6 +613,11 @@
             "optional": true,
             "wide": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "last": {
             "access": "read-write",
             "kind": "integer",
@@ -638,7 +653,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-uJPFZYQMYPpmQvZmSvw9HGVymZ4MhULFfxkLsygmBZ0",
+      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -1580,6 +1595,11 @@
             "optional": true,
             "wide": false
           },
+          "partition": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
           "since": {
             "access": "read-write",
             "kind": "string",
@@ -1589,7 +1609,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-ewgFfFJt_lYhSzIFWIDcG5OBwm8SyS1KTSU03B3g_VY",
+      "inputHash": "sha256-b3niwumxsQYaLcsIcE9n-6794P-vj8pNzePh8iQ0_8Y",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -1684,6 +1704,11 @@
             "kind": "list",
             "optional": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "properties": {
             "access": "read-write",
             "item": {
@@ -1698,7 +1723,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-5wm4KIPnI530zV1ahn9od5JS-sRJqlyaqHtLYVhSLKg",
+      "inputHash": "sha256-M34PWttW8cl87sBpe_kQbF947tELxrSEjZSAv5_8w3w",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -1922,6 +1947,11 @@
             "optional": true,
             "wide": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "last": {
             "access": "read-write",
             "kind": "integer",
@@ -1957,7 +1987,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-uJPFZYQMYPpmQvZmSvw9HGVymZ4MhULFfxkLsygmBZ0",
+      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -2319,6 +2349,11 @@
             "optional": true,
             "wide": false
           },
+          "partition": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
           "since": {
             "access": "read-write",
             "kind": "string",
@@ -2328,7 +2363,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-ewgFfFJt_lYhSzIFWIDcG5OBwm8SyS1KTSU03B3g_VY",
+      "inputHash": "sha256-b3niwumxsQYaLcsIcE9n-6794P-vj8pNzePh8iQ0_8Y",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -2428,6 +2463,11 @@
             "kind": "list",
             "optional": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "properties": {
             "access": "read-write",
             "item": {
@@ -2442,7 +2482,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-fGSlqoaHz9VSOPJcov0u5w9N0J4QXmg-C-GpT96ghO0",
+      "inputHash": "sha256-n11tH356ebmNmShApVXLCWTdC1FHBXH5dsXNNCpW2IE",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -2571,6 +2611,11 @@
             "optional": true,
             "wide": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "last": {
             "access": "read-write",
             "kind": "integer",
@@ -2606,7 +2651,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-uJPFZYQMYPpmQvZmSvw9HGVymZ4MhULFfxkLsygmBZ0",
+      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -2837,6 +2882,11 @@
             "optional": true,
             "wide": false
           },
+          "partition": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
           "since": {
             "access": "read-write",
             "kind": "string",
@@ -2846,7 +2896,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-ewgFfFJt_lYhSzIFWIDcG5OBwm8SyS1KTSU03B3g_VY",
+      "inputHash": "sha256-b3niwumxsQYaLcsIcE9n-6794P-vj8pNzePh8iQ0_8Y",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -2946,6 +2996,11 @@
             "kind": "list",
             "optional": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "properties": {
             "access": "read-write",
             "item": {
@@ -2960,7 +3015,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-nA1a_RreGux5-G4-GVjRT6cRyKbUHPEtAkQKZfBaQtk",
+      "inputHash": "sha256-XzIJBmIcmnm6tWZvA05fo9pnPS1PXvrl9_MOzTWNzRg",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -3222,6 +3277,11 @@
             "optional": true,
             "wide": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "last": {
             "access": "read-write",
             "kind": "integer",
@@ -3257,7 +3317,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-uJPFZYQMYPpmQvZmSvw9HGVymZ4MhULFfxkLsygmBZ0",
+      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -3685,6 +3745,11 @@
             "optional": true,
             "wide": false
           },
+          "partition": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
           "since": {
             "access": "read-write",
             "kind": "string",
@@ -3694,7 +3759,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-ewgFfFJt_lYhSzIFWIDcG5OBwm8SyS1KTSU03B3g_VY",
+      "inputHash": "sha256-b3niwumxsQYaLcsIcE9n-6794P-vj8pNzePh8iQ0_8Y",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -3794,6 +3859,11 @@
             "kind": "list",
             "optional": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "properties": {
             "access": "read-write",
             "item": {
@@ -3808,7 +3878,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-cMFJPdeCQTSQGIWeyqRwa9b_5myIwgJyD_2YA4u8lkc",
+      "inputHash": "sha256-wF6pQP83bQsnKk5b4HDSi3XAR3oFCiG8y3Ke7JyodC8",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -3941,6 +4011,11 @@
             "optional": true,
             "wide": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "last": {
             "access": "read-write",
             "kind": "integer",
@@ -3976,7 +4051,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-uJPFZYQMYPpmQvZmSvw9HGVymZ4MhULFfxkLsygmBZ0",
+      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -4209,6 +4284,11 @@
             "optional": true,
             "wide": false
           },
+          "partition": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
           "since": {
             "access": "read-write",
             "kind": "string",
@@ -4218,7 +4298,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-ewgFfFJt_lYhSzIFWIDcG5OBwm8SyS1KTSU03B3g_VY",
+      "inputHash": "sha256-b3niwumxsQYaLcsIcE9n-6794P-vj8pNzePh8iQ0_8Y",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -4318,6 +4398,11 @@
             "kind": "list",
             "optional": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "properties": {
             "access": "read-write",
             "item": {
@@ -4332,7 +4417,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-y_rmSDVHSd6mCyNxkSziMNg640pLpJ2Yjcmd-cZVx1I",
+      "inputHash": "sha256-qRtdU4V49xW_cBUq2IsOGWMvc5Qq2TxVHLCDD8evw00",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -4463,6 +4548,11 @@
             "optional": true,
             "wide": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "last": {
             "access": "read-write",
             "kind": "integer",
@@ -4498,7 +4588,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-uJPFZYQMYPpmQvZmSvw9HGVymZ4MhULFfxkLsygmBZ0",
+      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -4824,6 +4914,11 @@
             "optional": true,
             "wide": false
           },
+          "partition": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
           "since": {
             "access": "read-write",
             "kind": "string",
@@ -4833,7 +4928,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-ewgFfFJt_lYhSzIFWIDcG5OBwm8SyS1KTSU03B3g_VY",
+      "inputHash": "sha256-b3niwumxsQYaLcsIcE9n-6794P-vj8pNzePh8iQ0_8Y",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -4933,6 +5028,11 @@
             "kind": "list",
             "optional": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "properties": {
             "access": "read-write",
             "item": {
@@ -4947,7 +5047,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-CDjjFQ0XI0nBndZFNOXoBm-HcNftKkV8I6e3Kw0Bj30",
+      "inputHash": "sha256-z6XEbLMuHACIL66q3qz24eVMSfdxhhAt6atfb69LI5I",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -5085,6 +5185,11 @@
             "optional": true,
             "wide": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "last": {
             "access": "read-write",
             "kind": "integer",
@@ -5120,7 +5225,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-uJPFZYQMYPpmQvZmSvw9HGVymZ4MhULFfxkLsygmBZ0",
+      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -5360,6 +5465,11 @@
             "optional": true,
             "wide": false
           },
+          "partition": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
           "since": {
             "access": "read-write",
             "kind": "string",
@@ -5369,7 +5479,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-ewgFfFJt_lYhSzIFWIDcG5OBwm8SyS1KTSU03B3g_VY",
+      "inputHash": "sha256-b3niwumxsQYaLcsIcE9n-6794P-vj8pNzePh8iQ0_8Y",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -5464,6 +5574,11 @@
             "kind": "list",
             "optional": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "properties": {
             "access": "read-write",
             "item": {
@@ -5478,7 +5593,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-GQBmmjf3tfTWITAF1fnmMttGq_lXvazra9f5Y3f98D4",
+      "inputHash": "sha256-lwQN573jnGXYe4dO_r96dGYcrtV-_k_P5ERWYyh5RlM",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -5649,6 +5764,11 @@
             "optional": true,
             "wide": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "last": {
             "access": "read-write",
             "kind": "integer",
@@ -5684,7 +5804,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-uJPFZYQMYPpmQvZmSvw9HGVymZ4MhULFfxkLsygmBZ0",
+      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -6080,6 +6200,11 @@
             "optional": true,
             "wide": false
           },
+          "partition": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
           "since": {
             "access": "read-write",
             "kind": "string",
@@ -6089,7 +6214,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-ewgFfFJt_lYhSzIFWIDcG5OBwm8SyS1KTSU03B3g_VY",
+      "inputHash": "sha256-b3niwumxsQYaLcsIcE9n-6794P-vj8pNzePh8iQ0_8Y",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -6480,6 +6605,11 @@
             "kind": "list",
             "optional": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "properties": {
             "access": "read-write",
             "item": {
@@ -6494,7 +6624,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-Xg-k3MJKKMdeR3TXQPgnZvzTYM_m15x9ZjY1CmJyliA",
+      "inputHash": "sha256-dFZkwDaKsXnt_dR8n8NnvJ7GAagJhNLNWUBWjvk6SxM",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -6655,6 +6785,11 @@
             "optional": true,
             "wide": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "last": {
             "access": "read-write",
             "kind": "integer",
@@ -6690,7 +6825,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-uJPFZYQMYPpmQvZmSvw9HGVymZ4MhULFfxkLsygmBZ0",
+      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -7737,6 +7872,1458 @@
       },
       "outputHash": "sha256-AJQycveLAbd91BudTsFlV0bQxwO43lDVjxcrHDnptqo",
       "ref": "library.addBook",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "library.book",
+      "errors": [],
+      "execution": "sync",
+      "generated": "archive",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "book",
+            "target": "library.book"
+          },
+          "ifVersion": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-vU-Bzz-2dmSsuAofVSS3DIU6tOK68yrpyXsy5pKYLVs",
+      "instance": true,
+      "kind": "command",
+      "module": "library",
+      "mount": "entity",
+      "name": "archive",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "addedBy": {
+            "access": "read-write",
+            "kind": "subject",
+            "optional": false,
+            "tag": 3
+          },
+          "archivedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": true
+          },
+          "createdAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "id": {
+            "access": "read",
+            "kind": "id",
+            "optional": false,
+            "prefix": "book",
+            "target": "library.book"
+          },
+          "isbn": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 17,
+            "merge": "exclusive",
+            "optional": false,
+            "tag": 2,
+            "unique": true
+          },
+          "title": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 200,
+            "optional": false,
+            "tag": 1
+          },
+          "updatedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "version": {
+            "access": "read",
+            "kind": "integer",
+            "optional": false,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-DjazjVR6VNPYFt2lM-IRKWWvB9mLiUZxEl_7NZsex9A",
+      "ref": "library.book.archive",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "library.book",
+      "errors": [],
+      "execution": "sync",
+      "generated": "changes",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "max": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "partition": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
+          "since": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-b3niwumxsQYaLcsIcE9n-6794P-vj8pNzePh8iQ0_8Y",
+      "instance": false,
+      "kind": "query",
+      "module": "library",
+      "mount": "entity",
+      "name": "changes",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "archived": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "book",
+              "target": "library.book"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "changed": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "book",
+              "target": "library.book"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "created": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "book",
+              "target": "library.book"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "hasMoreChanges": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": false
+          },
+          "newState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "oldState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-mlWCEP8jWLq7uZp-UwScAshDN55VChjwZJ9ZRyqYanM",
+      "ref": "library.book.changes",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "library.book",
+      "errors": [],
+      "execution": "sync",
+      "generated": "create",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "addedBy": {
+            "access": "read-write",
+            "kind": "subject",
+            "optional": false,
+            "tag": 3
+          },
+          "isbn": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 17,
+            "merge": "exclusive",
+            "optional": false,
+            "tag": 2,
+            "unique": true
+          },
+          "title": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 200,
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-svxeR_BBxR_rLkqWUnxZniMTE0DiH0xJD77cgmdHicM",
+      "instance": false,
+      "kind": "command",
+      "module": "library",
+      "mount": "entity",
+      "name": "create",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "addedBy": {
+            "access": "read-write",
+            "kind": "subject",
+            "optional": false,
+            "tag": 3
+          },
+          "archivedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": true
+          },
+          "createdAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "id": {
+            "access": "read",
+            "kind": "id",
+            "optional": false,
+            "prefix": "book",
+            "target": "library.book"
+          },
+          "isbn": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 17,
+            "merge": "exclusive",
+            "optional": false,
+            "tag": 2,
+            "unique": true
+          },
+          "title": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 200,
+            "optional": false,
+            "tag": 1
+          },
+          "updatedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "version": {
+            "access": "read",
+            "kind": "integer",
+            "optional": false,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-DjazjVR6VNPYFt2lM-IRKWWvB9mLiUZxEl_7NZsex9A",
+      "ref": "library.book.create",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "library.book",
+      "errors": [],
+      "execution": "sync",
+      "generated": "get",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "asOf": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true
+          },
+          "ids": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "book",
+              "target": "library.book"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
+          "properties": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-ympIe7RuzkW5Sim2zbhK2-rscXf2AlO5mmTEFgGFk4Q",
+      "instance": false,
+      "kind": "query",
+      "module": "library",
+      "mount": "entity",
+      "name": "get",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "list": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "addedBy": {
+                  "access": "read-write",
+                  "kind": "subject",
+                  "optional": false,
+                  "tag": 3
+                },
+                "archivedAt": {
+                  "access": "read",
+                  "kind": "instant",
+                  "optional": true
+                },
+                "createdAt": {
+                  "access": "read",
+                  "kind": "instant",
+                  "optional": false
+                },
+                "id": {
+                  "access": "read",
+                  "kind": "id",
+                  "optional": false,
+                  "prefix": "book",
+                  "target": "library.book"
+                },
+                "isbn": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "maxLength": 17,
+                  "merge": "exclusive",
+                  "optional": false,
+                  "tag": 2,
+                  "unique": true
+                },
+                "title": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "maxLength": 200,
+                  "optional": false,
+                  "tag": 1
+                },
+                "updatedAt": {
+                  "access": "read",
+                  "kind": "instant",
+                  "optional": false
+                },
+                "version": {
+                  "access": "read",
+                  "kind": "integer",
+                  "optional": false,
+                  "wide": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "notFound": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "book",
+              "target": "library.book"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "state": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-KmmFrMntA8MAGuBkLsONLjZw8x-GGG2FfJfbYphMNto",
+      "ref": "library.book.get",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "library.book",
+      "errors": [],
+      "execution": "sync",
+      "generated": "history",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "asOf": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true
+          },
+          "fromVersion": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "book",
+            "target": "library.book"
+          },
+          "limit": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-hiiEofWcAXyZ5DE-EO0O_VBLEb_AJY4Q-CrXNhtonQ0",
+      "instance": false,
+      "kind": "query",
+      "module": "library",
+      "mount": "entity",
+      "name": "history",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "entries": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "actor": {
+                  "access": "read-write",
+                  "input": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "via": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "via"
+                    ],
+                    "type": "object"
+                  },
+                  "kind": "json",
+                  "optional": false,
+                  "output": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "via": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "via"
+                    ],
+                    "type": "object"
+                  },
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "via": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "via"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "at": {
+                  "access": "read-write",
+                  "kind": "instant",
+                  "optional": false
+                },
+                "changes": {
+                  "access": "read-write",
+                  "input": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "after": {},
+                        "before": {}
+                      },
+                      "required": [
+                        "before"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "kind": "json",
+                  "optional": false,
+                  "output": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "after": {},
+                        "before": {}
+                      },
+                      "required": [
+                        "before"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "schema": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "after": {},
+                        "before": {}
+                      },
+                      "required": [
+                        "before"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "object"
+                  }
+                },
+                "event": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                },
+                "version": {
+                  "access": "read-write",
+                  "kind": "integer",
+                  "optional": false,
+                  "wide": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-VlOHK4m7CMW3rVU1hf4njbNw6MQ0WFJkc9Y3CJPWPXs",
+      "ref": "library.book.history",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "library.book",
+      "errors": [],
+      "execution": "sync",
+      "generated": "query",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "after": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
+          "before": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
+          "filter": {
+            "access": "read-write",
+            "input": {},
+            "kind": "json",
+            "optional": true,
+            "output": {},
+            "schema": {}
+          },
+          "first": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
+          "last": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "properties": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          },
+          "sort": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          },
+          "total": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
+      "instance": false,
+      "kind": "query",
+      "module": "library",
+      "mount": "entity",
+      "name": "query",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "item": {
+          "access": "read-write",
+          "fields": {
+            "addedBy": {
+              "access": "read-write",
+              "kind": "subject",
+              "optional": false,
+              "tag": 3
+            },
+            "archivedAt": {
+              "access": "read",
+              "kind": "instant",
+              "optional": true
+            },
+            "createdAt": {
+              "access": "read",
+              "kind": "instant",
+              "optional": false
+            },
+            "id": {
+              "access": "read",
+              "kind": "id",
+              "optional": false,
+              "prefix": "book",
+              "target": "library.book"
+            },
+            "isbn": {
+              "access": "read-write",
+              "kind": "string",
+              "maxLength": 17,
+              "merge": "exclusive",
+              "optional": false,
+              "tag": 2,
+              "unique": true
+            },
+            "title": {
+              "access": "read-write",
+              "kind": "string",
+              "maxLength": 200,
+              "optional": false,
+              "tag": 1
+            },
+            "updatedAt": {
+              "access": "read",
+              "kind": "instant",
+              "optional": false
+            },
+            "version": {
+              "access": "read",
+              "kind": "integer",
+              "optional": false,
+              "wide": false
+            }
+          },
+          "kind": "shape",
+          "optional": false
+        },
+        "kind": "page",
+        "optional": false
+      },
+      "outputHash": "sha256-sPR48Pe4UgFH4nkoSy9yqQBaQR4f-gv48xeWH4lPOTM",
+      "page": {
+        "defaultSize": 50,
+        "defaultSort": [
+          {
+            "direction": "asc",
+            "field": "id"
+          }
+        ],
+        "maxSize": 500,
+        "sortable": [
+          "addedBy",
+          "createdAt",
+          "id",
+          "isbn",
+          "updatedAt"
+        ]
+      },
+      "ref": "library.book.query",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "library.book",
+      "errors": [],
+      "execution": "sync",
+      "generated": "queryChanges",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "filter": {
+            "access": "read-write",
+            "input": {},
+            "kind": "json",
+            "optional": true,
+            "output": {},
+            "schema": {}
+          },
+          "maxChanges": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "sinceQueryState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "sort": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-3PUWR_YmwRzrMLACxsiseD6O7lo2hxXZtJGIvQXDyHM",
+      "instance": false,
+      "kind": "query",
+      "module": "library",
+      "mount": "entity",
+      "name": "queryChanges",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "added": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "id": {
+                  "access": "read-write",
+                  "kind": "ref",
+                  "optional": false,
+                  "prefix": "book",
+                  "target": "library.book"
+                },
+                "index": {
+                  "access": "read-write",
+                  "kind": "integer",
+                  "optional": false,
+                  "wide": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "newQueryState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "oldQueryState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "removed": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "book",
+              "target": "library.book"
+            },
+            "kind": "list",
+            "optional": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-0HLbvkL7GnW35TR8HC6jIPWarQ4mYbgn_cIvfTSMIDQ",
+      "page": {
+        "defaultSize": 50,
+        "defaultSort": [
+          {
+            "direction": "asc",
+            "field": "id"
+          }
+        ],
+        "maxSize": 500,
+        "sortable": [
+          "addedBy",
+          "createdAt",
+          "id",
+          "isbn",
+          "updatedAt"
+        ]
+      },
+      "ref": "library.book.queryChanges",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "library.book",
+      "errors": [],
+      "execution": "sync",
+      "generated": "restore",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "book",
+            "target": "library.book"
+          },
+          "ifVersion": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-vU-Bzz-2dmSsuAofVSS3DIU6tOK68yrpyXsy5pKYLVs",
+      "instance": true,
+      "kind": "command",
+      "module": "library",
+      "mount": "entity",
+      "name": "restore",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "addedBy": {
+            "access": "read-write",
+            "kind": "subject",
+            "optional": false,
+            "tag": 3
+          },
+          "archivedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": true
+          },
+          "createdAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "id": {
+            "access": "read",
+            "kind": "id",
+            "optional": false,
+            "prefix": "book",
+            "target": "library.book"
+          },
+          "isbn": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 17,
+            "merge": "exclusive",
+            "optional": false,
+            "tag": 2,
+            "unique": true
+          },
+          "title": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 200,
+            "optional": false,
+            "tag": 1
+          },
+          "updatedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "version": {
+            "access": "read",
+            "kind": "integer",
+            "optional": false,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-DjazjVR6VNPYFt2lM-IRKWWvB9mLiUZxEl_7NZsex9A",
+      "ref": "library.book.restore",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "library.book",
+      "errors": [],
+      "execution": "sync",
+      "generated": "set",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "archive": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "id": {
+                  "access": "read-write",
+                  "kind": "ref",
+                  "optional": false,
+                  "prefix": "book",
+                  "target": "library.book"
+                },
+                "ifVersion": {
+                  "access": "read-write",
+                  "kind": "integer",
+                  "optional": true,
+                  "wide": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          },
+          "create": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "addedBy": {
+                  "access": "read-write",
+                  "kind": "subject",
+                  "optional": false,
+                  "tag": 3
+                },
+                "isbn": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "maxLength": 17,
+                  "merge": "exclusive",
+                  "optional": false,
+                  "tag": 2,
+                  "unique": true
+                },
+                "title": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "maxLength": 200,
+                  "optional": false,
+                  "tag": 1
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          },
+          "ifInState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
+          "restore": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "id": {
+                  "access": "read-write",
+                  "kind": "ref",
+                  "optional": false,
+                  "prefix": "book",
+                  "target": "library.book"
+                },
+                "ifVersion": {
+                  "access": "read-write",
+                  "kind": "integer",
+                  "optional": true,
+                  "wide": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          },
+          "update": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "id": {
+                  "access": "read-write",
+                  "kind": "ref",
+                  "optional": false,
+                  "prefix": "book",
+                  "target": "library.book"
+                },
+                "ifVersion": {
+                  "access": "read-write",
+                  "kind": "integer",
+                  "optional": true,
+                  "wide": false
+                },
+                "patch": {
+                  "access": "read-write",
+                  "fields": {
+                    "addedBy": {
+                      "access": "read-write",
+                      "kind": "subject",
+                      "optional": true,
+                      "tag": 3
+                    },
+                    "isbn": {
+                      "access": "read-write",
+                      "kind": "string",
+                      "maxLength": 17,
+                      "merge": "exclusive",
+                      "optional": true,
+                      "tag": 2,
+                      "unique": true
+                    },
+                    "title": {
+                      "access": "read-write",
+                      "kind": "string",
+                      "maxLength": 200,
+                      "optional": true,
+                      "tag": 1
+                    }
+                  },
+                  "kind": "shape",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-etSvzqfEzwkoxcnQwTfPKClCmT10judGTdh4Ox894BI",
+      "instance": false,
+      "kind": "command",
+      "module": "library",
+      "mount": "entity",
+      "name": "set",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "archived": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "book",
+              "target": "library.book"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "created": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "book",
+              "target": "library.book"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "failed": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "code": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                },
+                "id": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": true
+                },
+                "message": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                },
+                "operation": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "newState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "oldState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "restored": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "book",
+              "target": "library.book"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "updated": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "book",
+              "target": "library.book"
+            },
+            "kind": "list",
+            "optional": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-fTlzRA_AKQO2uug79kcj_pwE1xGUffmfg6r5gaUniiA",
+      "ref": "library.book.set",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "library.book",
+      "errors": [],
+      "execution": "sync",
+      "generated": "update",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "addedBy": {
+            "access": "read-write",
+            "kind": "subject",
+            "optional": true,
+            "tag": 3
+          },
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "book",
+            "target": "library.book"
+          },
+          "ifVersion": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "isbn": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 17,
+            "merge": "exclusive",
+            "optional": true,
+            "tag": 2,
+            "unique": true
+          },
+          "title": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 200,
+            "optional": true,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-svtRF-jo7DhNQ6nyg7D5eJeDbUo9_oAdMYROOJK6dz4",
+      "instance": true,
+      "kind": "command",
+      "module": "library",
+      "mount": "entity",
+      "name": "update",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "addedBy": {
+            "access": "read-write",
+            "kind": "subject",
+            "optional": false,
+            "tag": 3
+          },
+          "archivedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": true
+          },
+          "createdAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "id": {
+            "access": "read",
+            "kind": "id",
+            "optional": false,
+            "prefix": "book",
+            "target": "library.book"
+          },
+          "isbn": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 17,
+            "merge": "exclusive",
+            "optional": false,
+            "tag": 2,
+            "unique": true
+          },
+          "title": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 200,
+            "optional": false,
+            "tag": 1
+          },
+          "updatedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "version": {
+            "access": "read",
+            "kind": "integer",
+            "optional": false,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-DjazjVR6VNPYFt2lM-IRKWWvB9mLiUZxEl_7NZsex9A",
+      "ref": "library.book.update",
       "resumable": false,
       "scope": "tenant",
       "since": "2026-11-04"
@@ -8913,7 +10500,18 @@
           "wide": false
         }
       },
-      "generated": [],
+      "generated": [
+        "get",
+        "query",
+        "changes",
+        "queryChanges",
+        "create",
+        "update",
+        "archive",
+        "restore",
+        "set",
+        "history"
+      ],
       "history": "chain",
       "module": "library",
       "name": "book",
@@ -9400,7 +10998,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-cXgW2O22bqUKXsFu-PgnMBDyp9vCZcki7_NA1T4DPyY",
+  "hash": "sha256-vf5MaSc6rebF6OsQ-lrsUOSHoEPMPqaUa25CFR0miWc",
   "modules": [
     {
       "id": "core",

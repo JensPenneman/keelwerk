@@ -78,6 +78,49 @@ describe('policy typing (section 13.10)', () => {
     });
   });
 
+  test('unknownConditionFields looks inside relation quantifiers', () => {
+    const post = defineEntity({
+      prefix: 'post',
+      fields: { title: field.string(), draft: field.boolean() },
+      relations: { comments: relation.many.own('comment', { by: 'postId', to: 'id' }) },
+    });
+    const comment = defineEntity({
+      prefix: 'cmnt',
+      fields: { postId: field.string(), body: field.string(), flagged: field.boolean() },
+      relations: { post: relation.one.own('post', { by: 'id', to: 'postId' }) },
+    });
+    const blogBase = defineModuleBase({
+      id: 'blog',
+      version: '0.1.0',
+      entities: { post, comment },
+    });
+    defineRule(blogBase, post, {
+      effect: 'allow',
+      where: () => ({ comments: { some: { flagged: true } } }),
+    });
+    defineRule(blogBase, post, {
+      effect: 'allow',
+      where: () => ({
+        comments: { none: { or: [{ flagged: true }, { post: { is: { draft: true } } }] } },
+      }),
+    });
+    // @ts-expect-error unknownConditionFields: comments have no field 'nope'
+    defineRule(blogBase, post, {
+      effect: 'allow',
+      where: () => ({ comments: { some: { nope: 1 } } }),
+    });
+    // @ts-expect-error unknownConditionFields: inside an every
+    defineRule(blogBase, post, {
+      effect: 'allow',
+      where: () => ({ comments: { every: { and: [{ nope: 1 }] } } }),
+    });
+    // @ts-expect-error unknownConditionFields: two relations deep, a post has no field 'body'
+    defineRule(blogBase, post, {
+      effect: 'allow',
+      check: () => ({ comments: { some: { post: { is: { body: 'x' } } } } }),
+    });
+  });
+
   test('a rule over a module-level action takes the action part', () => {
     const touch = defineCommand(authBase, { decide: () => [] });
     const rule = defineRule(authBase, touch, { effect: 'allow', public: true });

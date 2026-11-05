@@ -4,6 +4,18 @@ import type { AnyModule } from './any-module.ts';
 import type { ContractsIn } from './contracts-in.ts';
 import type { ModuleIdsIn } from './module-ids-in.ts';
 
+/** Contributions whose target is selected and whose `when` list is satisfied. */
+type ActiveContributions<Ms extends readonly AnyModule[]> =
+  AllContributions<Ms> extends infer C
+    ? C extends { readonly to: { readonly id: infer T extends string } }
+      ? T extends Ids<Ms>
+        ? Satisfied<Ms, C extends { readonly when: infer W } ? W : never> extends true
+          ? C
+          : never
+        : never
+      : never
+    : never;
+
 /** True when every module in `W` is selected and every app-level contract in `W` is provided. */
 type Satisfied<Ms extends readonly AnyModule[], W> = [W] extends [readonly unknown[]]
   ? [
@@ -38,17 +50,14 @@ export type AllContributions<Ms extends readonly AnyModule[]> = Ms[number] exten
     : never
   : never;
 
-/** Contributions whose target is selected and whose `when` list is satisfied. */
-export type ActiveContributions<Ms extends readonly AnyModule[]> =
-  AllContributions<Ms> extends infer C
-    ? C extends { readonly to: { readonly id: infer T extends string } }
-      ? T extends Ids<Ms>
-        ? Satisfied<Ms, C extends { readonly when: infer W } ? W : never> extends true
-          ? C
-          : never
-        : never
-      : never
-    : never;
+/**
+ * The active contributions that target module `I`: one filter per module, so the per-entity
+ * lookups that follow walk only that module's contributions.
+ */
+export type ContributionsTo<Ms extends readonly AnyModule[], I extends string> = Extract<
+  ActiveContributions<Ms>,
+  { readonly to: { readonly id: I } }
+>;
 
 /** The conditional parts of module `M` whose `when` list is satisfied. */
 export type ActiveConditionals<Ms extends readonly AnyModule[], M> = M extends {

@@ -6,6 +6,7 @@ import type { ComputePool } from '../kernel/compute-pool.ts';
 import type { KeyService } from '../kernel/key-service.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Tracer } from '../observability/tracer.ts';
+import type { Scope } from '../storage/scope.ts';
 import type { CommandRunner } from './command-runner.ts';
 import type { InvokerApp } from './invoker-app.ts';
 import type { PlacementHandle } from './placement-handle.ts';
@@ -35,6 +36,8 @@ export interface InvokerOptions {
   readonly environment: RowEnvironment;
   /** The build recorded on jobs the invoker enqueues; default `{ id: 'development', revision: 1 }`. */
   readonly build?: { readonly id: string; readonly revision: number };
+  /** The epoch of a scope, part of every state token (section 15.2.6); default: 0 for every scope. */
+  readonly epochOf?: (scope: Scope) => number;
   /** The command write path (WP-38); without it a command is `not_implemented`. */
   readonly commands?: CommandRunner;
 }

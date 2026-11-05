@@ -15,7 +15,15 @@ describe('the library fixture app', () => {
     expectTypeOf<Library['registry']>().toEqualTypeOf<Registry>();
   });
 
-  test('has no generated book actions, because the fixture switches them off', () => {
-    expectTypeOf<'library.book.get'>().not.toExtend<ActionRef<Library>>();
+  test('has the generated book actions, history included, and no watch', () => {
+    expectTypeOf<
+      | 'library.book.get'
+      | 'library.book.query'
+      | 'library.book.changes'
+      | 'library.book.queryChanges'
+      | 'library.book.set'
+      | 'library.book.history'
+    >().toExtend<ActionRef<Library>>();
+    expectTypeOf<'library.book.watch'>().not.toExtend<ActionRef<Library>>();
   });
 });

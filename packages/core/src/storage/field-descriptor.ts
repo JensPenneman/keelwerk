@@ -36,4 +36,6 @@ export interface FieldDescriptor {
   /** CRDT codec of sequence and richText fields, for example 'loro/1'. */
   readonly codec: string | null;
   readonly tag: number;
+  /** A `json` field over a `shape`: the tag each member was given, recorded in the module snapshot so that inserting a member never renumbers the others (decision 18). */
+  readonly memberTags?: Readonly<Record<string, number>>;
 }

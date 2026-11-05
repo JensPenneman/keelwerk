@@ -129,6 +129,11 @@ exports[`deriveSurface (section 16.2) > the accounts module gives the golden sur
             "optional": true,
             "wide": false
           },
+          "partition": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
           "since": {
             "access": "read-write",
             "kind": "string",
@@ -138,7 +143,7 @@ exports[`deriveSurface (section 16.2) > the accounts module gives the golden sur
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-ewgFfFJt_lYhSzIFWIDcG5OBwm8SyS1KTSU03B3g_VY",
+      "inputHash": "sha256-b3niwumxsQYaLcsIcE9n-6794P-vj8pNzePh8iQ0_8Y",
       "instance": false,
       "kind": "query",
       "module": "accounts",
@@ -478,6 +483,11 @@ exports[`deriveSurface (section 16.2) > the accounts module gives the golden sur
             "kind": "list",
             "optional": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "properties": {
             "access": "read-write",
             "item": {
@@ -492,7 +502,7 @@ exports[`deriveSurface (section 16.2) > the accounts module gives the golden sur
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-sDXPDBUPSQR4Ju7MicjIqZaVzinZ3tG_qWZ7CPZOH8g",
+      "inputHash": "sha256-et5xj0m6GwiDLbTkMAE0PZZk6TvWKQt-Hv5eUcy7NkM",
       "instance": false,
       "kind": "query",
       "module": "accounts",
@@ -636,6 +646,11 @@ exports[`deriveSurface (section 16.2) > the accounts module gives the golden sur
             "optional": true,
             "wide": false
           },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
           "last": {
             "access": "read-write",
             "kind": "integer",
@@ -671,7 +686,7 @@ exports[`deriveSurface (section 16.2) > the accounts module gives the golden sur
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-uJPFZYQMYPpmQvZmSvw9HGVymZ4MhULFfxkLsygmBZ0",
+      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
       "instance": false,
       "kind": "query",
       "module": "accounts",

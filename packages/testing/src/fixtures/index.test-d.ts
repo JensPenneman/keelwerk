@@ -6,6 +6,7 @@ import { findByIsbn } from './modules/library/src/actions/find-by-isbn.ts';
 import { libraryBase } from './modules/library/src/base.ts';
 import { signedIn as addBookSignedIn } from './modules/library/src/policies/add-book/signed-in.ts';
 import { readers } from './modules/library/src/policies/book/readers.ts';
+import { writers } from './modules/library/src/policies/book/writers.ts';
 import { signedIn as findByIsbnSignedIn } from './modules/library/src/policies/find-by-isbn/signed-in.ts';
 
 describe('the library fixture manifest', () => {
@@ -14,7 +15,7 @@ describe('the library fixture manifest', () => {
       actions: { addBook, findByIsbn },
       policies: {
         addBook: { signedIn: addBookSignedIn },
-        book: { readers },
+        book: { readers, writers },
         findByIsbn: { signedIn: findByIsbnSignedIn },
       },
     });

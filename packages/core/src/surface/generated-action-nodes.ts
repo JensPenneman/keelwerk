@@ -21,6 +21,18 @@ function filter(): FieldNode {
   return { optional: true, access: 'read-write', kind: 'json', schema: {}, input: {}, output: {} };
 }
 
+/** A fixed JSON member of a result, described by its schema. */
+function jsonOf(schema: Record<string, unknown>): FieldNode {
+  return {
+    optional: false,
+    access: 'read-write',
+    kind: 'json',
+    schema,
+    input: schema,
+    output: schema,
+  };
+}
+
 function idOf(entity: SurfaceEntity, optional = false): FieldNode {
   return {
     optional,
@@ -64,6 +76,7 @@ export function generatedNodes(kind: GeneratedActionKind, entity: SurfaceEntity)
         input: shapeOf({
           ids,
           properties: selection,
+          includeArchived: scalar('boolean', true),
           ...(entity.history === 'chain' ? { asOf: scalar('instant', true) } : {}),
         }),
         output: shapeOf({
@@ -82,13 +95,18 @@ export function generatedNodes(kind: GeneratedActionKind, entity: SurfaceEntity)
           last: scalar('integer', true),
           before: scalar('string', true),
           total: scalar('boolean', true),
+          includeArchived: scalar('boolean', true),
           properties: selection,
         }),
         output: { optional: false, access: 'read-write', kind: 'page', item: row },
       };
     case 'changes':
       return {
-        input: shapeOf({ since: scalar('string'), max: scalar('integer', true) }),
+        input: shapeOf({
+          since: scalar('string'),
+          max: scalar('integer', true),
+          partition: scalar('string', true),
+        }),
         output: shapeOf({
           oldState: scalar('string'),
           newState: scalar('string'),
@@ -159,13 +177,37 @@ export function generatedNodes(kind: GeneratedActionKind, entity: SurfaceEntity)
       };
     case 'history':
       return {
-        input: shapeOf({ id: idOf(entity), asOf: scalar('instant', true) }),
+        input: shapeOf({
+          id: idOf(entity),
+          asOf: scalar('instant', true),
+          fromVersion: scalar('integer', true),
+          limit: scalar('integer', true),
+        }),
         output: shapeOf({
           entries: list(
             shapeOf({
               version: scalar('integer'),
               at: scalar('instant'),
               event: scalar('string'),
+              actor: jsonOf({
+                type: 'object',
+                properties: {
+                  kind: { type: 'string' },
+                  id: { type: ['string', 'null'] },
+                  via: { type: 'string' },
+                },
+                required: ['kind', 'id', 'via'],
+                additionalProperties: false,
+              }),
+              changes: jsonOf({
+                type: 'object',
+                additionalProperties: {
+                  type: 'object',
+                  properties: { before: {}, after: {} },
+                  required: ['before'],
+                  additionalProperties: false,
+                },
+              }),
             }),
           ),
         }),

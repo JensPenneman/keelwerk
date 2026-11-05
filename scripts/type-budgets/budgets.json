@@ -1,13 +1,13 @@
 {
-  "basis": "synthetic budgets are the figures measured on 2026-11-04 (fold 510,100 and 1,098,895; whole program 1,599,176 and 2,762,051 instantiations) plus 15 %; the spike figures are the M0 reference measurements",
+  "basis": "synthetic budgets are the figures measured on 2026-11-05 after the contributions of a module are filtered once per module instead of once per entity (fold 213,162 and 357,867; whole program 1,303,360 and 2,023,465 instantiations; 2026-11-04 had fold 510,100 and 1,098,895, whole program 1,599,176 and 2,762,051) plus 15 %; the spike figures are the M0 reference measurements",
   "synthetic": {
     "25": {
-      "fold": 590000,
-      "wholeProgram": 1840000
+      "fold": 246000,
+      "wholeProgram": 1500000
     },
     "40": {
-      "fold": 1265000,
-      "wholeProgram": 3180000
+      "fold": 412000,
+      "wholeProgram": 2327000
     }
   },
   "spike": {
