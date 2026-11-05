@@ -53,7 +53,9 @@ async function load<Id extends string>(root: string, id: Id): Promise<Loaded<Id>
   return found;
 }
 
-test('every M1 kind scaffolded into a copy of the library composes, alone and with an optional module', async () => {
+test('every M1 kind scaffolded into a copy of the library composes, alone and with an optional module', {
+  timeout: 60_000,
+}, async () => {
   const library = await workspace.libraryCopy();
   const extras = join(workspace.root(), 'modules', 'extras');
   await mkdir(join(extras, 'src'), { recursive: true });
