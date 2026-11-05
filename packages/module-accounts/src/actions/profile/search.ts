@@ -8,9 +8,15 @@ export const search = defineQuery(accountsBase, profile, {
   page: { sortable: ['displayName', 'createdAt'], defaultSize: 25, maxSize: 100 },
   read: (input, ctx) =>
     ctx.target.query({
-      where: {
-        or: [{ displayName: { contains: input.text } }, { email: { startsWith: input.text } }],
-      },
+      // A caller who cannot read `email` cannot filter by it either (17.2.1, S-104e).
+      where: ctx.ability.canFilterBy('accounts.profile.search', 'email')
+        ? {
+            or: [
+              { displayName: { startsWith: input.text } },
+              { email: { startsWith: input.text } },
+            ],
+          }
+        : { displayName: { startsWith: input.text } },
       sort: [{ field: 'displayName', direction: 'asc' }],
     }),
 });

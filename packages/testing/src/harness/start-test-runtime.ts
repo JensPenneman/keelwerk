@@ -13,7 +13,7 @@ import {
   secret,
   startRuntime,
 } from '@keelwerk/core';
-import { memoryAdapter, schemaPlanner } from '@keelwerk/data';
+import { fallbackReporter, memoryAdapter, schemaPlanner } from '@keelwerk/data';
 import type { TestApp } from './test-app.ts';
 import { testMasterKeyBytes } from './test-master-key-bytes.ts';
 import { testMasterKeyName } from './test-master-key-name.ts';
@@ -70,14 +70,20 @@ export async function startTestRuntime<
       },
     },
   });
-  const memory = memoryAdapter({ clock, entities: (ref) => descriptors.get(ref) });
-  const given = options.adapter;
+  const given = typeof options.adapter === 'object' ? options.adapter : undefined;
+  const kind = options.adapter === 'pglite' ? 'pglite' : 'memory';
+  const base: DataAdapterFactory =
+    kind === 'pglite'
+      ? (await import('./pglite-factory.ts')).pgliteFactory({
+          entities: (ref) => descriptors.get(ref),
+        })
+      : memoryAdapter({ clock, entities: (ref) => descriptors.get(ref) });
   const factory: DataAdapterFactory =
     given === undefined
       ? {
-          ...memory,
+          ...base,
           create: (placement, env) => {
-            const adapter = observed(memory.create(placement, env));
+            const adapter = observed(base.create(placement, env));
             if (placement.id === 'control') control = { adapter };
             if (placement.id === placementName) {
               created.push(adapter);
@@ -87,7 +93,7 @@ export async function startTestRuntime<
           },
         }
       : {
-          ...memory,
+          ...base,
           id: 'given',
           create: (_placement, env) => {
             const adapter = observed(given);
@@ -97,15 +103,20 @@ export async function startTestRuntime<
             return adapter;
           },
         };
-  const served = withTestResolver(app);
+  const served = withTestResolver(app, options.operators === true);
   const runtime = await startRuntime(
     {
       apps: [served],
-      infrastructure: [factory, schemaPlanner(), testSecrets],
-      control: { adapter: 'memory' },
+      infrastructure: [
+        factory,
+        schemaPlanner(),
+        ...(kind === 'pglite' ? [fallbackReporter()] : []),
+        testSecrets,
+      ],
+      control: { adapter: given === undefined ? kind : 'memory' },
       placements: {
         [placementName]: {
-          adapter: given === undefined ? 'memory' : 'given',
+          adapter: given === undefined ? kind : 'given',
           strategy: 'shared-tables',
         },
       },
@@ -118,6 +129,7 @@ export async function startTestRuntime<
     name: 'test',
     app: app.id,
     placement: placementName,
+    ...(options.config === undefined ? {} : { config: options.config }),
   });
   const tenants: TestTenant[] = [];
   for (const name of names) {

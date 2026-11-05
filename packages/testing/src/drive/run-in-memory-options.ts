@@ -10,4 +10,6 @@ export interface RunInMemoryOptions {
   /** The tenant's name; default: the first. */
   readonly tenant?: string;
   readonly commandId?: string;
+  /** The backend's configuration by module id (section 5.7), as `createBackend({ config })` takes it. */
+  readonly config?: Readonly<Record<string, unknown>>;
 }

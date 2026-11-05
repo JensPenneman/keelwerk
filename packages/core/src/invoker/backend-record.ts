@@ -12,4 +12,6 @@ export interface BackendRecord {
   readonly status: 'active' | 'suspended';
   /** The default API version pin (section 18.3). */
   readonly apiVersion?: string;
+  /** The backend's validated configuration by module id (5.7), as stored with the row. */
+  readonly config?: Readonly<Record<string, unknown>>;
 }

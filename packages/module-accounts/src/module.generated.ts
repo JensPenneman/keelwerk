@@ -8,8 +8,9 @@ import { accountsBase } from './base.ts';
 import { signedIn } from './policies/identities/signed-in.ts';
 import { directory } from './policies/profile/directory.ts';
 import { frozen } from './policies/profile/frozen.ts';
-import { operator } from './policies/profile/operator.ts';
+import { operator as profileOperator } from './policies/profile/operator.ts';
 import { open } from './policies/register/open.ts';
+import { operator as registerOperator } from './policies/register/operator.ts';
 import { findByEmail } from './services/find-by-email.ts';
 
 const accountsDef = defineModule(accountsBase, {
@@ -17,8 +18,8 @@ const accountsDef = defineModule(accountsBase, {
   entityActions: { profile: { deactivate, search } },
   policies: {
     identities: { signedIn },
-    profile: { directory, frozen, operator },
-    register: { open },
+    profile: { directory, frozen, operator: profileOperator },
+    register: { open, operator: registerOperator },
   },
   services: { findByEmail },
   migrations: new URL('../migrations/', import.meta.url),

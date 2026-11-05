@@ -5,6 +5,7 @@ import type { AuthorizedAction } from './authorized-action.ts';
 import { compilePlan } from './compile-plan.ts';
 import { evaluateGate } from './evaluate-gate.ts';
 import { explainPlan } from './explain-plan.ts';
+import { isFieldRevealed } from './is-field-revealed.ts';
 import { itemAction } from './item-action.ts';
 import { normalizeRule } from './normalize-rule.ts';
 import type { NormalizedRule } from './normalized-rule.ts';
@@ -23,6 +24,7 @@ export interface AuthorizationAbility extends Ability {
    * the gate allows it and, for an entity action, the plan is not `never`. `input` reaches `when`.
    */
   can(action: string, input?: unknown): boolean;
+  canFilterBy(action: string, field: string): boolean;
   /** The plan the principal has for an entity action, memoised for the ability's lifetime. */
   plan(action: string): Plan | undefined;
   explain(plan: Plan): string;
@@ -71,6 +73,13 @@ export function createAbility(options: AbilityOptions): AuthorizationAbility {
     can(reference, input) {
       const action = registry.actions.get(reference);
       return action === undefined ? false : canInvoke(action, input);
+    },
+    canFilterBy(reference, field) {
+      const action = registry.actions.get(reference);
+      // Only a query filters or sorts; a command's own plan says nothing about what its caller may read.
+      if (action?.kind !== 'query') return false;
+      const plan = planOf(action);
+      return plan !== undefined && plan.kind !== 'never' && isFieldRevealed(plan, field);
     },
     plan(reference) {
       const action = registry.actions.get(reference);

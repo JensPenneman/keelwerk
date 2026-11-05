@@ -5,7 +5,7 @@ import type { Registry } from '../registry/registry.ts';
 
 /** What `explainDecision` evaluates. */
 export interface ExplainDecisionInput {
-  readonly registry: Pick<Registry, 'entities'>;
+  readonly registry: Pick<Registry, 'actions' | 'entities'>;
   readonly rules: readonly NormalizedRule[];
   readonly action: ActionEntry;
   readonly context: PrincipalContext;

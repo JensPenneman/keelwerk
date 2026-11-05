@@ -30,6 +30,8 @@ export interface CommandRun {
   /** The registry's enabled rules, normalised. */
   readonly rules: readonly NormalizedRule[];
   readonly request: RequestInfo;
+  /** A module's configuration for the backend, defaults filled (section 3.4); `undefined` for a module without one. */
+  readonly config?: (module: string) => unknown;
   readonly clock: Clock;
   readonly keys: KeyService;
   readonly compute: ComputePool;
@@ -52,6 +54,12 @@ export interface CommandResult {
   /** Ids of the deferred effects (section 7.9.5). */
   readonly effects?: readonly string[];
   readonly replayed?: true;
+  /**
+   * On the replay of an entity command: the reference its receipt kept. The shape stage answers it
+   * when the caller may not read the row or the row is gone, so a replay shows a caller no more than
+   * the first answer did (section 15.1.7).
+   */
+  readonly replayRef?: { readonly entity: string; readonly id: string; readonly version: number };
 }
 
 /** Runs one command below the pipeline; an error is thrown and the invoker maps it. */

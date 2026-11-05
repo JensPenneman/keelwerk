@@ -13,7 +13,9 @@ export const register = defineCommand(accountsBase, {
   execution: 'sync',
   auth: { public: true },
   *decide(input, ctx) {
-    if (!ctx.config.allowSelfRegistration) throw errors.forbidden('Self-registration is disabled.');
+    if (!ctx.config.allowSelfRegistration && ctx.principal.kind !== 'operator') {
+      throw errors.forbidden('Self-registration is disabled.');
+    }
     if (yield* ctx.load.accounts.profile.exists({ email: input.email })) {
       throw emailTaken({ email: input.email });
     }

@@ -63,7 +63,30 @@ export function explainDecision(input: ExplainDecisionInput): DecisionExplanatio
           transport,
           input: input.input,
         });
+  // The masks of a command that returns an entity are those of the read plan that shapes its output.
+  const output = action.kind === 'command' ? action.entityOutput : undefined;
+  const readAction =
+    output === undefined
+      ? undefined
+      : input.registry.actions.get(`${output.entity}.${output.shape === 'row' ? 'get' : 'query'}`);
+  const readEntity = output === undefined ? undefined : input.registry.entities.get(output.entity);
+  const maskPlan =
+    readAction === undefined || readEntity === undefined
+      ? plan
+      : compilePlan({
+          rules,
+          action: readAction,
+          entity: readEntity.descriptor,
+          context,
+          transport,
+        });
   const id = principalId(context);
+  const notes =
+    action.kind === 'command' && action.entityOutput?.shape === 'row'
+      ? [
+          `The row this command returns is shaped under the caller's read plan of ${action.entityOutput.entity}; when it lies outside that plan the answer is the reference { entity, id, version } (section 8.4).`,
+        ]
+      : [];
   return {
     action: action.ref,
     kind: action.kind,
@@ -76,6 +99,7 @@ export function explainDecision(input: ExplainDecisionInput): DecisionExplanatio
         : { reason: plan.reason }
       : { reason: gate.reason }),
     rules: gate.rules.map(named),
+    ...(notes.length === 0 ? {} : { notes }),
     ...(plan === undefined
       ? {}
       : {
@@ -85,12 +109,12 @@ export function explainDecision(input: ExplainDecisionInput): DecisionExplanatio
             entity: plan.entity,
             selects: describeCondition(plan.where),
             text: explainPlan(plan),
-            masks: plan.maskable.map((field) => ({
+            masks: (maskPlan ?? plan).maskable.map((field) => ({
               field,
-              revealedBy: plan.allows
+              revealedBy: (maskPlan ?? plan).allows
                 .filter((clause) => clause.fields === null || clause.fields.has(field))
                 .map((clause) => clause.rule),
-              hiddenBy: plan.fieldDenies
+              hiddenBy: (maskPlan ?? plan).fieldDenies
                 .filter((clause) => clause.fields?.has(field) === true)
                 .map((clause) => clause.rule),
             })),

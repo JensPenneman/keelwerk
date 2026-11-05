@@ -12,6 +12,7 @@ import { directory } from './policies/profile/directory.ts';
 import { frozen } from './policies/profile/frozen.ts';
 import { operator } from './policies/profile/operator.ts';
 import { open } from './policies/register/open.ts';
+import { operator as registerOperator } from './policies/register/operator.ts';
 import { findByEmail } from './services/find-by-email.ts';
 
 describe('the accounts manifest', () => {
@@ -22,7 +23,7 @@ describe('the accounts manifest', () => {
       policies: {
         identities: { signedIn },
         profile: { directory, frozen, operator },
-        register: { open },
+        register: { open, operator: registerOperator },
       },
       services: { findByEmail },
       migrations: new URL('../migrations/', import.meta.url),

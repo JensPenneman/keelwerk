@@ -1,8 +1,8 @@
 import type { TestApp } from './test-app.ts';
 import { testPrincipalResolver } from './test-principal-resolver.ts';
 
-/** The app with the test principal resolver added to the core's resolvers, so a carrier can hold its principal as plain data. */
-export function withTestResolver<const App extends TestApp>(app: App): App {
+/** The app with the test principal resolver added to the core's resolvers, so a carrier can hold its principal as plain data; `operators` lets the claim `operator: true` make it an operator. */
+export function withTestResolver<const App extends TestApp>(app: App, operators = false): App {
   return {
     ...app,
     registry: {
@@ -17,7 +17,7 @@ export function withTestResolver<const App extends TestApp>(app: App): App {
               point: 'core.principalResolvers',
               module: 'core',
               bound: false,
-              fill: testPrincipalResolver(),
+              fill: testPrincipalResolver(operators),
             },
           ],
         ],

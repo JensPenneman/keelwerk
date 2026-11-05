@@ -19,6 +19,8 @@ export interface ResolverUnitInput {
   readonly target: ScopeTarget;
   /** Where a load of a backend entity runs when the resolved scope is a tenant's; null when there is none. */
   readonly backendTarget: ScopeTarget | null;
+  /** `ctx.config` of the resolvers' contexts (3.4). */
+  readonly config: (module: string) => unknown;
   readonly transport: string;
   readonly requestId: string;
   readonly span: Span;
@@ -65,7 +67,7 @@ export function withResolverKit<T>(
           scope: target.scope,
           clock: options.clock,
           request: { transport: input.transport, requestId: input.requestId },
-          config: () => undefined,
+          config: input.config,
           log: options.log,
           trace: input.span,
         });

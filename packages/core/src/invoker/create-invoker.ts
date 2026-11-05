@@ -21,6 +21,7 @@ import { complete } from './stages/complete.ts';
 import { execute } from './stages/execute.ts';
 import { locate } from './stages/locate.ts';
 import { prepare } from './stages/prepare.ts';
+import { relationsAfter } from './stages/relations-after.ts';
 import { shape as shapeOutput } from './stages/shape.ts';
 import { translate } from './stages/translate.ts';
 import { validate } from './stages/validate.ts';
@@ -120,8 +121,10 @@ async function run(
           principal: session.principal,
           scope: answered.scope,
           outputOf: (one) => env.entityOutputOf(registry, one),
+          relations: relationsAfter(registry, action, details),
           environment: env.options.environment,
           output: translate('output', answered.output),
+          ...(answered.replayRef === undefined ? {} : { replayRef: answered.replayRef }),
           onDropped: (dropped) => {
             log.warn('a row outside the read plan was dropped', { ...dropped });
           },

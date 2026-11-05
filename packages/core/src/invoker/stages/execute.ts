@@ -10,25 +10,11 @@ import type { CommandResult } from '../command-runner.ts';
 import type { Invocation } from '../invocation.ts';
 import type { InvocationSession } from '../invocation-session.ts';
 import type { InvokerEnv } from '../invoker-env.ts';
+import { moduleConfigOf } from '../module-config-of.ts';
 import { requestInfoOf } from '../request-info-of.ts';
-import type { ScopeTarget } from '../scope-target.ts';
 import type { SessionDetails } from '../session-details.ts';
+import { targetOf } from './target-of.ts';
 import { withDeadline } from './with-deadline.ts';
-
-function unavailable(message: string): KeelwerkError {
-  return new KeelwerkError({ kind: 'unavailable', code: 'core.unavailable', message });
-}
-
-/** A backend-scope action of a tenant session runs in the backend's own unit, so it reaches no tenant data (section 8.8). */
-function targetOf(action: ActionEntry, details: SessionDetails): ScopeTarget {
-  const { resolved } = details;
-  const target =
-    action.scope === 'backend' && resolved.backendTarget !== null
-      ? resolved.backendTarget
-      : resolved.target;
-  if (target === null) throw unavailable('No store is connected for this scope.');
-  return target;
-}
 
 function epochOf(epochOf: InvokerEnv['options']['epochOf'], scope: Scope): number {
   return epochOf === undefined ? 0 : epochOf(scope);
@@ -70,7 +56,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
         message: `"${action.ref}" is a command, and this release has no write path wired.`,
       });
     }
-    const { registry } = env.appOf(details.resolved.app);
+    const { registry, configShapes } = env.appOf(details.resolved.app);
     const { options } = env;
     const { capabilities } = target.handle;
     const backendNamespace = (details.resolved.backendTarget ?? target).namespace;
@@ -86,6 +72,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
           registry,
           rules: env.rulesOf(registry),
           request: requestInfoOf(invocation),
+          config: moduleConfigOf(configShapes, details.resolved.backendConfig),
           clock: options.clock,
           keys: options.keys,
           compute: options.compute,
@@ -109,7 +96,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
       message: 'Live updates are not available in this release.',
     });
   }
-  const { registry } = env.appOf(details.resolved.app);
+  const { registry, configShapes } = env.appOf(details.resolved.app);
   const { options } = env;
   const { capabilities } = target.handle;
   const backendNamespace = (details.resolved.backendTarget ?? target).namespace;
@@ -141,6 +128,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
         input: input.value,
         principal: session.principal,
         request: requestInfoOf(invocation),
+        config: moduleConfigOf(configShapes, details.resolved.backendConfig),
         clock: options.clock,
         keys: options.keys,
         compute: options.compute,

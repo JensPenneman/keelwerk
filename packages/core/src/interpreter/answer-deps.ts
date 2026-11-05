@@ -1,4 +1,5 @@
 import type { RequestAnswerer } from '../kernel/request-answerer.ts';
+import type { ActionEntry } from '../registry/action-entry.ts';
 import type { StorageScope } from '../storage/storage-scope.ts';
 import type { Unit } from '../storage/unit.ts';
 import type { ContextFactory } from './context-factory.ts';
@@ -15,6 +16,8 @@ export type ScopeRunner = <T>(
 
 /** What the answerers share beyond the `AnswerContext`. */
 export interface AnswerDeps {
+  /** The invoked action: its `page.sortable` narrows the sorts of a `query` load of its own entity (section 6.7). */
+  readonly action?: ActionEntry;
   readonly views: CallerViews;
   readonly inScope: ScopeRunner;
   readonly contexts: ContextFactory;

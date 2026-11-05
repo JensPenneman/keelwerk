@@ -10,7 +10,8 @@ import { decodeCommandValue } from './decode-command-value.ts';
 
 /**
  * Answers a retried command from its finished receipt (section 7.5): the stored error again, the
- * stored value, or for an entity command the row re-read as it is now. The replay carries the same
+ * stored value, or for an entity command the row re-read as it is now (the stored reference stands
+ * in for it when the row is gone, and for a caller who may not read it). The replay carries the same
  * ids of deferred effects and `replayed`.
  */
 export async function replayReceipt(
@@ -44,6 +45,8 @@ export async function replayReceipt(
     where: { op: 'eq', field: 'id', value: outcome.ref.id },
     includeArchived: true,
   });
-  if (row === undefined) throw errors.not_found(`${entry.ref} ${outcome.ref.id} does not exist`);
-  return { output: decodeRow(entry, row, authority), ...effects, replayed: true };
+  const { ref } = outcome;
+  // A row that is gone answers the stored reference too; the shape stage decides what the caller sees.
+  if (row === undefined) return { output: ref, replayRef: ref, ...effects, replayed: true };
+  return { output: decodeRow(entry, row, authority), replayRef: ref, ...effects, replayed: true };
 }

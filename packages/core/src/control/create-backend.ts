@@ -21,13 +21,19 @@ interface CheckedConfig {
   readonly pending: readonly PendingSecret[];
 }
 
+/** The config shape of a module: its own, or the core's built-in one. */
+function shapeOf(moduleId: string, module: ConfigurableModule | undefined): Shape | undefined {
+  return module?.base?.config ?? (moduleId === 'core' ? coreBackendConfig : undefined);
+}
+
 /**
  * Validates `config[moduleId]` against each module's config shape (5.7) and collects the values
  * of `field.secret()` fields, to be sealed under the backend key once everything else is known to
  * hold (S-70): sealing creates the backend's scope key, which no rollback can take back. A module
  * the app does not select, a module without a config shape, a value the shape rejects and a
  * secret held in a list or set are `validation` errors; the validated values (defaults filled)
- * are what is stored.
+ * are what is stored. Every module of the app is checked, the core included: a module given no
+ * values is checked as `{}`, so a missing required field refuses the backend (S-107).
  */
 function checkedConfig(
   config: Readonly<Record<string, unknown>>,
@@ -35,19 +41,29 @@ function checkedConfig(
 ): CheckedConfig {
   const stored: Record<string, Record<string, unknown>> = {};
   const pending: PendingSecret[] = [];
-  for (const [moduleId, values] of Object.entries(config)) {
+  for (const moduleId of Object.keys(config)) {
     const module = modules.find((candidate) => candidate.id === moduleId);
-    if (module === undefined) {
+    if (module === undefined && moduleId !== 'core') {
       throw errors.validation(`The app has no module "${moduleId}" to configure.`, {
         issues: [{ path: [moduleId], message: 'Not a module of this app.' }],
       });
     }
-    const schema = module.base?.config ?? (moduleId === 'core' ? coreBackendConfig : undefined);
-    if (schema === undefined) {
+    if (shapeOf(moduleId, module) === undefined) {
       throw errors.validation(`Module "${moduleId}" declares no configuration.`, {
         issues: [{ path: [moduleId], message: 'The module declares no config shape.' }],
       });
     }
+  }
+  const everyModule: readonly ConfigurableModule[] = [
+    { id: 'core' },
+    ...modules.filter((candidate) => candidate.id !== 'core'),
+  ];
+  for (const module of everyModule) {
+    const moduleId = module.id;
+    const schema = shapeOf(moduleId, module);
+    if (schema === undefined) continue;
+    const given = config[moduleId];
+    const values = given ?? {};
     const result = schema['~standard'].validate(values);
     if (result instanceof Promise) {
       throw errors.internal(`The config shape of "${moduleId}" is asynchronous.`);
@@ -82,7 +98,7 @@ function checkedConfig(
       }
       pending.push({ moduleId, field: name, value });
     }
-    stored[moduleId] = checked;
+    if (given !== undefined) stored[moduleId] = checked;
   }
   return { stored, pending };
 }
@@ -117,13 +133,14 @@ export async function createBackend(
   modules: readonly ConfigurableModule[] = [],
 ): Promise<{ readonly id: string }> {
   const id = newUuidV7();
-  const checked = input.config === undefined ? undefined : checkedConfig(input.config, modules);
+  const checked = checkedConfig(input.config ?? {}, modules);
   // Everything that can refuse the backend is checked before a secret creates the backend's key.
   if ((await findControlRows(store, 'core.backend', { name: input.name })).length > 0) {
     throw errors.conflict(`A backend named "${input.name}" already exists.`);
   }
-  const config = checked?.stored;
-  for (const secret of checked?.pending ?? []) {
+  // A backend given a configuration (even an empty one) stores it; one given none stores none.
+  const config = input.config === undefined ? undefined : checked.stored;
+  for (const secret of checked.pending) {
     const target = config?.[secret.moduleId];
     if (target === undefined) continue;
     target[secret.field] = await configSecrets.seal(

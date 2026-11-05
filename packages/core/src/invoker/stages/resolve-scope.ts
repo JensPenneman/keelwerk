@@ -61,6 +61,7 @@ export async function resolveScope(env: InvokerEnv, carrier: Carrier): Promise<R
       resolvedBy,
       target: backendTarget,
       backendTarget: null,
+      ...(backend.config === undefined ? {} : { backendConfig: backend.config }),
       ...(backend.apiVersion === undefined ? {} : { pinnedVersion: backend.apiVersion }),
     };
   }
@@ -72,6 +73,7 @@ export async function resolveScope(env: InvokerEnv, carrier: Carrier): Promise<R
     resolvedBy,
     target: targetOf(env, tenant.placementId, tenant.namespace, scope),
     backendTarget,
+    ...(backend.config === undefined ? {} : { backendConfig: backend.config }),
     ...(pinned === undefined ? {} : { pinnedVersion: pinned }),
   };
 }

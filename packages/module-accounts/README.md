@@ -11,4 +11,6 @@ The directory of people. It needs no login and knows nothing about authenticatio
 
 Operators (`core.operator`) may do everything on profiles. The `directory` role reads profiles without their maskable e-mail address.
 
+Limitations: the e-mail match of `accounts.profile.search` follows what the caller's read plan reveals, so today only operators get it; the administrators of 17.2.1 arrive with the roles of WP-62.
+
 `src/module.generated.ts` is produced by `pnpm manifests` and the files under `migrations/own/` by `pnpm fixtures:migrations`; neither is edited by hand.

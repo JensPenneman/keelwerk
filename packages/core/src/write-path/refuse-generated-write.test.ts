@@ -59,6 +59,17 @@ describe('generated writes only the control path makes', () => {
       attempt(runOf('core.tenant.update', 'core.tenant', 'update', { id: 't', apiVersion: 'v' })),
     ).rejects.toMatchObject({ kind: 'validation' });
     await expect(
+      attempt(
+        runOf('core.backend.update', 'core.backend', 'update', {
+          id: 'b',
+          config: { core: { introspection: 'nonsense' } },
+        }),
+      ),
+    ).rejects.toMatchObject({
+      kind: 'validation',
+      message: expect.stringMatching(/not supported in M1/),
+    });
+    await expect(
       attempt(runOf('core.tenant.create', 'core.tenant', 'create', { name: 't' })),
     ).rejects.toMatchObject({ kind: 'forbidden' });
   });

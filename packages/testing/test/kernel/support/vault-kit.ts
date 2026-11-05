@@ -13,9 +13,9 @@ import type {
 import { createKeyService } from '@keelwerk/core';
 import { memoryAdapter } from '@keelwerk/data';
 import { vaultApp } from '../../../src/fixtures/index.ts';
+import { pgliteFactory } from '../../../src/harness/pglite-factory.ts';
 import { testCarrier } from '../../../src/harness/test-carrier.ts';
 import { withTestResolver } from '../../../src/harness/with-test-resolver.ts';
-import { pgliteFactory } from './pglite-factory.ts';
 import { ada, boot, deploymentOf, type Kind } from './runtime-kit.ts';
 
 const credentialEntry = vaultApp.registry.entities.get('vault.credential');
@@ -56,10 +56,15 @@ export interface Vault {
   ): Promise<T>;
 }
 
+/** The configuration the vault module requires of every backend: both of its fields have no default. */
+export const vaultConfig = {
+  vault: { endpoint: 'https://vault.example', signingKey: 'sign-me-secret' },
+} as const;
+
 /** Boots the vault fixture on the adapter, with a backend and a tenant, and a logger that keeps the info lines. */
 export async function bootVault(
   kind: Kind,
-  config?: Readonly<Record<string, unknown>>,
+  config: Readonly<Record<string, unknown>> = vaultConfig,
 ): Promise<Vault> {
   const captured: {
     adapter?: DataAdapter;
@@ -117,7 +122,7 @@ export async function bootVault(
     name: 'vault',
     app: 'vault',
     placement: 'main',
-    ...(config === undefined ? {} : { config }),
+    config,
   });
   const tenant = await runtime.control.createTenant({ backendId: backend.id, name: 'acme' });
   const scope = { level: 'tenant', backendId: backend.id, tenantId: tenant.id } as const;

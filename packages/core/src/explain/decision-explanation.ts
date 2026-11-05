@@ -38,4 +38,6 @@ export interface DecisionExplanation {
   /** Allowed: the allow rules in effect. Denied: the deny rules, or the allows that would have had to hold. */
   readonly rules: readonly ExplainedRule[];
   readonly plan?: ExplainedPlan;
+  /** What else shapes the answer without changing the verdict, e.g. a row output replaced by its reference. */
+  readonly notes?: readonly string[];
 }

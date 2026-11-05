@@ -52,6 +52,25 @@ describe('createAbility', () => {
     expect(ability.can('doc.post.unknown')).toBe(false);
   });
 
+  test('canFilterBy asks whether a maskable field is revealed for every row the read plan selects', () => {
+    const revealing = [
+      ruleEntry({ id: 'doc.post.reveal', effect: 'allow', actions: ['read'], fields: ['title'] }),
+    ];
+    const narrow = createAbility({
+      registry: { ...registry, rules: new Map(revealing.map((r) => [r.id, r])) },
+      context: context(),
+    });
+    expect(narrow.canFilterBy('doc.post.get', 'title')).toBe(true);
+    expect(narrow.canFilterBy('doc.post.get', 'note')).toBe(false);
+    const open = createAbility({ registry, context: context() });
+    expect(open.canFilterBy('doc.post.get', 'note')).toBe(true);
+    expect(open.canFilterBy('doc.post.archive', 'note')).toBe(false);
+    // A command's own rules grant no read, so a command never answers a filter or sort question.
+    expect(open.can('doc.post.update')).toBe(true);
+    expect(open.canFilterBy('doc.post.update', 'note')).toBe(false);
+    expect(open.canFilterBy('doc.post.unknown', 'note')).toBe(false);
+  });
+
   test('an action of an entity the registry does not hold cannot be done', () => {
     const ghost = entityAction('get', { generated: 'get', entity: 'doc.ghost' });
     const orphan = new Map(registry.actions).set(ghost.ref, ghost as unknown as ActionEntry);

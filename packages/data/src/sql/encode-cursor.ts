@@ -11,12 +11,19 @@ function jsonValue(value: unknown): unknown {
 }
 
 /**
- * Encodes a cursor as `base64url(JSON [sort values..., id, signature])` (section 14.3.5). The
- * values are the sort fields of one row in the domain form (`Temporal`, `bigint`, bytes); an
- * absent value is `null`.
+ * Encodes a cursor as `base64url(JSON [sort field names, sort values, id, signature])`
+ * (section 14.3.5). The names let a reader tell which fields the cursor carries without the
+ * request; the values are the sort fields of one row in the domain form (`Temporal`, `bigint`,
+ * bytes), an absent value being `null`.
  */
-export function encodeCursor(values: readonly unknown[], id: string, signature: string): string {
-  return Buffer.from(JSON.stringify([...values.map(jsonValue), id, signature]), 'utf8').toString(
-    'base64url',
-  );
+export function encodeCursor(
+  fields: readonly string[],
+  values: readonly unknown[],
+  id: string,
+  signature: string,
+): string {
+  return Buffer.from(
+    JSON.stringify([fields, values.map(jsonValue), id, signature]),
+    'utf8',
+  ).toString('base64url');
 }

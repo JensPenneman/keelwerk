@@ -70,17 +70,19 @@ export function decodeCursor(
   } catch {
     throw mismatch('the cursor is not valid');
   }
-  if (!Array.isArray(parts) || parts.length !== fields.length + 2) {
+  if (!Array.isArray(parts) || parts.length !== 4) {
     throw mismatch('the cursor does not belong to this sort');
   }
-  const issuedFor: unknown = parts.at(-1);
+  const [names, raws, id, issuedFor]: unknown[] = parts;
+  if (!Array.isArray(names) || !Array.isArray(raws) || raws.length !== fields.length) {
+    throw mismatch('the cursor does not belong to this sort');
+  }
   if (issuedFor !== signature) throw mismatch('the cursor was issued for another sort or filter');
-  const id: unknown = parts.at(-2);
   if (typeof id !== 'string' || !uuidPattern.test(id)) {
     throw mismatch('the cursor holds no row id');
   }
   const values = fields.map((field, index) => {
-    const raw: unknown = parts[index];
+    const raw: unknown = raws[index];
     let value: unknown;
     try {
       value = domainValue(field, raw);

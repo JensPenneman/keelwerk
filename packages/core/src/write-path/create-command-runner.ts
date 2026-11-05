@@ -39,6 +39,7 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
       input: run.input,
       principal: run.session.principal,
       request: run.request,
+      ...(run.config === undefined ? {} : { config: run.config }),
       clock: run.clock,
       keys: run.keys,
       compute: run.compute,

@@ -10,6 +10,7 @@ import type { ResolvedPrincipal } from '../edge/run-principal-resolvers.ts';
 import { runPrincipalResolvers } from '../edge/run-principal-resolvers.ts';
 import { withResolverKit } from '../edge/with-resolver-kit.ts';
 import type { InvokerEnv } from '../invoker-env.ts';
+import { moduleConfigOf } from '../module-config-of.ts';
 import type { ResolvedScope } from '../resolved-scope.ts';
 
 function bearerPresent(carrier: Carrier): boolean {
@@ -61,13 +62,14 @@ export async function resolvePrincipal(
       authenticated: false,
     };
   }
-  const { registry } = env.appOf(resolved.app);
+  const { registry, configShapes } = env.appOf(resolved.app);
   const result = await withResolverKit(
     {
       env,
       registry,
       target,
       backendTarget: resolved.backendTarget,
+      config: moduleConfigOf(configShapes, resolved.backendConfig),
       transport: carrier.transport,
       requestId: context.requestId,
       span: context.span,

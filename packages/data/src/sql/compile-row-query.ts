@@ -178,6 +178,7 @@ export function compileRowQuery(request: RowQueryRequest): CompiledRowQuery {
   };
   const cursorOf = (row: StorageRow): string =>
     encodeCursor(
+      sort.keys.slice(0, -1).map((key) => key.field),
       sort.keys.slice(0, -1).map((key) => row[key.field] ?? null),
       String(row.id),
       signature,

@@ -4,6 +4,7 @@ import { runInMemory } from '../../src/drive/run-in-memory.ts';
 import { vaultApp } from '../../src/fixtures/index.ts';
 import { testPrincipal } from '../../src/harness/test-principal.ts';
 import { expectReproduces } from '../../src/replay/expect-reproduces.ts';
+import { vaultConfig } from './support/vault-kit.ts';
 
 type Run = Awaited<ReturnType<typeof runInMemory>>;
 const runs: Run[] = [];
@@ -15,7 +16,11 @@ const ada = testPrincipal('ada');
 const input = { label: 'ci', apiKey: 'sk-plain-0123456789' };
 
 async function stored(): Promise<Run> {
-  const run = await runInMemory(vaultApp, 'vault.store', { input, principal: ada });
+  const run = await runInMemory(vaultApp, 'vault.store', {
+    input,
+    principal: ada,
+    config: vaultConfig,
+  });
   runs.push(run);
   return run;
 }
@@ -41,7 +46,11 @@ describe('decision records of a command that issues a secret (7.9.3, 7.9.6, 14.7
   test('a re-decide reproduces the command, issued secret included', async () => {
     // A plain secret input is sealed on the way in and is not re-sealed by a re-decide: leave it out.
     const bare = { label: 'ci' };
-    const run = await runInMemory(vaultApp, 'vault.store', { input: bare, principal: ada });
+    const run = await runInMemory(vaultApp, 'vault.store', {
+      input: bare,
+      principal: ada,
+      config: vaultConfig,
+    });
     runs.push(run);
     const result = await expectReproduces(run.runtime, { commandId: run.commandId, input: bare });
     expect(result.reproduced).toBe(true);
@@ -56,6 +65,7 @@ describe('decision records of a command that issues a secret (7.9.3, 7.9.6, 14.7
     const replaced = await runInMemory(vaultApp, 'vault.replace', {
       input: { credentialId: id.credentialId, apiKey: 'sk-other-0123456789' },
       principal: ada,
+      config: vaultConfig,
     });
     runs.push(replaced);
     expect(replaced.events[0]?.decision?.input).toBeUndefined();

@@ -10,6 +10,7 @@ import {
 } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import { testCarrier } from '../../src/harness/test-carrier.ts';
+import { testPrincipal } from '../../src/harness/test-principal.ts';
 import { withTestResolver } from '../../src/harness/with-test-resolver.ts';
 import {
   bearer,
@@ -206,6 +207,13 @@ const wall = defineModule(base, {
     },
     note: {
       write: defineRule(base, note, { effect: 'allow', actions: ['write'], principal: 'user' }),
+      // The seeding subject reads what it writes, the note on a closed post included (8.4).
+      seed: defineRule(base, note, {
+        effect: 'allow',
+        actions: ['read'],
+        principal: 'user',
+        where: (ctx) => (ctx.principal.claims.seed === true ? {} : false),
+      }),
       open: defineRule(base, note, {
         effect: 'allow',
         actions: ['read'],
@@ -257,13 +265,13 @@ describe.each(kinds)('core.me over relation quantifiers on %s', (kind) => {
     const acme = await runtime.control.createTenant({ backendId: backend.id, name: 'acme' });
     const globex = await runtime.control.createTenant({ backendId: backend.id, name: 'globex' });
     const as = (tenant: { id: string }, name: string) => testCarrier({ name, id: tenant.id }, ada);
+    const seeder = testPrincipal('seeder', { claims: { seed: true } });
     const make = async (tenant: { id: string }, name: string, open: boolean) => {
-      const created = await ok(
-        call(runtime.invoker, as(tenant, name), 'wall.post.create', { open }),
-      );
+      const seeded = testCarrier({ name, id: tenant.id }, seeder);
+      const created = await ok(call(runtime.invoker, seeded, 'wall.post.create', { open }));
       const id = String(created.id);
       const item = await ok(
-        call(runtime.invoker, as(tenant, name), 'wall.note.create', {
+        call(runtime.invoker, seeded, 'wall.note.create', {
           postId: id,
           title: 'a draft',
           tags: ['blue'],

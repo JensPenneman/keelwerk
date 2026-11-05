@@ -1,6 +1,6 @@
 import { memoryAdapter } from '@keelwerk/data';
 import { afterAll, describe, expect, test } from 'vitest';
-import { pgliteFactory } from './kernel/support/pglite-factory.ts';
+import { pgliteFactory } from '../src/harness/pglite-factory.ts';
 import { runScenario } from './support/run-scenario.ts';
 import { slice2 } from './support/slice-2.ts';
 import { tamperedPlanner } from './support/tampered-planner.ts';

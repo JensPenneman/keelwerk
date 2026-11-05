@@ -46,6 +46,7 @@ export { createLocalClient } from './harness/create-local-client.ts';
 export type { LocalClientOptions } from './harness/local-client-options.ts';
 export { startTestRuntime } from './harness/start-test-runtime.ts';
 export type { TestApp } from './harness/test-app.ts';
+export { testOperator } from './harness/test-operator.ts';
 export type { TestPrincipal } from './harness/test-principal.ts';
 export { testPrincipal } from './harness/test-principal.ts';
 export type { TestRuntime } from './harness/test-runtime.ts';

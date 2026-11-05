@@ -169,7 +169,110 @@ describe('the entity of an output', () => {
       entities: new Map([['b.post', twin]]),
     });
     await expect(shapeStage(inputOf({ registry, action: marked, output: mine }))).rejects.toThrow(
-      /fell outside the read plan of b\.post\.query/,
+      /fell outside the read plan of b\.post\.get/,
     );
+  });
+});
+
+describe('the rows a command returns', () => {
+  const close = actionOf('doc.post.close', {
+    kind: 'command',
+    entity: 'doc.post',
+    instance: true,
+    output: rowSchema,
+    entityOutput: { entity: 'doc.post', shape: 'row' },
+  });
+  const closable = ruleEntry({
+    id: 'doc.post.closable',
+    effect: 'allow',
+    actions: ['close'],
+    where: (ctx) => ({ ownerId: (ctx as { principal: { subject: string } }).principal.subject }),
+  });
+  const frozen = ruleEntry({
+    id: 'doc.post.frozen',
+    effect: 'deny',
+    actions: ['close'],
+    where: () => ({ title: { eq: 'mine' } }),
+    reason: 'A closed post is frozen.',
+  });
+  const rules = [normalizeRule(own), normalizeRule(closable), normalizeRule(frozen)];
+  const registry = registryOf([close]);
+
+  test('a deny condition on the command does not hide the row it returns', async () => {
+    expect(await shapeStage(inputOf({ registry, rules, action: close, output: mine }))).toEqual(
+      mine,
+    );
+  });
+
+  test('a row outside the caller read plan answers the reference, never an error', async () => {
+    for (const environment of ['test', 'development', 'production'] as const) {
+      expect(
+        await shapeStage(
+          inputOf({
+            registry,
+            rules,
+            action: close,
+            environment,
+            output: { ...theirs, version: 3 },
+          }),
+        ),
+      ).toEqual({ entity: 'doc.post', id: '2', version: 3 });
+    }
+  });
+});
+
+describe('a command of a caller without read rights', () => {
+  const update = actionOf('doc.post.update', {
+    kind: 'command',
+    entity: 'doc.post',
+    instance: true,
+    output: rowSchema,
+    entityOutput: { entity: 'doc.post', shape: 'row' },
+  });
+  const list = actionOf('doc.post.sweep', {
+    kind: 'command',
+    entity: 'doc.post',
+    output: pageSchema,
+    page,
+    entityOutput: { entity: 'doc.post', shape: 'page' },
+  });
+  const writeOnly = ruleEntry({
+    id: 'doc.post.writeOnly',
+    effect: 'allow',
+    actions: ['update', 'sweep'],
+    where: () => ({}),
+  });
+  const registry = registryOf([update, list]);
+  const secret = { id: '2', ownerId: 'bob', title: 'theirs', body: 'secret of a', version: 4 };
+
+  test('the command rules grant no read: the answer is the reference, and a replay agrees', async () => {
+    const rules = [normalizeRule(writeOnly)];
+    const first = await shapeStage(inputOf({ registry, rules, action: update, output: secret }));
+    expect(first).toEqual({ entity: 'doc.post', id: '2', version: 4 });
+    expect(JSON.stringify(first)).not.toContain('secret');
+    expect(await shapeStage(inputOf({ registry, rules, action: update, output: secret }))).toEqual(
+      first,
+    );
+  });
+
+  test('a readable row comes back masked by its fields', async () => {
+    const rules = [normalizeRule(writeOnly), normalizeRule(reveal)];
+    const row = { id: '1', ownerId: 'ada', title: 'mine', secret: 's', note: 'n' };
+    expect(await shapeStage(inputOf({ registry, rules, action: update, output: row }))).toEqual({
+      id: '1',
+      ownerId: 'ada',
+      title: 'mine',
+      $masked: ['note', 'secret'],
+    });
+  });
+
+  test('a page drops the rows outside the plan without failing', async () => {
+    const rules = [normalizeRule(writeOnly), normalizeRule(own)];
+    const output = { items: [theirs, mine], pageInfo: {}, queryState: '0' };
+    expect(await shapeStage(inputOf({ registry, rules, action: list, output }))).toEqual({
+      items: [mine],
+      pageInfo: {},
+      queryState: '0',
+    });
   });
 });

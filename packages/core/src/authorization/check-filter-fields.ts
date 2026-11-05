@@ -1,5 +1,5 @@
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
-import { isNever } from './is-never.ts';
+import { isFieldRevealed } from './is-field-revealed.ts';
 import type { Plan } from './plan.ts';
 
 /**
@@ -12,12 +12,7 @@ export function checkFilterFields(plan: Plan, fields: readonly string[]): void {
   const denied: string[] = [];
   for (const path of fields) {
     const head = path.split('.')[0] ?? path;
-    if (!plan.maskable.includes(head)) continue;
-    const revealed = plan.allows
-      .filter((clause) => !isNever(clause.where))
-      .every((clause) => clause.fields === null || clause.fields.has(head));
-    const hidden = plan.fieldDenies.some((clause) => clause.fields?.has(head) === true);
-    if (!revealed || hidden) denied.push(path);
+    if (!isFieldRevealed(plan, head)) denied.push(path);
   }
   if (denied.length === 0) return;
   throw new KeelwerkError({

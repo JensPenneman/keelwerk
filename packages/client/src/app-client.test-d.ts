@@ -1,4 +1,10 @@
-import { type AppType, type CommandReceipt, defineApp, type LiveFrame } from '@keelwerk/core';
+import {
+  type AppType,
+  type CommandReceipt,
+  defineApp,
+  type InstanceInput,
+  type LiveFrame,
+} from '@keelwerk/core';
 import { type ConformanceApp, library, loans } from '@keelwerk/testing/fixtures';
 import { describe, expectTypeOf, test } from 'vitest';
 import type { LiveApp } from '../test/live-app.ts';
@@ -29,6 +35,16 @@ describe('the derived client types', () => {
     expectTypeOf<
       InputOf<ConformanceApp, 'loans.lend'>['dueAt']
     >().toEqualTypeOf<Temporal.Instant>();
+  });
+
+  test('the generated update takes the id and a patch, as the runtime does', () => {
+    type Update = InputOf<ConformanceApp, 'library.book.update'>;
+    expectTypeOf<Update>().toHaveProperty('id');
+    expectTypeOf<Update>().toHaveProperty('patch');
+    expectTypeOf<Update['patch']['title']>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<Update>().toEqualTypeOf<
+      InstanceInput<'library.book'> & { readonly patch: Update['patch'] }
+    >();
   });
 
   test('ResultOf follows the execution mode and the preference', () => {

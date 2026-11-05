@@ -8,6 +8,7 @@ import { explainStream } from '../explain/explain-stream.ts';
 import { createInvoker } from '../invoker/create-invoker.ts';
 import type { InvokerApp } from '../invoker/invoker-app.ts';
 import type { InvokerOptions } from '../invoker/invoker-options.ts';
+import { moduleConfigShapes } from '../invoker/module-config-shapes.ts';
 import { createOperatorTokenResolver } from '../principals/operator-token-resolver.ts';
 import type { ApiSurface } from '../surface/api-surface.ts';
 import { deriveSurface } from '../surface/derive-surface.ts';
@@ -85,6 +86,7 @@ export async function startRuntime(
           ...(app.source.api === null || app.source.api === undefined
             ? {}
             : { api: app.source.api }),
+          configShapes: moduleConfigShapes(app.source.modules),
         },
       ]),
     );

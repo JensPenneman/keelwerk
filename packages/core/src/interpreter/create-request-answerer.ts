@@ -40,6 +40,7 @@ export interface AnswererOptions {
  */
 export function createRequestAnswerer(options: AnswererOptions): RequestAnswerer {
   const deps: AnswerDeps = {
+    ...(options.action === undefined ? {} : { action: options.action }),
     views: createCallerViews(options.rules, options.action),
     inScope: options.inScope,
     contexts: options.contexts,

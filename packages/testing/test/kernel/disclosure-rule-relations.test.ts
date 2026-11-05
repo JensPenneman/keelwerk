@@ -66,6 +66,13 @@ const forum = defineModule(forumBase, {
         actions: ['write'],
         principal: 'user',
       }),
+      // The seeding subject reads what it writes (a command's output passes the read plan, 8.4).
+      seed: defineRule(forumBase, comment, {
+        effect: 'allow',
+        actions: ['read'],
+        principal: 'user',
+        where: (ctx) => (ctx.principal.claims.seed === true ? {} : false),
+      }),
       viaPost: defineRule(forumBase, comment, {
         effect: 'allow',
         actions: ['read'],
@@ -124,7 +131,7 @@ async function startForum() {
     if (!out.ok) throw out.error;
     return out.value;
   };
-  const writer = testPrincipal('w');
+  const writer = testPrincipal('w', { claims: { seed: true } });
   const check = async (ops: readonly ForumOp[], via: string, pick: number): Promise<boolean> => {
     const reader = testPrincipal('r', { claims: { via } });
     const posts: { id: string; open: boolean }[] = [];

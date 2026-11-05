@@ -78,6 +78,7 @@ export function memoryPage(
   );
   const cursorOf = (row: StorageRow): string =>
     encodeCursor(
+      cursorKeys.map((key) => key.field),
       cursorKeys.map((key) => row[key.field] ?? null),
       String(row.id),
       signature,

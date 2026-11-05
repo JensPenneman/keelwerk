@@ -5,19 +5,7 @@ import type { IdentitySummary } from '../extension-points/identity-providers.ts'
 export const identities = defineQuery(accountsBase, {
   input: shape({ profileId: field.ref.own('profile') }),
   output: shape({
-    providers: field.list(
-      field.json(
-        shape({
-          id: field.string(),
-          label: field.string(),
-          items: field.list(
-            field.json(
-              shape({ kind: field.string(), label: field.string(), createdAt: field.instant() }),
-            ),
-          ),
-        }),
-      ),
-    ),
+    providers: field.list(field.json(shape({ id: field.string(), label: field.string() }))),
   }),
   principal: 'user',
   *read(input, ctx) {

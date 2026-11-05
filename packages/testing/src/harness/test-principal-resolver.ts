@@ -7,7 +7,7 @@ function isTestPrincipal(value: unknown): value is TestPrincipal {
 }
 
 /** Reads the principal a test carrier holds; a carrier without one is left to the next resolver. */
-export function testPrincipalResolver(): PrincipalResolver {
+export function testPrincipalResolver(operators = false): PrincipalResolver {
   return {
     id: 'test.principal',
     describe: () => ({ scheme: 'apiKey', name: testPrincipalHeader }),
@@ -28,16 +28,23 @@ export function testPrincipalResolver(): PrincipalResolver {
         via: 'test.principal',
       };
       const principal: Principal =
-        held.subject === null
-          ? { kind: 'anonymous', ...base, ref: null }
-          : {
-              kind: 'user',
-              subject: held.subject as UserPrincipal['subject'],
-              subjectRef: null,
-              subjectAs: () => null,
+        operators && held.claims.operator === true
+          ? {
+              kind: 'operator',
+              id: held.subject ?? 'operator',
               ...base,
-              ref: { resolver: 'test.principal', principalId: held.subject },
-            };
+              ref: { resolver: 'test.principal', principalId: held.subject ?? 'operator' },
+            }
+          : held.subject === null
+            ? { kind: 'anonymous', ...base, ref: null }
+            : {
+                kind: 'user',
+                subject: held.subject as UserPrincipal['subject'],
+                subjectRef: null,
+                subjectAs: () => null,
+                ...base,
+                ref: { resolver: 'test.principal', principalId: held.subject },
+              };
       return { principal };
     },
   };

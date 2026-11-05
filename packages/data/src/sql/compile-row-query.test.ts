@@ -94,7 +94,12 @@ describe('statements', () => {
   test('after a cursor: the rows beyond it, ties broken by id', () => {
     const sort = [{ field: 'title', direction: 'asc' }] as const;
     const signature = cursorSignature([...sort, { field: 'id', direction: 'asc' }], undefined);
-    const cursor = encodeCursor(['m'], '00000000-0000-7000-8000-000000000005', signature);
+    const cursor = encodeCursor(
+      ['title'],
+      ['m'],
+      '00000000-0000-7000-8000-000000000005',
+      signature,
+    );
     const { compiled } = compile({ select: mask, sort, page: { first: 2, after: cursor } });
     expect(compiled.sql).toContain(
       'where ("t"."archived_at" is null and (("t"."title" > $1 or "t"."title" is null) or ("t"."title" = $2 and ("t"."id" > $3 or "t"."id" is null))))',
@@ -109,7 +114,12 @@ describe('statements', () => {
   test('after an absent value in an ascending order only its ties follow', () => {
     const sort = [{ field: 'title', direction: 'asc' }] as const;
     const signature = cursorSignature([...sort, { field: 'id', direction: 'asc' }], undefined);
-    const cursor = encodeCursor([null], '00000000-0000-7000-8000-000000000005', signature);
+    const cursor = encodeCursor(
+      ['title'],
+      [null],
+      '00000000-0000-7000-8000-000000000005',
+      signature,
+    );
     const { compiled } = compile({ select: mask, sort, page: { first: 2, after: cursor } });
     expect(compiled.sql).toContain(
       '(("t"."title" is null and ("t"."id" > $1 or "t"."id" is null)))',
@@ -119,7 +129,12 @@ describe('statements', () => {
   test('before a cursor in a descending order', () => {
     const sort = [{ field: 'title', direction: 'desc' }] as const;
     const signature = cursorSignature([...sort, { field: 'id', direction: 'asc' }], undefined);
-    const cursor = encodeCursor(['m'], '00000000-0000-7000-8000-000000000005', signature);
+    const cursor = encodeCursor(
+      ['title'],
+      ['m'],
+      '00000000-0000-7000-8000-000000000005',
+      signature,
+    );
     const { compiled } = compile({ select: mask, sort, page: { last: 2, before: cursor } });
     expect(compiled.sql).toContain('("t"."title" > $1 or "t"."title" is null)');
     expect(compiled.sql).toContain(
@@ -193,7 +208,12 @@ describe('refusals', () => {
   });
 
   test('a cursor issued for another sort is core.cursor_mismatch', () => {
-    const cursor = encodeCursor(['m'], '00000000-0000-7000-8000-000000000005', 'another');
+    const cursor = encodeCursor(
+      ['title'],
+      ['m'],
+      '00000000-0000-7000-8000-000000000005',
+      'another',
+    );
     expect(() =>
       compile({ sort: [{ field: 'title', direction: 'asc' }], page: { first: 1, after: cursor } }),
     ).toThrow(expect.objectContaining({ kind: 'validation', code: 'core.cursor_mismatch' }));
@@ -255,8 +275,8 @@ describe('read', () => {
     const signature = cursorSignature([...sort, { field: 'id', direction: 'asc' }], undefined);
     const parts = (cursor: string | null): unknown =>
       JSON.parse(Buffer.from(cursor ?? '', 'base64url').toString('utf8'));
-    expect(parts(page.pageInfo.startCursor)).toEqual(['x', 'a', signature]);
-    expect(parts(page.pageInfo.endCursor)).toEqual([null, 'b', signature]);
+    expect(parts(page.pageInfo.startCursor)).toEqual([['title'], ['x'], 'a', signature]);
+    expect(parts(page.pageInfo.endCursor)).toEqual([['title'], [null], 'b', signature]);
     expect(page.pageInfo.hasNextPage).toBe(false);
   });
 

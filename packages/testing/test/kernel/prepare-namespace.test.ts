@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { conformanceApp } from '../../src/fixtures/index.ts';
+import { pgliteFactory } from '../../src/harness/pglite-factory.ts';
 import { withTestResolver } from '../../src/harness/with-test-resolver.ts';
 import { slice2Adapters } from '../support/slice-2-adapters.ts';
-import { pgliteFactory } from './support/pglite-factory.ts';
 import { boot, deploymentOf } from './support/runtime-kit.ts';
 
 describe('development migrate over a migrated track with a contributing module', () => {

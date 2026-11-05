@@ -158,6 +158,37 @@ describe.each(['memory', 'pglite'] as const)('secret requests on %s (7.9.3, 17.2
     });
   });
 
+  test('a backend is refused at creation when a module misses a required field or holds an invalid value, naming module and field (S-107)', {
+    timeout: 60_000,
+  }, async () => {
+    const vault = await bootVault(kind);
+    const refused = async (config?: Record<string, unknown>) => {
+      try {
+        await vault.runtime.control.createBackend({
+          name: 'second',
+          app: 'vault',
+          placement: 'main',
+          ...(config === undefined ? {} : { config }),
+        });
+      } catch (error) {
+        return error as { kind?: string; message?: string; issues?: { path: string[] }[] };
+      }
+      return undefined;
+    };
+    const none = await refused();
+    expect(none).toMatchObject({ kind: 'validation', message: expect.stringContaining('"vault"') });
+    expect(none?.issues?.map((issue) => issue.path.join('.')).sort()).toEqual([
+      'vault.endpoint',
+      'vault.signingKey',
+    ]);
+    const partial = await refused({ vault: { endpoint: 'https://vault.example' } });
+    expect(partial).toMatchObject({ kind: 'validation' });
+    expect(partial?.issues?.map((issue) => issue.path.join('.'))).toEqual(['vault.signingKey']);
+    const invalid = await refused({ vault: { endpoint: 1, signingKey: 's' } });
+    expect(invalid).toMatchObject({ kind: 'validation' });
+    expect(invalid?.issues?.map((issue) => issue.path.join('.'))).toEqual(['vault.endpoint']);
+  });
+
   test('a duplicate backend name is refused as a conflict before its secrets are sealed', {
     timeout: 60_000,
   }, async () => {

@@ -235,9 +235,6 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@keelwerk/data':
-        specifier: workspace:*
-        version: link:../data
       '@keelwerk/testing':
         specifier: workspace:*
         version: link:../testing

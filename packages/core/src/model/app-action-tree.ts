@@ -11,9 +11,9 @@ import type { GeneratedActionNames, SetOperations } from './generated-action-nam
 import type { InsertAt } from './insert-at.ts';
 import type { InstanceInput } from './instance-input.ts';
 import type { Page } from './page.ts';
-import type { PatchAt } from './patch-at.ts';
 import type { ActiveConditionals, ById, ContributionsTo, Ids } from './selection.ts';
 import type { TypeAt } from './type-at.ts';
+import type { UpdateInputAt } from './update-input-at.ts';
 import type { Where } from './where.ts';
 
 interface Generated<K extends string, T> {
@@ -108,12 +108,7 @@ type GeneratedDef<
         : N extends 'update'
           ? Generated<
               'command',
-              PartTypes<
-                InstanceInput<`${I}.${E}`> & { readonly patch: PatchAt<Ms, I, E> },
-                ReadableRowAt<Ms, I, E>,
-                never,
-                never
-              >
+              PartTypes<UpdateInputAt<Ms, I, E>, ReadableRowAt<Ms, I, E>, never, never>
             >
           : N extends 'archive' | 'restore'
             ? Generated<
@@ -126,9 +121,7 @@ type GeneratedDef<
                   PartTypes<
                     {
                       readonly create?: readonly InsertAt<Ms, I, E>[];
-                      readonly update?: readonly (InstanceInput<`${I}.${E}`> & {
-                        readonly patch: PatchAt<Ms, I, E>;
-                      })[];
+                      readonly update?: readonly UpdateInputAt<Ms, I, E>[];
                       readonly archive?: readonly InstanceInput<`${I}.${E}`>[];
                       readonly restore?: readonly InstanceInput<`${I}.${E}`>[];
                     },

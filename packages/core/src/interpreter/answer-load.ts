@@ -7,6 +7,7 @@ import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { AnswerContext } from '../kernel/answer-context.ts';
 import type { LoadRequest } from '../protocol/load-request.ts';
 import type { QueryDescription } from '../protocol/query-description.ts';
+import type { ActionEntry } from '../registry/action-entry.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 import { decodeRow } from '../repositories/decode-row.ts';
 import { createEntityRepository } from '../repositories/entity-repository.ts';
@@ -44,6 +45,24 @@ function whereOf(value: unknown): Condition | undefined {
     throw invalid('where', 'A where must be an object.');
   }
   return normalizeCondition(value as ConditionInput);
+}
+
+/**
+ * The sorts a `query` load may use. The invoked action's `page.sortable` narrows the loads of the
+ * caller's view on its own entity (`ctx.target`, `forCaller()`), never a module-authority load
+ * (section 8.4); `id` and the entity's default sort stay allowed (section 6.7).
+ */
+function sortableOf(entry: EntityEntry, action: ActionEntry | undefined): readonly string[] {
+  if (action?.entityOutput?.entity !== entry.ref || action.page === undefined) {
+    return entry.page.sortable;
+  }
+  return [
+    ...new Set([
+      ...action.page.sortable,
+      'id',
+      ...entry.page.defaultSort.map((item) => item.field),
+    ]),
+  ];
 }
 
 /**
@@ -169,6 +188,7 @@ export async function answerLoad(
           { entity: entry.ref, ...rest },
           entry,
           select(whereOf(where), rest.sort ?? entry.page.defaultSort),
+          sortableOf(entry, view === undefined ? undefined : deps.action),
         );
         let items: readonly StorageRow[];
         let page: RowPage;

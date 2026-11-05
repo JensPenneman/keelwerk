@@ -3,6 +3,7 @@ import { fieldOf } from '../../test/support/field-of.ts';
 import { decodeCursor } from './decode-cursor.ts';
 import { encodeCursor } from './encode-cursor.ts';
 
+const names = ['a', 'b', 'c', 'd', 'e'];
 const fields = [
   fieldOf('instant', 'a'),
   fieldOf('integer', 'b'),
@@ -20,7 +21,7 @@ describe('decodeCursor', () => {
       Temporal.PlainDate.from('2026-01-02'),
       null,
     ];
-    const cursor = encodeCursor(values, '00000000-0000-7000-8000-000000000005', 'sig');
+    const cursor = encodeCursor(names, values, '00000000-0000-7000-8000-000000000005', 'sig');
     expect(decodeCursor(cursor, fields, 'sig')).toEqual({
       values,
       id: '00000000-0000-7000-8000-000000000005',
@@ -28,7 +29,7 @@ describe('decodeCursor', () => {
   });
 
   test('another signature is core.cursor_mismatch', () => {
-    const cursor = encodeCursor([null, null, null, null, null], 'row', 'one');
+    const cursor = encodeCursor(names, [null, null, null, null, null], 'row', 'one');
     expect(() => decodeCursor(cursor, fields, 'two')).toThrow(
       expect.objectContaining({ kind: 'validation', code: 'core.cursor_mismatch' }),
     );
@@ -39,22 +40,28 @@ describe('decodeCursor', () => {
     ['not an array', Buffer.from('{"a":1}').toString('base64url')],
     ['too few members', Buffer.from('["x","sig"]').toString('base64url')],
     [
+      'the flat layout of an earlier cursor',
+      Buffer.from(
+        '[null,null,null,null,null,"00000000-0000-7000-8000-000000000005","sig"]',
+      ).toString('base64url'),
+    ],
+    [
       'an id that is not text',
-      Buffer.from('[null,null,null,null,null,5,"sig"]').toString('base64url'),
+      Buffer.from('[[],[null,null,null,null,null],5,"sig"]').toString('base64url'),
     ],
     [
       'a value of the wrong type',
-      Buffer.from('[7,null,null,null,null,"00000000-0000-7000-8000-000000000005","sig"]').toString(
-        'base64url',
-      ),
+      Buffer.from(
+        '[[],[7,null,null,null,null],"00000000-0000-7000-8000-000000000005","sig"]',
+      ).toString('base64url'),
     ],
     [
       'an instant that does not parse',
       Buffer.from(
-        '["x",null,null,null,null,"00000000-0000-7000-8000-000000000005","sig"]',
+        '[[],["x",null,null,null,null],"00000000-0000-7000-8000-000000000005","sig"]',
       ).toString('base64url'),
     ],
-    ['an id that is not a uuid', '[null,null,null,null,null,"garbage","sig"]'],
+    ['an id that is not a uuid', '[[],[null,null,null,null,null],"garbage","sig"]'],
   ])('%s is core.cursor_mismatch', (_name, cursor) => {
     const encoded = cursor.startsWith('[') ? Buffer.from(cursor).toString('base64url') : cursor;
     expect(() => decodeCursor(encoded, fields, 'sig')).toThrow(
@@ -76,9 +83,9 @@ describe('decodeCursor', () => {
     ['a string for a float', fieldOf('float', 'k'), '"1"'],
     ['a decimal that is not a number', fieldOf('decimal', 'k'), '"1e5"'],
   ])('%s is core.cursor_mismatch', (_name, field, value) => {
-    const cursor = Buffer.from(`[${value},"00000000-0000-7000-8000-000000000005","sig"]`).toString(
-      'base64url',
-    );
+    const cursor = Buffer.from(
+      `[[],[${value}],"00000000-0000-7000-8000-000000000005","sig"]`,
+    ).toString('base64url');
     expect(() => decodeCursor(cursor, [field], 'sig')).toThrow(
       expect.objectContaining({ kind: 'validation', code: 'core.cursor_mismatch' }),
     );
@@ -94,6 +101,7 @@ describe('decodeCursor', () => {
     ];
     const ref = '00000000-0000-7000-8000-000000000001';
     const cursor = encodeCursor(
+      ['a', 'b', 'c', 'd', 'e'],
       [true, 1.5, '-2.50', ref, 'x'],
       '00000000-0000-7000-8000-000000000005',
       'sig',

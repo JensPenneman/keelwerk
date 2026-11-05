@@ -55,6 +55,8 @@ export interface TenantHooksInput {
   /** The unit the hooks decide in: the tenant's (or, for `onBackendCreated`, the backend's) scope, namespace and placement. */
   readonly target: ScopeTarget;
   readonly head: string;
+  /** `ctx.config` of the hooks: the backend's validated configuration over its defaults (3.4). */
+  readonly config: (module: string) => unknown;
   /** A rerun of hooks that failed before: a hook that now succeeds is recorded as completed. */
   readonly rerun?: boolean;
   /** Runs only the hooks with these ids. */
@@ -122,6 +124,7 @@ export async function runTenantHooks(input: TenantHooksInput): Promise<readonly 
         input: {},
         principal,
         request: { transport: 'runtime', requestId: globalThis.crypto.randomUUID() },
+        config: input.config,
         clock: store.clock,
         keys: store.keys,
         compute: store.compute,

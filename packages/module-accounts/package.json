@@ -25,7 +25,6 @@
     "@keelwerk/core": "workspace:*"
   },
   "devDependencies": {
-    "@keelwerk/data": "workspace:*",
     "@keelwerk/testing": "workspace:*",
     "vitest": "5.0.5"
   }

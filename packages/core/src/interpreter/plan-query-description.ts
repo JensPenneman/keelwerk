@@ -25,13 +25,15 @@ function clamp(size: number, maximum: number, path: string): number {
 /**
  * Plans a query description (section 7.9.2) for the row store: `where` is conjoined with the plan's
  * selection (`selection`, already checked by the caller's view where one applies), the sort must be
- * one the entity's paging allows (section 6.7), the page size defaults to the entity's and is cut
+ * one the entity's paging allows, narrowed to the invoking action's `page.sortable` when it has
+ * one (section 6.7), the page size defaults to the entity's and is cut
  * at its maximum, and a scan bounds the rows examined.
  */
 export function planQueryDescription(
   description: QueryDescription,
   entry: EntityEntry,
   selection: Condition,
+  sortable: readonly string[] = entry.page.sortable,
 ): PlannedQuery {
   const where = allOf(
     description.where === undefined
@@ -40,7 +42,7 @@ export function planQueryDescription(
   );
   const sort = description.sort ?? entry.page.defaultSort;
   for (const { field } of sort) {
-    if (!entry.page.sortable.includes(field)) {
+    if (!sortable.includes(field) || !entry.page.sortable.includes(field)) {
       throw invalid(field, `"${field}" is not a sortable field of "${entry.ref}".`);
     }
   }

@@ -26,8 +26,8 @@ function queryOf(entry: EntityEntry): AuthorizedAction {
 export type CallerViews = (entry: EntityEntry, context: AnswerContext) => CallerView;
 
 /**
- * Builds the views of one invocation. The invoked action's own plan serves the entity it is
- * mounted on (`ctx.target`, and `forCaller()` within it); every other entity is planned as its
+ * Builds the views of one invocation. The invoked query's own plan serves the entity it is
+ * mounted on (`ctx.target`, and `forCaller()` within it; a command's reads are planned as `query`); every other entity is planned as its
  * generated `query` (section 8.4).
  */
 export function createCallerViews(
@@ -38,7 +38,8 @@ export function createCallerViews(
   return (entry, context) => {
     const known = views.get(entry.ref);
     if (known !== undefined) return known;
-    const action: AuthorizedAction = invoked?.entity === entry.ref ? invoked : queryOf(entry);
+    const action: AuthorizedAction =
+      invoked?.entity === entry.ref && invoked.kind === 'query' ? invoked : queryOf(entry);
     const view = callerView({
       entry,
       rules,

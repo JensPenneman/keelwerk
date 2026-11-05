@@ -6,6 +6,7 @@ import { withResolverKit } from '../invoker/edge/with-resolver-kit.ts';
 import type { Invocation } from '../invoker/invocation.ts';
 import type { InvocationSession } from '../invoker/invocation-session.ts';
 import type { InvokerEnv } from '../invoker/invoker-env.ts';
+import { moduleConfigOf } from '../invoker/module-config-of.ts';
 import { requestInfoOf } from '../invoker/request-info-of.ts';
 import type { ScopeTarget } from '../invoker/scope-target.ts';
 import type { SessionDetails } from '../invoker/session-details.ts';
@@ -57,7 +58,7 @@ export async function runAdmission(env: InvokerEnv, run: AdmissionRun): Promise<
   // A backend-scope action of a tenant session is charged in the backend's own scope (S-36).
   const chargeTarget =
     action.scope === 'backend' && resolved.backendTarget !== null ? resolved.backendTarget : target;
-  const { registry } = env.appOf(resolved.app);
+  const { registry, configShapes } = env.appOf(resolved.app);
   if ((registry.fills.get(point) ?? []).length === 0) return none;
   const admissionInput: AdmissionInput = {
     action: action.ref,
@@ -72,6 +73,7 @@ export async function runAdmission(env: InvokerEnv, run: AdmissionRun): Promise<
       registry,
       target,
       backendTarget: resolved.backendTarget,
+      config: moduleConfigOf(configShapes, resolved.backendConfig),
       transport: invocation.carrier.transport,
       requestId: invocation.requestId,
       span,

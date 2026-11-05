@@ -4,6 +4,8 @@ import { createTenant } from '../control/create-tenant.ts';
 import { findControlRows } from '../control/find-control-rows.ts';
 import { runTenantHooks } from '../control/run-tenant-hooks.ts';
 import { errors } from '../errors/errors.ts';
+import { moduleConfigOf } from '../invoker/module-config-of.ts';
+import { moduleConfigShapes } from '../invoker/module-config-shapes.ts';
 import type { ScopeTarget } from '../invoker/scope-target.ts';
 import type { Connected } from './connected.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
@@ -37,6 +39,11 @@ export function createRuntimeControl(input: {
       throw errors.validation(`"${version}" is not an API version of "${app.id}".`);
     }
   };
+  const configOf = (
+    app: ServedApp,
+    stored: Readonly<Record<string, unknown>> | undefined,
+  ): ((module: string) => unknown) =>
+    moduleConfigOf(moduleConfigShapes(app.source.modules), stored);
   return {
     anchorSinks: () => input.anchoring?.sinkStatus?.() ?? [],
     createBackend: async (backend) => {
@@ -67,6 +74,7 @@ export function createRuntimeControl(input: {
         payload: { id: created.id as never, name: backend.name },
         target,
         head: app.head,
+        config: configOf(app, record.config),
       });
       return created;
     },
@@ -103,6 +111,7 @@ export function createRuntimeControl(input: {
           handle,
         },
         head: app.head,
+        config: configOf(app, backend.config),
       });
       return created;
     },
@@ -146,6 +155,7 @@ export function createRuntimeControl(input: {
           handle,
         },
         head: app.head,
+        config: configOf(app, backend.config),
         rerun: true,
         only,
       });

@@ -11,6 +11,10 @@ function statusOf(row: StorageRow): 'active' | 'suspended' {
   return row.status === 'suspended' ? 'suspended' : 'active';
 }
 
+function isConfig(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /** The directory the invoker resolves scopes with: reads over the control store, kept in a cache that the control namespace's change feed invalidates. */
 export interface ScopeDirectoryCache {
   readonly lookup: ScopeLookup;
@@ -72,6 +76,7 @@ export function createScopeDirectoryCache(options: {
         namespace: await book.namespaceOf(placement, String(row.app)),
         status: statusOf(row),
         ...(typeof row.apiVersion === 'string' ? { apiVersion: row.apiVersion } : {}),
+        ...(isConfig(row.config) ? { config: row.config } : {}),
       };
       backends.set(id, record);
       return record;

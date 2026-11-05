@@ -33,11 +33,19 @@ const notes = defineModule(base, {
         principal: 'user',
         where: (ctx) => ({ level: { lte: Number(ctx.principal.claims.threshold ?? -1) } }),
       }),
+      // The seeding subject reads what it writes (a command's output passes the read plan, 8.4);
+      // the sealed level does not cover it, so the readers below are what the model tests.
+      seed: defineRule(base, note, {
+        effect: 'allow',
+        actions: ['read'],
+        principal: 'user',
+        where: (ctx) => (ctx.principal.claims.seed === true ? {} : false),
+      }),
       locked: defineRule(base, note, {
         effect: 'deny',
         actions: ['read'],
         principal: 'user',
-        where: () => ({ level: 9 }),
+        where: (ctx) => (ctx.principal.claims.seed === true ? false : { level: 9 }),
         reason: 'Level 9 is sealed.',
       }),
       writers: defineRule(base, note, { effect: 'allow', actions: ['write'], principal: 'user' }),
@@ -88,7 +96,7 @@ describe('the disclosure rule of section 15.2.6 (model test)', () => {
         signal: new AbortController().signal,
         commandId: crypto.randomUUID(),
       });
-    const writer = testPrincipal('w');
+    const writer = testPrincipal('w', { claims: { seed: true } });
     const visible = (
       row: { owner: string; level: number; archived: boolean },
       who: { subject: string | null; claims: Readonly<Record<string, unknown>> },

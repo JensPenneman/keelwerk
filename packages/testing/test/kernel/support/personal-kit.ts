@@ -25,11 +25,11 @@ import {
   shape,
 } from '@keelwerk/core';
 import { fallbackReporter, memoryAdapter, schemaPlanner } from '@keelwerk/data';
+import { pgliteFactory } from '../../../src/harness/pglite-factory.ts';
 import { testCarrier } from '../../../src/harness/test-carrier.ts';
 import { testMasterKeyName } from '../../../src/harness/test-master-key-name.ts';
 import { testSecrets } from '../../../src/harness/test-secrets.ts';
 import { withTestResolver } from '../../../src/harness/with-test-resolver.ts';
-import { pgliteFactory } from './pglite-factory.ts';
 import { ada, boot, type Kind } from './runtime-kit.ts';
 
 const personDef = defineEntity({

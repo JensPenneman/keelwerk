@@ -12,6 +12,8 @@ export interface ResolvedScope {
   readonly target: ScopeTarget | null;
   /** Where backend-scope actions of a tenant session run; null at backend and deployment level. */
   readonly backendTarget: ScopeTarget | null;
+  /** The backend's validated configuration by module id; absent at deployment level. */
+  readonly backendConfig?: Readonly<Record<string, unknown>>;
   /** The backend's or tenant's pinned API version. */
   readonly pinnedVersion?: string;
 }

@@ -19,7 +19,10 @@ export async function runInMemory(
   ref: string,
   options: RunInMemoryOptions,
 ): Promise<InMemoryRun> {
-  const runtime = await startTestRuntime(app);
+  const runtime = await startTestRuntime(
+    app,
+    options.config === undefined ? {} : { config: options.config },
+  );
   try {
     const address = tenantAddress(runtime, options.tenant);
     const { tenant } = address;
