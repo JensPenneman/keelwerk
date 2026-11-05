@@ -8,6 +8,10 @@ export interface Receipt {
   /** Digest of the input and the API version. */
   readonly fingerprint: string;
   readonly principal: PrincipalRef | null;
+  /** Flat copy of `principal.resolver`; with `principalId` it identifies the principal (section 8.5). */
+  readonly principalResolver: string | null;
+  /** Flat copy of `principal.principalId`, the column the submitter rule compares. */
+  readonly principalId: string | null;
   readonly status: 'pending' | 'accepted' | 'completed' | 'failed';
   readonly outcome: ReceiptOutcome | null;
   readonly apiVersion: string;

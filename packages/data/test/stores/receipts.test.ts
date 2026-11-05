@@ -1,5 +1,6 @@
 import type { Receipt } from '@keelwerk/core';
 import { deriveUuidV8 } from '@keelwerk/core';
+import { receiptInstantCases, receiptIsolationCases, receiptStoreCases } from '@keelwerk/testing';
 import { expect, test } from 'vitest';
 import { failure } from '../support/failure.ts';
 import { id } from '../support/id.ts';
@@ -17,6 +18,8 @@ function receipt(commandId: string, over: Partial<Receipt> = {}): Receipt {
     action: 'app.note.set',
     fingerprint: 'f1',
     principal: null,
+    principalResolver: null,
+    principalId: null,
     status: 'pending',
     outcome: null,
     apiVersion: '2026-01-01',
@@ -152,3 +155,14 @@ test('claim takes over a receipt whose expiry has passed and keeps a live one', 
   expect(await claim('f3')).toBe('inserted');
   expect(await kept()).toBe('f3');
 });
+
+// The shared receipt cases, run against PGlite as against the memory adapter and PostgreSQL.
+const subject = {
+  clock: { now: () => memory.clock.now(), advance: (ms: number) => memory.clock.advance(ms) },
+  run: memory.run,
+  read: memory.read,
+  setNow: (instant: Temporal.Instant) => memory.clock.set(instant),
+};
+receiptStoreCases(subject);
+receiptIsolationCases(subject);
+receiptInstantCases(subject);

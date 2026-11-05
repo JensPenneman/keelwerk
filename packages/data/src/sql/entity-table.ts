@@ -48,11 +48,25 @@ const systemFields: Readonly<Record<string, FieldDescriptor>> = {
   backendId: descriptor('ref', 'backendId', false),
 };
 
-function scopeColumnOf(entity: EntityDescriptor): 'tenant_id' | 'backend_id' | null {
+type TableScopeColumn = 'tenant_id' | 'backend_id' | 'scope_id' | null;
+
+function scopeColumnOf(entity: EntityDescriptor): TableScopeColumn {
   if (entity.tenancy === 'tenant') return 'tenant_id';
   if (entity.tenancy === 'backend') return 'backend_id';
+  if (entity.tenancy === 'invocation') return 'scope_id';
   return null;
 }
+
+/** The system columns an `invocation` table keeps (15.1.7): no archive, framework or scope column. */
+const invocationSystemFields: readonly string[] = ['id', 'createdAt', 'updatedAt', 'version'];
+
+const archivableSystemFields: readonly string[] = [
+  'id',
+  'createdAt',
+  'updatedAt',
+  'archivedAt',
+  'version',
+];
 
 /** A column an entity's condition, sort or select can name. */
 export interface ColumnRef {
@@ -74,8 +88,12 @@ export interface EntityTable {
   readonly schema: string | null;
   readonly name: string;
   readonly alias: string;
-  /** The scope column of the entity's tenancy, `null` for deployment-level and invocation tables. */
-  readonly scopeColumn: 'tenant_id' | 'backend_id' | null;
+  /** The scope column of the entity's tenancy, `null` for deployment-level tables. */
+  readonly scopeColumn: TableScopeColumn;
+  /** The system fields a row of this table has, in the order a query selects them. */
+  readonly systemFields: readonly string[];
+  /** Whether rows can be archived (`archived_at`); a query leaves archived rows out by default. */
+  readonly archivable: boolean;
   /** `schema.table as alias`, for `selectFrom`. */
   readonly from: string;
   /** The `alias.column` reference of a column. */
@@ -93,12 +111,16 @@ export function entityTable(
   alias: string,
 ): EntityTable {
   const prefix = root === null ? '' : `${root}.`;
+  const invocation = entity.tenancy === 'invocation';
+  const own = invocation ? invocationSystemFields : archivableSystemFields;
   return {
     entity,
     schema: root,
     name: entity.table,
     alias,
     scopeColumn: scopeColumnOf(entity),
+    systemFields: invocation ? invocationSystemFields : archivableSystemFields,
+    archivable: !invocation,
     from: `${prefix}${entity.table} as ${alias}`,
     reference: (column) => `${alias}.${column}`,
     column: (path) => {
@@ -125,7 +147,10 @@ export function entityTable(
           system: false,
         };
       }
-      const system = Object.hasOwn(systemFields, path) ? systemFields[path] : undefined;
+      const system =
+        Object.hasOwn(systemFields, path) && (!invocation || own.includes(path))
+          ? systemFields[path]
+          : undefined;
       if (system !== undefined) {
         return { path, column: system.column, field: system, derived: undefined, system: true };
       }

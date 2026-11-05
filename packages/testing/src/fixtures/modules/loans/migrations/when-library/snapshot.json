@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "loans.loan": {
+      "events": {},
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "bookId": {
+          "codec": null,
+          "column": "book_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "ref",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": {
+            "entity": "library.book",
+            "foreignKey": true
+          },
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": false
+        }
+      },
+      "history": "chain",
+      "mergeState": false,
+      "renames": []
+    }
+  },
+  "format": "keelwerk.snapshot/1",
+  "tables": [
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": "bookId",
+          "kind": "ref",
+          "name": "book_id",
+          "nullable": true
+        }
+      ],
+      "foreignKeys": [
+        {
+          "columns": ["tenant_id", "book_id"],
+          "name": "loans__loan__book_id_fk",
+          "references": {
+            "columns": ["tenant_id", "id"],
+            "table": "library__book"
+          }
+        }
+      ],
+      "indexes": [],
+      "name": "loans__loan",
+      "primaryKey": [],
+      "scoped": "tenant"
+    }
+  ],
+  "track": "loans[library]",
+  "version": 1
+}

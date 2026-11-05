@@ -1,7 +1,7 @@
 import { createServer, IncomingMessage, type Server } from 'node:http';
 import process from 'node:process';
 import { getRequestListener } from '@hono/node-server';
-import { coreError } from './core-error.ts';
+import { coreError } from '@keelwerk/core/http';
 import { createDispatcher } from './create-dispatcher.ts';
 import { createLifecycle } from './create-lifecycle.ts';
 import { createMountTable } from './create-mount-table.ts';

@@ -1,0 +1,53 @@
+{
+  "entities": {
+    "library.book": {
+      "events": {},
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "reservedBy": {
+          "codec": null,
+          "column": "reserved_by",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "subject",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": false
+        }
+      },
+      "history": "chain",
+      "mergeState": false,
+      "renames": []
+    }
+  },
+  "format": "keelwerk.snapshot/1",
+  "tables": [
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": "reservedBy",
+          "kind": "subject",
+          "name": "reserved_by",
+          "nullable": true
+        }
+      ],
+      "foreignKeys": [],
+      "indexes": [],
+      "name": "library__book",
+      "primaryKey": [],
+      "scoped": "tenant"
+    }
+  ],
+  "track": "loans->library",
+  "version": 1
+}

@@ -638,7 +638,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -653,7 +669,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
+      "inputHash": "sha256-64PykrMhBYYnrO2xz5pUVUqaGqIDDg6K3GFgd_trAKE",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -809,7 +825,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -819,7 +851,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3PUWR_YmwRzrMLACxsiseD6O7lo2hxXZtJGIvQXDyHM",
+      "inputHash": "sha256-pDOmM6-ILNCXiEBwVjs4ooC0bp_1K0aTq4ZKtS-foO4",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -1372,33 +1404,6 @@
       "input": {
         "access": "read-write",
         "fields": {
-          "apiVersion": {
-            "access": "read-write",
-            "kind": "string",
-            "optional": true,
-            "tag": 4
-          },
-          "app": {
-            "access": "read-write",
-            "kind": "string",
-            "optional": true,
-            "tag": 2
-          },
-          "config": {
-            "access": "read-write",
-            "input": {
-              "type": "object"
-            },
-            "kind": "json",
-            "optional": true,
-            "output": {
-              "type": "object"
-            },
-            "schema": {
-              "type": "object"
-            },
-            "tag": 5
-          },
           "id": {
             "access": "read-write",
             "kind": "ref",
@@ -1412,36 +1417,70 @@
             "optional": true,
             "wide": false
           },
-          "name": {
+          "patch": {
             "access": "read-write",
-            "kind": "string",
-            "merge": "exclusive",
-            "optional": true,
-            "tag": 1,
-            "unique": true
-          },
-          "placement": {
-            "access": "read-write",
-            "kind": "string",
-            "optional": true,
-            "tag": 3
-          },
-          "status": {
-            "access": "read-write",
-            "default": "active",
-            "kind": "enum",
-            "optional": true,
-            "tag": 6,
-            "values": [
-              "active",
-              "suspended"
-            ]
+            "fields": {
+              "apiVersion": {
+                "access": "read-write",
+                "kind": "string",
+                "optional": true,
+                "tag": 4
+              },
+              "app": {
+                "access": "read-write",
+                "kind": "string",
+                "optional": true,
+                "tag": 2
+              },
+              "config": {
+                "access": "read-write",
+                "input": {
+                  "type": "object"
+                },
+                "kind": "json",
+                "optional": true,
+                "output": {
+                  "type": "object"
+                },
+                "schema": {
+                  "type": "object"
+                },
+                "tag": 5
+              },
+              "name": {
+                "access": "read-write",
+                "kind": "string",
+                "merge": "exclusive",
+                "optional": true,
+                "tag": 1,
+                "unique": true
+              },
+              "placement": {
+                "access": "read-write",
+                "kind": "string",
+                "optional": true,
+                "tag": 3
+              },
+              "status": {
+                "access": "read-write",
+                "default": "active",
+                "kind": "enum",
+                "optional": true,
+                "tag": 6,
+                "values": [
+                  "active",
+                  "suspended"
+                ]
+              }
+            },
+            "kind": "shape",
+            "optional": false
           }
         },
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-VstU0l7mLMgVe3El7UrEIAtyfj-MSHPi-Ie44eOWVNo",
+      "inputHash": "sha256-lP4RkKFNUBJU9FnCgG4loXf24mM2nVo3O6yye686zwk",
       "instance": true,
       "kind": "command",
       "module": "core",
@@ -1742,7 +1781,7 @@
                   "access": "read-write",
                   "kind": "instant",
                   "optional": true,
-                  "tag": 14
+                  "tag": 16
                 },
                 "action": {
                   "access": "read-write",
@@ -1754,7 +1793,7 @@
                   "access": "read-write",
                   "kind": "string",
                   "optional": false,
-                  "tag": 7
+                  "tag": 9
                 },
                 "archivedAt": {
                   "access": "read",
@@ -1765,13 +1804,13 @@
                   "access": "read-write",
                   "kind": "string",
                   "optional": true,
-                  "tag": 11
+                  "tag": 13
                 },
                 "clientSeq": {
                   "access": "read-write",
                   "kind": "integer",
                   "optional": true,
-                  "tag": 12,
+                  "tag": 14,
                   "wide": false
                 },
                 "commandId": {
@@ -1791,7 +1830,7 @@
                   "access": "read-write",
                   "kind": "instant",
                   "optional": false,
-                  "tag": 13
+                  "tag": 15
                 },
                 "fingerprint": {
                   "access": "read-write",
@@ -1819,34 +1858,31 @@
                   "schema": {
                     "type": "object"
                   },
+                  "tag": 8
+                },
+                "principalId": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": true,
                   "tag": 6
                 },
-                "principal": {
+                "principalResolver": {
                   "access": "read-write",
-                  "input": {
-                    "type": "object"
-                  },
-                  "kind": "json",
+                  "kind": "string",
                   "optional": true,
-                  "output": {
-                    "type": "object"
-                  },
-                  "schema": {
-                    "type": "object"
-                  },
-                  "tag": 4
+                  "tag": 5
                 },
                 "remoteAddress": {
                   "access": "read-write",
                   "kind": "string",
                   "optional": true,
-                  "tag": 9
+                  "tag": 11
                 },
                 "status": {
                   "access": "read-write",
                   "kind": "enum",
                   "optional": false,
-                  "tag": 5,
+                  "tag": 7,
                   "values": [
                     "pending",
                     "accepted",
@@ -1858,7 +1894,7 @@
                   "access": "read-write",
                   "kind": "string",
                   "optional": false,
-                  "tag": 8
+                  "tag": 10
                 },
                 "updatedAt": {
                   "access": "read",
@@ -1869,7 +1905,7 @@
                   "access": "read-write",
                   "kind": "string",
                   "optional": true,
-                  "tag": 10
+                  "tag": 12
                 },
                 "version": {
                   "access": "read",
@@ -1905,7 +1941,7 @@
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-8-g-Fu1WBHLJUYpL9-qqAm_QZ3o_S1wKboOEg4EqK04",
+      "outputHash": "sha256-yuzgGFDunsfY4_GeKHiLRl-_PcykhS9DsF2PrRBDL7w",
       "ref": "core.commandReceipt.get",
       "resumable": false,
       "scope": "tenant",
@@ -1972,7 +2008,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -1987,7 +2039,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
+      "inputHash": "sha256-64PykrMhBYYnrO2xz5pUVUqaGqIDDg6K3GFgd_trAKE",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -2003,7 +2055,7 @@
               "access": "read-write",
               "kind": "instant",
               "optional": true,
-              "tag": 14
+              "tag": 16
             },
             "action": {
               "access": "read-write",
@@ -2015,7 +2067,7 @@
               "access": "read-write",
               "kind": "string",
               "optional": false,
-              "tag": 7
+              "tag": 9
             },
             "archivedAt": {
               "access": "read",
@@ -2026,13 +2078,13 @@
               "access": "read-write",
               "kind": "string",
               "optional": true,
-              "tag": 11
+              "tag": 13
             },
             "clientSeq": {
               "access": "read-write",
               "kind": "integer",
               "optional": true,
-              "tag": 12,
+              "tag": 14,
               "wide": false
             },
             "commandId": {
@@ -2052,7 +2104,7 @@
               "access": "read-write",
               "kind": "instant",
               "optional": false,
-              "tag": 13
+              "tag": 15
             },
             "fingerprint": {
               "access": "read-write",
@@ -2080,34 +2132,31 @@
               "schema": {
                 "type": "object"
               },
+              "tag": 8
+            },
+            "principalId": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": true,
               "tag": 6
             },
-            "principal": {
+            "principalResolver": {
               "access": "read-write",
-              "input": {
-                "type": "object"
-              },
-              "kind": "json",
+              "kind": "string",
               "optional": true,
-              "output": {
-                "type": "object"
-              },
-              "schema": {
-                "type": "object"
-              },
-              "tag": 4
+              "tag": 5
             },
             "remoteAddress": {
               "access": "read-write",
               "kind": "string",
               "optional": true,
-              "tag": 9
+              "tag": 11
             },
             "status": {
               "access": "read-write",
               "kind": "enum",
               "optional": false,
-              "tag": 5,
+              "tag": 7,
               "values": [
                 "pending",
                 "accepted",
@@ -2119,7 +2168,7 @@
               "access": "read-write",
               "kind": "string",
               "optional": false,
-              "tag": 8
+              "tag": 10
             },
             "updatedAt": {
               "access": "read",
@@ -2130,7 +2179,7 @@
               "access": "read-write",
               "kind": "string",
               "optional": true,
-              "tag": 10
+              "tag": 12
             },
             "version": {
               "access": "read",
@@ -2145,7 +2194,7 @@
         "kind": "page",
         "optional": false
       },
-      "outputHash": "sha256-YFLU_fEU5UBi9WOszgeTg0Ar4PVvxTpQM08RSfhUdXI",
+      "outputHash": "sha256--NAlMnqvUL0iBdrJpXew-JX1e9SasheNu6xc2So0IFA",
       "page": {
         "defaultSize": 50,
         "defaultSort": [
@@ -2202,7 +2251,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -2212,7 +2277,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3PUWR_YmwRzrMLACxsiseD6O7lo2hxXZtJGIvQXDyHM",
+      "inputHash": "sha256-pDOmM6-ILNCXiEBwVjs4ooC0bp_1K0aTq4ZKtS-foO4",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -2636,7 +2701,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -2651,7 +2732,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
+      "inputHash": "sha256-64PykrMhBYYnrO2xz5pUVUqaGqIDDg6K3GFgd_trAKE",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -2771,7 +2852,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -2781,7 +2878,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3PUWR_YmwRzrMLACxsiseD6O7lo2hxXZtJGIvQXDyHM",
+      "inputHash": "sha256-pDOmM6-ILNCXiEBwVjs4ooC0bp_1K0aTq4ZKtS-foO4",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -3302,7 +3399,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -3317,7 +3430,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
+      "inputHash": "sha256-64PykrMhBYYnrO2xz5pUVUqaGqIDDg6K3GFgd_trAKE",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -3569,7 +3682,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -3579,7 +3708,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3PUWR_YmwRzrMLACxsiseD6O7lo2hxXZtJGIvQXDyHM",
+      "inputHash": "sha256-pDOmM6-ILNCXiEBwVjs4ooC0bp_1K0aTq4ZKtS-foO4",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -4042,7 +4171,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -4057,7 +4202,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
+      "inputHash": "sha256-64PykrMhBYYnrO2xz5pUVUqaGqIDDg6K3GFgd_trAKE",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -4180,7 +4325,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -4190,7 +4351,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3PUWR_YmwRzrMLACxsiseD6O7lo2hxXZtJGIvQXDyHM",
+      "inputHash": "sha256-pDOmM6-ILNCXiEBwVjs4ooC0bp_1K0aTq4ZKtS-foO4",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -4655,7 +4816,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -4670,7 +4847,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
+      "inputHash": "sha256-64PykrMhBYYnrO2xz5pUVUqaGqIDDg6K3GFgd_trAKE",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -4800,7 +4977,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -4810,7 +5003,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3PUWR_YmwRzrMLACxsiseD6O7lo2hxXZtJGIvQXDyHM",
+      "inputHash": "sha256-pDOmM6-ILNCXiEBwVjs4ooC0bp_1K0aTq4ZKtS-foO4",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -5310,7 +5503,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -5325,7 +5534,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
+      "inputHash": "sha256-64PykrMhBYYnrO2xz5pUVUqaGqIDDg6K3GFgd_trAKE",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -5454,7 +5663,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -5464,7 +5689,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3PUWR_YmwRzrMLACxsiseD6O7lo2hxXZtJGIvQXDyHM",
+      "inputHash": "sha256-pDOmM6-ILNCXiEBwVjs4ooC0bp_1K0aTq4ZKtS-foO4",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -5889,7 +6114,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -5904,7 +6145,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
+      "inputHash": "sha256-64PykrMhBYYnrO2xz5pUVUqaGqIDDg6K3GFgd_trAKE",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -6065,7 +6306,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -6075,7 +6332,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3PUWR_YmwRzrMLACxsiseD6O7lo2hxXZtJGIvQXDyHM",
+      "inputHash": "sha256-pDOmM6-ILNCXiEBwVjs4ooC0bp_1K0aTq4ZKtS-foO4",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -7121,7 +7378,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -7136,7 +7409,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
+      "inputHash": "sha256-64PykrMhBYYnrO2xz5pUVUqaGqIDDg6K3GFgd_trAKE",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -7287,7 +7560,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -7297,7 +7586,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3PUWR_YmwRzrMLACxsiseD6O7lo2hxXZtJGIvQXDyHM",
+      "inputHash": "sha256-pDOmM6-ILNCXiEBwVjs4ooC0bp_1K0aTq4ZKtS-foO4",
       "instance": false,
       "kind": "query",
       "module": "core",
@@ -7968,31 +8257,6 @@
       "input": {
         "access": "read-write",
         "fields": {
-          "apiVersion": {
-            "access": "read-write",
-            "kind": "string",
-            "optional": true,
-            "tag": 4
-          },
-          "backendId": {
-            "access": "read-write",
-            "kind": "ref",
-            "optional": true,
-            "prefix": "bknd",
-            "tag": 1,
-            "target": "core.backend"
-          },
-          "domains": {
-            "access": "read-write",
-            "item": {
-              "access": "read-write",
-              "kind": "string",
-              "optional": false
-            },
-            "kind": "list",
-            "optional": true,
-            "tag": 5
-          },
           "id": {
             "access": "read-write",
             "kind": "ref",
@@ -8006,34 +8270,66 @@
             "optional": true,
             "wide": false
           },
-          "name": {
+          "patch": {
             "access": "read-write",
-            "kind": "string",
-            "optional": true,
-            "tag": 2
-          },
-          "placement": {
-            "access": "read-write",
-            "kind": "string",
-            "optional": true,
-            "tag": 3
-          },
-          "status": {
-            "access": "read-write",
-            "default": "active",
-            "kind": "enum",
-            "optional": true,
-            "tag": 6,
-            "values": [
-              "active",
-              "suspended"
-            ]
+            "fields": {
+              "apiVersion": {
+                "access": "read-write",
+                "kind": "string",
+                "optional": true,
+                "tag": 4
+              },
+              "backendId": {
+                "access": "read-write",
+                "kind": "ref",
+                "optional": true,
+                "prefix": "bknd",
+                "tag": 1,
+                "target": "core.backend"
+              },
+              "domains": {
+                "access": "read-write",
+                "item": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                },
+                "kind": "list",
+                "optional": true,
+                "tag": 5
+              },
+              "name": {
+                "access": "read-write",
+                "kind": "string",
+                "optional": true,
+                "tag": 2
+              },
+              "placement": {
+                "access": "read-write",
+                "kind": "string",
+                "optional": true,
+                "tag": 3
+              },
+              "status": {
+                "access": "read-write",
+                "default": "active",
+                "kind": "enum",
+                "optional": true,
+                "tag": 6,
+                "values": [
+                  "active",
+                  "suspended"
+                ]
+              }
+            },
+            "kind": "shape",
+            "optional": false
           }
         },
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-rKtyhodbPolOGV6CjxgHhYFANZfBE8YQs3IFgfFfvKI",
+      "inputHash": "sha256-Mc62fTXh1bv8lXJNwQrXN1SWClRhzEdPkdKNQrYd1BE",
       "instance": true,
       "kind": "command",
       "module": "core",
@@ -8258,6 +8554,14 @@
             "tag": 2,
             "unique": true
           },
+          "relatedTo": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": true,
+            "prefix": "book",
+            "tag": 4,
+            "target": "library.book"
+          },
           "reservedBy": {
             "access": "read-write",
             "kind": "subject",
@@ -8286,7 +8590,7 @@
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-DSqWid0neEUUmdrBdMcfKTskb95DLESoQZRvntj_gj4",
+      "outputHash": "sha256-oKgUNaZ-1tjgFkKS-0L9NZayLTMiQVW9qZqejY_QuAU",
       "ref": "library.book.archive",
       "resumable": false,
       "scope": "tenant",
@@ -8422,6 +8726,14 @@
             "tag": 2,
             "unique": true
           },
+          "relatedTo": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": true,
+            "prefix": "book",
+            "tag": 4,
+            "target": "library.book"
+          },
           "reservedBy": {
             "access": "read-write",
             "kind": "subject",
@@ -8439,7 +8751,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3SM9Nky5P6gPk6TmDernQOSJmwR9tZiIDPdxmdRvSAU",
+      "inputHash": "sha256-czt_B6ZzqTa9ZUEN1VRFh8bDkmMZgiEv1y3kjM_eMyc",
       "instance": false,
       "kind": "command",
       "module": "library",
@@ -8481,6 +8793,14 @@
             "tag": 2,
             "unique": true
           },
+          "relatedTo": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": true,
+            "prefix": "book",
+            "tag": 4,
+            "target": "library.book"
+          },
           "reservedBy": {
             "access": "read-write",
             "kind": "subject",
@@ -8509,7 +8829,7 @@
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-DSqWid0neEUUmdrBdMcfKTskb95DLESoQZRvntj_gj4",
+      "outputHash": "sha256-oKgUNaZ-1tjgFkKS-0L9NZayLTMiQVW9qZqejY_QuAU",
       "ref": "library.book.create",
       "resumable": false,
       "scope": "tenant",
@@ -8610,6 +8930,14 @@
                   "tag": 2,
                   "unique": true
                 },
+                "relatedTo": {
+                  "access": "read-write",
+                  "kind": "ref",
+                  "optional": true,
+                  "prefix": "book",
+                  "tag": 4,
+                  "target": "library.book"
+                },
                 "reservedBy": {
                   "access": "read-write",
                   "kind": "subject",
@@ -8662,7 +8990,7 @@
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-O7hXAYAQRK94A4c_Dd4-gx0jaScQ_kELIuW5OKXwCJE",
+      "outputHash": "sha256-iAIHnOC9YGkvltKLPluNv8HPVfFTl5nqxL2Q8MgFis4",
       "ref": "library.book.get",
       "resumable": false,
       "scope": "tenant",
@@ -8938,7 +9266,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -8953,7 +9297,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
+      "inputHash": "sha256-64PykrMhBYYnrO2xz5pUVUqaGqIDDg6K3GFgd_trAKE",
       "instance": false,
       "kind": "query",
       "module": "library",
@@ -8997,6 +9341,14 @@
               "tag": 2,
               "unique": true
             },
+            "relatedTo": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": true,
+              "prefix": "book",
+              "tag": 4,
+              "target": "library.book"
+            },
             "reservedBy": {
               "access": "read-write",
               "kind": "subject",
@@ -9028,7 +9380,7 @@
         "kind": "page",
         "optional": false
       },
-      "outputHash": "sha256-CjsSk5QaiXTNCj5yGz5BTpc5fmvNPqXjC4E_s2qpVEw",
+      "outputHash": "sha256-me8vTbQrWdAJEPnzMQkUvgjcHEHUQnAArqBT3kelMH8",
       "page": {
         "defaultSize": 50,
         "defaultSort": [
@@ -9086,7 +9438,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -9096,7 +9464,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3PUWR_YmwRzrMLACxsiseD6O7lo2hxXZtJGIvQXDyHM",
+      "inputHash": "sha256-pDOmM6-ILNCXiEBwVjs4ooC0bp_1K0aTq4ZKtS-foO4",
       "instance": false,
       "kind": "query",
       "module": "library",
@@ -9252,6 +9620,14 @@
             "tag": 2,
             "unique": true
           },
+          "relatedTo": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": true,
+            "prefix": "book",
+            "tag": 4,
+            "target": "library.book"
+          },
           "reservedBy": {
             "access": "read-write",
             "kind": "subject",
@@ -9280,7 +9656,7 @@
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-DSqWid0neEUUmdrBdMcfKTskb95DLESoQZRvntj_gj4",
+      "outputHash": "sha256-oKgUNaZ-1tjgFkKS-0L9NZayLTMiQVW9qZqejY_QuAU",
       "ref": "library.book.reserve",
       "resumable": false,
       "scope": "tenant",
@@ -9357,6 +9733,14 @@
             "tag": 2,
             "unique": true
           },
+          "relatedTo": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": true,
+            "prefix": "book",
+            "tag": 4,
+            "target": "library.book"
+          },
           "reservedBy": {
             "access": "read-write",
             "kind": "subject",
@@ -9385,7 +9769,7 @@
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-DSqWid0neEUUmdrBdMcfKTskb95DLESoQZRvntj_gj4",
+      "outputHash": "sha256-oKgUNaZ-1tjgFkKS-0L9NZayLTMiQVW9qZqejY_QuAU",
       "ref": "library.book.restore",
       "resumable": false,
       "scope": "tenant",
@@ -9447,6 +9831,14 @@
                   "optional": false,
                   "tag": 2,
                   "unique": true
+                },
+                "relatedTo": {
+                  "access": "read-write",
+                  "kind": "ref",
+                  "optional": true,
+                  "prefix": "book",
+                  "tag": 4,
+                  "target": "library.book"
                 },
                 "reservedBy": {
                   "access": "read-write",
@@ -9534,6 +9926,14 @@
                       "tag": 2,
                       "unique": true
                     },
+                    "relatedTo": {
+                      "access": "read-write",
+                      "kind": "ref",
+                      "optional": true,
+                      "prefix": "book",
+                      "tag": 4,
+                      "target": "library.book"
+                    },
                     "reservedBy": {
                       "access": "read-write",
                       "kind": "subject",
@@ -9562,7 +9962,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-CjelHyFQrEiyVb_iSVIy3fU73FHazVbGTdjbmkL8Tas",
+      "inputHash": "sha256-Z22_a86xoeqjWQUWUrBaTnc02Zhc12WEiqJ4x1JclKA",
       "instance": false,
       "kind": "command",
       "module": "library",
@@ -9684,12 +10084,6 @@
       "input": {
         "access": "read-write",
         "fields": {
-          "addedBy": {
-            "access": "read-write",
-            "kind": "subject",
-            "optional": true,
-            "tag": 3
-          },
           "id": {
             "access": "read-write",
             "kind": "ref",
@@ -9703,33 +10097,54 @@
             "optional": true,
             "wide": false
           },
-          "isbn": {
+          "patch": {
             "access": "read-write",
-            "kind": "string",
-            "maxLength": 17,
-            "merge": "exclusive",
-            "optional": true,
-            "tag": 2,
-            "unique": true
-          },
-          "reservedBy": {
-            "access": "read-write",
-            "kind": "subject",
-            "optional": true,
-            "tag": 1
-          },
-          "title": {
-            "access": "read-write",
-            "kind": "string",
-            "maxLength": 200,
-            "optional": true,
-            "tag": 1
+            "fields": {
+              "addedBy": {
+                "access": "read-write",
+                "kind": "subject",
+                "optional": true,
+                "tag": 3
+              },
+              "isbn": {
+                "access": "read-write",
+                "kind": "string",
+                "maxLength": 17,
+                "merge": "exclusive",
+                "optional": true,
+                "tag": 2,
+                "unique": true
+              },
+              "relatedTo": {
+                "access": "read-write",
+                "kind": "ref",
+                "optional": true,
+                "prefix": "book",
+                "tag": 4,
+                "target": "library.book"
+              },
+              "reservedBy": {
+                "access": "read-write",
+                "kind": "subject",
+                "optional": true,
+                "tag": 1
+              },
+              "title": {
+                "access": "read-write",
+                "kind": "string",
+                "maxLength": 200,
+                "optional": true,
+                "tag": 1
+              }
+            },
+            "kind": "shape",
+            "optional": false
           }
         },
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-L_avnNnrfRre1nGg-OeYKGlHXRCswOQNtumRAVfw_QA",
+      "inputHash": "sha256-7Jeog1Ulc_4--TNQYxPbMq0Y09k0cTD1RtcXwmyzHy0",
       "instance": true,
       "kind": "command",
       "module": "library",
@@ -9771,6 +10186,14 @@
             "tag": 2,
             "unique": true
           },
+          "relatedTo": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": true,
+            "prefix": "book",
+            "tag": 4,
+            "target": "library.book"
+          },
           "reservedBy": {
             "access": "read-write",
             "kind": "subject",
@@ -9799,7 +10222,7 @@
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-DSqWid0neEUUmdrBdMcfKTskb95DLESoQZRvntj_gj4",
+      "outputHash": "sha256-oKgUNaZ-1tjgFkKS-0L9NZayLTMiQVW9qZqejY_QuAU",
       "ref": "library.book.update",
       "resumable": false,
       "scope": "tenant",
@@ -9856,6 +10279,44 @@
       },
       "outputHash": "sha256-0RoUu-XuJvcBrh-1uIT0XoNiIkOUMQShwDrIzlX1CSY",
       "ref": "library.findByIsbn",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "public",
+      "changedIn": [],
+      "errors": [],
+      "execution": "sync",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "kind": "void",
+        "optional": false
+      },
+      "inputHash": "sha256-zej-bMEJmGGq_mKCuqNPNDJAucdkfnebQhqSUKsBmg8",
+      "instance": false,
+      "kind": "query",
+      "module": "loans",
+      "mount": "module",
+      "name": "about",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "module": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-iVuV9AKCk4U5WoBfl-DAHCq6O2SgRPYihEpp--uhElA",
+      "ref": "loans.about",
       "resumable": false,
       "scope": "tenant",
       "since": "2026-11-04"
@@ -9931,12 +10392,19 @@
             "kind": "instant",
             "optional": false,
             "tag": 2
+          },
+          "note": {
+            "access": "read-write",
+            "kind": "text",
+            "maxLength": 500,
+            "optional": true,
+            "tag": 3
           }
         },
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3iURKP493ceH8aPJucBgdSgB-Y9HlSAHXHgA2-K5xKw",
+      "inputHash": "sha256-2YajcGpHpYtSdecXcn5GJrKDhZ77LtnTgosX6sJqcKU",
       "instance": false,
       "kind": "command",
       "module": "loans",
@@ -10299,7 +10767,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -10314,7 +10798,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
+      "inputHash": "sha256-64PykrMhBYYnrO2xz5pUVUqaGqIDDg6K3GFgd_trAKE",
       "instance": false,
       "kind": "query",
       "module": "loans",
@@ -10464,7 +10948,23 @@
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -10474,7 +10974,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3PUWR_YmwRzrMLACxsiseD6O7lo2hxXZtJGIvQXDyHM",
+      "inputHash": "sha256-pDOmM6-ILNCXiEBwVjs4ooC0bp_1K0aTq4ZKtS-foO4",
       "instance": false,
       "kind": "query",
       "module": "loans",
@@ -10553,6 +11053,71 @@
         ]
       },
       "ref": "loans.loan.queryChanges",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "public",
+      "changedIn": [],
+      "errors": [],
+      "execution": "sync",
+      "hints": {
+        "http": {
+          "cookie": {
+            "omitFromBody": [
+              "ticket"
+            ],
+            "set": {
+              "from": "ticket",
+              "name": "__Host-kw-desk"
+            }
+          }
+        }
+      },
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "desk": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 40,
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-bDlYzPJlvZoiD8z3BGjkw8WE_q3oAnVtR1XNAnklG7g",
+      "instance": false,
+      "kind": "command",
+      "module": "loans",
+      "mount": "module",
+      "name": "openDesk",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "desk": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 2
+          },
+          "ticket": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-RotZC8MZi3IZDbH21L7zKoSzX-g-TjlRHZiNIgKGsvU",
+      "ref": "loans.openDesk",
       "resumable": false,
       "scope": "tenant",
       "since": "2026-11-04"
@@ -10686,7 +11251,7 @@
           "access": "read-write",
           "kind": "instant",
           "optional": true,
-          "tag": 14
+          "tag": 16
         },
         "action": {
           "access": "read-write",
@@ -10698,7 +11263,7 @@
           "access": "read-write",
           "kind": "string",
           "optional": false,
-          "tag": 7
+          "tag": 9
         },
         "archivedAt": {
           "access": "read",
@@ -10709,13 +11274,13 @@
           "access": "read-write",
           "kind": "string",
           "optional": true,
-          "tag": 11
+          "tag": 13
         },
         "clientSeq": {
           "access": "read-write",
           "kind": "integer",
           "optional": true,
-          "tag": 12,
+          "tag": 14,
           "wide": false
         },
         "commandId": {
@@ -10735,7 +11300,7 @@
           "access": "read-write",
           "kind": "instant",
           "optional": false,
-          "tag": 13
+          "tag": 15
         },
         "fingerprint": {
           "access": "read-write",
@@ -10763,34 +11328,31 @@
           "schema": {
             "type": "object"
           },
+          "tag": 8
+        },
+        "principalId": {
+          "access": "read-write",
+          "kind": "string",
+          "optional": true,
           "tag": 6
         },
-        "principal": {
+        "principalResolver": {
           "access": "read-write",
-          "input": {
-            "type": "object"
-          },
-          "kind": "json",
+          "kind": "string",
           "optional": true,
-          "output": {
-            "type": "object"
-          },
-          "schema": {
-            "type": "object"
-          },
-          "tag": 4
+          "tag": 5
         },
         "remoteAddress": {
           "access": "read-write",
           "kind": "string",
           "optional": true,
-          "tag": 9
+          "tag": 11
         },
         "status": {
           "access": "read-write",
           "kind": "enum",
           "optional": false,
-          "tag": 5,
+          "tag": 7,
           "values": [
             "pending",
             "accepted",
@@ -10802,7 +11364,7 @@
           "access": "read-write",
           "kind": "string",
           "optional": false,
-          "tag": 8
+          "tag": 10
         },
         "updatedAt": {
           "access": "read",
@@ -10813,7 +11375,7 @@
           "access": "read-write",
           "kind": "string",
           "optional": true,
-          "tag": 10
+          "tag": 12
         },
         "version": {
           "access": "read",
@@ -11665,6 +12227,14 @@
           "tag": 2,
           "unique": true
         },
+        "relatedTo": {
+          "access": "read-write",
+          "kind": "ref",
+          "optional": true,
+          "prefix": "book",
+          "tag": 4,
+          "target": "library.book"
+        },
         "reservedBy": {
           "access": "read-write",
           "kind": "subject",
@@ -12396,7 +12966,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-2hzC2e8JyFjYzVebfqNgn0GqxF9EQz162itroOnXbkE",
+  "hash": "sha256-XETOko7F8ZiOKZEplml_gtDBcLoELb0KHvlD0tnCGAs",
   "modules": [
     {
       "id": "core",

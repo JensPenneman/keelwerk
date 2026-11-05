@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@keelwerk/testing": "workspace:*",
+    "@keelwerk/transport-http": "workspace:*",
     "@scalar/openapi-parser": "0.29.12",
     "vitest": "5.0.5"
   }

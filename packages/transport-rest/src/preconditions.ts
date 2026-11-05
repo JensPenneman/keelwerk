@@ -1,4 +1,4 @@
-import { coreError } from './core-error.ts';
+import { coreError } from '@keelwerk/core/http';
 
 function tagsOf(value: string, weak: boolean): readonly string[] {
   return value

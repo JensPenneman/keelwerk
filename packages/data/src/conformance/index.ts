@@ -1,4 +1,7 @@
 export { aesKeyWrapper } from '../sql/aes-key-wrapper.ts';
+export { commandReceiptDdl } from '../sql/postgres/command-receipt-ddl.ts';
+export { commandReceiptDescriptor } from '../sql/postgres/command-receipt-descriptor.ts';
+export { conformanceDeploymentId } from './conformance-deployment-id.ts';
 export { conformanceEntities } from './conformance-entities.ts';
 export type { ConformanceEntitySet } from './conformance-entity-set.ts';
 export { conformanceId } from './conformance-id.ts';

@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import { lastCall } from './support/last-call.ts';
 import { mountedRest } from './support/mounted-rest.ts';
 import { profileRow as row } from './support/profile-row.ts';
-import { call, profileId } from './support/rest-kit.ts';
+import { call, profileId, profileUuid } from './support/rest-kit.ts';
 
 const uuid = parseTypeId(profileId, 'prof') ?? '';
 
@@ -105,7 +105,7 @@ describe('query requests', () => {
     expect(response.headers.get('keelwerk-version')).toBe('2026-11-01');
     expect(response.headers.get('x-request-id')).toBeTruthy();
     expect(await response.json()).toEqual({ id: profileId, name: 'Ada', version: 3 });
-    expect(lastCall(calls).input).toEqual({ ids: [profileId], fields: ['name'] });
+    expect(lastCall(calls).input).toEqual({ ids: [profileUuid], fields: ['name'] });
 
     const cached = await call(handler, 'GET', `/api/accounts/profiles/${profileId}`, {
       headers: { 'if-none-match': '"3"' },

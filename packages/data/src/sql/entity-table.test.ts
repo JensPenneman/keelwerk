@@ -40,6 +40,27 @@ describe('entityTable', () => {
 
   test('backend and deployment tenancy map to their scope columns', () => {
     expect(entityTable({ ...note, tenancy: 'backend' }, 'app', 't').scopeColumn).toBe('backend_id');
-    expect(entityTable({ ...note, tenancy: 'invocation' }, 'app', 't').scopeColumn).toBeNull();
+    expect(entityTable({ ...note, tenancy: 'invocation' }, 'app', 't').scopeColumn).toBe(
+      'scope_id',
+    );
+  });
+
+  test('an invocation table has four system columns, no archive and no framework columns', () => {
+    const receipt = entityTable({ ...note, tenancy: 'invocation' }, 'app', 't');
+    expect(receipt.systemFields).toEqual(['id', 'createdAt', 'updatedAt', 'version']);
+    expect(receipt.archivable).toBe(false);
+    expect(receipt.column('id')).toBeDefined();
+    for (const name of [
+      'archivedAt',
+      'kwLastHlc',
+      'kwLastHash',
+      'kwErasedAt',
+      'tenantId',
+      'backendId',
+    ]) {
+      expect(receipt.column(name)).toBeUndefined();
+    }
+    expect(table.archivable).toBe(true);
+    expect(table.systemFields).toContain('archivedAt');
   });
 });

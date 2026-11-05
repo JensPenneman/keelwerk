@@ -16,6 +16,17 @@ function shapeOf(fields: Readonly<Record<string, FieldNode>>, optional = false):
   return { optional, access: 'read-write', kind: 'shape', fields };
 }
 
+/** One sort key as the transports hand it over: `{ field, direction }` (section 8.3). */
+function sortKeys(): FieldNode {
+  return list(
+    shapeOf({
+      field: scalar('string'),
+      direction: { optional: true, access: 'read-write', kind: 'enum', values: ['asc', 'desc'] },
+    }),
+    true,
+  );
+}
+
 /** A filter, in the condition AST of section 8.3; the transports substitute the entity's filter schema. */
 function filter(): FieldNode {
   return { optional: true, access: 'read-write', kind: 'json', schema: {}, input: {}, output: {} };
@@ -89,7 +100,7 @@ export function generatedNodes(kind: GeneratedActionKind, entity: SurfaceEntity)
       return {
         input: shapeOf({
           filter: filter(),
-          sort: list(scalar('string'), true),
+          sort: sortKeys(),
           first: scalar('integer', true),
           after: scalar('string', true),
           last: scalar('integer', true),
@@ -120,7 +131,7 @@ export function generatedNodes(kind: GeneratedActionKind, entity: SurfaceEntity)
       return {
         input: shapeOf({
           filter: filter(),
-          sort: list(scalar('string'), true),
+          sort: sortKeys(),
           sinceQueryState: scalar('string'),
           maxChanges: scalar('integer', true),
         }),
@@ -135,7 +146,7 @@ export function generatedNodes(kind: GeneratedActionKind, entity: SurfaceEntity)
       return { input: shapeOf(writable(entity, false)), output: row };
     case 'update':
       return {
-        input: shapeOf({ ...writable(entity, true), ...instance(entity) }),
+        input: shapeOf({ ...instance(entity), patch: shapeOf(writable(entity, true)) }),
         output: row,
       };
     case 'archive':

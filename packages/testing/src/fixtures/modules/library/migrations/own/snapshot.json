@@ -42,6 +42,27 @@
           "tag": 2,
           "unique": true
         },
+        "relatedTo": {
+          "codec": null,
+          "column": "related_to",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "ref",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": {
+            "entity": "library.book",
+            "foreignKey": true
+          },
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 4,
+          "unique": false
+        },
         "title": {
           "codec": null,
           "column": "title",
@@ -171,9 +192,26 @@
           "kind": "subject",
           "name": "added_by",
           "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "relatedTo",
+          "kind": "ref",
+          "name": "related_to",
+          "nullable": true
         }
       ],
-      "foreignKeys": [],
+      "foreignKeys": [
+        {
+          "columns": ["tenant_id", "related_to"],
+          "name": "library__book__related_to_fk",
+          "references": {
+            "columns": ["tenant_id", "id"],
+            "table": "library__book"
+          }
+        }
+      ],
       "indexes": [
         {
           "columns": ["tenant_id", "isbn"],
@@ -200,5 +238,5 @@
     }
   ],
   "track": "library",
-  "version": 1
+  "version": 2
 }

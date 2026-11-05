@@ -1,4 +1,4 @@
-import { coreError } from './core-error.ts';
+import { coreError } from '@keelwerk/core/http';
 
 const jsonTypes: ReadonlySet<string> = new Set([
   'application/json',

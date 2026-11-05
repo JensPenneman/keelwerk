@@ -323,6 +323,9 @@ importers:
       '@keelwerk/testing':
         specifier: workspace:*
         version: link:../testing
+      '@keelwerk/transport-http':
+        specifier: workspace:*
+        version: link:../transport-http
       '@scalar/openapi-parser':
         specifier: 0.29.12
         version: 0.29.12

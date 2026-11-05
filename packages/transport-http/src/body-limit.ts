@@ -1,4 +1,4 @@
-import { coreError } from './core-error.ts';
+import { coreError } from '@keelwerk/core/http';
 
 /**
  * Reads a request body of at most `maxBytes`; a larger one is `validation` with

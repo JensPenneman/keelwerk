@@ -1,6 +1,6 @@
 import type { ErrorAudience, ErrorKind, KeelwerkError } from '@keelwerk/core';
 import { toWire } from '@keelwerk/core';
-import { statusOfError } from './status-of-error.ts';
+import { statusOfError } from '@keelwerk/core/http';
 
 const titles: Readonly<Record<ErrorKind, string>> = {
   validation: 'Validation',

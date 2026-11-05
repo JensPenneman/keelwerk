@@ -76,6 +76,10 @@ type GeneratedDef<
         PartTypes<
           {
             readonly filter?: Where<ReadableRowAt<Ms, I, E>>;
+            readonly sort?: readonly {
+              readonly field: string;
+              readonly direction?: 'asc' | 'desc';
+            }[];
             readonly first?: number;
             readonly after?: string;
           },

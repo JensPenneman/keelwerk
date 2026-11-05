@@ -61,13 +61,11 @@
     },
     "packages/transport-http": {
       "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@keelwerk/testing"]
+      "project": ["src/**/*.ts"]
     },
     "packages/transport-rest": {
       "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@keelwerk/testing"]
+      "project": ["src/**/*.ts"]
     },
     "packages/client": {
       "entry": ["src/**/*.test-d.ts"],

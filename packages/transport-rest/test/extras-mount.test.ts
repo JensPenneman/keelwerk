@@ -104,12 +104,15 @@ describe('the mount', () => {
     const surface = withAction(portalSurface(), 'app.health', {
       hints: { rest: { path: '/.well-known/health' } },
     });
-    const { registered, handler } = await mountRest(
+    const { registered } = await mountRest(
       surface,
       fakeInvoker(() => ({ ok: true, value: { up: true } })).invoker,
     );
     expect(registered.map((entry) => entry.prefix)).toEqual(['/api', '/.well-known/health']);
-    const response = await call(handler, 'GET', '/.well-known/health');
+    // The host-root registration is told it is a root mount; a path that merely ends with the base path stays a root route.
+    const root = registered[1]?.handler;
+    if (root === undefined) throw new Error('the host-root path registered no handler');
+    const response = await call(root, 'GET', '/.well-known/health');
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ up: true });
   });

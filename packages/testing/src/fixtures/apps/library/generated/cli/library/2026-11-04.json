@@ -276,32 +276,32 @@
       "flags": [
         {
           "kind": "string",
-          "name": "api-version",
+          "name": "patch.api-version",
           "required": false
         },
         {
           "kind": "string",
-          "name": "app",
+          "name": "patch.app",
           "required": false
         },
         {
           "kind": "json",
-          "name": "config-json",
+          "name": "patch.config-json",
           "required": false
         },
         {
           "kind": "string",
-          "name": "name",
+          "name": "patch.name",
           "required": false
         },
         {
           "kind": "string",
-          "name": "placement",
+          "name": "patch.placement",
           "required": false
         },
         {
           "kind": "enum",
-          "name": "status",
+          "name": "patch.status",
           "required": false
         }
       ],
@@ -1846,32 +1846,32 @@
       "flags": [
         {
           "kind": "string",
-          "name": "api-version",
+          "name": "patch.api-version",
           "required": false
         },
         {
           "kind": "ref",
-          "name": "backend-id",
+          "name": "patch.backend-id",
           "required": false
         },
         {
           "kind": "list",
-          "name": "domains",
+          "name": "patch.domains",
           "required": false
         },
         {
           "kind": "string",
-          "name": "name",
+          "name": "patch.name",
           "required": false
         },
         {
           "kind": "string",
-          "name": "placement",
+          "name": "patch.placement",
           "required": false
         },
         {
           "kind": "enum",
-          "name": "status",
+          "name": "patch.status",
           "required": false
         }
       ],
@@ -1963,6 +1963,11 @@
           "kind": "string",
           "name": "isbn",
           "required": true
+        },
+        {
+          "kind": "ref",
+          "name": "related-to",
+          "required": false
         },
         {
           "kind": "string",
@@ -2198,17 +2203,22 @@
       "flags": [
         {
           "kind": "subject",
-          "name": "added-by",
+          "name": "patch.added-by",
           "required": false
         },
         {
           "kind": "string",
-          "name": "isbn",
+          "name": "patch.isbn",
+          "required": false
+        },
+        {
+          "kind": "ref",
+          "name": "patch.related-to",
           "required": false
         },
         {
           "kind": "string",
-          "name": "title",
+          "name": "patch.title",
           "required": false
         }
       ],
@@ -2259,5 +2269,5 @@
     "wait-effects"
   ],
   "format": "keelwerk.cli/1",
-  "surface": "sha256-Gaw6KUqIn6hmv08eepTZGSf_YEdbRPYmiBu8beLLPtw"
+  "surface": "sha256-P49F3rBuesoQMwOF3SeD4gFf-dbc7SQg-Ae9CL965eM"
 }

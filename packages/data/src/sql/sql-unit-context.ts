@@ -26,12 +26,9 @@ function scopeColumnOf(entity: EntityDescriptor, scope: StorageScope): ScopeColu
           ? 'tenant_id'
           : undefined;
     case 'invocation':
-      // A receipt-like row carries the scope of the command that wrote it (15.1.7).
-      return scope.level === 'tenant'
-        ? 'tenant_id'
-        : scope.level === 'backend'
-          ? 'backend_id'
-          : undefined;
+      // A receipt-like row carries the scope of the command that wrote it (15.1.7): the
+      // coalesce of the tenant, the backend or the deployment id.
+      return 'scope_id';
   }
 }
 

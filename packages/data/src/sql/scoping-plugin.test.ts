@@ -5,7 +5,10 @@ import { dummyDb } from '../../test/support/dummy-db.ts';
 import { refused } from '../../test/support/refused.ts';
 import { scopedDb } from '../../test/support/scoped-db.ts';
 import { tenantId } from '../../test/support/scoping-tenant-id.ts';
+import { commandReceiptDescriptor } from './postgres/command-receipt-descriptor.ts';
 import { ScopingPlugin } from './scoping-plugin.ts';
+import { sqlEntityIndex } from './sql-entity-index.ts';
+import { sqlUnitContext } from './sql-unit-context.ts';
 
 const backendId = '00000000-0000-4000-8000-0000000000b1';
 
@@ -185,6 +188,37 @@ describe('scope levels', () => {
     expect(read({ level: 'backend', backendId }).parameters).toEqual([backendId]);
     expect(read({ level: 'deployment' }, 'd-1').parameters).toEqual(['d-1']);
     expect(() => read({ level: 'deployment' })).toThrow(refused);
+  });
+
+  test('an invocation entity is scoped on scope_id at every level', () => {
+    const receipt = commandReceiptDescriptor();
+    const deploymentId = '00000000-0000-4000-8000-0000000000d1';
+    const read = (scope: StorageScope) =>
+      sqlUnitContext({
+        namespace: { id: 'n', placementId: 'p', appId: 'a', tenantId: null, root: 'app' },
+        scope,
+        readOnly: true,
+        deploymentId,
+        clock: { now: () => Temporal.Instant.fromEpochMilliseconds(0) },
+        keyWrapper: undefined,
+        entities: sqlEntityIndex(),
+        db: dummyDb(),
+      })
+        .scopedDb([receipt])
+        .selectFrom('app.core__command_receipt as r')
+        .select('r.id')
+        .compile();
+    const sqlText =
+      'select "r"."id" from "app"."core__command_receipt" as "r" where "r"."scope_id" = $1';
+    expect(read(tenant)).toMatchObject({ sql: sqlText, parameters: [tenantId] });
+    expect(read({ level: 'backend', backendId })).toMatchObject({
+      sql: sqlText,
+      parameters: [backendId],
+    });
+    expect(read({ level: 'deployment' })).toMatchObject({
+      sql: sqlText,
+      parameters: [deploymentId],
+    });
   });
 
   test('a deployment unit reaches unscoped tables only', () => {

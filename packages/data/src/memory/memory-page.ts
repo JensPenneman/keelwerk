@@ -10,8 +10,6 @@ import { memoryCodecs } from './memory-codecs.ts';
 import { memoryCompareRows } from './memory-compare-rows.ts';
 import { memoryProjectRow } from './memory-project-row.ts';
 
-const systemFields = ['id', 'createdAt', 'updatedAt', 'archivedAt', 'version'] as const;
-
 /** The paging arguments of a row read. */
 export interface MemoryPageRequest {
   readonly sort?: RowQuery['sort'];
@@ -39,7 +37,7 @@ export function memoryPage(
   const signature = cursorSignature(sort.keys, request.where);
   const cursorKeys = sort.keys.slice(0, -1);
 
-  const names: string[] = [...systemFields];
+  const names: string[] = [...table.systemFields];
   for (const name of request.select ?? Object.keys(entity.fields)) {
     if (!names.includes(name)) names.push(name);
   }

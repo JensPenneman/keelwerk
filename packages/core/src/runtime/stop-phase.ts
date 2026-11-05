@@ -3,6 +3,7 @@ import { setProcessState } from '../control/set-process-state.ts';
 import type { MountHandle } from '../transport/mount-handle.ts';
 import type { Connected } from './connected.ts';
 import type { DrainingInvoker } from './draining-invoker.ts';
+import type { HostInstance } from './host-entry.ts';
 import type { Started } from './start-phase.ts';
 
 async function within(work: Promise<unknown>, deadlineMs: number): Promise<void> {
@@ -23,6 +24,8 @@ export interface StopInput {
   readonly started: Started;
   readonly draining: DrainingInvoker;
   readonly mounts: readonly MountHandle[];
+  /** The HTTP host the runtime built: it stops accepting before the invocations in flight drain. */
+  readonly host?: HostInstance | undefined;
   readonly abort: AbortController;
   readonly anchoring: Anchoring;
 }
@@ -44,7 +47,15 @@ export async function stopPhase(input: StopInput, deadlineMs: number): Promise<v
       connected.log.warn('the process could not be marked draining', { cause: error });
     },
   );
-  await Promise.allSettled(input.mounts.map((mount) => mount.close(deadline)));
+  // The host starts to stop before the mounts are awaited: a mount that waits for its in-flight
+  // work must not leave the listeners open, and both share the one deadline.
+  const hostStopped = (input.host?.stop(remaining()) ?? Promise.resolve()).catch(
+    (error: unknown) => {
+      connected.log.warn('the HTTP host did not stop cleanly', { cause: error });
+    },
+  );
+  const mountsClosed = Promise.allSettled(input.mounts.map((mount) => mount.close(deadline)));
+  await within(Promise.all([hostStopped, mountsClosed]), remaining());
   await within(input.draining.idle(), remaining());
   input.started.unfollow();
   await within(input.started.following, remaining());

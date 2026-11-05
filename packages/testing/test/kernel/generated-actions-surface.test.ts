@@ -67,7 +67,7 @@ describe('each generated action answers the shape of its surface node', () => {
     await asked('queryChanges', { sinceQueryState: (await asked('query', {})).queryState });
     await asked('changes', { since: String(got.state) });
     conforms(nodeOf('library.book.changes').input, { since: 's', partition: 'p' }, 'changes input');
-    await asked('update', { id, title: 'U', ifVersion: 1 });
+    await asked('update', { id, patch: { title: 'U' }, ifVersion: 1 });
     const history = await asked('history', { id, fromVersion: 1, limit: 1 });
     const entry = nodeOf('library.book.history').output.fields?.entries?.item;
     if (entry === undefined) throw new Error('the history node has no entries');

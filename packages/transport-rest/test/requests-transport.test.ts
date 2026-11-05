@@ -4,7 +4,14 @@ import { mountedRest } from './support/mounted-rest.ts';
 import { action, anyJson, id, list, none, shape, str } from './support/nodes.ts';
 import { portalSurface } from './support/portal-surface.ts';
 import { profileRow as row } from './support/profile-row.ts';
-import { call, fakeInvoker, mountRest, profileId, session } from './support/rest-kit.ts';
+import {
+  call,
+  fakeInvoker,
+  mountRest,
+  profileId,
+  profileUuid,
+  session,
+} from './support/rest-kit.ts';
 import { withActions } from './support/with-actions.ts';
 
 describe('request transport', () => {
@@ -61,7 +68,7 @@ describe('request transport', () => {
       },
     );
     expect(response.status).not.toBe(413);
-    expect(lastCall(fake.calls).input).toEqual({ id: profileId, ifVersion: 3 });
+    expect(lastCall(fake.calls).input).toEqual({ id: profileUuid, ifVersion: 3 });
   });
 
   test('an instance query with a nested member travels as a POST body', async () => {
@@ -81,7 +88,7 @@ describe('request transport', () => {
       body: { where: { a: 'x' } },
     });
     expect(response.status).toBeLessThan(300);
-    expect(lastCall(fake.calls).input).toEqual({ where: { a: 'x' }, id: profileId });
+    expect(lastCall(fake.calls).input).toEqual({ where: { a: 'x' }, id: profileUuid });
     const get = await call(handler, 'GET', `/api/accounts/profiles/${profileId}/inspect`);
     expect(get.status).toBe(404);
   });

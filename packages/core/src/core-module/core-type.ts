@@ -67,6 +67,9 @@ export interface CoreLiteral {
     readonly backend: { readonly operators: RulePart<CoreBase, 'backend', readonly ['*']> };
     readonly tenant: { readonly operators: RulePart<CoreBase, 'tenant', readonly ['*']> };
     readonly domain: { readonly operators: RulePart<CoreBase, 'domain', readonly ['*']> };
+    readonly commandReceipt: {
+      readonly submitter: RulePart<CoreBase, 'commandReceipt', readonly ['get']>;
+    };
   };
   readonly reactions: {
     readonly syncDomains: ReactionPart<CoreBase>;

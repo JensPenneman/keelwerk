@@ -1,4 +1,4 @@
-import { asKeelwerkError } from './as-keelwerk-error.ts';
+import { asKeelwerkError } from '@keelwerk/core/http';
 import type { EndpointCall } from './endpoint-call.ts';
 import { errorResponse } from './error-response.ts';
 import { invokeOne } from './invoke-one.ts';

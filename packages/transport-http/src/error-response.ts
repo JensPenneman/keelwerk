@@ -1,8 +1,8 @@
 import type { KeelwerkError } from '@keelwerk/core';
+import { statusOfError } from '@keelwerk/core/http';
 import type { HostContext } from './host-context.ts';
 import { jsonResponse } from './json-response.ts';
 import type { RequestState } from './request-state.ts';
-import { statusOfError } from './status-of-error.ts';
 import { wireErrorOf } from './wire-error-of.ts';
 
 /** The envelope response of an error, with the status, `Retry-After` and `WWW-Authenticate` its kind needs. */

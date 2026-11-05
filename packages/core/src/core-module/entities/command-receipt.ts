@@ -32,7 +32,12 @@ export const commandReceipt: CoreBase['entities']['commandReceipt'] = defineEnti
     commandId: field.string().unique(),
     action: field.string(),
     fingerprint: field.string(),
-    principal: field.json(documentSchema).optional(),
+    /** The principal reference document; hidden from reads, the flat columns below carry the identity. */
+    principal: field.json(documentSchema).optional().hidden(),
+    /** The flat copy of `principal.resolver`: a principal is the pair (resolver, principalId), section 8.5. */
+    principalResolver: field.string().optional(),
+    /** The flat copy of `principal.principalId`: rule conditions compare flat columns only. */
+    principalId: field.string().optional(),
     status: field.enum(['pending', 'accepted', 'completed', 'failed']),
     outcome: field.json(documentSchema).optional(),
     apiVersion: field.string(),

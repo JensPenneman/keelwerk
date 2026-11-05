@@ -8,6 +8,7 @@ import type {
 } from '@keelwerk/core';
 import { errors, KeelwerkError } from '@keelwerk/core';
 import type { MemoryNamespace } from './memory-namespace.ts';
+import { memoryRowsName } from './memory-rows-name.ts';
 import type { MemoryTransaction } from './memory-transaction.ts';
 
 const scopeLevelOf = {
@@ -96,7 +97,6 @@ export function memoryUnitContext(
     state.entities.set(entity.ref, entity);
     return id;
   };
-  const rowsName = (entity: EntityDescriptor, id: string): string => `rows/${entity.table}/${id}`;
   return {
     ...parts,
     assigned: [],
@@ -106,10 +106,10 @@ export function memoryUnitContext(
     },
     entity: (ref) => state.entities.get(ref) ?? lookup?.(ref),
     reach,
-    rows: (entity) => parts.tx.read<StorageRow>(rowsName(entity, reach(entity))),
+    rows: (entity) => parts.tx.read<StorageRow>(memoryRowsName(entity.table, reach(entity))),
     writeRows: (entity) => {
       if (parts.readOnly) throw errors.internal('a read-only unit cannot write');
-      return parts.tx.write<StorageRow>(rowsName(entity, reach(entity)));
+      return parts.tx.write<StorageRow>(memoryRowsName(entity.table, reach(entity)));
     },
   };
 }

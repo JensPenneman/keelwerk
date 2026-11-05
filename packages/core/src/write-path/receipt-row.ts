@@ -30,6 +30,8 @@ export function receiptRow(input: ReceiptRowInput): Receipt {
     action: input.action,
     fingerprint: input.fingerprint,
     principal: input.principal.ref,
+    principalResolver: input.principal.ref?.resolver ?? null,
+    principalId: input.principal.ref?.principalId ?? null,
     status: 'pending',
     outcome: null,
     apiVersion: input.apiVersion,

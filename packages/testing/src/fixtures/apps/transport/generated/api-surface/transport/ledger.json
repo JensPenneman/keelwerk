@@ -1,0 +1,16 @@
+{
+  "app": "transport",
+  "format": "keelwerk.ledger/1",
+  "versions": [
+    {
+      "changes": [],
+      "modules": {
+        "core": "0.0.0",
+        "library": "0.1.0",
+        "loans": "0.1.0"
+      },
+      "surfaceHash": "sha256-byybczUwEEZpvkk5Pp4Eo4pdj4LUwcBrES1zTMemUA4",
+      "version": "2026-11-04"
+    }
+  ]
+}

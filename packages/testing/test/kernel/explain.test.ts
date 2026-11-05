@@ -50,7 +50,8 @@ describe('decisions', () => {
           kind: 'conditional',
           operation: 'read',
           entity: 'loans.loan',
-          selects: 'borrower = "ada"',
+          // The fixture's `auditors` rule selects the same rows for a caller without the auditor role.
+          selects: '(borrower = "ada" or borrower = "ada")',
           masks: [{ field: 'note', revealedBy: ['loans.loan.borrowers'], hiddenBy: [] }],
         },
       },

@@ -5,9 +5,8 @@ import {
   type KeelwerkError,
   newUuidV7,
 } from '@keelwerk/core';
-import { asKeelwerkError } from './as-keelwerk-error.ts';
+import { asKeelwerkError, coreError, decodeInput } from '@keelwerk/core/http';
 import { audienceOf } from './audience-of.ts';
-import { coreError } from './core-error.ts';
 import { decodeRequest } from './decode-request.ts';
 import { encodeResponse } from './encode-response.ts';
 import { idempotencyKey } from './idempotency-key.ts';
@@ -51,7 +50,7 @@ async function serveRoute(
     preferHeader(request.headers.get('prefer')).respondAsync;
   const outcome = await deps.invoker.invoke({
     action: action.ref,
-    input,
+    input: decodeInput(action.input, input),
     carrier: { ...ctx.carrier, transport: 'rest' },
     session: ctx.session,
     requestId: ctx.requestId,
@@ -68,6 +67,7 @@ async function serveRoute(
     request,
     session: ctx.session,
     requestId: ctx.requestId,
+    deploymentId: deps.deploymentId,
     mountPath,
     ...(commandId !== undefined && { commandId }),
     preferredAsync,
@@ -152,9 +152,11 @@ export function createRestHandler(deps: RestHandlerDeps): HttpHandler {
   const documents = openApiDocuments(deps.artifacts);
   return async (request, ctx) => {
     const method = request.method === 'HEAD' ? 'GET' : request.method;
-    const located = locateRoute(deps.table, method, new URL(request.url).pathname, {
-      tenantPrefix: ctx.basePath,
+    const located = locateRoute(deps.table, method, {
+      path: ctx.path,
+      stripped: ctx.basePath,
       basePath,
+      root: deps.root === true,
     });
     try {
       switch (located.kind) {

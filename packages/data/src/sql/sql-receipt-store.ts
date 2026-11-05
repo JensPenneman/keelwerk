@@ -26,6 +26,8 @@ function receiptOf(row: Raw): Receipt {
     action: String(row.action),
     fingerprint: String(row.fingerprint),
     principal: row.principal === null ? null : (parsed(row.principal) as PrincipalRef),
+    principalResolver: text(row.principal_resolver),
+    principalId: text(row.principal_id),
     status: String(row.status) as Receipt['status'],
     outcome: row.outcome === null ? null : (parsed(row.outcome) as ReceiptOutcome),
     apiVersion: String(row.api_version),
@@ -60,6 +62,8 @@ const columns = [
   'action',
   'fingerprint',
   'principal',
+  'principal_resolver',
+  'principal_id',
   'status',
   'outcome',
   'api_version',
@@ -99,6 +103,8 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
     action: receipt.action,
     fingerprint: receipt.fingerprint,
     principal: receipt.principal === null ? null : JSON.stringify(receipt.principal),
+    principal_resolver: receipt.principalResolver,
+    principal_id: receipt.principalId,
     status: receipt.status,
     outcome: receipt.outcome === null ? null : JSON.stringify(receipt.outcome),
     api_version: receipt.apiVersion,
@@ -118,7 +124,11 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
   ): Promise<{ readonly command_id: unknown } | undefined> =>
     sqlGuard(async () => {
       const values = valuesOf(receipt);
-      const { id: _id, created_at: _createdAt, ...replacement } = values;
+      const { id: _id, created_at: _createdAt, version: _version, ...kept } = values;
+      const replacement = {
+        ...kept,
+        version: sql<number>`${sql.ref(`${commandReceiptTable}.version`)} + 1`,
+      };
       return ctx
         .scopedDb()
         .insertInto(table)
@@ -224,11 +234,16 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
     },
     acknowledge: async (clientId, uptoSeq) => {
       ctx.writable();
+      const stamp = encodeInstant(ctx.clock.now());
       await sqlGuard(async () => {
         await ctx
           .scopedDb()
           .updateTable(table)
-          .set({ acknowledged_at: encodeInstant(ctx.clock.now()) })
+          .set({
+            acknowledged_at: stamp,
+            version: sql`version + 1`,
+            updated_at: stamp,
+          })
           .where('client_id', '=', clientId)
           .where('client_seq', '<=', uptoSeq)
           .execute();

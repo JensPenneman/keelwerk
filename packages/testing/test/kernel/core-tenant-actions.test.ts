@@ -90,7 +90,7 @@ describe('tenant entry and pins (sections 8.8 and 18.3)', () => {
       call(runtime.invoker, local, 'core.tenant.update', {
         id: tenant.id,
         ifVersion: 1,
-        name: 'Acme NV',
+        patch: { name: 'Acme NV' },
       }),
     );
     expect(updated.name).toBe('Acme NV');

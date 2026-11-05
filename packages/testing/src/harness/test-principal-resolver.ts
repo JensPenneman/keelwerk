@@ -26,17 +26,17 @@ export function testPrincipalResolver(): PrincipalResolver {
         roles: held.roles,
         memberships: [],
         via: 'test.principal',
-        ref: null,
       };
       const principal: Principal =
         held.subject === null
-          ? { kind: 'anonymous', ...base }
+          ? { kind: 'anonymous', ...base, ref: null }
           : {
               kind: 'user',
               subject: held.subject as UserPrincipal['subject'],
               subjectRef: null,
               subjectAs: () => null,
               ...base,
+              ref: { resolver: 'test.principal', principalId: held.subject },
             };
       return { principal };
     },

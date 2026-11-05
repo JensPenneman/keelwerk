@@ -1,5 +1,6 @@
 // biome-ignore-all lint/style/useNamingConvention: the keys are the column names of the framework tables
 import type { Receipt } from '@keelwerk/core';
+import { receiptInstantCases, receiptIsolationCases, receiptStoreCases } from '@keelwerk/testing';
 import { describe, expect, test } from 'vitest';
 import { ticket } from './support/store-entities.ts';
 import { storeHarness } from './support/store-harness.ts';
@@ -7,7 +8,7 @@ import { stamp } from './support/store-rows.ts';
 import { testScopes } from './support/test-scopes.ts';
 
 const { scopeA, scopeB } = testScopes;
-const { run, failure, setNow } = storeHarness('stores_receipts');
+const { run, failure, setNow, clock } = storeHarness('stores_receipts');
 
 describe('receipts, serials, usage, buckets', () => {
   const receipt = (commandId: string, over: Partial<Receipt> = {}): Receipt => ({
@@ -15,6 +16,8 @@ describe('receipts, serials, usage, buckets', () => {
     action: 'app.ticket.set',
     fingerprint: 'f1',
     principal: null,
+    principalResolver: null,
+    principalId: null,
     status: 'pending',
     outcome: null,
     apiVersion: '2026-01-01',
@@ -82,3 +85,17 @@ describe('receipts, serials, usage, buckets', () => {
     expect(await run(scopeB, (u) => u.buckets.take('k', 2, limits))).toEqual({ ok: true });
   });
 });
+
+// The shared receipt cases, run on PostgreSQL as on the memory adapter and PGlite.
+const subject = {
+  clock: {
+    now: () => clock.now(),
+    advance: (milliseconds: number) => setNow(clock.now().add({ milliseconds })),
+  },
+  run,
+  read: run,
+  setNow,
+};
+receiptStoreCases(subject);
+receiptIsolationCases(subject);
+receiptInstantCases(subject);

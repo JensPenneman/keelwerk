@@ -276,32 +276,32 @@
       "flags": [
         {
           "kind": "string",
-          "name": "api-version",
+          "name": "patch.api-version",
           "required": false
         },
         {
           "kind": "string",
-          "name": "app",
+          "name": "patch.app",
           "required": false
         },
         {
           "kind": "json",
-          "name": "config-json",
+          "name": "patch.config-json",
           "required": false
         },
         {
           "kind": "string",
-          "name": "name",
+          "name": "patch.name",
           "required": false
         },
         {
           "kind": "string",
-          "name": "placement",
+          "name": "patch.placement",
           "required": false
         },
         {
           "kind": "enum",
-          "name": "status",
+          "name": "patch.status",
           "required": false
         }
       ],
@@ -1846,32 +1846,32 @@
       "flags": [
         {
           "kind": "string",
-          "name": "api-version",
+          "name": "patch.api-version",
           "required": false
         },
         {
           "kind": "ref",
-          "name": "backend-id",
+          "name": "patch.backend-id",
           "required": false
         },
         {
           "kind": "list",
-          "name": "domains",
+          "name": "patch.domains",
           "required": false
         },
         {
           "kind": "string",
-          "name": "name",
+          "name": "patch.name",
           "required": false
         },
         {
           "kind": "string",
-          "name": "placement",
+          "name": "patch.placement",
           "required": false
         },
         {
           "kind": "enum",
-          "name": "status",
+          "name": "patch.status",
           "required": false
         }
       ],
@@ -2001,5 +2001,5 @@
     "wait-effects"
   ],
   "format": "keelwerk.cli/1",
-  "surface": "sha256-_YuKv6e0eHQijSGgwbLTd8pX-hy-c8Wehl5-oyzEpVQ"
+  "surface": "sha256-_GzJ0f2Q_VzlZNee0Gsxkwio4T-7Hxqj4eKHYsMolg8"
 }

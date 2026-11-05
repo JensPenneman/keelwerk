@@ -31,6 +31,8 @@ test('the pending receipt row is the golden F-12 shape', () => {
     action: 'library.addBook',
     fingerprint: 'f'.repeat(64),
     principal: user('ada').ref,
+    principalResolver: null,
+    principalId: null,
     status: 'pending',
     outcome: null,
     apiVersion: '2026-11-04',
@@ -53,6 +55,26 @@ test('a request without a connection, agent or client leaves those members null'
   });
   expect(row.request).toEqual({ transport: 'test', remoteAddress: null, userAgent: null });
   expect([row.clientId, row.clientSeq]).toEqual([null, null]);
+});
+
+test('the flat principal id is copied from the reference and null without one', () => {
+  const base = {
+    commandId: 'cmd-3',
+    action: 'library.addBook',
+    fingerprint: 'b'.repeat(64),
+    apiVersion: '2026-11-04',
+    request: { transport: 'test', requestId: 'req-3' },
+    now,
+  };
+  const ref = { resolver: 'auth.session', principalId: 'u-7' };
+  const withRef = receiptRow({ ...base, principal: { ...user('ada'), ref } });
+  expect([withRef.principal, withRef.principalResolver, withRef.principalId]).toEqual([
+    ref,
+    'auth.session',
+    'u-7',
+  ]);
+  const without = receiptRow({ ...base, principal: user('ada') });
+  expect([without.principalResolver, without.principalId]).toEqual([null, null]);
 });
 
 test('the input fingerprint is the golden digest: a change turns every replay into a mismatch', () => {

@@ -64,9 +64,27 @@ describe('transport handlers on the host', () => {
     expect(seen?.session.app).toBe('library');
     expect(seen?.requestId).toBe(response.headers.get('x-request-id'));
     expect(seen?.traceparent).toBe('00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01');
-    expect(seen?.basePath).toBe('');
+    expect(seen?.basePath).toBe('/api');
+    expect(seen?.path).toBe('/books');
     expect(seen?.carrier.transport).toBe('http');
     expect(response.headers.get('keelwerk-version')).toBe('2026-11-01');
+  });
+
+  it('strips the mount prefix once: the handler gets the path below it, `/` at the prefix and the whole path at a root mount', async () => {
+    const { host } = setup();
+    const seen: string[] = [];
+    host.route({ app: 'library', transport: 'rest', prefix: '/api' }, async (_request, ctx) => {
+      seen.push(`${ctx.basePath}|${ctx.path}`);
+      return new Response(null);
+    });
+    host.route({ app: 'library', transport: 'other', prefix: '/' }, async (_request, ctx) => {
+      seen.push(`${ctx.basePath}|${ctx.path}`);
+      return new Response(null);
+    });
+    await host.fetch(postJson('/api', {}));
+    await host.fetch(postJson('/api/a/b', {}));
+    await host.fetch(postJson('/elsewhere/x', {}));
+    expect(seen).toEqual(['/api|/', '/api|/a/b', '|/elsewhere/x']);
   });
 
   it('drops a malformed traceparent', async () => {

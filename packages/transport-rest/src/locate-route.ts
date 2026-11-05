@@ -12,27 +12,32 @@ export type Located =
   | { readonly kind: 'none'; readonly mountPath: string };
 
 /**
- * Finds the route of a request: a host-root path of a `rest.path` hint first, then the path below
- * the mount (the tenant prefix the host consumed, then the base path). `/docs`, `/openapi.json`
- * and `/problems/{code}` are the mount's own pages.
+ * Finds the route of a request. The host stripped the tenant prefix and the mount's prefix: `path`
+ * is relative to the mount and `stripped` is what it removed. A host-root path of a `rest.path`
+ * hint is its own mount, so its full path is the stripped prefix and the rest. `/docs`,
+ * `/openapi.json` and `/problems/{code}` are the mount's own pages.
  */
 export function locateRoute(
   table: RouteTable,
   method: string,
-  pathname: string,
-  mount: { readonly tenantPrefix: string; readonly basePath: string },
+  mount: {
+    readonly path: string;
+    readonly stripped: string;
+    readonly basePath: string;
+    /** The request came through a host-root mount of a `rest.path` hint, not through the base path. */
+    readonly root: boolean;
+  },
 ): Located {
-  const mountPath = `${mount.tenantPrefix}${mount.basePath}`;
-  if (table.absolutePaths.length > 0) {
-    const absolute = table.match(method, pathname, true);
-    if (absolute !== undefined) {
-      return { kind: 'route', match: absolute, mountPath };
-    }
+  const { path: relative, stripped } = mount;
+  const { root } = mount;
+  const mountPath = root ? mount.basePath : stripped;
+  if (root) {
+    const full = `${stripped}${relative === '/' ? '' : relative}`;
+    const absolute = table.match(method, full, true);
+    return absolute === undefined
+      ? { kind: 'none', mountPath }
+      : { kind: 'route', match: absolute, mountPath };
   }
-  if (pathname !== mountPath && !pathname.startsWith(`${mountPath}/`)) {
-    return { kind: 'none', mountPath };
-  }
-  const relative = pathname.slice(mountPath.length) || '/';
   if (method === 'GET') {
     if (relative === '/docs') {
       return { kind: 'meta', name: 'docs', code: '', mountPath };

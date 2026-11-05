@@ -12,6 +12,8 @@ function pending(over: Partial<Receipt> = {}): Receipt {
     action: 'library.addBook',
     fingerprint: 'other',
     principal: null,
+    principalResolver: null,
+    principalId: null,
     status: 'pending',
     outcome: null,
     apiVersion: '2026-11-04',

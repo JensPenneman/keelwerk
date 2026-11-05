@@ -57,8 +57,12 @@ export function sqlRowStore(ctx: SqlUnitContext): RowStore {
     });
   };
 
-  const archivedFree = (entity: EntityDescriptor): Expression<boolean> =>
-    sql<boolean>`${sql.ref(entityTable(entity, ctx.namespace.root, 't').reference('archived_at'))} is null`;
+  const archivedFree = (entity: EntityDescriptor): Expression<boolean> => {
+    const table = entityTable(entity, ctx.namespace.root, 't');
+    return table.archivable
+      ? sql<boolean>`${sql.ref(table.reference('archived_at'))} is null`
+      : sql<boolean>`true`;
+  };
 
   const uuids = (ids: readonly string[]): string[] => [
     ...new Set(ids.filter((id) => uuidPattern.test(id))),

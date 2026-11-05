@@ -1,84 +1,15 @@
-import type { Receipt } from '@keelwerk/core';
 import { conformanceId, conformanceScopes } from '@keelwerk/data/conformance';
 import { describe, expect, test } from 'vitest';
 import type { ConformanceSubject } from './conformance-subject.ts';
 import { failureOf } from './failure-of.ts';
-import { stamp } from './stamp.ts';
+import { receiptStoreCases } from './receipt-store-cases.ts';
 import { storedJob } from './stored-job.ts';
 
 const { tenantA } = conformanceScopes;
 const namespaceScope = { level: 'namespace', reason: 'conformance' } as const;
 
-function receipt(commandId: string, over: Partial<Receipt> = {}): Receipt {
-  return {
-    commandId,
-    action: 'conf.owner.set',
-    fingerprint: 'f1',
-    principal: null,
-    status: 'pending',
-    outcome: null,
-    apiVersion: '2026-01-01',
-    request: { transport: 'rest', remoteAddress: null, userAgent: null },
-    clientId: null,
-    clientSeq: null,
-    expiresAt: stamp.add({ hours: 24 }),
-    ...over,
-  };
-}
-
 export function storeCases(subject: ConformanceSubject): void {
-  describe('receipts (15.1.7)', () => {
-    test('put is idempotent for one fingerprint and a conflict for another; complete records the outcome', async () => {
-      await subject.run(tenantA, (unit) => unit.receipts.put(receipt('c1')));
-      await subject.run(tenantA, (unit) => unit.receipts.put(receipt('c1')));
-      const other = subject.run(tenantA, (unit) =>
-        unit.receipts.put(receipt('c1', { fingerprint: 'f2' })),
-      );
-      expect((await failureOf(other)).kind).toBe('conflict');
-      await subject.run(tenantA, (unit) =>
-        unit.receipts.complete('c1', { ok: true, value: 1, effects: [] }),
-      );
-      expect(await subject.read(tenantA, (unit) => unit.receipts.get('c1'))).toMatchObject({
-        status: 'completed',
-        outcome: { ok: true, value: 1 },
-      });
-      expect(await subject.read(tenantA, (unit) => unit.receipts.get('nope'))).toBeUndefined();
-      const unknown = subject.run(tenantA, (unit) =>
-        unit.receipts.complete('nope', { ok: true, value: 1, effects: [] }),
-      );
-      expect((await failureOf(unknown)).kind).toBe('not_found');
-    });
-
-    test('forClient lists after a sequence number in order; acknowledge marks the receipts and keeps them', async () => {
-      await subject.run(tenantA, async (unit) => {
-        for (const seq of [3, 1, 2]) {
-          await unit.receipts.put(receipt(`seq-${seq}`, { clientId: 'k', clientSeq: seq }));
-        }
-        await unit.receipts.put(receipt('other', { clientId: 'z', clientSeq: 9 }));
-      });
-      const listAfter = async (seq: number) =>
-        (await subject.read(tenantA, (unit) => unit.receipts.forClient('k', seq, 10))).map(
-          (r) => r.commandId,
-        );
-      expect(await listAfter(0)).toEqual(['seq-1', 'seq-2', 'seq-3']);
-      expect(await listAfter(1)).toEqual(['seq-2', 'seq-3']);
-      expect(
-        (await subject.read(tenantA, (unit) => unit.receipts.forClient('k', 0, 2))).map(
-          (r) => r.commandId,
-        ),
-      ).toEqual(['seq-1', 'seq-2']);
-      await subject.run(tenantA, (unit) => unit.receipts.acknowledge('k', 2));
-      const kept = await subject.read(tenantA, (unit) => unit.receipts.forClient('k', 0, 10));
-      expect(kept.map((r) => [r.commandId, r.acknowledgedAt !== undefined])).toEqual([
-        ['seq-1', true],
-        ['seq-2', true],
-        ['seq-3', false],
-      ]);
-      expect(
-        (await subject.read(tenantA, (unit) => unit.receipts.get('other')))?.acknowledgedAt,
-      ).toBeUndefined();
-    });
-  });
+  receiptStoreCases(subject);
 
   describe('jobs (14.3.9)', () => {
     const take = (subject2: ConformanceSubject, worker = 'w1') =>

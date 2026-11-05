@@ -11,6 +11,11 @@ export interface HttpContext {
   readonly traceparent?: string;
   /** Aborts when the client disconnects. */
   readonly signal: AbortSignal;
-  /** After any tenant path prefix consumed by scope resolution. */
+  /**
+   * The request path relative to the mount: the host resolved the tenant and stripped the tenant
+   * prefix and the mount's prefix (`/` when nothing is left). Transports never strip.
+   */
+  readonly path: string;
+  /** The prefix the host stripped (tenant prefix, then the mount's prefix; empty for a mount at `/`), for links. */
   readonly basePath: string;
 }

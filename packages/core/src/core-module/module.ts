@@ -10,6 +10,7 @@ import { setApiVersion } from './actions/tenant/set-api-version.ts';
 import { coreBase } from './base.ts';
 import type { Core } from './core-type.ts';
 import { operators as backendOperators } from './policies/backend/operators.ts';
+import { submitter } from './policies/command-receipt/submitter.ts';
 import { operators } from './policies/composition/operators.ts';
 import { operators as domainOperators } from './policies/domain/operators.ts';
 import { signedIn } from './policies/introspect/signed-in.ts';
@@ -29,6 +30,7 @@ export const core: Core = defineModule(coreBase, {
     backend: { operators: backendOperators },
     tenant: { operators: tenantOperators },
     domain: { operators: domainOperators },
+    commandReceipt: { submitter },
   },
   reactions: { syncDomains, syncDomainsOnChange },
 });

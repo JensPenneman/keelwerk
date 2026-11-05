@@ -16,8 +16,6 @@ import type { SqlDb } from './sql-db.ts';
 import type { ValueCodec } from './value-codec.ts';
 import { windowOf } from './window-of.ts';
 
-const systemFieldNames = ['id', 'createdAt', 'updatedAt', 'archivedAt', 'version'] as const;
-
 const positionColumn = 'kwPosition';
 
 function internal(message: string): KeelwerkError {
@@ -35,7 +33,7 @@ function selectedFields(
   query: RowQuery,
   sort: CompiledSort,
 ): readonly string[] {
-  const names: string[] = [...systemFieldNames];
+  const names: string[] = [...table.systemFields];
   const add = (name: string): void => {
     if (!names.includes(name)) names.push(name);
   };
@@ -46,7 +44,7 @@ function selectedFields(
 
 function whereOf(request: RowQueryRequest, filter: Condition | undefined): Expression<boolean>[] {
   const parts: Expression<boolean>[] = [];
-  if (request.query.includeArchived !== true) {
+  if (request.table.archivable && request.query.includeArchived !== true) {
     parts.push(sql<boolean>`${sql.ref(request.table.reference('archived_at'))} is null`);
   }
   if (filter !== undefined) parts.push(compileCondition(request, filter));

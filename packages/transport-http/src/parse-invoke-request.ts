@@ -1,5 +1,5 @@
 import type { InvokeRequest } from '@keelwerk/core';
-import { coreError } from './core-error.ts';
+import { coreError } from '@keelwerk/core/http';
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

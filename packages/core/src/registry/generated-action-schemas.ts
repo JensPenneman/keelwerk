@@ -35,7 +35,10 @@ export function generatedActionSchemas(
     case 'create':
       return { input: shape(fields), output: row };
     case 'update':
-      return { input: shape({ ...optionalFields(fields), ...instance }), output: row };
+      return {
+        input: shape({ ...instance, patch: field.json(shape(optionalFields(fields))) }),
+        output: row,
+      };
     case 'archive':
     case 'restore':
       return { input: shape(instance), output: row };

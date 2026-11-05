@@ -23,8 +23,13 @@ describe('diffSnapshots', () => {
 
   test('a first snapshot creates its table without foreign keys, then adds them', async () => {
     const { steps } = await diffSnapshots(null, base, noRename);
-    expect(steps.map((step) => step.op)).toEqual(['createTable']);
+    expect(steps.map((step) => step.op)).toEqual(['createTable', 'addForeignKey']);
     const first = steps[0];
+    expect(first?.op === 'createTable' && first.table.foreignKeys).toEqual([]);
+    expect(steps[1]).toMatchObject({
+      op: 'addForeignKey',
+      key: { name: 'library__book__related_to_fk' },
+    });
     expect(first?.op === 'createTable' && first.table.indexes.map((index) => index.name)).toContain(
       'library__book__isbn_uq',
     );

@@ -1,5 +1,8 @@
 import type { Receipt } from '@keelwerk/core';
-import { expect, test } from 'vitest';
+import { commandReceiptUuid } from '@keelwerk/core';
+import { receiptInstantCases } from '@keelwerk/testing';
+import { beforeEach, describe, expect, test } from 'vitest';
+import { commandReceiptDescriptor } from '../src/sql/postgres/command-receipt-descriptor.ts';
 import { failure } from './support/failure.ts';
 import { id } from './support/id.ts';
 import { openMemory } from './support/memory-fixture.ts';
@@ -14,6 +17,8 @@ function receipt(commandId: string, over: Partial<Receipt> = {}): Receipt {
     action: 'app.note.set',
     fingerprint: 'f1',
     principal: null,
+    principalResolver: null,
+    principalId: null,
     status: 'pending',
     outcome: null,
     apiVersion: '2026-01-01',
@@ -124,4 +129,122 @@ test('claim takes over a receipt whose expiry has passed and keeps a live one', 
   expect((await memory.read(tenantScope, (unit) => unit.receipts.get('c1')))?.fingerprint).toBe(
     'f3',
   );
+});
+
+test('a receipt is the core.commandReceipt row of its scope, in the entity form', async () => {
+  const memory = openMemory();
+  const entity = commandReceiptDescriptor();
+  const scope = tenantScope.level === 'tenant' ? tenantScope.tenantId : '';
+  const key = commandReceiptUuid(scope, 'c1');
+  await memory.run(tenantScope, (unit) =>
+    unit.receipts.put(
+      receipt('c1', {
+        principalResolver: 'r1',
+        principalId: 'p1',
+        request: { transport: 'rest', remoteAddress: '10.0.0.1', userAgent: null },
+      }),
+    ),
+  );
+  const found = async () =>
+    (
+      await memory.read(tenantScope, (unit) =>
+        unit.rows.find(entity, { where: { op: 'in', field: 'id', value: [key] } }),
+      )
+    ).rows;
+  const [row] = await found();
+  expect(row).toEqual({
+    id: key,
+    createdAt: stamp,
+    updatedAt: stamp,
+    version: 1,
+    commandId: 'c1',
+    action: 'app.note.set',
+    fingerprint: 'f1',
+    principalResolver: 'r1',
+    principalId: 'p1',
+    status: 'pending',
+    apiVersion: '2026-01-01',
+    transport: 'rest',
+    remoteAddress: '10.0.0.1',
+    expiresAt: stamp.add({ hours: 24 }),
+  });
+  memory.clock.advance(1000);
+  await memory.run(tenantScope, (unit) =>
+    unit.receipts.complete('c1', { ok: true, value: 1, effects: [] }),
+  );
+  expect((await found())[0]).toMatchObject({
+    status: 'completed',
+    version: 2,
+    updatedAt: stamp.add({ seconds: 1 }),
+    createdAt: stamp,
+  });
+  await memory.run(tenantScope, (unit) =>
+    unit.receipts.put(receipt('c2', { clientId: 'k', clientSeq: 1 })),
+  );
+  await memory.run(tenantScope, (unit) => unit.receipts.acknowledge('k', 1));
+  const acknowledged = await memory.read(tenantScope, (unit) =>
+    unit.rows.find(entity, {
+      where: { op: 'in', field: 'id', value: [commandReceiptUuid(scope, 'c2')] },
+    }),
+  );
+  expect(acknowledged.rows[0]).toMatchObject({ version: 2, updatedAt: stamp.add({ seconds: 1 }) });
+  expect(acknowledged.rows[0]?.acknowledgedAt).toEqual(stamp.add({ seconds: 1 }));
+});
+
+test('taking over an expired receipt takes the next version and keeps its creation time', async () => {
+  const memory = openMemory();
+  const entity = commandReceiptDescriptor();
+  const scope = tenantScope.level === 'tenant' ? tenantScope.tenantId : '';
+  await memory.run(tenantScope, (unit) => unit.receipts.put(receipt('c1')));
+  await memory.run(tenantScope, (unit) =>
+    unit.receipts.complete('c1', { ok: true, value: 1, effects: [] }),
+  );
+  memory.clock.advance(25 * 60 * 60 * 1000);
+  await memory.run(tenantScope, (unit) =>
+    unit.receipts.claim(receipt('c1', { fingerprint: 'f2' })),
+  );
+  const page = await memory.read(tenantScope, (unit) =>
+    unit.rows.find(entity, {
+      where: { op: 'in', field: 'id', value: [commandReceiptUuid(scope, 'c1')] },
+    }),
+  );
+  expect(page.rows[0]).toMatchObject({
+    fingerprint: 'f2',
+    status: 'pending',
+    version: 3,
+    createdAt: stamp,
+    updatedAt: stamp.add({ hours: 25 }),
+  });
+});
+
+test('a deployment unit derives the receipt id from the deployment id', async () => {
+  const memory = openMemory();
+  await memory.run({ level: 'deployment' }, (unit) => unit.receipts.put(receipt('c1')));
+  const page = await memory.read({ level: 'deployment' }, (unit) =>
+    unit.rows.find(commandReceiptDescriptor(), {
+      where: {
+        op: 'in',
+        field: 'id',
+        value: [commandReceiptUuid('00000000-0000-4000-8000-0000000000d1', 'c1')],
+      },
+    }),
+  );
+  expect(page.rows.map((row) => row.commandId)).toEqual(['c1']);
+});
+
+// The same instants case the SQL adapters run, on a fresh memory adapter per test.
+describe('on the memory adapter', () => {
+  let fresh = openMemory();
+  beforeEach(() => {
+    fresh = openMemory();
+  });
+  receiptInstantCases({
+    clock: {
+      now: () => fresh.clock.now(),
+      advance: (milliseconds) => fresh.clock.advance(milliseconds),
+    },
+    run: (scope, fn) => fresh.run(scope, fn),
+    read: (scope, fn) => fresh.read(scope, fn),
+    setNow: (instant) => fresh.clock.set(instant),
+  });
 });

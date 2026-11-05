@@ -24,6 +24,38 @@ export function migrationCases(subject: ConformanceSubject): void {
       expect(await columns()).toEqual(expect.arrayContaining(['id', 'label']));
     });
 
+    test('a provisioned table is addressed by its entity: a later file alters it', async () => {
+      const namespace = subject.namespace();
+      await schema().provision(namespace, [
+        {
+          ...migratingSnapshot,
+          entities: {
+            'conf.migrating': {
+              history: 'chain',
+              mergeState: false,
+              fields: {},
+              renames: [],
+              events: {},
+              evolveHash: '',
+            },
+          },
+        },
+      ]);
+      await schema().apply(namespace, {
+        id: '0001-more',
+        track: 'conf',
+        steps: [
+          {
+            op: 'addColumn',
+            entity: 'conf.migrating',
+            field: 'extra',
+            column: migrationColumn('extra'),
+          },
+        ],
+      });
+      expect(await columns()).toContain('extra');
+    });
+
     test('apply runs a file and records it with its checksum; a repeat is a no-op; a changed file conflicts', async () => {
       const namespace = subject.namespace();
       await schema().apply(namespace, createMigrating);

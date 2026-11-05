@@ -179,7 +179,7 @@ describe.each(['memory', 'pglite'] as const)('personal fields on %s (14.7.9)', (
     const created = await people.create({ name: 'Jens', email: 'jens@example.org', notes: 'old' });
     const updated = await people.call<{ email: string; notes: string; version: number }>(
       'people.person.update',
-      { id: created.id, ifVersion: 1, email: 'JENS@new.example.org', notes: 'new' },
+      { id: created.id, ifVersion: 1, patch: { email: 'JENS@new.example.org', notes: 'new' } },
     );
     expect(updated).toMatchObject({
       ok: true,
@@ -218,7 +218,10 @@ describe.each(['memory', 'pglite'] as const)('personal fields on %s (14.7.9)', (
     const queryState = page.ok ? page.value.queryState : '';
     expect(page.ok && page.value.items.map((row) => row.name)).toEqual(['Ada']);
     const b = await people.create({ name: 'Bea', email: 'bea@example.org' });
-    await people.call('people.person.update', { id: a.id, email: 'ada@elsewhere.example' });
+    await people.call('people.person.update', {
+      id: a.id,
+      patch: { email: 'ada@elsewhere.example' },
+    });
 
     const changes = await people.call<{ created: string[]; changed: string[] }>(
       'people.person.changes',

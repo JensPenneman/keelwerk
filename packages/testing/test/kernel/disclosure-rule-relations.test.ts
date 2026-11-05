@@ -186,7 +186,7 @@ async function startForum() {
         const target = at(comments, op.comment);
         const dest = at(posts, op.post);
         if (target === undefined || dest === undefined || target.archived) continue;
-        await call(writer, 'forum.comment.update', { id: target.id, postId: dest.id });
+        await call(writer, 'forum.comment.update', { id: target.id, patch: { postId: dest.id } });
         target.post = posts.indexOf(dest);
         touching.add(target.id);
       } else if (op.kind === 'archive') {
@@ -199,12 +199,12 @@ async function startForum() {
         const target = at(posts, op.post);
         if (target === undefined) continue;
         target.open = !target.open;
-        await call(writer, 'forum.post.update', { id: target.id, open: target.open });
+        await call(writer, 'forum.post.update', { id: target.id, patch: { open: target.open } });
       } else if (op.kind === 'toggleTopic') {
         const target = at(topics, op.topic);
         if (target === undefined) continue;
         target.hot = !target.hot;
-        await call(writer, 'forum.topic.update', { id: target.id, hot: target.hot });
+        await call(writer, 'forum.topic.update', { id: target.id, patch: { hot: target.hot } });
       } else if (op.kind === 'link') {
         const target = at(comments, op.comment);
         const dest = at(topics, op.topic);

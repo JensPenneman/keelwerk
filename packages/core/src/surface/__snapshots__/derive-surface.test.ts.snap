@@ -671,7 +671,23 @@ exports[`deriveSurface (section 16.2) > the accounts module gives the golden sur
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -686,7 +702,7 @@ exports[`deriveSurface (section 16.2) > the accounts module gives the golden sur
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-afr8v8muFUz3b88PzZ8JgaER922JDBmS55hmBdDYgY8",
+      "inputHash": "sha256-64PykrMhBYYnrO2xz5pUVUqaGqIDDg6K3GFgd_trAKE",
       "instance": false,
       "kind": "query",
       "module": "accounts",
@@ -820,7 +836,23 @@ exports[`deriveSurface (section 16.2) > the accounts module gives the golden sur
             "access": "read-write",
             "item": {
               "access": "read-write",
-              "kind": "string",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
               "optional": false
             },
             "kind": "list",
@@ -830,7 +862,7 @@ exports[`deriveSurface (section 16.2) > the accounts module gives the golden sur
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3PUWR_YmwRzrMLACxsiseD6O7lo2hxXZtJGIvQXDyHM",
+      "inputHash": "sha256-pDOmM6-ILNCXiEBwVjs4ooC0bp_1K0aTq4ZKtS-foO4",
       "instance": false,
       "kind": "query",
       "module": "accounts",
@@ -1453,31 +1485,6 @@ exports[`deriveSurface (section 16.2) > the accounts module gives the golden sur
       "input": {
         "access": "read-write",
         "fields": {
-          "deactivatedAt": {
-            "access": "read-write",
-            "kind": "instant",
-            "optional": true,
-            "tag": 4
-          },
-          "displayName": {
-            "access": "read-write",
-            "kind": "string",
-            "maxLength": 120,
-            "merge": "lww",
-            "optional": true,
-            "tag": 1
-          },
-          "email": {
-            "access": "read-write",
-            "format": "email",
-            "kind": "string",
-            "maskable": true,
-            "merge": "exclusive",
-            "optional": true,
-            "personal": true,
-            "tag": 2,
-            "unique": true
-          },
           "id": {
             "access": "read-write",
             "kind": "ref",
@@ -1491,17 +1498,49 @@ exports[`deriveSurface (section 16.2) > the accounts module gives the golden sur
             "optional": true,
             "wide": false
           },
-          "locale": {
+          "patch": {
             "access": "read-write",
-            "kind": "string",
-            "optional": true,
-            "tag": 3
+            "fields": {
+              "deactivatedAt": {
+                "access": "read-write",
+                "kind": "instant",
+                "optional": true,
+                "tag": 4
+              },
+              "displayName": {
+                "access": "read-write",
+                "kind": "string",
+                "maxLength": 120,
+                "merge": "lww",
+                "optional": true,
+                "tag": 1
+              },
+              "email": {
+                "access": "read-write",
+                "format": "email",
+                "kind": "string",
+                "maskable": true,
+                "merge": "exclusive",
+                "optional": true,
+                "personal": true,
+                "tag": 2,
+                "unique": true
+              },
+              "locale": {
+                "access": "read-write",
+                "kind": "string",
+                "optional": true,
+                "tag": 3
+              }
+            },
+            "kind": "shape",
+            "optional": false
           }
         },
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-x6dsO7KF2r9b-JUtxyixnC9S0osuDuaES93W6R_1uk4",
+      "inputHash": "sha256-IlIM1AgYFrYAWoENPRKMKhLAfqk579weR-_5ZkpQFRM",
       "instance": true,
       "kind": "command",
       "module": "accounts",

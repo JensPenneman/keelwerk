@@ -37,6 +37,8 @@ describe('asynchronous acceptance', () => {
       action: 'library.slow',
       apiVersion: '2026-11-01',
       principal: null,
+      principalResolver: null,
+      principalId: null,
     });
     const { books, jobs } = await stored(adapter);
     expect(books).toHaveLength(0);

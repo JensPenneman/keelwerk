@@ -1,4 +1,4 @@
-import { coreError } from './core-error.ts';
+import { coreError } from '@keelwerk/core/http';
 
 /** Parses a JSON body into a value; anything else is `core.malformed_request`. */
 export function parseJsonBody(bytes: Uint8Array): unknown {

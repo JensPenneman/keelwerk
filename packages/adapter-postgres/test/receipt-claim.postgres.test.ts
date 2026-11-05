@@ -12,6 +12,8 @@ const receipt = (commandId: string): Receipt => ({
   action: 'app.ticket.set',
   fingerprint: 'f1',
   principal: null,
+  principalResolver: null,
+  principalId: null,
   status: 'pending',
   outcome: null,
   apiVersion: '2026-01-01',

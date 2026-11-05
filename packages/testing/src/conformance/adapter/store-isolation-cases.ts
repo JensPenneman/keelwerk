@@ -4,6 +4,7 @@ import { describe, expect, test } from 'vitest';
 import { appendOf } from './append-of.ts';
 import type { ConformanceSubject } from './conformance-subject.ts';
 import { failureOf } from './failure-of.ts';
+import { receiptIsolationCases } from './receipt-isolation-cases.ts';
 import { rowAt } from './row-at.ts';
 import { stamp } from './stamp.ts';
 import { storedJob } from './stored-job.ts';
@@ -14,6 +15,8 @@ const namespaceScope: StorageScope = { level: 'namespace', reason: 'conformance'
 const forbidden = { kind: 'forbidden', code: 'core.forbidden' };
 
 export function storeIsolationCases(subject: ConformanceSubject): void {
+  receiptIsolationCases(subject);
+
   describe('two tenants over events, receipts, jobs, usage, buckets, keys and serials', () => {
     test('each tenant has an event log of its own, with positions of its own', async () => {
       await subject.run(tenantA, (unit) => unit.events.append([appendOf(1, [1, 2, 3])]));
@@ -40,6 +43,8 @@ export function storeIsolationCases(subject: ConformanceSubject): void {
           action: 'conf.owner.set',
           fingerprint: 'f',
           principal: null,
+          principalResolver: null,
+          principalId: null,
           status: 'pending',
           outcome: null,
           apiVersion: '2026-01-01',

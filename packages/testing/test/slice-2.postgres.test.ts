@@ -68,6 +68,7 @@ describe.each([
       const history = await kit.adapters.adapter('main').schema.history(kit.adapters.namespace());
       expect(history.map((entry) => `${entry.track}/${entry.id}`)).toEqual([
         'library/0001-initial',
+        'library/0002-related-to',
       ]);
     } finally {
       await owner.end();

@@ -37,6 +37,69 @@ const updateInput: FieldNode = {
   },
 };
 
+const sortKey: FieldNode = {
+  kind: 'shape',
+  optional: false,
+  access: 'read-write',
+  fields: {
+    field: { kind: 'string', optional: false, access: 'read-write' },
+    direction: { kind: 'enum', optional: true, access: 'read-write', values: ['asc', 'desc'] },
+  },
+};
+
+/** The query members the transport tests send, over the fixture's own `limit`. */
+function queryInput(input: FieldNode): FieldNode {
+  if (input.kind !== 'shape') return input;
+  const optional = { optional: true, access: 'read-write' } as const;
+  return {
+    ...input,
+    fields: {
+      ...input.fields,
+      filter: { ...optional, kind: 'json', schema: {} },
+      sort: { ...optional, kind: 'list', item: sortKey },
+      first: { ...optional, kind: 'integer', wide: false },
+      after: { ...optional, kind: 'string' },
+      total: { ...optional, kind: 'boolean' },
+      fields: {
+        ...optional,
+        kind: 'list',
+        item: { kind: 'string', optional: false, access: 'read-write' },
+      },
+    },
+  };
+}
+
+/** The fixture's `get` input with the field selection REST renames to `fields`. */
+function getInput(input: FieldNode): FieldNode {
+  if (input.kind !== 'shape') return input;
+  return {
+    ...input,
+    fields: {
+      ...input.fields,
+      fields: {
+        kind: 'list',
+        optional: true,
+        access: 'read-write',
+        item: { kind: 'string', optional: false, access: 'read-write' },
+      },
+    },
+  };
+}
+
+/** The fixture's `create` input with every member but the name optional: the tests send a name only. */
+function createInput(input: FieldNode): FieldNode {
+  if (input.kind !== 'shape') return input;
+  return {
+    ...input,
+    fields: Object.fromEntries(
+      Object.entries(input.fields).map(([name, node]) => [
+        name,
+        name === 'name' ? node : { ...node, optional: true },
+      ]),
+    ),
+  };
+}
+
 function generated(
   name: string,
   input: FieldNode,
@@ -98,7 +161,18 @@ export function portalSurface(): ApiSurface {
       },
     ],
     actions: [
-      ...base.actions,
+      ...base.actions.map((action) => {
+        switch (action.ref) {
+          case `${profile}.query`:
+            return { ...action, input: queryInput(action.input) };
+          case `${profile}.get`:
+            return { ...action, input: getInput(action.input) };
+          case `${profile}.create`:
+            return { ...action, input: createInput(action.input) };
+          default:
+            return action;
+        }
+      }),
       generated('update', updateInput),
       generated('archive', idInput),
       generated('restore', idInput),

@@ -2,6 +2,8 @@ export type { Conformance as ConformanceApp } from './apps/conformance/src/app.t
 export { conformance as conformanceApp } from './apps/conformance/src/app.ts';
 export type { Library as LibraryApp } from './apps/library/src/app.ts';
 export { library as libraryApp } from './apps/library/src/app.ts';
+export type { Transport as TransportApp } from './apps/transport/src/app.ts';
+export { transport as transportApp } from './apps/transport/src/app.ts';
 export type { Vault as VaultApp } from './apps/vault/src/app.ts';
 export { vault as vaultApp } from './apps/vault/src/app.ts';
 export type { Library } from './modules/library/src/module.generated.ts';

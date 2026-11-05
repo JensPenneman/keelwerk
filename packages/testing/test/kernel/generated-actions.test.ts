@@ -41,10 +41,18 @@ describe.each(['memory', 'pglite'] as const)('the generated actions on %s', (kin
     expect(got.state).toMatch(/^v1\.0\.\d+\.[0-9a-f]{8}\.[0-9a-f]{8}$/);
 
     const updated = await value<Row>(
-      call('library.book.update', { id: created.id, title: 'Dune Messiah', ifVersion: 1 }),
+      call('library.book.update', {
+        id: created.id,
+        patch: { title: 'Dune Messiah' },
+        ifVersion: 1,
+      }),
     );
     expect(updated).toMatchObject({ title: 'Dune Messiah', version: 2 });
-    const stale = await call('library.book.update', { id: created.id, title: 'x', ifVersion: 1 });
+    const stale = await call('library.book.update', {
+      id: created.id,
+      patch: { title: 'x' },
+      ifVersion: 1,
+    });
     expect(stale).toMatchObject({ ok: false, error: { code: 'core.version_mismatch' } });
 
     expect(await call('library.book.restore', { id: created.id })).toMatchObject({
@@ -107,7 +115,7 @@ describe.each(['memory', 'pglite'] as const)('the generated actions on %s', (kin
     const b = await value<Row>(
       call('library.book.create', { title: 'B', isbn: 'b', addedBy: 'ada' }),
     );
-    await value(call('library.book.update', { id: a.id, title: 'A2' }));
+    await value(call('library.book.update', { id: a.id, patch: { title: 'A2' } }));
     const changes = await value<{
       created: string[];
       changed: string[];
@@ -177,7 +185,7 @@ describe.each(['memory', 'pglite'] as const)('the generated actions on %s', (kin
     await new Promise((resolve) => setTimeout(resolve, 20));
     const between = Temporal.Now.instant().toString();
     await new Promise((resolve) => setTimeout(resolve, 20));
-    await value(call('library.book.update', { id: a.id, title: 'Second' }));
+    await value(call('library.book.update', { id: a.id, patch: { title: 'Second' } }));
     const then = await value<{ list: Row[]; state?: string }>(
       call('library.book.get', { ids: [a.id], asOf: between }),
     );

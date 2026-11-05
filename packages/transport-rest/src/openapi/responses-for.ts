@@ -1,5 +1,5 @@
 import type { SurfaceAction } from '@keelwerk/core';
-import { statusOfError } from '../status-of-error.ts';
+import { statusOfError } from '@keelwerk/core/http';
 import { bodyNodeOf } from './body-node-of.ts';
 import type { DocumentedRoute } from './documented-route.ts';
 import { hasIfMatch } from './has-if-match.ts';

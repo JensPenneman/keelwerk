@@ -31,6 +31,7 @@ import type { CoreBase } from './core-base-type.ts';
 import type { Core } from './core-type.ts';
 import { core } from './module.ts';
 import { operators as backendOperators } from './policies/backend/operators.ts';
+import { submitter } from './policies/command-receipt/submitter.ts';
 import { operators as compositionOperators } from './policies/composition/operators.ts';
 import { operators as domainOperators } from './policies/domain/operators.ts';
 import { signedIn as introspectSignedIn } from './policies/introspect/signed-in.ts';
@@ -139,7 +140,9 @@ const derived = defineModuleBase({
         commandId: field.string().unique(),
         action: field.string(),
         fingerprint: field.string(),
-        principal: field.json(document).optional(),
+        principal: field.json(document).optional().hidden(),
+        principalResolver: field.string().optional(),
+        principalId: field.string().optional(),
         status: field.enum(['pending', 'accepted', 'completed', 'failed']),
         outcome: field.json(document).optional(),
         apiVersion: field.string(),
@@ -207,6 +210,7 @@ const derivedCore = defineModule(coreBase, {
     backend: { operators: backendOperators },
     tenant: { operators: tenantOperators },
     domain: { operators: domainOperators },
+    commandReceipt: { submitter },
   },
   reactions: { syncDomains, syncDomainsOnChange },
 });

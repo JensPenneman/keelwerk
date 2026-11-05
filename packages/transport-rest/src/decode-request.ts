@@ -1,5 +1,5 @@
 import { errors, parseTypeId } from '@keelwerk/core';
-import { coreError } from './core-error.ts';
+import { coreError } from '@keelwerk/core/http';
 import { decodeQueryString } from './decode-query-string.ts';
 import type { Preconditions } from './preconditions.ts';
 import { readJsonBody } from './read-json-body.ts';

@@ -1,6 +1,5 @@
 import type { BatchResponse, InvokeResponse } from '@keelwerk/core';
-import { asKeelwerkError } from './as-keelwerk-error.ts';
-import { coreError } from './core-error.ts';
+import { asKeelwerkError, coreError } from '@keelwerk/core/http';
 import type { EndpointCall } from './endpoint-call.ts';
 import { errorResponse } from './error-response.ts';
 import { invokeOne } from './invoke-one.ts';

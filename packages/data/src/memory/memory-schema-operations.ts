@@ -1,5 +1,5 @@
 import type { SchemaOperations } from '@keelwerk/core';
-import { canonicalizeJson, errors, KeelwerkError } from '@keelwerk/core';
+import { canonicalizeJson, errors, KeelwerkError, physicalTableName } from '@keelwerk/core';
 import { sha256 } from '@keelwerk/core/crypto';
 import { memoryApplyStep } from './memory-apply-step.ts';
 import type { MemoryDatabase } from './memory-database.ts';
@@ -64,6 +64,14 @@ export function memorySchemaOperations(database: MemoryDatabase): SchemaOperatio
         for (const snapshot of snapshots) {
           for (const table of snapshot.tables) {
             if (!state.tables.has(table.name)) state.tables.set(table.name, table);
+          }
+          // A later file addresses a table by its entity, so a provisioned table is registered under it.
+          for (const entity of Object.keys(snapshot.entities)) {
+            const dot = entity.indexOf('.');
+            const name = physicalTableName(entity.slice(0, dot), entity.slice(dot + 1));
+            if (state.tables.has(name) && !state.tableOf.has(entity)) {
+              state.tableOf.set(entity, name);
+            }
           }
         }
         const groups = (options?.jobGroups ?? []).filter((group) => group.scope === 'namespace');

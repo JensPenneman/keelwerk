@@ -1,6 +1,5 @@
+import { asKeelwerkError, coreError } from '@keelwerk/core/http';
 import { Hono } from 'hono';
-import { asKeelwerkError } from './as-keelwerk-error.ts';
-import { coreError } from './core-error.ts';
 import { decorateResponse } from './decorate-response.ts';
 import type { Dispatcher } from './dispatcher.ts';
 import { errorResponse } from './error-response.ts';

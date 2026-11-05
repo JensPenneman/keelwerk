@@ -1,4 +1,4 @@
-import { clearedCookie } from './cleared-cookie.ts';
+import { clearedCookie } from '@keelwerk/core/http';
 import { cors } from './cors.ts';
 import type { RequestState } from './request-state.ts';
 import { securityHeaders } from './security-headers.ts';

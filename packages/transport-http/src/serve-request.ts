@@ -1,9 +1,8 @@
 import type { Carrier, InvocationSession, KeelwerkError } from '@keelwerk/core';
-import { asKeelwerkError } from './as-keelwerk-error.ts';
+import { asKeelwerkError, coreError } from '@keelwerk/core/http';
 import { batchEndpoint } from './batch-endpoint.ts';
 import { bodyLimit } from './body-limit.ts';
 import { capabilitiesEndpoint } from './capabilities-endpoint.ts';
-import { coreError } from './core-error.ts';
 import type { EndpointCall } from './endpoint-call.ts';
 import { errorResponse } from './error-response.ts';
 import { fillCarrier } from './fill-carrier.ts';
@@ -78,13 +77,16 @@ async function mounted(call: EndpointCall, path: string): Promise<Response> {
           body: call.bytes,
           signal: request.signal,
         });
+  // The one rule of path handling: the host strips the mount's prefix, the transport never does.
+  const stripped = match.prefix === '/' ? '' : match.prefix;
   return match.handler(forwarded, {
     session,
     carrier,
     requestId: state.requestId,
     ...(state.traceparent !== undefined && { traceparent: state.traceparent }),
     signal: request.signal,
-    basePath: '',
+    path: path.slice(stripped.length) || '/',
+    basePath: stripped,
   });
 }
 
@@ -140,7 +142,11 @@ export async function serveRequest(
   const { session } = opened;
   state.session = session;
   const headers = carrier.headers ?? {};
-  const allowed = host.deps.allowedOrigins?.(session) ?? [];
+  const { pathname } = new URL(request.url);
+  const reserved = pathname === reservedPrefix || pathname.startsWith(`${reservedPrefix}/`);
+  // The route first: the invocation protocol allows the tenant's domains only, a mount adds its own `cors`.
+  const transport = reserved ? undefined : host.mounts.get(session.app)?.match(pathname)?.transport;
+  const allowed = host.deps.allowedOrigins?.(session, transport) ?? [];
   const plain = new URL(request.url).protocol === 'http:';
   if (
     headers.origin !== undefined &&
@@ -156,12 +162,11 @@ export async function serveRequest(
     return errorResponse(host, state, csrf);
   }
   const call: EndpointCall = { host, state, session, carrier, request, bytes };
-  const { pathname } = new URL(request.url);
   try {
     if (pathname === protocolBase || pathname.startsWith(`${protocolBase}/`)) {
       return await protocolEndpoint(call, pathname);
     }
-    if (pathname === reservedPrefix || pathname.startsWith(`${reservedPrefix}/`)) {
+    if (reserved) {
       return errorResponse(
         host,
         state,

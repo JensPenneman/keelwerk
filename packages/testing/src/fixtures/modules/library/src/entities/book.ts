@@ -7,6 +7,7 @@ const bookDef = defineEntity({
     title: field.string({ maxLength: 200 }),
     isbn: field.string({ maxLength: 17 }).unique(),
     addedBy: field.subject().index(),
+    relatedTo: field.ref.own('book').optional(),
   },
   generated: { history: true, watch: false },
 });

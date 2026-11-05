@@ -23,7 +23,7 @@ export interface HttpHostDeps {
   /** The deployment's carrier enrichers, run in order before the scope is resolved. */
   readonly enrichers?: readonly CarrierEnricher[];
   /** The tenant's domains plus the transport's `cors` setting, as origins (`https://host`). */
-  allowedOrigins?(session: InvocationSession): readonly string[];
+  allowedOrigins?(session: InvocationSession, transport?: string): readonly string[];
   /** Whether the control store, the placements and the queue answer; default: ready. */
   ready?(): Promise<boolean>;
   /** Development shows operators' detail to every caller (section 10). */

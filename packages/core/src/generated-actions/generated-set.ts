@@ -281,11 +281,10 @@ export async function generatedSet(input: GeneratedSetInput): Promise<unknown> {
         const patch = recordOf(item.patch, `update.${index}.patch`);
         const checked = await validated(
           schemaOf('update'),
-          { ...patch, id: String(row.id) },
-          `update.${index}.patch`,
+          { id: String(row.id), patch },
+          `update.${index}`,
         );
-        const { id: _id, ifVersion: _ifVersion, ...values } = checked;
-        return instanceDraftOf('update', entry.ref, row, values);
+        return instanceDraftOf('update', entry.ref, row, recordOf(checked.patch, 'patch'));
       },
       ids.updated,
     );

@@ -2,13 +2,16 @@ import { connectRewindCheck } from '../anchors/connect-rewind-check.ts';
 import { startAnchoring } from '../anchors/start-anchoring.ts';
 import { setProcessState } from '../control/set-process-state.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
+import { defineApp } from '../dsl/define-app.ts';
 import { answerExplain } from '../explain/answer-explain.ts';
 import { explainStream } from '../explain/explain-stream.ts';
 import { createInvoker } from '../invoker/create-invoker.ts';
 import type { InvokerApp } from '../invoker/invoker-app.ts';
 import type { InvokerOptions } from '../invoker/invoker-options.ts';
 import { createOperatorTokenResolver } from '../principals/operator-token-resolver.ts';
+import type { ApiSurface } from '../surface/api-surface.ts';
 import { deriveSurface } from '../surface/derive-surface.ts';
+import type { SurfaceSource } from '../surface/surface-source.ts';
 import { createCommandRunner } from '../write-path/create-command-runner.ts';
 import { anchorScopes } from './anchor-scopes.ts';
 import { answerRuntimeQueries } from './answer-runtime-queries.ts';
@@ -19,6 +22,7 @@ import { defaultLogger } from './default-logger.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
 import { drainingInvoker } from './draining-invoker.ts';
 import { listenPhase } from './listen-phase.ts';
+import type { Listening } from './listening.ts';
 import { migratePhase } from './migrate-phase.ts';
 import { refuseUnknownApiVersion } from './refuse-unknown-api-version.ts';
 import type { Runtime } from './runtime.ts';
@@ -140,6 +144,24 @@ export async function startRuntime(
     );
     const draining = drainingInvoker(explaining);
 
+    // A deployment-scope session (the operator socket) belongs to the app `core`, which the
+    // invoker answers from the one served app, or else from the registry of the control app.
+    const coreHead = coreApiVersions.dates.at(-1) ?? '';
+    let coreApp: SurfaceSource | undefined;
+    const coreSource = (): SurfaceSource => {
+      if (sole !== undefined) return sole.source;
+      coreApp ??= defineApp({ id: 'core', modules: [], execution: {}, api: coreApiVersions });
+      return coreApp;
+    };
+    const surface = (appId: string, version?: string): ApiSurface => {
+      const app = served.find((candidate) => candidate.id === appId);
+      if (app !== undefined) return deriveSurface(app.source, version ?? app.head).surface;
+      if (appId !== 'core') {
+        throw new RangeError(`The process does not serve app "${appId}".`);
+      }
+      return deriveSurface(coreSource(), version ?? sole?.head ?? coreHead).surface;
+    };
+
     log.debug('phase', { phase: 'start' });
     const ready = startPhase({ connected, migrated, options });
     started = ready;
@@ -153,39 +175,46 @@ export async function startRuntime(
       log,
     });
     log.debug('phase', { phase: 'listen' });
-    const mounts = options.listen
+    const listening: Listening = options.listen
       ? await listenPhase({
+          entry: composed.infrastructure.hostEntry,
           host: composed.infrastructure.host,
+          deployment,
           served,
           invoker: draining.invoker,
           log,
           development,
-          configOf: () => () => undefined,
+          deploymentId: connected.deploymentId,
+          control: connected.control,
+          clock,
+          surface,
         })
-      : [];
+      : { host: undefined, instance: undefined, mounts: [] };
     await setProcessState(connected.control, connected.processId, 'ready');
 
     let stopping: Promise<void> | undefined;
     return {
       invoker: draining.invoker,
-      surface: (appId, version) => {
-        const app = served.find((candidate) => candidate.id === appId);
-        if (app === undefined) throw new RangeError(`The process does not serve app "${appId}".`);
-        return deriveSurface(app.source, version ?? app.head).surface;
-      },
+      surface,
       registry: (appId) => {
         const app = served.find((candidate) => candidate.id === appId);
         if (app === undefined) throw new RangeError(`The process does not serve app "${appId}".`);
         return app.source.registry;
       },
-      ...(options.listen && composed.infrastructure.host !== undefined
-        ? { host: composed.infrastructure.host }
-        : {}),
+      ...(listening.host === undefined ? {} : { host: listening.host }),
       control: createRuntimeControl({ deployment, served, connected, migrated, anchoring }),
       stop: (deadlineMs) => {
         log.debug('phase', { phase: 'stop' });
         stopping ??= stopPhase(
-          { connected, started: ready, draining, mounts, abort, anchoring },
+          {
+            connected,
+            started: ready,
+            draining,
+            mounts: listening.mounts,
+            host: listening.instance,
+            abort,
+            anchoring,
+          },
           deadlineMs,
         );
         return stopping;

@@ -1,5 +1,5 @@
 import type { Carrier, KeelwerkError } from '@keelwerk/core';
-import { coreError } from './core-error.ts';
+import { coreError } from '@keelwerk/core/http';
 import { isAllowedOrigin } from './is-allowed-origin.ts';
 
 const safeMethods: ReadonlySet<string> = new Set(['GET', 'HEAD']);

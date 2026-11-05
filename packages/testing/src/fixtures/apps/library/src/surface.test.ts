@@ -63,6 +63,7 @@ describe('the library app surface (section 16.2)', () => {
       'createdAt',
       'id',
       'isbn',
+      'relatedTo',
       'title',
       'updatedAt',
       'version',

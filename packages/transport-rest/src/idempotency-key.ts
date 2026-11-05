@@ -1,4 +1,4 @@
-import { coreError } from './core-error.ts';
+import { coreError } from '@keelwerk/core/http';
 
 const visibleAscii = /^[\x21-\x7e]{1,255}$/;
 

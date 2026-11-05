@@ -6,10 +6,10 @@ import {
   type Outcome,
   type SurfaceAction,
 } from '@keelwerk/core';
+import { applyCookieHint, asKeelwerkError, decodeInput } from '@keelwerk/core/http';
 import { toWire } from '@keelwerk/core/wire';
-import { applyCookieHint } from './apply-cookie-hint.ts';
-import { asKeelwerkError } from './as-keelwerk-error.ts';
 import type { EndpointCall } from './endpoint-call.ts';
+import { keepMasked } from './keep-masked.ts';
 
 function actionOf(call: EndpointCall, ref: string): SurfaceAction | undefined {
   try {
@@ -55,7 +55,7 @@ export async function invokeOne(
   try {
     outcome = await host.deps.invoker.invoke({
       action: item.action,
-      input: item.input,
+      input: action === undefined ? item.input : decodeInput(action.input, item.input),
       carrier,
       session,
       requestId: state.requestId,
@@ -84,7 +84,10 @@ export async function invokeOne(
         },
       };
     }
-    const encoded = action === undefined ? outcome.value : toWire(action.output, outcome.value);
+    const encoded =
+      action === undefined
+        ? outcome.value
+        : keepMasked(action.output, outcome.value, toWire(action.output, outcome.value));
     const hinted = applyCookieHint(
       action?.hints.http?.cookie,
       encoded,

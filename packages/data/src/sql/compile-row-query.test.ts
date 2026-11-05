@@ -8,6 +8,8 @@ import { tenantScope } from '../../test/support/tenant-scope.ts';
 import { compileRowQuery } from './compile-row-query.ts';
 import { cursorSignature } from './cursor-signature.ts';
 import { encodeCursor } from './encode-cursor.ts';
+import { commandReceiptDescriptor } from './postgres/command-receipt-descriptor.ts';
+import { ScopingPlugin } from './scoping-plugin.ts';
 
 const tenant = tenantScope.level === 'tenant' ? tenantScope.tenantId : '';
 
@@ -41,6 +43,25 @@ describe('statements', () => {
         'and "t"."tenant_id" = $2 order by "t"."title" asc nulls last, "t"."id" asc nulls last limit $3',
     );
     expect(compiled.parameters).toEqual(['a', tenant, 3]);
+  });
+
+  test('an invocation table has no archive column to select or filter on', () => {
+    const receipt = commandReceiptDescriptor();
+    const plan = compileRowQuery({
+      ...contextFor(receipt),
+      db: dummyDb().withPlugin(
+        new ScopingPlugin({
+          scope: tenantScope,
+          scoped: [{ schema: 'app', name: 'core__command_receipt', column: 'scope_id' }],
+        }),
+      ),
+      query: { select: ['commandId'] },
+    });
+    const { sql: text } = plan.select.compile();
+    expect(text).not.toContain('archived_at');
+    expect(text).toContain('"t"."version"::text as "version"');
+    expect(text).toContain('"t"."command_id" as "commandId"');
+    expect(text).toContain('"t"."scope_id" = $1');
   });
 
   test('includeArchived drops the archived filter', () => {

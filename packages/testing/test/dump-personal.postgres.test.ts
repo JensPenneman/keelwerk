@@ -32,7 +32,7 @@ describe('a PostgreSQL dump of personal fields (14.10)', () => {
     const updated = await people.call('people.person.update', {
       id: created.id,
       ifVersion: 1,
-      email: markers[0],
+      patch: { email: markers[0] },
     });
     expect(updated.ok).toBe(true);
     expect(await people.find({ email: { eq: markers[0]?.toUpperCase() } })).toMatchObject({

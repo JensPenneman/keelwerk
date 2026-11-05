@@ -114,6 +114,7 @@ export async function mountRest(
   const { host, registered } = fakeHost();
   const context: MountContext<RestConfig> = {
     app: surface.app,
+    deploymentId: '0198a1e0-0000-7000-8000-00000000d001',
     surface,
     invoker,
     host,
@@ -142,6 +143,8 @@ export interface CallOptions {
   readonly signal?: AbortSignal;
   /** The tenant prefix the host consumed before the transport's base path. */
   readonly tenantPrefix?: string;
+  /** The prefix the handler is registered under; default `/api`. */
+  readonly mountPrefix?: string;
 }
 
 /** One request through the handler, as the host would pass it. */
@@ -162,14 +165,26 @@ export async function call(
     headers,
     ...(raw !== undefined && { body: raw }),
   });
+  const tenant = options.tenantPrefix ?? '';
+  const pathname = new URL(request.url).pathname;
+  if (!pathname.startsWith(tenant)) {
+    return new Response(null, { status: 404 });
+  }
+  // What the host does: it strips the tenant prefix and the prefix it routed on.
+  const below = pathname.slice(tenant.length) || '/';
+  const mount = options.mountPrefix ?? '/api';
+  const routed = below === mount || below.startsWith(`${mount}/`) ? mount : below;
   const context: HttpContext = {
     session: options.session ?? session(),
     carrier: { transport: 'http', host: 'portal.example', path, headers: {} },
     requestId,
     signal: options.signal ?? new AbortController().signal,
-    basePath: options.tenantPrefix ?? '',
+    path: below.slice(routed.length) || '/',
+    basePath: `${tenant}${routed}`,
   };
   return await handler(request, context);
 }
 
 export const profileId = 'prof_01h455vb4pex5vsknk084sn02q';
+/** What the invoker receives for `profileId`: the host decodes a TypeID into the stored UUID. */
+export const profileUuid = '01890a5d-ac96-774b-bcce-b302099a8057';

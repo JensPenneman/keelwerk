@@ -7,6 +7,8 @@ import type { TransportHost } from './transport-host.ts';
 
 export interface MountContext<Config> {
   readonly app: string;
+  /** The deployment id (S-69): the scope id of deployment-scope rows, which receipt ids of deployment-scope commands carry. */
+  readonly deploymentId: string;
   readonly surface: ApiSurface;
   readonly invoker: Invoker;
   readonly host: TransportHost;
