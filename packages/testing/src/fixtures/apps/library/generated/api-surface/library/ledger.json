@@ -1,0 +1,15 @@
+{
+  "app": "library",
+  "format": "keelwerk.ledger/1",
+  "versions": [
+    {
+      "changes": [],
+      "modules": {
+        "core": "0.0.0",
+        "library": "0.1.0"
+      },
+      "surfaceHash": "sha256-cXgW2O22bqUKXsFu-PgnMBDyp9vCZcki7_NA1T4DPyY",
+      "version": "2026-11-04"
+    }
+  ]
+}

@@ -9,8 +9,9 @@ function isCalendarDate(text: string): boolean {
   }
   try {
     return Temporal.PlainDate.from(text, { overflow: 'reject' }).toString() === text;
-  } catch {
-    return false;
+  } catch (error) {
+    if (error instanceof RangeError) return false;
+    throw error;
   }
 }
 

@@ -7,6 +7,13 @@ import { mkdir, readdir, readFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import type { ApiVersionLedger } from '../packages/core/src/api-versions/api-version-ledger.ts';
+import { appendLedgerEntry } from '../packages/core/src/api-versions/append-ledger-entry.ts';
+import type { ExpectedLedgerEntry } from '../packages/core/src/api-versions/check-ledger.ts';
+import { checkLedger } from '../packages/core/src/api-versions/check-ledger.ts';
+import { emptyApiVersionLedger } from '../packages/core/src/api-versions/empty-api-version-ledger.ts';
+import { parseApiVersionLedger } from '../packages/core/src/api-versions/parse-api-version-ledger.ts';
+import { renderApiVersionLedger } from '../packages/core/src/api-versions/render-api-version-ledger.ts';
 import { coreApiVersions } from '../packages/core/src/core-module/core-api-versions.ts';
 import { writeModuleManifest } from '../packages/core/src/manifest/write-module-manifest.ts';
 import { pascal } from '../packages/core/src/naming/pascal.ts';
@@ -108,6 +115,7 @@ for (const appRoot of roots.toSorted()) {
   }
   const dates = app.api?.dates ?? coreApiVersions.dates;
   const expected = new Map<string, string>();
+  const implied: ExpectedLedgerEntry[] = [];
   let head = '';
   let broken = false;
   for (const date of dates) {
@@ -121,6 +129,11 @@ for (const appRoot of roots.toSorted()) {
       renderSurfaceArtefact(derived.surface),
     );
     head = derived.surface.hash;
+    implied.push({
+      version: date,
+      surfaceHash: derived.surface.hash,
+      modules: Object.fromEntries(derived.surface.modules.map((item) => [item.id, item.version])),
+    });
   }
   if (broken) {
     failures.push(shown);
@@ -137,6 +150,26 @@ for (const appRoot of roots.toSorted()) {
       fragments: [],
     }),
   );
+  const ledgerPath = join(appRoot, 'generated', 'api-surface', app.id, 'ledger.json');
+  const ledgerText = await current(ledgerPath);
+  const ledger =
+    ledgerText === undefined ? emptyApiVersionLedger(app.id) : parseApiVersionLedger(ledgerText);
+  if (check) {
+    const name = relative(root, ledgerPath).split(sep).join('/');
+    if (ledgerText === undefined) {
+      process.stderr.write(`${name} does not exist; run node scripts/generate-surfaces.ts\n`);
+      failures.push(name);
+    }
+    for (const problem of ledgerText === undefined ? [] : checkLedger(ledger, app.id, implied)) {
+      process.stderr.write(`${name}: ${problem.code}: ${problem.message}\n`);
+      failures.push(name);
+    }
+  } else if (ledgerText === undefined) {
+    // Only the first creation: after that the ledger is written by `surface version new` (13.7).
+    let next: ApiVersionLedger = ledger;
+    for (const entry of implied) next = appendLedgerEntry(next, { ...entry, changes: [] });
+    expected.set(ledgerPath, renderApiVersionLedger(next));
+  }
   for (const [path, text] of expected) {
     const name = relative(root, path).split(sep).join('/');
     if (check) {

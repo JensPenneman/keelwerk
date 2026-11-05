@@ -70,12 +70,22 @@ export async function startRuntime(
     }
 
     const apps = new Map<string, InvokerApp>(
-      served.map((app) => [app.id, { registry: app.registry, head: app.head }]),
+      served.map((app) => [
+        app.id,
+        {
+          registry: app.registry,
+          head: app.head,
+          ...(app.source.api === null || app.source.api === undefined
+            ? {}
+            : { api: app.source.api }),
+        },
+      ]),
     );
     const sole = served.length === 1 ? served[0] : undefined;
     apps.set('core', {
       registry: sole?.registry ?? connected.control.registry,
-      head: sole?.head ?? coreApiVersions.dates.at(-1) ?? '',
+      head: coreApiVersions.dates.at(-1) ?? '',
+      api: coreApiVersions,
     });
     const invokerOptions: InvokerOptions = {
       apps,

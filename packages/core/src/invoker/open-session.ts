@@ -27,7 +27,7 @@ async function open(
   }
   const resolved = await resolveScope(env, carrier);
   const found = await resolvePrincipal(env, carrier, resolved, { requestId, span });
-  const version = resolveVersion(env, resolved);
+  const version = resolveVersion(env, resolved, carrier, found.principal);
   if (resolved.target !== null) {
     await performResolverEffects(
       env,

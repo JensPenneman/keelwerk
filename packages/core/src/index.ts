@@ -1,3 +1,24 @@
+export type { ApiVersionLedger, LedgerEntry } from './api-versions/api-version-ledger.ts';
+export { appendLedgerEntry } from './api-versions/append-ledger-entry.ts';
+export type { ExpectedLedgerEntry, LedgerProblem } from './api-versions/check-ledger.ts';
+export { checkLedger } from './api-versions/check-ledger.ts';
+export { classifySurfaceChange } from './api-versions/classify-surface-change.ts';
+export { diffSurfaces } from './api-versions/diff-surfaces.ts';
+export { emptyApiVersionLedger } from './api-versions/empty-api-version-ledger.ts';
+export type {
+  ModuleVersionVerdict,
+  RequiredBump,
+} from './api-versions/module-version-bump.ts';
+export { moduleVersionBump } from './api-versions/module-version-bump.ts';
+export { parseApiVersionLedger } from './api-versions/parse-api-version-ledger.ts';
+export { renderApiVersionLedger } from './api-versions/render-api-version-ledger.ts';
+export type { ChosenVersion, VersionChoice } from './api-versions/resolve-version.ts';
+export { resolveVersion } from './api-versions/resolve-version.ts';
+export type {
+  SurfaceChange,
+  SurfaceChangeClass,
+  SurfaceChangeKind,
+} from './api-versions/surface-change.ts';
 export { applyPolicyOverrides } from './authorization/apply-policy-overrides.ts';
 export type { AuthorizedAction } from './authorization/authorized-action.ts';
 export { checkFilterFields } from './authorization/check-filter-fields.ts';

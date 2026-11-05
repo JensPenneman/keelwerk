@@ -1,0 +1,16 @@
+{
+  "app": "conformance",
+  "format": "keelwerk.ledger/1",
+  "versions": [
+    {
+      "changes": [],
+      "modules": {
+        "core": "0.0.0",
+        "library": "0.1.0",
+        "loans": "0.1.0"
+      },
+      "surfaceHash": "sha256-pd53KYi8gYmN4Dv-0z8wuo3AezpLHvxH8gsdm7sfNuE",
+      "version": "2026-11-04"
+    }
+  ]
+}
