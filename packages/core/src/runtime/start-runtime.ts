@@ -1,8 +1,11 @@
 import { compareAnchors } from '../control/compare-anchors.ts';
 import { setProcessState } from '../control/set-process-state.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
+import { answerExplain } from '../explain/answer-explain.ts';
+import { explainStream } from '../explain/explain-stream.ts';
 import { createInvoker } from '../invoker/create-invoker.ts';
 import type { InvokerApp } from '../invoker/invoker-app.ts';
+import type { InvokerOptions } from '../invoker/invoker-options.ts';
 import { deriveSurface } from '../surface/derive-surface.ts';
 import { createCommandRunner } from '../write-path/create-command-runner.ts';
 import { anchorScopes } from './anchor-scopes.ts';
@@ -74,7 +77,7 @@ export async function startRuntime(
       registry: sole?.registry ?? connected.control.registry,
       head: sole?.head ?? coreApiVersions.dates.at(-1) ?? '',
     });
-    const inner = createInvoker({
+    const invokerOptions: InvokerOptions = {
       apps,
       directory: migrated.directory.lookup,
       placement: (name) => connected.placements.get(name),
@@ -99,13 +102,24 @@ export async function startRuntime(
         nodeId: connected.nodeId,
         hybridClock: connected.hybridClock,
       }),
-    });
+    };
+    const inner = createInvoker(invokerOptions);
     const answering = answerRuntimeQueries(
       inner,
       new Map(served.map((app) => [app.id, app])),
       connected.control,
     );
-    const draining = drainingInvoker(answering);
+    // `core.explain` (section 16.9.7) and the explain stream of development (section 11).
+    const explaining = explainStream(
+      answerExplain(answering, { options: invokerOptions, hybridClock: connected.hybridClock }),
+      {
+        env: options.env ?? {},
+        development,
+        write: (line) => log.info(line),
+        clock,
+      },
+    );
+    const draining = drainingInvoker(explaining);
 
     log.debug('phase', { phase: 'start' });
     const ready = startPhase({ connected, migrated, options });

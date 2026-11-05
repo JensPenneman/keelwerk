@@ -289,6 +289,27 @@ export type { StreamAppend } from './events/stream-append.ts';
 export type { StreamRef } from './events/stream-ref.ts';
 export type { VerifyChainOptions } from './events/verify-chain.ts';
 export { verifyChain } from './events/verify-chain.ts';
+export { answerExplain } from './explain/answer-explain.ts';
+export type {
+  DecisionExplanation,
+  ExplainedMask,
+  ExplainedPlan,
+  ExplainedRule,
+} from './explain/decision-explanation.ts';
+export type { DryRunInput } from './explain/dry-run.ts';
+export { dryRun } from './explain/dry-run.ts';
+export type { DryRunEffect, DryRunEvent, DryRunReport } from './explain/dry-run-report.ts';
+export { explainAction } from './explain/explain-action.ts';
+export { explainDecision } from './explain/explain-decision.ts';
+export type { ExplainDecisionInput } from './explain/explain-decision-input.ts';
+export type { ExplainEnvironment } from './explain/explain-environment.ts';
+export type { ExplainAs, ExplainRequest } from './explain/explain-request.ts';
+export type { ExplainStreamOptions } from './explain/explain-stream.ts';
+export { explainStream } from './explain/explain-stream.ts';
+export { parseExplainRequest } from './explain/parse-explain-request.ts';
+export { traceCommand } from './explain/trace-command.ts';
+export type { TraceInput } from './explain/trace-input.ts';
+export type { TraceCommand, TraceEffect, TraceEvent, TraceReport } from './explain/trace-report.ts';
 export type { FieldBuilders, RefBuilders } from './fields/field.ts';
 export { field } from './fields/field.ts';
 export type {

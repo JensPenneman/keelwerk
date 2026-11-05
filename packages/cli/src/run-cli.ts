@@ -16,6 +16,8 @@ import { exitCodeOf } from './exit-code-of.ts';
 import { createOutputWriter } from './output/create-output-writer.ts';
 import { renderError } from './output/render-error.ts';
 
+/** Command words that run against the connected deployment but need no surface, so only the profile is resolved for them (change note, WP-45; WP-58 and WP-61 add theirs). */
+const profileCommands = new Set(['explain']);
 const helpFlags = new Set(['--help', '-h', '-H']);
 
 /**
@@ -32,6 +34,10 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<number
   let profile: CliContext['profile'] = { kind: 'none' };
   let link: DeploymentLink | undefined;
   try {
+    const [command] = words;
+    if (command !== undefined && profileCommands.has(command) && !completing) {
+      profile = await resolveProfile(io.host, options);
+    }
     if (words[0] === 'call') {
       profile = await resolveProfile(io.host, options);
       try {
