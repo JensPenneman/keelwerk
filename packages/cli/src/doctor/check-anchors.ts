@@ -37,13 +37,17 @@ export function checkAnchors(facts: AnchorFacts, now: Temporal.Instant): readonl
       }
     }
   }
-  if (facts.refusedAppends > 0) {
+  for (const sink of facts.refusedSinks) {
+    const failure =
+      sink.lastFailure === undefined
+        ? ''
+        : `; the last failure at ${sink.lastFailure.at}: ${sink.lastFailure.message}`;
     found.push(
       findingOf(
         check,
         'error',
-        'ledger sink',
-        `a ledger sink refused ${facts.refusedAppends} append(s)`,
+        sink.sink,
+        `a ledger sink refused ${sink.refusedAppends} append(s)${failure}`,
         'check the sink (disk space, permissions, the path)',
       ),
     );

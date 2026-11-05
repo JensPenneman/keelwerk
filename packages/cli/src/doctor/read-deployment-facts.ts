@@ -71,6 +71,7 @@ export async function readDeploymentFacts(input: DeploymentInput): Promise<Deplo
       definition.infrastructure,
       definition.anchors?.every,
       reader?.heads?.bind(reader),
+      reader?.anchorSinks?.(),
     ),
     personal: personalFieldsOf(input.registries),
   };

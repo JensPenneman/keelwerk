@@ -157,14 +157,25 @@ describe('the deployment', () => {
       ['t2', '5', '5'],
     ]);
     const found = checkAnchors(
-      { ...facts.anchors, refusedAppends: 1 },
+      {
+        ...facts.anchors,
+        refusedAppends: 1,
+        refusedSinks: [
+          {
+            sink: 'ledger',
+            refusedAppends: 1,
+            lastFailure: { at: '2026-11-05T09:58:00Z', message: 'disk full' },
+          },
+        ],
+      },
       Temporal.Instant.from('2026-11-05T10:00:00Z'),
     );
     expect(found.map((finding) => [finding.severity, finding.subject])).toEqual([
       ['error', 't1'],
       ['warning', 't1'],
-      ['error', 'ledger sink'],
+      ['error', 'ledger'],
     ]);
+    expect(found.at(-1)?.message).toContain('disk full');
   });
 
   test('the personal-data pass warns about weak settings', () => {

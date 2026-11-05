@@ -12,7 +12,9 @@ function textOf(value: unknown): string | undefined {
  * failed tenant hooks. `now` is the clock the heartbeat ages are measured against.
  */
 export function controlReaderOf(source: ControlSource, now: () => Temporal.Instant): ControlReader {
+  const anchorSinks = source.anchorSinks?.bind(source);
   return {
+    ...(anchorSinks === undefined ? {} : { anchorSinks }),
     reachable: async () => {
       try {
         await source.read((unit) => unit.rows.count(source.entity('core.process')));

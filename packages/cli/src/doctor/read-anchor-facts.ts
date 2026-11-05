@@ -1,4 +1,4 @@
-import type { LedgerRecord } from '@keelwerk/core';
+import type { AnchorSinkStatus, LedgerRecord } from '@keelwerk/core';
 import { cadenceOf } from './cadence-of.ts';
 import type { AnchorFacts } from './deployment-facts.ts';
 
@@ -21,6 +21,7 @@ export async function readAnchorFacts(
   infrastructure: readonly unknown[],
   every: string | undefined,
   heads: ((scopeIds: ReadonlySet<string>) => Promise<ReadonlyMap<string, string>>) | undefined,
+  sinks: readonly AnchorSinkStatus[] = [],
 ): Promise<AnchorFacts> {
   const newest = new Map<string, { position: bigint; at: string }>();
   for (const entry of infrastructure.filter(isSink)) {
@@ -37,7 +38,8 @@ export async function readAnchorFacts(
     heads === undefined ? new Map<string, string>() : await heads(new Set(newest.keys()));
   return {
     cadenceMs: cadenceOf(every),
-    refusedAppends: 0,
+    refusedAppends: sinks.reduce((sum, sink) => sum + sink.refusedAppends, 0),
+    refusedSinks: sinks.filter((sink) => sink.refusedAppends > 0),
     scopes: [...newest].map(([scopeId, anchor]) => ({
       scopeId,
       anchored: anchor.position.toString(),

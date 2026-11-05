@@ -1,3 +1,4 @@
+import type { AnchorSinkStatus } from '@keelwerk/core';
 import type { HookFailureFact, ProcessFact, QueueFact, WorkFact } from './deployment-facts.ts';
 
 /**
@@ -13,4 +14,6 @@ export interface ControlReader {
   /** Queued and running jobs per queue name. */
   queueDepths?(): Promise<ReadonlyMap<string, Pick<QueueFact, 'queued' | 'running'>>>;
   work?(): Promise<WorkFact>;
+  /** Per ledger sink: the appends it refused and the last failure of the anchor writer. */
+  anchorSinks?(): readonly AnchorSinkStatus[];
 }

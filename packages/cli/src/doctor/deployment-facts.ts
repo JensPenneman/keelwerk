@@ -1,4 +1,4 @@
-import type { AdapterCapabilities } from '@keelwerk/core';
+import type { AdapterCapabilities, AnchorSinkStatus } from '@keelwerk/core';
 
 /** The operator socket: where it is and its file mode, undefined when the file is not there. */
 interface SocketFact {
@@ -64,8 +64,10 @@ export interface AnchorFacts {
   /** The cadence in milliseconds; undefined for `'batch'` or when the deployment sets none. */
   readonly cadenceMs: number | undefined;
   readonly scopes: readonly AnchorFact[];
-  /** Appends a ledger sink refused. */
+  /** Appends the ledger sinks refused, summed over the sinks. */
   readonly refusedAppends: number;
+  /** The sinks that refused at least one append, with the last failure of each. */
+  readonly refusedSinks: readonly AnchorSinkStatus[];
 }
 
 /** A module that needs a raw-SQL dialect (`data.needs`, section 14.3.8). */
