@@ -8,18 +8,24 @@ async function main(): Promise<number> {
   const interrupt = new AbortController();
   const host = createNodeHost();
   const state: StricliProcess = { stdout, stderr, env: host.env };
-  const onSignal = () => {
+  // The first signal starts the stop phase. A stop asked for with SIGTERM (`docker stop`) that
+  // completes is a success and keeps the command's own code; an interrupt (SIGINT) exits 130.
+  let first: NodeJS.Signals | undefined;
+  const onSignal = (signal: NodeJS.Signals) => {
     if (interrupt.signal.aborted) {
       exit(exitCodeFor('interrupted'));
     }
+    first = signal;
     interrupt.abort();
   };
   process.on('SIGINT', onSignal);
+  process.on('SIGTERM', onSignal);
   try {
     const code = await runCli(argv.slice(2), { host, process: state, signal: interrupt.signal });
-    return interrupt.signal.aborted ? exitCodeFor('interrupted') : code;
+    return first === 'SIGINT' ? exitCodeFor('interrupted') : code;
   } finally {
     process.off('SIGINT', onSignal);
+    process.off('SIGTERM', onSignal);
   }
 }
 

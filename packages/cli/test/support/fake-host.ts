@@ -1,4 +1,10 @@
-import type { CliHost, HostRequest } from '../../src/context/cli-host.ts';
+import type {
+  CliHost,
+  HostProcess,
+  HostRequest,
+  HostSpawnOptions,
+  HostWatcher,
+} from '../../src/context/cli-host.ts';
 
 export interface SentRequest {
   readonly url: string;
@@ -18,6 +24,24 @@ export interface FakeHostOptions {
   readonly line?: string;
   readonly files?: Readonly<Record<string, string>>;
   readonly handler?: FakeHandler;
+  /** Answers `spawn`; default: no processes in this test. */
+  readonly spawn?: (
+    command: string,
+    args: readonly string[],
+    options: HostSpawnOptions,
+  ) => HostProcess;
+  readonly watchTree?: (
+    root: string,
+    onChange: (path: string) => void,
+    onError?: (message: string) => void,
+  ) => HostWatcher;
+}
+
+/** A timer the code under test scheduled; `fire` runs it as if its time had come. */
+export interface FakeTimer {
+  readonly milliseconds: number;
+  cancelled: boolean;
+  fire(): void;
 }
 
 export interface FakeHost {
@@ -26,6 +50,7 @@ export interface FakeHost {
   readonly bytes: Map<string, Uint8Array>;
   readonly sent: SentRequest[];
   readonly sleeps: number[];
+  readonly timers: FakeTimer[];
 }
 
 /** A host with an in-memory file system, a scripted network and a counting id source. */
@@ -37,6 +62,7 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
   }
   const sent: SentRequest[] = [];
   const sleeps: number[] = [];
+  const timers: FakeTimer[] = [];
   let counter = 0;
   const answer = async (request: SentRequest): Promise<Response> => {
     sent.push(request);
@@ -78,6 +104,27 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
     readStdin: async () => options.stdin ?? '',
     promptLine: async () => options.line ?? '',
     promptSecret: async () => options.secret ?? '',
+    schedule: (milliseconds, callback) => {
+      const timer: FakeTimer = {
+        milliseconds,
+        cancelled: false,
+        fire: () => {
+          if (!timer.cancelled) callback();
+        },
+      };
+      timers.push(timer);
+      return () => {
+        timer.cancelled = true;
+      };
+    },
+    spawn: (command, args, spawnOptions) => {
+      if (options.spawn === undefined) throw new Error('no processes in this test');
+      return options.spawn(command, args, spawnOptions);
+    },
+    watchTree: (root, onChange, onError) => {
+      if (options.watchTree === undefined) throw new Error('no file watching in this test');
+      return options.watchTree(root, onChange, onError);
+    },
   };
-  return { host, files, bytes, sent, sleeps };
+  return { host, files, bytes, sent, sleeps, timers };
 }

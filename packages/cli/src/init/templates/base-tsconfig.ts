@@ -1,0 +1,26 @@
+/** `tsconfig.base.json`, shared by every package (section 13.3). */
+export function baseTsconfig(): unknown {
+  return {
+    compilerOptions: {
+      target: 'es2025',
+      lib: ['es2025', 'esnext.temporal'],
+      module: 'nodenext',
+      moduleResolution: 'nodenext',
+      types: ['node'],
+      strict: true,
+      exactOptionalPropertyTypes: true,
+      noUncheckedIndexedAccess: true,
+      noImplicitOverride: true,
+      erasableSyntaxOnly: true,
+      verbatimModuleSyntax: true,
+      rewriteRelativeImportExtensions: true,
+      resolveJsonModule: true,
+      customConditions: ['@keelwerk/source'],
+      composite: true,
+      declaration: true,
+      declarationMap: true,
+      sourceMap: true,
+      skipLibCheck: true,
+    },
+  };
+}

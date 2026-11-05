@@ -1,0 +1,30 @@
+/**
+ * `.launchway/compose.yaml`, until the deployment platform is rebuilt (roadmap M4): one service
+ * that runs the app from the deployment file. The database urls and the master key come from the
+ * environment of the platform.
+ */
+export function composeYaml(): string {
+  return `services:
+  app:
+    image: node:26
+    working_dir: /app
+    stop_grace_period: 70s
+    volumes:
+      - ..:/app
+      - /app/node_modules
+      - ledger:/var/lib/keelwerk/ledger
+    environment:
+      KEELWERK_HOST: 0.0.0.0
+      KEELWERK_CONTROL_URL: \${KEELWERK_CONTROL_URL}
+      KEELWERK_DATA_URL: \${KEELWERK_DATA_URL}
+      KEELWERK_MASTER_KEY: \${KEELWERK_MASTER_KEY}
+    ports:
+      - '3000:3000'
+    command: >
+      sh -c "corepack enable && pnpm install --frozen-lockfile &&
+      pnpm exec tsc -b &&
+      pnpm exec keelwerk start --config .launchway/deployment.ts"
+volumes:
+  ledger:
+`;
+}

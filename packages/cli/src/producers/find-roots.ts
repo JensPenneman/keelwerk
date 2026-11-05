@@ -31,7 +31,12 @@ async function walk(
   found: string[],
 ): Promise<void> {
   const patterns = kind === 'module' ? MODULE_ROOTS : APP_ROOTS;
-  const entries = await readdir(directory, { withFileTypes: true });
+  // A directory that vanishes between being listed and being read (a scaffold removed by another
+  // process) holds no roots.
+  const entries = await readdir(directory, { withFileTypes: true }).catch((error: unknown) => {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return [];
+    throw error;
+  });
   for (const entry of entries) {
     if (!entry.isDirectory() || SKIPPED.has(entry.name) || entry.name.startsWith('.')) continue;
     const path = join(directory, entry.name);

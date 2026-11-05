@@ -140,6 +140,9 @@ importers:
       '@keelwerk/data':
         specifier: workspace:*
         version: link:../data
+      '@opentelemetry/api':
+        specifier: 1.9.1
+        version: 1.9.1
       '@stricli/auto-complete':
         specifier: 1.3.0
         version: 1.3.0

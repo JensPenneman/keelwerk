@@ -1,4 +1,5 @@
 import type { CommandRoutes } from '../../routes/command-routes.ts';
+import { startCommand } from './start.ts';
 
-/** The `start` command group (section 16.9.7); the work package that owns it fills this map. */
-export const startRoutes: CommandRoutes = {};
+/** The `start` command group (section 16.9.7): one process of the deployment. */
+export const startRoutes: CommandRoutes = { start: startCommand };

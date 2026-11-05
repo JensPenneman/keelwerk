@@ -1,4 +1,5 @@
 import type { CommandRoutes } from '../../routes/command-routes.ts';
+import { devCommand } from './dev.ts';
 
-/** The `dev` command group (section 16.9.7); the work package that owns it fills this map. */
-export const devRoutes: CommandRoutes = {};
+/** The `dev` command group (section 16.9.7): the watch loop of section 13.6. */
+export const devRoutes: CommandRoutes = { dev: devCommand };

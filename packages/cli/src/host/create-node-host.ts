@@ -7,6 +7,8 @@ import { nodeHostFiles } from './node-host-files.ts';
 import { promptLine } from './prompt-line.ts';
 import { promptSecret } from './prompt-secret.ts';
 import { readAll } from './read-all.ts';
+import { spawnProcess } from './spawn-process.ts';
+import { watchTree } from './watch-tree.ts';
 
 /** The machine the binary runs on: the process environment, the file system, the network and the terminal. */
 export function createNodeHost(): CliHost {
@@ -25,5 +27,11 @@ export function createNodeHost(): CliHost {
     readStdin: () => readAll(stdin),
     promptLine,
     promptSecret,
+    spawn: spawnProcess,
+    schedule: (milliseconds, callback) => {
+      const timer = setTimeout(callback, milliseconds);
+      return () => clearTimeout(timer);
+    },
+    watchTree,
   };
 }
