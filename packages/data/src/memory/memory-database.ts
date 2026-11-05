@@ -6,6 +6,8 @@ import { memoryNamespace } from './memory-namespace.ts';
 /** The state of one adapter instance: its namespaces, locks and listeners. */
 export interface MemoryDatabase {
   readonly clock: Clock;
+  /** The id of the deployment: the scope id of its deployment-scope units. */
+  readonly deploymentId: string;
   readonly cluster: { readonly systemId: string; readonly timeline: string };
   /** The namespace of a ref, created empty on first use. */
   namespace(ref: NamespaceRef): MemoryNamespace;
@@ -26,6 +28,7 @@ export interface MemoryDatabase {
 export function memoryDatabase(
   clock: Clock,
   cluster: { readonly systemId: string; readonly timeline: string },
+  deploymentId: string,
 ): MemoryDatabase {
   const namespaces = new Map<string, MemoryNamespace>();
   const tails = new Map<string, Promise<void>>();
@@ -33,6 +36,7 @@ export function memoryDatabase(
   let closed = false;
   return {
     clock,
+    deploymentId,
     cluster,
     namespace: (ref) => {
       let found = namespaces.get(ref.id);

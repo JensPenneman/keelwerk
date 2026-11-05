@@ -1,4 +1,5 @@
-import { compareAnchors } from '../control/compare-anchors.ts';
+import { connectRewindCheck } from '../anchors/connect-rewind-check.ts';
+import { startAnchoring } from '../anchors/start-anchoring.ts';
 import { setProcessState } from '../control/set-process-state.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
 import { answerExplain } from '../explain/answer-explain.ts';
@@ -60,7 +61,7 @@ export async function startRuntime(
   try {
     log.debug('phase', { phase: 'migrate' });
     const migrated = await migratePhase({ deployment, composed, served, connected, development });
-    const rewound = await compareAnchors(composed.infrastructure.ledgers, (wanted) =>
+    const rewound = await connectRewindCheck(composed.infrastructure.ledgers, (wanted) =>
       anchorScopes(connected, migrated, wanted),
     );
     for (const scopeId of rewound) {
@@ -134,6 +135,15 @@ export async function startRuntime(
     log.debug('phase', { phase: 'start' });
     const ready = startPhase({ connected, migrated, options });
     started = ready;
+    const anchoring = await startAnchoring({
+      deployment,
+      connected,
+      migrated,
+      sinks: composed.infrastructure.ledgers,
+      appIds: served.map((app) => app.id),
+      clock,
+      log,
+    });
     log.debug('phase', { phase: 'listen' });
     const mounts = options.listen
       ? await listenPhase({
@@ -163,10 +173,13 @@ export async function startRuntime(
       ...(options.listen && composed.infrastructure.host !== undefined
         ? { host: composed.infrastructure.host }
         : {}),
-      control: createRuntimeControl({ deployment, served, connected, migrated }),
+      control: createRuntimeControl({ deployment, served, connected, migrated, anchoring }),
       stop: (deadlineMs) => {
         log.debug('phase', { phase: 'stop' });
-        stopping ??= stopPhase({ connected, started: ready, draining, mounts, abort }, deadlineMs);
+        stopping ??= stopPhase(
+          { connected, started: ready, draining, mounts, abort, anchoring },
+          deadlineMs,
+        );
         return stopping;
       },
     };

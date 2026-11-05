@@ -20,6 +20,7 @@ export function recordingUnit(
     },
     readStream: (stream, range) => events.readStream(stream, range),
     readAll: (after, options) => events.readAll(after, options),
+    find: (match, page) => events.find(match, page),
     head: (selector) => events.head(selector),
     committed: () => events.committed(),
     movedScopes: (since, limit) => events.movedScopes(since, limit),

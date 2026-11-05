@@ -6,7 +6,7 @@ import type { ConformanceSubject } from './conformance-subject.ts';
 import { failureOf } from './failure-of.ts';
 import { newEvent } from './new-event.ts';
 
-const { tenantA, tenantB, tenantC } = conformanceScopes;
+const { tenantA, tenantB, tenantC, deployment } = conformanceScopes;
 const namespaceScope: StorageScope = { level: 'namespace', reason: 'conformance' };
 const mismatch = { kind: 'conflict', code: 'core.version_mismatch' };
 
@@ -165,6 +165,72 @@ export function eventStoreCases(subject: ConformanceSubject): void {
           [tenantB.tenantId, 1n],
         ].sort(),
       );
+    });
+
+    test('movedScopes names the deployment scope by the deployment id', async () => {
+      const deploymentId = subject.deploymentId;
+      if (deploymentId === undefined) return;
+      await subject.run(deployment, (unit) =>
+        unit.events.append([appendOf(1, [1, 2], {}, 'conf.network')]),
+      );
+      const moved = await subject.read(namespaceScope, (unit) =>
+        unit.events.movedScopes(new Map(), 10),
+      );
+      expect(moved).toEqual([{ scopeId: deploymentId, head: 2n }]);
+      const since = new Map([[deploymentId, 2n]]);
+      expect(
+        await subject.read(namespaceScope, (unit) => unit.events.movedScopes(since, 10)),
+      ).toEqual([]);
+    });
+
+    test('find names the events of a command, the events it caused and one event, per scope, in pages', async () => {
+      const caused = (n: number, commandId: string | null, causationId: string | null) => {
+        const base = newEvent(n);
+        return { ...base, meta: { ...base.meta, commandId, causationId } };
+      };
+      const stream = (n: number, events: ReturnType<typeof caused>[]) => ({
+        stream: { type: 'conf.owner', id: conformanceId(n) },
+        expectedVersion: 0,
+        partition: null,
+        events,
+      });
+      await subject.run(tenantA, (unit) =>
+        unit.events.append([
+          stream(1, [caused(1, 'cmd-a', null), caused(2, 'cmd-a', null)]),
+          stream(2, [caused(3, 'cmd-b', 'cmd-a')]),
+          stream(3, [caused(4, null, null)]),
+        ]),
+      );
+      await subject.run(tenantB, (unit) =>
+        unit.events.append([stream(1, [caused(5, 'cmd-a', null)])]),
+      );
+      const find = async (
+        match: { commandId: string } | { causationId: string } | { eventId: string },
+      ) =>
+        (
+          await subject.read(tenantA, (unit) =>
+            unit.events.find(match, { after: null, limit: 100 }),
+          )
+        ).events;
+      expect((await find({ commandId: 'cmd-a' })).map((event) => event.position)).toEqual([1n, 2n]);
+      expect((await find({ causationId: 'cmd-a' })).map((event) => event.commandId)).toEqual([
+        'cmd-b',
+      ]);
+      expect((await find({ eventId: conformanceId(5004) })).map((event) => event.position)).toEqual(
+        [4n],
+      );
+      expect(await find({ eventId: 'not-a-uuid' })).toEqual([]);
+      expect(await find({ commandId: 'cmd-none' })).toEqual([]);
+      const first = await subject.read(tenantA, (unit) =>
+        unit.events.find({ commandId: 'cmd-a' }, { after: null, limit: 1 }),
+      );
+      expect(first.events).toHaveLength(1);
+      expect(first.next).toBe(1n);
+      const second = await subject.read(tenantA, (unit) =>
+        unit.events.find({ commandId: 'cmd-a' }, { after: first.next, limit: 5 }),
+      );
+      expect(second.events.map((event) => event.position)).toEqual([2n]);
+      expect(second.next).toBeNull();
     });
 
     test('with many writers and random delays before the commit, no reader sees a position at or below one it has seen', async () => {

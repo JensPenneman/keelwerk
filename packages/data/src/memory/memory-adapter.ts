@@ -32,10 +32,11 @@ export function memoryAdapter(options: MemoryAdapterOptions = {}): DataAdapterFa
           `the memory adapter hosts the shared-tables strategy, not ${placement.strategy}`,
         );
       }
-      const database = memoryDatabase(options.clock ?? systemClock, {
-        systemId: `memory-${newUuidV7()}`,
-        timeline: '1',
-      });
+      const database = memoryDatabase(
+        options.clock ?? systemClock,
+        { systemId: `memory-${newUuidV7()}`, timeline: '1' },
+        env.deploymentId,
+      );
       const environment = {
         database,
         log: env.log,

@@ -37,6 +37,12 @@ describe('boot refusals', () => {
     });
   });
 
+  test('an anchor cadence that is no duration is refused before migrations run', async () => {
+    const error = await refusal(boot(deploymentOf('memory', { anchors: { every: 'whenever' } })));
+    expect(error.kind).toBe('validation');
+    expect(error.message).toContain('whenever');
+  });
+
   test('a data adapter nobody lists is refused before anything opens', async () => {
     const error = await refusal(boot(deploymentOf('memory', { control: { adapter: 'oracle' } })));
     expect(error.kind).toBe('validation');

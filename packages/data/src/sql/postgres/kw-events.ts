@@ -1,4 +1,4 @@
-/** `kw_events` and its type index (section 15.1.2). */
+/** `kw_events`, its type index and the indexes of `EventStore.find` (section 15.1.2). */
 export function kwEvents(root: string): readonly string[] {
   return [
     `create table "${root}".kw_events (
@@ -25,5 +25,7 @@ export function kwEvents(root: string): readonly string[] {
   unique (scope_id, stream_type, stream_id, stream_version)
 )`,
     `create index kw_events_type on "${root}".kw_events (scope_id, stream_type, partition_key, position)`,
+    `create index kw_events_command on "${root}".kw_events (scope_id, (meta->>'commandId'))`,
+    `create index kw_events_causation on "${root}".kw_events (scope_id, (meta->>'causationId'))`,
   ];
 }

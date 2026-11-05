@@ -7,4 +7,6 @@ export interface LedgerSink {
   append(records: readonly LedgerRecord[]): Promise<void>;
   /** Every record of a type this release knows, in append order. */
   read(): AsyncIterable<LedgerRecord>;
+  /** How many appends this sink refused since it was created; a sink that does not count leaves it out. */
+  refusedAppends?(): number;
 }

@@ -1,56 +1,45 @@
 import { errors } from '../errors/errors.ts';
+import type { EventMatch } from '../events/event-match.ts';
 import type { StoredEvent } from '../events/stored-event.ts';
+import type { Position } from '../storage/position.ts';
+import type { Unit } from '../storage/unit.ts';
 import type { TraceInput } from './trace-input.ts';
 import type { TraceCommand, TraceEffect, TraceEvent, TraceReport } from './trace-report.ts';
 
-const pageSize = 500;
 const maxDepth = 16;
 const effectType = 'core.effect';
+const uuidShape = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-interface Chain {
-  readonly byCommand: ReadonlyMap<string, readonly StoredEvent[]>;
-  readonly byEffect: ReadonlyMap<string, readonly StoredEvent[]>;
-  readonly byCause: ReadonlyMap<string, readonly string[]>;
-  readonly byEvent: ReadonlyMap<string, StoredEvent>;
+const lookupPage = 500;
+
+/** Every event the match names, page by page, so no command or cause loses events to a cut. */
+async function findAll(unit: Unit, match: EventMatch): Promise<readonly StoredEvent[]> {
+  const all: StoredEvent[] = [];
+  let after: Position | null = null;
+  do {
+    const page = await unit.events.find(match, { after, limit: lookupPage });
+    all.push(...page.events);
+    after = page.next;
+  } while (after !== null);
+  return all;
 }
 
-function push<K, V>(map: Map<K, V[]>, key: K, value: V): void {
-  const held = map.get(key);
-  if (held === undefined) map.set(key, [value]);
-  else held.push(value);
+async function findOne(unit: Unit, match: EventMatch): Promise<StoredEvent | undefined> {
+  return (await unit.events.find(match, { after: null, limit: 1 })).events[0];
 }
 
-async function readChain(input: TraceInput): Promise<Chain> {
-  const byCommand = new Map<string, StoredEvent[]>();
-  const byEffect = new Map<string, StoredEvent[]>();
-  const byCause = new Map<string, string[]>();
-  const byEvent = new Map<string, StoredEvent>();
-  await input.adapter.unit(
-    input.namespace,
-    input.scope,
-    async (unit) => {
-      let after: bigint | null = null;
-      for (;;) {
-        const batch = await unit.events.readAll(after, { limit: pageSize, includeTransient: true });
-        for (const event of batch.events) {
-          byEvent.set(event.eventId, event);
-          if (event.stream.type === effectType) push(byEffect, event.stream.id, event);
-          if (event.commandId !== null) {
-            push(byCommand, event.commandId, event);
-            if (event.causationId !== null && event.stream.type !== effectType) {
-              const caused = byCause.get(event.causationId) ?? [];
-              if (!caused.includes(event.commandId))
-                push(byCause, event.causationId, event.commandId);
-            }
-          }
-        }
-        if (batch.next === null || batch.events.length === 0) return;
-        after = batch.next;
-      }
-    },
-    { readOnly: true },
-  );
-  return { byCommand, byEffect, byCause, byEvent };
+async function readEffect(unit: Unit, id: string): Promise<readonly StoredEvent[]> {
+  return unit.events.readStream({ type: effectType, id });
+}
+
+/** The ids of the commands whose causation is `causeId`; effect records are not commands of their own. */
+async function commandsCausedBy(unit: Unit, causeId: string): Promise<readonly string[]> {
+  const caused = await findAll(unit, { causationId: causeId });
+  const ids = new Set<string>();
+  for (const event of caused) {
+    if (event.commandId !== null && event.stream.type !== effectType) ids.add(event.commandId);
+  }
+  return [...ids];
 }
 
 function traceEvent(event: StoredEvent): TraceEvent {
@@ -72,8 +61,13 @@ function valuesOf(event: StoredEvent): Record<string, unknown> {
   return typeof values === 'object' && values !== null ? (values as Record<string, unknown>) : {};
 }
 
-function effectOf(chain: Chain, id: string, seen: ReadonlySet<string>, depth: number): TraceEffect {
-  const events = chain.byEffect.get(id) ?? [];
+async function effectOf(
+  unit: Unit,
+  id: string,
+  seen: ReadonlySet<string>,
+  depth: number,
+): Promise<TraceEffect> {
+  const events = await readEffect(unit, id);
   let type: string | null = null;
   let status: string | null = null;
   for (const event of events) {
@@ -81,33 +75,35 @@ function effectOf(chain: Chain, id: string, seen: ReadonlySet<string>, depth: nu
     if (typeof values.type === 'string') type = values.type;
     if (typeof values.status === 'string') status = values.status;
   }
-  return {
-    id,
-    type,
-    status,
-    events: events.map(traceEvent),
-    continuations: (chain.byCause.get(id) ?? []).flatMap((commandId) =>
-      seen.has(commandId) || depth >= maxDepth
-        ? []
-        : [commandOf(chain, commandId, seen, depth + 1)],
-    ),
-  };
+  const continuations: TraceCommand[] = [];
+  for (const commandId of await commandsCausedBy(unit, id)) {
+    if (seen.has(commandId) || depth >= maxDepth) continue;
+    continuations.push(await commandOf(unit, commandId, seen, depth + 1));
+  }
+  return { id, type, status, events: events.map(traceEvent), continuations };
 }
 
-function commandOf(
-  chain: Chain,
+async function commandOf(
+  unit: Unit,
   commandId: string,
   visited: ReadonlySet<string>,
   depth: number,
-): TraceCommand {
+): Promise<TraceCommand> {
   const seen = new Set(visited).add(commandId);
-  const all = chain.byCommand.get(commandId) ?? [];
+  const all = await findAll(unit, { commandId });
   const own = all.filter((event) => event.stream.type !== effectType);
   const first = all[0];
   const decision = own.find((event) => event.decision !== null)?.decision ?? null;
   const effectIds = new Set<string>();
   for (const event of all) {
     if (event.stream.type === effectType && event.version === 1) effectIds.add(event.stream.id);
+  }
+  const effects: TraceEffect[] = [];
+  for (const id of effectIds) effects.push(await effectOf(unit, id, seen, depth));
+  const nested: TraceCommand[] = [];
+  for (const caused of await commandsCausedBy(unit, commandId)) {
+    if (seen.has(caused) || depth >= maxDepth) continue;
+    nested.push(await commandOf(unit, caused, seen, depth + 1));
   }
   return {
     commandId,
@@ -118,34 +114,46 @@ function commandOf(
       decision === null
         ? null
         : { part: decision.part, inputDigest: decision.inputDigest, effects: decision.effects },
-    effects: [...effectIds].map((id) => effectOf(chain, id, seen, depth)),
-    nested: (chain.byCause.get(commandId) ?? []).flatMap((caused) =>
-      seen.has(caused) || depth >= maxDepth ? [] : [commandOf(chain, caused, seen, depth + 1)],
-    ),
+    effects,
+    nested,
   };
 }
 
 /**
  * A command's tree from the chain (section 7.9.6): its events, its effects with their outcomes
  * and the commands they caused. The id may name the command, one of its events or one of its
- * effects; the tree is always the one of the command. The scope is read, never written.
+ * effects; the tree is always the one of the command. The scope is read, never written, and only
+ * the events the tree names are read: the store finds them by command and causation id.
  */
 export async function traceCommand(input: TraceInput): Promise<TraceReport> {
-  const chain = await readChain(input);
   const { id } = input;
-  let kind: TraceReport['requested']['kind'] = 'command';
-  let commandId: string | null = null;
-  if (chain.byCommand.has(id) && !chain.byEffect.has(id)) {
-    commandId = id;
-  } else if (chain.byEffect.has(id)) {
-    kind = 'effect';
-    commandId = chain.byEffect.get(id)?.[0]?.commandId ?? null;
-  } else if (chain.byEvent.has(id)) {
-    kind = 'event';
-    commandId = chain.byEvent.get(id)?.commandId ?? null;
-  }
-  if (commandId === null) {
-    throw errors.not_found(`The scope's chain holds no command, event or effect with id ${id}.`);
-  }
-  return { requested: { kind, id }, command: commandOf(chain, commandId, new Set(), 0) };
+  return input.adapter.unit(
+    input.namespace,
+    input.scope,
+    async (unit) => {
+      let kind: TraceReport['requested']['kind'] = 'command';
+      let commandId: string | null = null;
+      // A stream id is a UUID column on SQL stores; any other text cannot name an effect.
+      const effect = uuidShape.test(id) ? await readEffect(unit, id) : [];
+      if (effect.length > 0) {
+        kind = 'effect';
+        commandId = effect[0]?.commandId ?? null;
+      } else if ((await findOne(unit, { commandId: id })) !== undefined) {
+        commandId = id;
+      } else {
+        const event = await findOne(unit, { eventId: id });
+        if (event !== undefined) {
+          kind = 'event';
+          commandId = event.commandId;
+        }
+      }
+      if (commandId === null) {
+        throw errors.not_found(
+          `The scope's chain holds no command, event or effect with id ${id}.`,
+        );
+      }
+      return { requested: { kind, id }, command: await commandOf(unit, commandId, new Set(), 0) };
+    },
+    { readOnly: true },
+  );
 }

@@ -53,6 +53,7 @@ export async function memoryUnit<T>(
         tx: memoryTransaction(new Map(state.collections)),
         clock: database.clock,
         state,
+        deploymentId: database.deploymentId,
       },
       environment.lookup,
     );

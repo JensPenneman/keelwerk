@@ -72,6 +72,7 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
       name: options.name,
       placement: options.placement,
       networked: options.networked,
+      deploymentId: options.deploymentId,
       get clock() {
         return current().clock;
       },

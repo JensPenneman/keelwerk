@@ -34,6 +34,10 @@ create table "kw__control".kw_events (
 
 create index kw_events_type on "kw__control".kw_events (scope_id, stream_type, partition_key, position);
 
+create index kw_events_command on "kw__control".kw_events (scope_id, (meta->>'commandId'));
+
+create index kw_events_causation on "kw__control".kw_events (scope_id, (meta->>'causationId'));
+
 create table "kw__control".kw_job_lanes (
   id bigint generated always as identity primary key,
   scope_id uuid not null,

@@ -1,3 +1,4 @@
+import type { Anchoring } from '../anchors/start-anchoring.ts';
 import { setProcessState } from '../control/set-process-state.ts';
 import type { MountHandle } from '../transport/mount-handle.ts';
 import type { Connected } from './connected.ts';
@@ -23,12 +24,13 @@ export interface StopInput {
   readonly draining: DrainingInvoker;
   readonly mounts: readonly MountHandle[];
   readonly abort: AbortController;
+  readonly anchoring: Anchoring;
 }
 
 /**
  * `stop` (section 3.3, the drain of 21.6): the process is marked `draining` and takes no new
  * invocations; the listeners stop accepting; the invocations in flight continue until the
- * deadline, which is one absolute deadline for the whole stop; the change feed ends; the process deregisters as `stopped`; the computation pool and
+ * deadline, which is one absolute deadline for the whole stop; the change feed ends; the chain anchors still waiting are written (within the same deadline); the process deregisters as `stopped`; the computation pool and
  * the adapters close.
  */
 export async function stopPhase(input: StopInput, deadlineMs: number): Promise<void> {
@@ -46,6 +48,7 @@ export async function stopPhase(input: StopInput, deadlineMs: number): Promise<v
   await within(input.draining.idle(), remaining());
   input.started.unfollow();
   await within(input.started.following, remaining());
+  await within(input.anchoring.stop(), remaining());
   await setProcessState(connected.control, connected.processId, 'stopped').catch(
     (error: unknown) => {
       connected.log.warn('the process could not be marked stopped', { cause: error });

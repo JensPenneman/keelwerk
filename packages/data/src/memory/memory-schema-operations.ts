@@ -76,6 +76,7 @@ export function memorySchemaOperations(database: MemoryDatabase): SchemaOperatio
               tx: memoryTransaction(new Map(state.collections)),
               clock: database.clock,
               state,
+              deploymentId: database.deploymentId,
             },
             undefined,
           );

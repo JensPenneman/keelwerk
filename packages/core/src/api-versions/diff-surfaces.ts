@@ -72,8 +72,7 @@ function diffActions(base: ApiSurface, head: ApiSurface): readonly Found[] {
       found.push({
         kind: 'instanceChanged',
         ref,
-        message:
-          'The action now ' + (next.instance ? 'takes' : 'no longer takes') + ' an instance id.',
+        message: `The action now ${next.instance ? 'takes' : 'no longer takes'} an instance id.`,
       });
     }
     if (action.mount !== next.mount) {

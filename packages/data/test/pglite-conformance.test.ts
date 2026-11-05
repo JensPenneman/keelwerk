@@ -18,6 +18,7 @@ const role = 'kw_app';
 describeAdapterConformance({
   name: 'pglite',
   placement,
+  deploymentId: '00000000-0000-4000-8000-0000000000d1',
   networked: false,
   factory: async (entities: readonly EntityDescriptor[]) => {
     const known = new Map(entities.map((entity) => [entity.ref, entity]));

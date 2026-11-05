@@ -14,6 +14,8 @@ export interface ConformanceSubject {
   readonly name: string;
   readonly placement: PlacementConfig;
   readonly networked: boolean;
+  /** The deployment id the adapter was created with, when the suite knows it. */
+  readonly deploymentId?: string | undefined;
   /** The target's clock, when it has one. */
   readonly clock?: ConformanceClock | undefined;
   adapter(): DataAdapter;

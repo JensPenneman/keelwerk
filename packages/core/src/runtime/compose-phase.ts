@@ -1,3 +1,4 @@
+import { anchorCadenceMs } from '../anchors/anchor-cadence-ms.ts';
 import { compositionRefusal } from '../dsl/composition-refusal.ts';
 import { errors } from '../errors/errors.ts';
 import { runtimeModule } from '../registry/runtime-module.ts';
@@ -39,6 +40,8 @@ export function composePhase(deployment: DeploymentDefinition, options: RuntimeO
     }
     return entry;
   });
+  // A cadence that is no duration is refused here, before any migration runs (section 15.1.8).
+  anchorCadenceMs(deployment.anchors?.every);
   const wanted = options.apps;
   for (const id of wanted ?? []) {
     if (!catalogue.some((app) => app.id === id)) {

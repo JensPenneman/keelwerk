@@ -111,6 +111,26 @@ export function memoryEventStore(ctx: MemoryUnitContext): EventStore {
       }
       return { events, next: events.at(-1)?.position ?? after };
     },
+    find: async (match, page) => {
+      const found: StoredEvent[] = [];
+      for (const logged of logOf().values()) {
+        const { event } = logged;
+        if (page.after !== null && event.position <= page.after) continue;
+        const hit =
+          'commandId' in match
+            ? event.commandId === match.commandId
+            : 'causationId' in match
+              ? event.causationId === match.causationId
+              : event.eventId === match.eventId;
+        if (!hit) continue;
+        found.push(event);
+        if (found.length >= page.limit) break;
+      }
+      return {
+        events: found,
+        next: found.length >= page.limit ? (found.at(-1)?.position ?? null) : null,
+      };
+    },
     head: async (selector) => {
       if (selector === undefined) {
         const counter = counterOf();

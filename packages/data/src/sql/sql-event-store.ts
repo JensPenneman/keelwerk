@@ -13,6 +13,8 @@ import type { SqlUnitContext } from './sql-unit-context.ts';
 import { storedEventOfRow } from './stored-event-of-row.ts';
 import { streamVersionConflict } from './stream-version-conflict.ts';
 
+const uuidShaped = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const columns = [
   'scope_id',
   'backend_id',
@@ -223,6 +225,35 @@ export function sqlEventStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): Eve
       );
       const events = rows.map((row) => storedEventOfRow(ctx, row));
       return { events, next: events.at(-1)?.position ?? after };
+    },
+
+    find: async (match, page) => {
+      if (!hasLog) return { events: [], next: null };
+      if ('eventId' in match && !uuidShaped.test(match.eventId)) return { events: [], next: null };
+      const rows = await sqlGuard(async () =>
+        ctx
+          .scopedDb()
+          .selectFrom(table)
+          .select([...columns, sql<string>`position::text`.as('position_text')])
+          .where((eb) =>
+            eb.and([
+              ...(page.after === null ? [] : [eb('position', '>', page.after.toString())]),
+              'commandId' in match
+                ? eb(sql<string | null>`meta->>'commandId'`, '=', match.commandId)
+                : 'causationId' in match
+                  ? eb(sql<string | null>`meta->>'causationId'`, '=', match.causationId)
+                  : eb('event_id', '=', match.eventId),
+            ]),
+          )
+          .orderBy('position')
+          .limit(page.limit)
+          .execute(),
+      );
+      const events = rows.map((row) => storedEventOfRow(ctx, row));
+      return {
+        events,
+        next: events.length >= page.limit ? (events.at(-1)?.position ?? null) : null,
+      };
     },
 
     head: async (selector) => {

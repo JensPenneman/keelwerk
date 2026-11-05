@@ -25,6 +25,7 @@ const placement: PlacementConfig = { id: 'main', strategy: 'shared-tables' };
 describeAdapterConformance({
   name: 'memory',
   placement,
+  deploymentId: environment.deploymentId,
   networked: false,
   factory: async (entities: readonly EntityDescriptor[]) => {
     const known = new Map(entities.map((entity) => [entity.ref, entity]));

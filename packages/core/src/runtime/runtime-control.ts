@@ -1,3 +1,4 @@
+import type { AnchorSinkStatus } from '../anchors/anchor-sink-status.ts';
 import type { BackendInput } from '../control/create-backend.ts';
 import type { TenantInput } from '../control/create-tenant.ts';
 
@@ -10,4 +11,6 @@ import type { TenantInput } from '../control/create-tenant.ts';
 export interface RuntimeControl {
   createBackend(input: BackendInput): Promise<{ readonly id: string }>;
   createTenant(input: TenantInput): Promise<{ readonly id: string }>;
+  /** Per ledger sink: the appends it refused and the last failure of the anchor writer; the control reader of `doctor` reads it. */
+  anchorSinks?(): readonly AnchorSinkStatus[];
 }

@@ -1,3 +1,4 @@
+import type { Anchoring } from '../anchors/start-anchoring.ts';
 import { createBackend } from '../control/create-backend.ts';
 import { createTenant } from '../control/create-tenant.ts';
 import { runTenantHooks } from '../control/run-tenant-hooks.ts';
@@ -15,6 +16,7 @@ export function createRuntimeControl(input: {
   readonly served: readonly ServedApp[];
   readonly connected: Connected;
   readonly migrated: Migrated;
+  readonly anchoring?: Anchoring;
 }): RuntimeControl {
   const { deployment, served, connected, migrated } = input;
   const { control } = connected;
@@ -35,6 +37,7 @@ export function createRuntimeControl(input: {
     }
   };
   return {
+    anchorSinks: () => input.anchoring?.sinkStatus?.() ?? [],
     createBackend: async (backend) => {
       const app = served.find((candidate) => candidate.id === backend.app);
       if (app === undefined) {

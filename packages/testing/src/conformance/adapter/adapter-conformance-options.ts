@@ -9,6 +9,8 @@ export interface AdapterConformanceOptions {
   readonly factory: (entities: readonly EntityDescriptor[]) => Promise<ConformanceTarget>;
   /** The placement the factory opened; its strategy must be one the adapter's capabilities list. */
   readonly placement: PlacementConfig;
+  /** The deployment id the adapter was created with; the cases that name the deployment scope check it. */
+  readonly deploymentId?: string;
   /** True for adapters that talk to a server over real connections: the cases that need them run only then. */
   readonly networked: boolean;
 }

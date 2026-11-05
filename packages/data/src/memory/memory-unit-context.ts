@@ -17,14 +17,14 @@ const scopeLevelOf = {
 } as const;
 
 /** The scope's id as collection names use it; `undefined` for the namespace level. */
-function scopeKey(scope: StorageScope): string | undefined {
+function scopeKey(scope: StorageScope, deploymentId: string): string | undefined {
   switch (scope.level) {
     case 'tenant':
       return scope.tenantId;
     case 'backend':
       return scope.backendId;
     case 'deployment':
-      return 'deployment';
+      return deploymentId;
     case 'namespace':
       return undefined;
   }
@@ -38,6 +38,8 @@ export interface MemoryUnitContext {
   readonly tx: MemoryTransaction;
   readonly clock: Clock;
   readonly state: MemoryNamespace;
+  /** The deployment's id: the scope id of a deployment-scope unit, as in the SQL adapters. */
+  readonly deploymentId: string;
   /** Positions this unit assigned at its commit tail. */
   readonly assigned: Position[];
   /** The id the unit's scope has in collection names; refuses a namespace-scope unit. */
@@ -62,12 +64,15 @@ export interface MemoryUnitContext {
  * backend or deployment unit stores its rows under the unit's own scope id.
  */
 export function memoryUnitContext(
-  parts: Pick<MemoryUnitContext, 'namespace' | 'scope' | 'readOnly' | 'tx' | 'clock' | 'state'>,
+  parts: Pick<
+    MemoryUnitContext,
+    'namespace' | 'scope' | 'readOnly' | 'tx' | 'clock' | 'state' | 'deploymentId'
+  >,
   lookup: ((ref: string) => EntityDescriptor | undefined) | undefined,
 ): MemoryUnitContext {
   const { scope, state } = parts;
   const scopeId = (): string => {
-    const id = scopeKey(scope);
+    const id = scopeKey(scope, parts.deploymentId);
     if (id === undefined) {
       throw new KeelwerkError({
         kind: 'forbidden',

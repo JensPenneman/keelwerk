@@ -128,7 +128,7 @@ describe('append, commit tail and positions (15.1.4)', () => {
     const moved = await memory.read(deploymentScope, (unit) =>
       unit.events.movedScopes(new Map(), 10),
     );
-    expect(moved).toEqual([{ scopeId: 'deployment', head: 2n }]);
+    expect(moved).toEqual([{ scopeId: '00000000-0000-4000-8000-0000000000d1', head: 2n }]);
     const error = await memory
       .run(namespaceScope, (unit) => unit.events.append([append(1, [1])]))
       .catch((caught: unknown) => caught);
