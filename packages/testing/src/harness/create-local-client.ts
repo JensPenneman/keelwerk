@@ -8,16 +8,16 @@ import type {
 } from '@keelwerk/client';
 import type { ApiSurface, KeelwerkError } from '@keelwerk/core';
 import { deriveSurface, errors } from '@keelwerk/core';
+import type { ClientRuntime } from './client-runtime.ts';
 import { liveUnavailable } from './live-unavailable.ts';
 import type { LocalClientOptions } from './local-client-options.ts';
 import type { TestApp } from './test-app.ts';
 import { testCarrier } from './test-carrier.ts';
 import type { TestPrincipal } from './test-principal.ts';
-import type { TestRuntime } from './test-runtime.ts';
 import type { TestTenant } from './test-tenant.ts';
 
 interface Bound {
-  readonly runtime: TestRuntime<TestApp>;
+  readonly runtime: ClientRuntime<TestApp>;
   readonly tenant: TestTenant;
   readonly principal: TestPrincipal;
 }
@@ -111,7 +111,7 @@ function clientOver<App>(bound: Bound): AppClient<App> {
  * `KeelwerkError` the pipeline produced.
  */
 export function createLocalClient<App extends TestApp, Name extends string = string>(
-  runtime: TestRuntime<App, Name>,
+  runtime: ClientRuntime<App, Name>,
   options: LocalClientOptions<Name>,
 ): AppClient<App> {
   const tenants = Object.values<TestTenant>(runtime.tenants);

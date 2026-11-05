@@ -1,7 +1,7 @@
 import type { FallbackReporter } from '@keelwerk/core';
-import { fallbackReport } from '@keelwerk/data';
+import { fallbackReport } from './fallback-report.ts';
 
-/** The fallback report of `@keelwerk/data` as the infrastructure entry the runtime asks for. */
+/** The fallback report of this package as the infrastructure entry the runtime asks for. */
 export function fallbackReporter(): FallbackReporter {
   return {
     kind: 'fallbackReporter',

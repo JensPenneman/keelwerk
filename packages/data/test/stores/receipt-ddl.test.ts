@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { commandReceiptDdl } from '../../src/conformance/index.ts';
+import { commandReceiptDdl } from '../../src/sql/postgres/command-receipt-ddl.ts';
 
 test('the table provisioned from the descriptor holds the columns the receipt store writes', () => {
   const [create] = commandReceiptDdl('app');

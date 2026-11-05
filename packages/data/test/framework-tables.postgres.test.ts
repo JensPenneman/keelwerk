@@ -1,4 +1,3 @@
-import { startPostgres } from '@keelwerk/testing/postgres';
 import type { Client, QueryConfig, QueryResult } from 'pg';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { applicationRoleDdl, frameworkTablesDdl, rlsPoliciesDdl } from '../src/index.ts';
@@ -9,6 +8,7 @@ import { asTenant } from './support/as-tenant.ts';
 import { backend } from './support/backend.ts';
 import { connect } from './support/connect.ts';
 import { control } from './support/control.ts';
+import { createTestDatabase } from './support/create-test-database.ts';
 import { deployment } from './support/deployment.ts';
 import { enqueueJob } from './support/enqueue-job-seed.ts';
 import { laneCounts } from './support/lane-counts-seed.ts';
@@ -17,6 +17,7 @@ import { seeds } from './support/seeds.ts';
 import type { Settings } from './support/settings.ts';
 import { tenantA } from './support/tenant-a.ts';
 import { tenantB } from './support/tenant-b.ts';
+import type { TestDatabase } from './support/test-database.ts';
 import { unit } from './support/unit.ts';
 
 const asDeployment: Settings = { 'keelwerk.deployment_id': deployment };
@@ -46,7 +47,7 @@ function insertFor(table: string, scope: string, lane: string): QueryConfig {
   return { text: found[1], values: [scope] };
 }
 
-let postgres: Awaited<ReturnType<typeof startPostgres>>;
+let postgres: TestDatabase;
 let admin: Client;
 let app: Client;
 let laneOfA = '';
@@ -71,7 +72,7 @@ const insertRejected = async (settings: Settings, query: QueryConfig): Promise<v
 };
 
 beforeAll(async () => {
-  postgres = await startPostgres();
+  postgres = await createTestDatabase('framework_tables');
   admin = await connect(postgres.adminUrl);
   await applyFrameworkTables(admin);
   app = await connect(postgres.appUrl);
@@ -97,7 +98,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await app?.end();
   await admin?.end();
-  await postgres?.stop();
 });
 
 const scopedTables = [...seeds.map(([table]) => table), 'kw_job_lane_counts', 'kw_jobs'];

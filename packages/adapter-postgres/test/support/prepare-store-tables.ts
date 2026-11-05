@@ -1,4 +1,4 @@
-import { commandReceiptDdl } from '@keelwerk/data/conformance';
+import { commandReceiptDdl } from '@keelwerk/data';
 import pg from 'pg';
 
 const stamped = `created_at timestamptz(3) not null default now(), updated_at timestamptz(3) not null default now(),

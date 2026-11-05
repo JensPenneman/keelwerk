@@ -70,13 +70,22 @@ export function sqlRowStore(ctx: SqlUnitContext): RowStore {
     ...extra: Expression<boolean>[]
   ): Promise<ReadonlySet<string>> => {
     const wanted = uuids(ids);
-    if (wanted.length === 0) return new Set();
     const table = entityTable(entity, ctx.namespace.root, 't');
     let query: Rows = ctx
       .scopedDb([entity])
       .selectFrom(table.from)
       .select(sql<string>`${sql.ref(table.reference('id'))}::text`.as('id'))
-      .where(sql<boolean>`${sql.ref(table.reference('id'))} in (${sql.join(wanted)})`);
+      .where(
+        wanted.length === 0
+          ? sql<boolean>`false`
+          : sql<boolean>`${sql.ref(table.reference('id'))} in (${sql.join(wanted)})`,
+      );
+    if (wanted.length === 0) {
+      // No ids to look up: compiling still runs the scoping plugin, so a scope that may not
+      // reach this entity is refused all the same.
+      query.compile();
+      return new Set();
+    }
     for (const predicate of extra) query = query.where(predicate);
     const found = await sqlGuard(async () => query.execute());
     return new Set(found.map((row) => String(row.id)));

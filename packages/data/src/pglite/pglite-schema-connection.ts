@@ -1,5 +1,6 @@
 import type { PGlite } from '@electric-sql/pglite';
 import { errors } from '@keelwerk/core';
+import { mapSqlError } from '../sql/map-sql-error.ts';
 import type { SchemaConnection } from '../sql/postgres/schema-connection.ts';
 
 /**
@@ -24,7 +25,7 @@ export function pgliteSchemaConnection(
           return result;
         } catch (error) {
           await database.query('rollback');
-          throw error;
+          throw mapSqlError(error);
         }
       });
     },

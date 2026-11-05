@@ -127,6 +127,20 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
       ...(current.scope.level === 'deployment' ? { scopeKeys: sqlScopeKeyStore(ctx) } : {}),
       nested: async <T>(fn: (u: SqlUnit) => Promise<T>, options?: NestedUnitOptions) => {
         const target = options?.as ?? current.scope;
+        if (
+          options?.as !== undefined &&
+          !(
+            options.readOnly === true &&
+            current.scope.level === 'tenant' &&
+            target.level === 'backend' &&
+            target.backendId === current.scope.backendId
+          )
+        ) {
+          throw scopeForbidden(
+            'a unit spans one scope: only a tenant unit may read the data of its own backend in a read-only savepoint',
+            { scope: current.scope.level, target: target.level },
+          );
+        }
         const swapped = !sameScope(target, current.scope);
         const readOnly = current.readOnly || options?.readOnly === true;
         if (!swapped && readOnly === current.readOnly) {
@@ -137,19 +151,6 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
             buffer.restore(mark);
             throw error;
           }
-        }
-        if (
-          swapped &&
-          !(
-            options?.readOnly === true &&
-            current.scope.level === 'tenant' &&
-            target.level === 'backend'
-          )
-        ) {
-          throw scopeForbidden(
-            'a unit spans one scope: only a tenant unit may read backend data in a read-only savepoint',
-            { scope: current.scope.level, target: target.level },
-          );
         }
         const outcome: { value?: T } = {};
         // A read-only savepoint always ends in a rollback, so work registered inside it is dropped.

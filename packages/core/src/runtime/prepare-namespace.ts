@@ -24,9 +24,10 @@ export interface PrepareInput {
 }
 
 /**
- * `migrate` for one namespace (section 3.3). Development: the tracks without migration files are
- * provisioned from the registry's snapshots and the pending files of the others are applied in run
- * order. Production: the applied history must match the committed files; drift refuses to start.
+ * `migrate` for one namespace (section 3.3). Development: one pass in run order over every
+ * track, where a track with pending files applies them and a track without is provisioned from
+ * the registry's snapshot. Production: the applied history must match the committed files; drift
+ * refuses to start.
  * Without a planner only the in-memory adapter can be used, which needs no tables.
  */
 export async function prepareNamespace(input: PrepareInput): Promise<void> {
@@ -43,25 +44,42 @@ export async function prepareNamespace(input: PrepareInput): Promise<void> {
     }
     return;
   }
-  const migrated = new Set(files.map((track) => track.track));
-  const snapshots: readonly TrackSnapshot[] = snapshotsOf({
-    registry: app.registry,
-    planner,
-    level: 'app',
-  }).filter((snapshot) => !migrated.has(snapshot.track));
-  await adapter.schema.provision(namespace, snapshots, { jobGroups: input.jobGroups });
-  if (files.length > 0) {
-    const order = planner.orderTracks(
-      app.registry.modules.map((module) => ({
-        id: module.id,
-        requires: module.requires,
-        optional: module.optional,
-      })),
-      files.map((track) => track.track),
-    );
-    const ordered = order.flatMap((track) =>
-      files.filter((candidate) => candidate.track === track),
-    );
-    await planner.applyPending(adapter.schema, namespace, ordered);
+  // One pass in run order over every track: a track with files applies them, a track without is
+  // provisioned from its snapshot. A contributing module's table joins a migrated track by a file
+  // of its own, so the order decides which one creates the table.
+  const withFiles = new Map(files.map((track) => [track.track, track]));
+  const snapshots = new Map<string, TrackSnapshot>(
+    snapshotsOf({ registry: app.registry, planner, level: 'app' }).map((snapshot) => [
+      snapshot.track,
+      snapshot,
+    ]),
+  );
+  const order = planner.orderTracks(
+    app.registry.modules.map((module) => ({
+      id: module.id,
+      requires: module.requires,
+      optional: module.optional,
+    })),
+    [...new Set([...withFiles.keys(), ...snapshots.keys()])],
+  );
+  if (withFiles.size > 0) {
+    // The framework tables (`kw_migrations` among them) exist before the first file runs.
+    await adapter.schema.provision(namespace, [], { jobGroups: input.jobGroups });
   }
+  let pending: TrackSnapshot[] = [];
+  const flush = async (): Promise<void> => {
+    await adapter.schema.provision(namespace, pending, { jobGroups: input.jobGroups });
+    pending = [];
+  };
+  for (const name of order) {
+    const track = withFiles.get(name);
+    if (track !== undefined) {
+      if (pending.length > 0) await flush();
+      await planner.applyPending(adapter.schema, namespace, [track]);
+      continue;
+    }
+    const snapshot = snapshots.get(name);
+    if (snapshot !== undefined) pending.push(snapshot);
+  }
+  await flush();
 }

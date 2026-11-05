@@ -1,15 +1,13 @@
 import { readFileSync } from 'node:fs';
 import type { DataAdapterFactory, DeploymentDefinition, Logger, Runtime } from '@keelwerk/core';
 import { KeelwerkError, secret, startRuntime } from '@keelwerk/core';
-import { memoryAdapter } from '@keelwerk/data';
+import { fallbackReporter, memoryAdapter, schemaPlanner } from '@keelwerk/data';
 import { afterEach, expect } from 'vitest';
 import { libraryApp } from '../../../src/fixtures/index.ts';
-import { schemaPlanner } from '../../../src/harness/schema-planner.ts';
 import { testMasterKeyName } from '../../../src/harness/test-master-key-name.ts';
 import { testPrincipal } from '../../../src/harness/test-principal.ts';
 import { testSecrets } from '../../../src/harness/test-secrets.ts';
 import { withTestResolver } from '../../../src/harness/with-test-resolver.ts';
-import { fallbackReporter } from './fallback-reporter.ts';
 import { pgliteFactory } from './pglite-factory.ts';
 
 const running: Runtime[] = [];

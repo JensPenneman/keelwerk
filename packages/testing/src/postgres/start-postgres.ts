@@ -5,7 +5,9 @@ import type { RunningPostgres } from './running-postgres.ts';
 
 /**
  * Starts one PostgreSQL 18 container with the image's default durability settings and
- * `max_connections` 200, creates the application role, and labels the container `keelwerk-test` so
+ * `max_connections` 200 and its data directory on tmpfs (the image declares `/var/lib/postgresql`
+ * as its volume and keeps `PGDATA` below it, so the mount replaces the anonymous volume; the server
+ * starts faster too), creates the application role, and labels the container `keelwerk-test` so
  * that `docker ps -a --filter label=keelwerk-test` finds leftovers. Clients reach it over TCP
  * through the container runtime's port forwarding.
  */
@@ -13,6 +15,7 @@ export async function startPostgres(): Promise<RunningPostgres> {
   const container = await new PostgreSqlContainer(postgresImage)
     .withCommand(['postgres', '-c', 'max_connections=200'])
     .withLabels({ 'keelwerk-test': 'postgres' })
+    .withTmpFs({ '/var/lib/postgresql': 'rw' })
     .start();
   try {
     await createApplicationRole(container);

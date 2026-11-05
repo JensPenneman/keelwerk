@@ -1,4 +1,4 @@
-import { commandReceiptDdl } from '../../src/conformance/index.ts';
+import { commandReceiptDdl } from '../../src/sql/postgres/command-receipt-ddl.ts';
 
 const stamped = `created_at timestamptz(3) not null default now(), updated_at timestamptz(3) not null default now(),
   archived_at timestamptz(3), version bigint not null default 1`;

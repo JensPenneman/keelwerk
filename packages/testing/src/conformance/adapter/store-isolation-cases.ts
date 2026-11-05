@@ -88,21 +88,27 @@ export function storeIsolationCases(subject: ConformanceSubject): void {
 
     test("a tenant's data keys are its own", async () => {
       const created = await subject.run(tenantA, (unit) =>
-        unit.keys.dataKey('subject', { create: true }),
+        unit.keys.dataKey(conformanceId(7002), { create: true }),
       );
       expect(
-        await subject.run(tenantB, (unit) => unit.keys.dataKey('subject', { create: false })),
+        await subject.run(tenantB, (unit) =>
+          unit.keys.dataKey(conformanceId(7002), { create: false }),
+        ),
       ).toBeUndefined();
       expect(
         await subject.run(tenantB, (unit) => unit.keys.keyById(created?.id ?? '')),
       ).toBeUndefined();
       const own = await subject.run(tenantB, (unit) =>
-        unit.keys.dataKey('subject', { create: true }),
+        unit.keys.dataKey(conformanceId(7002), { create: true }),
       );
       expect(own?.id).not.toBe(created?.id);
-      await subject.run(tenantB, (unit) => unit.keys.shred('subject'));
+      await subject.run(tenantB, (unit) => unit.keys.shred(conformanceId(7002)));
       expect(
-        (await subject.run(tenantA, (unit) => unit.keys.dataKey('subject', { create: false })))?.id,
+        (
+          await subject.run(tenantA, (unit) =>
+            unit.keys.dataKey(conformanceId(7002), { create: false }),
+          )
+        )?.id,
       ).toBe(created?.id);
     });
 

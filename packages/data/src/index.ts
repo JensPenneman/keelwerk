@@ -1,4 +1,5 @@
 export { fallbackReport } from './fallbacks/fallback-report.ts';
+export { fallbackReporter } from './fallbacks/fallback-reporter.ts';
 export type { FallbackRow } from './fallbacks/fallback-row.ts';
 export { maskCapabilities } from './fallbacks/mask-capabilities.ts';
 export type { MaskableCapability } from './fallbacks/maskable-capability.ts';
@@ -43,6 +44,7 @@ export { recordRenames } from './migrations/record-renames.ts';
 export type { GeneratedMigration } from './migrations/render-migration-file.ts';
 export { renderMigrationFile } from './migrations/render-migration-file.ts';
 export { renderSnapshot } from './migrations/render-snapshot.ts';
+export { schemaPlanner } from './migrations/schema-planner.ts';
 export { snapshotFormat } from './migrations/snapshot-format.ts';
 export { trackDirectoryName } from './migrations/track-directory-name.ts';
 export { trackId } from './migrations/track-id.ts';
@@ -69,6 +71,7 @@ export { entityTable } from './sql/entity-table.ts';
 export { escapeLike } from './sql/escape-like.ts';
 export { identityCodec } from './sql/identity-codec.ts';
 export { applicationRoleDdl } from './sql/postgres/application-role.ts';
+export { assertRoleName } from './sql/postgres/assert-role-name.ts';
 export type {
   BeginUnit,
   BeginUnitOptions,
@@ -77,6 +80,7 @@ export type {
 export { beginUnitStatements } from './sql/postgres/begin-unit-statements.ts';
 export { columnDdlType } from './sql/postgres/column-ddl-type.ts';
 export { columnType } from './sql/postgres/column-type.ts';
+export { commandReceiptDdl } from './sql/postgres/command-receipt-ddl.ts';
 export { commandReceiptTable } from './sql/postgres/command-receipt-table.ts';
 export { frameworkTablesDdl } from './sql/postgres/framework-tables.ts';
 export { introspectCatalogue } from './sql/postgres/introspect-catalogue.ts';
@@ -88,12 +92,14 @@ export { postgresCodecs } from './sql/postgres/postgres-codecs.ts';
 export type { PostgresSchemaOptions } from './sql/postgres/postgres-schema-operations.ts';
 export { postgresSchemaOperations } from './sql/postgres/postgres-schema-operations.ts';
 export { quantifierSql } from './sql/postgres/quantifier-sql.ts';
+export { quoteIdentifier } from './sql/postgres/quote-identifier.ts';
 export type { RenderContext } from './sql/postgres/render-step.ts';
 export { renderStep } from './sql/postgres/render-step.ts';
 export { rlsPoliciesDdl } from './sql/postgres/rls-policies.ts';
 export { samePredicate } from './sql/postgres/same-predicate.ts';
 export type { SchemaConnection } from './sql/postgres/schema-connection.ts';
 export type { SchemaSession } from './sql/postgres/schema-session.ts';
+export { withCommandReceipts } from './sql/postgres/with-command-receipts.ts';
 export { runInSpan } from './sql/run-in-span.ts';
 export type { ScopedTable, ScopingOptions } from './sql/scoping-plugin.ts';
 export { ScopingPlugin } from './sql/scoping-plugin.ts';

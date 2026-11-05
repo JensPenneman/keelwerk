@@ -1,10 +1,10 @@
 export { aesKeyWrapper } from '../sql/aes-key-wrapper.ts';
-export { commandReceiptDdl } from '../sql/postgres/command-receipt-ddl.ts';
 export { conformanceEntities } from './conformance-entities.ts';
 export type { ConformanceEntitySet } from './conformance-entity-set.ts';
 export { conformanceId } from './conformance-id.ts';
 export type { ConformanceScopeSet } from './conformance-scope-set.ts';
 export { conformanceScopes } from './conformance-scopes.ts';
+export { conformanceSnapshot } from './conformance-snapshot.ts';
 export { conformanceValues } from './conformance-values.ts';
 export { missingOwnerId } from './missing-owner-id.ts';
 export type { OracleDataset } from './oracle-dataset.ts';

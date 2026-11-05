@@ -18,6 +18,7 @@ export { newId } from './drive/new-id.ts';
 export type { RequestMatcher } from './drive/request-matcher.ts';
 export { runInMemory } from './drive/run-in-memory.ts';
 export type { RunInMemoryOptions } from './drive/run-in-memory-options.ts';
+export type { ClientRuntime } from './harness/client-runtime.ts';
 export { createLocalClient } from './harness/create-local-client.ts';
 export type { LocalClientOptions } from './harness/local-client-options.ts';
 export { startTestRuntime } from './harness/start-test-runtime.ts';

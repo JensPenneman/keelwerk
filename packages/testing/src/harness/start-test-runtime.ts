@@ -6,8 +6,7 @@ import type {
   NamespaceRef,
 } from '@keelwerk/core';
 import { coreApiVersions, KeelwerkError, secret, startRuntime } from '@keelwerk/core';
-import { memoryAdapter } from '@keelwerk/data';
-import { schemaPlanner } from './schema-planner.ts';
+import { memoryAdapter, schemaPlanner } from '@keelwerk/data';
 import type { TestApp } from './test-app.ts';
 import { testMasterKeyName } from './test-master-key-name.ts';
 import type { TestRuntime } from './test-runtime.ts';

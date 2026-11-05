@@ -15,6 +15,7 @@ const libraryDef = defineModule(libraryBase, {
     book: { readers, writers },
     findByIsbn: { signedIn: findByIsbnSignedIn },
   },
+  migrations: new URL('../migrations/', import.meta.url),
 });
 
 export interface Library extends ModuleType<typeof libraryDef> {}

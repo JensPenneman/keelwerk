@@ -1,6 +1,5 @@
 import type { DataAdapter, EntityEntry, TrackSnapshot } from '@keelwerk/core';
-import { buildTrackSnapshot, orderTracks } from '@keelwerk/data';
-import { commandReceiptDdl } from '@keelwerk/data/conformance';
+import { buildTrackSnapshot, commandReceiptDdl, orderTracks } from '@keelwerk/data';
 import { type PgliteAdapter, pgliteAdapter } from '@keelwerk/data/pglite';
 import { conformanceApp } from '../../../src/fixtures/index.ts';
 import { clock, namespace } from './run-read-kit.ts';

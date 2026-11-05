@@ -10,6 +10,7 @@ import type {
   StorageScope,
   UnitOptions,
 } from '@keelwerk/core';
+import { KeelwerkError } from '@keelwerk/core';
 import { mapSqlError } from '../sql/map-sql-error.ts';
 import { assertRoleName } from '../sql/postgres/assert-role-name.ts';
 import { beginUnitStatements } from '../sql/postgres/begin-unit-statements.ts';
@@ -105,13 +106,45 @@ export function pgliteAdapter(
     if (closed) throw new Error('the PGlite adapter is closed');
     return database;
   };
-  /** One at a time: PGlite has one session, and a unit owns it from `begin` to `commit`. */
-  const serialised = <T>(work: () => Promise<T>): Promise<T> => {
+  /**
+   * One at a time: PGlite has one session, and a unit owns it from `begin` to `commit`. A unit
+   * that is still queued after `timeoutMs` gives up with `unavailable` `core.timeout` and never starts.
+   */
+  const serialised = <T>(work: () => Promise<T>, timeoutMs?: number): Promise<T> => {
     if (inside.getStore() === true) throw new PgliteReentrantUnitError();
-    const run = (): Promise<T> => inside.run(true, work);
+    const turn: { started: boolean; abandoned: boolean } = { started: false, abandoned: false };
+    const run = async (): Promise<T> => {
+      turn.started = true;
+      if (turn.abandoned) return undefined as T;
+      return inside.run(true, work);
+    };
     const result = queue.then(run, run);
     queue = result.catch(() => undefined);
-    return result;
+    if (timeoutMs === undefined) return result;
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (turn.started) return;
+        turn.abandoned = true;
+        reject(
+          new KeelwerkError({
+            kind: 'unavailable',
+            code: 'core.timeout',
+            message: 'The unit waited too long for its turn.',
+            details: { timeoutMs },
+          }),
+        );
+      }, timeoutMs);
+      result.then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (error: unknown) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      );
+    });
   };
 
   const asOwner = async <T>(fn: (database: PGlite) => Promise<T>): Promise<T> => {
@@ -184,35 +217,37 @@ export function pgliteAdapter(
         ...(unitOptions.isolation === undefined ? {} : { isolation: unitOptions.isolation }),
         ...(unitOptions.timeoutMs === undefined ? {} : { timeoutMs: unitOptions.timeoutMs }),
       });
-      const { result, afterCommit } = await serialised(async () =>
-        runInSpan(
-          env.tracer,
-          'keelwerk.unit',
-          { 'keelwerk.scope.level': scope.level, 'keelwerk.unit.read_only': readOnly },
-          async () => {
-            unitOptions.signal?.throwIfAborted();
-            await db.query(begun.begin);
-            try {
-              for (const statement of begun.settings) {
-                await db.query(statement.sql, [...statement.parameters]);
-              }
-              const opened = pgliteUnit(db, namespace, scope, readOnly, {
-                deploymentId: env.deploymentId,
-                clock,
-                entities,
-                ...(options.keyWrapper === undefined ? {} : { keyWrapper: options.keyWrapper }),
-              });
-              const value = await fn(opened.unit);
+      const { result, afterCommit } = await serialised(
+        async () =>
+          runInSpan(
+            env.tracer,
+            'keelwerk.unit',
+            { 'keelwerk.scope.level': scope.level, 'keelwerk.unit.read_only': readOnly },
+            async () => {
               unitOptions.signal?.throwIfAborted();
-              await opened.runBeforeCommit();
-              await db.query('commit');
-              return { result: value, afterCommit: opened.takeAfterCommit() };
-            } catch (error) {
-              await db.query('rollback');
-              throw mapSqlError(error);
-            }
-          },
-        ),
+              await db.query(begun.begin);
+              try {
+                for (const statement of begun.settings) {
+                  await db.query(statement.sql, [...statement.parameters]);
+                }
+                const opened = pgliteUnit(db, namespace, scope, readOnly, {
+                  deploymentId: env.deploymentId,
+                  clock,
+                  entities,
+                  ...(options.keyWrapper === undefined ? {} : { keyWrapper: options.keyWrapper }),
+                });
+                const value = await fn(opened.unit);
+                unitOptions.signal?.throwIfAborted();
+                await opened.runBeforeCommit();
+                await db.query('commit');
+                return { result: value, afterCommit: opened.takeAfterCommit() };
+              } catch (error) {
+                await db.query('rollback');
+                throw mapSqlError(error);
+              }
+            },
+          ),
+        unitOptions.timeoutMs,
       );
       const scopeId = scopeIdOf(scope, env.deploymentId);
       if (!readOnly && scopeId !== undefined) feed.publish(namespace.id, [scopeId]);

@@ -1,3 +1,4 @@
+import { mapSqlError } from '../map-sql-error.ts';
 import { namespaceLock } from './namespace-lock.ts';
 import type { SchemaConnection } from './schema-connection.ts';
 
@@ -31,9 +32,10 @@ export function pgSchemaConnection(
       return result;
     } catch (error) {
       await client.query('rollback');
-      throw error;
+      throw mapSqlError(error);
     }
   };
+  const tails = new Map<string, Promise<unknown>>();
   return {
     transaction: async (fn, url) => {
       const client = await connect(url);
@@ -47,17 +49,27 @@ export function pgSchemaConnection(
         await client.end();
       }
     },
+    // Callers of this process queue in call order; the advisory lock then orders them against other processes.
     exclusive: async (root, fn) => {
-      const client = await connect();
-      try {
-        return await inTransaction(client, async () => {
-          const lock = namespaceLock(root, 'migrate');
-          await client.query(lock.sql, [...lock.parameters]);
-          return fn();
-        });
-      } finally {
-        await client.end();
-      }
+      const run = async () => {
+        const client = await connect();
+        try {
+          return await inTransaction(client, async () => {
+            const lock = namespaceLock(root, 'migrate');
+            await client.query(lock.sql, [...lock.parameters]);
+            return fn();
+          });
+        } finally {
+          await client.end();
+        }
+      };
+      const before = tails.get(root) ?? Promise.resolve();
+      const result = before.then(run, run);
+      tails.set(
+        root,
+        result.catch(() => undefined),
+      );
+      return result;
     },
   };
 }

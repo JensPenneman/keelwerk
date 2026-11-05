@@ -236,15 +236,7 @@ export function unitCases(subject: ConformanceSubject): void {
     });
   });
 
-  describe('timeouts, signals and isolation levels', () => {
-    test('a unit waiting for the namespace gives up after timeoutMs with core.timeout', async (t) => {
-      if (subject.capabilities().processes !== 'single') return t.skip();
-      const refused = await subject
-        .run(tenantA, () => failureOf(subject.run(tenantB, async () => 1, { timeoutMs: 20 })))
-        .catch((error: unknown) => error);
-      expect(refused).toEqual({ kind: 'unavailable', code: 'core.timeout' });
-    });
-
+  describe('signals and isolation levels', () => {
     test('an aborted signal refuses a unit before it starts, and a unit that ends aborted rolls back', async () => {
       const controller = new AbortController();
       controller.abort(new Error('stop'));

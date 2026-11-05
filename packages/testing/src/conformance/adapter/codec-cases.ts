@@ -14,7 +14,20 @@ const edges: readonly (readonly [string, string, readonly unknown[]])[] = [
   ['text', 'notes', ['', 'line one\nline two\r\n', 'x'.repeat(10_000), 'café \u{1f600}']],
   ['integer', 'count', [0, -1, 1, Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER]],
   ['integer (wide)', 'wide', [0n, 1n, -1n, 9_007_199_254_740_993n, 2n ** 63n - 1n, -(2n ** 63n)]],
-  ['decimal', 'price', ['0', '0.0001', '-0.0001', '123456789012345.1234', '-99999999999999.9999']],
+  [
+    'decimal',
+    'price',
+    [
+      '0.0000',
+      '0.0001',
+      '-0.0001',
+      '1.5000',
+      '10.0000',
+      '-1.0000',
+      '123456789012345.1234',
+      '-99999999999999.9999',
+    ],
+  ],
   [
     'float',
     'ratio',

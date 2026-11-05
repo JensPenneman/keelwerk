@@ -1,15 +1,13 @@
 import type { SchemaPlanner } from '@keelwerk/core';
-import {
-  applyPending,
-  buildTrackSnapshot,
-  checkMigrationHistory,
-  loadMigrations,
-  orderTracks,
-} from '@keelwerk/data';
+import { applyPending } from './apply-pending.ts';
+import { buildTrackSnapshot } from './build-track-snapshot.ts';
+import { checkMigrationHistory } from './check-migration-history.ts';
+import { loadMigrations } from './load-migrations.ts';
+import { orderTracks } from './order-tracks.ts';
 
 /**
- * The planner of `@keelwerk/data` as the infrastructure entry the runtime asks for: the core
- * imports nothing from the workspace, so a deployment lists this next to its adapters.
+ * The planner of this package as the infrastructure entry the runtime asks for: the core imports
+ * nothing from the workspace, so a deployment lists this next to its adapters.
  */
 export function schemaPlanner(): SchemaPlanner {
   return {

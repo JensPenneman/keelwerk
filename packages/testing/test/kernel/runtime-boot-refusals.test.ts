@@ -11,9 +11,8 @@ import {
   env,
   startRuntime,
 } from '@keelwerk/core';
-import { memoryAdapter } from '@keelwerk/data';
+import { memoryAdapter, schemaPlanner } from '@keelwerk/data';
 import { describe, expect, test } from 'vitest';
-import { schemaPlanner } from '../../src/harness/schema-planner.ts';
 import { testSecrets } from '../../src/harness/test-secrets.ts';
 import { boot, deploymentOf, phaseLogger, refusal } from './support/runtime-kit.ts';
 

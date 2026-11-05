@@ -196,8 +196,12 @@ export function eventStoreCases(subject: ConformanceSubject): void {
           await pause(next());
         });
       });
-      await Promise.all(work);
-      writing = false;
+      try {
+        await Promise.all(work);
+      } finally {
+        writing = false;
+        await Promise.allSettled(readers);
+      }
       await Promise.all(readers);
       for (const [index, scope] of scopes.entries()) {
         const mine = Array.from({ length: writers }, (_, n) => n).filter(

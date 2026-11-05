@@ -22,6 +22,7 @@ import { rowIsolationCases } from './row-isolation-cases.ts';
 import { serialCases } from './serial-cases.ts';
 import { storeCases } from './store-cases.ts';
 import { storeIsolationCases } from './store-isolation-cases.ts';
+import { timeoutCases } from './timeout-cases.ts';
 import { toggleRebuildCases } from './toggle-rebuild-cases.ts';
 import { unitCases } from './unit-cases.ts';
 
@@ -88,6 +89,7 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('conditions', () => conditionCases(subject));
     describe('pagination', () => paginationCases(subject));
     describe('units', () => unitCases(subject));
+    describe('timeouts', () => timeoutCases(subject));
     describe('rows', () => rowCases(subject));
     describe('stores', () => storeCases(subject));
     describe('row isolation', () => rowIsolationCases(subject));

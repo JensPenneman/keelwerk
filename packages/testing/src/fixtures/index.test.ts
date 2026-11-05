@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderModuleManifest, scanModuleDirectory, version } from '@keelwerk/core';
@@ -17,7 +17,7 @@ describe.each(['library', 'loans'])('the %s fixture module', (id) => {
       id,
       generatorVersion: version,
       scanned,
-      migrations: false,
+      migrations: existsSync(new URL(`modules/${id}/migrations/`, import.meta.url)),
     });
     expect(readFileSync(new URL('module.generated.ts', source), 'utf8')).toBe(text);
   });

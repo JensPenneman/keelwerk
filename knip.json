@@ -46,9 +46,8 @@
       "ignoreDependencies": ["@keelwerk/core", "@keelwerk/module-accounts", "@keelwerk/testing"]
     },
     "packages/testing": {
-      "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@keelwerk/adapter-postgres"]
+      "entry": ["src/**/*.test-d.ts", "src/fixtures/modules/*/migrations/**/*.ts"],
+      "project": ["src/**/*.ts"]
     },
     "packages/cli": {
       "entry": ["src/**/*.test-d.ts"],

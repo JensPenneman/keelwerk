@@ -1,5 +1,4 @@
-import { startPostgres } from '@keelwerk/testing/postgres';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { beforeAll, expect, test } from 'vitest';
 import {
   applyPending,
   columnType,
@@ -9,18 +8,16 @@ import {
   samePredicate,
 } from '../../src/index.ts';
 import { connect } from '../support/connect.ts';
+import { createTestDatabase } from '../support/create-test-database.ts';
+import type { TestDatabase } from '../support/test-database.ts';
 import { conformanceSnapshots } from './support/conformance-snapshots.ts';
 import { migrationNamespace } from './support/migration-namespace.ts';
 import { planAllTracks } from './support/plan-all-tracks.ts';
 
-let postgres: Awaited<ReturnType<typeof startPostgres>>;
+let postgres: TestDatabase;
 
 beforeAll(async () => {
-  postgres = await startPostgres();
-}, 120_000);
-
-afterAll(async () => {
-  await postgres?.stop();
+  postgres = await createTestDatabase('migrations');
 }, 120_000);
 
 test('a planned migration applies on PostgreSQL and is introspected back equal to its snapshots', async () => {

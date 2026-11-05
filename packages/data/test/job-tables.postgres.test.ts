@@ -1,4 +1,3 @@
-import { startPostgres } from '@keelwerk/testing/postgres';
 import type { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { applyFrameworkTables } from './support/apply-framework-tables.ts';
@@ -6,6 +5,7 @@ import { asBackend } from './support/as-backend.ts';
 import { asNamespace } from './support/as-namespace.ts';
 import { asTenant } from './support/as-tenant.ts';
 import { connect } from './support/connect.ts';
+import { createTestDatabase } from './support/create-test-database.ts';
 import { enqueueJob } from './support/enqueue-job-seed.ts';
 import { groupSeed } from './support/group-seed.ts';
 import { laneCounts } from './support/lane-counts-seed.ts';
@@ -14,14 +14,15 @@ import { ns } from './support/ns.ts';
 import type { Settings } from './support/settings.ts';
 import { tenantA } from './support/tenant-a.ts';
 import { tenantB } from './support/tenant-b.ts';
+import type { TestDatabase } from './support/test-database.ts';
 import { unit } from './support/unit.ts';
 
-let postgres: Awaited<ReturnType<typeof startPostgres>>;
+let postgres: TestDatabase;
 let admin: Client;
 let app: Client;
 
 beforeAll(async () => {
-  postgres = await startPostgres();
+  postgres = await createTestDatabase('job_tables');
   admin = await connect(postgres.adminUrl);
   await applyFrameworkTables(admin);
   app = await connect(postgres.appUrl);
@@ -37,7 +38,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await app?.end();
   await admin?.end();
-  await postgres?.stop();
 });
 
 describe('groups and lane counters', () => {

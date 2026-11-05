@@ -175,7 +175,7 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
     get: read,
     put: async (receipt) => {
       ctx.writable();
-      const inserted = await insert(receipt, true);
+      const inserted = await insert(receipt);
       if (inserted !== undefined) return;
       const existing = await read(receipt.commandId);
       if (existing !== undefined && existing.fingerprint !== receipt.fingerprint) {

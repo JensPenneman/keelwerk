@@ -1,9 +1,16 @@
 import type { DataAdapterFactory, SchemaOperations } from '@keelwerk/core';
 import { errors } from '@keelwerk/core';
-import { maskCapabilities, pgSchemaConnection, postgresSchemaOperations } from '@keelwerk/data';
+import {
+  maskCapabilities,
+  pgSchemaConnection,
+  postgresSchemaOperations,
+  withCommandReceipts,
+} from '@keelwerk/data';
 import pg from 'pg';
 import { connectionTimeout } from './connection-timeout.ts';
 import { createPostgresInstance } from './create-postgres-instance.ts';
+import { maskUnit } from './mask-unit.ts';
+import { placementRole } from './placement-role.ts';
 import type { PostgresAdapterOptions } from './postgres-adapter-options.ts';
 import { createPostgresChangeFeed } from './postgres-change-feed.ts';
 import { postgresOptionsSchema } from './postgres-options-schema.ts';
@@ -56,6 +63,27 @@ export function postgresAdapter(options: PostgresAdapterOptions = {}): DataAdapt
         notify: !off.includes('changeFeed'),
         connectionTimeoutMs: connectionTimeout(placement.options),
       });
+      const hasOwner = options.ownerUrl !== undefined && options.ownerUrl !== '';
+      // The role is derived only where the schema operations run as an owner and drop to it.
+      const role = hasOwner ? placementRole(placement.id, placement.url) : undefined;
+      if (hasOwner && role === undefined) {
+        throw errors.validation(
+          `the placement ${placement.id} names no user in its url, so the application role cannot be derived`,
+        );
+      }
+      const connection = pgSchemaConnection(async (url) => {
+        const connectionString = url ?? options.ownerUrl ?? placement.url;
+        if (connectionString === undefined || connectionString === '') {
+          throw errors.validation(`the placement ${placement.id} needs a url`);
+        }
+        const client = new pg.Client({
+          connectionString,
+          // biome-ignore lint/style/useNamingConvention: the key is the driver's option name
+          application_name: `${options.applicationName ?? 'keelwerk'}-migrate`,
+        });
+        await client.connect();
+        return client;
+      });
       return {
         ...instance,
         connect: async () => maskCapabilities(await instance.connect(), off),
@@ -73,27 +101,20 @@ export function postgresAdapter(options: PostgresAdapterOptions = {}): DataAdapt
                   if (u.events.committed().length > 0) feed.committed(namespace.id, scopeId);
                 });
               }
-              return fn(u);
+              return fn(maskUnit(u, off));
             },
             unitOptions,
           ),
         feed: feed.source,
         schema: ownerOnly(
           options,
-          postgresSchemaOperations(
-            pgSchemaConnection(async (url) => {
-              const connectionString = url ?? options.ownerUrl ?? placement.url;
-              if (connectionString === undefined || connectionString === '') {
-                throw errors.validation(`the placement ${placement.id} needs a url`);
-              }
-              const client = new pg.Client({
-                connectionString,
-                // biome-ignore lint/style/useNamingConvention: the key is the driver's option name
-                application_name: `${options.applicationName ?? 'keelwerk'}-migrate`,
-              });
-              await client.connect();
-              return client;
+          withCommandReceipts(
+            postgresSchemaOperations(connection, {
+              ...(role === undefined ? {} : { role }),
+              ...(options.clock === undefined ? {} : { clock: options.clock }),
             }),
+            connection,
+            role,
           ),
         ),
       };

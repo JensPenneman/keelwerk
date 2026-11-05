@@ -1,5 +1,5 @@
 import type { Receipt } from '@keelwerk/core';
-import { conformanceScopes } from '@keelwerk/data/conformance';
+import { conformanceId, conformanceScopes } from '@keelwerk/data/conformance';
 import { describe, expect, test } from 'vitest';
 import type { ConformanceSubject } from './conformance-subject.ts';
 import { failureOf } from './failure-of.ts';
@@ -216,23 +216,27 @@ export function storeCases(subject: ConformanceSubject): void {
 
     test('a data key is created on demand, found by id, and gone once shredded', async () => {
       expect(
-        await subject.run(tenantA, (unit) => unit.keys.dataKey('s1', { create: false })),
+        await subject.run(tenantA, (unit) =>
+          unit.keys.dataKey(conformanceId(7001), { create: false }),
+        ),
       ).toBeUndefined();
       const created = await subject.run(tenantA, (unit) =>
-        unit.keys.dataKey('s1', { create: true }),
+        unit.keys.dataKey(conformanceId(7001), { create: true }),
       );
       expect(created?.material).toHaveLength(32);
       const again = await subject.run(tenantA, (unit) =>
-        unit.keys.dataKey('s1', { create: false }),
+        unit.keys.dataKey(conformanceId(7001), { create: false }),
       );
       expect(again?.id).toBe(created?.id);
       expect((await subject.run(tenantA, (unit) => unit.keys.keyById(created?.id ?? '')))?.id).toBe(
         created?.id,
       );
-      const shredded = await subject.run(tenantA, (unit) => unit.keys.shred('s1'));
+      const shredded = await subject.run(tenantA, (unit) => unit.keys.shred(conformanceId(7001)));
       expect(shredded.keyIds).toContain(created?.id);
       expect(
-        await subject.run(tenantA, (unit) => unit.keys.dataKey('s1', { create: false })),
+        await subject.run(tenantA, (unit) =>
+          unit.keys.dataKey(conformanceId(7001), { create: false }),
+        ),
       ).toBeUndefined();
       expect(
         await subject.run(tenantA, (unit) => unit.keys.keyById(created?.id ?? '')),
@@ -253,14 +257,18 @@ export function storeCases(subject: ConformanceSubject): void {
     });
 
     test('subject references list in order after a stream', async () => {
-      const streams = [1, 2, 3].map((n) => ({ type: 'conf.owner', id: `stream-${n}` }));
-      await subject.run(tenantA, (unit) => unit.keys.addRefs('s1', streams));
-      await subject.run(tenantA, (unit) => unit.keys.addRefs('s1', streams.slice(0, 1)));
-      expect(await subject.read(tenantA, (unit) => unit.keys.refs('s1', null, 10))).toEqual(
-        streams,
+      const streams = [1, 2, 3].map((n) => ({ type: 'conf.owner', id: conformanceId(8000 + n) }));
+      await subject.run(tenantA, (unit) => unit.keys.addRefs(conformanceId(7001), streams));
+      await subject.run(tenantA, (unit) =>
+        unit.keys.addRefs(conformanceId(7001), streams.slice(0, 1)),
       );
       expect(
-        await subject.read(tenantA, (unit) => unit.keys.refs('s1', streams[0] ?? null, 10)),
+        await subject.read(tenantA, (unit) => unit.keys.refs(conformanceId(7001), null, 10)),
+      ).toEqual(streams);
+      expect(
+        await subject.read(tenantA, (unit) =>
+          unit.keys.refs(conformanceId(7001), streams[0] ?? null, 10),
+        ),
       ).toEqual(streams.slice(1));
     });
   });

@@ -5,13 +5,14 @@ const setting = (name: string): string =>
 
 /**
  * The scope a unit runs in (section 14.3.7, decision 111). An application root admits one scope:
- * the tenant when the unit sets one, otherwise the backend, so a unit never spans two scopes. The
+ * the tenant when the unit sets one, otherwise the backend, otherwise the deployment (whose event
+ * log and counters live in the application root too), so a unit never spans two scopes. The
  * control root belongs to the deployment and admits its id only.
  */
 const unitScopeOf = (control: boolean): string =>
   control
     ? `scope_id = ${setting('deployment_id')}`
-    : `scope_id = coalesce(${setting('tenant_id')}, ${setting('backend_id')})`;
+    : `scope_id = coalesce(${setting('tenant_id')}, ${setting('backend_id')}, ${setting('deployment_id')})`;
 
 const inNamespaceScope = `current_setting('keelwerk.scope', true) = 'namespace'`;
 
