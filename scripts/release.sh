@@ -21,24 +21,63 @@
 # Needs git with commit signing (commit.gpgsign), an authenticated GitHub CLI
 # (gh) and Node.js. Runs with the bash 3.2 that ships with macOS.
 #
-# Usage: scripts/release.sh [--yes]
+# Packages are published with "engines": {"node": ">=26"} (decision S-116). The committed
+# manifests carry no engines field; with_publish_engines writes it into the publishable
+# package.json files, runs the publishing command it is given and restores the manifests
+# afterwards, so the field is in the tarballs and never in a commit. This script publishes no
+# package yet, so with_publish_engines has no call site on the release path (open point under
+# S-116: the publishing step must run inside it). --check-engines packs every package inside
+# with_publish_engines and reads engines from each tarball, without gh, signing or network.
+#
+# Usage: scripts/release.sh [--yes | --check-engines]
 set -euo pipefail
 
 readonly remote=origin
 readonly branch=main
 readonly release_branch_prefix="release-please--branches--${branch}"
 
+# Runs a command with the engines field written into the publishable manifests (decision S-116)
+# and puts the manifests back as committed, whether the command succeeds or not.
+with_publish_engines() {
+  local status=0
+  node scripts/write-publish-engines.ts || status=$?
+  if ((status == 0)); then "$@" || status=$?; fi
+  git checkout --quiet -- packages/*/package.json || status=$?
+  return "$status"
+}
+
 assume_yes=false
 while (($# > 0)); do
   case "$1" in
     -y | --yes) assume_yes=true ;;
+    --check-engines)
+      cd "$(git rev-parse --show-toplevel)"
+      [[ -z "$(git status --porcelain -- 'packages/*/package.json')" ]] ||
+        { echo "error: commit or stash changes to packages/*/package.json first" >&2; exit 1; }
+      tmp=$(mktemp -d "${TMPDIR:-/tmp}/keelwerk-pack.XXXXXX")
+      with_publish_engines bash -c '
+        pnpm -r --filter "./packages/*" pack --pack-destination "$1" >/dev/null || exit 1
+        count=0
+        for tarball in "$1"/*.tgz; do
+          tar -xzOf "$tarball" package/package.json |
+            node -e "const m = JSON.parse(require(\"node:fs\").readFileSync(0, \"utf8\")); if (!m.private && m.engines?.node !== \">=26\") process.exit(1)" ||
+            { echo "no engines in $tarball" >&2; exit 1; }
+          count=$((count + 1))
+        done
+        ((count > 0)) || { echo "no tarball was packed" >&2; exit 1; }' _ "$tmp" || { rm -rf "$tmp"; exit 1; }
+      rm -rf "$tmp"
+      [[ -z "$(git status --porcelain -- 'packages/*/package.json')" ]] ||
+        { echo "error: the manifests were not restored" >&2; exit 1; }
+      echo "every packed tarball carries engines node >=26 and the manifests are restored"
+      exit 0
+      ;;
     -h | --help)
-      echo "Usage: scripts/release.sh [--yes]"
+      echo "Usage: scripts/release.sh [--yes | --check-engines]"
       echo "Publishes the open release-please pull request as a signed release (see CONTRIBUTING.md)."
       exit 0
       ;;
     *)
-      echo "Usage: scripts/release.sh [--yes]" >&2
+      echo "Usage: scripts/release.sh [--yes | --check-engines]" >&2
       exit 2
       ;;
   esac

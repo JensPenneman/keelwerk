@@ -2,9 +2,6 @@
   "$schema": "https://unpkg.com/knip@6.42.1/schema.json",
   "ignore": ["docs/**", "packages/biome-config/plugins/fixtures/**"],
   "workspaces": {
-    ".": {
-      "entry": ["scripts/check-fresh-clone.ts"]
-    },
     "packages/*": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"]
@@ -42,7 +39,7 @@
     "packages/cli": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@stricli/auto-complete", "tsc"]
+      "ignoreDependencies": ["tsc"]
     },
     "packages/module-accounts": {
       "entry": ["src/**/*.test-d.ts"],

@@ -4,21 +4,78 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-# Superseded pull request runs are cancelled. Runs on main are grouped per
-# commit, so every commit there gets a complete run.
+# Superseded pull request runs are cancelled. Every run that is not a pull request
+# (each push to main, each manual run) is grouped by its own run id, so it is never
+# cancelled and always completes.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:
     name: Verify
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # Must run before setup-node: its pnpm cache needs the pnpm binary.
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        id: install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint and format (step 2)
+        run: pnpm biome ci .
+
+      - name: Find unused code and dependencies (step 2)
+        run: pnpm knip
+
+      - name: Layout pass (step 2)
+        run: pnpm keelwerk doctor --layout
+
+      - name: Typecheck and build (step 3)
+        run: pnpm tsc -b
+
+      # Every project that starts no container (the Docker projects are named in the postgres job): unit, type, declaration-emit, transport
+      # conformance and in-memory adapter suites, and the portal scenario in memory.
+      - name: Tests, transport conformance and in-memory adapter suites (steps 4 and 7)
+        run: pnpm vitest run --project '!adapter-postgres-postgres' --project '!app-portal-postgres' --project '!data-postgres' --project '!module-accounts-postgres' --project '!module-auth-postgres' --project '!testing-postgres' --project '!spike-write-path'
+
+      - name: Generated files are current (step 5)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm keelwerk generate --check
+
+      - name: Migrations on a scratch PGlite (step 6)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm keelwerk db check
+
+      - name: API surface against main (step 9)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm keelwerk surface diff --base origin/main
+
+
+  postgres:
+    name: PostgreSQL 18 suites
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -38,20 +95,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint and format
-        run: pnpm biome ci .
+      # The tests start the container themselves (testcontainers); pulling the image once
+      # here keeps the pull out of every suite's start-up timeout.
+      - name: Pull the PostgreSQL 18 image
+        run: docker pull "$(sed -n "s/.*'\(postgres:[^']*\)'.*/\1/p" packages/testing/src/postgres/postgres-image.ts)"
 
-      - name: Find unused code and dependencies
-        run: pnpm knip
-
-      - name: Typecheck and build
+      - name: Build
         run: pnpm tsc -b
 
-      - name: Tests
-        run: pnpm vitest run
+      # Adapter conformance and the adapter's own suites, the data package's migrations and
+      # framework tables, the dual-evaluation and start-up suites of the testing package,
+      # module-accounts and module-auth sign-up, and the portal scenario, isolation suite,
+      # dump test and accelerations-off run, plus the write-path spike. Each project starts
+      # its own container in its globalSetup (or beforeAll), so one worker runs at a time.
+      - name: Adapter, dual-evaluation and portal suites on PostgreSQL (steps 4 and 7)
+        run: pnpm vitest run --project adapter-postgres-postgres --project app-portal-postgres --project data-postgres --project module-accounts-postgres --project module-auth-postgres --project testing-postgres --project spike-write-path --maxWorkers=1
 
-  # The type-budget gate of section 13.11 compiles the synthetic apps against the built
-  # core, so it builds first and runs beside the verification job rather than inside it.
+
   budgets:
     name: Type budgets
     runs-on: ubuntu-24.04
@@ -62,6 +122,7 @@ jobs:
         with:
           persist-credentials: false
 
+      # Must run before setup-node: its pnpm cache needs the pnpm binary.
       - name: Install pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
@@ -77,5 +138,70 @@ jobs:
       - name: Build
         run: pnpm tsc -b
 
-      - name: Type budgets
+      - name: Type budgets (step 8)
         run: pnpm budgets
+
+      - name: Type benchmarks (step 8)
+        run: pnpm bench:types
+
+
+  fresh-clone:
+    name: Fresh clone
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Must run before setup-node: its pnpm cache needs the pnpm binary.
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Clones the checked-out repository and installs from the frozen lockfile in the clone.
+      - name: Portal from a fresh clone
+        run: node --conditions=@keelwerk/source scripts/check-fresh-clone.ts
+
+      - name: Publish rewrite of engines
+        run: node scripts/write-publish-engines.ts --check
+
+      - name: Release script restores the manifests
+        run: bash scripts/release.sh --check-engines
+
+
+  exit-criteria:
+    name: M1 exit criteria
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs: [verify, postgres, budgets, fresh-clone]
+    # A skipped required check counts as passing, so the job runs even when a needed job
+    # failed and then fails itself.
+    if: ${{ !cancelled() }}
+    steps:
+      - name: Fail when a needed job did not succeed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        run: echo '${{ toJSON(needs) }}'; exit 1
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The script reads only files of the checkout: no pnpm and no dependencies.
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Exit criteria and the steps that prove them
+        run: node scripts/exit-criteria.ts

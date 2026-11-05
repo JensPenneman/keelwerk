@@ -1,0 +1,169 @@
+{
+  "criteria": [
+    {
+      "number": 1,
+      "text": "keelwerk dev starts the portal from a fresh clone on PGlite; generated files pass generate --check",
+      "proofs": [
+        {
+          "job": "fresh-clone",
+          "step": "Portal from a fresh clone"
+        },
+        {
+          "job": "verify",
+          "step": "Generated files are current (step 5)"
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "text": "the CLI creates a backend and a tenant over the operator socket without a restart",
+      "proofs": [
+        {
+          "job": "fresh-clone",
+          "step": "Portal from a fresh clone"
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "text": "register and log in over REST with cookie and bearer token; keelwerk login and keelwerk call",
+      "proofs": [
+        {
+          "job": "fresh-clone",
+          "step": "Portal from a fresh clone"
+        },
+        {
+          "job": "verify",
+          "step": "Tests, transport conformance and in-memory adapter suites (steps 4 and 7)"
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "text": "the portal scenario and the two-tenant isolation suite on PostgreSQL 18 and in memory",
+      "proofs": [
+        {
+          "job": "postgres",
+          "step": "Adapter, dual-evaluation and portal suites on PostgreSQL (steps 4 and 7)"
+        },
+        {
+          "job": "verify",
+          "step": "Tests, transport conformance and in-memory adapter suites (steps 4 and 7)"
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "text": "adapter conformance and transport conformance suites",
+      "proofs": [
+        {
+          "job": "postgres",
+          "step": "Adapter, dual-evaluation and portal suites on PostgreSQL (steps 4 and 7)"
+        },
+        {
+          "job": "verify",
+          "step": "Tests, transport conformance and in-memory adapter suites (steps 4 and 7)"
+        }
+      ]
+    },
+    {
+      "number": 6,
+      "text": "a dump of the test database holds no password hash, secret or plaintext personal value",
+      "proofs": [
+        {
+          "job": "postgres",
+          "step": "Adapter, dual-evaluation and portal suites on PostgreSQL (steps 4 and 7)"
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "text": "type tests, declaration-emit checks and instantiation budgets",
+      "proofs": [
+        {
+          "job": "verify",
+          "step": "Typecheck and build (step 3)"
+        },
+        {
+          "job": "budgets",
+          "step": "Type budgets (step 8)"
+        },
+        {
+          "job": "budgets",
+          "step": "Type benchmarks (step 8)"
+        },
+        {
+          "job": "verify",
+          "step": "Tests, transport conformance and in-memory adapter suites (steps 4 and 7)"
+        }
+      ]
+    },
+    {
+      "number": 8,
+      "text": "every handler of the scenario re-runs from its recorded answers",
+      "proofs": [
+        {
+          "job": "verify",
+          "step": "Tests, transport conformance and in-memory adapter suites (steps 4 and 7)"
+        }
+      ]
+    },
+    {
+      "number": 9,
+      "text": "keelwerk db verify checks the chains against the anchors and detects a rewound database",
+      "proofs": [
+        {
+          "job": "verify",
+          "step": "Tests, transport conformance and in-memory adapter suites (steps 4 and 7)"
+        }
+      ]
+    },
+    {
+      "number": 10,
+      "text": "the scenario passes on PostgreSQL with row locks and notify off; doctor lists the fallbacks",
+      "proofs": [
+        {
+          "job": "postgres",
+          "step": "Adapter, dual-evaluation and portal suites on PostgreSQL (steps 4 and 7)"
+        },
+        {
+          "job": "verify",
+          "step": "Tests, transport conformance and in-memory adapter suites (steps 4 and 7)"
+        }
+      ]
+    },
+    {
+      "number": 11,
+      "text": "moving a part file is a breaking surface change; a stale manifest fails generate --check",
+      "proofs": [
+        {
+          "job": "verify",
+          "step": "Generated files are current (step 5)"
+        },
+        {
+          "job": "verify",
+          "step": "API surface against main (step 9)"
+        },
+        {
+          "job": "verify",
+          "step": "Tests, transport conformance and in-memory adapter suites (steps 4 and 7)"
+        }
+      ]
+    },
+    {
+      "number": 12,
+      "text": "engines node >=26 restored before the first publish, or the lead decides",
+      "decided": "S-116",
+      "proofs": [
+        {
+          "job": "fresh-clone",
+          "step": "Publish rewrite of engines"
+        },
+        {
+          "job": "fresh-clone",
+          "step": "Release script restores the manifests"
+        }
+      ]
+    }
+  ]
+}

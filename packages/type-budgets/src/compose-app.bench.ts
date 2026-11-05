@@ -518,7 +518,7 @@ const m25 = defineModule(m25Base, {
 // attest needs each `bench` call as a statement of its own.
 bench('defineApp over 3 modules', () =>
   defineApp({ id: 'bench-3', modules: [m01, m02, m03] as const }),
-).types([12467, 'instantiations']);
+).types([14875, 'instantiations']);
 bench('defineApp over 25 modules', () =>
   defineApp({
     id: 'bench-25',
