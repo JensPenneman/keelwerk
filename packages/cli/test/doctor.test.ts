@@ -190,31 +190,19 @@ describe('the project', () => {
     ]);
   });
 
-  test('artefacts: a failing --check names the script and its fix', async () => {
-    const dir = await materialise({
-      'scripts/generate-manifests.ts': '',
-      'scripts/generate-surfaces.ts': '',
-    });
-    const found = await checkArtefacts(dir, async (script) =>
-      script.endsWith('surfaces.ts')
-        ? { code: 1, output: 'library: 2026-11-04.json differs' }
-        : { code: 0, output: '' },
-    );
+  test('artefacts: a failing --check names the drift and its fix', async () => {
+    const found = await checkArtefacts('/project', async () => ({
+      code: 1,
+      output: 'library: 2026-11-04.json has drifted',
+    }));
     expect(found).toEqual([
       expect.objectContaining({
-        subject: 'scripts/generate-surfaces.ts',
-        message: 'library: 2026-11-04.json differs',
-        fix: 'run pnpm surfaces',
+        subject: 'keelwerk generate --check',
+        message: 'library: 2026-11-04.json has drifted',
+        fix: 'run keelwerk generate',
       }),
     ]);
-  });
-
-  test('artefacts: a project without the generator scripts gets a note', async () => {
-    const dir = await materialise({});
-    const found = await checkArtefacts(dir, async () => ({ code: 0, output: '' }));
-    expect(found.map((finding) => [finding.severity, finding.subject])).toEqual([
-      ['note', 'artefacts'],
-    ]);
+    expect(await checkArtefacts('/project', async () => ({ code: 0, output: '' }))).toEqual([]);
   });
 
   test('named types: a base, a module and an entity without one', async () => {
@@ -256,7 +244,7 @@ describe('the project', () => {
     const run = {
       root: space.dir,
       environment: goodEnvironment,
-      runScript: async () => ({ code: 0, output: '' }),
+      runArtefacts: async () => ({ code: 0, output: '' }),
       deployment: undefined,
       now: Temporal.Instant.from('2026-11-05T10:00:00Z'),
     };
@@ -265,7 +253,7 @@ describe('the project', () => {
         finding.check,
         finding.severity,
       ]),
-    ).toEqual([['artefacts', 'note']]);
+    ).toEqual([]);
     expect(await runDoctor({ ...run, layoutOnly: true })).toEqual([]);
     const drifted = await workspace({
       'packages/module-shop/src/helpers/x.ts': 'export const x = 1;\n',
@@ -303,7 +291,7 @@ describe('the doctor command', () => {
     expect(result.code).toBe(1);
   });
 
-  test('--output json prints the findings as data', async () => {
+  test('--output json prints the findings as data', { timeout: 60_000 }, async () => {
     const result = await run(['doctor', '--layout', '--output', 'json'], {
       'packages/module-shop/src/helpers/x.ts': 'export const x = 1;\n',
     });

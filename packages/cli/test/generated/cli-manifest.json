@@ -1,0 +1,275 @@
+{
+  "apiVersion": "2026-11-01",
+  "app": "portal",
+  "commands": [
+    {
+      "aliases": [],
+      "auth": "policy",
+      "description": "Creates a profile.",
+      "flags": [
+        {
+          "description": "The display name.",
+          "kind": "string",
+          "name": "name",
+          "required": true
+        },
+        {
+          "kind": "text",
+          "name": "bio",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "age",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "balance",
+          "required": false
+        },
+        {
+          "kind": "decimal",
+          "name": "price",
+          "required": false
+        },
+        {
+          "kind": "float",
+          "name": "score",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "active",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-active",
+          "required": false
+        },
+        {
+          "kind": "instant",
+          "name": "joined-at",
+          "required": false
+        },
+        {
+          "kind": "date",
+          "name": "birthday",
+          "required": false
+        },
+        {
+          "kind": "timeZone",
+          "name": "zone",
+          "required": false
+        },
+        {
+          "kind": "enum",
+          "name": "role",
+          "required": false
+        },
+        {
+          "kind": "ref",
+          "name": "owner",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "tags",
+          "required": false
+        },
+        {
+          "kind": "set",
+          "name": "roles",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "address.city",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "address.postcode",
+          "required": false
+        },
+        {
+          "kind": "json",
+          "name": "settings-json",
+          "required": false
+        },
+        {
+          "kind": "binary",
+          "name": "avatar",
+          "required": false
+        },
+        {
+          "kind": "richText",
+          "name": "notes",
+          "required": false
+        },
+        {
+          "kind": "secret",
+          "name": "password-stdin",
+          "required": false
+        },
+        {
+          "kind": "subject",
+          "name": "subject",
+          "required": false
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "accounts.profile.create",
+      "route": "call accounts.profile.create",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [
+        "deactivate"
+      ],
+      "auth": "policy",
+      "description": "Deactivates a profile.",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "reason",
+          "required": true
+        }
+      ],
+      "kind": "command",
+      "positionals": [
+        {
+          "kind": "id",
+          "name": "id",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "reason",
+          "required": false
+        }
+      ],
+      "ref": "accounts.profile.deactivate",
+      "route": "call accounts.profile.deactivate",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "list",
+          "name": "ids",
+          "required": true
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "accounts.profile.get",
+      "route": "call accounts.profile.get",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "integer",
+          "name": "limit",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "accounts.profile.query",
+      "route": "call accounts.profile.query",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "description": "Registers an account.",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "display-name",
+          "required": true
+        },
+        {
+          "kind": "string",
+          "name": "email",
+          "required": true
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "accounts.register",
+      "route": "call accounts.register",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [
+        "health"
+      ],
+      "auth": "public",
+      "flags": [],
+      "kind": "query",
+      "positionals": [],
+      "ref": "app.health",
+      "route": "call app.health",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "public",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "email",
+          "required": true
+        },
+        {
+          "kind": "secret",
+          "name": "password-stdin",
+          "required": false
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "auth.login",
+      "route": "call auth.login",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [],
+      "kind": "subscription",
+      "positionals": [],
+      "ref": "auth.sessionEvents",
+      "route": "call auth.sessionEvents",
+      "scope": "tenant"
+    }
+  ],
+  "commonFlags": [
+    "async",
+    "backend",
+    "command-id",
+    "config",
+    "explain",
+    "fields",
+    "if-version",
+    "input",
+    "output",
+    "profile",
+    "socket",
+    "tenant",
+    "trace",
+    "wait",
+    "wait-effects"
+  ],
+  "format": "keelwerk.cli/1",
+  "surface": "sha256-portalFixture"
+}

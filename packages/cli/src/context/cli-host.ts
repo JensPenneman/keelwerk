@@ -38,6 +38,8 @@ export interface CliHost {
   newId(): string;
   sleep(milliseconds: number): Promise<void>;
   readStdin(): Promise<string>;
+  /** Reads one line from the terminal, echoed as it is typed; `label` is printed as given. */
+  promptLine(label: string): Promise<string>;
   /** Reads one line from the terminal without echo. */
   promptSecret(label: string): Promise<string>;
 }

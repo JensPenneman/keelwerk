@@ -29,7 +29,7 @@ export async function projectChecks(input: ProjectChecksInput): Promise<readonly
     ...(await checkTsconfigs(workspace)),
     ...checkReferences(workspace),
     ...checkPackageManifests(workspace),
-    ...(await checkArtefacts(input.root, input.runScript)),
+    ...(await checkArtefacts(input.root, input.runArtefacts)),
     ...checkNamedTypes(workspace),
     ...(await checkDeclarationSizes(workspace)),
     ...layoutFindingsOf(await layoutPassOver(workspace)),

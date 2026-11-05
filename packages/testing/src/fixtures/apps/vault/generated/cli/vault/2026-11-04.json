@@ -1,0 +1,2005 @@
+{
+  "apiVersion": "2026-11-04",
+  "app": "vault",
+  "commands": [
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [],
+      "kind": "command",
+      "positionals": [
+        {
+          "kind": "ref",
+          "name": "id",
+          "required": false
+        }
+      ],
+      "ref": "core.backend.archive",
+      "route": "call core.backend.archive",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "since",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "partition",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.backend.changes",
+      "route": "call core.backend.changes",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "api-version",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "app",
+          "required": true
+        },
+        {
+          "kind": "json",
+          "name": "config-json",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "name",
+          "required": true
+        },
+        {
+          "kind": "string",
+          "name": "placement",
+          "required": true
+        },
+        {
+          "kind": "enum",
+          "name": "status",
+          "required": true
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "core.backend.create",
+      "route": "call core.backend.create",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "list",
+          "name": "ids",
+          "required": true
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "instant",
+          "name": "as-of",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.backend.get",
+      "route": "call core.backend.get",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "first",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "after",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "last",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "before",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.backend.query",
+      "route": "call core.backend.query",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "since-query-state",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max-changes",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.backend.queryChanges",
+      "route": "call core.backend.queryChanges",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [],
+      "kind": "command",
+      "positionals": [
+        {
+          "kind": "ref",
+          "name": "id",
+          "required": false
+        }
+      ],
+      "ref": "core.backend.restore",
+      "route": "call core.backend.restore",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "if-in-state",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "create",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "update",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "archive",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "restore",
+          "required": false
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "core.backend.set",
+      "route": "call core.backend.set",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "api-version",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "app",
+          "required": false
+        },
+        {
+          "kind": "json",
+          "name": "config-json",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "name",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "placement",
+          "required": false
+        },
+        {
+          "kind": "enum",
+          "name": "status",
+          "required": false
+        }
+      ],
+      "kind": "command",
+      "positionals": [
+        {
+          "kind": "ref",
+          "name": "id",
+          "required": false
+        }
+      ],
+      "ref": "core.backend.update",
+      "route": "call core.backend.update",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "public",
+      "flags": [],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.capabilities",
+      "route": "call core.capabilities",
+      "scope": "backend"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "since",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "partition",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.commandReceipt.changes",
+      "route": "call core.commandReceipt.changes",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "list",
+          "name": "ids",
+          "required": true
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.commandReceipt.get",
+      "route": "call core.commandReceipt.get",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "first",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "after",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "last",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "before",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.commandReceipt.query",
+      "route": "call core.commandReceipt.query",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "since-query-state",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max-changes",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.commandReceipt.queryChanges",
+      "route": "call core.commandReceipt.queryChanges",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.composition",
+      "route": "call core.composition",
+      "scope": "backend"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "since",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "partition",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.domain.changes",
+      "route": "call core.domain.changes",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "list",
+          "name": "ids",
+          "required": true
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "instant",
+          "name": "as-of",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.domain.get",
+      "route": "call core.domain.get",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "first",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "after",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "last",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "before",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.domain.query",
+      "route": "call core.domain.query",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "since-query-state",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max-changes",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.domain.queryChanges",
+      "route": "call core.domain.queryChanges",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "since",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "partition",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.effect.changes",
+      "route": "call core.effect.changes",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "list",
+          "name": "ids",
+          "required": true
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "instant",
+          "name": "as-of",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.effect.get",
+      "route": "call core.effect.get",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "first",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "after",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "last",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "before",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.effect.query",
+      "route": "call core.effect.query",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "since-query-state",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max-changes",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.effect.queryChanges",
+      "route": "call core.effect.queryChanges",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.introspect",
+      "route": "call core.introspect",
+      "scope": "backend"
+    },
+    {
+      "aliases": [],
+      "auth": "public",
+      "flags": [],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.me",
+      "route": "call core.me",
+      "scope": "backend"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "since",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "partition",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.namespace.changes",
+      "route": "call core.namespace.changes",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "list",
+          "name": "ids",
+          "required": true
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "instant",
+          "name": "as-of",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.namespace.get",
+      "route": "call core.namespace.get",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "first",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "after",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "last",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "before",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.namespace.query",
+      "route": "call core.namespace.query",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "since-query-state",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max-changes",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.namespace.queryChanges",
+      "route": "call core.namespace.queryChanges",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "since",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "partition",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.operatorToken.changes",
+      "route": "call core.operatorToken.changes",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "list",
+          "name": "ids",
+          "required": true
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "instant",
+          "name": "as-of",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.operatorToken.get",
+      "route": "call core.operatorToken.get",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "label",
+          "required": true
+        },
+        {
+          "kind": "string",
+          "name": "ttl",
+          "required": false
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "core.operatorToken.issue",
+      "route": "call core.operatorToken.issue",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "first",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "after",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "last",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "before",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.operatorToken.query",
+      "route": "call core.operatorToken.query",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "since-query-state",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max-changes",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.operatorToken.queryChanges",
+      "route": "call core.operatorToken.queryChanges",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [],
+      "kind": "command",
+      "positionals": [
+        {
+          "kind": "ref",
+          "name": "id",
+          "required": false
+        }
+      ],
+      "ref": "core.operatorToken.revoke",
+      "route": "call core.operatorToken.revoke",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "since",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "partition",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.placement.changes",
+      "route": "call core.placement.changes",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "list",
+          "name": "ids",
+          "required": true
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "instant",
+          "name": "as-of",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.placement.get",
+      "route": "call core.placement.get",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "first",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "after",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "last",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "before",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.placement.query",
+      "route": "call core.placement.query",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "since-query-state",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max-changes",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.placement.queryChanges",
+      "route": "call core.placement.queryChanges",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "since",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "partition",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.process.changes",
+      "route": "call core.process.changes",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "list",
+          "name": "ids",
+          "required": true
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.process.get",
+      "route": "call core.process.get",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "first",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "after",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "last",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "before",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.process.query",
+      "route": "call core.process.query",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "since-query-state",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max-changes",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.process.queryChanges",
+      "route": "call core.process.queryChanges",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [],
+      "kind": "command",
+      "positionals": [
+        {
+          "kind": "ref",
+          "name": "id",
+          "required": false
+        }
+      ],
+      "ref": "core.tenant.archive",
+      "route": "call core.tenant.archive",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "since",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "partition",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.tenant.changes",
+      "route": "call core.tenant.changes",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "api-version",
+          "required": false
+        },
+        {
+          "kind": "ref",
+          "name": "backend-id",
+          "required": true
+        },
+        {
+          "kind": "list",
+          "name": "domains",
+          "required": true
+        },
+        {
+          "kind": "string",
+          "name": "name",
+          "required": true
+        },
+        {
+          "kind": "string",
+          "name": "placement",
+          "required": false
+        },
+        {
+          "kind": "enum",
+          "name": "status",
+          "required": true
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "core.tenant.create",
+      "route": "call core.tenant.create",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "reason",
+          "required": true
+        }
+      ],
+      "kind": "command",
+      "positionals": [
+        {
+          "kind": "ref",
+          "name": "id",
+          "required": false
+        }
+      ],
+      "ref": "core.tenant.enter",
+      "route": "call core.tenant.enter",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "list",
+          "name": "ids",
+          "required": true
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "instant",
+          "name": "as-of",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.tenant.get",
+      "route": "call core.tenant.get",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "ref",
+          "name": "id",
+          "required": true
+        },
+        {
+          "kind": "instant",
+          "name": "as-of",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "from-version",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "limit",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.tenant.history",
+      "route": "call core.tenant.history",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "first",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "after",
+          "required": false
+        },
+        {
+          "kind": "integer",
+          "name": "last",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "before",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-total",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "include-archived",
+          "required": false
+        },
+        {
+          "kind": "boolean",
+          "name": "no-include-archived",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "properties",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.tenant.query",
+      "route": "call core.tenant.query",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "json",
+          "name": "filter-json",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "sort",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "since-query-state",
+          "required": true
+        },
+        {
+          "kind": "integer",
+          "name": "max-changes",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.tenant.queryChanges",
+      "route": "call core.tenant.queryChanges",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [],
+      "kind": "command",
+      "positionals": [
+        {
+          "kind": "ref",
+          "name": "id",
+          "required": false
+        }
+      ],
+      "ref": "core.tenant.restore",
+      "route": "call core.tenant.restore",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "if-in-state",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "create",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "update",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "archive",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "restore",
+          "required": false
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "core.tenant.set",
+      "route": "call core.tenant.set",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "api-version",
+          "required": true
+        }
+      ],
+      "kind": "command",
+      "positionals": [
+        {
+          "kind": "ref",
+          "name": "id",
+          "required": false
+        }
+      ],
+      "ref": "core.tenant.setApiVersion",
+      "route": "call core.tenant.setApiVersion",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "api-version",
+          "required": false
+        },
+        {
+          "kind": "ref",
+          "name": "backend-id",
+          "required": false
+        },
+        {
+          "kind": "list",
+          "name": "domains",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "name",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "placement",
+          "required": false
+        },
+        {
+          "kind": "enum",
+          "name": "status",
+          "required": false
+        }
+      ],
+      "kind": "command",
+      "positionals": [
+        {
+          "kind": "ref",
+          "name": "id",
+          "required": false
+        }
+      ],
+      "ref": "core.tenant.update",
+      "route": "call core.tenant.update",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "ref",
+          "name": "credential-id",
+          "required": true
+        },
+        {
+          "kind": "string",
+          "name": "token",
+          "required": true
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "vault.check",
+      "route": "call vault.check",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "ref",
+          "name": "credential-id",
+          "required": true
+        },
+        {
+          "kind": "secret",
+          "name": "api-key-stdin",
+          "required": false
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "vault.replace",
+      "route": "call vault.replace",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "ref",
+          "name": "credential-id",
+          "required": true
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "vault.retire",
+      "route": "call vault.retire",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "ref",
+          "name": "credential-id",
+          "required": true
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "vault.show",
+      "route": "call vault.show",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "label",
+          "required": true
+        },
+        {
+          "kind": "secret",
+          "name": "api-key-stdin",
+          "required": false
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "vault.store",
+      "route": "call vault.store",
+      "scope": "tenant"
+    }
+  ],
+  "commonFlags": [
+    "async",
+    "backend",
+    "command-id",
+    "config",
+    "explain",
+    "fields",
+    "if-version",
+    "input",
+    "output",
+    "profile",
+    "socket",
+    "tenant",
+    "trace",
+    "wait",
+    "wait-effects"
+  ],
+  "format": "keelwerk.cli/1",
+  "surface": "sha256-_YuKv6e0eHQijSGgwbLTd8pX-hy-c8Wehl5-oyzEpVQ"
+}

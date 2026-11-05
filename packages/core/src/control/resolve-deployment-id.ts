@@ -6,10 +6,9 @@ import type { AdapterEnvironment } from '../storage/adapter-environment.ts';
 import type { DataAdapterFactory } from '../storage/data-adapter-factory.ts';
 import type { NamespaceRef } from '../storage/namespace-ref.ts';
 import type { PlacementConfig } from '../storage/placement-config.ts';
+import { deploymentIdentityTrack } from './deployment-identity-track.ts';
 import { provisionNamespace } from './provision-namespaces.ts';
-
-/** The migration track whose single record in the control root holds the deployment id (S-09). */
-const identityTrack = 'keelwerk.deployment';
+import { recordedDeploymentId } from './recorded-deployment-id.ts';
 
 /** The id the probe connection scopes its (unused) deployment-scope units to. */
 const probeId = '00000000-0000-7000-8000-000000000000';
@@ -49,14 +48,15 @@ export async function resolveDeploymentId(input: {
       level: 'control',
       jobGroups: [],
     });
-    const recorded = async (): Promise<string | undefined> =>
-      (await probe.schema.history(input.namespace))
-        .filter((row) => row.track === identityTrack)
-        .map((row) => row.id)
-        .sort()[0];
+    const recorded = (): Promise<string | undefined> =>
+      recordedDeploymentId(probe, input.namespace);
     const known = await recorded();
     if (known !== undefined) return known;
-    await probe.schema.apply(input.namespace, { id: newUuidV7(), track: identityTrack, steps: [] });
+    await probe.schema.apply(input.namespace, {
+      id: newUuidV7(),
+      track: deploymentIdentityTrack,
+      steps: [],
+    });
     const chosen = await recorded();
     if (chosen === undefined) throw errors.internal('The deployment id was not recorded.');
     return chosen;

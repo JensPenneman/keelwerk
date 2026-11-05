@@ -4,9 +4,9 @@ import { buildCommand } from '@stricli/core';
 import type { CliContext } from '../../context/cli-context.ts';
 import type { DoctorFinding } from '../../doctor/doctor-finding.ts';
 import { readEnvironmentFacts } from '../../doctor/read-environment-facts.ts';
+import { runArtefactCheck } from '../../doctor/run-artefact-check.ts';
 import { runDoctor } from '../../doctor/run-doctor.ts';
 import { runPnpmVersion } from '../../doctor/run-pnpm-version.ts';
-import { runScript } from '../../doctor/run-script.ts';
 import { scopeOutput } from '../../routes/scope-output.ts';
 import { doctorFlags } from './doctor-flags.ts';
 import { findWorkspaceRoot } from './find-workspace-root.ts';
@@ -47,7 +47,7 @@ export const doctorCommand: Command<CliContext> = buildCommand<
         root,
         layoutOnly,
         environment: await readEnvironmentFacts(root, process.version, runPnpmVersion),
-        runScript: (script, args) => runScript(root, script, args),
+        runArtefacts: runArtefactCheck,
         deployment: loaded.input,
         now: Temporal.Instant.fromEpochMilliseconds(scoped.host.now()),
       })),

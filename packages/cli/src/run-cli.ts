@@ -17,7 +17,11 @@ import { createOutputWriter } from './output/create-output-writer.ts';
 import { renderError } from './output/render-error.ts';
 
 /** Command words that run against the connected deployment but need no surface, so only the profile is resolved for them (change note, WP-45; WP-58 and WP-61 add theirs). */
-const profileCommands = new Set(['explain', 'operator']);
+const profileCommands = new Set(['explain', 'operator', 'migrate']);
+/** The subcommands of a group that do the same: `db apply|status|verify` (WP-59). */
+const profileSubcommands: Readonly<Record<string, ReadonlySet<string>>> = {
+  db: new Set(['apply', 'status', 'verify']),
+};
 const helpFlags = new Set(['--help', '-h', '-H']);
 
 /**
@@ -34,8 +38,12 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<number
   let profile: CliContext['profile'] = { kind: 'none' };
   let link: DeploymentLink | undefined;
   try {
-    const [command] = words;
-    if (command !== undefined && profileCommands.has(command) && !completing) {
+    const [command, subcommand] = words;
+    const profiled =
+      command !== undefined &&
+      (profileCommands.has(command) ||
+        (subcommand !== undefined && profileSubcommands[command]?.has(subcommand) === true));
+    if (profiled && !completing) {
       profile = await resolveProfile(io.host, options);
     }
     if (words[0] === 'call') {

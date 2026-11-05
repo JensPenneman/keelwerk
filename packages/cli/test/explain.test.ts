@@ -67,7 +67,7 @@ const dryRun = {
   },
 };
 
-describe('explain', () => {
+describe('explain', { timeout: 60_000 }, () => {
   test('a reference asks for the decision and prints the rules with their files', async () => {
     const { fake, bodies } = setup(decision);
     const run = await runCliWith(

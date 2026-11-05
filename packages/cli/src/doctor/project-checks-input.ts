@@ -5,5 +5,5 @@ import type { EnvironmentFacts } from './environment-facts.ts';
 export interface ProjectChecksInput {
   readonly root: string;
   readonly environment: EnvironmentFacts;
-  readonly runScript: (script: string, args: readonly string[]) => Promise<ArtefactRun>;
+  readonly runArtefacts: (root: string) => Promise<ArtefactRun>;
 }

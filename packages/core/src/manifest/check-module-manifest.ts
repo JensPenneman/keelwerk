@@ -148,14 +148,16 @@ export async function checkModuleManifest(
     throw error;
   });
   if (committed === undefined) {
-    return { current: false, problems: [`${id}: ${path} does not exist; run pnpm manifests`] };
+    return { current: false, problems: [`${id}: ${path} does not exist; run keelwerk generate`] };
   }
   if (withoutGeneratorVersion(committed) === withoutGeneratorVersion(expected)) {
     return { current: true, problems: [] };
   }
   const problems = differences(id, committed, expected);
   if (problems.length === 0) {
-    problems.push(`${id}: ${path} differs from the text its directories imply; run pnpm manifests`);
+    problems.push(
+      `${id}: ${path} differs from the text its directories imply; run keelwerk generate`,
+    );
   }
   return { current: false, problems };
 }

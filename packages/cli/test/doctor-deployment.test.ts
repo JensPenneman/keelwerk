@@ -1,28 +1,13 @@
-import type { AdapterCapabilities, DeploymentDefinition, LedgerRecord, Unit } from '@keelwerk/core';
-import { env, secret } from '@keelwerk/core';
+import type { AdapterCapabilities, DeploymentDefinition, LedgerRecord } from '@keelwerk/core';
+import { env } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import { checkAnchors } from '../src/doctor/check-anchors.ts';
 import { checkDeployment } from '../src/doctor/check-deployment.ts';
 import { checkHealth } from '../src/doctor/check-health.ts';
 import { checkPersonalFields } from '../src/doctor/check-personal-fields.ts';
 import { checkQueuesWithoutWorkers } from '../src/doctor/check-queues-without-workers.ts';
-import { hookEventTypes } from '../src/doctor/hook-event-types.ts';
-import { hookFailuresOf } from '../src/doctor/hook-failures-of.ts';
 import { readDeploymentFacts } from '../src/doctor/read-deployment-facts.ts';
-
-const keyEnvironment: Record<string, string | undefined> = Object.fromEntries([['KW_KEY', 'x']]);
-
-function definitionOf(over: Partial<DeploymentDefinition> = {}): DeploymentDefinition {
-  return {
-    apps: [],
-    infrastructure: [],
-    control: { adapter: 'postgres', url: 'postgres://db1:5432/control' },
-    placements: { main: { adapter: 'postgres', url: 'postgres://db1:5432/app' } },
-    operator: { socket: '/run/keelwerk.sock' },
-    keys: { masterKey: secret('KW_KEY') },
-    ...over,
-  };
-}
+import { definitionOf, keyEnvironment } from './support/deployment-definition-of.ts';
 
 const anchor = (scopeId: string, position: string, recordedAt: string): LedgerRecord => ({
   type: 'anchor',
@@ -268,49 +253,6 @@ describe('the deployment', () => {
     });
     expect(checkDeployment(facts).map((finding) => finding.message)).toContain(
       'module mail-store needs raw SQL (postgres) and the postgres adapter of placement main offers none',
-    );
-  });
-});
-
-describe('failed tenant hooks (S-27)', () => {
-  function unitOf(events: readonly { type: string; id: string; hook: unknown }[]): Unit {
-    return {
-      events: {
-        readAll: async () => ({
-          events: events.map((event) => ({
-            type: event.type,
-            stream: { type: 'core.tenant', id: event.id },
-            data: { hook: event.hook },
-          })),
-          next: null,
-        }),
-      },
-    } as unknown as Unit;
-  }
-
-  test('doctor reads core.tenant.hookFailed events that no hookCompleted followed', async () => {
-    const unit = unitOf([
-      { type: hookEventTypes.failed, id: 'tnt_1', hook: 'billing.onTenantCreated' },
-      { type: hookEventTypes.failed, id: 'tnt_2', hook: 'billing.onTenantCreated' },
-      { type: hookEventTypes.completed, id: 'tnt_1', hook: 'billing.onTenantCreated' },
-      { type: hookEventTypes.failed, id: 'tnt_3', hook: 7 },
-    ]);
-    const failures = await hookFailuresOf(unit);
-    expect(failures).toEqual([{ hookId: 'billing.onTenantCreated', tenantId: 'tnt_2' }]);
-    const facts = await readDeploymentFacts({
-      definition: definitionOf(),
-      env: keyEnvironment,
-      modeOf: async () => 0o600,
-      registries: [],
-      capabilities: new Map(),
-      reader: {
-        reachable: async () => ({ reachable: true, detail: '' }),
-        processes: async () => [],
-        hookFailures: async () => failures,
-      },
-    });
-    expect(checkDeployment(facts).map((finding) => finding.message)).toContain(
-      'the lifecycle hook billing.onTenantCreated failed for tenant tnt_2',
     );
   });
 });

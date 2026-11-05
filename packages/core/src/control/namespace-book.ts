@@ -2,12 +2,8 @@ import { errors } from '../errors/errors.ts';
 import type { NamespaceRef } from '../storage/namespace-ref.ts';
 import type { ControlStore } from './control-store.ts';
 import { findControlRows } from './find-control-rows.ts';
+import { namespaceRootOf } from './namespace-root-of.ts';
 import { runControlCommand } from './run-control-command.ts';
-
-/** The physical root of an app's namespace on a placement: the app id with dashes as underscores (S-09). */
-function rootOf(appId: string): string {
-  return appId.replaceAll('-', '_');
-}
 
 /** The namespaces of the deployment's `shared-tables` placements, one per placement and app, recorded as `core.namespace` rows. */
 export interface NamespaceBook {
@@ -40,7 +36,7 @@ export function createNamespaceBook(options: NamespaceBookOptions): NamespaceBoo
         const draft = ctx.write.core.namespace.create({
           placementId: placementId as never,
           appId,
-          root: rootOf(appId),
+          root: namespaceRootOf(appId),
         });
         created = draft.id;
         return [draft];
@@ -52,7 +48,7 @@ export function createNamespaceBook(options: NamespaceBookOptions): NamespaceBoo
       placementId: placement,
       appId,
       tenantId: null,
-      root: rootOf(appId),
+      root: namespaceRootOf(appId),
     };
     await options.provision(namespace);
     return namespace;

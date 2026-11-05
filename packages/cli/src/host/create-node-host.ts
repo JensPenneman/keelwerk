@@ -4,6 +4,7 @@ import { newUuidV7 } from '@keelwerk/core';
 import type { CliHost } from '../context/cli-host.ts';
 import { fetchSocket } from './fetch-socket.ts';
 import { nodeHostFiles } from './node-host-files.ts';
+import { promptLine } from './prompt-line.ts';
 import { promptSecret } from './prompt-secret.ts';
 import { readAll } from './read-all.ts';
 
@@ -22,6 +23,7 @@ export function createNodeHost(): CliHost {
     newId: newUuidV7,
     sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
     readStdin: () => readAll(stdin),
+    promptLine,
     promptSecret,
   };
 }

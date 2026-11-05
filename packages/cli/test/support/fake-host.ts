@@ -15,6 +15,7 @@ export interface FakeHostOptions {
   readonly stdinInteractive?: boolean;
   readonly stdin?: string;
   readonly secret?: string;
+  readonly line?: string;
   readonly files?: Readonly<Record<string, string>>;
   readonly handler?: FakeHandler;
 }
@@ -75,6 +76,7 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
       sleeps.push(milliseconds);
     },
     readStdin: async () => options.stdin ?? '',
+    promptLine: async () => options.line ?? '',
     promptSecret: async () => options.secret ?? '',
   };
   return { host, files, bytes, sent, sleeps };

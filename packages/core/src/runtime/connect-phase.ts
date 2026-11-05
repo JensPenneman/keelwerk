@@ -13,27 +13,24 @@ import { registerPlacements } from '../control/register-placements.ts';
 import { registerProcess } from '../control/register-process.ts';
 import { resolveDeploymentId } from '../control/resolve-deployment-id.ts';
 import { withScopeKeys } from '../control/scope-keys.ts';
-import { sha256 } from '../crypto/sha256.ts';
 import type { EnvRef } from '../dsl/env.ts';
 import { sealingAdapter } from '../encryption/sealing-adapter.ts';
 import { errors } from '../errors/errors.ts';
 import { buildIdentity } from '../events/build-identity.ts';
 import type { PlacementHandle } from '../invoker/placement-handle.ts';
 import type { ScopeLookup } from '../invoker/scope-lookup.ts';
-import { canonicalizeJson } from '../json/canonicalize-json.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { ComputePool } from '../kernel/compute-pool.ts';
 import { createKeyService } from '../keys/create-key-service.ts';
 import { defaultRandomSource } from '../keys/default-random-source.ts';
 import type { ForkableKeyService } from '../keys/forkable-key-service.ts';
 import type { Logger } from '../observability/logger.ts';
-import { runtimeModule } from '../registry/runtime-module.ts';
 import type { AdapterCapabilities } from '../storage/adapter-capabilities.ts';
 import type { AdapterEnvironment } from '../storage/adapter-environment.ts';
 import type { DataAdapter } from '../storage/data-adapter.ts';
 import type { DataAdapterFactory } from '../storage/data-adapter-factory.ts';
 import type { PlacementConfig } from '../storage/placement-config.ts';
-import { version } from '../version.ts';
+import { buildManifestOf } from './build-manifest-of.ts';
 import type { Composed } from './compose-phase.ts';
 import type { Connected } from './connected.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
@@ -121,25 +118,13 @@ export async function connectPhase(input: ConnectInput): Promise<Connected> {
   ];
   const { planner } = composed.infrastructure;
   const tracks = planner === undefined ? [] : await loadModuleMigrations(planner, modules);
-  const build = buildIdentity({
-    packages: {
-      '@keelwerk/core': version,
-      ...Object.fromEntries(modules.map((module) => [module.id, runtimeModule(module).version])),
-    },
-    migrations: Object.fromEntries(
-      tracks.map((track) => [
-        track.track,
-        sha256(
-          canonicalizeJson(
-            track.files.map((file) => [file.id, sha256(canonicalizeJson(file.steps))]),
-          ),
-        ),
-      ]),
-    ),
-    apiVersions: Object.fromEntries(
-      served.map((app) => [app.id, app.source.api?.dates ?? [app.head]]),
-    ),
-  });
+  const build = buildIdentity(
+    buildManifestOf({
+      modules,
+      tracks,
+      apps: served.map((app) => ({ id: app.id, head: app.head, dates: app.source.api?.dates })),
+    }),
+  );
 
   const base = {
     log,
