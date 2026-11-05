@@ -34,8 +34,10 @@ describe.each([
     const owner = new pg.Client({ connectionString: urls.adminUrl });
     await owner.connect();
     try {
+      // Only this suite's database: the other variant's listener may still be draining on the shared cluster.
       const listeners = await owner.query(
-        "select 1 from pg_stat_activity where application_name like '%-listen'",
+        "select 1 from pg_stat_activity where application_name like '%-listen' and datname = $1",
+        [database],
       );
       if (off) expect(listeners.rowCount).toBe(0);
       else expect(listeners.rowCount).toBeGreaterThan(0);
