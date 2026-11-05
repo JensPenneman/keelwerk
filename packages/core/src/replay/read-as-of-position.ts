@@ -1,16 +1,14 @@
 import { openStoredEvents } from '../encryption/open-stored-events.ts';
-import { errors } from '../errors/errors.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 import type { Position } from '../storage/position.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
-import { applyDomainEvolve } from '../write-path/apply-domain-evolve.ts';
 import type { EntityBehaviours } from '../write-path/entity-behaviours.ts';
-import type { EvolvingEvent } from '../write-path/evolving-event.ts';
-import { genericEvolve } from '../write-path/generic-evolve.ts';
+import type { FeedHorizon } from './feed-horizon.ts';
+import { foldStoredEvent } from './fold-stored-event.ts';
+import { readStateAsOfPosition } from './read-state-as-of-position.ts';
 import { replayUnsupported } from './replay-unsupported.ts';
 
-const generatedEvents = new Set(['created', 'imported', 'changed', 'archived', 'restored']);
 const pageSize = 500;
 
 /** What an as-of read takes. */
@@ -21,17 +19,20 @@ export interface AsOfInput {
   readonly behaviours: EntityBehaviours;
   /** The last committed position of the scope the read sees (S-19, S-25). */
   readonly at: Position;
+  /** A re-decide's feed horizon; a state read of a decision older than it is refused. */
+  readonly horizon?: FeedHorizon;
 }
 
 /**
  * Every row of a chain entity as it was at a position of its scope (S-25): the streams folded
  * from their events up to and including `at`, by the generic evolve and the author's, the way a
- * rebuild folds them. Kernel-internal: the generated `get` and `history` take instants. Loads of
- * a `history: 'state'` entity cannot be answered this way, their events are transient records
- * (section 7.9.6), and a payload carrying a field that is `stateOnly` reads without it.
+ * rebuild folds them. A `history: 'state'` entity is answered from its transient change records
+ * within the feed horizon (section 7.9.6). Kernel-internal: the generated `get` and `history` take
+ * instants; a payload carrying a field that is `stateOnly` reads without it.
  */
 export async function readAsOfPosition(input: AsOfInput): Promise<readonly StorageRow[]> {
   const { unit, entry, at } = input;
+  if (entry.descriptor.history === 'state') return readStateAsOfPosition(input);
   if (entry.descriptor.history !== 'chain') {
     throw replayUnsupported(
       `${entry.ref} is a ${entry.descriptor.history} entity: it has no event chain to read as of a position.`,
@@ -47,27 +48,10 @@ export async function readAsOfPosition(input: AsOfInput): Promise<readonly Stora
     const events = await openStoredEvents(unit, batch.events);
     for (const event of events) {
       if (event.position > at) return [...rows.values()];
-      const id = event.stream.id;
-      const name = event.type.slice(entry.ref.length + 1);
-      const evolving: EvolvingEvent = {
-        id,
-        name,
-        data: event.data,
-        recordedAt: event.recordedAt,
-        hlc: event.hlc,
-        hash: event.hash,
-      };
-      const state = rows.get(id);
-      if (generatedEvents.has(name)) {
-        rows.set(id, genericEvolve(entry, state, evolving));
-      } else if (state === undefined) {
-        throw errors.internal(`the stream ${entry.ref}/${id} starts with "${name}"`);
-      } else {
-        rows.set(
-          id,
-          applyDomainEvolve(entry, input.behaviours(entry.ref), state, evolving, event.data),
-        );
-      }
+      rows.set(
+        event.stream.id,
+        foldStoredEvent(entry, input.behaviours, rows.get(event.stream.id), event),
+      );
     }
     if (batch.next === null || batch.events.length === 0) return [...rows.values()];
     after = batch.next;

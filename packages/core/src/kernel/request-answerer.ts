@@ -44,7 +44,7 @@ interface RequestAnswers {
   random: Uint8Array;
   /** `issue`, `reveal` and `verify`, by `op`. */
   secret: IssuedSecret | string | boolean;
-  /** `argon2idHash` answers the encoded hash, `argon2idVerify` a boolean. */
+  /** `argon2idHash` answers the encoded hash, `argon2idVerify` and `argon2idNeedsRehash` a boolean. */
   compute: string | boolean;
   /** An inline effect's outcome as a value. */
   perform:

@@ -7,6 +7,7 @@ import type { Position } from '../storage/position.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
 import type { EntityBehaviours } from '../write-path/entity-behaviours.ts';
+import type { FeedHorizon } from './feed-horizon.ts';
 import { readAsOfPosition } from './read-as-of-position.ts';
 import { replayMismatch } from './replay-mismatch.ts';
 
@@ -23,6 +24,7 @@ export interface ResolveReplayedInput {
   readonly reads: RecordedRead[];
   readonly recorded: readonly RecordedRead[];
   readonly ceiling: Position;
+  readonly horizon: FeedHorizon;
 }
 
 /**
@@ -63,6 +65,7 @@ export async function resolveReplayedDrafts(
       entry,
       behaviours: input.behaviours,
       at,
+      horizon: input.horizon,
     });
     const row = rows.find((candidate) => candidate.id === draft.id);
     if (row === undefined) throw errors.not_found(`${entry.ref} ${draft.id} does not exist`);

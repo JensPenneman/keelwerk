@@ -1,6 +1,7 @@
 export type { ComparableEvent } from './comparable-event.ts';
 export type { DriveDecisionInput } from './drive-decision.ts';
 export { driveDecision } from './drive-decision.ts';
+export type { FeedHorizon } from './feed-horizon.ts';
 export type { AsOfInput } from './read-as-of-position.ts';
 export { readAsOfPosition } from './read-as-of-position.ts';
 export { redecide } from './redecide.ts';

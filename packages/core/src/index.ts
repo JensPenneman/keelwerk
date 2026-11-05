@@ -446,6 +446,8 @@ export type { InvokerApp } from './invoker/invoker-app.ts';
 export type { InvokerOptions } from './invoker/invoker-options.ts';
 export type { Emitted, LiveFrame, StreamControl } from './invoker/live-frame.ts';
 export { mapUnknownError } from './invoker/map-unknown-error.ts';
+export { moduleConfigOf } from './invoker/module-config-of.ts';
+export { moduleConfigShapes } from './invoker/module-config-shapes.ts';
 export type { Outcome } from './invoker/outcome.ts';
 export type { PlacementHandle } from './invoker/placement-handle.ts';
 export type { RequestInfo } from './invoker/request-info.ts';

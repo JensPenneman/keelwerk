@@ -31,7 +31,8 @@ export function createRuntimeControl(input: {
     anchorSinks: () => input.anchoring?.sinkStatus?.() ?? [],
     createBackend: async (backend) => {
       const { id } = await path.createBackend(backend, { principal: runtimeOperator });
-      return { id };
+      const config = (await lookup.backend(id))?.config;
+      return { id, ...(config === undefined ? {} : { config }) };
     },
     createTenant: async (tenant) => {
       const { id } = await path.createTenant(tenant, { principal: runtimeOperator });

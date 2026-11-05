@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { none } from './support/nodes.ts';
 import { portalSurface, withAction } from './support/portal-surface.ts';
 import { call, fakeInvoker, mountRest, session } from './support/rest-kit.ts';
 
@@ -46,5 +47,43 @@ describe('the http.cookie hint under S-48', () => {
     const response = await login('header', { origin: 'https://portal.example' });
     expect(response.headers.get('set-cookie')).toBeNull();
     expect(await response.json()).toEqual({ token: 'secret-token' });
+  });
+});
+
+describe('the http.cookie hint with a json response hint', () => {
+  test('sends one Set-Cookie per name', async () => {
+    const surface = withAction(portalSurface(), 'auth.login', {
+      hints: { http: { response: { kind: 'json' }, ...cookieHint.http } },
+    });
+    const fake = fakeInvoker(() => ({ ok: true, value: { token: 'secret-token' } }));
+    const { handler } = await mountRest(surface, fake.invoker);
+    const response = await call(handler, 'POST', '/api/auth/login', {
+      headers: { origin: 'https://portal.example' },
+      body: { email: 'jens@acme.example', password: 'pw' },
+      session: session({ resolvedBy: 'hostname' }),
+    });
+    expect(response.headers.getSetCookie()).toEqual([
+      expect.stringMatching(/^__Host-keelwerk_session=secret-token; /),
+    ]);
+  });
+});
+
+describe('the http.cookie hint on a void output (16.4.10)', () => {
+  test('a logout answers 204 and clears the cookie for a browser request', async () => {
+    const surface = withAction(portalSurface(), 'auth.login', {
+      output: none,
+      hints: { http: { cookie: { clear: { name: '__Host-keelwerk_session' } } } },
+    });
+    const fake = fakeInvoker(() => ({ ok: true, value: undefined }));
+    const { handler } = await mountRest(surface, fake.invoker);
+    const response = await call(handler, 'POST', '/api/auth/login', {
+      headers: { origin: 'https://portal.example' },
+      body: { email: 'jens@acme.example', password: 'pw' },
+      session: session({ resolvedBy: 'hostname' }),
+    });
+    expect(response.status).toBe(204);
+    expect(response.headers.getSetCookie()).toEqual([
+      expect.stringMatching(/^__Host-keelwerk_session=; .*Max-Age=0/),
+    ]);
   });
 });

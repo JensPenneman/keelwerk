@@ -125,6 +125,17 @@ export async function serveRequest(
   bindings: HostBindings,
 ): Promise<Response> {
   const { state } = bindings;
+  // Before the session opens only the path says whether a REST mount of any app answers: its
+  // errors are problem documents from the first byte, the session's own app refines this below.
+  const restPath = new URL(request.url).pathname;
+  const earlyReserved = restPath === reservedPrefix || restPath.startsWith(`${reservedPrefix}/`);
+  for (const table of host.mounts.values()) {
+    const early = table.match(restPath);
+    if (!earlyReserved && early?.transport === 'rest') {
+      state.problemBase = `${new URL(request.url).origin}${early.prefix === '/' ? '' : early.prefix}`;
+      break;
+    }
+  }
   let bytes: Uint8Array<ArrayBuffer> = new Uint8Array();
   try {
     if (!bodyless.has(request.method)) {
@@ -145,7 +156,13 @@ export async function serveRequest(
   const { pathname } = new URL(request.url);
   const reserved = pathname === reservedPrefix || pathname.startsWith(`${reservedPrefix}/`);
   // The route first: the invocation protocol allows the tenant's domains only, a mount adds its own `cors`.
-  const transport = reserved ? undefined : host.mounts.get(session.app)?.match(pathname)?.transport;
+  const matched = reserved ? undefined : host.mounts.get(session.app)?.match(pathname);
+  const transport = matched?.transport;
+  if (transport === 'rest' && matched !== undefined) {
+    state.problemBase = `${new URL(request.url).origin}${matched.prefix === '/' ? '' : matched.prefix}`;
+  } else {
+    delete state.problemBase;
+  }
   const allowed = host.deps.allowedOrigins?.(session, transport) ?? [];
   const plain = new URL(request.url).protocol === 'http:';
   if (

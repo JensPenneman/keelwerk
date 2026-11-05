@@ -221,3 +221,58 @@ describe('security headers', () => {
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
 });
+
+describe('cookies set by a mounted transport', () => {
+  const stale = createFakeInvoker({
+    open: () => ({ ok: true, value: fakeSession({ clearCookies: ['__Host-keelwerk_session'] }) }),
+    actions: libraryActions,
+  });
+
+  it('lets the cookie of a route win over the clear of the stale session, one line per name', async () => {
+    const { host } = setup({}, stale);
+    host.route({ app: 'library', transport: 'rest', prefix: '/api' }, async () => {
+      const headers = new Headers();
+      headers.append('set-cookie', '__Host-keelwerk_session=fresh; Path=/; Secure; HttpOnly');
+      return new Response(null, { status: 200, headers });
+    });
+    const response = await host.fetch(
+      new Request('https://library.example/api/login', {
+        method: 'POST',
+        headers: { ...own, cookie: '__Host-keelwerk_session=stale' },
+      }),
+    );
+    expect(response.headers.getSetCookie()).toEqual([
+      '__Host-keelwerk_session=fresh; Path=/; Secure; HttpOnly',
+    ]);
+  });
+});
+
+describe('errors on a REST mount (16.5.3)', () => {
+  const refusal = (path: string) =>
+    new Request(`https://library.example${path}`, {
+      method: 'POST',
+      headers: { cookie: 'a=b' },
+    });
+
+  it('answers the origin refusal as a problem document with the code', async () => {
+    const { host } = setup();
+    host.route({ app: 'library', transport: 'rest', prefix: '/api' }, async () => new Response());
+    const response = await host.fetch(refusal('/api/books'));
+    expect(response.status).toBe(403);
+    expect(response.headers.get('content-type')).toContain('application/problem+json');
+    expect(await response.json()).toMatchObject({
+      code: 'core.csrf',
+      status: 403,
+      type: 'https://library.example/api/problems/core.csrf',
+    });
+  });
+
+  it('keeps the envelope on the invocation protocol', async () => {
+    const { host } = setup();
+    host.route({ app: 'library', transport: 'rest', prefix: '/api' }, async () => new Response());
+    const response = await host.fetch(refusal('/_keelwerk/v1/invoke'));
+    expect(response.status).toBe(403);
+    expect(response.headers.get('content-type')).toContain('application/json');
+    expect(await response.json()).toMatchObject({ ok: false, error: { code: 'core.csrf' } });
+  });
+});

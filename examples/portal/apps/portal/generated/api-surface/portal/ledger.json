@@ -1,0 +1,17 @@
+{
+  "app": "portal",
+  "format": "keelwerk.ledger/1",
+  "versions": [
+    {
+      "changes": [],
+      "modules": {
+        "accounts": "0.1.0",
+        "auth": "0.1.0",
+        "core": "0.0.0",
+        "rest": "0.0.0"
+      },
+      "surfaceHash": "sha256-dcpk1AcbSFxSUqJgzMnU_aPJ1XWAB0Yg6jjo8yJYYg8",
+      "version": "2026-11-05"
+    }
+  ]
+}

@@ -9,7 +9,11 @@ import type { TenantInput } from '../control/create-tenant.ts';
  * once; `createTenant` runs the `onTenantCreated` hooks of the backend's app (S-27).
  */
 export interface RuntimeControl {
-  createBackend(input: BackendInput): Promise<{ readonly id: string }>;
+  /** Answers the id and the configuration as stored (defaults filled, secrets sealed), which `ctx.config` reads through the module shapes. */
+  createBackend(input: BackendInput): Promise<{
+    readonly id: string;
+    readonly config?: Readonly<Record<string, unknown>>;
+  }>;
   createTenant(input: TenantInput): Promise<{ readonly id: string }>;
   /** Per ledger sink: the appends it refused and the last failure of the anchor writer; the control reader of `doctor` reads it. */
   anchorSinks?(): readonly AnchorSinkStatus[];

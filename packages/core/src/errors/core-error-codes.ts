@@ -115,6 +115,14 @@ export const coreErrorCodes: Readonly<Record<CoreErrorCode, ErrorSpec>> = Object
     kind: 'internal',
     message: 'The request is not allowed or not answered by this release.',
   },
+  'core.replay_outside_horizon': {
+    kind: 'unsupported',
+    message: 'The decision is older than the feed horizon, so its state reads cannot be answered.',
+  },
+  'core.replay_key_destroyed': {
+    kind: 'unsupported',
+    message: 'A key the decision used was destroyed, so it cannot be re-decided.',
+  },
   'core.validation': { kind: 'validation', message: 'The input does not match its schema.' },
   'core.unauthenticated': { kind: 'unauthenticated', message: 'A principal is required.' },
   'core.not_found': { kind: 'not_found', message: 'The target does not exist.' },

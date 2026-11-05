@@ -1,4 +1,4 @@
-import { defineCommand, field, needsRehash, shape } from '@keelwerk/core';
+import { defineCommand, field, shape } from '@keelwerk/core';
 import { authBase } from '../base.ts';
 import { session } from '../entities/session.ts';
 import { invalidCredentials } from '../errors/invalid-credentials.ts';
@@ -39,7 +39,8 @@ const loginDef = defineCommand(authBase, {
     });
     const ok = yield* ctx.compute.argon2idVerify(verifierOrDummy(found?.verifier), input.password);
     if (found === undefined || !ok) throw invalidCredentials();
-    const rehashed = needsRehash(found.verifier)
+    // The stored verifier is sealed text: the kernel opens it to compare the parameters (17.2.2).
+    const rehashed = (yield* ctx.compute.argon2idNeedsRehash(found.verifier))
       ? yield* ctx.compute.argon2idHash(input.password, yield* ctx.random(saltBytes))
       : undefined;
     const now = ctx.clock.now();

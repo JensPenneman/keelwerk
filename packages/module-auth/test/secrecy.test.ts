@@ -172,4 +172,31 @@ describe.each(['memory', 'pglite'] as const)('auth secrecy on %s', (kind: Storag
     expect(needsRehash(hash)).toBe(false);
     await signIn(auth);
   });
+
+  test('a login with current parameters keeps the verifier and its key', { timeout }, async () => {
+    const auth = await boot();
+    const credentialId = await enrol(auth);
+    const credential = descriptorOf(auth, 'auth.credential');
+    const select = Object.keys(credential.fields);
+    const rowNow = () =>
+      auth.inUnit(
+        (unit) =>
+          unit.rows.findOne(credential, {
+            where: { op: 'eq', field: 'id', value: credentialId },
+            select,
+          }),
+        { sealed: true },
+      );
+    const before = await rowNow();
+    const verifier = String(before?.verifier);
+    const sealed = parseSealedValueText(verifier);
+    if (sealed === undefined) throw new Error('the verifier is not sealed');
+    await signIn(auth);
+    await signIn(auth);
+    const after = await rowNow();
+    expect(String(after?.verifier)).toBe(verifier);
+    expect(parseSealedValueText(String(after?.verifier))?.keyId).toBe(sealed.keyId);
+    const opened = await auth.inUnit((unit) => unit.keys.openValue(sealed));
+    expect(opened).toBeDefined();
+  });
 });

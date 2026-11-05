@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -7,6 +7,13 @@ import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 
 const script = new URL('../../../scripts/type-budgets/run-budgets.ts', import.meta.url);
+
+const recorded = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL('../../../scripts/type-budgets/budgets.json', import.meta.url)),
+    'utf8',
+  ),
+) as { readonly apps: Readonly<Record<string, unknown>> };
 
 const size = {
   name: 'm01',
@@ -20,7 +27,8 @@ const clean = {
     { modules: 25, fold: 200000, wholeProgram: 1000000, sizes: [size], portability: [] },
     { modules: 40, fold: 300000, wholeProgram: 1800000, sizes: [size], portability: [] },
   ],
-  apps: {},
+  // one measurement of one instantiation for each recorded app, so the gate has nothing missing
+  apps: Object.fromEntries(Object.keys(recorded.apps).map((name) => [name, 1])),
   modulePackages: [],
   workspacePortability: [],
 };

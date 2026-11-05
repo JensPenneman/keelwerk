@@ -34,7 +34,11 @@ export function decorateResponse(
     url.pathname,
     url.protocol === 'https:' || state.carrier?.connection?.tls !== undefined,
   );
-  const setNames = new Set(state.setCookies.map((cookie) => cookie.slice(0, cookie.indexOf('='))));
+  const setNames = new Set(
+    [...state.setCookies, ...headers.getSetCookie()].map((cookie) =>
+      cookie.slice(0, cookie.indexOf('=')),
+    ),
+  );
   for (const name of state.session?.clearCookies ?? []) {
     if (!setNames.has(name)) {
       headers.append('set-cookie', clearedCookie(name));

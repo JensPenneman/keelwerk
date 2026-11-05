@@ -18,18 +18,7 @@
     "examples/portal/apps/portal": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": [
-        "@keelwerk/adapter-postgres",
-        "@keelwerk/cli",
-        "@keelwerk/client",
-        "@keelwerk/core",
-        "@keelwerk/data",
-        "@keelwerk/module-accounts",
-        "@keelwerk/module-auth",
-        "@keelwerk/testing",
-        "@keelwerk/transport-http",
-        "@keelwerk/transport-rest"
-      ]
+      "ignoreDependencies": ["@keelwerk/cli", "@keelwerk/data"]
     },
     "packages/type-budgets": {
       "entry": ["src/**/*.test-d.ts"],

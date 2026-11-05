@@ -23,7 +23,13 @@ export function asOfUnit(unit: Unit, context: AsOfContext): Unit {
     return entry;
   };
   const rowsAt = (descriptor: EntityDescriptor, at: Position) =>
-    readAsOfPosition({ unit, entry: entryOf(descriptor), behaviours: context.behaviours, at });
+    readAsOfPosition({
+      unit,
+      entry: entryOf(descriptor),
+      behaviours: context.behaviours,
+      at,
+      horizon: context.feedHorizon,
+    });
   const rowsNow = (descriptor: EntityDescriptor) =>
     rowsAt(descriptor, latest ?? context.reads.ceiling());
   const { lock: _lock, search: _search, countBefore: _countBefore, ...rows } = unit.rows;

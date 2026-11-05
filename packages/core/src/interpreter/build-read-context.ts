@@ -136,6 +136,7 @@ export function buildReadContext(input: ReadContextInput): ContextFactory {
           compute('argon2idHash', password, salt),
         argon2idVerify: (verifier: string, password: string) =>
           compute('argon2idVerify', verifier, password),
+        argon2idNeedsRehash: (verifier: string) => compute('argon2idNeedsRehash', verifier),
       }),
       ask: (ref: string, askInput: unknown) =>
         createRequest<AskRequest>(authorities, { kind: 'ask', ref, input: askInput }, module.id),

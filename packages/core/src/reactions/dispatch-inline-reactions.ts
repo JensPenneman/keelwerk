@@ -14,23 +14,13 @@ import { openDecision } from '../write-path/open-decision.ts';
 import { sealDrafts } from '../write-path/seal-drafts.ts';
 import { writeStateRows } from '../write-path/write-state-rows.ts';
 import type { WrittenRow } from '../write-path/written-row.ts';
+import { inlineReactionsOf } from './inline-reactions-of.ts';
 import { maxReactionDepth } from './max-reaction-depth.ts';
 import { moduleServicePrincipal } from './module-service-principal.ts';
 import { reactionActionOf } from './reaction-action-of.ts';
 import { reactionDepthError } from './reaction-depth-error.ts';
 import type { ReactionEffects } from './reaction-effects.ts';
 import { reactionEventsOf } from './reaction-events-of.ts';
-
-/** Inline reactions in module order: by the module's place in the topological order, then by id. */
-function inlineReactionsOf(scene: EffectScene) {
-  const { registry } = scene.run;
-  const order = new Map(registry.modules.map((module) => [module.id, module.order] as const));
-  return [...registry.reactions.values()]
-    .filter((reaction) => reaction.timing === 'inline')
-    .sort(
-      (a, b) => (order.get(a.module) ?? 0) - (order.get(b.module) ?? 0) || a.id.localeCompare(b.id),
-    );
-}
 
 /**
  * Inline reactions (section 7.7), after the owner's `evolve`: for each event the decision wrote,
@@ -46,7 +36,7 @@ export async function dispatchInlineReactions(
   written: readonly WrittenRow[],
   depth = 1,
 ): Promise<readonly ReactionEffects[]> {
-  const reactions = inlineReactionsOf(scene);
+  const reactions = inlineReactionsOf(scene.run.registry);
   if (reactions.length === 0) return [];
   const { run, unit } = scene;
   const performed: ReactionEffects[] = [];

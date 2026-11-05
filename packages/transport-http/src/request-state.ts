@@ -14,6 +14,8 @@ export interface RequestState {
   /** The origin that passed the CORS check, echoed in the response. */
   corsOrigin?: string;
   readonly setCookies: string[];
+  /** Set when the request belongs to a REST mount: its errors are problem documents (section 16.5.3) typed under this origin and path. */
+  problemBase?: string;
   /** The action of a single invocation, for the span. */
   action?: string;
   /** The deprecation of the action of a single invocation. */

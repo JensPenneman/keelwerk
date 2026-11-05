@@ -1,7 +1,9 @@
 import type {
   AdapterEnvironment,
+  Clock,
   DataAdapter,
   Invoker,
+  KeyService,
   Logger,
   NamespaceRef,
 } from '@keelwerk/core';
@@ -20,6 +22,12 @@ export interface TestRuntime<App, Name extends string = string> {
   readonly backendId: string;
   /** The namespace the runtime provisioned for the app on its placement; every tenant's scope opens it. */
   readonly namespace: NamespaceRef;
+  /** The key service over the runtime's control store and master key: the one a re-decide verifies and reveals with. */
+  readonly keys: KeyService;
+  /** The time source the runtime runs on (the system clock unless the options gave one). */
+  readonly clock: Clock;
+  /** What `ctx.config` answers for a module: the backend's stored configuration through the module's shape. */
+  config(module: string): unknown;
   /** The log and tracer the runtime handed its adapter. */
   readonly log: Logger;
   readonly tracer: AdapterEnvironment['tracer'];

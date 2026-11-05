@@ -1,22 +1,6 @@
-import type { ErrorAudience, ErrorKind, KeelwerkError } from '@keelwerk/core';
+import type { ErrorAudience, KeelwerkError } from '@keelwerk/core';
 import { toWire } from '@keelwerk/core';
-import { statusOfError } from '@keelwerk/core/http';
-
-const titles: Readonly<Record<ErrorKind, string>> = {
-  validation: 'Validation',
-  unauthenticated: 'Unauthenticated',
-  forbidden: 'Forbidden',
-  // biome-ignore lint/style/useNamingConvention: the key is the kind of section 10
-  not_found: 'Not found',
-  conflict: 'Conflict',
-  // biome-ignore lint/style/useNamingConvention: the key is the kind of section 10
-  rate_limited: 'Rate limited',
-  // biome-ignore lint/style/useNamingConvention: the key is the kind of section 10
-  not_implemented: 'Not implemented',
-  unavailable: 'Unavailable',
-  unsupported: 'Unsupported',
-  internal: 'Internal error',
-};
+import { problemTitles, statusOfError, wwwAuthenticateValue } from '@keelwerk/core/http';
 
 /** What a problem response needs besides the error. */
 export interface ProblemContext {
@@ -51,11 +35,11 @@ export function problemResponse(error: KeelwerkError, context: ProblemContext): 
     }
   }
   if (status === 401) {
-    headers.set('www-authenticate', 'Bearer');
+    headers.set('www-authenticate', wwwAuthenticateValue);
   }
   const body = {
     type: `${origin}${context.mountPath}/problems/${error.code}`,
-    title: titles[error.kind],
+    title: problemTitles[error.kind],
     status,
     detail: message,
     instance: `urn:uuid:${context.requestId}`,

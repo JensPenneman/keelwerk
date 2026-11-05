@@ -35,6 +35,8 @@
   "devDependencies": {
     "@keelwerk/cli": "workspace:*",
     "@keelwerk/testing": "workspace:*",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1",
     "vitest": "5.0.5"
   }
 }

@@ -106,6 +106,20 @@ function rowResponse(
   return json(status, encoded, headers);
 }
 
+/** Applies the `http.cookie` hint of the action: the cookies go onto the headers, the value that is left is returned. */
+function cookiesOf(context: ResponseContext, value: unknown, headers: Headers): unknown {
+  const cookie = applyCookieHint(
+    context.route.action.hints.http?.cookie,
+    value,
+    context.session,
+    context.request.headers,
+  );
+  for (const setCookie of cookie.setCookies) {
+    headers.append('set-cookie', setCookie);
+  }
+  return cookie.value;
+}
+
 function body(context: ResponseContext, outcome: Success, headers: Headers): Response {
   const { route } = context;
   const { action, entity } = route;
@@ -152,10 +166,12 @@ function body(context: ResponseContext, outcome: Success, headers: Headers): Res
       break;
   }
   if (action.output.kind === 'void') {
+    cookiesOf(context, {}, headers);
     return new Response(null, { status: 204, headers });
   }
   const encoded = toWire(action.output, value);
   if (encoded === undefined) {
+    cookiesOf(context, {}, headers);
     return new Response(null, { status: 204, headers });
   }
   const link =
@@ -165,16 +181,7 @@ function body(context: ResponseContext, outcome: Success, headers: Headers): Res
   if (link !== undefined) {
     headers.append('link', link);
   }
-  const cookie = applyCookieHint(
-    action.hints.http?.cookie,
-    encoded,
-    context.session,
-    context.request.headers,
-  );
-  for (const setCookie of cookie.setCookies) {
-    headers.append('set-cookie', setCookie);
-  }
-  return json(200, cookie.value, headers);
+  return json(200, cookiesOf(context, encoded, headers), headers);
 }
 
 /**
@@ -219,6 +226,9 @@ export function encodeResponse(outcome: Success, context: ResponseContext): Resp
     return json(202, outcome.receipt, headers);
   }
   const hint = action.hints.http?.response;
+  if (hint !== undefined && hint.kind !== 'json') {
+    cookiesOf(context, isRecord(outcome.value) ? outcome.value : {}, headers);
+  }
   const custom = hint === undefined ? undefined : hinted(hint, outcome.value, headers);
   return custom ?? body(context, outcome, headers);
 }

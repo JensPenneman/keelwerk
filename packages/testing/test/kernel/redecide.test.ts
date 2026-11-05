@@ -1,13 +1,11 @@
 import type { ActionEntry, Position, StorageRow } from '@keelwerk/core';
-import { entityBehavioursOf, normalizeRule } from '@keelwerk/core';
+import { createComputePool, entityBehavioursOf, normalizeRule } from '@keelwerk/core';
 import { readAsOfPosition, redecide } from '@keelwerk/core/replay';
 import { afterEach, describe, expect, test } from 'vitest';
 import { runInMemory } from '../../src/drive/run-in-memory.ts';
 import { conformanceApp, libraryApp } from '../../src/fixtures/index.ts';
 import { testPrincipal } from '../../src/harness/test-principal.ts';
 import { expectReproduces } from '../../src/replay/expect-reproduces.ts';
-import { replayCompute } from '../../src/replay/replay-compute.ts';
-import { replayKeys } from '../../src/replay/replay-keys.ts';
 import { tenantAddress } from '../../src/replay/tenant-address.ts';
 
 interface CountContext {
@@ -33,7 +31,7 @@ async function started(...args: Parameters<typeof runInMemory>): Promise<Run> {
   return run;
 }
 
-function redecideWith(
+async function redecideWith(
   run: Run,
   over: {
     readonly input: unknown;
@@ -44,6 +42,7 @@ function redecideWith(
   const { app } = run.runtime;
   const address = tenantAddress(run.runtime, run.tenant);
   const registry = over.registry ?? app.registry;
+  const compute = createComputePool({ size: 1 });
   return redecide({
     registry,
     adapter: run.runtime.adapter,
@@ -54,11 +53,13 @@ function redecideWith(
     apiVersion: run.runtime.head,
     behaviours: entityBehavioursOf(app.modules),
     rules: [...registry.rules.values()].filter((rule) => rule.disabled !== true).map(normalizeRule),
-    keys: replayKeys,
-    compute: replayCompute,
+    keys: run.runtime.keys,
+    compute,
+    clock: run.runtime.clock,
+    config: run.runtime.config,
     log: run.runtime.log,
     trace: run.runtime.tracer.startSpan('redecide'),
-  });
+  }).finally(() => compute.close());
 }
 
 describe('re-deciding a recorded command', () => {

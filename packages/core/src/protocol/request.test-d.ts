@@ -37,7 +37,7 @@ test('AnyRequest narrows on kind and covers every RequestKind', () => {
     'issue' | 'reveal' | 'verify'
   >();
   expectTypeOf<Extract<AnyRequest, { kind: 'compute' }>['op']>().toEqualTypeOf<
-    'argon2idHash' | 'argon2idVerify'
+    'argon2idHash' | 'argon2idVerify' | 'argon2idNeedsRehash'
   >();
   expectTypeOf<Extract<AnyRequest, { kind: 'load' }>['view']>().toEqualTypeOf<
     'module' | 'caller'

@@ -12429,6 +12429,18 @@
       "retryable": false
     },
     {
+      "code": "core.replay_key_destroyed",
+      "kind": "unsupported",
+      "message": "A key the decision used was destroyed, so it cannot be re-decided.",
+      "retryable": false
+    },
+    {
+      "code": "core.replay_outside_horizon",
+      "kind": "unsupported",
+      "message": "The decision is older than the feed horizon, so its state reads cannot be answered.",
+      "retryable": false
+    },
+    {
       "code": "core.request_not_allowed",
       "kind": "internal",
       "message": "The request is not allowed or not answered by this release.",
@@ -12804,7 +12816,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-6QlQkqUth59uxCYiaYREEthcXc2I4n7HFG-QMY0J284",
+  "hash": "sha256-V5nLflOyNQH6Qf70ypM3vefNSjhYed-SEiOQgVx0NgU",
   "modules": [
     {
       "id": "core",

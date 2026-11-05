@@ -40,5 +40,24 @@
       }
     }
   },
-  "apps": {}
+  "apps": {
+    "portal": {
+      "include": [
+        "examples/portal/apps/portal/src/app.ts",
+        "examples/portal/apps/portal/src/keelwerk.generated.ts"
+      ],
+      "recorded": 56830,
+      "budget": 65355,
+      "reason": "the portal app (accounts, auth, rest) and its generated file at the first green build, 2026-11-05, plus 15 %"
+    },
+    "conformance": {
+      "include": [
+        "packages/testing/src/fixtures/apps/conformance/src/app.ts",
+        "packages/testing/src/fixtures/apps/conformance/src/keelwerk.generated.ts"
+      ],
+      "recorded": 298233,
+      "budget": 342968,
+      "reason": "the conformance fixture app and its generated file at the first green build, 2026-11-05, plus 15 %"
+    }
+  }
 }

@@ -36,6 +36,8 @@ export type CoreErrorCode =
   | 'core.effect_outcome_unknown'
   | 'core.effect_deadline'
   | 'core.request_not_allowed'
+  | 'core.replay_outside_horizon'
+  | 'core.replay_key_destroyed'
   | 'core.validation'
   | 'core.unauthenticated'
   | 'core.not_found'

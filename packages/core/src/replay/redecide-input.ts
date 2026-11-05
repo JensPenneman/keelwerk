@@ -1,4 +1,6 @@
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
+import type { RequestInfo } from '../invoker/request-info.ts';
+import type { Clock } from '../kernel/clock.ts';
 import type { ComputePool } from '../kernel/compute-pool.ts';
 import type { KeyService } from '../kernel/key-service.ts';
 import type { Logger } from '../observability/logger.ts';
@@ -28,8 +30,19 @@ export interface RedecideInput {
   readonly apiVersion: string;
   readonly behaviours: EntityBehaviours;
   readonly rules: readonly NormalizedRule[];
+  /** The runtime's key service, in the recorded scope: verifications and reveals run on it for real (section 7.9.6). */
   readonly keys: KeyService;
+  /** A real pool: computations are reproducible and run again. */
   readonly compute: ComputePool;
+  /** Now; the feed horizon counts back from it. */
+  readonly clock: Clock;
+  /**
+   * How long the transient change records of `history: 'state'` entities are kept, as an ISO 8601
+   * duration (section 15.1.10); a state read in an older decision is refused. Default `P7D`.
+   */
+  readonly feedHorizon?: string;
+  /** What the record does not hold of the request (user agent, address), as `--input` supplies the input (section 7.9.6). */
+  readonly request?: Pick<RequestInfo, 'userAgent' | 'connection'>;
   readonly log: Logger;
   readonly trace: Span;
   /** Default: a principal with the identity of the recorded actor only. */

@@ -10,6 +10,8 @@ export interface RedecideResult {
   readonly reproduced: boolean;
   /** One line per difference, empty when reproduced. */
   readonly differences: readonly string[];
+  /** The code of the replay limit that stopped the re-decide (`core.replay_outside_horizon`, `core.replay_key_destroyed`), when one did. */
+  readonly refused?: string;
   readonly recorded: {
     readonly events: readonly ComparableEvent[];
     /** The requested effect ids. */
