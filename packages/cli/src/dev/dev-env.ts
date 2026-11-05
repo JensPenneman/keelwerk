@@ -1,9 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { DeploymentDefinition } from '@keelwerk/core';
 import { devChildEnv } from './dev-child-env.ts';
 import type { DevPaths } from './dev-paths.ts';
+import { makePrivateDirectory } from './make-private-directory.ts';
 
 function keyOf(path: string): string {
   try {
@@ -13,7 +14,7 @@ function keyOf(path: string): string {
     // no key yet: made below
   }
   const made = randomBytes(32).toString('base64');
-  mkdirSync(dirname(path), { recursive: true });
+  makePrivateDirectory(dirname(path));
   writeFileSync(path, `${made}\n`, { mode: 0o600 });
   return made;
 }

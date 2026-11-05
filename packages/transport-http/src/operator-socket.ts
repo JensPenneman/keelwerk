@@ -32,7 +32,9 @@ export async function operatorSocket(path: string, uid: number): Promise<void> {
   }
   if ((info.mode & 0o077) !== 0) {
     if (created === undefined) {
-      throw new Error(`The operator socket directory ${directory} must have mode 0700.`);
+      throw new Error(
+        `The operator socket directory ${directory} has mode ${(info.mode & 0o777).toString(8)}; it must be 0700 because connecting to the socket is operator access. Fix it with: chmod 700 ${directory}`,
+      );
     }
     await chmod(directory, 0o700);
   }

@@ -1,8 +1,8 @@
-import { mkdirSync } from 'node:fs';
 import type { DataAdapter, DataAdapterFactory } from '@keelwerk/core';
 import { errors } from '@keelwerk/core';
 import { withCommandReceipts } from '@keelwerk/data';
 import { pgliteAdapter, pgliteSchemaConnection } from '@keelwerk/data/pglite';
+import { makePrivateDirectory } from './make-private-directory.ts';
 
 const role = 'kw_app';
 
@@ -25,7 +25,7 @@ export function devPgliteFactory(): DataAdapterFactory {
           `PGlite hosts the shared-tables strategy, not ${placement.strategy}`,
         );
       }
-      if (placement.url !== undefined) mkdirSync(placement.url, { recursive: true });
+      if (placement.url !== undefined) makePrivateDirectory(placement.url);
       const inner = pgliteAdapter(
         { deploymentId: env.deploymentId, tracer: env.tracer },
         {

@@ -108,7 +108,7 @@ describe('the invocation protocol', () => {
     directories.push(directory);
     await chmod(directory, 0o755);
     const { host } = setup({}, undefined, { operator: { socket: join(directory, 'op.sock') } });
-    await expect(host.listen()).rejects.toThrow(/mode 0700/);
+    await expect(host.listen()).rejects.toThrow(/must be 0700.*chmod 700/);
   });
 });
 
