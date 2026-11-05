@@ -79,6 +79,11 @@ approval gate passed on 2026-11-04). The GritQL plugins of `@keelwerk/biome-conf
 their fixtures the same day, which closes M0's deliverables. Neither spike covered the `prepare` comparison or the
 Node 26 re-checks of criterion 5; architecture.md section 26.2 records them as open. M1 delivers
 the `prepare` prototype and its report (register entry 150); M3's criterion 3 repeats it on Trail's code.
+(Amended 2026-11-05: the Node 26 re-checks passed on 2026-11-04; the `prepare` prototype ran the same
+day, `spikes/prepare-variant/REPORT.md`, and recommends keeping the separate `prepare`, which Jens
+decides, register entry 358 and open point 469; the interpreter's overhead per request was measured
+on 2026-11-05, `spikes/interpreter-overhead/REPORT.md`, register entry 380. Criterion 5 is met but
+for Jens's choice on the variant.)
 
 Packages and artefacts:
 
@@ -238,7 +243,9 @@ these are M1's limits):
   queue with work and no worker. The minimal action-job worker in M1 was the alternative, not taken.
 - `prepare` is typed in full and runs with loads only; `ctx.perform` fails with `internal`,
   `core.request_not_allowed`, until inline effects ship in M2 (entry 125). The `prepare` variant
-  prototype and its report are an M1 deliverable that leaves `@keelwerk/core` unchanged (entry 150).
+  prototype and its report are an M1 deliverable that leaves `@keelwerk/core` unchanged (entry 150);
+  delivered on 2026-11-04 (entry 358). In M1 `prepare` runs in one read-only unit, and its reads are
+  not recorded (entry 347).
 - `onTenantCreated` hooks run in their own tenant-scope unit right after the creating unit commits;
   a failure is logged and listed by `keelwerk doctor` (entry 147).
 - `defineDeployment` is typed in full and validated; M1 uses `apps`, `infrastructure`, `control`,
@@ -270,6 +277,20 @@ these are M1's limits):
   marker `m2` (entry 159).
 - Packages carry no `engines` field; `keelwerk doctor` checks Node 26 or later, and the lead
   decides before the first publish (entry 121, criterion 12).
+
+Status (2026-11-05): work packages 01 to 63 are merged (main at `cae5d19`, slice 4 done); WP-64
+(slice 5, the portal from a fresh clone with the CLI) and WP-65 (the CI exit gate) remain. Their
+follow-ups are register sections O and P (decisions 184 to 314 and 327 to 449, open points 315 to
+326 and 450 to 474). By the tests of the merged packages, exit criteria 4 (the portal scenario on
+PostgreSQL 18 and in memory, and the isolation suite for two tenants), 5 (the adapter conformance
+suite since WP-46, the transport conformance suite since WP-55), 6 (the portal's dump test), 7 (the
+type tests, declaration checks and budgets job in CI), 8 (every handler of the scenario, login,
+logout and reset included, re-decided from its record; register entries 445 to 448), 9 (`keelwerk
+db verify` against the anchors), 10 (the accelerations-off run and doctor's fallback list) and 11
+(manifest references and `surface diff`) are met, and so is the REST half of criterion 3. Criteria
+1 and 2 and the CLI half of 3 wait for WP-64; WP-65 maps every criterion to a named CI step.
+Criterion 12 stays open: the `engines` field returns, or the lead decides, before the first
+publish.
 
 Exit criteria:
 

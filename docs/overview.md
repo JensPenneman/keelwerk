@@ -1,6 +1,6 @@
 # keelwerk, the guided tour
 
-Date: 2026-11-04 (first version 2026-10-28; the M0 spike outcomes and register section K2 applied 2026-11-04). A reading companion to [architecture.md](architecture.md): thirteen chapters, each with a diagram, a plain explanation, an example from Trail or Launchway, the decisions behind it and where it lives in the specification. The diagrams are the JSON blocks; the published page renders them.
+Date: 2026-11-04 (first version 2026-10-28; the M0 spike outcomes and register section K2 applied 2026-11-04; the M1 measurements of register section P noted 2026-11-05). A reading companion to [architecture.md](architecture.md): thirteen chapters, each with a diagram, a plain explanation, an example from Trail or Launchway, the decisions behind it and where it lives in the specification. The diagrams are the JSON blocks; the published page renders them.
 
 ## How to read this
 
@@ -311,8 +311,8 @@ export const dispatchSettled = defineCommand(deploymentsBase, deployment, {   //
 **Decisions behind it.**
 
 - `Q50` Fully strict (a), kept when reopened on 2026-10-28; fallback: the split model (c).
-- `Q73` Generators with `yield*` (a); `ctx.all` batches parallel loads.
-- `Q74` Inline effects only in `prepare` (a); M0 and Trail also test a variant without `prepare`.
+- `Q73` Generators with `yield*` (a); `ctx.all` batches parallel loads (M1 answers its members one after the other; the interpreter costs 2.5 to 6 µs per load request on memory, measured 2026-11-05; register entries 380 and 381).
+- `Q74` Inline effects only in `prepare` (a); M0 and Trail also test a variant without `prepare` (prototyped in M1 on 2026-11-04: the report recommends keeping `prepare`, Jens decides; register entry 358).
 - `Q75` Executors retry mechanical failures only (a); domain answers are state machines.
 - `Q76` Write-only `ctx.log` and `ctx.trace` (a), outside the logbook.
 - `Q77` Fixed clock per invocation (a); ids and random values recorded.

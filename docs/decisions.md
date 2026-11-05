@@ -1,6 +1,6 @@
 # Decision register
 
-Date: 2026-10-23 (updated 2026-10-24; the M0 spike outcomes of section M, the M1 plan gaps of section N and the M1 follow-ups of section O added 2026-11-04). Status: open. This register lists every open question of the architecture in
+Date: 2026-10-23 (updated 2026-10-24; the M0 spike outcomes of section M, the M1 plan gaps of section N and the M1 follow-ups of section O added 2026-11-04; the M1 follow-ups of section P added 2026-11-05). Status: open. This register lists every open question of the architecture in
 one place, numbered, so that Jens can answer them one by one in conversation. Each answer is
 recorded here with its date and the section or ADR that applies it. The questions come from
 [architecture.md](architecture.md) section 26 (decision points, spike questions, questions by
@@ -1546,11 +1546,11 @@ Open points raised by the same packages, for their owners:
 315. **Completions without `@stricli/auto-complete`** (WP-19). The CLI depends on
      `@stricli/auto-complete` but no command uses it yet: a) the completion scripts of section
      16.9.9 use it; b) the CLI writes its own and drops the dependency. WP-58 decides. Status: open,
-     for WP-58 (concerns sections 16.9.1 and 16.9.9).
+     for WP-58 (concerns sections 16.9.1 and 16.9.9). Decided 2026-11-05: b), entry 432.
 316. **The scaffold's module test** (WP-30). `keelwerk new module` writes `test/alone.test.ts`
      composing with `defineApp`, because `createLocalClient` arrives with the harness; it moves to
      `createLocalClient` as section 16.9.8 specifies. Status: open, for WP-39 (concerns section
-     16.9.8).
+     16.9.8). Decided 2026-11-05: moved to `createLocalClient`, entry 433.
 317. **Layouts for transport and adapter modules** (WP-30). Sections 16.9.8 and 23.14 give no layout
      for `keelwerk new module --kind transport|adapter`, and only domain modules are scaffolded; the
      layout of the other two kinds is to decide. Status: open, for WP-61 (concerns sections 16.9.8
@@ -1564,25 +1564,871 @@ Open points raised by the same packages, for their owners:
      is the registry owner's question. Status: open, for WP-27's owner (concerns section 16.2.2).
 320. **The introspection setting** (WP-33). The backend setting that makes `core.introspect` public
      or operator-only, and the runtime's answer to the action, arrive with the core module's
-     runtime. Status: open, for WP-43 (concerns section 16.2.5).
+     runtime. Status: open, for WP-43 (concerns section 16.2.5). Decided 2026-11-05: entry 354.
 321. **Two forms of `SecretRef`** (WP-17, WP-32). The key service reads a sealed value's reference
      `kwv1.<key id>.<nonce>.<ciphertext>`, while a row loaded by a part carries `{ ref:
      '<entity>/<id>/<field>' }`; how a reveal resolves the row form to the sealed value is WP-48's
-     to settle. Status: open, for WP-48 (concerns sections 14.7.4, 14.8.1 and 17.7 (G4)).
+     to settle. Status: open, for WP-48 (concerns sections 14.7.4, 14.8.1 and 17.7 (G4)). Decided
+     2026-11-05 (S-80): entry 367.
 322. **The command receipt entity** (WP-22). `core.commandReceipt` declares `commandId` and `status`
      (`accepted`, `succeeded`, `failed`), while the receipt store and table use `pending`,
      `accepted`, `completed` and `failed` and the full field list of section 15.1.7; the entity's
      fields and the column of a backend command's receipt in a tenant namespace are open. Status:
-     open, for WP-38, WP-43 (concerns section 15.1.7).
+     open, for WP-38, WP-43 (concerns section 15.1.7). Decided 2026-11-05: entries 337, 396 and 398.
 323. **The offline rule of `max` and `min`** (WP-18). The field model and the descriptors carry the
      merge types `max` and `min`, for which section 15.3.4 states no ingest rule. Status: open, for
      the M6 sync design (concerns section 15.3.4).
 324. **The server's clock node id** (WP-08). The node id of a server process's hybrid clock (`s`
      plus ten random base32 characters, section 14.5.3) is supplied by the runtime. Status: open,
-     for WP-43 (concerns section 14.5.3).
+     for WP-43 (concerns section 14.5.3). Decided 2026-11-05: entry 355.
 325. **Issuing operator tokens** (WP-20). `core.operatorToken.issue` is left out of `Core` until the
      entity-command option for commands that create (no `InstanceInput`) exists. Status: open, for
-     WP-56 (concerns section 3.1).
+     WP-56 (concerns section 3.1). Decided 2026-11-05: entry 406.
 326. **The cost of the fold** (WP-28). WP-47 investigates the fold cost of `consume.ts`, and WP-63
      records the budgets of the portal and conformance apps (entry 136). Status: open, for WP-47,
-     WP-63 (concerns section 13.11).
+     WP-63 (concerns section 13.11). Decided 2026-11-05: entry 429.
+
+## P. M1 follow-ups from work packages 35–64 (2026-11-05)
+
+The M1 work packages 35 to 64 settled more rules the specification left open or stated otherwise:
+the gap entries S-63 to S-114 of the M1 plan (each decided at its package's review, several
+amended in place), the change notes of the frozen interfaces dated 2026-11-05, the STATE entries
+marked SPEC FOLLOW-UP from WP-35 on and the lead decisions recorded with them. Where a source was
+ambiguous the merged code (main at `cae5d19`) decided, and the entry says so ("as built"). The
+specification pass of 2026-11-05 wrote them into architecture.md, where section 26.1 lists them by
+number; earlier text that a decision supersedes is kept and marked "(amended 2026-11-05: ...)".
+Points that only brought the architecture text in line with an entry of sections N or O get no
+entry. The open points at the end are questions for the owners named; until they are answered the
+architecture text describes what is built.
+
+327. **Polling the change feed** (WP-35). A notifier's first poll names every scope that has events
+     (a baseline taken at the head could miss a commit between the first read and the baseline), so
+     a wake-up may repeat when poll and `notify` both name a scope; a payload `<namespace>:*` means
+     every scope of the namespace; a namespace id is parsed up to its last colon (scope ids never
+     contain one); `pollChangeFeed` takes an injected sleep, because `@keelwerk/data` imports no
+     `node:*` module. The PostgreSQL adapter declares `changeFeed: 'notify'`, and
+     `PostgresAdapterOptions` extends `AccelerationOptions`. Status: decided by the lead 2026-11-04
+     (M1 plan, WP-35). Applied in: sections 14.3.7 and 15.2.5.
+328. **What `tagSets` means** (WP-35). `encryptedQueries.tagSets` is `'array'` for native tag
+     arrays (PostgreSQL), `'table'` for index tables (MySQL, SQLite) and `false` for the kernel's
+     bounded scan; the capability table of 14.3.3 named the index-table fallback under `'array'`.
+     Status: decided by the lead 2026-11-04 (M1 plan, WP-35). Applied in: section 14.3.3.
+329. **Job columns and indexes** (WP-36, S-07). `kw_jobs` gains `scope jsonb not null` (the job's
+     full `Scope`; `scope_id` alone cannot tell the levels apart or carry a tenant's backend id, and
+     the row codec refuses a `scope` whose id differs from `scope_id`), `lost_leases integer not null
+     default 0` (the three-lost-leases rule of 9.5.4) and `started_at timestamptz(3)` (stamped on
+     every take, so a run time excludes back-off), and the partial indexes `kw_jobs_promote (queue,
+     run_at) where state = 'scheduled'` and `kw_jobs_reclaim (queue, lease_until) where state =
+     'running'`. Stored format final from M1. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-36). Applied in: section 9.5.2.
+330. **The take as built** (WP-36). The take statement of 9.5.3 is the implemented one: the load
+     per share divides as `double precision` (the printed integer division tied unequal lanes), the
+     lane id breaks ties, a `left join lateral` answers a picked lane without a job as a row with a
+     null job (so the taker tells locked lanes from skipped ones), the group check selects the group
+     row by the group's scope kind (`scope_id` null for a namespace group), the unit's clock is a
+     parameter instead of `now()`, a namespace-scope take may be narrowed to one scope, and the outer
+     `order by p.priority, p.load, p.v, p.id, j.run_at, j.id` serves the lanes the pick ranked first.
+     Status: decided by the lead 2026-11-04 (M1 plan, WP-36). Applied in: section 9.5.3.
+331. **Job keys and skipped lanes** (WP-36). A job key's `onConflict` acts at enqueue and is not
+     stored, so a taken job's key always reads `keep`; a take reports `skippedLanes` as the eligible
+     lanes it could have used (at most the lane budget) minus those it locked; a `$vmin` read in the
+     take's unit never lifts a lane above the rule of entry 117 (observation). Status: decided by the
+     lead 2026-11-04 (M1 plan, WP-36). Applied in: sections 9.5.2 and 9.5.3.
+332. **Namespace groups at provisioning** (WP-36, S-07). `SchemaOperations.provision` takes a third
+     argument `{ jobGroups? }`; the SQL schema operations upsert the namespace-wide groups inside the
+     provisioning unit, and the runtime passes the registry's declared namespace groups when it
+     provisions or migrates a namespace; `postgresSchemaOperations` takes a clock, and the job-store
+     conformance cases (`jobStoreCases`, exported by `@keelwerk/testing`) take time from the
+     adapter's injected clock, never from sleeps. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-36, WP-43). Applied in: sections 9.5.2, 14.3.7 and 14.10.
+333. **Invoker details** (WP-37). An action entry records the entity its output returns
+     (`ActionEntry.entityOutput { entity, shape: 'row' | 'page' }`), which the shape stage reads
+     instead of guessing from the output's keys; a relation quantifier met at the shape stage fails
+     closed with `internal`, `core.request_not_allowed`; `runRead` honours `RunReadInput.signal`;
+     `createInvoker` requires the core app; carrier enrichers are accepted and not used in M1; the
+     invoker's sessions registry is a `WeakMap` keyed by the session; a tenant and its backend are
+     assumed co-placed in M1. Status: decided by the lead 2026-11-04 (M1 plan, WP-37). Applied in:
+     sections 5.6, 8.4, 9.2, 14.3.6 and 16.3.4.
+334. **A timeout waits for its runner** (WP-37). A command's timeout aborts its signal and then waits
+     for the runner to finish; a commit that races the timer is reported as committed, never as
+     `core.timeout`. Status: decided by the lead 2026-11-04 (M1 plan, WP-37). Applied in: section
+     16.4.11.
+335. **Timers of resolver effects** (WP-37, WP-41). Timers that a principal resolver's effects set
+     run under the core module's service principal (`core.module`), since a resolver belongs to no
+     command. Status: decided by the lead 2026-11-04 (M1 plan, WP-37, WP-41). Applied in: section
+     9.5.6.
+336. **Idempotency details** (WP-38). The same command id under another principal is `conflict`,
+     `core.idempotency_mismatch`; a `claim` that finds a pending receipt waits up to one second for
+     it, then answers `conflict`, `core.command_in_progress` (retryable). Status: decided by the lead
+     2026-11-04 (M1 plan, WP-38). Applied in: section 7.5.
+337. **The receipt row and its statuses** (WP-22, WP-38, closes open point 322). `core.commandReceipt`
+     declares what the stores write: `commandId` (unique), `action`, `fingerprint`, `principal`
+     (json), `status` (`pending`, `accepted`, `completed` or `failed`), `outcome`, `apiVersion`,
+     `transport`, `remoteAddress`, `userAgent`, `clientId`, `clientSeq`, `expiresAt` and
+     `acknowledgedAt` (and, since entry 396, `principalResolver` and `principalId`), with
+     `history: 'state'`, tenancy `invocation` and generated set operations off; its table is
+     rendered from that descriptor, and `ReceiptStore.claim(commandId, ...)` answers `'inserted'` or
+     `'exists'`. Stored format final from M1. Status: decided by the lead 2026-11-04 (M1 plan, WP-22,
+     WP-38). Applied in: sections 3.1 and 15.1.7.
+338. **`perform` in `decide`** (WP-38). A `perform` request yielded by `decide` fails with
+     `internal`, `core.effect_in_unit`. Status: decided by the lead 2026-11-04 (M1 plan, WP-38).
+     Applied in: section 7.9.4.
+339. **The local client and the matchers** (WP-39, WP-46). `createLocalClient(runtime: ClientRuntime)`
+     takes `Pick<TestRuntime, 'app' | 'invoker' | 'tenants' | 'head'>` and a `TestPrincipal`
+     carried in a header; `as({ token })` and `as({ backend })` are refused in M1; `expectAllowed`
+     fails on any `core.*` code and `expectDenied` matches by rule id; `ExpectValidApp<A>` is `true`
+     when the app's `AppChecks` is `unknown`, else the check properties. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-39, WP-46). Applied in: sections 8.6, 13.10 and 16.8.5.
+340. **The chain hash's bytes** (WP-40, S-63). The hash input is the UTF-8 text of the previous
+     hash's hex (empty for a stream's first event) followed by the JCS text of the chain content,
+     frozen by the golden vectors of `events/chain-hash.test.ts`. Stored format final from M1.
+     Status: decided by the lead 2026-11-04 (M1 plan, WP-40, S-63). Applied in: section 15.1.8.
+341. **Recorded time in the chain** (WP-40, S-64). The recorded time is hashed as ISO-8601 text with
+     exactly three fractional digits, because every adapter stores milliseconds. Stored format final
+     from M1. Status: decided by the lead 2026-11-04 (M1 plan, WP-40, S-64). Applied in: section
+     15.1.8.
+342. **No stream type in the chain** (WP-40, S-65). The stream type is not part of the chain
+     content; the stream id, globally unique, is. Status: decided by the lead 2026-11-04 (M1 plan,
+     WP-40, S-65). Applied in: section 15.1.8.
+343. **Schema version 1** (WP-40, S-66). Domain events carry `schemaVersion` 1 until a module
+     declares another; the value is stored (`kw_events.schema_version`) and hashed. Status: decided
+     by the lead 2026-11-04 (M1 plan, WP-40, S-66). Applied in: sections 15.1.8 and 15.1.9.
+344. **Verification and the writer's build** (WP-40, WP-43). Without an anchor no first `prevHash` is
+     trusted, and a transient record among a stream's chained events counts as a missing event;
+     `writer.build` is the build id (the SHA-256 of the canonical build manifest, whose
+     `apiVersions` are per app), written as `development` only before the runtime computed it
+     (WP-43). Status: decided by the lead 2026-11-04 (M1 plan, WP-40, WP-43). Applied in: sections
+     15.1.8, 15.1.9 and 19.1.
+345. **Cross-scope effects in M1** (WP-41, S-67). An `enqueue`, `invoke` or timer effect for a
+     command of another scope is refused with `internal`, `core.request_not_allowed` in M1; the
+     post-commit enqueue in a short unit of the target scope (like S-24's resolver effects) arrives
+     with the worker in M2. Status: decided by the lead 2026-11-04 (M1 plan, WP-41, S-67). Applied
+     in: sections 7.9.5 and 12.3.
+346. **Failed receipts** (WP-41, S-68). A command that fails with a non-retryable error after its
+     pending receipt was claimed records a `failed` receipt (kind, code and message in `outcome`) in
+     a short unit after the rollback, so a retry with the same id answers the same error. Nothing is
+     recorded for retryable failures, `unavailable`, `internal`, `core.idempotency_mismatch`,
+     `core.command_in_progress`, a `core.version_mismatch` that did not come from `ifVersion`, or a
+     call without a client command id; a non-retryable failure in `prepare` is recorded like one of
+     the unit. Status: decided by the lead 2026-11-04 (M1 plan, WP-41, S-68). Applied in: sections
+     7.5 and 15.1.7.
+347. **`prepare` in M1** (WP-41, WP-44, S-05, S-68). The `prepare` stage no longer refuses commands
+     that declare `prepare`; a `perform` request in `prepare` still fails with `internal`,
+     `core.request_not_allowed` (S-05). `prepare` runs in one read-only unit of the scope; since no
+     effect can run in M1, no effect runs with it open; M2 opens one read-only unit per load and
+     none across a `perform`, as phase 2 of 7.9.4 says. The decision record lists the requested
+     effect ids; `prepare`'s reads and result are not recorded in M1 (open point 470). Status:
+     decided by the lead 2026-11-04 (M1 plan, WP-41, WP-44, S-05, S-68). Applied in: sections 7.9.4,
+     7.9.6 and 15.1.3.
+348. **Reaction events, causation and acceptance** (WP-41). The `state` a reaction receives is the
+     row right after the reacted-to event; a job's `causation.actor` is the causing actor; the 202
+     answer of an accepted command skips the shape stage (it carries the receipt, no row); the job
+     inputs and the `core.effect` stream are pinned by golden tests. Status: decided by the lead
+     2026-11-04 (M1 plan, WP-41). Applied in: sections 7.7, 9.5.1 and 16.4.7.
+349. **What "never wait" measures** (WP-41). "Writers of different tenants never wait on each other"
+     (15.1.4) means row and transaction-id lock waits; relation-extension and page waits on shared
+     tables are storage-level and allowed, and the concurrency sampler counts only tuple and
+     transaction-id waits. Status: decided by the lead 2026-11-04 (M1 plan, WP-41). Applied in:
+     section 15.1.4.
+350. **`drive` and re-decide** (WP-42). `drive(app, command, options)` is async; a re-decide
+     compares the recorded effect ids; a create without an id records its minted id as an `id`
+     answer, so a re-decide reproduces it; as-of reads refuse page cursors and relation conditions;
+     `redecide` and `driveDecision` refuse commands with a generated handler or a `prepare` with
+     `not_implemented`; the recorded actor's identity is the default principal; the caller supplies
+     the input, which must match the recorded digest. Status: decided by the lead 2026-11-04 (M1
+     plan, WP-42; the id answer as built). Applied in: sections 7.9.3 and 7.9.6.
+351. **The deployment id** (WP-43, S-69). The deployment id is a UUIDv7 minted once at the first
+     `connect` and recorded in the control root `kw__control` as the single record of the migration
+     track `keelwerk.deployment`, read back on every boot through a short probe connection; it is
+     never derived from configuration or URLs (it is the scope id of every control-store row and the
+     deployment key's scope). Stored format final from M1. Status: decided by the lead 2026-11-05 (M1
+     plan, WP-43, S-69). Applied in: sections 4.6 and 14.4.4.
+352. **The lifecycle as built** (WP-43). The anchor comparison runs after `migrate`, not at
+     `connect`; a process heartbeats every 10 seconds, is presumed gone after 30 seconds without
+     one, and a failed boot marks it `stopped`; `stop` takes one absolute deadline (21.6); an
+     `env()` placement URL whose variable is unset fails with `validation`; only the
+     `shared-tables` strategy is built; `core.introspect` answers `unavailable` for an app the
+     process does not serve. Status: decided by the lead 2026-11-05 (M1 plan, WP-43). Applied in:
+     sections 3.3, 19.1 and 21.6.
+353. **Runtime control and options** (WP-43, WP-45, WP-49). `Runtime.control` (`RuntimeControl`:
+     `createBackend(BackendInput)`, `createTenant(TenantInput)`) creates backends and tenants
+     through the control path of entry 415; `RuntimeOptions` gains `environment?` and `env?` (the
+     process environment, read for `env()` URLs, the default secret provider, `KEELWERK_EXPLAIN` and
+     the development switch: production unless `environment` says otherwise or `NODE_ENV` is
+     `development` or `test`) and the infrastructure entries `SchemaPlanner` and `FallbackReporter`
+     (exported by `@keelwerk/data`); `InvokerApp.api` carries each app's API versions, and the
+     deployment-level core app serves `coreApiVersions`. Status: decided by the lead 2026-11-05 (M1
+     plan, WP-43, WP-45, WP-49). Applied in: sections 3.3 and 4.6.
+354. **The introspection setting** (WP-43, closes open point 320). `core.introspect` is open to any
+     signed-in principal by default (entry 305); `config.core.introspection` sets `public` or
+     `operator`. Status: decided by the lead 2026-11-05 (M1 plan, WP-43). Applied in: section 16.2.5.
+355. **The server's node id** (WP-43, closes open point 324). `serverNodeId(bytes)` builds a server
+     process's node id, `s` and ten lower-case Crockford base32 characters from the first 50 of the
+     random bits the runtime supplies. Status: decided by the lead 2026-11-05 (M1 plan, WP-43).
+     Applied in: section 14.5.3.
+356. **Runtime-issued control commands** (WP-47, WP-56, S-75). Control commands the runtime issues
+     (`Runtime.control`) run under the in-process operator principal `core.runtime`
+     (`runtimeOperator`), because the core rules deny the system principal; `InvokerOptions.epochOf`
+     is wired from `ControlStore.epochOf`, 0 until M2; generated `update` and `set` on `core.*`
+     entities that name `backendId`, `placement` or `app` stay `not_implemented` (the tenant move of
+     14.4.5, M5), and generated writes on `core.*` refuse `apiVersion` members, which change only
+     through `core.tenant.setApiVersion` (S-97). Status: decided by the lead 2026-11-05 (M1 plan,
+     WP-56, S-75, S-97). Applied in: sections 3.1, 15.2.6 and 18.3.
+357. **Fallbacks per placement** (WP-43). The fallbacks an app will use are recorded and logged per
+     placement at `connect`; the refusal of a module's raw-SQL dialect needs the module's
+     `data.needs`, which no M1 module declares (open point 471). Status: decided by the lead
+     2026-11-05 (M1 plan, WP-43). Applied in: section 14.3.3.
+358. **The `prepare` variant, prototyped** (WP-44, entry 150). `spikes/prepare-variant/REPORT.md`
+     builds both forms on the M1 kernel for Trail's position ingest and GitHub's connection flow and
+     recommends keeping the separate `prepare`: the variant forbids load-then-effect, which the
+     connection flow needs; the separate form lets the compiler enforce the rule; the variant's gains
+     (9 fewer lines, one concept fewer, a complete replay record) are small, and the last is
+     available to the separate form by recording `prepare`'s reads and result. Decision 50a stands;
+     the choice is Jens's (open point 469), and M3 repeats the comparison on Trail's code. The codes
+     `core.effect_after_load` and `core.effect_replay_mismatch` stay spike-local. Status: reported
+     2026-11-04 (WP-44). Applied in: section 26.2.
+359. **`explain` in M1** (WP-45). The request carries the backend and tenant (an operator session is
+     deployment scope); a rule's file is derived from its id (the registry records no source path);
+     the dry run runs admit, validate, translate, authorize and prepare inside the deadline, records
+     the appends of a unit that always rolls back, redacts hidden, personal and secret fields (16.11.3)
+     and is operator-only, remote operators only in development; output is text on a terminal and
+     JSON when piped; the explain stream is on in development with `KEELWERK_EXPLAIN=1`. Status:
+     decided by the lead 2026-11-05 (M1 plan, WP-45). Applied in: sections 8.6, 11, 16.9.7 and
+     16.11.3.
+360. **The provisioned role and test containers** (WP-46, S-73). PostgreSQL provisioning grants the
+     application role named by the placement URL's user (validated as an identifier and quoted in
+     the grant), because the adapter is passed no role; test containers mount tmpfs at
+     `/var/lib/postgresql`, which holds PGDATA on PostgreSQL 18. Status: decided by the lead
+     2026-11-05 (M1 plan, WP-46, S-73). Applied in: sections 14.3.7 and 14.10.
+361. **PGlite's queue honours the deadline** (WP-46, S-74). A PGlite unit queued behind another
+     gives up after `timeoutMs` with `unavailable`, `core.timeout`, while it waits. Status: decided
+     by the lead 2026-11-05 (M1 plan, WP-46, S-74). Applied in: section 14.3.6.
+362. **Production `migrate` verifies only** (WP-46). In production `migrate` verifies and applies
+     nothing; the release step that applies migrations is a boot in `test` mode on the same database,
+     which the slices run once. Status: decided by the lead 2026-11-05 (M1 plan, WP-46). Applied in:
+     sections 3.3 and 14.6.4.
+363. **SQL error mappings and decimals** (WP-46). SQLSTATE 23502 (not null) and 22P02 (invalid text
+     representation) map to `validation`; a SQL `put` refuses a receipt of another fingerprint;
+     PGlite maps "column already exists" to `conflict`; the `kw_positions` policy lets backend and
+     deployment units own their logs; decimals keep the core's canonical form padded to the field's
+     scale on every adapter (the PostgreSQL codec reads `numeric` as text). Status: decided by the
+     lead 2026-11-05 (M1 plan, WP-46). Applied in: sections 10, 14.3.7 and 14.5.1.
+364. **Generated reads and tokens** (WP-47). `runCommand` dispatches generated commands to their
+     handlers; the `history` node grows `fromVersion`, `limit`, `actor` and `changes`, the read nodes
+     `includeArchived` and `partition`; `QueryStateEncoder` takes a third argument
+     (`QueryStateSource`) and the scope epoch is 0 until M2; a token's epoch matches
+     `0|[1-9a-z][0-9a-z]{0,9}`; a relation quantifier makes a stream uncertain on any related event
+     after the position (coarser than step 3); a `set` with `ifInState` runs at serializable
+     isolation; the wire shapes of `changes`, `queryChanges` and `set` follow the surface nodes.
+     Status: decided by the lead 2026-11-05 (M1 plan, WP-47). Applied in: sections 6.7, 14.8.1 and
+     15.2.6.
+365. **A `set`'s new state** (WP-47, S-77). A `set`'s `newState` is assigned in `afterCommit`,
+     because positions exist only at commit; a receipt replay answers `oldState`. Re-deciding
+     generated commands is open point 453. Status: decided by the lead 2026-11-05 (M1 plan, WP-47,
+     S-77). Applied in: section 6.7.
+366. **`created` against `changed`** (S-92). In step 2 of 15.2.6 a stream the reader can read now is
+     `created` only when its `created` event is after the position; a row that became readable
+     through a related row (a move, a reopened parent) is `changed`. Step 3's reconstruction is open
+     point 455. Status: decided by the lead 2026-11-05 (M1 plan, S-92). Applied in: section 15.2.6.
+367. **Value keys and loaded secrets** (WP-48, S-80, closes open point 321). The value key of a
+     `field.secret()` or `field.verifier()` is `kwv1.<key id>.<nonce>.<ciphertext>` everywhere;
+     loaded rows carry `{ ref }` for secrets and the text for verifiers; a reveal derives with
+     `create: false`; verifiers are opened through `keys.openValue` before `argon2idVerify`. Status:
+     decided by the lead 2026-11-05 (M1 plan, WP-48, S-80). Applied in: sections 14.7.4, 14.8.1 and
+     17.7 (G4).
+368. **Sealed configuration secrets** (WP-48, S-80). A sealed configuration secret is stored as
+     `kwc1.<backend>.<module>.<field>.<keyVersion>.<nonce>.<ct>` (golden vector committed); a reveal
+     refuses a text of another backend or module. Stored format final from M1. Status: decided by the
+     lead 2026-11-05 (M1 plan, WP-48, S-80). Applied in: sections 5.7 and 14.7.4.
+369. **Verifiers in decision records** (WP-48, S-81). The decision record keeps an issued token's
+     verifier in its sealed `kwv1` form under the row's value key, never in plaintext: destroying the
+     key makes the former verifier unreadable, while a live key lets a re-decide reproduce it.
+     Status: decided by the lead 2026-11-05 (M1 plan, WP-48, S-81). Applied in: sections 7.9.6 and
+     14.7.4.
+370. **What M1 refuses to seal** (WP-41, WP-44, WP-48, WP-53, S-81, S-99). Lists or sets of secrets,
+     event payloads that declare a credential and configuration shapes with such members are refused
+     rather than sealed; effect inputs with personal or secret fields are refused until they are
+     sealed under the subject's key; a non-entity command whose output has a personal field is
+     refused at compose until receipts seal outputs; effect outputs that carry secrets have no
+     sealing rule yet (open point 456). Status: decided by the lead 2026-11-05 (M1 plan, WP-48,
+     WP-53, S-81, S-99). Applied in: sections 7.9.5, 14.7.4 and 15.1.7.
+371. **Secret drafts, issue and trace** (WP-48). The draft type of a `field.secret()` member is
+     `string | SecretRef`; the decide context has `ctx.secrets.issue`; a command's `trace: { input:
+     'sealed', retention? }` makes the decision record keep its sealed input; `createKeyService`
+     gains `fork()` (`ForkableKeyService`), so the dry run holds new value keys in memory; the replay
+     answerers answer `secret`. Status: decided by the lead 2026-11-05 (M1 plan, WP-48). Applied in:
+     sections 6.6, 7.9.3 and 7.9.10.
+372. **Value keys destroyed on change** (WP-48). A value key is destroyed when its value is replaced
+     or cleared and when its row is archived; purge and the keys of effect records are not wired (no
+     purge in M1); configuration is sealed under the backend key only (no tenant override in M1), and
+     `createBackend` validates, then checks the name, then seals. Status: decided by the lead
+     2026-11-05 (M1 plan, WP-48). Applied in: sections 5.7 and 14.7.4.
+373. **What the ledger check compares** (WP-49, S-78). `checkLedger` compares `surfaceHash` and
+     `modules` for the head entry only; released entries are checked for presence and order (additive
+     changes reach every version, released entries are never edited). A version is retired below the
+     oldest declared version or past its entry's sunset (410); any other undeclared date is unknown
+     (400); pins follow the same rules, so a retired or unknown pin fails the request (the re-pin event
+     of 18.5 is M2). `openSession` passes the principal to `resolveVersion`. Status: decided by the
+     lead 2026-11-05 (M1 plan, WP-49, S-78). Applied in: sections 13.7, 18.2 and 18.3.
+374. **Ledger writes and the version header** (WP-47, WP-49, S-79). A plain `generate-surfaces` run
+     creates `ledger.json` when missing and otherwise brings only the head entry's `surfaceHash` and
+     `modules` to what the sources imply (`refreshHeadEntry`; the head is the working entry until
+     `surface version new` cuts it); released entries are never touched; `--check` reports head
+     drift until the run is repeated. The version travels in the `Keelwerk-Version` header only: the
+     HTTP host copies a GET's query parameter into it, and the WebSocket hello is M2. Status: decided
+     by the lead 2026-11-05 (M1 plan, WP-49, S-79, amended after WP-47). Applied in: sections 13.7,
+     18.3 and 18.6.
+375. **Surface change classes** (WP-49, WP-58, S-109). The breaking classes gain `authChanged`,
+     `scopeChanged` and `instanceChanged`; `inputFieldRemoved` is breaking; a change of a `wide`
+     integer is a type change; a removed default is `inputMadeRequired`; a change to a `json` or
+     `foreign` schema is breaking unless an output union grew; a removed error code is neutral and a
+     removed event breaking; widening a scope to `invocation` from a scope it still accepts is not
+     breaking. Status: decided by the lead 2026-11-05 (M1 plan, WP-49, WP-58, S-109). Applied in:
+     sections 18.4 and 18.6.
+376. **The layout pass compares with the manifests** (WP-50, S-83). In M1 the layout pass compares
+     the sources with the generated manifests and the `base.ts` and `app.ts` files, enough for every
+     drift kind of 23.13; comparing with a registry a probe composes is M2. The core module is a
+     sugar root for the pass; fixture modules without a migrations folder are exempt from the "adds
+     data" check (S-13); doctor opens each placement's adapter without migrating to list the
+     fallbacks. Status: decided by the lead 2026-11-05 (M1 plan, WP-50, S-83). Applied in: sections
+     13.12 and 23.13.
+377. **Doctor in M1** (WP-50, WP-51, WP-56, S-84). The ledger sink counts refused appends and exposes
+     the count to the control reader doctor uses; failed `onTenantCreated` hooks are reported from
+     the tenant stream's `core.tenant.hookFailed` and `hookCompleted` events, which `runTenantHooks`
+     writes; the flag-expiry check of 13.12 is not built; doctor judges the deployment file
+     statically and runs the checks that need a connection against a running deployment; a ledger
+     sink on the placement's volume, an anchor older than its cadence and a scope behind its anchor
+     are reported. Status: decided by the lead 2026-11-05 (M1 plan, WP-50, WP-51, WP-56, S-84).
+     Applied in: sections 3.3, 13.12 and 14.7.9.12.
+378. **Anchors** (WP-51, S-87). An anchor pins the scope's newest chained event (transient records
+     at the head are skipped); the writer seeds its known anchors at start, so a transient head is
+     not re-anchored; `recordedAt` floors to milliseconds with three digits (S-34); readers skip a
+     torn or unknown last ledger line; anchoring starts with `start` and `StopInput.anchoring` stops
+     it within the deadline, and the start and stop sweeps anchor heads committed while no process
+     ran; the in-memory adapter reports the real deployment id. Status: decided by the lead
+     2026-11-05 (M1 plan, WP-51, S-87). Applied in: sections 14.7.6 and 15.1.8.
+379. **Finding events by command** (WP-51). `EventStore.find(match: EventMatch, { after, limit })`
+     answers `{ events, next }` by command id or causation id (`next` null on the last page), over
+     the indexes `(scope_id, (meta->>'commandId'))` and `(scope_id, (meta->>'causationId'))` of
+     `kw_events`; `connectRewindCheck` is the boot's rewind check. Status: decided by the lead
+     2026-11-05 (M1 plan, WP-51). Applied in: sections 15.1.2 and 15.1.11.
+380. **The interpreter's overhead, measured** (WP-52). On the in-memory adapter the interpreter
+     costs about 2.5 to 6 microseconds per load request, and a decision with 20 loads adds 100 to 150
+     microseconds over the same unit written imperatively; `ctx.newId` costs 2.4 to 2.7
+     microseconds per request; the fixed 48 to 53 microseconds per command is the write path
+     (fingerprint, context, clock, evolve, chained hash, decision record, meta), not the interpreter;
+     a generator that never yields costs no more than a plain return; building the decision record
+     costs 0.1 microseconds and hashing it about 0.3 per recorded read. On PostgreSQL 18 at 20 loads
+     the generator form takes 8 to 26 percent longer than the imperative unit (100 to 200
+     microseconds per load) with the same statements and the same server time, so the difference is
+     client-side and not yet explained (open point 473; measured under load, to repeat on a quiet
+     host). The overhead is acceptable for M1. Status: measured 2026-11-05
+     (`spikes/interpreter-overhead/REPORT.md`, WP-52). Applied in: sections 7.9.4 and 26.2.
+381. **`ctx.all` is answered member by member in M1** (WP-52). `answer-all.ts` answers the members
+     of `ctx.all` one after the other on the unit's session, so 7.9.3's batching is not implemented
+     in M1 and a `ctx.all` saves no round trip (batching same-entity loads into one `find` is open
+     point 472). Status: measured 2026-11-05 (WP-52; as built). Applied in: section 7.9.3.
+382. **Index root keys** (WP-53, S-98). The index root key is HKDF(scope key,
+     `keelwerk/index-root/<v>`); there is no `kw_index_keys` table; rotation is a new version; known-
+     answer vectors pin the root key, the field key and the tag. Stored format final from M1. Status:
+     decided by the lead 2026-11-05 (M1 plan, WP-53, S-98). Applied in: sections 14.7.4 and 14.7.9.7.
+383. **Personal fields in M1** (WP-53, S-98). Derived index columns record the Unicode version
+     (`ColumnSpec.derived { query, kind, unicode }`); custom normalisers are refused; `keys:
+     'subject'` is `not_implemented`; no prefix tags are written, so `startsWith` takes the bounded
+     scan (S-37); an approximate plan fills the page up to ten times the page size; a shredded or
+     moved value reads as absent. Status: decided by the lead 2026-11-05 (M1 plan, WP-53, S-98).
+     Applied in: sections 14.7.9.3, 14.7.9.5, 14.7.9.6 and 14.7.9.8.
+384. **Re-decide compares sealed values by presence** (WP-48, WP-53, WP-63, S-82). Where the record
+     holds a sealed value (a personal envelope or a `kwv1` text), the re-decided value is compared by
+     presence, never by ciphertext, since every sealing draws a fresh nonce; a command whose input
+     holds a plain `field.secret()` value therefore no longer reports "data differs". Status:
+     recorded as built 2026-11-05 (`encryption/align-sealed-values.ts`; S-82 was open). Applied in:
+     section 7.9.6.
+385. **The sealing layer and the dump** (WP-53). The sealing layer wraps each placement adapter at
+     `connect`; `TestRuntime.sealed` is the placement adapter wrapped with real keys; the testing
+     entry exports `dumpDatabase`, `findPlaintext` and `DumpQuery`, `@keelwerk/data/conformance`
+     exports `unsealingOracle`; `dropColumn` takes `columns`. Status: decided by the lead 2026-11-05
+     (M1 plan, WP-53). Applied in: sections 14.7.9.10, 14.10 and 16.8.5.
+386. **Scope columns by tenancy** (WP-56, S-101). Scope columns (`tenant_id`, `backend_id`,
+     `deployment_id`) apply by the entity's tenancy, never by column name, so a deployment-scoped
+     entity may own a field column named `backend_id` (`core.tenant`). Status: decided by the lead
+     2026-11-05 (M1 plan, WP-56, S-101). Applied in: sections 14.3.6, 14.4.3 and 15.1.2.
+387. **Failure buckets refuse** (WP-54, S-85). An exhausted `onDeclaredError` bucket refuses the next
+     attempt at `admit` with `rate_limited` and `retryAfter`; `BucketStore.check(bucket, cost,
+     limits)` reads the level without taking; charging still happens only after a declared failure
+     (auth: five failed attempts per identifier per fifteen minutes); the invoker's `complete` stage
+     charges them. Status: decided by the lead 2026-11-05 (M1 plan, WP-54, S-85). Applied in:
+     sections 12.2 and 17.2.6.
+388. **Bucket keys per module** (WP-54, S-86). Bucket keys are the keyed hash of
+     `<module>\u0000<bucket>` under the scope's key (HKDF from the tenant key, the backend key in
+     backend scope), so two modules naming the same bucket never share a row; a charge with `cost >
+     capacity` and a malformed charge are refused as `internal` at `admit` (fail closed); charges are
+     taken in keyed-hash order; the key derivation happens before the unit opens; `explain --dry-run`
+     runs admission inside its rolled-back unit. Status: decided by the lead 2026-11-05 (M1 plan,
+     WP-54, S-86). Applied in: section 12.2.
+389. **The generated `update` input** (WP-55, WP-57, S-89, S-104). The generated `update` input is
+     `{ id, patch, ifVersion? }` on the registry schema, the surface node, the handler, REST (whose
+     `PATCH` carries `patch` in the body) and the typed client alike, one shared type
+     (`UpdateInputAt`) so client and runtime cannot drift. Status: decided by the lead 2026-11-05 (M1
+     plan, WP-55, WP-57, S-89, S-104(g)). Applied in: sections 6.7, 16.5.2 and 16.8.4.
+390. **Ids decoded once** (WP-55, S-89). TypeIDs in any transport input decode once, through
+     `fromWire` over the action's input node; there is no separate decoder. Status: decided by the
+     lead 2026-11-05 (M1 plan, WP-55, S-89). Applied in: section 16.4.2.
+391. **`$masked` on the protocol** (WP-55, S-90). The invocation protocol keeps `$masked` on masked
+     rows exactly as REST does. Status: decided by the lead 2026-11-05 (M1 plan, WP-55, S-90).
+     Applied in: section 16.4.5.
+392. **The sort input** (WP-55, S-91). The generated query's `sort` input is a list of `{ field,
+     direction }` (the surface node was a list of strings). Status: decided by the lead 2026-11-05
+     (M1 plan, WP-55, S-91). Applied in: sections 6.7, 8.3 and 16.4.4.
+393. **CORS and origins per transport** (WP-55, S-91, S-96). `cors` is a REST mount setting; the
+     invocation protocol has no CORS configuration, and a configured origin is refused there;
+     allowed origins are computed per matched transport: the tenant's domains for the protocol, the
+     domains plus the mount's `cors` for REST. Status: decided by the lead 2026-11-05 (M1 plan,
+     WP-55, S-91, S-96). Applied in: section 16.4.10.
+394. **The operator socket and the core surface in M1** (WP-55, S-91). The operator socket serves
+     only the invocation protocol (no REST mount for `core`); `runtime.surface('core')` is the sole
+     app's surface, else the core module's alone; transports read backend configuration and domains
+     from the control store through a cache of two seconds; the "another tenant's scope key in a
+     path" scenario is skipped as `m2`, since M1 refuses the `path` and `scopeKey` resolvers at boot
+     (S-20). Status: decided by the lead 2026-11-05 (M1 plan, WP-55, S-91). Applied in: sections
+     16.3.3, 16.3.8 and 16.8.3.
+395. **The path rule** (WP-55, S-96). `HttpContext.path` (required) is relative to the mount: the
+     host strips the tenant prefix and the mount's base path; `basePath` is the tenant prefix plus
+     the mount prefix, for links; transports never strip. This amends entry 280. Status: decided by
+     the lead 2026-11-05 (M1 plan, WP-55, S-96). Applied in: section 16.3.3.
+396. **The receipt `Location` is the submitter's** (WP-55, S-95). The 202 `Location` is followable
+     by the submitter: `core.commandReceipt` has the flat optional columns `principalResolver` and
+     `principalId` (copies of the principal reference, written by the kernel), a core rule `allow get
+     where principalResolver = caller.ref.resolver and principalId = caller.ref.principalId` lets the
+     receipt's own principal read it, a caller without `ref` matches no row, and the json `principal`
+     document is hidden from reads. The receipt fields grow by these additive columns. Status:
+     decided by the lead 2026-11-05 (M1 plan, WP-55, S-95, amended twice the same day). Applied in:
+     sections 3.1, 15.1.7 and 16.4.7.
+397. **Receipt versions move** (WP-55, S-95). Taking over an expired receipt and `acknowledge` take
+     `version + 1` and set `updated_at` on both adapters, so the ETag never answers a stale 304.
+     Status: decided by the lead 2026-11-05 (M1 plan, WP-55, S-95). Applied in: sections 15.1.7 and
+     16.4.9.
+398. **The `invocation` table layout** (WP-55, WP-58, S-102). An `invocation` entity has its own
+     table layout: system columns `id`, `created_at`, `updated_at` and `version`, the scope column
+     `scope_id`, no `archived_at` and no `kw_*` columns, carried by the storage layer
+     (`EntityTable.systemFields`, `archivable`, `scopeColumn`, layout-aware row queries) with the
+     scope predicate `scope_id = <tenant, backend or deployment id>`; `core.commandReceipt` and
+     `core.effect` share it (as built); the memory adapter stores receipts as rows of the entity store.
+     Stored format final from M1. Status: decided by the lead 2026-11-05 (M1 plan, WP-55, S-102; the
+     effect layout as built). Applied in: sections 14.3.7, 14.4.2, 14.4.3 and 15.1.7.
+399. **Claims and reads of receipts** (WP-55, WP-58, S-102). Neither adapter's `put` takes over an
+     expired receipt; `claim` does, on both. Reads of an `invocation` entity accept tenant, backend
+     and deployment sessions, each in its own scope: `ActionEntry.scope` and `SurfaceAction.scope`
+     gain `'invocation'`, from the tenancy only (the DSL cannot declare it). The 202 `Location` is
+     written only when the receipt's scope is the session's, so a backend-scope async action called
+     from a tenant session answers 202 without `Location`; `watch` and `changes` on receipts need the
+     transient change records of 15.1.10 (M2). Status: decided by the lead 2026-11-05 (M1 plan,
+     WP-55, WP-58, S-102). Applied in: sections 8.8, 15.1.7 and 16.4.7.
+400. **Transport runtime interfaces** (WP-55). `MountContext.deploymentId`; `@keelwerk/core/http`
+     exports the host's shared helpers and `clearedCookie`; `@keelwerk/testing` exports
+     `describeTransportConformance`, `TransportCodec`, `TransportTarget`, `transportTargetOf` and
+     `startTransportRuntime`, with the REST codec in transport-rest's tests and the protocol codec in
+     transport-http's (testing imports no transport); the streaming and selection-limit scenarios are
+     written and skipped as `m2`. Status: decided by the lead 2026-11-05 (M1 plan, WP-55). Applied
+     in: sections 16.3.2 and 16.3.8.
+401. **The key service bound to the unit** (WP-43, WP-56, S-93, S-97). A key derivation requested
+     inside a deployment-scope command uses the command's open unit (single-unit adapters cannot open
+     a second deployment unit); the key service reaches the command's unit through an explicit
+     unit-bound view (`ForkableKeyService.within(store)`, `ScopeKeyWrapper.within?(store)` bound by
+     the SQL unit, the write path handing `run.keys.within(unit.scopeKeys)` to decide, sealing and
+     effects), never an ambient channel; adapters receive the wrapper as
+     `AdapterEnvironment.keyWrapper` (the memory adapter ignores it). Status: decided by the lead
+     2026-11-05 (M1 plan, WP-43, WP-56, S-93, S-97). Applied in: sections 7.9.10 and 14.7.4.
+402. **Operator tokens** (WP-56, S-93, S-97). Operator tokens carry the prefix `kwo`; they are issued
+     only over the socket or by an operator who did not sign in with a token (a token never mints
+     another), live 12 hours by default and at most 30 days; `core.operatorToken` gains `publicId`
+     (unique; keeps the tags); a `kwo_` bearer is deployment scope only on the deployment's
+     `operator.hosts` (`InvokerOptions.operatorHosts`) and `unauthenticated` elsewhere; the CLI has
+     `operator token issue|revoke|list`. Status: decided by the lead 2026-11-05 (M1 plan, WP-56, S-93,
+     S-97). Applied in: sections 3.1, 3.5, 16.8.3 and 16.9.7.
+403. **Output members shown once** (WP-56, S-97). A command lists the output members shown once
+     (`shownOnce`, an issued token): they never reach the stored receipt, and a replay of the command
+     answers `conflict`; compose refuses `shownOnce` on a command that answers a row
+     (`shownOnceOnRowOutput`) or names a member its output lacks (`unknownShownOnce`). Status: decided
+     by the lead 2026-11-05 (M1 plan, WP-56, S-97). Applied in: sections 4.3, 15.1.7 and 17.2.2.
+404. **Pins, `core.me`, capabilities and tenant hooks as built** (WP-56, S-94, S-97).
+     `core.tenant.setApiVersion` runs at deployment scope, checks the pin against the app's versions,
+     refuses retired versions and answers `unavailable` for an app the process does not serve;
+     `core.me` and `core.capabilities` are answered by the runtime at every scope level, `core.me`
+     resolving relation quantifiers through `relationReach` (at most 1,000 rows, else `serverOnly`);
+     the tenant events `entered`, `hookFailed` and `hookCompleted` exist and `core.tenant` has
+     `history` (the `entered` reason is stored and not shown in `history`); `hookCompleted` is written
+     on a rerun only, and `rerunTenantHooks` reruns only failed hooks. Status: recorded as built
+     2026-11-05 (M1 plan, WP-56, S-94, S-97; S-94 was marked open). Applied in: sections 3.3, 18.3
+     and 18.7.
+405. **The CASL export** (WP-56, S-94, S-97). `exportCaslRules` emits allow rules before inverted
+     ones (deny overrides), uses action names, reads `contains` as membership, marks selector rules
+     `serverOnly` and resolves quantifiers only in positive positions of allow rules. Status: decided
+     by the lead 2026-11-05 (M1 plan, WP-56, S-94, S-97). Applied in: section 8.7.
+406. **Entity commands that create** (WP-56, closes open point 325). `defineCommand` takes `creates:
+     true` for an entity command that creates its row and takes no `InstanceInput`
+     (`CreatingCommandSpec`); `Core` gains `operatorToken.issue` (its first user) and `revoke`, and
+     `me` is typed as `MeDocument`. Status: decided by the lead 2026-11-05 (M1 plan, WP-56). Applied
+     in: sections 3.1 and 4.3.
+407. **Backend configuration is complete and validated** (WP-43, WP-48, WP-57, S-70, S-104, S-106,
+     S-107). `createBackend` validates, per module (core included), the stored values merged over the
+     module's defaults against the module's config shape, and seals `field.secret()` values under
+     the backend key; a missing required field or an invalid value is `validation` naming module and
+     field. The runtime passes every command, read, principal resolver and tenant hook the backend's
+     validated `config[module]` merged over the defaults, so `ctx.config` is never undefined;
+     `moduleConfigOf` answers the defaults when nothing is stored and `internal` for stored values
+     that fail validation (a configuration migration is missing); the generated `core.backend.update`
+     refuses `config` in M1; `createBackend` returns `{ id, config }`. Status: decided by the lead
+     2026-11-05 (M1 plan, WP-48, WP-57, S-70, S-104(a), S-106, S-107). Applied in: sections 3.1 and
+     5.7.
+408. **The rows a command returns** (WP-57, S-104, S-106). Every row leaving the invoker, a command's
+     own output included, passes the caller's read plan of the entity (`get` for `rowOf`, `query` for
+     `pageOf`) and is masked by its fields; a command's own rules never grant a read, so a successful
+     `deactivate` returns the row and a deny condition on the command never produces
+     `core.row_outside_plan`; `forCaller()` inside a command uses the read plan. Status: decided by the
+     lead 2026-11-05 (M1 plan, WP-57, S-104(b), S-106). Applied in: sections 7.3 and 8.4.
+409. **A single-row output the caller may not read** (WP-57, S-106). A single-row output outside the
+     caller's read plan answers the 15.1.7 reference `{ entity, id, version }` in development and
+     production alike (`explain` notes the substitution); page rows outside the plan are dropped; a
+     replay for a caller outside the read plan answers the stored reference, never the live version or
+     `not_found`. This replaces the WP-37 reading that answered `not_found` in production. Status:
+     decided by the lead 2026-11-05 (M1 plan, WP-57, S-106). Applied in: sections 8.4 and 15.1.7.
+410. **Cursors are shaped too** (WP-57, S-106). A cursor's payload is base64url(JSON `[sortFieldNames,
+     sortValues, id, signature]`); the shape stage refuses (development) or strips (production) the
+     cursors of a page whose sort fields the caller's read plan hides, and a dropped edge row nulls the
+     cursors. Status: decided by the lead 2026-11-05 (M1 plan, WP-57, S-106). Applied in: sections
+     14.3.5 and 16.4.3.
+411. **Sortable narrowing** (WP-57, S-104, S-106). The query planner honours the action's
+     `page.sortable` intersected with the entity's indexed fields, not only the entity's own sortable
+     fields; the narrowing applies to target and `forCaller` loads only and always admits `id` and the
+     default sort. Status: decided by the lead 2026-11-05 (M1 plan, WP-57, S-104(c), S-106). Applied
+     in: sections 6.7 and 14.3.5.
+412. **Accounts in M1** (WP-57, S-104, S-105, S-106). `register` is public only while
+     `allowSelfRegistration` is on, and operators may always register (`policies/register/operator.ts`,
+     17.2.1 wins); a principal that may not read `email` cannot filter by it, so `search` matches the
+     `displayName` prefix for the directory and `email` or `displayName` for principals that read
+     `email`; api-sketch.ts is binding for the module's shapes (`identities` as the sketch has it),
+     `register` keeps `maxLength: 120` (on `displayName`, as built) and the profile's `displayName`
+     uses `.index()`; 17.2.1's administrators
+     arrive with roles, so M1's are operators only. Status: decided by the lead 2026-11-05 (M1 plan,
+     WP-57, S-104(d, e), S-105, S-106). Applied in: section 17.2.1.
+413. **`Ability.canFilterBy`** (WP-57, S-107). `Ability.canFilterBy(action, field)` answers whether
+     the principal may filter or sort the entity query `action` by `field`, true when the field is
+     revealed for every row its read plan selects; accounts' `search` uses it for `email`. Status:
+     decided by the lead 2026-11-05 (M1 plan, WP-57, S-107). Applied in: section 8.6.
+414. **Harness options for module tests** (WP-57, WP-60, WP-63, S-104, S-110, S-114).
+     `startTestRuntime` takes `adapter: 'memory' | 'pglite'`, per-module `config`, operator
+     principals and a capturing `logger`, and the PGlite factory takes the clock; `TestRuntime` has
+     `keys`, `clock` and `config(module)`; `@keelwerk/testing` exports what a module's alone test needs,
+     so a module package depends on `@keelwerk/core` and `@keelwerk/testing` only. Status: decided by
+     the lead 2026-11-05 (M1 plan, WP-57, WP-60, WP-63, S-104(f), S-110, S-114). Applied in: sections
+     16.8.5 and 22.
+415. **Core commands that create backends and tenants** (WP-58, S-109). The core module defines the
+     deployment-scope operator commands `core.backend.create` and `core.tenant.create` (`creates:
+     true`, principal `operator`), served by the kernel through the runtime's control path
+     (catalogue, placement and version checks, configuration check and sealing under a pinned id, the
+     write, the directory refresh and, unless replayed, the tenant hooks), so the CLI creates backends
+     and tenants over the operator socket; `Runtime.control` delegates to the same path; an existing
+     receipt skips the checks and replays. Status: decided by the lead 2026-11-05 (M1 plan, WP-58,
+     S-109). Applied in: sections 3.1, 5.1 and 16.9.7.
+416. **The generated `create` switch** (WP-58, S-109). `generated: { create: false }` leaves an
+     entity's generated `create` off, and the batch `set` fails its create items with `unsupported`,
+     `core.unsupported`; `core.backend` and `core.tenant` set it. Status: decided by the lead
+     2026-11-05 (M1 plan, WP-58, S-109). Applied in: sections 4.2 and 6.7.
+417. **Tenant entry over the socket** (WP-58, S-109, S-111). Tenant work over the operator socket
+     names the tenant in the `x-keelwerk-tenant` header on each request; between `resolvePrincipal` and
+     `resolveVersion`, for operator carriers only, the invoker requires an entry: the latest
+     `core.tenant.entered` by the same actor (via and id) within 12 hours, read from a bounded tail and
+     only for `actor.kind === 'operator'`. A malformed or unknown tenant or a wrong backend is
+     `not_found`, a suspended one `unavailable`, no entry `forbidden`, `core.tenant_not_entered`. The
+     CLI has `tenant enter <name|id> --reason [--backend]` and `--tenant` on action calls
+     (deployment-level groups refuse it, exit 2). Status: decided by the lead 2026-11-05 (M1 plan,
+     WP-58, S-109, S-111). Applied in: sections 8.8, 10 and 16.8.3.
+418. **`receiptId` and `--wait`** (WP-58, S-109). An accepted answer carries `receiptId`
+     (`Outcome.receiptId`, `InvokeResponse.receiptId`) only when the receipt's scope is the session's;
+     `--wait` polls `core.commandReceipt.get` on the same link every 250 ms, doubling to 2 s, and on
+     `completed` or `failed` re-sends with the same command id so the replay prints the value or the
+     error; a missing receipt is `cli.receipt_not_found` (exit 6), a timeout prints the receipt and
+     `cli.wait_timeout` (10), an answer without `receiptId` `cli.wait_unavailable` (11), and a bare
+     `--wait` waits until interrupted (130); with no worker in M1 an accepted command's `--wait` ends
+     at its timeout; `--wait-effects` stays `core.live_unavailable`; operators may read `core.effect`.
+     Status: decided by the lead 2026-11-05 (M1 plan, WP-58, S-109). Applied in: sections 16.8.2,
+     16.9.4 and 16.9.5.
+419. **Empty inputs** (WP-58, S-109). The validate stage turns `undefined` into `{}` when the action's
+     input is an empty shape and accepts `undefined` for a `void` input; `null` stays refused. Status:
+     decided by the lead 2026-11-05 (M1 plan, WP-58, S-109). Applied in: section 9.2.
+420. **`backend create` flags** (WP-58, S-109). `--settings` replaces `--config` on `backend create`
+     (`--config` is the global flag); project mode picks the app by looking the backend up by name or
+     id. Status: decided by the lead 2026-11-05 (M1 plan, WP-58, S-109). Applied in: sections 16.9.2
+     and 16.9.4.
+421. **Fingerprints of sealed inputs** (WP-58, S-109, S-111). A control create's fingerprint covers
+     the client's input (`RunCommandInput.fingerprintInput`), so sealed values never reach it; the
+     fingerprint of a command whose input carries secret members is a keyed digest (HMAC-SHA-256 under
+     HKDF(control scope key, `keelwerk/fingerprint/v1`)), so receipts and `inputDigest`s never let a
+     reader check guesses of a plaintext secret, while inputs without secret members keep the plain
+     SHA-256; a control create in replay mode never runs the write path (`RunCommandInput.replayOnly`
+     answers the retryable `core.command_in_progress` when the receipt turns out inserted), so an
+     expired-receipt takeover cannot store unsealed configuration. Stored format final from M1.
+     Status: decided by the lead 2026-11-05 (M1 plan, WP-58, S-109, S-111). Applied in: sections 7.5
+     and 15.1.7.
+422. **Headers carry ids** (WP-58, S-111). The backend and tenant headers carry ids; the CLI resolves
+     a backend name to its id once per run before tenant-scoped requests. Status: decided by the lead
+     2026-11-05 (M1 plan, WP-58, S-111). Applied in: section 16.8.2.
+423. **`db` commands in M1** (WP-59, S-103). `db apply`, `db status` and `db verify` run against the
+     deployment file only (a profile or the socket is refused with a message: no core action applies
+     migrations or reads chains); namespaces are built as shared tables (`schema-per-tenant` is not
+     handled); `db verify` resolves its scope targets from the `core.backend` and `core.tenant` rows
+     and checks them with `verifyAnchors`. Status: decided by the lead 2026-11-05 (M1 plan, WP-59,
+     S-103). Applied in: sections 14.6.4 and 16.9.7.
+424. **`surface diff` in M1** (WP-59, S-103). `surface diff` reports dangerous changes without failing
+     (there is no changelog acknowledgement yet); the per-module check that a package bump fits the
+     surface waits for a module-alone surface at the base; a removed version fails unless it is below
+     the oldest declared one. Status: decided by the lead 2026-11-05 (M1 plan, WP-59, S-103). Applied
+     in: section 18.6.
+425. **`generate` in M1** (WP-59, S-103). `generate` writes a module's first migration only when its
+     package has a `migrations/` directory (later changes go through `db generate`), and the
+     migrations producer is check-only; transport type fragments are not wired; the workspace walk
+     also finds `apps/*` and `modules/*`; the producers run in a child `node --conditions=@keelwerk/
+     source` unless the condition is already in `execArgv`; the build id, the namespace root, the
+     control namespace and the recorded deployment id are core functions shared by runtime and CLI;
+     the CLI manifest `keelwerk.cli/1` is a generated artefact; the root scripts `manifests`,
+     `surfaces` and `fixtures:migrations` are aliases of `keelwerk generate --only ...`. A committed
+     migration file is never edited: a later change of a committed track is a new file
+     (`0002-related-to` in the library fixture, `0002` of module-accounts; S-96, S-110), while tracks
+     not yet committed are regenerated rather than extended (S-112). Status: decided by the lead
+     2026-11-05 (M1 plan, WP-55, WP-59, WP-60, WP-62, S-96, S-103, S-110, S-112). Applied in: sections
+     13.7, 14.6.3, 16.9.7 and 23.1.
+426. **Indexes on personal fields** (WP-60, S-110). A declared index on a personal (sealed) field maps
+     to its blind-index `__eq` column, because the ciphertext carries a fresh nonce per row and an
+     index on it never sees a duplicate; a personal field without an `eq` index cannot be indexed (a
+     plan-time problem). Status: decided by the lead 2026-11-05 (M1 plan, WP-60, S-110). Applied in:
+     sections 14.6.2 and 14.7.9.6.
+427. **A unique violation repeats the unit once** (WP-60, S-110). A unique-index violation raised in
+     a command's unit repeats the unit once, so `decide` sees the committed row and answers the
+     module's declared error (`auth.identifier_taken`, `accounts.email_taken`); a second violation is
+     `conflict`; outside a command a unique violation stays `conflict`. Status: decided by the lead
+     2026-11-05 (M1 plan, WP-60, S-110). Applied in: sections 7.9.4 and 14.3.6.
+428. **Auth details** (WP-60, S-110). The session cache is keyed by a digest of the whole token and
+     dropped by the session's and the credential's change records (a resolver cache entry names a
+     list of rows); IPv6 addresses are bucketed by their /64 prefix; one rule per action (decision
+     60b) with ids `auth.<action>.<name>`, no rule arrays; the session cookie expires at the idle
+     expiry in M1 (sliding is M2). Status: decided by the lead 2026-11-05 (M1 plan, WP-60, S-110).
+     Applied in: sections 16.4.10, 17.2.4, 17.2.6 and 17.2.8.
+429. **Type budgets after the fold fix** (WP-47, WP-60, WP-63, S-110, S-113, closes open point 326).
+     `ContributionsTo<Ms, I>` filters a module's contributions once per module (fold at 25 modules
+     510,100 to 213,162), and the synthetic budgets are the measured figures plus 15 %: fold 246,000
+     and 412,000, whole program 1,500,000 and 2,327,000 at 25 and 40 modules; `module-auth` has a
+     per-package override of 11,776 manifest and 56,064 package bytes; the portal app's budget is
+     65,355 and the conformance app's 342,968 instantiations; the budget file lives in
+     `scripts/type-budgets` with per-package overrides, and its test fixture carries the app entries.
+     This replaces the figures of entry 283. Status: decided by the lead 2026-11-05 (M1 plan, WP-47,
+     WP-60, WP-63, S-110, S-113). Applied in: section 13.11.
+430. **Module roots in the workspace** (WP-60, S-110). A root under `test/fixtures` never shadows a
+     workspace module with the same id; two workspace roots sharing an id are a failure; the
+     migrations producer checks every module package that has a `migrations/` directory. Status:
+     decided by the lead 2026-11-05 (M1 plan, WP-60, S-110). Applied in: section 23.5.
+431. **Package graph additions** (WP-55, WP-58, WP-60, WP-61, WP-63, S-104, S-108, S-109, S-110,
+     S-113). `@keelwerk/testing` imports no transport, and `@keelwerk/transport-rest` has a one-way
+     dev dependency on `@keelwerk/transport-http`; module packages may carry
+     `@keelwerk/adapter-postgres` as a dev-only dependency for their PostgreSQL tests;
+     `@keelwerk/cli` depends on `@opentelemetry/api` (the core's version) and has the dev-only
+     dependencies `@keelwerk/testing` and `@keelwerk/transport-http`; the portal may carry `pg` and
+     `@types/pg` as dev dependencies; the graph stays acyclic. Status: decided by the lead 2026-11-05
+     (M1 plan, WP-55, WP-58, WP-60, WP-61, WP-63). Applied in: section 22.
+432. **Completions written by the CLI** (WP-58, WP-61, closes open point 315). The CLI writes its own
+     completion scripts: `keelwerk completion bash|zsh|fish` prints a script that calls back
+     `keelwerk __complete`, which answers from the cached surface without a network call;
+     `@stricli/auto-complete` is unused (still declared, ignored by knip). Status: recorded as built
+     2026-11-05 (`packages/cli/test/completion.test.ts`). Applied in: section 16.9.9.
+433. **The scaffolded module test** (WP-39, WP-61, closes open point 316). `keelwerk new module` writes
+     `test/alone.test.ts` against `startTestRuntime` and `createLocalClient`, beside the type test that
+     composes with `defineApp`. Status: recorded as built 2026-11-05
+     (`packages/cli/src/scaffold/module-template.ts`). Applied in: section 16.9.8.
+434. **Deployment entries and the HTTP host in M1** (WP-61, S-108). `defineDeployment` throws on
+     infrastructure entries without `provides` (adapter factories, ledger sinks), so the `init`
+     template default-exports a `DeploymentDefinition` literal; `startRuntime` neither builds the
+     `httpHost(...)` entry nor calls `listen()`: the CLI's `bootApp` builds the host over the runtime's
+     invoker and opens it after startup. Both are interim (open point 458). Status: decided by the
+     lead 2026-11-05 (M1 plan, WP-61, S-108). Applied in: sections 3.3 and 4.6.
+435. **`dev` and `init`** (WP-61, S-108). The dev PGlite directory holds one database per entry
+     (`control`, `<placement>`); the probe names a hanging import through a child hook, with a default
+     limit of 10 seconds; right after `init`, `generate --check` exits 1 until `pnpm install` has run,
+     and `init`'s next line says `pnpm install && pnpm exec keelwerk generate && pnpm exec keelwerk
+     dev`; `init` writes `.launchway/tsconfig.json`; the served host gets the deployment's
+     `telemetry.otlp` through `@opentelemetry/api`; the 1-second restart target was not met on a
+     loaded machine (1.4 to 14 s, open point 459). Status: decided by the lead 2026-11-05 (M1 plan,
+     WP-61, S-108). Applied in: sections 13.6 and 16.9.7.
+436. **CLI host and signals** (WP-59, WP-61). `CliHost` gains `promptLine(label)` (echoing;
+     `promptSecret` stays for secrets) and `spawn`, `schedule` and `watchTree`; `keelwerk` exits on
+     SIGTERM with the command's code after a completed stop and on SIGINT with 130. Status: decided by
+     the lead 2026-11-05 (M1 plan, WP-59, WP-61). Applied in: sections 16.9.5 and 16.9.10.
+437. **Track activity per app** (WP-62, S-112). Whether a migration track is active is decided per app
+     from its selected modules by one predicate of `@keelwerk/data` (exposed on `SchemaPlanner`),
+     applied by the runtime's namespace preparation and the CLI's track list alike, so `db apply` and
+     the build id agree; a process serving two apps filters per namespace. Status: decided by the lead
+     2026-11-05 (M1 plan, WP-62, S-112). Applied in: section 14.6.1.
+438. **`within()` and optional modules** (WP-62, S-112). Under `within()`, the optional module's loads
+     and services sit beside `ifPresent` when the module is selected. Status: decided by the lead
+     2026-11-05 (M1 plan, WP-62, S-112). Applied in: section 5.4.
+439. **Password change and reset** (WP-62, S-112). `accounts.profile.changePassword` shares
+     `reauthenticate`'s per-subject failure bucket (charged only when a current password was given);
+     a reset request issues the id and the secret in both branches (the insert's timing difference is
+     a known gap until M2's keyed job); a reset or a password change marks every other unused reset
+     token of the credential as used; a password change rotates the current session (17.2.3), its new
+     token shown once. Status: decided by the lead 2026-11-05 (M1 plan, WP-62, S-112). Applied in:
+     sections 17.2.3 and 17.2.5.
+440. **Sign-up with accounts** (WP-62, S-40, S-112). `register-profile` never pre-checks profiles: it
+     invokes `accounts.register` after the registration gate, so registration off answers `forbidden`
+     for every address; in M1 a taken address answers `accounts.email_taken` (declared on
+     `auth.signUp`) because a failed `invoke` effect cannot be remapped yet (open point 463);
+     `link-profile` links only a profile the sign-up reaction created (`actor.kind === 'system'`),
+     never a stranger's unlinked credential; the credential-to-profile relation joins on the explicit,
+     indexed `profileId` column, not `subject`; the reset delivery contract's token member is secret,
+     and fillers arrive with sealed effect inputs in M2 (S-43). Status: decided by the lead 2026-11-05
+     (M1 plan, WP-62, S-112). Applied in: sections 5.3, 17.2.2 and 17.2.5.
+441. **Too many records to change** (WP-62). Revoking a subject's other sessions and retiring a
+     credential's reset tokens load at most 1,000 rows; a full page is refused with `conflict`,
+     `auth.too_many_records`, rather than leaving live rows behind. Status: recorded as built
+     2026-11-05 (`packages/module-auth/src/errors/too-many-records.ts`). Applied in: sections 10 and
+     17.2.3.
+442. **One cookie per name on REST** (WP-63, S-113). On a REST response the transport layer
+     deduplicates every `Set-Cookie` by name across the route's own cookies and the session's clears
+     (a login's set wins over the stale-session clear), and a void (204) answer still carries the
+     action's cookie hints, so logout clears the cookie. Status: decided by the lead 2026-11-05 (M1
+     plan, WP-63, S-113). Applied in: sections 16.3.4 and 16.4.10.
+443. **Every REST error is a problem document** (WP-63, S-113). Every error on a REST path, CSRF
+     refusals and errors before the session opens included, is `application/problem+json` with its
+     code; the protocol path keeps its envelope. Status: decided by the lead 2026-11-05 (M1 plan,
+     WP-63, S-113). Applied in: sections 16.5.3 and 16.5.4.
+444. **Resolver fills describe themselves statically** (WP-63, S-113). A principal-resolver fill
+     declares its `describe()` output statically, so surfaces and OpenAPI `securitySchemes` need no
+     bound runtime. Status: decided by the lead 2026-11-05 (M1 plan, WP-63, S-113). Applied in:
+     sections 16.2.2 and 16.5.5.
+445. **State loads in a re-decide** (WP-63, S-113, S-114). A re-decide answers `history: 'state'`
+     loads from the transient `kw_events` records (`replay/read-state-as-of-position.ts`): a stream
+     with records after the position folds back from `readStream(ref, { toVersion: first.version - 1
+     })` (unbroken from version 1, else refused), a stream whose first later record is `created` did
+     not exist, any other is the current table row (archived included); projections and externals
+     stay refused. `AsOfContext` carries a `FeedHorizon { decidedAt, retainedSince }` (default `P7D`,
+     the `transientRecords` rule), and a state read in a decision older than the horizon is refused
+     with `unsupported`, `core.replay_outside_horizon`. The folded row hands back sealed values (`kwv1`
+     text) as live reads do. Transient records carry only the new values; before-images (M2) would let
+     rows older than the horizon re-decide. Status: decided by the lead 2026-11-05 (M1 plan, WP-63,
+     S-113, S-114). Applied in: sections 7.9.6, 14.7.1 and 15.1.10.
+446. **`argon2idNeedsRehash`** (WP-63, S-114). `ctx.compute.argon2idNeedsRehash(verifier)` is a
+     compute request: the kernel opens the sealed verifier and compares its parameters with the
+     current ones; it is reproducible and not recorded. A login rehashes only when the parameters
+     differ (passing the sealed text to a plain check made every login rehash and destroy the previous
+     key). Status: decided by the lead 2026-11-05 (M1 plan, WP-63, S-114). Applied in: sections 7.9.3
+     and 17.2.2.
+447. **Keys in a re-decide** (WP-63, S-114). A re-decide takes the runtime's `KeyService` in the
+     recorded scope (`RedecideInput.keys`): `issue` is answered from the record, `verify` and `reveal`
+     live; a destroyed key refuses with `unsupported`, `core.replay_key_destroyed`, reported as
+     `RedecideResult.refused`. Status: decided by the lead 2026-11-05 (M1 plan, WP-63, S-114). Applied
+     in: sections 7.9.6 and 10.
+448. **Re-decide inputs and the test runtime** (WP-63, S-113, S-114). `RedecideInput` gains `clock`,
+     `feedHorizon?`, `keys` and `request` (the unrecorded request information, user agent and address,
+     supplied like `--input` in M1); a re-decide also re-runs the inline reactions with their recorded
+     reads and compares their writes; instants compare at millisecond precision because stores keep
+     `timestamptz(3)`; `expectReproduces` uses the test runtime's keys, clock and configuration, its
+     own compute pool and accepts a core `Principal`, so exit criterion 8 covers login, logout and
+     reset. Status: decided by the lead 2026-11-05 (M1 plan, WP-63, S-113, S-114). Applied in:
+     sections 7.9.6 and 16.8.5.
+449. **The registered core codes, listed** (WP-58, WP-63). Section 10 lists every code of
+     `packages/core/src/errors/core-error-codes.ts` with its kind in one table, among them the codes
+     of this section (`core.tenant_not_entered`, `core.replay_outside_horizon`,
+     `core.replay_key_destroyed`) and of sections N and O, and names the codes of the M1 modules
+     (`auth.too_many_records` among them). Status: decided by the specification pass 2026-11-05 (the
+     code decides). Applied in: section 10.
+
+Open points raised by the same packages, for their owners:
+
+450. **The explain stream line** (WP-45, S-71). The stream line is `<transport> -> <action> <ok|code>
+     <n> ms`, without stages, plan or matched rule ids, and `subscribe` writes none; showing the
+     matched rules needs an invoker decision hook or an `Outcome` member. Status: open, for M2
+     (concerns sections 11 and 16.11.4).
+451. **`--as` and roles** (WP-45, S-72). `--as user:<id>` builds a principal without roles from the
+     deployment's resolver or enrichers (`--roles` is an unlisted flag); resolving `--as` through the
+     `PrincipalEnricher` chain and printing the roles the decision used is open. Status: open, for M2
+     (concerns section 16.9.7).
+452. **The third reset case** (WP-47, S-76). A position older than the retention horizon (14.7.2)
+     needs a horizon hook beside `epochOf`. Status: open, for M2 with compaction (concerns section
+     15.2.6).
+453. **Re-deciding generated commands and `prepare`** (WP-42, WP-47, S-77). `redecide` and
+     `driveDecision` call `action.handler` and refuse commands with a generated handler or a `prepare`
+     (`not_implemented`); replaying the generated handlers is M2. Status: open, for M2 (concerns
+     section 7.9.6).
+454. **Ledger rotation and anchor verification** (WP-51, S-88). The ledger file has no rotation, and
+     `verifyAnchors` keeps every anchor in memory with one query per anchored position (up to 86,400
+     per active scope per day at the default cadence); rotation and a newest-anchor-per-scope sweep are
+     an M2 design item. Status: open, for M2 (concerns section 15.1.8).
+455. **Step 3 of the disclosure rule** (S-92). Step 3 lets the rule evaluate quantifiers with the
+     reconstructed keys instead of answering `cannotCalculateChanges` on a changed own key; that needs
+     an in-kernel quantifier evaluator. Status: open, for M2 (concerns section 15.2.6).
+456. **Sealing effect inputs and outputs** (WP-44, WP-53, S-99). Personal effect inputs stay refused
+     until they are sealed under the subject's key, a non-entity command's personal output until
+     receipts seal outputs, and effect outputs that carry secrets have no sealing rule. Status: open,
+     for M2 (concerns sections 7.9.5, 15.1.7 and 17.7 (G4)).
+457. **A data subject through a row the same decision creates** (WP-53, S-100). A dotted
+     `dataSubject` path through a row that the same decision creates fails ("needs its data subject");
+     hops should resolve against the decision's written and loaded rows first. Status: open, for the
+     write-path owner (concerns section 14.7.4).
+458. **Deployment entries without `provides`, and who owns the host** (WP-61, S-108). Core should
+     tolerate infrastructure entries without `provides`, so `init` can use `defineDeployment`, and the
+     runtime should build the `httpHost` entry and call `listen()` itself instead of the CLI's
+     `bootApp`. Status: open, for the core owner (concerns sections 3.3 and 4.6).
+459. **The restart target** (WP-61, S-108). The 1-second restart target of 13.6 was not met on a
+     loaded machine (1.4 to 14 s); it is to be re-measured on a quiet machine. Status: open, for M2 or
+     WP-65 (concerns section 13.6).
+460. **Who registers the OTLP exporter** (WP-61, S-108). Nothing in core reads `telemetry.otlp` to
+     register an exporter or a global provider; the served host uses the API's global tracer and
+     meter. Who registers the provider (the runtime at startup, from the deployment's telemetry) and
+     when is open. Status: open, for the core owner (concerns sections 4.6 and 11).
+461. **The bring-up's tenant entry** (WP-58). Section 17.5.4 uses `operator.enter`, which `AppClient`
+     (16.8.4) does not have; the CLI's `tenant enter` and the tenant marker of entry 417 exist.
+     Status: open, for M4 (concerns sections 16.8.4 and 17.5.4).
+462. **A minimum password length** (WP-60). Section 17.2 sets no minimum password length. Status:
+     open, for the auth owner (concerns section 17.2.2).
+463. **Error mapping on `invoke` and causation on reaction events** (WP-62, S-112). A failed `invoke`
+     effect cannot be remapped to the caller's declared error (so `auth.signUp` answers
+     `accounts.email_taken` rather than `auth.identifier_taken`), and reaction events carry no causation
+     id, which `link-profile` would use instead of `actor.kind`. Status: open, for M2 (concerns
+     sections 7.4 and 7.7).
+464. **Transports in the harness** (WP-63, S-113). `startTestRuntime` cannot host a transport module,
+     so replay, store isolation and the dump run on a local `portal` app of accounts and auth; the
+     in-process host gives every request one address, so the portal test configuration raises
+     `auth.addressAttemptsPerMinute` to 1,000. Composing transports in the harness and varying the
+     address per request in `startTransportRuntime` are open. Status: open, for the testing owner
+     (concerns section 16.8.5).
+465. **Recording request information** (WP-63, S-114). The user agent and address a decision read are
+     not recorded, so a re-decide is handed them; recording them is a follow-up of 15.1.3. Status:
+     open, for M2 (concerns sections 7.9.6 and 15.1.3).
+466. **Millisecond-exact records** (WP-63, S-114). Re-decide compares instants at millisecond
+     precision because stores keep `timestamptz(3)`; whether the decision record itself should be
+     millisecond-exact is open. Status: open, for M2 (concerns sections 7.9.6 and 15.1.3).
+467. **A destroyed key or a wrong secret** (WP-63, S-114). A bare verifier cannot tell "the scope key
+     is gone" from "the secret is wrong"; a key-service call is needed to tell them apart. Status:
+     open, for the key-service owner (concerns sections 7.9.6 and 14.7.4).
+468. **The horizon boundary and purged rows** (WP-63, S-114). A folded row that was later hard-deleted
+     is still answered, and the refusal should keep a margin at the horizon boundary; both wait for
+     M2's purge. Status: open, for M2 (concerns sections 7.9.6 and 15.1.10).
+469. **The `prepare` variant** (WP-44, entry 358). The WP-44 report recommends keeping the separate
+     `prepare` (decision 50a); Jens decides, and M3 repeats the comparison on Trail's code (entry
+     150). Status: open, for Jens (concerns sections 7.9.4 and 26.2).
+470. **`prepare`'s reads in the record** (WP-44). `prepare`'s reads and result are not recorded, so
+     replay of a command with `prepare` is incomplete in either form. Status: open, for M2 (concerns
+     sections 7.9.6 and 15.1.3).
+471. **The raw-SQL dialect check** (WP-43). Refusing a module's raw-SQL dialect at `connect` needs the
+     module's `data.needs`, which no M1 module declares. Status: open, for M5 with the SQL escape hatch
+     (concerns sections 14.3.3 and 14.3.8).
+472. **Batching `ctx.all`** (WP-52). Members of one entity that use unlocked `byId` or `one` could be
+     answered by one positioned `find` with an `in` condition, the position recorded once per member;
+     members of different entities need a `findMany`. Status: open, for the interpreter owner
+     (concerns section 7.9.3).
+473. **The PostgreSQL residual** (WP-52). The 8 to 26 percent the generator form adds on PostgreSQL 18
+     at 20 loads is client-side time between statements, 100 to 200 microseconds per load, not yet
+     isolated; it should be explained, on a quiet host, before the text calls the overhead negligible
+     there. Status: open, for the interpreter owner (concerns sections 7.9.4 and 26.2).
+474. **Re-decide ergonomics and cost** (WP-42). A typed `loadOf(app)` matcher form keyed by the app's
+     entities and an `AsOfContext` row cache per (entity, position) are proposed. Status: open, for the
+     testing owner (concerns section 7.9.6).

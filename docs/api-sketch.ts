@@ -5,9 +5,13 @@
  * one rule per file (60b), the generated manifest (59b), the Maybe accessor (32b) and Temporal
  * instants (19b), and for the M0 spike outcomes of 2026-11-04 (register section M): typed principal
  * refs, `SubjectId`, `extensionPoint.set`, `continueWith`), and for the decisions on the M1 plan's
- * specification gaps (register section N): `auth.signUp`. Status: the acceptance test of the DSL;
- * the composition-types spike of roadmap M0 type-checks it (`pnpm --filter
- * @keelwerk/spike-composition-types sketch`) with no errors.
+ * specification gaps (register section N): `auth.signUp`; and for the M1 follow-ups of 2026-11-05
+ * (register section P): `canFilterBy` in search, `shownOnce` on login, `argon2idNeedsRehash`, the
+ * generated `update` input `{ id, patch }`, `generated: { create }`. Status: the acceptance test of the DSL;
+ * the composition-types spike of roadmap M0 type-checked it (`pnpm --filter
+ * @keelwerk/spike-composition-types sketch`) with no errors; since M1, `pnpm sketch` type-checks it
+ * against `@keelwerk/core` (packages/core/tsconfig.sketch.json), and the spike's frozen types lack
+ * the M1 additions.
  *
  * It shows: an accounts module, an authentication module that contributes to accounts and adapts
  * itself when accounts (or a live module) is present, a small module with an external effect, two
@@ -104,14 +108,13 @@ const profile = defineEntity({
   prefix: 'prof',
   dataSubject: 'id', // the row is the subject's own record
   fields: {
-    displayName: field.string({ maxLength: 120 }).merge('lww'),
+    displayName: field.string({ maxLength: 120 }).index().merge('lww'), // .index(), as the module has it (register entry 412)
     // unique implies merge 'exclusive' and the 'eq' capability; 'email' normalises case, so uniqueness is
     // case-insensitive; 'prefix' (three characters at least) serves the search below (section 14.7.9)
     email: field.string({ format: 'email' }).unique().personal({ normalize: 'email', queries: ['prefix'] }).maskable(),
     locale: field.string().default('nl-BE'),
     deactivatedAt: field.instant().optional(),
   },
-  indexes: [{ fields: ['displayName'] }],
   events: {
     deactivated: shape({ at: field.instant(), reason: field.string().optional() }),
   },
@@ -147,14 +150,17 @@ const deactivate = defineCommand(accountsBase, profile, {
 
 // An entity query: read returns a request (a query description) that the kernel plans and runs.
 // ctx.target is the entity as the caller may read it under this action's rules; email declares
-// 'prefix', whose minimum is three characters, so the input requires three.
+// 'prefix', whose minimum is three characters, so the input requires three. A caller who may not
+// read `email` may not filter by it either: ctx.ability.canFilterBy asks the read plan (section 8.6).
 const search = defineQuery(accountsBase, profile, {
   input: shape({ text: field.string({ minLength: 3, maxLength: 80 }) }),
   output: pageOf(profile),
   page: { sortable: ['displayName', 'createdAt'], defaultSize: 25, maxSize: 100 },
   read: (input, ctx) =>
     ctx.target.query({
-      where: { or: [{ displayName: { contains: input.text } }, { email: { startsWith: input.text } }] },
+      where: ctx.ability.canFilterBy('accounts.profile.search', 'email')
+        ? { or: [{ displayName: { startsWith: input.text } }, { email: { startsWith: input.text } }] }
+        : { displayName: { startsWith: input.text } },
       sort: [{ field: 'displayName', direction: 'asc' }],
     }),
 })
@@ -163,13 +169,13 @@ const search = defineQuery(accountsBase, profile, {
 // check sees every profile of the tenant even though the caller is anonymous (section 8.4). A concurrent
 // registration fails the unique index at commit; the kernel repeats the unit and this check then throws.
 const register = defineCommand(accountsBase, {
-  input: shape({ displayName: field.string(), email: field.string({ format: 'email' }) }),
+  input: shape({ displayName: field.string({ maxLength: 120 }), email: field.string({ format: 'email' }) }),
   output: shape({ profileId: field.ref.own('profile') }),
   errors: [emailTaken],
   execution: 'sync',
   auth: { public: true },
   *decide(input, ctx) {
-    if (!ctx.config.allowSelfRegistration) throw errors.forbidden('Self-registration is disabled.')
+    if (!ctx.config.allowSelfRegistration && ctx.principal.kind !== 'operator') throw errors.forbidden('Self-registration is disabled.') // operators may always register
     if (yield* ctx.load.accounts.profile.exists({ email: input.email })) throw emailTaken({ email: input.email })
     const id = yield* ctx.newId(profile) // recorded in the decision record, so a re-decide reproduces it
     return {
@@ -263,6 +269,8 @@ const credential = defineEntity({
   },
   evolve: { revoked: (state, e) => ({ ...state, revokedAt: e.at }), signedUp: (state) => state },
   generated: { set: false }, // credentials change only through auth's own commands
+  // `generated: { create: false }` would switch off only the generated create (and the create items of
+  // set), for an entity whose rows an explicit `creates: true` command makes, as core.backend does.
 })
 
 const session = defineEntity({
@@ -358,6 +366,7 @@ const signUp = defineCommand(authBase, {
 const login = defineCommand(authBase, {
   input: shape({ identifier: field.string({ format: 'email' }), password: field.secret() }),
   output: shape({ sessionToken: field.string(), sessionId: field.ref.own('session'), expiresAt: field.instant() }),
+  shownOnce: ['sessionToken'], // never kept in the stored receipt; a replay answers conflict (section 17.2.2)
   errors: [invalidCredentials],
   auth: { public: true },
   execution: 'sync',
@@ -372,6 +381,8 @@ const login = defineCommand(authBase, {
     // verified against a dummy hash (section 17.2.2). Secret inputs are plain in process, redacted in logs.
     const ok = yield* ctx.compute.argon2idVerify(cred?.verifier ?? DUMMY_VERIFIER, input.password)
     if (!cred || !ok) throw invalidCredentials()
+    // Rehash only when the stored parameters are older than the current ones; the kernel opens the sealed verifier.
+    const verifier = (yield* ctx.compute.argon2idNeedsRehash(cred.verifier)) ? yield* ctx.compute.argon2idHash(input.password, yield* ctx.random(16)) : undefined
     const now = ctx.clock.now()
     const id = yield* ctx.newId(session)
     const token = yield* ctx.secrets.issue({ prefix: 'pss' }) // { plain, publicId, verifier }: recorded without the plaintext
@@ -382,7 +393,7 @@ const login = defineCommand(authBase, {
           id, subject: cred.subject, credentialId: cred.id, publicId: token.publicId, tokenVerifier: token.verifier,
           authenticatedAt: now, idleExpiresAt, absoluteExpiresAt: now.add({ hours: 24 * ctx.config.sessionAbsoluteDays }), // an Instant adds hours, not days
         }),
-        ctx.write.auth.credential.update(cred, { lastUsedAt: now }), // the loaded row's version is the expected version
+        ctx.write.auth.credential.update(cred, verifier === undefined ? { lastUsedAt: now } : { lastUsedAt: now, verifier }), // the loaded row's version is the expected version
       ],
       result: { sessionToken: token.plain, sessionId: id, expiresAt: idleExpiresAt },
     }
@@ -778,6 +789,8 @@ export async function example(operator: AppClient<Portal>, client: AppClient<Por
   const me = await scoped.invoke('auth.whoami', {})
   const profileId = profileIdOf(me.subject) // with accounts selected, the subject is the profile id
   if (profileId) {
+    // The generated update takes the instance and its patch: { id, patch, ifVersion? } (section 6.7).
+    await scoped.invoke('accounts.profile.update', { id: profileId, patch: { displayName: 'Jens P.' } })
     const receipt = await scoped.invoke('accounts.profile.deactivate', { id: profileId }, { prefer: 'async' })
     //    ^ { commandId, status: 'accepted' } because the app declared `either` for external callers
     void receipt
