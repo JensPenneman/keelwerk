@@ -1,0 +1,15 @@
+{
+  "title": "an error code against the module id and the export",
+  "set": {
+    "packages/module-shop/src/errors/out-of-stock.ts": "import { defineError } from '@keelwerk/core';\n\nexport const outOfStock = defineError('shop.sold_out', { kind: 'conflict', message: 'Out of stock.' });\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "names",
+      "path": "packages/module-shop/src/errors/out-of-stock.ts",
+      "message": "the error code is shop.sold_out, the name gives shop.out_of_stock"
+    }
+  ]
+}

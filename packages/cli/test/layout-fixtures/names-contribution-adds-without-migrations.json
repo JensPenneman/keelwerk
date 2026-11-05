@@ -1,0 +1,16 @@
+{
+  "title": "a contribution that adds fields in a module with no migrations",
+  "set": {},
+  "remove": [
+    "packages/module-shop/migrations/own/0001-orders.ts",
+    "packages/module-shop/migrations/to-accounts/0001-last-order.ts"
+  ],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "names",
+      "path": "packages/module-shop/src/contributions/to-accounts",
+      "message": "to-accounts adds data but migrations/to-accounts/ does not exist"
+    }
+  ]
+}

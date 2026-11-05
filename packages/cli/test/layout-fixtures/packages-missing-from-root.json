@@ -1,0 +1,15 @@
+{
+  "title": "a package missing from the root tsconfig references",
+  "set": {
+    "tsconfig.json": "{\n  \"files\": [],\n  \"references\": [\n    {\n      \"path\": \"packages/module-accounts\"\n    },\n    {\n      \"path\": \"packages/module-shop\"\n    }\n  ]\n}"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "packages",
+      "path": "tsconfig.json",
+      "message": "apps/storefront"
+    }
+  ]
+}

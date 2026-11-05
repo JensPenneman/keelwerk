@@ -1,0 +1,15 @@
+{
+  "title": "a part built for another contribution than its directory",
+  "set": {
+    "packages/module-shop/src/contributions/to-accounts/policies/profile/other.ts": "import { defineRule, within } from '@keelwerk/core';\nimport { shopBase } from '../../../../base.ts';\nimport { toBilling } from '../../../to-billing/contribution.ts';\n\nexport const other = defineRule(within(shopBase, toBilling), 'profile', { effect: 'allow', principal: 'user' });\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "placement",
+      "path": "packages/module-shop/src/contributions/to-accounts/policies/profile/other.ts",
+      "message": "built for toBilling but sits in contributions/to-accounts/"
+    }
+  ]
+}

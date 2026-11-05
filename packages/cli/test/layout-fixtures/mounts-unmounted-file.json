@@ -1,0 +1,15 @@
+{
+  "title": "a file the conventions cannot place",
+  "set": {
+    "packages/module-shop/src/actions/order/refund/partial.ts": "import { defineCommand } from '@keelwerk/core';\nimport { shopBase } from '../../../base.ts';\n\nexport const partial = defineCommand(shopBase, { principal: 'user' });\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "mounts",
+      "path": "packages/module-shop/src/actions/order/refund/partial.ts",
+      "message": "stays unmounted"
+    }
+  ]
+}

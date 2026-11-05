@@ -1,0 +1,15 @@
+{
+  "title": "an exported base without a named type",
+  "set": {
+    "packages/module-shop/src/base.ts": "import { accounts } from '@acme/module-accounts';\nimport { defineModuleBase, type ModuleBaseType } from '@keelwerk/core';\nimport { toAccounts } from './contributions/to-accounts/contribution.ts';\nimport { order } from './entities/order.ts';\n\nexport const shopBase = defineModuleBase({\n  id: 'shop',\n  version: '0.1.0',\n  optional: [accounts],\n  entities: { order },\n  contributions: { toAccounts },\n});\n\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "packages",
+      "path": "packages/module-shop/src/base.ts",
+      "message": "shopBase is the value of defineModuleBase and has no named type"
+    }
+  ]
+}

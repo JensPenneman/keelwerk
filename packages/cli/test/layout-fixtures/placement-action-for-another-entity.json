@@ -1,0 +1,17 @@
+{
+  "title": "an entity action in the directory of another entity",
+  "set": {
+    "packages/module-shop/src/actions/order/refund.ts": "import { defineCommand } from '@keelwerk/core';\nimport { shopBase } from '../../base.ts';\nimport { invoice } from '../../entities/invoice.ts';\n\nexport const refund = defineCommand(shopBase, invoice, { principal: 'user' });\n",
+    "packages/module-shop/src/entities/invoice.ts": "import { defineEntity, type EntityType, field } from '@keelwerk/core';\n\nconst invoiceDef = defineEntity({ prefix: 'inv', fields: { total: field.integer() } });\n\nexport interface Invoice extends EntityType<typeof invoiceDef> {}\nexport const invoice: Invoice = invoiceDef;\n",
+    "packages/module-shop/src/base.ts": "import { accounts } from '@acme/module-accounts';\nimport { defineModuleBase, type ModuleBaseType } from '@keelwerk/core';\nimport { toAccounts } from './contributions/to-accounts/contribution.ts';\nimport { invoice } from './entities/invoice.ts';\nimport { order } from './entities/order.ts';\n\nconst shopBaseDef = defineModuleBase({\n  id: 'shop',\n  version: '0.1.0',\n  optional: [accounts],\n  entities: { invoice, order },\n  contributions: { toAccounts },\n});\n\nexport interface ShopBase extends ModuleBaseType<typeof shopBaseDef> {}\nexport const shopBase: ShopBase = shopBaseDef;\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "placement",
+      "path": "packages/module-shop/src/actions/order/refund.ts",
+      "message": "in actions/order/ is built for invoice"
+    }
+  ]
+}

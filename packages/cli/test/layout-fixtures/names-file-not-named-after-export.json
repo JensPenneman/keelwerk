@@ -1,0 +1,15 @@
+{
+  "title": "a file not named after its export",
+  "set": {
+    "packages/module-shop/src/lib/total-of.ts": "export function sumOf(prices: readonly number[]): number {\n  return prices.reduce((sum, price) => sum + price, 0);\n}\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "names",
+      "path": "packages/module-shop/src/lib/total-of.ts",
+      "message": "exports sumOf"
+    }
+  ]
+}

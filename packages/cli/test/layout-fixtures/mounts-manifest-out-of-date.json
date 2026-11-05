@@ -1,0 +1,15 @@
+{
+  "title": "a generated manifest that is out of date",
+  "set": {
+    "packages/module-shop/src/actions/refund.ts": "import { defineCommand } from '@keelwerk/core';\nimport { shopBase } from '../base.ts';\n\nexport const refund = defineCommand(shopBase, { principal: 'user' });\n"
+  },
+  "remove": [],
+  "regenerate": false,
+  "expect": [
+    {
+      "kind": "mounts",
+      "path": "packages/module-shop/src/module.generated.ts",
+      "message": "shop.refund (actions/refund.ts) is not mounted yet"
+    }
+  ]
+}

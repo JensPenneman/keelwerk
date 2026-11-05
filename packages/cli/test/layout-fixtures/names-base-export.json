@@ -1,0 +1,15 @@
+{
+  "title": "a base whose export does not follow the module id",
+  "set": {
+    "packages/module-shop/src/base.ts": "import { accounts } from '@acme/module-accounts';\nimport { defineModuleBase, type ModuleBaseType } from '@keelwerk/core';\nimport { toAccounts } from './contributions/to-accounts/contribution.ts';\nimport { order } from './entities/order.ts';\n\nconst shopsBaseDef = defineModuleBase({\n  id: 'shop',\n  version: '0.1.0',\n  optional: [accounts],\n  entities: { order },\n  contributions: { toAccounts },\n});\n\nexport interface ShopsBase extends ModuleBaseType<typeof shopsBaseDef> {}\nexport const shopsBase: ShopsBase = shopsBaseDef;\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "names",
+      "path": "packages/module-shop/src/base.ts",
+      "message": "base.ts of shop must export shopBase"
+    }
+  ]
+}

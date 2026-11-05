@@ -1,0 +1,15 @@
+{
+  "title": "a module package whose exports is not its entry",
+  "set": {
+    "packages/module-shop/package.json": "{\n  \"name\": \"@acme/module-shop\",\n  \"version\": \"0.0.0\",\n  \"type\": \"module\",\n  \"exports\": {\n    \".\": {\n      \"@keelwerk/source\": \"./src/index.ts\",\n      \"types\": \"./dist/src/module.generated.d.ts\",\n      \"default\": \"./dist/src/module.generated.js\"\n    }\n  },\n  \"publishConfig\": {\n    \"exports\": {\n      \".\": {\n        \"types\": \"./dist/src/module.generated.d.ts\",\n        \"default\": \"./dist/src/module.generated.js\"\n      }\n    }\n  },\n  \"dependencies\": {\n    \"@keelwerk/core\": \"workspace:*\",\n    \"@acme/module-accounts\": \"workspace:*\"\n  }\n}\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "packages",
+      "path": "packages/module-shop/package.json",
+      "message": "not ./src/module.generated.ts"
+    }
+  ]
+}

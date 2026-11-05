@@ -1,0 +1,21 @@
+{
+  "title": "a module in optional that the package neither depends on nor references",
+  "set": {
+    "packages/module-shop/package.json": "{\n  \"name\": \"@acme/module-shop\",\n  \"version\": \"0.0.0\",\n  \"type\": \"module\",\n  \"exports\": {\n    \".\": {\n      \"@keelwerk/source\": \"./src/module.generated.ts\",\n      \"types\": \"./dist/src/module.generated.d.ts\",\n      \"default\": \"./dist/src/module.generated.js\"\n    }\n  },\n  \"publishConfig\": {\n    \"exports\": {\n      \".\": {\n        \"types\": \"./dist/src/module.generated.d.ts\",\n        \"default\": \"./dist/src/module.generated.js\"\n      }\n    }\n  },\n  \"dependencies\": {\n    \"@keelwerk/core\": \"workspace:*\"\n  }\n}",
+    "packages/module-shop/tsconfig.json": "{\n  \"extends\": \"../../tsconfig.base.json\",\n  \"compilerOptions\": {\n    \"rootDir\": \".\",\n    \"outDir\": \"dist\"\n  },\n  \"include\": [\n    \"src\",\n    \"migrations\"\n  ],\n  \"references\": []\n}"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "packages",
+      "path": "packages/module-shop/package.json",
+      "message": "@acme/module-accounts"
+    },
+    {
+      "kind": "packages",
+      "path": "packages/module-shop/tsconfig.json",
+      "message": "@acme/module-accounts"
+    }
+  ]
+}

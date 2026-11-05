@@ -1,0 +1,17 @@
+{
+  "title": "the core module keeps a file in a directory the module layout lacks",
+  "set": {
+    "packages/core/src/core-module/base.ts": "import { defineModuleBase, type ModuleBaseType } from '@keelwerk/core';\n\nconst coreBaseDef = defineModuleBase({ id: 'core' });\n\nexport interface CoreBase extends ModuleBaseType<typeof coreBaseDef> {}\nexport const coreBase: CoreBase = coreBaseDef;\n",
+    "packages/core/src/core-module/module.ts": "export const core = {};\n",
+    "packages/core/src/core-module/helpers/x.ts": "export const x = 1;\n"
+  },
+  "remove": [],
+  "regenerate": false,
+  "expect": [
+    {
+      "kind": "placement",
+      "path": "packages/core/src/core-module/helpers/x.ts",
+      "message": "is in src/helpers/, which is not a directory of the module layout"
+    }
+  ]
+}

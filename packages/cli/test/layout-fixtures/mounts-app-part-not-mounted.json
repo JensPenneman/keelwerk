@@ -1,0 +1,15 @@
+{
+  "title": "an app-level part app.ts does not mount",
+  "set": {
+    "apps/storefront/src/app.ts": "import { type AppType, defineApp } from '@keelwerk/core';\nimport { ping } from './actions/ping.ts';\nimport { modules } from './modules.ts';\n\nconst storefrontDef = defineApp({ id: 'storefront', modules });\n\nexport interface Storefront extends AppType<typeof storefrontDef> {}\nexport const storefront: Storefront = storefrontDef;\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "mounts",
+      "path": "apps/storefront/src/actions/ping.ts",
+      "message": "app-level part that app.ts does not mount"
+    }
+  ]
+}

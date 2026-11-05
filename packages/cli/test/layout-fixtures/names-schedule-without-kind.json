@@ -1,0 +1,15 @@
+{
+  "title": "a schedule export without the kind it adds",
+  "set": {
+    "packages/module-shop/src/schedules/expire-orders.ts": "import { defineSchedule } from '@keelwerk/core';\nimport { shopBase } from '../base.ts';\n\nexport const expireOrders = defineSchedule(shopBase, { every: 'PT1H' });\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "names",
+      "path": "packages/module-shop/src/schedules/expire-orders.ts",
+      "message": "the export ends in Schedule"
+    }
+  ]
+}

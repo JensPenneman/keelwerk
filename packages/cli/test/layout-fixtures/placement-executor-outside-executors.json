@@ -1,0 +1,16 @@
+{
+  "title": "a defineEffectExecutor outside executors/",
+  "set": {
+    "packages/module-shop/src/services/post-mail.ts": "import { defineEffectExecutor } from '@keelwerk/core';\nimport { shopBase } from '../base.ts';\nimport { postMail as postMailEffect } from '../effects/post-mail.ts';\n\nexport const postMail = defineEffectExecutor(shopBase, postMailEffect, { run: async () => ({}) });\n",
+    "packages/module-shop/src/effects/post-mail.ts": "import { defineEffect } from '@keelwerk/core';\nimport { shopBase } from '../base.ts';\n\nexport const postMail = defineEffect(shopBase, {});\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "placement",
+      "path": "packages/module-shop/src/services/post-mail.ts",
+      "message": "defineEffectExecutor belongs in executors/, not in services/"
+    }
+  ]
+}

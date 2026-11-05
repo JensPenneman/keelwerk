@@ -1,0 +1,15 @@
+{
+  "title": "a contribution directory that differs from its declaration",
+  "set": {
+    "packages/module-shop/src/contributions/to-accounts/contribution.ts": "import { accounts } from '@acme/module-accounts';\nimport { defineContribution, field } from '@keelwerk/core';\n\nexport const toAccounts = defineContribution(accounts, {\n  when: [accounts],\n  entities: { profile: { fields: { lastOrderAt: field.instant().optional() } } },\n});\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "names",
+      "path": "packages/module-shop/src/contributions/to-accounts/contribution.ts",
+      "message": "the declaration names to-accounts-when-accounts, but the directory is to-accounts"
+    }
+  ]
+}

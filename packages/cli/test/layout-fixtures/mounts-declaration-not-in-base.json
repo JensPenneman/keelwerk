@@ -1,0 +1,15 @@
+{
+  "title": "a declaration file base.ts does not list",
+  "set": {
+    "packages/module-shop/src/entities/invoice.ts": "import { defineEntity, type EntityType, field } from '@keelwerk/core';\n\nconst invoiceDef = defineEntity({ prefix: 'inv', fields: { total: field.integer() } });\n\nexport interface Invoice extends EntityType<typeof invoiceDef> {}\nexport const invoice: Invoice = invoiceDef;\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "mounts",
+      "path": "packages/module-shop/src/entities/invoice.ts",
+      "message": "declares invoice, which base.ts does not list"
+    }
+  ]
+}

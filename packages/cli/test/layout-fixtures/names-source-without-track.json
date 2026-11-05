@@ -1,0 +1,13 @@
+{
+  "title": "a source directory that adds data without a migration track",
+  "set": {},
+  "remove": ["packages/module-shop/migrations/to-accounts/0001-last-order.ts"],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "names",
+      "path": "packages/module-shop/src/contributions/to-accounts",
+      "message": "adds data but migrations/to-accounts/ does not exist"
+    }
+  ]
+}

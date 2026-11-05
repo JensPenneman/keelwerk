@@ -1,0 +1,15 @@
+{
+  "title": "a migration track without a source directory",
+  "set": {
+    "packages/module-shop/migrations/to-billing/0001-bill.ts": "export const migration = { steps: [] };\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "names",
+      "path": "packages/module-shop/migrations/to-billing",
+      "message": "the migration track to-billing has no directory"
+    }
+  ]
+}

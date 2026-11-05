@@ -1,0 +1,22 @@
+/** The directories a module's `src/` may hold (section 23.2); any other is layout drift. */
+export const moduleDirectories: ReadonlySet<string> = new Set([
+  'actions',
+  'conditional',
+  'contributions',
+  'effects',
+  'entities',
+  'errors',
+  'executors',
+  'extension-points',
+  'flags',
+  'lib',
+  'lifecycle',
+  'policies',
+  'reactions',
+  'schedules',
+  'services',
+  'shapes',
+  'streams',
+  'topics',
+  'versions',
+]);

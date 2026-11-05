@@ -1,0 +1,15 @@
+{
+  "title": "an unknown directory",
+  "set": {
+    "packages/module-shop/src/helpers/format-price.ts": "export function formatPrice(price: number): string {\n  return String(price);\n}\n"
+  },
+  "remove": [],
+  "regenerate": true,
+  "expect": [
+    {
+      "kind": "placement",
+      "path": "packages/module-shop/src/helpers/format-price.ts",
+      "message": "not a directory of the module layout"
+    }
+  ]
+}

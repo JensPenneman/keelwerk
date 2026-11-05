@@ -52,14 +52,7 @@
     "packages/cli": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": [
-        "@keelwerk/client",
-        "@keelwerk/data",
-        "@stricli/auto-complete",
-        "pino",
-        "tsc",
-        "typescript-6"
-      ]
+      "ignoreDependencies": ["@keelwerk/client", "@stricli/auto-complete", "pino", "tsc"]
     },
     "packages/module-accounts": {
       "entry": ["src/**/*.test-d.ts"],
