@@ -146,10 +146,6 @@
         },
         {
           "type": "generic",
-          "path": "packages/module-accounts/src/version.ts"
-        },
-        {
-          "type": "generic",
           "path": "packages/module-auth/src/version.ts"
         },
         {

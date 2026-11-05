@@ -56,8 +56,7 @@
     },
     "packages/module-accounts": {
       "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@keelwerk/core", "@keelwerk/testing"]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/transport-http": {
       "entry": ["src/**/*.test-d.ts"],

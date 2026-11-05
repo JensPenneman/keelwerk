@@ -1,0 +1,286 @@
+{
+  "entities": {
+    "accounts.profile": {
+      "events": {
+        "deactivated": 1
+      },
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "deactivatedAt": {
+          "codec": null,
+          "column": "deactivated_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 4,
+          "unique": false
+        },
+        "displayName": {
+          "codec": null,
+          "column": "display_name",
+          "constraints": {
+            "maxLength": 120
+          },
+          "hidden": false,
+          "indexed": true,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": false
+        },
+        "email": {
+          "codec": null,
+          "column": "email",
+          "constraints": {
+            "format": "email"
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": true,
+          "merge": "exclusive",
+          "optional": false,
+          "personal": {
+            "keys": "tenant",
+            "normalize": {
+              "id": "email",
+              "version": 1
+            },
+            "params": {
+              "contains": {
+                "bits": 12
+              },
+              "eq": {
+                "bits": 128
+              },
+              "order": {
+                "bytes": 16
+              },
+              "prefix": {
+                "max": 32,
+                "min": 3
+              }
+            },
+            "queries": ["eq", "prefix"],
+            "subject": "id"
+          },
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 2,
+          "unique": true
+        },
+        "locale": {
+          "codec": null,
+          "column": "locale",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 3,
+          "unique": false
+        }
+      },
+      "history": "chain",
+      "mergeState": false,
+      "renames": []
+    }
+  },
+  "format": "keelwerk.snapshot/1",
+  "tables": [
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "tenant_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "created_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "updated_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "archived_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": 1,
+          "field": null,
+          "kind": "integer",
+          "name": "version",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hlc",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hash",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "kw_erased_at",
+          "nullable": true
+        },
+        {
+          "constraints": {
+            "maxLength": 120
+          },
+          "default": null,
+          "field": "displayName",
+          "kind": "string",
+          "name": "display_name",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "email",
+          "kind": "sealed",
+          "name": "email",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "derived": {
+            "kind": "binary",
+            "query": "eq",
+            "unicode": "17.0"
+          },
+          "field": "email",
+          "kind": "tags",
+          "name": "email__eq",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "derived": {
+            "kind": "tagSet",
+            "query": "prefix",
+            "unicode": "17.0"
+          },
+          "field": "email",
+          "kind": "tags",
+          "name": "email__prefix",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "locale",
+          "kind": "string",
+          "name": "locale",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "deactivatedAt",
+          "kind": "instant",
+          "name": "deactivated_at",
+          "nullable": true
+        }
+      ],
+      "foreignKeys": [],
+      "indexes": [
+        {
+          "columns": ["tenant_id", "display_name"],
+          "method": "btree",
+          "name": "accounts__profile__display_name_ix",
+          "unique": false,
+          "where": null
+        },
+        {
+          "columns": ["tenant_id", "email__eq"],
+          "method": "btree",
+          "name": "accounts__profile__email__eq_uq",
+          "unique": true,
+          "where": {
+            "field": "archivedAt",
+            "op": "isNull",
+            "value": true
+          }
+        },
+        {
+          "columns": ["email__prefix"],
+          "method": "gin",
+          "name": "accounts__profile__email__prefix_ix",
+          "unique": false,
+          "where": null
+        }
+      ],
+      "name": "accounts__profile",
+      "primaryKey": ["tenant_id", "id"],
+      "scoped": "tenant"
+    }
+  ],
+  "track": "accounts",
+  "version": 1
+}
