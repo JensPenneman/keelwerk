@@ -1,4 +1,6 @@
 import { context, propagation } from '@opentelemetry/api';
+import { chargeFailureBuckets } from '../admission/charge-failure-buckets.ts';
+import type { Admitted } from '../admission/run-admission.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Span } from '../observability/span.ts';
@@ -46,7 +48,7 @@ async function sessionOf(
 async function run(
   env: InvokerEnv,
   inv: Invocation<unknown>,
-  state: { action?: ActionEntry; log: Logger },
+  state: { action?: ActionEntry; log: Logger; admitted?: Admitted },
   span: Span,
 ): Promise<Outcome<unknown>> {
   const opened = await sessionOf(env, inv);
@@ -82,7 +84,7 @@ async function run(
     'keelwerk.execution': action.execution,
     ...(action.entity === undefined ? {} : { 'keelwerk.entity': action.entity }),
   });
-  admit(action, session);
+  state.admitted = await admit(env, { action, session, details, invocation: inv, span });
   const validated = await validate(action, inv.input);
   const input = translate('input', validated);
   const matched = authorize({
@@ -155,7 +157,7 @@ export function createInvoker(options: InvokerOptions): Invoker {
         { attributes: { 'keelwerk.action': inv.action, 'keelwerk.request': inv.requestId } },
         parent,
       );
-      const state: { action?: ActionEntry; log: Logger } = {
+      const state: { action?: ActionEntry; log: Logger; admitted?: Admitted } = {
         log: options.log.child({ requestId: inv.requestId, action: inv.action }),
       };
       let outcome: Outcome<unknown>;
@@ -166,6 +168,15 @@ export function createInvoker(options: InvokerOptions): Invoker {
           ok: false,
           error: mapUnknownError(error, options.environment, state.action?.errors),
         };
+      }
+      const { admitted } = state;
+      if (admitted?.target != null && state.action !== undefined) {
+        await chargeFailureBuckets(env, {
+          action: state.action,
+          target: admitted.target,
+          charges: admitted.onDeclaredError,
+          outcome,
+        });
       }
       return complete({
         span,

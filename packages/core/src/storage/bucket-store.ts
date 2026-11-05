@@ -11,4 +11,14 @@ export interface BucketStore {
     cost: number,
     limits: { readonly capacity: number; readonly refillPerSecond: number },
   ): Promise<BucketTake>;
+  /**
+   * Reads whether `take(bucket, cost, limits)` would succeed now, without taking: the same refill
+   * arithmetic as `take`, no row created or written, no lock held. A bucket never seen counts as
+   * full. A refusal reports the seconds until `cost` tokens have refilled.
+   */
+  check(
+    bucket: string,
+    cost: number,
+    limits: { readonly capacity: number; readonly refillPerSecond: number },
+  ): Promise<BucketTake>;
 }

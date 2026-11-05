@@ -16,6 +16,38 @@ import type { SqlUnitContext } from './sql-unit-context.ts';
 export function sqlBucketStore(ctx: SqlUnitContext): BucketStore {
   const table = ctx.table('kw_rate_buckets');
   return {
+    check: async (bucket, cost, limits) => {
+      const { capacity, refillPerSecond } = limits;
+      if (!(capacity > 0) || !(refillPerSecond > 0) || !(cost >= 0)) {
+        throw malformedQuery(
+          'a bucket needs a positive capacity and refill rate and a cost of at least 0',
+        );
+      }
+      const key = Buffer.from(bucket, 'utf8');
+      const db = ctx.scopedDb();
+      return sqlGuard(async () => {
+        const row = await db
+          .selectFrom(table)
+          .select(['tokens', 'refilled_at'])
+          .where('bucket', '=', key)
+          .executeTakeFirst();
+        const elapsed =
+          row === undefined
+            ? 0
+            : Math.max(
+                0,
+                ctx.clock.now().epochMilliseconds -
+                  decodeInstant(row.refilled_at).epochMilliseconds,
+              ) / 1000;
+        const available =
+          row === undefined
+            ? capacity
+            : Math.min(capacity, Number(row.tokens) + elapsed * refillPerSecond);
+        return available >= cost
+          ? { ok: true }
+          : { ok: false, retryAfter: (cost - available) / refillPerSecond };
+      });
+    },
     take: async (bucket, cost, limits) => {
       ctx.writable();
       const { capacity, refillPerSecond } = limits;

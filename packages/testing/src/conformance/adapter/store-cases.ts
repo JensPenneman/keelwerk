@@ -214,6 +214,22 @@ export function storeCases(subject: ConformanceSubject): void {
       );
     });
 
+    test('a check reads a bucket without taking from it or creating it', async () => {
+      const limits = { capacity: 3, refillPerSecond: 0.001 };
+      const reads = await subject.run(tenantA, async (unit) => [
+        await unit.buckets.check('c', 3, limits),
+        await unit.buckets.take('c', 3, limits),
+        await unit.buckets.check('c', 1, limits),
+        await unit.buckets.check('c', 1, limits),
+      ]);
+      expect(reads.map((read) => read.ok)).toEqual([true, true, false, false]);
+      expect(reads[2]?.retryAfter).toBeGreaterThan(0);
+      // a check of a bucket never taken from reads it full
+      expect(
+        (await subject.run(tenantA, (unit) => unit.buckets.check('never', 3, limits))).ok,
+      ).toBe(true);
+    });
+
     test('a data key is created on demand, found by id, and gone once shredded', async () => {
       expect(
         await subject.run(tenantA, (unit) =>

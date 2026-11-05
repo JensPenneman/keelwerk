@@ -149,6 +149,8 @@ function publicQuery(
 interface Kit {
   readonly adapter: DataAdapter;
   readonly invoker: Invoker;
+  /** The options the invoker was built from, for a wrapper that needs the same stores. */
+  readonly options: InvokerOptions;
 }
 
 function kit(
@@ -159,7 +161,7 @@ function kit(
 ): Kit {
   const adapter = over.adapter ?? open();
   const { registry: served, adapter: _adapter, ...options } = over;
-  const invoker = createInvoker({
+  const options_: InvokerOptions = {
     apps: new Map([
       ['library', { registry: served ?? base, head }],
       ['core', { registry: served ?? base, head }],
@@ -177,8 +179,8 @@ function kit(
     log: silent,
     environment: 'test',
     ...options,
-  });
-  return { adapter, invoker };
+  };
+  return { adapter, invoker: createInvoker(options_), options: options_ };
 }
 
 function call(

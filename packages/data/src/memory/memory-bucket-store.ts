@@ -15,6 +15,27 @@ interface Bucket {
  */
 export function memoryBucketStore(ctx: MemoryUnitContext): BucketStore {
   return {
+    check: async (bucket, cost, limits) => {
+      const { capacity, refillPerSecond } = limits;
+      if (!(capacity > 0) || !(refillPerSecond > 0) || !(cost >= 0)) {
+        throw malformedQuery(
+          'a bucket needs a positive capacity and refill rate and a cost of at least 0',
+        );
+      }
+      const existing = ctx.tx.read<Bucket>(`buckets/${ctx.scopeId()}`).get(bucket);
+      const elapsed =
+        existing === undefined
+          ? 0
+          : Math.max(0, ctx.clock.now().epochMilliseconds - existing.refilledAt.epochMilliseconds) /
+            1000;
+      const available =
+        existing === undefined
+          ? capacity
+          : Math.min(capacity, existing.tokens + elapsed * refillPerSecond);
+      return available >= cost
+        ? { ok: true }
+        : { ok: false, retryAfter: (cost - available) / refillPerSecond };
+    },
     take: async (bucket, cost, limits) => {
       ctx.writable();
       const { capacity, refillPerSecond } = limits;

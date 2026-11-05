@@ -1,4 +1,5 @@
 import { trace } from '@opentelemetry/api';
+import { runAdmission } from '../admission/run-admission.ts';
 import { normalizeRule } from '../authorization/normalize-rule.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import { errors } from '../errors/errors.ts';
@@ -6,9 +7,10 @@ import { principalContextOf } from '../interpreter/principal-context-of.ts';
 import type { Invocation } from '../invoker/invocation.ts';
 import type { InvocationSession } from '../invoker/invocation-session.ts';
 import type { Invoker } from '../invoker/invoker.ts';
+import type { InvokerEnv } from '../invoker/invoker-env.ts';
+import { createInvokerEnv } from '../invoker/invoker-env.ts';
 import { mapUnknownError } from '../invoker/map-unknown-error.ts';
 import type { Outcome } from '../invoker/outcome.ts';
-import { admit } from '../invoker/stages/admit.ts';
 import { authorize } from '../invoker/stages/authorize.ts';
 import { locate } from '../invoker/stages/locate.ts';
 import { prepare } from '../invoker/stages/prepare.ts';
@@ -47,6 +49,11 @@ function principalOf(
  */
 export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker {
   const { options } = env;
+  let invokerEnv: InvokerEnv | undefined;
+  const admissionEnv = (): InvokerEnv => {
+    invokerEnv ??= createInvokerEnv(options);
+    return invokerEnv;
+  };
   const rulesCache = new WeakMap<Registry, readonly NormalizedRule[]>();
   const rulesOf = (registry: Registry): readonly NormalizedRule[] => {
     const known = rulesCache.get(registry);
@@ -92,7 +99,31 @@ export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker 
           '--as runs the command as another principal, which only a development process does.',
         );
       }
-      admit(action, { ...session, principal, scope });
+      // Admission runs as for a real call, but its charges are taken in a unit that rolls back:
+      // a dry run reports a refusal or `rate_limited` without using up tokens.
+      const resolvedBackend = scope.level === 'tenant' ? (backend ?? null) : null;
+      const admissionSpan = trace.getTracer('keelwerk').startSpan('keelwerk.explain.admission');
+      try {
+        await runAdmission(admissionEnv(), {
+          action,
+          session: { ...session, principal, scope },
+          details: {
+            resolved: {
+              scope,
+              app: appId,
+              resolvedBy: session.resolvedBy,
+              target,
+              backendTarget: resolvedBackend,
+            },
+            carrier: inv.carrier,
+          },
+          invocation: { ...inv, action: action.ref, input: request.input },
+          span: admissionSpan,
+          dry: true,
+        });
+      } finally {
+        admissionSpan.end();
+      }
     }
     const validated =
       request.input === undefined ? undefined : await validate(action, request.input);

@@ -10,7 +10,7 @@ import type { CommandResult } from '../command-runner.ts';
 import type { Invocation } from '../invocation.ts';
 import type { InvocationSession } from '../invocation-session.ts';
 import type { InvokerEnv } from '../invoker-env.ts';
-import type { RequestInfo } from '../request-info.ts';
+import { requestInfoOf } from '../request-info-of.ts';
 import type { ScopeTarget } from '../scope-target.ts';
 import type { SessionDetails } from '../session-details.ts';
 import { withDeadline } from './with-deadline.ts';
@@ -32,17 +32,6 @@ function targetOf(action: ActionEntry, details: SessionDetails): ScopeTarget {
 
 function epochOf(epochOf: InvokerEnv['options']['epochOf'], scope: Scope): number {
   return epochOf === undefined ? 0 : epochOf(scope);
-}
-
-function requestInfo(invocation: Invocation<unknown>): RequestInfo {
-  const { carrier } = invocation;
-  const userAgent = carrier.headers?.['user-agent'];
-  return {
-    transport: carrier.transport,
-    requestId: invocation.requestId,
-    ...(carrier.connection === undefined ? {} : { connection: carrier.connection }),
-    ...(userAgent === undefined ? {} : { userAgent }),
-  };
 }
 
 /** What the execute stage runs. */
@@ -96,7 +85,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
           signal,
           registry,
           rules: env.rulesOf(registry),
-          request: requestInfo(invocation),
+          request: requestInfoOf(invocation),
           clock: options.clock,
           keys: options.keys,
           compute: options.compute,
@@ -151,7 +140,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
         action: action.ref,
         input: input.value,
         principal: session.principal,
-        request: requestInfo(invocation),
+        request: requestInfoOf(invocation),
         clock: options.clock,
         keys: options.keys,
         compute: options.compute,
