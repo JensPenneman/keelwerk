@@ -13,6 +13,7 @@ import type { ExpectedLedgerEntry } from '../packages/core/src/api-versions/chec
 import { checkLedger } from '../packages/core/src/api-versions/check-ledger.ts';
 import { emptyApiVersionLedger } from '../packages/core/src/api-versions/empty-api-version-ledger.ts';
 import { parseApiVersionLedger } from '../packages/core/src/api-versions/parse-api-version-ledger.ts';
+import { refreshHeadEntry } from '../packages/core/src/api-versions/refresh-head-entry.ts';
 import { renderApiVersionLedger } from '../packages/core/src/api-versions/render-api-version-ledger.ts';
 import { coreApiVersions } from '../packages/core/src/core-module/core-api-versions.ts';
 import { writeModuleManifest } from '../packages/core/src/manifest/write-module-manifest.ts';
@@ -164,10 +165,16 @@ for (const appRoot of roots.toSorted()) {
       process.stderr.write(`${name}: ${problem.code}: ${problem.message}\n`);
       failures.push(name);
     }
-  } else if (ledgerText === undefined) {
-    // Only the first creation: after that the ledger is written by `surface version new` (13.7).
+  } else {
+    // The first run creates every entry; later runs follow the sources on the head entry only, since
+    // released entries belong to `surface version new` (13.7, 18.6).
     let next: ApiVersionLedger = ledger;
-    for (const entry of implied) next = appendLedgerEntry(next, { ...entry, changes: [] });
+    if (ledgerText === undefined) {
+      for (const entry of implied) next = appendLedgerEntry(next, { ...entry, changes: [] });
+    } else {
+      const head = implied.at(-1);
+      if (head !== undefined) next = refreshHeadEntry(next, head);
+    }
     expected.set(ledgerPath, renderApiVersionLedger(next));
   }
   for (const [path, text] of expected) {
