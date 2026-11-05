@@ -1,4 +1,4 @@
-import { open, stat } from 'node:fs/promises';
+import { type FileHandle, open } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { LedgerSink } from '../kernel/ledger-sink.ts';
 import { encodeLedgerRecord } from './encode-ledger-record.ts';
@@ -10,6 +10,16 @@ async function syncDirectory(path: string): Promise<void> {
     await directory.sync();
   } finally {
     await directory.close();
+  }
+}
+
+/** Opens the file for reading and appending, saying whether this call created it. */
+async function openLedger(path: string): Promise<{ handle: FileHandle; created: boolean }> {
+  try {
+    return { handle: await open(path, 'wx+'), created: true };
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error;
+    return { handle: await open(path, 'a+'), created: false };
   }
 }
 
@@ -30,11 +40,7 @@ export function ledgerFile(options: LedgerFileOptions): LedgerSink {
   let queue: Promise<unknown> = Promise.resolve();
   let refused = 0;
   const write = async (lines: string): Promise<void> => {
-    const existed = await stat(path).then(
-      () => true,
-      () => false,
-    );
-    const handle = await open(path, 'a+');
+    const { handle, created } = await openLedger(path);
     try {
       const { size } = await handle.stat();
       let prefix = '';
@@ -48,7 +54,7 @@ export function ledgerFile(options: LedgerFileOptions): LedgerSink {
     } finally {
       await handle.close();
     }
-    if (!existed) await syncDirectory(path);
+    if (created) await syncDirectory(path);
   };
   return {
     id: `file:${path}`,

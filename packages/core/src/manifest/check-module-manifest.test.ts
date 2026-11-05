@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test as base, describe, expect } from 'vitest';
@@ -22,6 +22,15 @@ function render(files: readonly string[]): string {
     scanned: scanModuleDirectory(files),
     migrations: false,
   });
+}
+
+async function mtimeOf(path: string): Promise<number> {
+  const handle = await open(path, 'r');
+  try {
+    return (await handle.stat()).mtimeMs;
+  } finally {
+    await handle.close();
+  }
 }
 
 const test = base.extend<{ directory: string; manifest: string }>({
@@ -115,9 +124,9 @@ describe('writeModuleManifest', () => {
     manifest,
   }) => {
     expect(await writeModuleManifest(manifest, 'one\n')).toBe(true);
-    const before = await stat(manifest);
+    const before = await mtimeOf(manifest);
     expect(await writeModuleManifest(manifest, 'one\n')).toBe(false);
-    expect((await stat(manifest)).mtimeMs).toBe(before.mtimeMs);
+    expect(await mtimeOf(manifest)).toBe(before);
     expect(await writeModuleManifest(manifest, 'two\n')).toBe(true);
     expect(await readFile(manifest, 'utf8')).toBe('two\n');
     expect(await readdir(directory)).toEqual(['module.generated.ts']);

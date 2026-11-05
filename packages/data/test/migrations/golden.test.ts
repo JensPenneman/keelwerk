@@ -4,7 +4,7 @@ import { goldenSnapshots } from './support/golden-entries.ts';
 import { noRename } from './support/no-rename.ts';
 
 const goldenName = (track: string): string =>
-  track.replace('->', '-to-').replace('[', '-when-').replace(']', '');
+  track.replaceAll('->', '-to-').replaceAll('[', '-when-').replaceAll(']', '');
 
 const tracks = ['loans', 'loans->library', 'loans[library]', 'library'] as const;
 

@@ -1,20 +1,9 @@
 import { readFile } from 'node:fs/promises';
+import { importedPaths } from './imported-paths.ts';
 
 type Mounts = Map<string, string>;
 
 const TOKEN = /[A-Za-z_$][\w$]*|'[^']*'|\S/g;
-
-function importedPaths(text: string): Map<string, string> {
-  const paths = new Map<string, string>();
-  for (const match of text.matchAll(/import\s*\{([^}]*)\}\s*from\s*'([^']+)'/g)) {
-    for (const specifier of (match[1] ?? '').split(',')) {
-      const words = specifier.trim().split(/\s+/);
-      const local = words.at(-1);
-      if (local && words[0] !== 'type' && match[2]?.startsWith('.')) paths.set(local, match[2]);
-    }
-  }
-  return paths;
-}
 
 function skipValue(tokens: string[], at: { index: number }): void {
   let depth = 0;

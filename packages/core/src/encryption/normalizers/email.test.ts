@@ -11,9 +11,7 @@ describe('the email normaliser (14.7.9.3)', () => {
   });
 
   test('trims, composes and puts the domain through punycode', () => {
-    expect(email('  Ada@Exámple.org \n')).toBe(
-      'ada@xn--exmple-qta.org'.replace('exmple', 'exmple'),
-    );
+    expect(email('  Ada@Exámple.org \n')).toBe('ada@xn--exmple-qta.org');
     expect(email('a@bücher.example')).toBe('a@xn--bcher-kva.example');
     expect(email('a@BÜCHER.example')).toBe('a@xn--bcher-kva.example');
   });

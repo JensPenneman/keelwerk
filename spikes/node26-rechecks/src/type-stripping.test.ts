@@ -1,17 +1,15 @@
+import { mkdtempSync } from 'node:fs';
 import { cp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { runNode } from './run-node.ts';
 
 const fixture = fileURLToPath(new URL('../fixtures/linked-package', import.meta.url));
-const root = join(tmpdir(), `node26-strip-${process.pid}`);
+const root = mkdtempSync(join(tmpdir(), 'kw-'));
 
 beforeAll(async () => {
-  await rm(root, { recursive: true, force: true });
-  await mkdir(root, { recursive: true });
   const modules = join(root, 'node_modules');
   await mkdir(modules, { recursive: true });
   await symlink(fixture, join(modules, 'linked-package'), 'dir');

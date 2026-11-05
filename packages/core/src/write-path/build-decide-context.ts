@@ -44,7 +44,7 @@ function constructorsOf(
   const update = (target: Target, patch: Readonly<Record<string, unknown>>): AnyDraft =>
     draftOf('update', 'changed', ref, patch, targetOf(target));
   if (!ownEntity) return Object.freeze({ update });
-  const events: Record<string, unknown> = {};
+  const events: Record<string, unknown> = Object.create(null);
   for (const name of Object.keys(entry.events)) {
     events[name] = (target: Target, payload: Readonly<Record<string, unknown>>): AnyDraft =>
       draftOf('event', name, ref, payload, targetOf(target));
@@ -103,20 +103,20 @@ export interface DecideContextInput {
  */
 export function buildDecideContext(input: DecideContextInput): Constructors {
   const { registry, module, authorities } = input;
-  const write: Record<string, Record<string, Constructors>> = {};
+  const write: Record<string, Record<string, Constructors>> = Object.create(null);
   for (const entry of registry.entities.values()) {
     const own = entry.module === module;
     const contributed = Object.values(entry.origin).includes(module);
     if (!(own || contributed)) continue;
     const owner = registry.modules.find((candidate) => candidate.id === entry.module);
     if (owner === undefined) continue;
-    const group = write[owner.contextName] ?? {};
+    const group: Record<string, Constructors> = write[owner.contextName] ?? Object.create(null);
     group[entry.name] = constructorsOf(entry, input, own);
     write[owner.contextName] = group;
   }
   for (const [name, group] of Object.entries(write)) write[name] = Object.freeze(group);
 
-  const events: Record<string, unknown> = {};
+  const events: Record<string, unknown> = Object.create(null);
   if (input.target !== undefined) {
     const { entry, row } = input.target;
     for (const name of Object.keys(entry.events)) {

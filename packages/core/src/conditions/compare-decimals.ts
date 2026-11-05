@@ -1,5 +1,17 @@
 const decimalText = /^([+-]?)(\d*)(?:\.(\d*))?$/;
 
+function trimLeadingZeros(text: string): string {
+  let start = 0;
+  while (start < text.length && text[start] === '0') start += 1;
+  return text.slice(start);
+}
+
+function trimTrailingZeros(text: string): string {
+  let end = text.length;
+  while (end > 0 && text[end - 1] === '0') end -= 1;
+  return text.slice(0, end);
+}
+
 interface ParsedDecimal {
   readonly sign: -1 | 0 | 1;
   readonly integer: string;
@@ -9,8 +21,8 @@ interface ParsedDecimal {
 function parse(text: string): ParsedDecimal | undefined {
   const match = decimalText.exec(text);
   if (match === null) return undefined;
-  const integer = (match[2] ?? '').replace(/^0+/, '');
-  const fraction = (match[3] ?? '').replace(/0+$/, '');
+  const integer = trimLeadingZeros(match[2] ?? '');
+  const fraction = trimTrailingZeros(match[3] ?? '');
   if ((match[2] ?? '') === '' && (match[3] ?? '') === '') return undefined;
   if (integer === '' && fraction === '') return { sign: 0, integer, fraction };
   return { sign: match[1] === '-' ? -1 : 1, integer, fraction };

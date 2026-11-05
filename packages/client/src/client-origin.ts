@@ -10,7 +10,9 @@ export function clientOrigin(
     return { origin: 'http://localhost', unix: true, socketPath: url.slice('unix://'.length) };
   }
   if (url.startsWith('http://') || url.startsWith('https://')) {
-    return { origin: url.replace(/\/+$/, ''), unix: false, socketPath: '' };
+    let end = url.length;
+    while (end > 0 && url.charCodeAt(end - 1) === 0x2f) end -= 1;
+    return { origin: url.slice(0, end), unix: false, socketPath: '' };
   }
   return undefined;
 }
