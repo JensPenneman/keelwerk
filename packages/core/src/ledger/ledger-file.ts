@@ -1,4 +1,4 @@
-import { type FileHandle, open } from 'node:fs/promises';
+import { open } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { LedgerSink } from '../kernel/ledger-sink.ts';
 import { encodeLedgerRecord } from './encode-ledger-record.ts';
@@ -13,16 +13,6 @@ async function syncDirectory(path: string): Promise<void> {
   }
 }
 
-/** Opens the file for reading and appending, saying whether this call created it. */
-async function openLedger(path: string): Promise<{ handle: FileHandle; created: boolean }> {
-  try {
-    return { handle: await open(path, 'wx+'), created: true };
-  } catch (error) {
-    if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error;
-    return { handle: await open(path, 'a+'), created: false };
-  }
-}
-
 /** Where the file sink writes. */
 export interface LedgerFileOptions {
   /** The file, on a volume the placement's backups do not reach (section 14.7.6). Its directory must exist. */
@@ -33,16 +23,22 @@ export interface LedgerFileOptions {
  * The file sink of the ledger (sections 14.7.6 and 15.1.8): JSON lines, one canonical record per
  * line, only appended, synced to disk once per batch. A batch is written with one write and
  * resolves after the sync; a file that ends without a line feed (a torn write) gets one first so
- * the new records start on a line of their own. Appends of one sink run in order.
+ * the new records start on a line of their own. The file is opened with a single `a+` open; when it
+ * is empty after that open it is treated as new and the directory is synced after the data. Appends of one sink run in order.
  */
 export function ledgerFile(options: LedgerFileOptions): LedgerSink {
   const { path } = options;
   let queue: Promise<unknown> = Promise.resolve();
   let refused = 0;
   const write = async (lines: string): Promise<void> => {
-    const { handle, created } = await openLedger(path);
+    // One atomic open: a separate create-then-reopen would leave a window in which the file is
+    // removed in between. An empty file counts as new, so its directory entry is synced too (an
+    // existing empty file costs one harmless extra directory sync).
+    const handle = await open(path, 'a+');
+    let created = false;
     try {
       const { size } = await handle.stat();
+      created = size === 0;
       let prefix = '';
       if (size > 0) {
         const last = Buffer.alloc(1);

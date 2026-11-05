@@ -100,6 +100,28 @@ describe('the file sink', () => {
     expect(await recordsOf(path)).toEqual([anchor(1), anchor(2)]);
   });
 
+  test('a first append creates the file with one line per record', async () => {
+    const path = await fileIn();
+    await ledgerFile({ path }).append([anchor(1), anchor(2)]);
+    expect(await readFile(path, 'utf8')).toBe(
+      `${encodeLedgerRecord(anchor(1))}\n${encodeLedgerRecord(anchor(2))}\n`,
+    );
+  });
+
+  test('an append to an existing empty file works', async () => {
+    const path = await fileIn();
+    await writeFile(path, '');
+    await ledgerFile({ path }).append([anchor(1)]);
+    expect(await readFile(path, 'utf8')).toBe(`${encodeLedgerRecord(anchor(1))}\n`);
+  });
+
+  test('a torn last line gets its newline before the next batch', async () => {
+    const path = await fileIn();
+    await writeFile(path, '{"type":"anch');
+    await ledgerFile({ path }).append([anchor(1)]);
+    expect(await readFile(path, 'utf8')).toBe(`{"type":"anch\n${encodeLedgerRecord(anchor(1))}\n`);
+  });
+
   test('a missing directory is an error, not a silent no-op', async () => {
     const path = join(await fileIn(), 'nowhere', 'ledger.log');
     await expect(ledgerFile({ path }).append([anchor(1)])).rejects.toThrow();
