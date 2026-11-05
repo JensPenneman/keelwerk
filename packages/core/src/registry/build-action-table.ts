@@ -8,6 +8,7 @@ import type { CompositionProblem } from './composition-problem.ts';
 import type { EntityModel } from './entity-model.ts';
 import { generatedActionEntries } from './generated-action-entries.ts';
 import type { RuntimeModule } from './runtime-module.ts';
+import { shownOnceProblem } from './shown-once-problem.ts';
 
 /** The action table and the problems met while filling it. */
 export interface ActionTable {
@@ -40,6 +41,8 @@ export function buildActionTable(
       return;
     }
     actions.set(entry.ref, entry);
+    const shown = shownOnceProblem(entry);
+    if (shown !== undefined) problems.push(shown);
   };
   const mount = (part: AnyActionPart, at: PartMount): void => {
     put(actionEntryOf(part, at, context));

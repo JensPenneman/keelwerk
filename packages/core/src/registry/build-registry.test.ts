@@ -111,6 +111,7 @@ describe('contributions and conditional parts (sections 5.3 and 5.4)', () => {
       'core.composition.operators',
       'core.domain.operators',
       'core.introspect.signedIn',
+      'core.operatorToken.operators',
       'core.tenant.operators',
     ]);
   });
@@ -219,6 +220,7 @@ describe('rules (section 8.1)', () => {
       'core.composition.operators',
       'core.domain.operators',
       'core.introspect.signedIn',
+      'core.operatorToken.operators',
       'core.tenant.operators',
     ]);
     expect(full.rules.get('auth.accounts.profile.self')).toMatchObject({

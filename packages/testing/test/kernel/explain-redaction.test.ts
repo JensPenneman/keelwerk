@@ -1,3 +1,4 @@
+import { field, shape } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import { command, registryWith } from './support/effects-kit.ts';
 import { dry } from './support/explain-kit.ts';
@@ -48,5 +49,20 @@ describe('redaction in a dry run (section 16.11.3)', () => {
       values: { title: 'T', isbn: '[redacted]', addedBy: '[redacted]' },
     });
     expect(JSON.stringify(report)).not.toContain('t-1');
+  });
+
+  test('a member shown once is not in the report', async () => {
+    const shown = registryWith({
+      actions: [
+        command('issue', () => ({ result: { token: 'tok_secret_value', id: 'x' } }), {
+          shownOnce: ['token'],
+          output: shape({ token: field.string(), id: field.string() }),
+        }),
+      ],
+    });
+    const report = await dry(shown, 'library.issue').run();
+    if (report.status !== 'decided') throw new Error('unreachable');
+    expect(JSON.stringify(report)).not.toContain('tok_secret_value');
+    expect(JSON.stringify(report)).toContain('"id"');
   });
 });

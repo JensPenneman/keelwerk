@@ -1,6 +1,7 @@
 import type { Anchoring } from '../anchors/start-anchoring.ts';
 import { createBackend } from '../control/create-backend.ts';
 import { createTenant } from '../control/create-tenant.ts';
+import { findControlRows } from '../control/find-control-rows.ts';
 import { runTenantHooks } from '../control/run-tenant-hooks.ts';
 import { errors } from '../errors/errors.ts';
 import type { ScopeTarget } from '../invoker/scope-target.ts';
@@ -104,6 +105,50 @@ export function createRuntimeControl(input: {
         head: app.head,
       });
       return created;
+    },
+    rerunTenantHooks: async (tenantId) => {
+      const record = await lookup.tenant(tenantId);
+      const backend = record === undefined ? undefined : await lookup.backend(record.backendId);
+      const app = served.find((candidate) => candidate.id === backend?.app);
+      const handle = connected.placements.get(record?.placementId ?? backend?.placementId ?? '');
+      if (
+        record === undefined ||
+        backend === undefined ||
+        app === undefined ||
+        handle === undefined
+      ) {
+        throw errors.not_found(`The tenant ${tenantId} does not resolve.`);
+      }
+      const [row] = await findControlRows(control, 'core.tenant', { id: tenantId });
+      // Only the hooks whose latest outcome on the tenant's stream is a failure run again.
+      const events = await control.read((unit) =>
+        unit.events.readStream({ type: 'core.tenant', id: tenantId }),
+      );
+      const latest = new Map<string, string>();
+      for (const event of events) {
+        const hook: unknown = Reflect.get(event.data ?? {}, 'hook');
+        if (typeof hook !== 'string') continue;
+        if (event.type === 'core.tenant.hookFailed' || event.type === 'core.tenant.hookCompleted') {
+          latest.set(hook, event.type);
+        }
+      }
+      const only = new Set(
+        [...latest].filter(([, type]) => type === 'core.tenant.hookFailed').map(([hook]) => hook),
+      );
+      return runTenantHooks({
+        store: control,
+        registry: app.registry,
+        hook: 'onTenantCreated',
+        payload: { id: tenantId as never, name: String(row?.name) },
+        target: {
+          scope: { level: 'tenant', backendId: backend.id, tenantId },
+          namespace: record.namespace,
+          handle,
+        },
+        head: app.head,
+        rerun: true,
+        only,
+      });
     },
   };
 }

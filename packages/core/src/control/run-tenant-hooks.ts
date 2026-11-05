@@ -12,6 +12,38 @@ import type { Registry } from '../registry/registry.ts';
 import { registryBehaviours } from '../write-path/registry-behaviours.ts';
 import { runCommand } from '../write-path/run-command.ts';
 import type { ControlStore } from './control-store.ts';
+import { runControlCommand } from './run-control-command.ts';
+
+/** The tenant a hook payload names, for the hooks that run on a tenant. */
+function tenantIdOf(
+  hook: keyof HookPayloads,
+  payload: HookPayloads[keyof HookPayloads],
+): string | undefined {
+  return hook === 'onBackendCreated' ? undefined : String(payload.id);
+}
+
+/**
+ * Appends `core.tenant.hookFailed` or `core.tenant.hookCompleted` (data `{ hook }`) to the tenant's
+ * stream in the control store, where `keelwerk doctor` reads them (S-84). A failure to record is
+ * logged and never hides the hook's own outcome.
+ */
+async function recordHookEvent(
+  store: ControlStore,
+  tenantId: string,
+  type: 'hookFailed' | 'hookCompleted',
+  hook: string,
+): Promise<void> {
+  try {
+    await runControlCommand(store, `tenant.${type}`, (ctx) => ({
+      events: [ctx.write.core.tenant[type](tenantId as never, { hook })],
+    }));
+  } catch (error) {
+    store.log.error(`the outcome of the lifecycle hook ${hook} could not be recorded`, {
+      hook,
+      cause: error,
+    });
+  }
+}
 
 /** What the hooks of one new tenant or backend need. */
 export interface TenantHooksInput {
@@ -23,6 +55,10 @@ export interface TenantHooksInput {
   /** The unit the hooks decide in: the tenant's (or, for `onBackendCreated`, the backend's) scope, namespace and placement. */
   readonly target: ScopeTarget;
   readonly head: string;
+  /** A rerun of hooks that failed before: a hook that now succeeds is recorded as completed. */
+  readonly rerun?: boolean;
+  /** Runs only the hooks with these ids. */
+  readonly only?: ReadonlySet<string>;
 }
 
 /**
@@ -35,8 +71,9 @@ export async function runTenantHooks(input: TenantHooksInput): Promise<readonly 
   const { store, registry, target } = input;
   const failed: string[] = [];
   const hooks = [...registry.hooks.values()]
-    .filter((hook) => hook.hook === input.hook)
+    .filter((hook) => hook.hook === input.hook && (input.only?.has(hook.id) ?? true))
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const tenantId = tenantIdOf(input.hook, input.payload);
   for (const hook of hooks) {
     const principal: ServicePrincipal = {
       kind: 'service',
@@ -103,8 +140,13 @@ export async function runTenantHooks(input: TenantHooksInput): Promise<readonly 
       span.recordException(error instanceof Error ? error : new Error(String(error)));
       failed.push(hook.id);
       store.log.error(`the lifecycle hook ${hook.id} failed`, { hook: hook.id, cause: error });
+      if (tenantId !== undefined) await recordHookEvent(store, tenantId, 'hookFailed', hook.id);
+      continue;
     } finally {
       span.end();
+    }
+    if (input.rerun === true && tenantId !== undefined) {
+      await recordHookEvent(store, tenantId, 'hookCompleted', hook.id);
     }
   }
   return failed;

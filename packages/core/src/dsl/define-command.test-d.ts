@@ -147,6 +147,17 @@ describe('prepare and continuations (section 7.9.4, S-05)', () => {
     defineCommand(hooksBase, { execution: 'async', decide: () => [] });
   });
 
+  test('a creating command types no ctx.events: it targets no existing row', () => {
+    defineCommand(authBase, credential, {
+      creates: true,
+      decide: (_input, ctx) => {
+        // @ts-expect-error a creating command has no row whose events it could record
+        ctx.events.revoked({});
+        return [];
+      },
+    });
+  });
+
   test('outcomeOf types the input of a continuation, with extra input from with (decision 97)', () => {
     expectTypeOf<NonNullable<(typeof recordOutcome)['~types']>['input']>().toEqualTypeOf<{
       readonly outcome: EffectOutcome<{ readonly status: number }>;

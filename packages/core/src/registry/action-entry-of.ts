@@ -21,13 +21,18 @@ function sinceOf(module: string, app: ComposableApp): string {
   return dates[0] ?? coreApiVersions.head;
 }
 
+/** Entity commands target a row, unless they declare that they create rows (F-11b change note). */
+function isInstance(part: AnyActionPart, mount: PartMount): boolean {
+  return part.kind === 'command' && mount.mount === 'entity' && specOf(part).creates !== true;
+}
+
 function inputOf(
   part: AnyActionPart,
   mount: PartMount,
   context: ActionEntryContext,
 ): StandardSchemaV1 {
   const input = specOf(part).input;
-  const instance = part.kind === 'command' && mount.mount === 'entity';
+  const instance = isInstance(part, mount);
   const paged = isPaged(part, context);
   if (input === undefined) {
     return shape({
@@ -163,7 +168,7 @@ export function actionEntryOf(
     name: mount.name,
     mount: mount.mount,
     kind: part.kind,
-    instance: part.kind === 'command' && mount.mount === 'entity',
+    instance: isInstance(part, mount),
     input: inputOf(part, mount, context),
     output: outputOf(part, mount, context),
     ...(entityOutput === undefined ? {} : { entityOutput }),
@@ -181,6 +186,9 @@ export function actionEntryOf(
       ? {}
       : { idempotencyWindowMs: durationMs(spec.idempotency.window) }),
     ...(spec.trace === undefined || part.kind !== 'command' ? {} : { trace: spec.trace }),
+    ...(spec.shownOnce === undefined || part.kind !== 'command'
+      ? {}
+      : { shownOnce: spec.shownOnce }),
     hints: spec.hints ?? {},
     ...(mount.contributedBy === undefined ? {} : { contributedBy: mount.contributedBy }),
     ...(spec.description === undefined ? {} : { description: spec.description }),

@@ -5,7 +5,7 @@ import type { CapabilitiesDocument } from '../../invoker/capabilities-document.t
 import { coreBase } from '../base.ts';
 import type { CoreLiteral } from '../core-type.ts';
 
-/** The `core.capabilities` query (S-26). */
+/** The `core.capabilities` query (S-26, section 18.7): public; the runtime answers it from the protocols it serves and the app's API versions. */
 export const capabilities: CoreLiteral['actions']['capabilities'] = defineQuery(coreBase, {
   scope: 'backend',
   auth: { public: true },

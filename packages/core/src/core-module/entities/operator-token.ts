@@ -10,6 +10,7 @@ export const operatorToken: CoreBase['entities']['operatorToken'] = defineEntity
     verifier: field.verifier(),
     expiresAt: field.instant(),
     revokedAt: field.instant().optional(),
+    publicId: field.string().unique(),
   },
   tenancy: 'deployment',
   generated: { set: false },

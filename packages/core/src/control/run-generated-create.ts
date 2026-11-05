@@ -3,25 +3,10 @@ import { normalizeRule } from '../authorization/normalize-rule.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
 import { errors } from '../errors/errors.ts';
 import type { RequestAnswerer } from '../kernel/request-answerer.ts';
-import type { OperatorPrincipal } from '../principals/operator-principal.ts';
+import { runtimeOperator } from '../principals/runtime-operator.ts';
 import { registryBehaviours } from '../write-path/registry-behaviours.ts';
 import { runCommand } from '../write-path/run-command.ts';
 import type { ControlStore } from './control-store.ts';
-
-/**
- * The core's rules allow no system principal, so the runtime writes as an operator of its own
- * until the specification rules on the principal of control writes (section 17).
- */
-const runtimeOperator: OperatorPrincipal = {
-  kind: 'operator',
-  id: 'core.runtime',
-  scope: { backend: null, tenant: null },
-  claims: {},
-  roles: [],
-  memberships: [],
-  via: 'core.system',
-  ref: null,
-};
 
 /** An id answerer that hands out the pinned id, which the row about to be created already carries in sealed values. */
 function pinnedId(id: string): RequestAnswerer['id'] {
@@ -30,7 +15,7 @@ function pinnedId(id: string): RequestAnswerer['id'] {
 
 /**
  * Runs the generated `create` of a control entity (`core.backend.create`, `core.tenant.create`) in
- * the control store as the runtime's operator: the write path a request takes, below the pipeline,
+ * the control store as the runtime's operator (S-75): the write path a request takes, below the pipeline,
  * so the events, the item check against the entity's rules and the inline reactions are the same.
  * Answers the id of the new row; `id` pins it (the runtime's own seam, never a client's input).
  */

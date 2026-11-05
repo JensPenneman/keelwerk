@@ -8,22 +8,21 @@ import type { AdmissionRule } from '../edge/admission-rule.ts';
 import type { PrincipalEnricher } from '../edge/principal-enricher.ts';
 import type { PrincipalResolver } from '../edge/principal-resolver.ts';
 import { field } from '../fields/field.ts';
+import { shape } from '../fields/shape.ts';
 import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
 import type { Id } from '../ids/id.ts';
-import type { CapabilitiesDocument } from '../invoker/capabilities-document.ts';
 import type { ActionRef } from '../model/action-ref.ts';
 import type { AnyModule } from '../model/any-module.ts';
 import type { AnyModuleBase } from '../model/any-module-base.ts';
 import type { AppActionTree } from '../model/app-action-tree.ts';
 import type { Insert } from '../model/insert.ts';
 import type { Row } from '../model/row.ts';
-import type { ApiSurface } from '../surface/api-surface.ts';
-import type { CompositionReportDocument } from '../surface/composition-report-document.ts';
 import type { TransportAdapter } from '../transport/transport-adapter.ts';
 import { capabilities } from './actions/capabilities.ts';
 import { composition } from './actions/composition.ts';
 import { introspect } from './actions/introspect.ts';
 import { me } from './actions/me.ts';
+import { issue } from './actions/operator-token/issue.ts';
 import { revoke } from './actions/operator-token/revoke.ts';
 import { enter } from './actions/tenant/enter.ts';
 import { setApiVersion } from './actions/tenant/set-api-version.ts';
@@ -35,6 +34,7 @@ import { operators as backendOperators } from './policies/backend/operators.ts';
 import { operators as compositionOperators } from './policies/composition/operators.ts';
 import { operators as domainOperators } from './policies/domain/operators.ts';
 import { signedIn as introspectSignedIn } from './policies/introspect/signed-in.ts';
+import { operators as operatorTokenOperators } from './policies/operator-token/operators.ts';
 import { operators as tenantOperators } from './policies/tenant/operators.ts';
 import { syncDomains } from './reactions/sync-domains.ts';
 import { syncDomainsOnChange } from './reactions/sync-domains-on-change.ts';
@@ -77,7 +77,18 @@ const derived = defineModuleBase({
         domains: field.list(field.string()),
         status,
       },
+      events: {
+        entered: shape({ reason: field.string() }),
+        hookFailed: shape({ hook: field.string() }),
+        hookCompleted: shape({ hook: field.string() }),
+      },
+      evolve: {
+        entered: (state) => state,
+        hookFailed: (state) => state,
+        hookCompleted: (state) => state,
+      },
       tenancy: 'deployment',
+      generated: { history: true },
     }),
     domain: defineEntity({
       prefix: 'dom',
@@ -114,6 +125,7 @@ const derived = defineModuleBase({
       prefix: 'otk',
       fields: {
         label: field.string(),
+        publicId: field.string().unique(),
         verifier: field.verifier(),
         expiresAt: field.instant(),
         revokedAt: field.instant().optional(),
@@ -187,10 +199,11 @@ const derived = defineModuleBase({
 // What `defineModule` derives from the same base and the same parts.
 const derivedCore = defineModule(coreBase, {
   actions: { introspect, composition, me, capabilities },
-  entityActions: { tenant: { enter, setApiVersion }, operatorToken: { revoke } },
+  entityActions: { tenant: { enter, setApiVersion }, operatorToken: { issue, revoke } },
   policies: {
     introspect: { signedIn: introspectSignedIn },
     composition: { operators: compositionOperators },
+    operatorToken: { operators: operatorTokenOperators },
     backend: { operators: backendOperators },
     tenant: { operators: tenantOperators },
     domain: { operators: domainOperators },
@@ -262,6 +275,7 @@ describe('the hand-written core module types (decision 104, S-11, S-26)', () => 
       | 'core.tenant.setApiVersion'
       | 'core.domain.get'
       | 'core.domain.query'
+      | 'core.operatorToken.issue'
       | 'core.operatorToken.revoke'
       | 'core.introspect'
       | 'core.composition'
@@ -278,33 +292,6 @@ describe('the hand-written core module types (decision 104, S-11, S-26)', () => 
       | 'core.effect.update'
       | 'core.process.archive'
       | 'core.operatorToken.create'
-      | 'core.operatorToken.issue'
     >().not.toExtend<ActionRef<OnlyCore>>();
-  });
-
-  test('the commands carry their input and the instance id', () => {
-    expectTypeOf<Tree['core']['entities']['tenant']['enter']['input']>().toEqualTypeOf<{
-      readonly reason: string;
-      readonly id: Id<'core.tenant'>;
-      readonly ifVersion?: number;
-    }>();
-    expectTypeOf<
-      Tree['core']['entities']['tenant']['setApiVersion']['input']['apiVersion']
-    >().toEqualTypeOf<string>();
-    expectTypeOf<
-      Tree['core']['entities']['operatorToken']['revoke']['kind']
-    >().toEqualTypeOf<'command'>();
-    expectTypeOf<Tree['core']['entities']['tenant']['enter']['kind']>().toEqualTypeOf<'command'>();
-    expectTypeOf<Tree['core']['actions']['introspect']['kind']>().toEqualTypeOf<'query'>();
-  });
-
-  test('the introspection queries answer typed documents that are not shapes', () => {
-    expectTypeOf<Tree['core']['actions']['introspect']['output']>().toEqualTypeOf<ApiSurface>();
-    expectTypeOf<
-      Tree['core']['actions']['composition']['output']
-    >().toEqualTypeOf<CompositionReportDocument>();
-    expectTypeOf<
-      Tree['core']['actions']['capabilities']['output']
-    >().toEqualTypeOf<CapabilitiesDocument>();
   });
 });

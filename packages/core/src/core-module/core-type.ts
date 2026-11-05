@@ -1,5 +1,6 @@
 import type { ReactionPart } from '../dsl/define-reaction.ts';
 import type { RulePart } from '../dsl/define-rule.ts';
+import type { Id } from '../ids/id.ts';
 import type { CapabilitiesDocument } from '../invoker/capabilities-document.ts';
 import type { ActionPart, PartTypes, RowOutput } from '../model/action-part.ts';
 import type { InstanceInput } from '../model/instance-input.ts';
@@ -9,6 +10,7 @@ import type { ApiSurface } from '../surface/api-surface.ts';
 import type { CompositionReportDocument } from '../surface/composition-report-document.ts';
 import type { Empty } from '../types/empty.ts';
 import type { CoreBase } from './core-base-type.ts';
+import type { MeDocument } from './me-document.ts';
 
 type CoreQuery<Out = unknown> = ActionPart<
   'query',
@@ -29,6 +31,13 @@ type TenantCommand<In> = ActionPart<
     never
   >
 >;
+type TokenCreate<In, Out> = ActionPart<
+  'command',
+  CoreBase,
+  'operatorToken',
+  'sync',
+  PartTypes<Prettify<In & {}>, Out, never, never>
+>;
 type TokenCommand<In, Out> = ActionPart<
   'command',
   CoreBase,
@@ -42,7 +51,7 @@ export interface CoreLiteral {
   readonly actions: {
     readonly introspect: CoreQuery<ApiSurface>;
     readonly composition: CoreQuery<CompositionReportDocument>;
-    readonly me: CoreQuery;
+    readonly me: CoreQuery<MeDocument>;
     readonly capabilities: CoreQuery<CapabilitiesDocument>;
   };
   readonly policies: {
@@ -51,6 +60,9 @@ export interface CoreLiteral {
     };
     readonly composition: {
       readonly operators: RulePart<CoreBase, CoreQuery<CompositionReportDocument>, readonly []>;
+    };
+    readonly operatorToken: {
+      readonly operators: RulePart<CoreBase, 'operatorToken', readonly ['*']>;
     };
     readonly backend: { readonly operators: RulePart<CoreBase, 'backend', readonly ['*']> };
     readonly tenant: { readonly operators: RulePart<CoreBase, 'tenant', readonly ['*']> };
@@ -66,6 +78,14 @@ export interface CoreLiteral {
       readonly setApiVersion: TenantCommand<{ readonly apiVersion: string }>;
     };
     readonly operatorToken: {
+      readonly issue: TokenCreate<
+        { readonly label: string; readonly ttl?: string | undefined },
+        {
+          readonly id: Id<'core.operatorToken'>;
+          readonly token: string;
+          readonly expiresAt: Temporal.Instant;
+        }
+      >;
       readonly revoke: TokenCommand<Empty, RowOutput<'core.operatorToken'>>;
     };
   };

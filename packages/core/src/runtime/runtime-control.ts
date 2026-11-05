@@ -13,4 +13,9 @@ export interface RuntimeControl {
   createTenant(input: TenantInput): Promise<{ readonly id: string }>;
   /** Per ledger sink: the appends it refused and the last failure of the anchor writer; the control reader of `doctor` reads it. */
   anchorSinks?(): readonly AnchorSinkStatus[];
+  /**
+   * Runs the tenant's `onTenantCreated` hooks again (S-84): one that now succeeds is recorded as
+   * `core.tenant.hookCompleted`, one that fails again as `hookFailed`. Answers the failed hook ids.
+   */
+  rerunTenantHooks(tenantId: string): Promise<readonly string[]>;
 }

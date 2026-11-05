@@ -33,6 +33,7 @@ import { sqlScopeKeyStore } from './sql-scope-key-store.ts';
 import { sqlSerialStore } from './sql-serial-store.ts';
 import type { SqlSession } from './sql-session.ts';
 import { sqlSubjectKeyStore } from './sql-subject-key-store.ts';
+import type { SqlUnitContext } from './sql-unit-context.ts';
 import { sqlUnitContext } from './sql-unit-context.ts';
 import { sqlUsageStore } from './sql-usage-store.ts';
 
@@ -111,6 +112,13 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
       entities: parts.entities,
       db: current.db,
     });
+    const scopeKeys = current.scope.level === 'deployment' ? sqlScopeKeyStore(ctx) : undefined;
+    // Keys wrapped inside a deployment-scope unit read the scope keys through that unit, so an
+    // adapter that runs one unit at a time never waits for a second one.
+    const keyCtx: SqlUnitContext =
+      scopeKeys === undefined
+        ? ctx
+        : { ...ctx, keyWrapper: parts.keyWrapper?.within?.(scopeKeys) ?? parts.keyWrapper };
     const unit: SqlUnit = {
       namespace: current.namespace,
       scope: current.scope,
@@ -122,9 +130,9 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
       receipts: sqlReceiptStore(ctx),
       usage: sqlUsageStore(ctx),
       buckets: sqlBucketStore(ctx),
-      keys: sqlSubjectKeyStore(ctx),
+      keys: sqlSubjectKeyStore(keyCtx),
       serials: sqlSerialStore(ctx),
-      ...(current.scope.level === 'deployment' ? { scopeKeys: sqlScopeKeyStore(ctx) } : {}),
+      ...(scopeKeys === undefined ? {} : { scopeKeys }),
       nested: async <T>(fn: (u: SqlUnit) => Promise<T>, options?: NestedUnitOptions) => {
         const target = options?.as ?? current.scope;
         if (

@@ -6,6 +6,7 @@ import type { ComputePool } from '../kernel/compute-pool.ts';
 import type { KeyService } from '../kernel/key-service.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Tracer } from '../observability/tracer.ts';
+import type { OperatorPrincipal } from '../principals/operator-principal.ts';
 import type { Scope } from '../storage/scope.ts';
 import type { CommandRunner } from './command-runner.ts';
 import type { InvokerApp } from './invoker-app.ts';
@@ -38,6 +39,10 @@ export interface InvokerOptions {
   readonly build?: { readonly id: string; readonly revision: number };
   /** The epoch of a scope, part of every state token (section 15.2.6); default: 0 for every scope. */
   readonly epochOf?: (scope: Scope) => number;
+  /** Resolves a presented operator token (section 3.5); throws `unauthenticated` for one it does not accept. Without it tokens are not recognised. */
+  readonly operatorTokens?: (token: string) => Promise<OperatorPrincipal>;
+  /** The operator host names (`operator.hosts` of the deployment); an operator token is honoured at these hosts only (sections 3.5 and 8.8). */
+  readonly operatorHosts?: readonly string[];
   /** The command write path (WP-38); without it a command is `not_implemented`. */
   readonly commands?: CommandRunner;
 }

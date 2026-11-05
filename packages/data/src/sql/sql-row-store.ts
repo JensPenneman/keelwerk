@@ -148,9 +148,16 @@ export function sqlRowStore(ctx: SqlUnitContext): RowStore {
       ...Object.keys(entity.derivedIndexes),
       ...clearedSystemFields,
     ];
+    // The scope column follows the entity's tenancy; a field that merely shares its name is data.
+    const skipped = new Set([
+      'id',
+      ...(table.scopeColumn === null
+        ? []
+        : [table.scopeColumn === 'tenant_id' ? 'tenantId' : 'backendId']),
+    ]);
     for (const change of updates) {
       // The complete new state: what the row leaves out is cleared, the id and the scope stay.
-      const values = sqlEncodeRow(table, change.values, new Set(['id', 'tenantId', 'backendId']));
+      const values = sqlEncodeRow(table, change.values, skipped);
       for (const name of cleared) {
         const column = table.column(name);
         if (column !== undefined && !(column.column in values)) {

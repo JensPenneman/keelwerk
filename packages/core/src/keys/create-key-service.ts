@@ -1,4 +1,6 @@
 import { errors } from '../errors/errors.ts';
+import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { RetryableUnitError } from '../storage/retryable-unit-error.ts';
 import type { StorageScope } from '../storage/storage-scope.ts';
 import { configSecrets } from './config-secrets.ts';
 import { defaultRandomSource } from './default-random-source.ts';
@@ -16,14 +18,17 @@ import { verifySecret } from './verify-secret.ts';
 import { wrapKey } from './wrap-key.ts';
 
 /**
- * The key service of 14.7.4. Deployment, backend and tenant keys are random 256-bit keys wrapped
- * under the master key (S-55); rotation re-wraps, so a key's material is stable. Unwrapped keys
- * are cached for 60 seconds. A key created by this call is not cached until it is read back, so
- * a rolled-back creation never leaves a phantom key behind.
+ * The service over one way of reaching the scope keys. `owned` is the service that opens its own
+ * units: it fills the shared cache and shares one creation per key. A service bound to a unit that
+ * is open (`within`) only reads the cache, since what that unit holds may still roll back.
  */
-export function createKeyService(options: KeyServiceOptions): ForkableKeyService {
+function keyServiceOver(
+  options: KeyServiceOptions,
+  cache: ReturnType<typeof createKeyCache<Uint8Array>>,
+  withScopeKeys: KeyServiceOptions['withScopeKeys'],
+  owned: boolean,
+): ForkableKeyService {
   const random = options.random ?? defaultRandomSource;
-  const cache = createKeyCache<Uint8Array>(options.cache);
   const creating = new Map<string, Promise<Uint8Array>>();
 
   const load = async (
@@ -31,7 +36,7 @@ export function createKeyService(options: KeyServiceOptions): ForkableKeyService
     create: boolean,
   ): Promise<Uint8Array | undefined> => {
     const read = (): Promise<Uint8Array | 'absent'> =>
-      options.withScopeKeys(async (store) => {
+      withScopeKeys(async (store) => {
         const row = await store.current(target.scopeId);
         if (row === undefined) return 'absent';
         if (row.level !== target.level) {
@@ -51,26 +56,48 @@ export function createKeyService(options: KeyServiceOptions): ForkableKeyService
       });
     const found = await read();
     if (found !== 'absent') {
-      cache.set(`${target.level}:${target.scopeId}`, found);
+      if (owned) cache.set(`${target.level}:${target.scopeId}`, found);
       return found;
     }
     if (!create) return undefined;
-    const slot = `${target.level}:${target.scopeId}`;
-    let pending = creating.get(slot);
-    if (pending === undefined) {
-      pending = options
-        .withScopeKeys(async (store) => {
-          const master = await options.master.current();
-          const key = random(32);
-          const binding = { level: target.level, scopeId: target.scopeId, version: 1 };
+    if (!owned) {
+      // The key is created in the unit that is open and commits or rolls back with it.
+      return withScopeKeys(async (store) => {
+        const master = await options.master.current();
+        const key = random(32);
+        const binding = { level: target.level, scopeId: target.scopeId, version: 1 };
+        try {
           await store.add({
             ...binding,
             wrapped: wrapKey(master, binding, key, random),
             createdAt: options.clock.now(),
             retiredAt: null,
           });
-          return key;
-        })
+        } catch (error) {
+          // A concurrent unit created the first key: rerun the unit, which then reads the committed row.
+          if (error instanceof KeelwerkError && error.kind === 'conflict') {
+            throw new RetryableUnitError('serialization_failure', { cause: error });
+          }
+          throw error;
+        }
+        return key;
+      });
+    }
+    const slot = `${target.level}:${target.scopeId}`;
+    let pending = creating.get(slot);
+    if (pending === undefined) {
+      pending = withScopeKeys(async (store) => {
+        const master = await options.master.current();
+        const key = random(32);
+        const binding = { level: target.level, scopeId: target.scopeId, version: 1 };
+        await store.add({
+          ...binding,
+          wrapped: wrapKey(master, binding, key, random),
+          createdAt: options.clock.now(),
+          retiredAt: null,
+        });
+        return key;
+      })
         .catch(async (error: unknown) => {
           // Another process may have created the key first; its row wins.
           const winner = await read();
@@ -107,8 +134,9 @@ export function createKeyService(options: KeyServiceOptions): ForkableKeyService
   };
 
   return {
-    fork: () =>
-      createKeyService({ ...options, withScopeKeys: overlayScopeKeys(options.withScopeKeys) }),
+    // The fork overlays the store this view reaches, so a view bound to a unit stays bound to it.
+    fork: () => createKeyService({ ...options, withScopeKeys: overlayScopeKeys(withScopeKeys) }),
+    within: (store) => keyServiceOver(options, cache, (fn) => fn(store), false),
     async issue(scope, issueOptions) {
       const key = await scopeKey(scope, true);
       if (key === undefined) throw errors.internal('the scope key could not be created');
@@ -137,4 +165,15 @@ export function createKeyService(options: KeyServiceOptions): ForkableKeyService
       cache.delete(`${target.level}:${target.scopeId}`);
     },
   };
+}
+
+/**
+ * The key service of 14.7.4. Deployment, backend and tenant keys are random 256-bit keys wrapped
+ * under the master key (S-55); rotation re-wraps, so a key's material is stable. Unwrapped keys
+ * are cached for 60 seconds. A key created by this call is not cached until it is read back, so
+ * a rolled-back creation never leaves a phantom key behind.
+ */
+export function createKeyService(options: KeyServiceOptions): ForkableKeyService {
+  const cache = createKeyCache<Uint8Array>(options.cache);
+  return keyServiceOver(options, cache, options.withScopeKeys, true);
 }

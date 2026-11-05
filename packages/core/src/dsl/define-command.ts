@@ -57,6 +57,8 @@ export interface CommandOptions<
   readonly idempotency?: { readonly window: string };
   readonly offline?: boolean;
   readonly trace?: { readonly input: 'sealed'; readonly retention?: string };
+  /** Members of the output shown once: the receipt never keeps them, and a replay answers `conflict` (section 17.2.2). */
+  readonly shownOnce?: readonly string[];
 }
 
 /** A module-level (or app-level) command literal. */
@@ -95,6 +97,27 @@ export interface EntityCommandSpec<
   ) => Decision<HandlerOutput<Out, S, never>> | Gen<Decision<HandlerOutput<Out, S, never>>>;
 }
 
+/**
+ * An entity-mounted command that creates rows (F-11b change note, WP-56): it targets no existing
+ * row, so its input carries no `id` or `ifVersion` and `decide` receives no current row.
+ */
+export interface CreatingCommandSpec<
+  S,
+  In,
+  Out,
+  Er extends readonly AnyErrorDefinition[],
+  X extends Execution,
+  Pk extends PrincipalKind,
+  P,
+> extends CommandOptions<In, Out, Er, X, Pk> {
+  readonly creates: true;
+  readonly prepare?: PrepareOf<X, S, In, P, Pk>;
+  readonly decide: (
+    input: InputValue<In, OwnerOf<S>>,
+    ctx: DecideContext<BaseOf<S>, WhenOf<S>, P, Pk>,
+  ) => Decision<HandlerOutput<Out, S, never>> | Gen<Decision<HandlerOutput<Out, S, never>>>;
+}
+
 /** Defines a command typed against a base, a `within` narrowing or an app selection (section 4.3). */
 export function defineCommand<
   const S extends PartSource,
@@ -113,6 +136,31 @@ export function defineCommand<
   null,
   X,
   PartTypes<InputValue<In, OwnerOf<S>>, WireOutput<Out, S, void>, ErrorUnion<Er>, never>
+>;
+export function defineCommand<
+  const S extends PartSource,
+  const T extends EntityTargetOf<S>,
+  const In extends InputSpec = Shape<Empty>,
+  const Out extends OutputSpec = NoOutput,
+  const Er extends readonly AnyErrorDefinition[] = readonly [],
+  const X extends Execution = 'sync',
+  const Pk extends PrincipalKind = PrincipalKind,
+  P = undefined,
+>(
+  source: S,
+  target: T,
+  spec: CreatingCommandSpec<S, In, Out, Er, X, Pk, P>,
+): ActionPart<
+  'command',
+  S,
+  TargetName<S, T>,
+  X,
+  PartTypes<
+    InputValue<In, OwnerOf<S>>,
+    WireOutput<Out, S, RowOutput<TargetRef<S, T>>>,
+    ErrorUnion<Er>,
+    never
+  >
 >;
 export function defineCommand<
   const S extends PartSource,

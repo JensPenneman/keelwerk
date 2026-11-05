@@ -29,6 +29,7 @@ export type {
 } from './api-versions/surface-change.ts';
 export { applyPolicyOverrides } from './authorization/apply-policy-overrides.ts';
 export type { AuthorizedAction } from './authorization/authorized-action.ts';
+export type { CaslRule } from './authorization/casl-rule.ts';
 export { checkFilterFields } from './authorization/check-filter-fields.ts';
 export { checkItem } from './authorization/check-item.ts';
 export type { RowInPlanInput } from './authorization/check-row-in-plan.ts';
@@ -47,6 +48,8 @@ export { evaluateGate } from './authorization/evaluate-gate.ts';
 export type { ExpandedActions } from './authorization/expand-action-aliases.ts';
 export { expandActionAliases } from './authorization/expand-action-aliases.ts';
 export { explainPlan } from './authorization/explain-plan.ts';
+export type { ExportCaslRulesInput } from './authorization/export-casl-rules.ts';
+export { exportCaslRules } from './authorization/export-casl-rules.ts';
 export type { Denial } from './authorization/forbidden-error.ts';
 export { forbiddenError } from './authorization/forbidden-error.ts';
 export type { GateInput } from './authorization/gate-input.ts';
@@ -127,6 +130,7 @@ export type { TenantInput } from './control/create-tenant.ts';
 export { coreApiVersions } from './core-module/core-api-versions.ts';
 export type { CoreBase } from './core-module/core-base-type.ts';
 export type { Core, CoreLiteral } from './core-module/core-type.ts';
+export type { MeDocument } from './core-module/me-document.ts';
 export { core } from './core-module/module.ts';
 export { byHeader } from './dsl/by-header.ts';
 export { byHostname } from './dsl/by-hostname.ts';
@@ -141,6 +145,7 @@ export type { App, AppAuthorization, AppOptions, AppPolicies } from './dsl/defin
 export { defineApp } from './dsl/define-app.ts';
 export type {
   CommandOptions,
+  CreatingCommandSpec,
   EntityCommandSpec,
   ModuleCommandSpec,
   PrepareOf,
@@ -622,11 +627,14 @@ export type { ActorRef } from './principals/actor-ref.ts';
 export type { AnonymousPrincipal } from './principals/anonymous-principal.ts';
 export type { Membership } from './principals/membership.ts';
 export type { OperatorPrincipal } from './principals/operator-principal.ts';
+export type { OperatorTokenResolver } from './principals/operator-token-resolver.ts';
+export { createOperatorTokenResolver } from './principals/operator-token-resolver.ts';
 export type { Principal } from './principals/principal.ts';
 export type { PrincipalBase } from './principals/principal-base.ts';
 export type { PrincipalKind } from './principals/principal-kind.ts';
 export type { PrincipalOf } from './principals/principal-of.ts';
 export type { PrincipalRef } from './principals/principal-ref.ts';
+export { runtimeOperator } from './principals/runtime-operator.ts';
 export type { ServicePrincipal } from './principals/service-principal.ts';
 export type { SystemPrincipal } from './principals/system-principal.ts';
 export type { UserPrincipal } from './principals/user-principal.ts';

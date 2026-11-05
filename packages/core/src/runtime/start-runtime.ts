@@ -7,6 +7,7 @@ import { explainStream } from '../explain/explain-stream.ts';
 import { createInvoker } from '../invoker/create-invoker.ts';
 import type { InvokerApp } from '../invoker/invoker-app.ts';
 import type { InvokerOptions } from '../invoker/invoker-options.ts';
+import { createOperatorTokenResolver } from '../principals/operator-token-resolver.ts';
 import { deriveSurface } from '../surface/derive-surface.ts';
 import { createCommandRunner } from '../write-path/create-command-runner.ts';
 import { anchorScopes } from './anchor-scopes.ts';
@@ -19,6 +20,7 @@ import type { DeploymentDefinition } from './deployment-definition.ts';
 import { drainingInvoker } from './draining-invoker.ts';
 import { listenPhase } from './listen-phase.ts';
 import { migratePhase } from './migrate-phase.ts';
+import { refuseUnknownApiVersion } from './refuse-unknown-api-version.ts';
 import type { Runtime } from './runtime.ts';
 import { runtimeEnvironment } from './runtime-environment.ts';
 import type { RuntimeOptions } from './runtime-options.ts';
@@ -104,6 +106,9 @@ export async function startRuntime(
         ? {}
         : { tenantResolution: deployment.tenantResolution }),
       clock,
+      epochOf: (scope) => connected.control.epochOf(scope),
+      operatorTokens: createOperatorTokenResolver(connected.control),
+      operatorHosts: deployment.operator?.hosts ?? [],
       keys: connected.keys,
       compute: connected.compute,
       log,
@@ -115,10 +120,13 @@ export async function startRuntime(
       }),
     };
     const inner = createInvoker(invokerOptions);
+    const servedById = new Map(served.map((app) => [app.id, app]));
     const answering = answerRuntimeQueries(
-      inner,
-      new Map(served.map((app) => [app.id, app])),
+      refuseUnknownApiVersion(inner, servedById, connected.control, clock),
+      servedById,
       connected.control,
+      clock,
+      invokerOptions,
     );
     // `core.explain` (section 16.9.7) and the explain stream of development (section 11).
     const explaining = explainStream(

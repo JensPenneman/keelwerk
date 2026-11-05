@@ -1,12 +1,19 @@
+import { normalizeHost } from '../../core-module/normalize-host.ts';
 import type { TenantResolver } from '../../edge/tenant-resolver.ts';
+import { isKeelwerkError } from '../../errors/is-keelwerk-error.ts';
 import type { BackendRecord } from '../backend-record.ts';
 import type { Carrier } from '../carrier.ts';
 import type { ScopeLookup } from '../scope-lookup.ts';
 import type { TenantRecord } from '../tenant-record.ts';
 
-/** A host name without its port and trailing dot, lower case. */
-function hostOf(host: string): string {
-  return host.toLowerCase().replace(/:\d+$/, '').replace(/\.$/, '');
+/** The host as the edge resolves it (the form `core.domain` stores); a name that is no host name matches nothing. */
+function hostOf(host: string): string | undefined {
+  try {
+    return normalizeHost(host);
+  } catch (error) {
+    if (isKeelwerkError(error) && error.kind === 'validation') return undefined;
+    throw error;
+  }
 }
 
 async function byTenantId(
@@ -28,7 +35,9 @@ async function resolveOne(
 ): Promise<Omit<TenantResolution, 'resolvedBy'> | undefined> {
   if (resolver.kind === 'hostname') {
     if (carrier.host === undefined) return undefined;
-    const hit = await directory.hostname(hostOf(carrier.host));
+    const host = hostOf(carrier.host);
+    if (host === undefined) return undefined;
+    const hit = await directory.hostname(host);
     if (hit === undefined) return undefined;
     if (hit.tenantId !== null) return byTenantId(directory, hit.tenantId, hit.backendId);
     const backend = await directory.backend(hit.backendId);

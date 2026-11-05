@@ -39,6 +39,7 @@ export function createControlStore(options: ControlStoreOptions): ControlStore {
     compute: options.compute,
     log: options.log,
     writer: { hybridClock: options.hybridClock, build: options.build },
+    epochOf: () => 0,
     entity: (ref) => {
       const entry = registry.entities.get(ref);
       if (entry === undefined) throw errors.internal(`The registry has no entity ${ref}.`);

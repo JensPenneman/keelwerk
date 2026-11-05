@@ -50,6 +50,8 @@ export interface ActionEntry {
   readonly changedIn: readonly string[];
   /** Commands with `trace: { input: 'sealed' }`: the decision record keeps the sealed input. */
   readonly trace?: { readonly input: 'sealed'; readonly retention?: string };
+  /** Output members shown once: the receipt keeps none of them and a replay answers `conflict`. */
+  readonly shownOnce?: readonly string[];
   /** `decide`, `read` or `source`. */
   readonly handler: ActionHandler;
   /** Sync commands only (section 7.9.4, phase 2). */

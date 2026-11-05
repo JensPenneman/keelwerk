@@ -33,6 +33,9 @@ export async function replayReceipt(
     });
   }
   const effects = outcome.effects.length > 0 ? { effects: outcome.effects } : {};
+  if (!('ref' in outcome) && action.shownOnce !== undefined && action.shownOnce.length > 0) {
+    throw errors.conflict('Shown once; issue a new token.');
+  }
   if (!('ref' in outcome))
     return { output: decodeCommandValue(action, outcome.value), ...effects, replayed: true };
   const entry = registry.entities.get(outcome.ref.entity);

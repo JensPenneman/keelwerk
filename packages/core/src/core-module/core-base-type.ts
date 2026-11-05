@@ -5,6 +5,7 @@ import type { PrincipalEnricher } from '../edge/principal-enricher.ts';
 import type { PrincipalResolver } from '../edge/principal-resolver.ts';
 import type { FieldDef, OwnRef } from '../fields/field-def.ts';
 import type { NoFlags, WithFlag } from '../fields/field-flags.ts';
+import type { Shape } from '../fields/shape.ts';
 import type { TransportAdapter } from '../transport/transport-adapter.ts';
 import type { Empty } from '../types/empty.ts';
 
@@ -83,9 +84,13 @@ export interface CoreBase {
         readonly domains: FieldDef<readonly string[], NoFlags, null, 'list'>;
         readonly status: Status;
       },
-      Empty,
+      {
+        readonly entered: Shape<{ readonly reason: Text }>;
+        readonly hookFailed: Shape<{ readonly hook: Text }>;
+        readonly hookCompleted: Shape<{ readonly hook: Text }>;
+      },
       'chain',
-      Empty,
+      { readonly history: true },
       Empty
     >;
     readonly domain: Entity<
@@ -134,6 +139,7 @@ export interface CoreBase {
       'otk',
       {
         readonly label: Text;
+        readonly publicId: UniqueText;
         readonly verifier: FieldDef<string, WithFlag<NoFlags, 'hidden', true>, null, 'verifier'>;
         readonly expiresAt: Moment;
         readonly revokedAt: OptionalMoment;

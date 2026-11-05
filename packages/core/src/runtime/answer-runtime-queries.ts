@@ -1,11 +1,18 @@
 import type { ControlStore } from '../control/control-store.ts';
 import { findControlRows } from '../control/find-control-rows.ts';
+import { coreApiVersions } from '../core-module/core-api-versions.ts';
 import { errors } from '../errors/errors.ts';
 import type { Invocation } from '../invoker/invocation.ts';
 import type { Invoker } from '../invoker/invoker.ts';
+import type { InvokerOptions } from '../invoker/invoker-options.ts';
 import type { Outcome } from '../invoker/outcome.ts';
+import type { Clock } from '../kernel/clock.ts';
 import { compositionReport } from '../surface/composition-report.ts';
 import { deriveSurface } from '../surface/derive-surface.ts';
+import { answerCapabilities } from './answer-capabilities.ts';
+import { answerMe } from './answer-me.ts';
+import { relationReach } from './relation-reach.ts';
+import { runtimeAnswered } from './runtime-answered.ts';
 import type { ServedApp } from './served-app.ts';
 
 type Introspection = 'public' | 'operator' | undefined;
@@ -21,7 +28,7 @@ async function introspectionOf(store: ControlStore, backendId: string): Promise<
 }
 
 /**
- * Wraps the invoker so `core.introspect` and `core.composition` are answered from the app the
+ * Wraps the invoker so `core.introspect`, `core.composition`, `core.me` and `core.capabilities` are answered from the app the
  * session runs in (16.2.5, 16.2.6; a deployment-scope session answers from the one app only when the process serves exactly one): the pipeline authorises them as any query, the handler is a
  * placeholder, and the answer replaces its output. The backend setting `config.core.introspection`
  * makes the surface `public` (anonymous callers too) or `operator` only; without it the rule of
@@ -31,11 +38,13 @@ export function answerRuntimeQueries(
   inner: Invoker,
   served: ReadonlyMap<string, ServedApp>,
   store: ControlStore,
+  clock: Clock,
+  options: Pick<InvokerOptions, 'directory' | 'placement' | 'control'>,
 ): Invoker {
   return {
     ...inner,
     invoke: async <I, O>(inv: Invocation<I>): Promise<Outcome<O>> => {
-      if (inv.action !== 'core.introspect' && inv.action !== 'core.composition') {
+      if (!runtimeAnswered.has(inv.action)) {
         return inner.invoke<I, O>(inv);
       }
       const opened =
@@ -47,6 +56,31 @@ export function answerRuntimeQueries(
       const sole =
         served.size === 1 && session.app === 'core' ? [...served.values()][0] : undefined;
       const app = served.get(session.app) ?? sole;
+      if (inv.action === 'core.me' || inv.action === 'core.capabilities') {
+        // The operator endpoint of a process serving several apps answers for the core itself.
+        // Both are public and describe the caller only, so at the operator endpoint (a
+        // deployment-scope session, which the backend-scope gate refuses) they skip the pipeline.
+        const outcome: Outcome<O> =
+          session.scope.level === 'deployment'
+            ? { ok: true, value: undefined as O }
+            : await inner.invoke<I, O>({ ...inv, session });
+        if (!outcome.ok) return outcome;
+        const registry = app?.registry ?? store.registry;
+        const value =
+          inv.action === 'core.me'
+            ? await answerMe(
+                session.principal,
+                session.scope,
+                registry,
+                relationReach(options, session.scope, registry),
+              )
+            : answerCapabilities(
+                app === undefined ? coreApiVersions : app.source.api,
+                app?.head ?? coreApiVersions.dates.at(-1) ?? '',
+                clock.now().toZonedDateTimeISO('UTC').toPlainDate().toString(),
+              );
+        return { ...outcome, value: value as O };
+      }
       if (app === undefined) {
         return {
           ok: false,

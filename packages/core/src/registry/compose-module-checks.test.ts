@@ -3,6 +3,7 @@ import { hooks } from '../../test/fixtures/modules/hooks/src/module.generated.ts
 import {
   appOf,
   type Case,
+  command,
   contributionTo,
   contributor,
   grant,
@@ -113,6 +114,34 @@ const moduleLevel: readonly Case[] = [
         ),
       ]);
     },
+  },
+  {
+    name: 'a shownOnce name its output does not have',
+    code: 'unknownShownOnce',
+    ref: 'shop.issue',
+    app: () =>
+      appOf([
+        makeModule(
+          { id: 'shop', entities: { widget } },
+          {
+            actions: {
+              issue: command({ shownOnce: ['token'], output: shape({ id: field.string() }) }),
+            },
+          },
+        ),
+      ]),
+  },
+  {
+    name: 'a shownOnce on a command that answers an entity row',
+    code: 'shownOnceOnRowOutput',
+    ref: 'shop.widget.refund',
+    app: () =>
+      appOf([
+        makeModule(
+          { id: 'shop', entities: { widget } },
+          { entityActions: { widget: { refund: command({ shownOnce: ['name'] }) } } },
+        ),
+      ]),
   },
   {
     name: 'a rule that names an action its target does not mount',

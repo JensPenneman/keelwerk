@@ -3698,7 +3698,7 @@
       "since": "2026-11-04"
     },
     {
-      "auth": "policy",
+      "auth": "public",
       "changedIn": [],
       "errors": [],
       "execution": "sync",
@@ -3718,10 +3718,16 @@
       "offline": false,
       "output": {
         "access": "read-write",
-        "kind": "void",
-        "optional": false
+        "input": {
+          "type": "object"
+        },
+        "kind": "foreign",
+        "optional": false,
+        "output": {
+          "type": "object"
+        }
       },
-      "outputHash": "sha256-zej-bMEJmGGq_mKCuqNPNDJAucdkfnebQhqSUKsBmg8",
+      "outputHash": "sha256-txLfO2J6Z7iplmLeb0kdcS9Do9iNwcH3de-SruvQjIc",
       "ref": "core.me",
       "resumable": false,
       "scope": "backend",
@@ -4461,6 +4467,14 @@
                   "optional": false,
                   "tag": 1
                 },
+                "publicId": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "merge": "exclusive",
+                  "optional": false,
+                  "tag": 5,
+                  "unique": true
+                },
                 "revokedAt": {
                   "access": "read-write",
                   "kind": "instant",
@@ -4506,8 +4520,76 @@
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-BgHq2efWnzxeu7f6lvpevzt5KRwD5ondDcCT7k7dzuY",
+      "outputHash": "sha256-6iIQUc3bY8cigUPyAmrRr3ijrp4ufE8KpsqzoYMLhk8",
       "ref": "core.operatorToken.get",
+      "resumable": false,
+      "scope": "deployment",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "core.operatorToken",
+      "errors": [],
+      "execution": "sync",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "label": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 100,
+            "optional": false,
+            "tag": 1
+          },
+          "ttl": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 2
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-4p2hIdkgxlHDPNehi0JPzQ6o0EZ8Url2BB2xHm5SeWk",
+      "instance": false,
+      "kind": "command",
+      "module": "core",
+      "mount": "entity",
+      "name": "issue",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "expiresAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": false,
+            "tag": 3
+          },
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "otk",
+            "tag": 1,
+            "target": "core.operatorToken"
+          },
+          "token": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 2
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-9_7zBbY_NjvAxcgsUVKxrrgBJmtyeEmBpX045gLymFg",
+      "ref": "core.operatorToken.issue",
       "resumable": false,
       "scope": "deployment",
       "since": "2026-11-04"
@@ -4629,6 +4711,14 @@
               "optional": false,
               "tag": 1
             },
+            "publicId": {
+              "access": "read-write",
+              "kind": "string",
+              "merge": "exclusive",
+              "optional": false,
+              "tag": 5,
+              "unique": true
+            },
             "revokedAt": {
               "access": "read-write",
               "kind": "instant",
@@ -4653,7 +4743,7 @@
         "kind": "page",
         "optional": false
       },
-      "outputHash": "sha256-QbicNtG_Ab8sjKpswDJXzcSLZhAxuPlLaKAn3yu_W6U",
+      "outputHash": "sha256-Sd2iCwQ08aDLM13BjY7Z877JlyuILkIGbfTa-VS4ij0",
       "page": {
         "defaultSize": 50,
         "defaultSort": [
@@ -4666,6 +4756,7 @@
         "sortable": [
           "createdAt",
           "id",
+          "publicId",
           "updatedAt"
         ]
       },
@@ -4793,6 +4884,7 @@
         "sortable": [
           "createdAt",
           "id",
+          "publicId",
           "updatedAt"
         ]
       },
@@ -4869,6 +4961,14 @@
             "optional": false,
             "tag": 1
           },
+          "publicId": {
+            "access": "read-write",
+            "kind": "string",
+            "merge": "exclusive",
+            "optional": false,
+            "tag": 5,
+            "unique": true
+          },
           "revokedAt": {
             "access": "read-write",
             "kind": "instant",
@@ -4890,7 +4990,7 @@
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-Yd0mQK4MrPq7VAHETBysbgJiULlrxHDBt1Nn_hR7Vl8",
+      "outputHash": "sha256-ENbVBafhJl883vqslJbHUOQ1QmzpWhUGfUI9mIC0B-0",
       "ref": "core.operatorToken.revoke",
       "resumable": false,
       "scope": "deployment",
@@ -6473,6 +6573,8 @@
           "reason": {
             "access": "read-write",
             "kind": "string",
+            "maxLength": 500,
+            "minLength": 1,
             "optional": false,
             "tag": 1
           }
@@ -6480,7 +6582,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-2vZ_6BPc15AIlOOieenwooH-JrHU2a8Gmqw8B7Ywsxc",
+      "inputHash": "sha256-k3G1nUIS-sN_0wlIhj3v5i_gG9mrShKChv54PGoUqpE",
       "instance": true,
       "kind": "command",
       "module": "core",
@@ -6745,6 +6847,215 @@
       },
       "outputHash": "sha256-hU0WbhwZuz6STOLq02Bad_8V4Fz74nRTk5d2B0ik2JE",
       "ref": "core.tenant.get",
+      "resumable": false,
+      "scope": "deployment",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "core.tenant",
+      "errors": [],
+      "execution": "sync",
+      "generated": "history",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "asOf": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true
+          },
+          "fromVersion": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "tnt",
+            "target": "core.tenant"
+          },
+          "limit": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-CjE_qrWOy7sZEse3mGtZocDGl0hZtMllGeZ2HinhL-Y",
+      "instance": false,
+      "kind": "query",
+      "module": "core",
+      "mount": "entity",
+      "name": "history",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "entries": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "actor": {
+                  "access": "read-write",
+                  "input": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "via": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "via"
+                    ],
+                    "type": "object"
+                  },
+                  "kind": "json",
+                  "optional": false,
+                  "output": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "via": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "via"
+                    ],
+                    "type": "object"
+                  },
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "via": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "via"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "at": {
+                  "access": "read-write",
+                  "kind": "instant",
+                  "optional": false
+                },
+                "changes": {
+                  "access": "read-write",
+                  "input": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "after": {},
+                        "before": {}
+                      },
+                      "required": [
+                        "before"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "kind": "json",
+                  "optional": false,
+                  "output": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "after": {},
+                        "before": {}
+                      },
+                      "required": [
+                        "before"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "schema": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "after": {},
+                        "before": {}
+                      },
+                      "required": [
+                        "before"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "object"
+                  }
+                },
+                "event": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                },
+                "version": {
+                  "access": "read-write",
+                  "kind": "integer",
+                  "optional": false,
+                  "wide": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-VlOHK4m7CMW3rVU1hf4njbNw6MQ0WFJkc9Y3CJPWPXs",
+      "ref": "core.tenant.history",
       "resumable": false,
       "scope": "deployment",
       "since": "2026-11-04"
@@ -10079,6 +10390,14 @@
           "optional": false,
           "tag": 1
         },
+        "publicId": {
+          "access": "read-write",
+          "kind": "string",
+          "merge": "exclusive",
+          "optional": false,
+          "tag": 5,
+          "unique": true
+        },
         "revokedAt": {
           "access": "read-write",
           "kind": "instant",
@@ -10119,6 +10438,7 @@
         "sortable": [
           "createdAt",
           "id",
+          "publicId",
           "updatedAt"
         ]
       },
@@ -10421,7 +10741,8 @@
         "update",
         "archive",
         "restore",
-        "set"
+        "set",
+        "history"
       ],
       "history": "chain",
       "module": "core",
@@ -10967,6 +11288,60 @@
       "name": "created"
     },
     {
+      "data": {
+        "access": "read-write",
+        "fields": {
+          "reason": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "entity": "core.tenant",
+      "generated": false,
+      "name": "entered"
+    },
+    {
+      "data": {
+        "access": "read-write",
+        "fields": {
+          "hook": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "entity": "core.tenant",
+      "generated": false,
+      "name": "hookCompleted"
+    },
+    {
+      "data": {
+        "access": "read-write",
+        "fields": {
+          "hook": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "entity": "core.tenant",
+      "generated": false,
+      "name": "hookFailed"
+    },
+    {
       "entity": "core.tenant",
       "generated": true,
       "name": "restored"
@@ -10998,7 +11373,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-vf5MaSc6rebF6OsQ-lrsUOSHoEPMPqaUa25CFR0miWc",
+  "hash": "sha256-Gaw6KUqIn6hmv08eepTZGSf_YEdbRPYmiBu8beLLPtw",
   "modules": [
     {
       "id": "core",

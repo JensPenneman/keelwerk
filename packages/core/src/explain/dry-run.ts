@@ -6,6 +6,7 @@ import { attemptCommand } from '../write-path/attempt-command.ts';
 import { inputFingerprint } from '../write-path/input-fingerprint.ts';
 import type { RunCommandInput } from '../write-path/run-command-input.ts';
 import { runPrepare } from '../write-path/run-prepare.ts';
+import { withoutShownOnce } from '../write-path/without-shown-once.ts';
 import { buildDryRunReport } from './build-dry-run-report.ts';
 import { dryRunKeys } from './dry-run-keys.ts';
 import { dryRunPerform } from './dry-run-perform.ts';
@@ -98,7 +99,7 @@ export async function dryRun(input: DryRunInput): Promise<DryRunReport> {
     action,
     commandId,
     batches,
-    output: result.output,
+    output: withoutShownOnce(action, result.output),
     deferred: result.effects ?? [],
   });
 }

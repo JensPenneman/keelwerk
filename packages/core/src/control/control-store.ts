@@ -8,6 +8,7 @@ import type { AdapterCapabilities } from '../storage/adapter-capabilities.ts';
 import type { DataAdapter } from '../storage/data-adapter.ts';
 import type { EntityDescriptor } from '../storage/entity-descriptor.ts';
 import type { NamespaceRef } from '../storage/namespace-ref.ts';
+import type { Scope } from '../storage/scope.ts';
 import type { Unit } from '../storage/unit.ts';
 
 /**
@@ -33,6 +34,11 @@ export interface ControlStore {
     readonly hybridClock: HybridClock;
     readonly build: { readonly id: string; readonly revision: number };
   };
+  /**
+   * The epoch of a scope, part of every state token (section 15.2.6). Positions are never rewound
+   * in M1 (the epoch bump and its mark tables come in M2, S-35), so every scope answers 0.
+   */
+  epochOf(scope: Scope): number;
   /** The descriptor of a core entity ('core.backend'). */
   entity(ref: string): EntityDescriptor;
   /** Runs `fn` in a read-only deployment-scope unit. */

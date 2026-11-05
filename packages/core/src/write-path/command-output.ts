@@ -4,6 +4,7 @@ import { decodeRow } from '../repositories/decode-row.ts';
 import type { ReceiptOutcome } from '../storage/receipt-outcome.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import { encodeEventValue } from './encode-event-value.ts';
+import { withoutShownOnce } from './without-shown-once.ts';
 import type { WrittenRow } from './written-row.ts';
 
 /** What a command answers and what its receipt keeps. */
@@ -59,6 +60,10 @@ export function commandOutput(input: CommandOutputInput): CommandOutput {
   const output = input.result ?? {};
   return {
     output,
-    outcome: { ok: true, value: encodeEventValue(output), effects: input.effects },
+    outcome: {
+      ok: true,
+      value: encodeEventValue(withoutShownOnce(action, output)),
+      effects: input.effects,
+    },
   };
 }

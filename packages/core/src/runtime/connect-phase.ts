@@ -23,9 +23,9 @@ import type { ScopeLookup } from '../invoker/scope-lookup.ts';
 import { canonicalizeJson } from '../json/canonicalize-json.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { ComputePool } from '../kernel/compute-pool.ts';
-import type { KeyService } from '../kernel/key-service.ts';
 import { createKeyService } from '../keys/create-key-service.ts';
 import { defaultRandomSource } from '../keys/default-random-source.ts';
+import type { ForkableKeyService } from '../keys/forkable-key-service.ts';
 import type { Logger } from '../observability/logger.ts';
 import { runtimeModule } from '../registry/runtime-module.ts';
 import type { AdapterCapabilities } from '../storage/adapter-capabilities.ts';
@@ -159,7 +159,7 @@ export async function connectPhase(input: ConnectInput): Promise<Connected> {
     adapterName: deployment.control.adapter,
   });
 
-  let keys: KeyService | undefined;
+  let keys: ForkableKeyService | undefined;
   let directory: ScopeLookup | undefined;
   const keyWrapper = createScopeKeyWrapper({
     keys: () => {

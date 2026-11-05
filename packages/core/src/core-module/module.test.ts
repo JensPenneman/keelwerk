@@ -1,5 +1,4 @@
 import { describe, expect, test } from 'vitest';
-import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { coreBase } from './base.ts';
 import { core } from './module.ts';
 
@@ -36,20 +35,23 @@ describe('the core module (S-11, S-26)', () => {
   test('mounts the M1 actions', () => {
     expect(Object.keys(core.actions)).toEqual(['introspect', 'composition', 'me', 'capabilities']);
     expect(Object.keys(core.entities.tenant.actions)).toEqual(['enter', 'setApiVersion']);
-    expect(Object.keys(core.entities.operatorToken.actions)).toEqual(['revoke']);
+    expect(Object.keys(core.entities.operatorToken.actions)).toEqual(['issue', 'revoke']);
     expect(core.actions.introspect.ref).toBe('core.introspect');
     expect(core.entities.tenant.actions.enter.ref).toBe('core.tenant.enter');
   });
 
-  test('the operator commands refuse until their runtime exists', () => {
-    const decide = core.entities.tenant.actions.enter.spec as { decide: () => never };
-    try {
-      decide.decide();
-      expect.unreachable();
-    } catch (error) {
-      expect(error).toBeInstanceOf(KeelwerkError);
-      expect((error as KeelwerkError).code).toBe('core.not_implemented');
+  test('the operator commands are served by the write path, not by placeholders', () => {
+    for (const part of [
+      core.entities.tenant.actions.enter,
+      core.entities.tenant.actions.setApiVersion,
+      core.entities.operatorToken.actions.issue,
+      core.entities.operatorToken.actions.revoke,
+    ]) {
+      expect(typeof (part.spec as { decide: unknown }).decide).toBe('function');
     }
+    expect((core.entities.operatorToken.actions.issue.spec as { creates?: boolean }).creates).toBe(
+      true,
+    );
   });
 
   test('the transports point is declared for transport modules to fill', () => {

@@ -30,8 +30,10 @@ import { loadTarget } from './load-target.ts';
 import { normalizeDecision } from './normalize-decision.ts';
 import { openDecision } from './open-decision.ts';
 import { receiptRow } from './receipt-row.ts';
+import { refuseGeneratedWrite } from './refuse-generated-write.ts';
 import { replayReceipt } from './replay-receipt.ts';
 import type { RunCommandInput } from './run-command-input.ts';
+import { runInUnitKeys } from './run-in-unit-keys.ts';
 import { sealDrafts } from './seal-drafts.ts';
 import { writeStateRows } from './write-state-rows.ts';
 
@@ -54,9 +56,11 @@ export interface AttemptInput {
  * receipt with it.
  */
 export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<CommandResult> {
-  const { run, commandId, fingerprint, clock } = input;
+  const { commandId, fingerprint, clock } = input;
+  const run = runInUnitKeys(input.run, unit);
   const { action, registry } = run;
   const authority = action.contributedBy ?? action.module;
+  refuseGeneratedWrite(run);
   const now = clock.now();
 
   const pending = await insertPendingReceipt(

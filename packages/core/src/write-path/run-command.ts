@@ -3,26 +3,16 @@ import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import { attemptCommand } from './attempt-command.ts';
 import { inputFingerprint } from './input-fingerprint.ts';
+import { refuseGeneratedWrite } from './refuse-generated-write.ts';
 import { retryUnit } from './retry-unit.ts';
 import type { RunCommandInput } from './run-command-input.ts';
 import { runPrepare } from './run-prepare.ts';
-
-const writes: ReadonlySet<string> = new Set(['update', 'archive', 'restore', 'set']);
 
 /** A generated `set` that names a state: two of them must not both commit on the same token (section 6.7). */
 function carriesState(kind: string | undefined, input: unknown): boolean {
   if (kind !== 'set' || typeof input !== 'object' || input === null) return false;
   const state: unknown = Reflect.get(input, 'ifInState');
   return state !== undefined && state !== null;
-}
-
-/**
- * The generated writes of the core's control entities other than `create` (a tenant moved to
- * another backend, a domain added around `syncDomains`) stay refused until the specification rules
- * on who may run them (section 17).
- */
-function refusedControlWrite(module: string, kind: string | undefined): boolean {
-  return module === 'core' && kind !== undefined && kind !== 'create' && writes.has(kind);
 }
 
 /**
@@ -44,13 +34,7 @@ export async function runCommand(input: RunCommandInput): Promise<CommandResult>
       details: { request: action.ref, reason: 'not a command' },
     });
   }
-  if (refusedControlWrite(action.module, action.generated)) {
-    throw new KeelwerkError({
-      kind: 'not_implemented',
-      code: 'core.not_implemented',
-      message: `"${action.ref}" is a generated write on a control entity, which this release does not run: the operator actions of WP-56 take its place.`,
-    });
-  }
+  refuseGeneratedWrite(input);
   if (action.execution === 'async') {
     throw new KeelwerkError({
       kind: 'not_implemented',

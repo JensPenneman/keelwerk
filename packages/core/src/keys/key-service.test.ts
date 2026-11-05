@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { countingRandomSource } from '../../test/keys/counting-random-source.ts';
 import { memoryScopeKeys } from '../../test/keys/memory-scope-keys.ts';
+import type { ScopeKeyStore } from '../storage/scope-key-store.ts';
 import type { Unit } from '../storage/unit.ts';
+import type { WrappedScopeKey } from '../storage/wrapped-scope-key.ts';
 import { createKeyService } from './create-key-service.ts';
 import { issueSecret } from './issue-secret.ts';
 import { createKeyCache } from './key-cache.ts';
@@ -229,5 +231,66 @@ describe('reveal', () => {
         'deploy',
       ),
     ).rejects.toMatchObject({ code: 'core.not_found' });
+  });
+});
+
+describe('a key service bound to an open unit (within)', () => {
+  const scope = { level: 'deployment' } as const;
+  const setupWithin = () => {
+    const store = memoryScopeKeys();
+    const service = createKeyService({
+      master: { current: async () => master, byVersion: async () => master },
+      deploymentId: 'dep',
+      withScopeKeys: store.withScopeKeys,
+      clock: { now: () => Temporal.Instant.from('2026-11-05T10:00:00Z') },
+      random: countingRandomSource(),
+    });
+    return { service, store };
+  };
+  // A unit's own store: what it adds becomes visible in the shared rows only on commit.
+  const unitStore = (committed: WrappedScopeKey[]) => {
+    const staged: WrappedScopeKey[] = [];
+    const store: ScopeKeyStore = {
+      current: async (scopeId) =>
+        [...committed, ...staged].filter((r) => r.scopeId === scopeId).at(-1),
+      byVersion: async (scopeId, version) =>
+        [...committed, ...staged].find((r) => r.scopeId === scopeId && r.version === version),
+      add: async (key) => {
+        staged.push(key);
+      },
+      retire: async () => undefined,
+      destroy: async () => undefined,
+    };
+    return { store, commit: () => committed.push(...staged.splice(0)) };
+  };
+
+  it('parallel units: one that fails after creating a key leaves one row and nothing cached', async () => {
+    const { service, store } = setupWithin();
+    const failing = unitStore(store.rows);
+    const passing = unitStore(store.rows);
+    const issueIn = async (unit: ReturnType<typeof unitStore>, fail: boolean) => {
+      const issued = await service.within(unit.store).issue(scope, { prefix: 'kwo' });
+      if (fail) throw new Error('the command throws after creating the key');
+      unit.commit();
+      return issued;
+    };
+    const results = await Promise.allSettled([issueIn(failing, true), issueIn(passing, false)]);
+    expect(results.map((one) => one.status)).toEqual(['rejected', 'fulfilled']);
+    expect(store.rows).toHaveLength(1);
+    expect(store.calls.count).toBe(0);
+    const passed = results[1];
+    if (passed?.status !== 'fulfilled') throw new Error('unreachable');
+    // The service reads the committed row: the failed unit's key was never cached or shared.
+    expect(await service.verify(scope, passed.value.plain, passed.value.verifier)).toBe(true);
+  });
+
+  it('never writes the shared cache and never opens a unit of its own', async () => {
+    const { service, store } = setupWithin();
+    const first = await service.issue(scope, { prefix: 'kwo' });
+    const calls = store.calls.count;
+    const unit = unitStore(store.rows);
+    const within = service.within(unit.store);
+    expect(await within.verify(scope, first.plain, first.verifier)).toBe(true);
+    expect(store.calls.count).toBe(calls);
   });
 });

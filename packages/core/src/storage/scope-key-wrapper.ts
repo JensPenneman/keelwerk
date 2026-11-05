@@ -1,3 +1,5 @@
+import type { ScopeKeyStore } from './scope-key-store.ts';
+
 /**
  * Wraps the key material the key stores keep in `kw_subject_keys` and `kw_value_keys` (14.7.4).
  * The runtime hands the adapters one through `AdapterEnvironment.keyWrapper`, backed by the key
@@ -9,4 +11,10 @@ export interface ScopeKeyWrapper {
   wrap(scopeId: string, plain: Uint8Array, context: Uint8Array): Promise<Uint8Array>;
   /** Throws when `wrapped` was not produced by `wrap` for this scope and context. */
   unwrap(scopeId: string, wrapped: Uint8Array, context: Uint8Array): Promise<Uint8Array>;
+  /**
+   * The same wrapper reading the scope keys through `store`, the store of a deployment-scope unit
+   * that is open. A unit that holds `store` binds it, so wrapping inside that unit never opens a
+   * second one (F-02 change note). Absent: the wrapper has one way to reach the keys.
+   */
+  within?(store: ScopeKeyStore): ScopeKeyWrapper;
 }
