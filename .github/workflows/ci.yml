@@ -4,6 +4,10 @@ on:
   pull_request:
   push:
     branches: [main]
+  # A daily run on main: a failure that depends on the calendar, a registry or an image
+  # shows without waiting for the next push or pull request.
+  schedule:
+    - cron: "17 3 * * *"
   workflow_dispatch:
 
 permissions:
