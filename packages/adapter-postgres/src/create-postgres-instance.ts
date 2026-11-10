@@ -25,6 +25,7 @@ import { postgresOptionsSchema } from './postgres-options-schema.ts';
 import { createPostgresPool } from './postgres-pool.ts';
 import { runPostgresUnit } from './postgres-unit.ts';
 import type { PostgresUnitRequest } from './postgres-unit-request.ts';
+import { resolvePostgresClock } from './resolve-postgres-clock.ts';
 import { runPostgresSession } from './run-postgres-session.ts';
 
 const schemaOperations: SchemaOperations = {
@@ -68,6 +69,7 @@ export function createPostgresInstance(
   options: PostgresAdapterOptions,
   placement: PlacementConfig,
   env: AdapterEnvironment,
+  clock: Clock = resolvePostgresClock(options, env),
 ): PostgresAdapterInstance {
   let connection: Connection | undefined;
   const open = (): Connection => {
@@ -75,7 +77,6 @@ export function createPostgresInstance(
     return connection;
   };
   const entities = sqlEntityIndex(options.entities);
-  const clock: Clock = options.clock ?? env.clock ?? { now: () => Temporal.Now.instant() };
   const keyWrapper = options.keyWrapper ?? env.keyWrapper;
   const request = (
     namespace: NamespaceRef,

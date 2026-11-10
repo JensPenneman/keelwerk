@@ -14,6 +14,7 @@ import { placementRole } from './placement-role.ts';
 import type { PostgresAdapterOptions } from './postgres-adapter-options.ts';
 import { createPostgresChangeFeed } from './postgres-change-feed.ts';
 import { postgresOptionsSchema } from './postgres-options-schema.ts';
+import { resolvePostgresClock } from './resolve-postgres-clock.ts';
 import { switchedOffAccelerations } from './switched-off-accelerations.ts';
 import { unitScopeId } from './unit-scope-id.ts';
 
@@ -53,8 +54,8 @@ export function postgresAdapter(options: PostgresAdapterOptions = {}): DataAdapt
     dialect: 'postgres',
     options: postgresOptionsSchema,
     create: (placement, env) => {
-      const instance = createPostgresInstance(options, placement, env);
-      const clock = options.clock ?? env.clock;
+      const clock = resolvePostgresClock(options, env);
+      const instance = createPostgresInstance(options, placement, env, clock);
       const off = switchedOffAccelerations(options);
       const feed = createPostgresChangeFeed({
         url: placement.url ?? '',
@@ -112,7 +113,7 @@ export function postgresAdapter(options: PostgresAdapterOptions = {}): DataAdapt
           withCommandReceipts(
             postgresSchemaOperations(connection, {
               ...(role === undefined ? {} : { role }),
-              ...(clock === undefined ? {} : { clock }),
+              clock,
             }),
             connection,
             role,
