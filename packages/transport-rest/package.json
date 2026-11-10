@@ -23,13 +23,13 @@
   ],
   "dependencies": {
     "@keelwerk/core": "workspace:*",
-    "@scalar/hono-api-reference": "0.12.11",
-    "hono": "4.13.13"
+    "@scalar/hono-api-reference": "0.12.14",
+    "hono": "4.13.14"
   },
   "devDependencies": {
     "@keelwerk/testing": "workspace:*",
     "@keelwerk/transport-http": "workspace:*",
-    "@scalar/openapi-parser": "0.29.12",
+    "@scalar/openapi-parser": "0.29.16",
     "vitest": "5.0.5"
   }
 }

@@ -40,7 +40,7 @@
     "dist"
   ],
   "dependencies": {
-    "@electric-sql/pglite": "0.5.8",
+    "@electric-sql/pglite": "0.5.12",
     "@keelwerk/core": "workspace:*",
     "kysely": "0.29.7"
   },
