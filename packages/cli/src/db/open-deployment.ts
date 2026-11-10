@@ -86,9 +86,11 @@ async function probeDeploymentId(
 export async function openDeployment(
   path: string,
   env: Readonly<Record<string, string | undefined>>,
+  progress: (done: string) => void = () => undefined,
 ): Promise<OpenedDeployment> {
   const definition = await loadDefinition(path);
   const deploymentId = await probeDeploymentId(definition, env);
+  progress('read the recorded deployment id');
   const environment: AdapterEnvironment = {
     ...adapterEnvironmentOf(env),
     deploymentId: deploymentId ?? probeId,
@@ -103,10 +105,12 @@ export async function openDeployment(
       environment,
     );
     opened.push(control.adapter);
+    progress('connected the control store');
     const placements: OpenedPlacement[] = [];
     for (const [name, entry] of Object.entries(definition.placements)) {
       const placement = await connect(name, entry, definition.infrastructure, env, environment);
       opened.push(placement.adapter);
+      progress(`connected the placement ${name}`);
       placements.push({
         name,
         adapter: placement.adapter,

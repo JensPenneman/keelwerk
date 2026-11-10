@@ -2,8 +2,15 @@ import { registerHooks } from 'node:module';
 import process from 'node:process';
 import { eventMarker } from './event-marker.ts';
 
+const extension = import.meta.url.endsWith('.ts') ? '.ts' : '.js';
+/** The modules that are evaluated before the hooks exist, so they can never report themselves done: this one and the event marker. */
+const preloaded = new Set([
+  import.meta.url,
+  new URL(`./event-marker${extension}`, import.meta.url).href,
+]);
+
 function isProjectFile(url: string): boolean {
-  return url.startsWith('file:') && !url.includes('/node_modules/');
+  return url.startsWith('file:') && !url.includes('/node_modules/') && !preloaded.has(url);
 }
 
 function textOf(source: string | ArrayBuffer | NodeJS.ArrayBufferView): string {
@@ -20,7 +27,7 @@ function textOf(source: string | ArrayBuffer | NodeJS.ArrayBufferView): string {
  */
 export function trackImports(): void {
   const emit = (event: string): void => {
-    process.stderr.write(`${eventMarker} ${event}\n`);
+    process.stderr.write(`\n${eventMarker} ${event}\n`);
   };
   registerHooks({
     resolve(specifier, context, nextResolve) {
@@ -30,11 +37,15 @@ export function trackImports(): void {
     },
     load(url, context, nextLoad) {
       const loaded = nextLoad(url, context);
-      if (!isProjectFile(url) || loaded.source === null || loaded.source === undefined) {
+      if (!isProjectFile(url)) return loaded;
+      const format = loaded.format ?? '';
+      const extensible = format.startsWith('module') || format === 'commonjs';
+      if (loaded.source === null || loaded.source === undefined || !extensible) {
+        // JSON, WebAssembly and loads without a source have no evaluation to wait for, so they are done at once.
+        emit(`done ${url}`);
         return loaded;
       }
-      if (!(loaded.format ?? '').startsWith('module')) return loaded;
-      const done = `process.stderr.write(${JSON.stringify(`${eventMarker} done ${url}\n`)});`;
+      const done = `globalThis.process.stderr.write(${JSON.stringify(`\n${eventMarker} done ${url}\n`)});`;
       return { ...loaded, source: `${textOf(loaded.source)}\n;${done}\n` };
     },
   });

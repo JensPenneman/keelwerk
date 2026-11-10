@@ -18,7 +18,12 @@ import { tracksOfApp } from './tracks-of-app.ts';
  */
 export async function applyDeployment(
   opened: OpenedDeployment,
-  options: { readonly contract: boolean; readonly now: number },
+  options: {
+    readonly contract: boolean;
+    readonly now: number;
+    /** Called with what was just finished, after the schema and after the migrations of each placement and app. */
+    readonly progress?: (done: string) => void;
+  },
 ): Promise<readonly NamespaceOutcome[]> {
   const outcomes: NamespaceOutcome[] = [];
   const buildId = options.contract ? await buildIdOf(opened.apps) : '';
@@ -31,6 +36,7 @@ export async function applyDeployment(
       await placement.adapter.schema.provision(namespace, [], {
         jobGroups: jobGroupsOf(opened.definition),
       });
+      options.progress?.(`provisioned the schema of ${placement.name}/${app.id}`);
       try {
         const result = await applyPending(
           placement.adapter.schema,
@@ -48,6 +54,7 @@ export async function applyDeployment(
               : {}),
           },
         );
+        options.progress?.(`applied the migrations of ${placement.name}/${app.id}`);
         outcomes.push({
           placement: placement.name,
           app: app.id,

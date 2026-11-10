@@ -68,7 +68,6 @@ describe('keelwerk dev', () => {
       print: screen.print,
       note: screen.print,
       signal: stop.signal,
-      probeLimitMs: 120_000,
       typeChecker: undefined,
     });
     try {
@@ -129,7 +128,6 @@ describe('keelwerk dev', () => {
       print: screen.print,
       note: screen.print,
       signal: stop.signal,
-      probeLimitMs: 120_000,
       typeChecker: undefined,
     });
     try {

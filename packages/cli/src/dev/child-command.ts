@@ -5,8 +5,9 @@ import { resultMarker } from './result-marker.ts';
 const condition = '@keelwerk/source';
 
 const script = [
-  'const [url, name, text] = process.argv.slice(1);',
+  'const [url, tracking, name, text] = process.argv.slice(1);',
   'try {',
+  "  if (tracking !== '') (await import(tracking)).trackImports();",
   '  const { childEntries } = await import(url);',
   '  const result = await childEntries[name](JSON.parse(text));',
   `  if (result !== undefined) process.stdout.write('\\n${resultMarker} ' + JSON.stringify(result) + '\\n');`,
@@ -23,10 +24,17 @@ export interface ChildCommand {
   readonly args: readonly string[];
 }
 
-/** The command that runs the entry `name` of `childEntries` with `argument` in a fresh process. */
+/**
+ * The command that runs the entry `name` of `childEntries` with `argument` in a fresh process. The
+ * probe installs the import tracker (`trackImports`) before it imports anything, so every project
+ * module it evaluates reports itself and a module that was loaded earlier is never taken for one
+ * that hangs.
+ */
 export function childCommand(name: keyof typeof childEntries, argument: unknown): ChildCommand {
   const extension = import.meta.url.endsWith('.ts') ? '.ts' : '.js';
   const target = new URL(`./child-entries${extension}`, import.meta.url).href;
+  const tracking =
+    name === 'probe' ? new URL(`./track-imports${extension}`, import.meta.url).href : '';
   return {
     command: process.execPath,
     args: [
@@ -35,6 +43,7 @@ export function childCommand(name: keyof typeof childEntries, argument: unknown)
       '-e',
       script,
       target,
+      tracking,
       name,
       JSON.stringify(argument),
     ],

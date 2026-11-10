@@ -22,7 +22,7 @@ export interface SupervisorInput {
   readonly note: (line: string) => void;
   /** Ends the loop. */
   readonly signal: AbortSignal;
-  /** The probe's time limit in milliseconds; default: 10 seconds (section 13.6). */
+  /** The probe's import limit in milliseconds, the longest it may stay silent while a module import is in flight; default: 10 seconds (section 13.6). */
   readonly probeLimitMs?: number;
   /** The type checker's command; undefined: none runs. */
   readonly typeChecker: TypeCheckerCommand | undefined;

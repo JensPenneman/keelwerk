@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process, { env } from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { startLimitMs } from './start-limit-ms.ts';
+import { stopLimitMs } from './stop-limit-ms.ts';
 
 const cliBin = fileURLToPath(
   new URL('../../../../../../packages/cli/src/bin/keelwerk.ts', import.meta.url),
@@ -11,9 +13,6 @@ const cliBin = fileURLToPath(
 const deploymentFile = fileURLToPath(
   new URL('../../../../.launchway/deployment.ts', import.meta.url),
 );
-const startLimitMs = 120_000;
-const stopLimitMs = 60_000;
-
 function exited(child: ChildProcess): Promise<void> {
   return new Promise((resolve) => {
     if (child.exitCode !== null || child.signalCode !== null) resolve();
@@ -108,6 +107,12 @@ export async function startDevSession(): Promise<DevSession> {
       );
       const onData = (chunk: Buffer): void => {
         seen += chunk.toString();
+        if (/\| app failed/.test(seen)) {
+          // The supervisor printed why and waits for a change that never comes: do not wait out the limit.
+          clearTimeout(timer);
+          reject(new Error(`dev failed to start\n${seen}`));
+          return;
+        }
         const found = /app running at (http:\/\/127\.0\.0\.1:\d+), socket (\S+)/.exec(seen);
         if (found?.[1] !== undefined && found[2] !== undefined) {
           clearTimeout(timer);

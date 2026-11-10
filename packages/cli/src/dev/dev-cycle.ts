@@ -19,7 +19,7 @@ export interface CycleInput {
   readonly paths: DevPaths;
   readonly print: (line: string) => void;
   readonly note: (line: string) => void;
-  /** The probe's time limit in milliseconds; default: the limit of section 13.6. */
+  /** The probe's import limit in milliseconds, its stall limit while a module import is in flight; default: the limit of section 13.6. */
   readonly probeLimitMs?: number;
   /** The app of the previous cycle, still running. */
   readonly running: AppProcess | undefined;

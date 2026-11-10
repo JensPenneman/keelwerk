@@ -32,6 +32,8 @@ export interface RunProducersOptions {
   readonly check: boolean;
   /** The producers to run; default: all of them. */
   readonly only?: readonly ProducerName[];
+  /** Called with what was just finished (`composed the apps`, ...), so a supervisor can see the run advance. */
+  readonly progress?: (done: string) => void;
 }
 
 /**
@@ -41,30 +43,37 @@ export interface RunProducersOptions {
  */
 export async function runProducers(options: RunProducersOptions): Promise<ProducerResult> {
   const { root, check } = options;
+  const progress = options.progress ?? (() => undefined);
   const wanted = (name: ProducerName): boolean => options.only?.includes(name) ?? true;
   const results: ProducerResult[] = [];
   if (wanted('manifests')) results.push(await produceModuleManifests(root, check));
   if (
     ['surfaces', 'app', 'openapi', 'cli', 'migrations'].some((name) => wanted(name as ProducerName))
   ) {
-    const derived = await deriveApps(root);
+    const derived = await deriveApps(root, progress);
     results.push({ written: [], notes: derived.notes, failures: derived.failures });
+    progress('composed the apps');
     if (wanted('surfaces')) {
       results.push(await settle(root, check, await produceSurfaces(root, derived.apps, check)));
+      progress('produced the API surfaces');
     }
     if (wanted('app')) {
       results.push(await settle(root, check, produceAppGeneratedFiles(derived.apps)));
+      progress('produced the generated app files');
     }
     if (wanted('openapi')) {
       results.push(
         await settle(root, check, await produceTransportArtefacts(root, derived.apps, check)),
       );
+      progress('produced the transport documents');
     }
     if (wanted('cli')) {
       results.push(await settle(root, check, await produceCliManifests(root, derived.apps, check)));
+      progress('produced the command-line manifests');
     }
     if (wanted('migrations')) {
       results.push(await produceMigrationsAgainstSnapshots(root, derived.apps, check));
+      progress('checked the migrations against their snapshots');
     }
   }
   return joinResults(results);

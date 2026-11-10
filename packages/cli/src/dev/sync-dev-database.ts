@@ -11,6 +11,8 @@ export interface SyncOptions {
   readonly contract: boolean;
   readonly now: number;
   readonly env: Readonly<Record<string, string | undefined>>;
+  /** Called with what was just finished, so the supervisor can see the synchronisation advance. */
+  readonly progress?: (done: string) => void;
 }
 
 /**
@@ -20,12 +22,15 @@ export interface SyncOptions {
  * imports the apps.
  */
 export async function syncDevDatabase(options: SyncOptions): Promise<SyncResult> {
-  const opened = await openDeployment(options.deployment, options.env);
+  const progress = options.progress ?? (() => undefined);
+  const opened = await openDeployment(options.deployment, options.env, progress);
   try {
     await stopLeftoverProcesses(opened);
+    progress('stopped the left-over processes');
     const outcomes = await applyDeployment(opened, {
       contract: options.contract,
       now: options.now,
+      progress,
     });
     const named = (placement: string, app: string, files: readonly string[]): string[] =>
       files.map((file) => `${placement}/${app}: ${file}`);

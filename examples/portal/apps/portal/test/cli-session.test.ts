@@ -4,13 +4,14 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { type DevSession, startDevSession } from './support/dev-session.ts';
 import { freshPerson } from './support/people.ts';
 import { portalConfig } from './support/portal-config.ts';
+import { startSessionTimeoutMs } from './support/start-session-timeout-ms.ts';
 
 let session: DevSession;
 const person = freshPerson();
 
 beforeAll(async () => {
   session = await startDevSession();
-}, 180_000);
+}, startSessionTimeoutMs);
 
 afterAll(async () => {
   await session?.stop();

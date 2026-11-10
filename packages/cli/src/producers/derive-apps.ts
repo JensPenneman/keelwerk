@@ -13,7 +13,10 @@ import { shownPath } from './shown-path.ts';
  * (sections 13.7 and 18.2). An app that exports no app value, lacks its named type or derives with
  * an error problem is a failure of its own and is left out of `apps`.
  */
-export async function deriveApps(root: string): Promise<DerivedApps> {
+export async function deriveApps(
+  root: string,
+  progress: (done: string) => void = () => undefined,
+): Promise<DerivedApps> {
   const apps: AppDerivation[] = [];
   const failures: string[] = [];
   const notes: string[] = [];
@@ -26,8 +29,10 @@ export async function deriveApps(root: string): Promise<DerivedApps> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       failures.push(`${shown}: src/app.ts cannot be loaded: ${message}`);
+      progress(`could not load ${shown}`);
       continue;
     }
+    progress(`loaded ${shown}`);
     if (app === undefined) {
       failures.push(`${shown}: src/app.ts exports no app value`);
       continue;
