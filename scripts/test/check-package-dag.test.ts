@@ -31,9 +31,10 @@ afterEach(async () => {
   await Promise.all(fixtures.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
+// Reads every package of the repository, which takes seconds on a loaded machine: more than the default.
 test('the workspace graph follows section 22 and rule 9', async () => {
   expect(await checkPackageDag(repositoryRoot)).toEqual([]);
-});
+}, 60_000);
 
 test('a workspace import in core is reported, tests included', async () => {
   const root = await fixture({
