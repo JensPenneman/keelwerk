@@ -1,6 +1,6 @@
 # Decision register
 
-Date: 2026-10-23 (updated 2026-10-24; the M0 spike outcomes of section M, the M1 plan gaps of section N and the M1 follow-ups of section O added 2026-11-04; the M1 follow-ups of section P added 2026-11-05). Status: open. This register lists every open question of the architecture in
+Date: 2026-10-23 (updated 2026-10-24; the M0 spike outcomes of section M, the M1 plan gaps of section N and the M1 follow-ups of section O added 2026-11-04; the M1 follow-ups of section P added 2026-11-05; the decisions of 2026-11-10 in section Q). Status: open. This register lists every open question of the architecture in
 one place, numbered, so that Jens can answer them one by one in conversation. Each answer is
 recorded here with its date and the section or ADR that applies it. The questions come from
 [architecture.md](architecture.md) section 26 (decision points, spike questions, questions by
@@ -721,7 +721,9 @@ sections it touched.
      `schedules()` and those members with their users and tables, and conformance cases 5 (stream
      records), 10 (consumers, tombstones, streams, the worker scenarios) and 11 join then. Status:
      decided by the lead 2026-11-04 (M1 plan S-03), applied (section 14.3.2; roadmap sections 1 and
-     3 (M1, M2)).
+     3 (M1, M2)). Amended 2026-11-10: of the maintenance members M2 adds only `purgeTransient`;
+     `tombstones`, `compact`, `purgeStream` and the tombstone part of case 10 join in M4 and `redact`
+     in M5, each with its first user (entry 477).
 124. **Section 23 wins over the spike's layout** (S-04). Ported fixtures and the generator follow
      section 23: entity actions under `actions/<entity>/`, import aliases only on a clash, fills
      named `<point>Fill`, and the generated header of section 23.5. Status: decided by the lead
@@ -1558,6 +1560,7 @@ Open points raised by the same packages, for their owners:
 318. **The licence of a scaffolded package** (WP-30). A scaffolded `package.json` has no `license`
      member (the templates are pure): a) a `--license` flag; b) inherit the root package's licence.
      To decide before the first publish. Status: open, for the lead (concerns section 16.9.8).
+     Decided 2026-11-10: a), with b) as the flag's default, entry 481.
 319. **Custom inputs that are not shapes** (WP-33). A custom action whose input is not a shape
      reaches the registry as a permissive schema (`action-entry-of.ts` drops the original) and
      surfaces as an open `foreign` node, which the REST check refuses; keeping the original schema
@@ -2388,7 +2391,7 @@ Open points raised by the same packages, for their owners:
      (16.8.4) does not have; the CLI's `tenant enter` and the tenant marker of entry 417 exist.
      Status: open, for M4 (concerns sections 16.8.4 and 17.5.4).
 462. **A minimum password length** (WP-60). Section 17.2 sets no minimum password length. Status:
-     open, for the auth owner (concerns section 17.2.2).
+     open, for the auth owner (concerns section 17.2.2). Decided 2026-11-10: entry 479.
 463. **Error mapping on `invoke` and causation on reaction events** (WP-62, S-112). A failed `invoke`
      effect cannot be remapped to the caller's declared error (so `auth.signUp` answers
      `accounts.email_taken` rather than `auth.identifier_taken`), and reaction events carry no causation
@@ -2402,7 +2405,8 @@ Open points raised by the same packages, for their owners:
      (concerns section 16.8.5).
 465. **Recording request information** (WP-63, S-114). The user agent and address a decision read are
      not recorded, so a re-decide is handed them; recording them is a follow-up of 15.1.3. Status:
-     open, for M2 (concerns sections 7.9.6 and 15.1.3).
+     open, for M2 (concerns sections 7.9.6 and 15.1.3). Decided 2026-11-10: the user agent and the
+     transport are recorded, the address is not, entry 482.
 466. **Millisecond-exact records** (WP-63, S-114). Re-decide compares instants at millisecond
      precision because stores keep `timestamptz(3)`; whether the decision record itself should be
      millisecond-exact is open. Status: open, for M2 (concerns sections 7.9.6 and 15.1.3).
@@ -2414,7 +2418,8 @@ Open points raised by the same packages, for their owners:
      M2's purge. Status: open, for M2 (concerns sections 7.9.6 and 15.1.10).
 469. **The `prepare` variant** (WP-44, entry 358). The WP-44 report recommends keeping the separate
      `prepare` (decision 50a); Jens decides, and M3 repeats the comparison on Trail's code (entry
-     150). Status: open, for Jens (concerns sections 7.9.4 and 26.2).
+     150). Status: open, for Jens (concerns sections 7.9.4 and 26.2). Decided 2026-11-10: the
+     separate `prepare` stays, entry 478.
 470. **`prepare`'s reads in the record** (WP-44). `prepare`'s reads and result are not recorded, so
      replay of a command with `prepare` is incomplete in either form. Status: open, for M2 (concerns
      sections 7.9.6 and 15.1.3).
@@ -2432,3 +2437,146 @@ Open points raised by the same packages, for their owners:
 474. **Re-decide ergonomics and cost** (WP-42). A typed `loadOf(app)` matcher form keyed by the app's
      entities and an `AsOfContext` row cache per (entity, position) are proposed. Status: open, for the
      testing owner (concerns section 7.9.6).
+
+## Q. Decisions of 2026-11-10 (after M1, before M2)
+
+M1 was complete on 2026-11-05. On 2026-11-10 Jens gave the go on M2 and its plan, decided who
+conducts M3 and M4 and how the first release is published, and saw the defaults the M2 plan proposed
+for the gaps that were his to decide; he raised no objection, so they are built as stated. The same
+day the lead took the decisions that the fixes merged on main needed, and the six carry-over notes
+for M3 and M4 were recorded at Jens's request. The other gap decisions of the M2 plan (S-117 to
+S-177) stand as the plan writes them; the next editing pass writes them, and the specification text
+of the entries below, into architecture.md and this register.
+
+475. **The go on M2 and its plan.** Jens gave the go on M2 with its plan: 57 work packages (WP-66 to
+     WP-122) in nine waves (G19 to G27) and a publish lane (G18) that nothing waits for, the frozen
+     interfaces F-17 to F-32 and the gap decisions S-117 to S-177. Before a package is built, an
+     architect writes its contract sheet, which names what the package reuses from the code and gives
+     every new file, name and signature, so that no package defines a type the code already has.
+     Status: decided by Jens 2026-11-10. Applied in: roadmap section 2 (the gate "Decisions for
+     M2").
+476. **Deployment-wide job groups in M5** (M2 plan S-123). Section 9.5.2 said deployment-wide groups
+     arrive in M2, section 9.5.5 that `scope: 'deployment'` groups come in M5 through control-store
+     permits, and the roadmap listed them under M2. They are M5's, as 9.5.5 states; until then
+     compose refuses a `scope: 'deployment'` group with `deploymentGroupsUnavailable` (WP-78).
+     Status: decided by the lead 2026-11-10 (M2 plan S-123), agreed by Jens with his go (entry 475).
+     Applied in: roadmap sections 3 (M2) and 4 (M5); section 9.5.2 follows in the next editing pass.
+477. **History maintenance joins with its users** (M2 plan S-157). Entry 123 put `tombstones`,
+     `compact`, `purgeStream` and `redact` in M2 "with their users", but purge tombstones are written
+     by `purgeArchived`, compaction and purges are operator-adopted history rules that ship in M4
+     (section 14.7.2), and redaction is M5's. A contract member joins with its first user, so no
+     adapter ships a stub: M2 adds `EventStore.purgeTransient`, whose user is the retention worker for
+     operational buffers; `Unit.tombstones`, the table `kw_tombstones`, `compact`, `purgeStream` and
+     the tombstone part of adapter conformance case 10 join in M4 with `purgeArchived` and
+     `compactHistory`; `redact` joins in M5 with operator redaction. Until M4, `core.retention.set`
+     refuses history rules with `not_implemented` (WP-71, WP-96). Status: decided by the lead
+     2026-11-10 (M2 plan S-157), agreed by Jens with his go (entry 475); entry 123 amended. Applied
+     in: roadmap sections 3 (M1, M2, M4) and 4 (M5); sections 14.3.2 and 14.7 follow in the next
+     editing pass.
+478. **The separate `prepare` stays** (open point 469, M2 plan S-133). The WP-44 report recommends
+     keeping the separate `prepare` member (decisions 50 and 74), and the lead proposed it; WP-104
+     builds inline effects in it. M3 repeats the comparison on Trail's code (entry 150; roadmap M3,
+     exit criterion 3). Status: decided 2026-11-10 (Jens saw the default and raised no objection).
+     Applied in: WP-104; section 7.9.4 follows in the next editing pass.
+479. **A minimum password length** (open point 462, M2 plan S-134). The configuration key
+     `auth.minPasswordLength` sets it: by default 15 characters when the password is the only factor
+     and 8 once a second factor is enrolled (NIST SP 800-63B revision 4), with a maximum of at least
+     64 and no composition rules. Status: decided 2026-11-10 (Jens saw the default and raised no
+     objection). Applied in: WP-103; section 17.2.2 follows in the next editing pass.
+480. **Member invitations without a mail module** (M2 plan S-139). Invitations ship in M2 with
+     `module-members`, although M2 ships no mail module: the optional extension point
+     `invitationDelivery` has no M2 filler, and without one `invite` answers the accept token once,
+     in its result to the inviter, and never stores it in the receipt; an invitation expires after 7
+     days through a keyed timer. Status: decided 2026-11-10 (Jens saw the default and raised no
+     objection). Applied in: WP-118; section 17.3.2 follows in the next editing pass.
+481. **The licence of a scaffolded package** (open point 318, M2 plan S-152). A scaffolded
+     `package.json` takes its `license` member from a `--license` flag, which defaults to the root
+     package's licence when one exists. Status: decided 2026-11-10 (Jens saw the default and raised
+     no objection). Applied in: WP-66; section 16.9.8 follows in the next editing pass.
+482. **No remote address in the decision record** (open point 465, M2 plan S-126). The decision
+     record's optional `request`, sealed under the scope's value key and written only when the
+     decision read the request information, holds the user agent and the transport, not the remote
+     address; a re-decide keeps taking the address as input. The rest of S-126 (`prepare`'s reads in
+     the record) is the lead's. Status: decided 2026-11-10 (Jens saw the default and raised no
+     objection). Applied in: WP-112; sections 7.9.6 and 15.1.3 follow in the next editing pass.
+483. **Who conducts M3 and M4.** The lead of keelwerk conducts M3 and M4 and takes over the
+     application repositories, Trail's and Launchway's, once the current Trail work is handed over;
+     the rework of both apps on keelwerk is planned from there. Status: decided by Jens 2026-11-10.
+     Applied in: this entry.
+484. **The first publish** (M1 exit criterion 12, WP-66). Version 0.1.0 is published as soon as the
+     release work package is through. Packages are published through npm trusted publishing, with
+     provenance. A trusted publisher can only be configured for a package that already exists on the
+     registry, so the first release is published from the release workflow with a short-lived token,
+     which is deleted afterwards, and the trusted publishers are configured after it. Every release
+     publishes all packages of the lockstep version or none, every published manifest carries
+     `"engines": { "node": ">=26" }`, and a release is accepted only when `npm audit signatures`
+     passes in a fresh project that pins the published packages. Status: decided 2026-11-10 (Jens:
+     0.1.0 once WP-66 is through; the lead: the publishing path). Applied in: roadmap section 3 (M1
+     status, M3); WP-66.
+485. **The runtime's clock reaches the data adapters.** `startRuntime` handed its injected clock to
+     no data adapter, so the memory, PGlite and PostgreSQL adapters read the system clock, and
+     receipts written at a fixed test clock read as expired once the wall clock passed their expiry.
+     `AdapterEnvironment` gains the optional `clock`, set in the connect phase; an adapter takes its
+     own `clock` option first, then the environment's clock, then the system clock, and every new
+     adapter path of M2 follows that order (a change note of the frozen interface F-02). Status:
+     decided by the lead 2026-11-10. Applied in: the code; the specification follows in the next
+     editing pass.
+486. **`kw_migrations.applied_at` from the adapter clock.** The migration ledger's `applied_at` is
+     written from the adapter's clock, resolved as entry 485 states, so a pinned clock pins it too; no
+     reader depends on the order of these instants. Status: decided by the lead 2026-11-10. Applied
+     in: the code; the specification follows in the next editing pass.
+487. **The session cookie's `Max-Age` from the invocation clock.** The session cookie's `Max-Age`
+     was computed from the system clock. `applyCookieHint` takes an optional `now` from the invocation
+     clock, and the mount context and the hosts gain an optional clock that carries it
+     (`MountContext.clock`, `HttpHostDeps.clock`, `HostDeps.clock`; a change note of the frozen
+     interface F-09, all additive). Status: decided by the lead 2026-11-10. Applied in: the code; the
+     specification follows in the next editing pass.
+488. **Two stall limits for the dev probe** (section 13.6). One time limit for the whole start
+     failed on loaded machines. The probe now chooses a stall limit at every progress event by what
+     the child is doing: 10 seconds while a project module import is in flight (the message names
+     the module and gives the advice on slow input and output), 60 seconds while the probe does its
+     own work (producers, migration checks, the dev database boot). Every event restarts the timer,
+     and no flag, environment variable or configuration key changes the limits; the portal's
+     dev-session test bounds a silent hang at 120 seconds. Status: decided by the lead 2026-11-10.
+     Applied in: the code; the specification follows in the next editing pass.
+489. **Biome 2.6.3.** Every pin moves from 2.5.15 to 2.6.3. A repeated plugin entry adds its scope
+     instead of replacing the preset's, so a file in both scopes is reported twice and the root
+     configuration repeats no plugin entry; plugin paths resolve from the preset; benchmark files
+     (`*.bench.ts`) are exempt from the import-effects rule. Status: decided by the lead 2026-11-10.
+     Applied in: the code; the specification follows in the next editing pass (it names 2.5.15 and
+     says in section 13.9 that a repeated entry replaces the includes).
+490. **No TypeScript majors from Dependabot.** Dependabot ignores semver-major updates of
+     `typescript`: entry 138 keeps the 6.x line for the compiler API, and the workspace compiler
+     changes its major with the baseline. Minor and patch updates keep coming for both lines. Status:
+     decided by the lead 2026-11-10. Applied in: the code; the specification follows in the next
+     editing pass.
+491. **The checks run daily on main.** The CI workflow also runs every day on `main`, so a failure
+     that depends on the calendar shows on main before a dependency update meets it; one stayed
+     hidden from 2026-11-06 until the dependency updates of 2026-11-10, because CI on main had last
+     run on 2026-11-05. Status: decided by the lead 2026-11-10. Applied in: the code; the
+     specification follows in the next editing pass.
+492. **The code frozen in M1 wins over the specification.** Where the specification and the code
+     frozen in M1 disagree, the code wins and the specification is edited. The M2 plan's verification
+     against the code found planned types that M1 already exports (S-128, S-154, S-159, S-162,
+     S-171, S-175 to S-177); each M2 work package builds on the type that exists. Status: decided by
+     the lead 2026-11-10. Applied in: the code; the specification follows in the next editing pass.
+493. **Carry-over notes for M3 and M4** (Trail's plan for its checks on its own hardware). Six
+     notes, recorded at Jens's request: (1) M4's module list gains `checks` and `automation`, on
+     which Trail's merge gate depends; until M4 has both, the old Launchway installation keeps
+     serving them. (2) `automation` is ported as decide handlers that yield effects (decision 50a),
+     with its seven action types (enabling, disabling and performing automatic merges, creating
+     release pull requests and releases, creating deployments, notifying) as effect executors with
+     mechanical retries only, an idempotency key and the outcome back to `decide` through a
+     continuation, and its runs as the module's entity; M2's effect work packages are reviewed
+     against that. (3) M4's deployments keep a build from the checked-out ref for services that
+     declare a build, a manual deployment of any ref that is never deduplicated, and the failure
+     classes build, pull and up. (4) Apps built on keelwerk ship their checks as package scripts and
+     never a workflow file; `keelwerk init` writes none, a test keeps it so, and the reviewer
+     checklist names the rule. (5) Trail pins `@keelwerk/*` exactly, takes every update within a day
+     and verifies the signatures in every check, so every release is published with provenance, all
+     packages of a version or none (entry 484). (6) Trail's health contract is data in its own
+     repository, updated in the pull request that changes its health or configuration endpoints;
+     the image check runs the image's own `CMD` and `HEALTHCHECK`, so `keelwerk start` needs no
+     change for it. Calendar schedule expressions (M2 plan S-165) arrive with M4's modules, their
+     first users. Status: recorded 2026-11-10 at Jens's request. Applied in: roadmap section 3 (M3,
+     M4).

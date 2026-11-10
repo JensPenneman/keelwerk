@@ -51,7 +51,7 @@ what it builds on. Only the mail server's questions are open, and they are parke
 |---|---|---|
 | Architecture approval | M1 | Passed on 2026-11-04: Jens approved the architecture and the ADRs are `Accepted`; the name keelwerk was settled on 2026-10-28 (decision 91); trademarks wait (decision 84c). Publication does not wait for this gate: the code and the design documents may be public from the start, at a moment Jens chooses, with the licence in every commit (decisions 20 and 83, revised 2026-10-27). |
 | Decisions for M1 | M1 | Taken: 1 (the compiled app catalogue), 2 (hard dependencies), 3 (object literals), 4 (module authority), 5 (deny rules), 6 (the kernel job queue: the job store is part of the adapter contract from M1 and its stored format is final there), 7 (personal fields encrypted in state tables, ADR 0027), 8 (buffer defaults and `asOf`), 10 (before-images), 12 (datastore agnosticism: the kernel's fallbacks ship with the adapter contract), 16 and 81 (`keelwerk call`), 17 (`explain --as`), 18 (protobuf tags), 19 (Temporal from the start), 20 (the licence), 28 (TypeScript 7 and Node 26), 29 (`chain` by default), 30 (Kysely), 31 (the `Check` form), 32 (the Maybe accessor, revisited after the spike), 35 (anchors from M1), 50 (strict pure handlers, ADR 0026), 52 (dated API versions, because pins and the ledger ship in M1), 58 to 61 (kebab names, the generated manifest, one rule per file, scaffolds that only create files), 65 and 66 (blind indexes only where declared, NFC), and 73, 76, 77, 78 and 79 (generators, logging, the fixed clock, effect records in the chain, command inputs as a digest), because the interpreter, the decision record in `kw_events.meta` and the `core.effect` format ship in M1; and 121 to 182, the M1 plan's specification gaps (register section N), of which 144 (asynchronous work without workers) and 160 (sign-up) are built as decided unless Jens objects. None is pending. |
-| Decisions for M2 | M2 | Taken: 15 (oRPC beside tRPC), 36 (operator work stays on the invocation protocol and the CLI, no operator GraphQL schema), 37 (own operation limits with the no-repeat rule), 51 (flags in the core), 53 (12 months of deprecation, then retirement), 74 (inline effects in `prepare`), 75 (executor retries only without domain meaning) and 80 (external performers), because effect jobs, executors, continuations, external performers and the other transports ship in M2. None is pending. |
+| Decisions for M2 | M2 | Taken: 15 (oRPC beside tRPC), 36 (operator work stays on the invocation protocol and the CLI, no operator GraphQL schema), 37 (own operation limits with the no-repeat rule), 51 (flags in the core), 53 (12 months of deprecation, then retirement), 74 (inline effects in `prepare`), 75 (executor retries only without domain meaning) and 80 (external performers), because effect jobs, executors, continuations, external performers and the other transports ship in M2. Taken on 2026-11-10: Jens's go on M2 and its plan (entry 475), and the M2 plan's gap decisions, of which the scope moves, the defaults Jens saw and the lead's decisions of the day are register section Q (entries 475 to 493); the specification and the rest of the register follow at the next editing pass. None is pending. |
 | Decisions for M3 | M3 | Taken: 48 (Trail in its own repository, on exact-pinned 0.x pre-releases) and 74 with its reservation (Trail's rebuild tests the phase restrictions). None is pending; Trail's own product choices are made in the Trail repository. |
 | Decisions for M4 | M4 | Taken: 23 (a clean break with agent protocol v1), 24 (the edge through the agent), 25 (tenant-owned nodes), 26 (subdomains with mandatory hardening), 27 (two PostgreSQL instances and the ledger file), 38 (resumable uploads, ADR 0020), 45 (separate realms), 47 (keep all data), 49 (outbound webhooks), 54 (automatic finalization), 55 (renames through expand and contract), 62 (`keelwerk fleet`), 63 (the scaler with the static provider), 71 (bounded scans), 72 (substring defaults) and 82 (the edge provider contract). None is pending. |
 | Decisions for M5 | M5 | Taken: 12 (MySQL kept), 13 (no Drizzle adapter), 14 (introspected external tables), 63 and 64 (the opt-in docker provider) and 69 (order tokens on PostgreSQL). None is pending. |
@@ -233,7 +233,8 @@ these are M1's limits):
   `serials`, `nested`, `afterCommit` and, on deployment-scope units, `scopeKeys`; `JobStore` is
   complete except `schedules()`; `EventStore` lacks `compact`, `purgeStream`, `purgeTransient` and
   `redact`. Adapter conformance cases 5 (stream records), 10 (consumers, tombstones, streams and the
-  queue scenarios with workers) and 11 wait for M2 (entry 123).
+  queue scenarios with workers) and 11 wait for M2 (entry 123); since 2026-11-10 the tombstone
+  part of case 10 waits for M4 (entry 477).
 - Asynchronous work without workers (entry 144, for Jens to confirm): M1 writes job rows, timers,
   `core.effect` `requested` records and `accepted` receipts in their final form and runs no worker.
   `execution: 'async'`, and `either` with a preference for async, answer `{ commandId, status:
@@ -278,19 +279,13 @@ these are M1's limits):
 - Packages carry no `engines` field; `keelwerk doctor` checks Node 26 or later, and the lead
   decides before the first publish (entry 121, criterion 12).
 
-Status (2026-11-05): work packages 01 to 63 are merged (main at `cae5d19`, slice 4 done); WP-64
-(slice 5, the portal from a fresh clone with the CLI) and WP-65 (the CI exit gate) remain. Their
-follow-ups are register sections O and P (decisions 184 to 314 and 327 to 449, open points 315 to
-326 and 450 to 474). By the tests of the merged packages, exit criteria 4 (the portal scenario on
-PostgreSQL 18 and in memory, and the isolation suite for two tenants), 5 (the adapter conformance
-suite since WP-46, the transport conformance suite since WP-55), 6 (the portal's dump test), 7 (the
-type tests, declaration checks and budgets job in CI), 8 (every handler of the scenario, login,
-logout and reset included, re-decided from its record; register entries 445 to 448), 9 (`keelwerk
-db verify` against the anchors), 10 (the accelerations-off run and doctor's fallback list) and 11
-(manifest references and `surface diff`) are met, and so is the REST half of criterion 3. Criteria
-1 and 2 and the CLI half of 3 wait for WP-64; WP-65 maps every criterion to a named CI step.
-Criterion 12 stays open: the `engines` field returns, or the lead decides, before the first
-publish.
+Status (2026-11-10): complete. All 65 work packages were merged on 2026-11-05 (main at `6e88cc4`),
+and the exit-gate run on main was green the same day: exit criteria 1 to 11 are met, each mapped to
+a named CI step by WP-65. Their follow-ups are register sections O and P (decisions 184 to 314 and
+327 to 449, open points 315 to 326 and 450 to 474). Criterion 12 is met by writing the `engines`
+field at publish time: the sources carry none, so Dependabot's updater keeps running, and every
+published manifest carries `"engines": { "node": ">=26" }`. It closes with the first publish, which
+M2's first-publish work package carries (register entry 484).
 
 Exit criteria:
 
@@ -360,12 +355,20 @@ Packages and modules:
   chain, `core.flag` targeting, gates, `core.suspension`, the stale report and `keelwerk flags`.
 - What M1 left to M2 (register section N): workers for the job rows M1 writes, so sessions slide
   and `auth`'s `recordLogin` becomes the async reaction of the sketch; `onTenantCreated` hooks on the
-  queue; the contract members `consumers`, `tombstones`, `streams`, `JobStore.schedules()` and the
-  event store's maintenance members, with their tables (`kw_consumers`, `kw_parked`,
-  `kw_tombstones`, `kw_stream_records`, the schedule table) and adapter conformance cases 5, 10 and
-  11; the epoch bump and the control store's mark tables; deployment-wide job groups; the `erasure`
-  and `keyTombstone` ledger records; `/subscribe`, `/live`, `--wait` and `waitForEffects`; the
-  transport suite's `m2` scenarios.
+  queue; the contract members `consumers`, `streams`, `JobStore.schedules()` and, of the event
+  store's maintenance members, `purgeTransient`, whose user is the retention worker, with their
+  tables (`kw_consumers`, `kw_parked`, `kw_stream_records`, the schedule table) and adapter
+  conformance cases 5, 10 (without its tombstone part) and 11; the epoch bump and the control
+  store's mark tables; the `erasure` and `keyTombstone` ledger records; `/subscribe`, `/live`,
+  `--wait` and `waitForEffects`; the transport suite's `m2` scenarios.
+- Moved out of M2 on 2026-11-10 (register entries 476 and 477), because a contract member joins with
+  its first user, so no adapter ships a stub: `Unit.tombstones`, the event store's `compact` and
+  `purgeStream`, the table `kw_tombstones` and the tombstone part of conformance case 10 join in M4
+  with the operator-adopted rules that purge archived rows and compact history; `redact` joins in M5
+  with operator redaction; deployment-wide job groups are M5's, as architecture.md section 9.5.5
+  states. Until then compose refuses `scope: 'deployment'` groups with
+  `deploymentGroupsUnavailable`, and `core.retention.set` refuses history rules with
+  `not_implemented`.
 
 Exit criteria:
 
@@ -410,8 +413,13 @@ ADRs due before M3: the `ctx.secrets` requests and the executors' reveal (ADR 00
 Packages and modules:
 
 - Publication: the release tooling publishes every package as a 0.x pre-release to the npm
-  registry, with provenance; the Trail repository pins exact versions (the beta policy of section 1).
-  The npm scope is chosen first (architecture.md section 26.3).
+  registry, with provenance, and every release publishes all packages of the lockstep version or
+  none (register entry 484). The npm scope is chosen first (architecture.md section 26.3). The Trail
+  repository pins exact versions (the beta policy of section 1), takes every update within a day
+  once its checks pass, and verifies the packages' signatures in every check (register entry 493).
+- Apps built on keelwerk ship their checks as package scripts and never a workflow file:
+  `keelwerk init` and the preset write none, and a test keeps `init` from writing a `.github`
+  directory. The deployment platform runs the checks from those scripts (register entry 493).
 - `@keelwerk/module-auth` gains passkeys (`@simplewebauthn/server`, architecture.md section
   17.2.2), because Trail signs in with passkeys only; the device authorization flow follows in M4.
 - `@keelwerk/transport-webhooks` (gap G8): receivers for requests that are not JSON actions (raw
@@ -425,14 +433,18 @@ Packages and modules:
   section 23.1, its `.launchway/` directory (decision 90c; architecture.md sections 4.6 and 17.3.1)
   with `deployment.ts` (Trail's own deployment), `launchway.ts` and `compose.yaml`, from which the
   current Launchway deploys Trail by running `keelwerk start --config .launchway/deployment.ts` until
-  M4's rebuild, and its own CI with the keelwerk preset.
+  M4's rebuild, and its checks as package scripts with the keelwerk preset.
+- Trail's health contract is data in its own repository (paths, the expected status and JSON
+  fields, a soak), updated in the pull request that changes its health or configuration endpoints.
+  The image check runs the image's own `CMD` and `HEALTHCHECK`, so `keelwerk start` needs no change
+  for it (register entry 493).
 
 Exit criteria:
 
 1. The Trail repository installs the `@keelwerk` pre-releases from the registry, pinned to exact
-   versions, with no other dependency on this repository; its CI runs `biome ci`, `tsc -b`,
-   `vitest run`, `keelwerk generate --check`, `keelwerk doctor --layout` and the conformance
-   suites on Node 26.
+   versions, with no other dependency on this repository; the checks the deployment platform runs
+   from its package scripts run `biome ci`, `tsc -b`, `vitest run`, `keelwerk generate --check`,
+   `keelwerk doctor --layout` and the conformance suites on Node 26.
 2. Trail serves its users from its keelwerk backend: passkey sign-in, the tracking apps' position
    ingest and the live views run through keelwerk actions, and Trail's own acceptance tests pass
    against it.
@@ -459,6 +471,12 @@ Packages and modules:
   executor and the continuation `applied`); the device authorization flow in `auth`;
   operator-adopted retention rules, with no suggested defaults for Launchway's entities (decision
   47c).
+- History maintenance, moved from M2 on 2026-11-10 (register entry 477): `purgeArchived` and
+  `compactHistory`, the operator-adopted rules that first use them, bring `Unit.tombstones`, the
+  table `kw_tombstones`, the event store's `compact` and `purgeStream`, and the tombstone part of
+  adapter conformance case 10.
+- Calendar schedule expressions (M2 ships `every` durations with `jitter` only), whose first users
+  are the `automation` module's daily release train and the `checks` module's scheduled pass.
 - `@keelwerk/module-edge` and `@keelwerk/edge-caddy` (decision 82a): the desired state of the
   edge, the `providers` extension point and the Caddy provider, with the `edge.apply` effect that
   the edge node's agent performs (decision 24a; architecture.md section 17.3.7).
@@ -476,8 +494,11 @@ Packages and modules:
   external performer of `agentCommand` effects), `deployments` (with the log stream, kept and
   offloaded), `domains` (which declares the edge's sites), `github` (the GitHub effects: the status
   mirror with mechanical retries, release reads, and the manifest conversion inline in `prepare`),
-  `previews` (whose teardown reclaims runtime artefacts only); the app gets
-  `apps/launchway/src/modules.ts` and `src/app.ts`.
+  `previews` (whose teardown reclaims runtime artefacts only), `checks` (check items per app,
+  commit statuses, same-tree copies, the scheduled pass) and `automation` (automatic merging of
+  dependency updates and the daily release train, built as decide handlers that yield effects, with
+  its seven action types as effect executors and its runs as the module's entity; register entry
+  493); the app gets `apps/launchway/src/modules.ts` and `src/app.ts`.
 - The new agent, a typed client over the live carrier pinned to an API version, holding
   `nodes.channel` and, on the edge node, `edge.channel`; the new UI against the generated API. No
   compatibility transport and no `/api/v1` paths (decision 23c; architecture.md section 17.3.4).
@@ -519,8 +540,12 @@ Exit criteria:
     from the blob store.
 11. An outbound webhook endpoint receives a signed deployment notification, and a repeat after a
     restart is deduplicated by its webhook id.
-12. The old Launchway installation is retired only after criteria 1 to 9 hold; until then it stays
-    in place as the rollback.
+12. Deployments keep three behaviours the release train relies on: a build from the checked-out
+    ref for services that declare a build, a manual deployment of any ref that is never
+    deduplicated (a rollback), and the failure classes build, pull and up.
+13. The old Launchway installation is retired only after criteria 1 to 9 hold and Trail's checks
+    and release train also run on the new platform; until then it stays in place as the rollback
+    and keeps serving them.
 
 ### The mail server (parked)
 
@@ -623,7 +648,7 @@ given on 2026-10-28: data breadth was M7, offline sync M8 and collaborative fiel
 
 | Milestone | Scope | Exit criterion |
 |---|---|---|
-| M5. Data breadth | `adapter-mysql`, `adapter-sqlite`, the Supabase preset; schema-per-tenant and database-per-tenant placements; tenant move; projection entities with online rebuilds; operator redaction; `keelwerk db introspect` (external, adopt); the SQL escape hatch as the `ctx.load.sql` read request, with its declared dialect; index tables for personal fields on MySQL and SQLite; the ORE order capability on PostgreSQL, after a spike on operator-class installation and a review of the implementation; job groups with `scope: 'deployment'`; wake-ups through the control store for per-tenant namespaces; `@keelwerk/provider-docker`, the opt-in docker node provider for extra workers, one milestone after the scaler (decisions 63a and 64a); a bounded candidate set for the fair take's lane pick in placements with thousands of lanes (register entry 114) | Trail's and Launchway's apps pass their CI on PostgreSQL, MySQL and SQLite, queues included, with `keelwerk doctor` listing the kernel paths each adapter takes; a synthetic backlog on the home server gets extra workers from the docker provider within the configured limits, and they drain after the down window. |
+| M5. Data breadth | `adapter-mysql`, `adapter-sqlite`, the Supabase preset; schema-per-tenant and database-per-tenant placements; tenant move; projection entities with online rebuilds; operator redaction, with the event store's `redact` (moved from M2, register entry 477); `keelwerk db introspect` (external, adopt); the SQL escape hatch as the `ctx.load.sql` read request, with its declared dialect; index tables for personal fields on MySQL and SQLite; the ORE order capability on PostgreSQL, after a spike on operator-class installation and a review of the implementation; job groups with `scope: 'deployment'` (moved from M2, register entry 476); wake-ups through the control store for per-tenant namespaces; `@keelwerk/provider-docker`, the opt-in docker node provider for extra workers, one milestone after the scaler (decisions 63a and 64a); a bounded candidate set for the fair take's lane pick in placements with thousands of lanes (register entry 114) | Trail's and Launchway's apps pass their CI on PostgreSQL, MySQL and SQLite, queues included, with `keelwerk doctor` listing the kernel paths each adapter takes; a synthetic backlog on the home server gets extra workers from the docker provider within the configured limits, and they drain after the down window. |
 | M6. Offline sync | merge state, `lww`, `counter` and `set` merges, the `sync` module, `@keelwerk/sync-client` | Property tests show convergence for permutations of concurrent offline mutations; rejected mutations are reported, never lost. |
 | M7. Collaborative fields | Loro codec protocols, presence, client-side prediction of custom offline commands | Two clients editing one rich-text field offline converge with each other and with the server. |
 | Experiments (after M4) | `@keelwerk/module-experiments` (architecture.md section 20.8): experiments, metrics, exposures through `flagObservers`, tallies and fixed-horizon results | An experiment on a test app reports per-variant results with 95 % intervals, reads "inconclusive" before the planned sample size, and marks a planted sample ratio mismatch invalid. |
