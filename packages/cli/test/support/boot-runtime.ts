@@ -45,6 +45,7 @@ function pgliteFactory(): DataAdapterFactory {
           placementId: placement.id,
           role,
           ...(env.keyWrapper === undefined ? {} : { keyWrapper: env.keyWrapper }),
+          ...(env.clock === undefined ? {} : { clock: env.clock }),
         },
       );
       const adapter = inner as unknown as DataAdapter;

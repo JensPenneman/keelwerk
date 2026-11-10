@@ -22,6 +22,7 @@ export function durablePgliteFactory(): DataAdapterFactory {
           role,
           ...(placement.url === undefined ? {} : { dataDir: placement.url }),
           ...(env.keyWrapper === undefined ? {} : { keyWrapper: env.keyWrapper }),
+          ...(env.clock === undefined ? {} : { clock: env.clock }),
         },
       );
       return {

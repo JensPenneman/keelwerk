@@ -72,6 +72,17 @@ describe('init', () => {
     );
   });
 
+  test('writes no .github directory and no workflow file: the checks are package scripts only', async () => {
+    const cwd = await emptyDirectory();
+    const run = await runCliWith(['init', 'my-platform'], createFakeHost({ cwd }).host);
+    expect(run.code).toBe(0);
+    const files = await listing(join(cwd, 'my-platform'));
+    expect(files.filter((file) => file.startsWith('.github'))).toEqual([]);
+    expect(files.filter((file) => /(^|\/)workflows?\//.test(file))).toEqual([]);
+    const entries = await readdir(join(cwd, 'my-platform'));
+    expect(entries).not.toContain('.github');
+  });
+
   test('the deployment file is the only default export and the compose file runs start with it', async () => {
     const cwd = await emptyDirectory();
     await runCliWith(['init', 'shop', '--scope', '@acme'], createFakeHost({ cwd }).host);
