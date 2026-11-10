@@ -15,6 +15,10 @@ export interface Runtime {
   registry(appId: string): Registry;
   /** With `listen` and an HTTP host in the infrastructure. */
   readonly host?: TransportHost;
+  /** The TCP port the host the runtime built bound (with `listen`). */
+  readonly port?: number;
+  /** The operator socket path the host bound, after the short-path fallback. */
+  readonly operatorSocket?: string;
   /** Creates backends and tenants in the running process, no restart needed (F-09 change note, WP-43). */
   readonly control: RuntimeControl;
   /** The `stop` phase. */

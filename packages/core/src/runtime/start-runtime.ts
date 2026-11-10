@@ -28,6 +28,7 @@ import { listenPhase } from './listen-phase.ts';
 import type { Listening } from './listening.ts';
 import { migratePhase } from './migrate-phase.ts';
 import { refuseUnknownApiVersion } from './refuse-unknown-api-version.ts';
+import { registerTelemetry } from './register-telemetry.ts';
 import { routeControlCommands } from './route-control-commands.ts';
 import type { Runtime } from './runtime.ts';
 import { runtimeEnvironment } from './runtime-environment.ts';
@@ -51,6 +52,11 @@ export async function startRuntime(
   const clock = options.clock ?? { now: () => Temporal.Now.instant() };
   const environment = runtimeEnvironment(options);
   const development = environment !== 'production';
+  const flushTelemetry = await registerTelemetry({
+    telemetry: deployment.telemetry,
+    env: options.env ?? {},
+    log,
+  });
 
   log.debug('phase', { phase: 'compose' });
   const composed = composePhase(deployment, options);
@@ -174,7 +180,15 @@ export async function startRuntime(
     };
 
     log.debug('phase', { phase: 'start' });
-    const ready = startPhase({ connected, migrated, options });
+    const ready = startPhase({
+      connected,
+      migrated,
+      options,
+      composed,
+      apps: servedById,
+      invoker: draining.invoker,
+      clock,
+    });
     started = ready;
     const anchoring = await startAnchoring({
       deployment,
@@ -213,21 +227,29 @@ export async function startRuntime(
         return app.source.registry;
       },
       ...(listening.host === undefined ? {} : { host: listening.host }),
+      ...(listening.port === undefined ? {} : { port: listening.port }),
+      ...(listening.operatorSocket === undefined
+        ? {}
+        : { operatorSocket: listening.operatorSocket }),
       control: createRuntimeControl({ path: controlPath, served, connected, migrated, anchoring }),
       stop: (deadlineMs) => {
         log.debug('phase', { phase: 'stop' });
-        stopping ??= stopPhase(
-          {
-            connected,
-            started: ready,
-            draining,
-            mounts: listening.mounts,
-            host: listening.instance,
-            abort,
-            anchoring,
-          },
-          deadlineMs,
-        );
+        stopping ??= (async () => {
+          const due = performance.now() + deadlineMs;
+          await stopPhase(
+            {
+              connected,
+              started: ready,
+              draining,
+              mounts: listening.mounts,
+              host: listening.instance,
+              abort,
+              anchoring,
+            },
+            deadlineMs,
+          );
+          await flushTelemetry(Math.max(0, due - performance.now()));
+        })();
         return stopping;
       },
     };

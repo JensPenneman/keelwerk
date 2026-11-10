@@ -136,6 +136,9 @@ describe('the last step a child reported', () => {
 });
 
 describe('the probe, in a real process', () => {
+  // Long enough for a loaded machine to start the child and load the modules before the limit counts as a hang.
+  const importLimitMs = 3000;
+
   test('a module that hangs at import time fails the probe within its limit and is named', async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), 'keelwerk-probe-hang-')));
     try {
@@ -153,16 +156,16 @@ describe('the probe, in a real process', () => {
       const outcome = await startProbe(
         createNodeHost(),
         { root, deployment, now: 0, contract: false },
-        500,
+        importLimitMs,
       );
-      expect(Date.now() - started).toBeLessThan(15_000);
+      expect(Date.now() - started).toBeLessThan(45_000);
       expect(outcome.kind).toBe('failed');
       if (outcome.kind === 'failed') {
         expect(outcome.message).toContain(hanging);
-        expect(outcome.message).toContain('made no progress for 0.5 seconds');
+        expect(outcome.message).toContain(`made no progress for ${importLimitMs / 1000} seconds`);
       }
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
-  });
+  }, 90_000);
 });

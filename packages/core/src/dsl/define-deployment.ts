@@ -8,6 +8,7 @@ import type {
   DeploymentScaling,
   ProcessDefinition,
 } from '../runtime/deployment-definition.ts';
+import { runtimeInfrastructure } from '../runtime/runtime-infrastructure.ts';
 import { compositionRefusal } from './composition-refusal.ts';
 import type { AnyContract } from './define-contract.ts';
 import type { EnvRef } from './env.ts';
@@ -34,7 +35,7 @@ type ProvidedByInfrastructure<Infra> = Infra extends readonly (infer P)[]
 /** The named check of `defineDeployment`: `missingInfrastructure` names the contracts no entry provides. */
 export type DeploymentChecks<
   Apps extends readonly DeployableApp[],
-  Infra extends readonly InfrastructureEntry[],
+  Infra extends readonly object[],
 > = Check<
   Exclude<RequiredDeploymentContracts<Apps>, ProvidedByInfrastructure<Infra>>,
   'missingInfrastructure'
@@ -66,7 +67,7 @@ export type ControlStore = { readonly adapter: string; readonly url: EnvRef | st
 /** The options of `defineDeployment` (section 4.6). */
 export interface DeploymentOptions<
   Apps extends readonly DeployableApp[],
-  Infra extends readonly InfrastructureEntry[],
+  Infra extends readonly object[],
 > {
   readonly apps: Apps;
   readonly infrastructure: Infra;
@@ -99,7 +100,7 @@ export interface DeploymentOptions<
 /** A deployment value: a subtype of what `startRuntime` takes (S-49). */
 export interface Deployment<
   Apps extends readonly DeployableApp[] = readonly DeployableApp[],
-  Infra extends readonly InfrastructureEntry[] = readonly InfrastructureEntry[],
+  Infra extends readonly object[] = readonly object[],
 > extends DeploymentDefinition {
   readonly kind: 'deployment';
   readonly apps: Apps;
@@ -112,15 +113,14 @@ export interface Deployment<
 /**
  * Describes where the apps run (section 4.6). Fails with `missingInfrastructure` when a
  * deployment-level contract has no provider, at the type level and again at runtime. The value
- * is the default export of the deployment file.
+ * is the default export of the deployment file. Entries without `provides` (adapter factories,
+ * ledger sinks, the schema planner) are accepted and provide nothing (open point 458, S-108).
  */
 export function defineDeployment<
   const Apps extends readonly DeployableApp[],
-  const Infra extends readonly InfrastructureEntry[],
+  const Infra extends readonly object[],
 >(config: DeploymentOptions<Apps, Infra> & DeploymentChecks<Apps, Infra>): Deployment<Apps, Infra> {
-  const provided = new Set(
-    config.infrastructure.flatMap((entry) => entry.provides.map((contract) => contract.contract)),
-  );
+  const provided = runtimeInfrastructure(config.infrastructure).provided;
   for (const app of config.apps) {
     for (const module of app.modules) {
       for (const dependency of module.requires ?? []) {

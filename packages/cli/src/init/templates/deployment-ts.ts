@@ -3,21 +3,20 @@ import type { InitNames } from '../init-names.ts';
 
 /**
  * `.launchway/deployment.ts` (section 4.6): the app's deployment, the only default export of the
- * project, written as the `DeploymentDefinition` that `startRuntime` takes (section 3.3).
+ * project, written with `defineDeployment`, whose value is what `startRuntime` takes (section 3.3).
  * `keelwerk dev` swaps the data layer for PGlite, so the PostgreSQL settings below apply to
  * `keelwerk start` alone.
  */
 export function deploymentTs(names: InitNames): string {
   const app = camelFromKebab(names.app);
   return `import { postgresAdapter } from '@keelwerk/adapter-postgres';
-import type { DeploymentDefinition } from '@keelwerk/core';
-import { byHeader, env, secret } from '@keelwerk/core';
+import { byHeader, defineDeployment, env, secret } from '@keelwerk/core';
 import { ledgerFile } from '@keelwerk/core/ledger';
 import { schemaPlanner } from '@keelwerk/data';
 import { httpHost } from '@keelwerk/transport-http';
 import { ${app} } from '../apps/${names.app}/src/app.ts';
 
-const deployment: DeploymentDefinition = {
+const deployment = defineDeployment({
   apps: [${app}],
   infrastructure: [
     postgresAdapter(),
@@ -36,7 +35,7 @@ const deployment: DeploymentDefinition = {
   },
   tenantResolution: [byHeader('x-keelwerk-tenant')],
   keys: { masterKey: secret('KEELWERK_MASTER_KEY') },
-};
+});
 
 export default deployment;
 `;

@@ -1,5 +1,6 @@
 import { asKeelwerkError, coreError } from '@keelwerk/core/http';
 import { Hono } from 'hono';
+import { compressResponse } from './compress-response.ts';
 import { decorateResponse } from './decorate-response.ts';
 import type { Dispatcher } from './dispatcher.ts';
 import { errorResponse } from './error-response.ts';
@@ -67,7 +68,10 @@ export function createDispatcher(host: HostContext, telemetry: RequestTelemetry)
         } catch (failure) {
           response = errorResponse(host, state, asKeelwerkError(failure));
         }
-        const decorated = decorateResponse(response, request, state);
+        const decorated = await compressResponse(
+          decorateResponse(response, request, state),
+          request,
+        );
         finish(decorated.status);
         return decorated;
       } finally {

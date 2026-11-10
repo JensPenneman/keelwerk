@@ -38,3 +38,7 @@ overrides:
   # @fastify/busboy 3.2.5 (via @whatwg-node/server under graphql-yoga) was published on 2026-11-05, inside the 14-day window;
   # 3.2.4 dates from 2026-10-22. Drop this entry once 3.2.5 is older than two weeks.
   "@fastify/busboy@3.2.5": 3.2.4
+  # @opentelemetry/semantic-conventions 1.45.0 (via the OpenTelemetry SDK packages of core) was published on 2026-11-06,
+  # inside the 14-day window; 1.44.0 dates from 2026-10-28 and older versions break ESM resolution. Drop this entry once
+  # 1.45.0 is older than two weeks (2026-11-20).
+  "@opentelemetry/semantic-conventions@1.45.0": 1.44.0

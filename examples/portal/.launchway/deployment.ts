@@ -1,8 +1,8 @@
 import { postgresAdapter } from '@keelwerk/adapter-postgres';
-import type { DeploymentDefinition } from '@keelwerk/core';
-import { byHeader, byHostname, env, secret } from '@keelwerk/core';
+import { byHeader, byHostname, defineDeployment, env, secret } from '@keelwerk/core';
 import { ledgerFile } from '@keelwerk/core/ledger';
 import { schemaPlanner } from '@keelwerk/data';
+import { pgliteAdapterFactory } from '@keelwerk/data/pglite';
 import { httpHost } from '@keelwerk/transport-http';
 import { portal } from '@keelwerk-examples/app-portal';
 
@@ -10,11 +10,13 @@ import { portal } from '@keelwerk-examples/app-portal';
  * The portal's deployment (section 4.6): PostgreSQL addressed by the environment in production.
  * `keelwerk dev` swaps the data layer, the ledger and the operator socket for PGlite below
  * `.keelwerk/`, so the three database settings below are read by `keelwerk start` alone.
+ * The PGlite entry lets a placement or the control store run on `adapter: 'pglite'` without a server.
  */
-const deployment: DeploymentDefinition = {
+const deployment = defineDeployment({
   apps: [portal],
   infrastructure: [
     postgresAdapter(),
+    pgliteAdapterFactory(),
     schemaPlanner(),
     httpHost({
       listen: {
@@ -30,6 +32,6 @@ const deployment: DeploymentDefinition = {
   },
   tenantResolution: [byHeader('x-keelwerk-tenant'), byHostname()],
   keys: { masterKey: secret('KEELWERK_MASTER_KEY') },
-};
+});
 
 export default deployment;

@@ -1,5 +1,7 @@
 export type { PgliteAdapter, PgliteAdapterOptions } from './pglite-adapter.ts';
 export { pgliteAdapter } from './pglite-adapter.ts';
+export type { PgliteAdapterFactoryOptions } from './pglite-adapter-factory.ts';
+export { pgliteAdapterFactory } from './pglite-adapter-factory.ts';
 export { pgliteCapabilities } from './pglite-capabilities.ts';
 export type { PgliteChangeFeed } from './pglite-change-feed.ts';
 export { pgliteChangeFeed } from './pglite-change-feed.ts';

@@ -8,4 +8,8 @@ export interface Listening {
   /** Present when the runtime built the host from its entry: `stop` stops it. */
   readonly instance: HostInstance | undefined;
   readonly mounts: readonly MountHandle[];
+  /** The TCP port the host the runtime built bound. */
+  readonly port?: number;
+  /** The operator socket path the host the runtime built bound, after the short-path fallback. */
+  readonly operatorSocket?: string;
 }

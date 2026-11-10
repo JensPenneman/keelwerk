@@ -25,7 +25,7 @@ interface HostDeps {
 /** The running host: the transports' `TransportHost` plus the lifecycle the runtime drives. */
 export interface HostInstance extends TransportHost {
   /** Opens the configured listeners. */
-  listen(): Promise<unknown>;
+  listen(): Promise<{ readonly port?: number; readonly operatorSocket?: string }>;
   stop(deadlineMs: number): Promise<void>;
 }
 

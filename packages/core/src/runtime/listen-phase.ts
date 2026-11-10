@@ -10,7 +10,7 @@ import type { MountHandle } from '../transport/mount-handle.ts';
 import type { TransportHost } from '../transport/transport-host.ts';
 import { backendConfigs } from './backend-configs.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
-import type { HostEntry } from './host-entry.ts';
+import type { HostEntry, HostInstance } from './host-entry.ts';
 import type { Listening } from './listening.ts';
 import type { ServedApp } from './served-app.ts';
 
@@ -83,6 +83,7 @@ export async function listenPhase(input: {
     return { host: undefined, instance: undefined, mounts: [] };
   }
   const mounts: MountHandle[] = [];
+  let bound: Awaited<ReturnType<HostInstance['listen']>> | undefined;
   try {
     for (const app of input.served) {
       const { surface } = deriveSurface(app.source, app.head);
@@ -103,12 +104,18 @@ export async function listenPhase(input: {
         );
       }
     }
-    await instance?.listen();
+    bound = await instance?.listen();
   } catch (error) {
     const closed = AbortSignal.abort();
     await Promise.allSettled(mounts.map((mount) => mount.close(closed)));
     await instance?.stop(0).catch(() => undefined);
     throw error;
   }
-  return { host, instance, mounts };
+  return {
+    host,
+    instance,
+    mounts,
+    ...(bound?.port === undefined ? {} : { port: bound.port }),
+    ...(bound?.operatorSocket === undefined ? {} : { operatorSocket: bound.operatorSocket }),
+  };
 }
