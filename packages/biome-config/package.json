@@ -13,10 +13,10 @@
     "plugins/*.grit"
   ],
   "peerDependencies": {
-    "@biomejs/biome": "2.5.15"
+    "@biomejs/biome": "2.6.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.3",
     "vitest": "5.0.5"
   }
 }

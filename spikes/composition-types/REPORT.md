@@ -36,12 +36,11 @@ Scope: architecture section 4.7 (the fourteen composition cases and the named ch
 Synthetic module: two entities of four fields, two entity actions, one module action, a contribution (field and entity action), a conditional part (field and action), requiring its two predecessors. Instantiation counts exclude the empty workspace with only the core (whole program 50,039, app 12,125). Check times are noisy because other work ran on the machine; instantiation counts are deterministic.
 
 | Modules | Fold: app over module d.ts | Listing (13.11) | Whole program, parts in files | One file per module |
-| --- | --- | --- | --- | --- |
-| 3 | 24,332 (0.02 s) | 20,279 | 252,727 (0.15 s) | 198,369 |
-| 12 | 133,727 (0.09 s) | 72,543 | 654,194 (0.34 s) | 635,394 |
-| 25 | 391,842 (0.25 s) | 195,783 | 1,334,636 (0.74 s) | 1,315,213 |
-| 40 | 836,667 (0.41 s) | 408,543 | 2,267,554 (1.23 s) | 2,249,090 |
-
+| ------- | -------------------------- | --------------- | ----------------------------- | ------------------- |
+| 3       | 24,332 (0.02 s)            | 20,279          | 252,727 (0.15 s)              | 198,369             |
+| 12      | 133,727 (0.09 s)           | 72,543          | 654,194 (0.34 s)              | 635,394             |
+| 25      | 391,842 (0.25 s)           | 195,783         | 1,334,636 (0.74 s)            | 1,315,213           |
+| 40      | 836,667 (0.41 s)           | 408,543         | 2,267,554 (1.23 s)            | 2,249,090           |
 - The fold is about twice the listing; the growth exponent from 25 to 40 modules is about 1.6.
 - Typing parts against their bases costs about 36,000 instantiations per module (whole program minus fold), linear in the module count. Parts in files cost 0.8 % more than one file per module at 40 modules.
 - Proposed CI budgets (about 15 % headroom): fold 450,000 at 25 modules and 960,000 at 40; whole program 1,550,000 at 25 and 2,600,000 at 40. The per-statement limit of 5,000,000 is far away.

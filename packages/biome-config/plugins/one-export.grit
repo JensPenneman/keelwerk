@@ -2,35 +2,47 @@
 // only (const, let, function, class, and the names of an `export { ... }` list); types and
 // interfaces are free. The unit of counting is one exported binding, so `export const a = 1, b = 2`
 // and `export { a, b }` are two units. The first unit of a file is the file's definition, every
-// further one is reported. Assembly files, generated files, library entries and tests are left out
+// further one is reported.
+//
+// Biome 2.6 keeps a pattern variable bound for the rest of a plugin run, so a pattern that is
+// called twice must not bind variables of its own, and "the first unit" cannot be found by
+// binding one. A unit is reported when another unit comes before it, which the list patterns
+// below state through the order of their elements. Assembly files, generated files, library entries and tests are left out
 // by `includes` in the preset.
 pattern export_unit() {
   or {
-    JsVariableDeclarator() as $u where {
-      $u <: within JsExport(),
-      not $u <: within or {
-        JsFunctionBody(),
-        JsBlockStatement()
-      }
-    },
+    and { JsVariableDeclarator(),
+    within JsExport(),
+    not within or {
+      JsFunctionBody(),
+      JsBlockStatement()
+    } },
     JsExport(export_clause=or {
       JsFunctionDeclaration(),
       JsClassDeclaration()
     }),
-    or {
+    and { or {
       JsExportNamedShorthandSpecifier(),
       JsExportNamedSpecifier()
-    } as $u where {
-      not $u <: r"type\s[\s\S]*",
-      $u <: within JsExport() as $e,
-      not $e <: r"export\s+type\s*\{[\s\S]*"
-    }
+    },
+    not r"type\s[\s\S]*",
+    within and { JsExport(),
+    not r"export\s+type\s*\{[\s\S]*" } }
   }
 }
 
+// An export statement that holds at least one exported value.
+pattern export_with_unit() {
+  and { JsExport(),
+  contains export_unit() }
+}
+
 export_unit() as $n where {
-  $n <: within JsModule() as $m,
-  $m <: contains export_unit() as $first,
-  not $n <: $first,
+  or { and { $n <: JsExport(), $statement = $n }, $n <: within JsExport() as $statement },
+  or {
+    $n <: within JsModule(items=[..., export_with_unit(), ..., $statement, ...]),
+    $n <: within JsVariableDeclaration(declarators=[..., export_unit(), ..., $n, ...]),
+    $n <: within JsExportNamedClause(specifiers=[..., export_unit(), ..., $n, ...])
+  },
   register_diagnostic(span=$n, message="one-export: a second exported value in this file. Move it to a file of its own named after it (kebab-case); types and interfaces may stay.", severity="error")
 }

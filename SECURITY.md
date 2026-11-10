@@ -22,10 +22,10 @@ unless they prefer not to be.
 keelwerk is pre-1.0 and in beta. Security fixes are made for the latest release only; upgrade to
 receive them.
 
-| Version | Supported |
-|---|---|
-| Latest 0.x release | Yes |
-| Older releases | No |
+| Version            | Supported |
+| ------------------ | --------- |
+| Latest 0.x release | Yes       |
+| Older releases     | No        |
 
 ## Supply chain
 

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
   "formatter": {
     "indentStyle": "space",
     "indentWidth": 2,
@@ -10,7 +10,7 @@
       "quoteStyle": "single"
     }
   },
-  // GritQL plugins (architecture 13.9). Biome 2.5.15 resolves a plugin path from the directory of the
+  // GritQL plugins (architecture 13.9). Biome resolves a plugin path from the directory of the
   // configuration that extends this one, so the paths go through the installed package, and the
   // consuming project lists @keelwerk/biome-config as a dependency of its root. Each plugin is scoped by
   // `includes`, because GritQL cannot read the file path.
@@ -98,6 +98,7 @@
       "includes": [
         "**/src/**",
         "!**/*.config.ts",
+        "!**/*.bench.ts",
         "!**/*.generated.ts",
         "!**/*.test.ts",
         "!**/*.test-d.ts"
@@ -111,7 +112,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "suspicious": {
         "noExplicitAny": "error",
         "noConsole": "error",

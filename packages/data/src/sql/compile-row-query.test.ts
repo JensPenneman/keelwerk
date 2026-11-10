@@ -179,7 +179,7 @@ describe('statements', () => {
   });
 });
 
-describe('read', () => {
+describe('read of a positioned page', () => {
   test('a position expression that yields NULL is core.internal, not a SyntaxError', () => {
     const { plan } = compile({ select: mask, positioned: true, page: { first: 1 } }, true);
     const empty = { id: null, kwPosition: null };

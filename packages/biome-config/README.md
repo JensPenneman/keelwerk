@@ -26,7 +26,7 @@ scopes, because GritQL cannot read the file path. Each message says what to do i
 - `no-import-effects`: top-level expression statements, `await` and bare imports in source files, outside tests, scripts and tool configuration.
 - `wiring-only-assembly`: a function or arrow function in `base.ts`, `app.ts` or `modules.ts`.
 
-Biome 2.5.15 resolves a plugin path from the directory of the configuration that extends the preset,
+Biome resolves a plugin path from the directory of the configuration that extends the preset,
 so the preset names them through `node_modules/@keelwerk/biome-config/plugins/`: the project lists
 `@keelwerk/biome-config` as a dependency of the package that holds its `biome.json`.
 
@@ -45,10 +45,9 @@ compares the diagnostics of every file with those comments; a file without comme
 The fixtures `process-globals` and `node-imports` cover the preset overrides. Fixtures are inputs,
 not code: the root `biome.json`, `knip.json` and the TypeScript projects leave them out.
 
-A project changes where a plugin applies by listing it again in its own `plugins` with the complete
-`includes` it wants: in Biome 2.5.15 a repeated entry replaces the preset's `includes` for that
-plugin (it is not added to them), and it does so for the whole project, also when the entry sits in
-an `overrides` block, so an override cannot scope a plugin to some paths. The other plugins of the
-preset are untouched. The repository's root `biome.json` does this to add `spikes/**` to
-`named-module-types` and to leave the script entry of the write-path spike out of
-`no-import-effects`; the fixture `plugin-redeclare` pins this behaviour.
+A project adds to where a plugin applies by listing it again in its own `plugins` with the
+`includes` it wants to add: in Biome 2.6 a repeated entry is a second instance of the plugin next to
+the preset's, so the plugin applies to the union of both scopes, and a file in both is reported twice.
+A repeated entry therefore cannot narrow a plugin: a path a plugin must skip is excluded in the
+preset itself (the benchmark files of `no-import-effects` are).
+The fixture `plugin-redeclare` pins this behaviour.

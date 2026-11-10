@@ -75,7 +75,6 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm keelwerk surface diff --base origin/main
 
-
   postgres:
     name: PostgreSQL 18 suites
     runs-on: ubuntu-24.04
@@ -115,7 +114,6 @@ jobs:
       - name: Adapter, dual-evaluation and portal suites on PostgreSQL (steps 4 and 7)
         run: pnpm vitest run --project adapter-postgres-postgres --project app-portal-postgres --project data-postgres --project module-accounts-postgres --project module-auth-postgres --project testing-postgres --project spike-write-path --maxWorkers=1
 
-
   budgets:
     name: Type budgets
     runs-on: ubuntu-24.04
@@ -147,7 +145,6 @@ jobs:
 
       - name: Type benchmarks (step 8)
         run: pnpm bench:types
-
 
   fresh-clone:
     name: Fresh clone
@@ -181,7 +178,6 @@ jobs:
 
       - name: Release script restores the manifests
         run: bash scripts/release.sh --check-engines
-
 
   exit-criteria:
     name: M1 exit criteria

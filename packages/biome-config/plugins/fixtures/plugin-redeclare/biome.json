@@ -3,7 +3,7 @@
   "plugins": [
     {
       "path": "./node_modules/@keelwerk/biome-config/plugins/no-import-effects.grit",
-      "includes": ["**/src/**", "!**/src/main.ts"]
+      "includes": ["**/scripts/**", "**/src/main.ts"]
     }
   ]
 }

@@ -37,7 +37,11 @@ export function createAsOfReads(
       return read;
     },
     ceiling() {
-      return recorded.reduce((high, read) => (read.at > high ? read.at : high), 0n);
+      let high = 0n;
+      for (const read of recorded) {
+        if (read.at > high) high = read.at;
+      }
+      return high;
     },
   };
 }

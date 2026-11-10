@@ -22,8 +22,8 @@ const goodEnvironment = {
   typescriptSix: '6.0.3',
   pnpm: '11.21.0',
   pnpmWanted: '11.21.0',
-  biome: '2.5.15',
-  biomeWanted: '2.5.15',
+  biome: '2.6.3',
+  biomeWanted: '2.6.3',
 };
 
 afterEach(async () => {
@@ -79,12 +79,12 @@ describe('the environment', () => {
     const dir = await materialise({
       'package.json': JSON.stringify({
         packageManager: 'pnpm@11.21.0',
-        devDependencies: { '@biomejs/biome': '2.5.15' },
+        devDependencies: { '@biomejs/biome': '2.6.3' },
       }),
       'node_modules/typescript/package.json': '{"version":"7.0.2"}',
-      'node_modules/@biomejs/biome/package.json': '{"version":"2.5.15"}',
+      'node_modules/@biomejs/biome/package.json': '{"version":"2.6.3"}',
       'node_modules/@keelwerk/biome-config/package.json':
-        '{"peerDependencies":{"@biomejs/biome":"2.5.15"}}',
+        '{"peerDependencies":{"@biomejs/biome":"2.6.3"}}',
     });
     expect(await readEnvironmentFacts(dir, 'v26.13.0', async () => '11.21.0')).toEqual(
       goodEnvironment,

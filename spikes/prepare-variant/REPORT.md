@@ -134,14 +134,14 @@ Replaying a decision means running `decide` again from its record and getting th
 In-memory adapter, 80 alternating runs per form on one runtime, so growth of the store favours neither
 form. Absolute numbers mean little on this adapter; only the shape does.
 
-| | GitHub separate | GitHub inline | Ingest separate | Ingest inline |
-|---|---|---|---|---|
-| median per command | 0.37 ms | 0.34 ms | 10.9 ms | 11.2 ms |
-| 95th percentile | 1.7 ms | 1.2 ms | 23.6 ms | 20.5 ms |
-| read-write units | 1 | 1 | 1 | 1 |
-| read-only units | 1 (prepare) | 1 (borrowed prepare) | 0 | 1 (borrowed prepare) |
-| row queries | 3 | 2 | 3 | 3 |
-| effect records | 2 | 2 | 0 | 0 |
+|                    | GitHub separate | GitHub inline        | Ingest separate | Ingest inline        |
+| ------------------ | --------------- | -------------------- | --------------- | -------------------- |
+| median per command | 0.37 ms         | 0.34 ms              | 10.9 ms         | 11.2 ms              |
+| 95th percentile    | 1.7 ms          | 1.2 ms               | 23.6 ms         | 20.5 ms              |
+| read-write units   | 1               | 1                    | 1               | 1                    |
+| read-only units    | 1 (prepare)     | 1 (borrowed prepare) | 0               | 1 (borrowed prepare) |
+| row queries        | 3               | 2                    | 3               | 3                    |
+| effect records     | 2               | 2                    | 0               | 0                    |
 
 The read-only unit in the inline column is an artefact of the driver, which borrows the kernel's
 prepare phase to get a real context; a native implementation opens none until the first load. The

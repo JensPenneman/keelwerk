@@ -21,7 +21,7 @@ export function rootPackageJson(names: InitNames): unknown {
       '@keelwerk/transport-http': version,
     },
     devDependencies: {
-      '@biomejs/biome': '2.5.15',
+      '@biomejs/biome': '2.6.3',
       '@keelwerk/biome-config': version,
       '@keelwerk/cli': version,
       '@types/node': '26.6.5',

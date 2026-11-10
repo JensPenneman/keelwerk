@@ -16,30 +16,6 @@
       "!packages/biome-config/plugins/fixtures"
     ]
   },
-  "plugins": [
-    {
-      "path": "./node_modules/@keelwerk/biome-config/plugins/named-module-types.grit",
-      "includes": [
-        "**/src/base.ts",
-        "**/src/app.ts",
-        "**/*.test.ts",
-        "**/*.test-d.ts",
-        "**/spikes/**"
-      ]
-    },
-    {
-      "path": "./node_modules/@keelwerk/biome-config/plugins/no-import-effects.grit",
-      "includes": [
-        "**/src/**",
-        "!**/*.config.ts",
-        "!**/*.generated.ts",
-        "!**/*.test.ts",
-        "!**/*.test-d.ts",
-        "!**/spikes/write-path/src/main.ts",
-        "!**/*.bench.ts"
-      ]
-    }
-  ],
   "overrides": [
     {
       "includes": ["packages/*/migrations/*/0*.ts"],

@@ -1,3 +1,3 @@
 import { run } from './run.ts';
 
-run();
+run(); // expect: plugin/no-import-effects, plugin/no-import-effects

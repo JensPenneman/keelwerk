@@ -19,7 +19,7 @@ export function composeYaml(): string {
       KEELWERK_DATA_URL: \${KEELWERK_DATA_URL}
       KEELWERK_MASTER_KEY: \${KEELWERK_MASTER_KEY}
     ports:
-      - '3000:3000'
+      - "3000:3000"
     command: >
       sh -c "npm install -g pnpm@11.21.0 && pnpm install --frozen-lockfile &&
       pnpm exec tsc -b &&

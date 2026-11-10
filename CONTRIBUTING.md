@@ -25,14 +25,14 @@ pnpm install       # installs dependencies and the Git hooks
 pnpm check         # biome ci, knip, tsc -b, vitest run
 ```
 
-| Command | What it does |
-|---|---|
-| `pnpm build` | `tsc -b`: type-check and build every project |
-| `pnpm lint` | Biome lint and format check |
-| `pnpm format` | Apply Biome's formatting |
-| `pnpm test` | Unit and type tests (Vitest with type checking) |
-| `pnpm knip` | Report unused files, exports and dependencies |
-| `pnpm check` | All of the above as CI runs them; run it before you push |
+| Command       | What it does                                             |
+| ------------- | -------------------------------------------------------- |
+| `pnpm build`  | `tsc -b`: type-check and build every project             |
+| `pnpm lint`   | Biome lint and format check                              |
+| `pnpm format` | Apply Biome's formatting                                 |
+| `pnpm test`   | Unit and type tests (Vitest with type checking)          |
+| `pnpm knip`   | Report unused files, exports and dependencies            |
+| `pnpm check`  | All of the above as CI runs them; run it before you push |
 
 ## Signed commits
 
@@ -73,11 +73,11 @@ Every file defines one thing and is named after it, in kebab-case: `add-minutes.
 
 `pnpm install` installs the hooks with lefthook:
 
-| Hook | Runs |
-|---|---|
+| Hook         | Runs                                                  |
+| ------------ | ----------------------------------------------------- |
 | `pre-commit` | Biome on the staged files; its fixes are staged again |
-| `commit-msg` | commitlint |
-| `pre-push` | `tsc -b`, then the tests |
+| `commit-msg` | commitlint                                            |
+| `pre-push`   | `tsc -b`, then the tests                              |
 
 `LEFTHOOK=0` skips the hooks for one command. CI runs the same checks.
 
