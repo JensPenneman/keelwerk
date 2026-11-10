@@ -1,13 +1,13 @@
 {
-  "basis": "synthetic budgets are the figures measured on 2026-11-05 after the contributions of a module are filtered once per module instead of once per entity (fold 213,162 and 357,867; whole program 1,303,360 and 2,023,465 instantiations; 2026-11-04 had fold 510,100 and 1,098,895, whole program 1,599,176 and 2,762,051) plus 15 %; the spike figures are the M0 reference measurements",
+  "basis": "synthetic budgets are the figures measured on 2026-11-10 (fold 196,693 and 330,148; whole program 1,293,289 and 2,005,864 instantiations) after the app field checks skipped own fields (WP-68), plus 15 %, rounded up to the next hundred; before that, on 2026-11-05, after the contributions of a module are filtered once per module instead of once per entity (fold 213,162 and 357,867; whole program 1,303,360 and 2,023,465 instantiations; 2026-11-04 had fold 510,100 and 1,098,895, whole program 1,599,176 and 2,762,051) plus 15 %; the spike figures are the M0 reference measurements",
   "synthetic": {
     "25": {
-      "fold": 246000,
-      "wholeProgram": 1500000
+      "fold": 226200,
+      "wholeProgram": 1487300
     },
     "40": {
-      "fold": 412000,
-      "wholeProgram": 2327000
+      "fold": 379700,
+      "wholeProgram": 2306800
     }
   },
   "spike": {
@@ -46,18 +46,18 @@
         "examples/portal/apps/portal/src/app.ts",
         "examples/portal/apps/portal/src/keelwerk.generated.ts"
       ],
-      "recorded": 56830,
-      "budget": 65355,
-      "reason": "the portal app (accounts, auth, rest) and its generated file at the first green build, 2026-11-05, plus 15 %"
+      "recorded": 45708,
+      "budget": 52600,
+      "reason": "the portal app (accounts, auth, rest) and its generated file measured on 2026-11-10 after the app field checks skipped own fields (WP-68), plus 15 %, rounded up to the next hundred"
     },
     "conformance": {
       "include": [
         "packages/testing/src/fixtures/apps/conformance/src/app.ts",
         "packages/testing/src/fixtures/apps/conformance/src/keelwerk.generated.ts"
       ],
-      "recorded": 298233,
-      "budget": 342968,
-      "reason": "the conformance fixture app and its generated file at the first green build, 2026-11-05, plus 15 %"
+      "recorded": 288261,
+      "budget": 331600,
+      "reason": "the conformance fixture app and its generated file measured on 2026-11-10 after the app field checks skipped own fields (WP-68), plus 15 %, rounded up to the next hundred"
     }
   }
 }

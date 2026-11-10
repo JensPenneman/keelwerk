@@ -8,6 +8,7 @@ import type { EntityNames } from './entities-of.ts';
 import type { IsUnion } from './is-union.ts';
 import type { ModuleIdsIn } from './module-ids-in.ts';
 import type { AllContributions, ById, Ids, ProvidedContracts, WithCore } from './selection.ts';
+import type { UnionToIntersection } from './union-to-intersection.ts';
 
 type RequiredModuleIds<Ms extends readonly AnyModule[]> = Ms[number] extends infer M
   ? M extends { readonly requires: infer L }
@@ -41,15 +42,39 @@ type SourcesDefining<S, K extends PropertyKey> = S extends {
     ? Tag
     : never
   : never;
+
+/** The sources an entity gains in a selection: active conditional parts and contributions, never its own definition. */
+type AddedFieldSources<
+  Ms extends readonly AnyModule[],
+  I extends string,
+  E extends string,
+> = Exclude<FieldSources<Ms, I, E>, { readonly source: `own:${string}` }>;
+
+/**
+ * The fields whose references can dangle. The core's own references name core entities, and every
+ * app selects the core, so of a core entity only what other modules add is checked.
+ */
+type RefCheckedFields<
+  Ms extends readonly AnyModule[],
+  I extends string,
+  E extends string,
+> = I extends 'core'
+  ? UnionToIntersection<AddedFieldSources<Ms, I, E>['fields']>
+  : EntityFields<Ms, I, E>;
+
+/**
+ * A conflict needs two sources and one object defines a key once, so every conflicting key is a key
+ * of an added source.
+ */
 type ConflictingFields<Ms extends readonly AnyModule[]> = {
   [I in Ids<Ms>]: {
     [E in EntityNames<ById<Ms, I>>]: {
-      [K in AllKeys<FieldSources<Ms, I, E>['fields']> & string]: IsUnion<
+      [K in AllKeys<AddedFieldSources<Ms, I, E>['fields']> & string]: IsUnion<
         SourcesDefining<FieldSources<Ms, I, E>, K>
       > extends true
         ? `${I}.${E}.${K}`
         : never;
-    }[AllKeys<FieldSources<Ms, I, E>['fields']> & string];
+    }[AllKeys<AddedFieldSources<Ms, I, E>['fields']> & string];
   }[EntityNames<ById<Ms, I>>];
 }[Ids<Ms>];
 
@@ -75,7 +100,7 @@ type UnknownContributionTargets<Ms extends readonly AnyModule[]> =
 type DanglingRefs<Ms extends readonly AnyModule[]> = {
   [I in Ids<Ms>]: {
     [E in EntityNames<ById<Ms, I>>]: {
-      [K in keyof EntityFields<Ms, I, E>]: EntityFields<Ms, I, E>[K] extends {
+      [K in keyof RefCheckedFields<Ms, I, E>]: RefCheckedFields<Ms, I, E>[K] extends {
         readonly ref: {
           readonly module: infer Rm extends string;
           readonly entity: infer Re extends string;
@@ -87,7 +112,7 @@ type DanglingRefs<Ms extends readonly AnyModule[]> = {
             : `${I}.${E}.${K & string} -> ${Rm}.${Re}`
           : `${I}.${E}.${K & string} -> ${Rm}.${Re}`
         : never;
-    }[keyof EntityFields<Ms, I, E>];
+    }[keyof RefCheckedFields<Ms, I, E>];
   }[EntityNames<ById<Ms, I>>];
 }[Ids<Ms>];
 

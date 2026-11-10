@@ -56,10 +56,10 @@ test('exits 0 when every count is within its budget', () => {
 test('exits 1 for an injected over-budget count', () => {
   const run = gate({
     ...clean,
-    synthetic: [{ ...clean.synthetic[0], fold: 246001 }, clean.synthetic[1]],
+    synthetic: [{ ...clean.synthetic[0], fold: 226201 }, clean.synthetic[1]],
   });
   expect(run.status).toBe(1);
-  expect(run.stderr).toContain('fold 246,001 instantiations, over 246,000');
+  expect(run.stderr).toContain('fold 226,201 instantiations, over 226,200');
 });
 
 test('exits 1 for an injected TS2883', () => {

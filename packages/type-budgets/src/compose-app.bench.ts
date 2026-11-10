@@ -3,6 +3,11 @@
 // predecessors. attest runs them on this package's own TypeScript 6.0.3; a count more than 15 %
 // above the recorded one fails (`pnpm bench:types`). The modules are small on purpose: the
 // instantiations of the real-sized synthetic modules are budgeted by `pnpm budgets`.
+// Baselines lowered on 2026-11-10 by WP-68 (spikes/fold-growth/REPORT.md): the app checks
+// `conflictingFields` and `danglingReferences` walked every own field of the core module in every
+// app. Two commits that added twelve core entity fields each carry 1,684 of the 2,408
+// instantiations by which the 3-module case grew (12,467 to 14,875); the checks now walk only the
+// fields other modules add to an entity.
 // biome-ignore-all lint/style/noExcessiveLinesPerFile: twenty-five explicit module literals, the point of the benchmark
 import { bench } from '@ark/attest';
 import {
@@ -518,7 +523,7 @@ const m25 = defineModule(m25Base, {
 // attest needs each `bench` call as a statement of its own.
 bench('defineApp over 3 modules', () =>
   defineApp({ id: 'bench-3', modules: [m01, m02, m03] as const }),
-).types([14875, 'instantiations']);
+).types([9492, 'instantiations']);
 bench('defineApp over 25 modules', () =>
   defineApp({
     id: 'bench-25',
@@ -550,4 +555,4 @@ bench('defineApp over 25 modules', () =>
       m25,
     ] as const,
   }),
-).types([51678, 'instantiations']);
+).types([46195, 'instantiations']);

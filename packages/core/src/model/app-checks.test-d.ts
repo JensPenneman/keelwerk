@@ -6,7 +6,9 @@ import {
 import { type Auth, auth } from '../../test/fixtures/modules/auth/src/module.generated.ts';
 import { type Teams, teams } from '../../test/fixtures/modules/teams/src/module.generated.ts';
 import type { Core } from '../core-module/core-type.ts';
+import { core } from '../core-module/module.ts';
 import { defineApp } from '../dsl/define-app.ts';
+import { defineCondition } from '../dsl/define-condition.ts';
 import { defineContribution } from '../dsl/define-contribution.ts';
 import { defineEntity } from '../dsl/define-entity.ts';
 import { defineModule } from '../dsl/define-module.ts';
@@ -14,13 +16,20 @@ import { defineModuleBase } from '../dsl/define-module-base.ts';
 import { defineQuery } from '../dsl/define-query.ts';
 import { field } from '../fields/field.ts';
 import type { AbsoluteRef, FieldDef } from '../fields/field-def.ts';
-import type { NoFlags } from '../fields/field-flags.ts';
+import type { NoFlags, WithFlag } from '../fields/field-flags.ts';
 import { shape } from '../fields/shape.ts';
 import type { Id } from '../ids/id.ts';
 import type { Empty } from '../types/empty.ts';
 import type { AppChecks } from './app-checks.ts';
 
 type DanglingRef = FieldDef<Id<'accounts.nope'>, NoFlags, AbsoluteRef<'accounts', 'nope'>, 'ref'>;
+
+type OptionalDanglingRef = FieldDef<
+  Id<'accounts.nope'>,
+  WithFlag<NoFlags, 'optional', true>,
+  AbsoluteRef<'accounts', 'nope'>,
+  'ref'
+>;
 
 const selection = [accounts, teams, auth] as const;
 
@@ -104,6 +113,71 @@ const dangling = defineModule(
   {},
 );
 
+// Adds a field to a core entity whose reference no builder accepts (the target entity does not
+// exist), forced for the app-level backstop. Its requirement is met by the selection below, so no
+// other check reports.
+const coreReference = defineModule(
+  defineModuleBase({
+    id: 'coreref',
+    requires: [accounts],
+    version: '0.1.0',
+    contributions: {
+      toCore: defineContribution(core, {
+        entities: {
+          tenant: {
+            fields: {
+              owner: field.ref(accounts, 'profile').optional() as unknown as OptionalDanglingRef,
+            },
+          },
+        },
+      }),
+    },
+  }),
+  {},
+);
+
+// References a core entity from its own entity: the core is always selected, so this is quiet.
+const tenantOwned = defineModule(
+  defineModuleBase({
+    id: 'tenantowned',
+    requires: [core],
+    version: '0.1.0',
+    entities: {
+      site: defineEntity({ prefix: 'site', fields: { tenant: field.ref(core, 'tenant') } }),
+    },
+  }),
+  {},
+);
+
+// Redefines a field the core entity already has.
+const coreClash = defineModule(
+  defineModuleBase({
+    id: 'coreclash',
+    version: '0.1.0',
+    contributions: {
+      toCore: defineContribution(core, {
+        entities: { tenant: { fields: { name: field.string().optional() } } },
+      }),
+    },
+  }),
+  {},
+);
+
+const repainted = defineModule(
+  defineModuleBase({
+    id: 'notes',
+    version: '0.1.0',
+    optional: [accounts],
+    entities: { note: defineEntity({ prefix: 'note', fields: { text: field.string() } }) },
+    conditions: {
+      whenAccounts: defineCondition([accounts], {
+        entities: { note: { fields: { text: field.string().optional() } } },
+      }),
+    },
+  }),
+  {},
+);
+
 const fakeCore = defineModule(defineModuleBase({ id: 'core', version: '0.1.0' }), {});
 const fakeApp = defineModule(defineModuleBase({ id: 'app', version: '0.1.0' }), {});
 
@@ -126,6 +200,16 @@ describe('the five defineApp checks fail with named errors (decision 31a)', () =
     // @ts-expect-error conflictingFields
     defineApp({ id: 'x', modules: [accounts, auth, rival] });
     defineApp({ id: 'x', modules: [accounts, rival] });
+  });
+
+  test('conflictingFields, own versus an active conditional part', () => {
+    expectTypeOf<AppChecks<readonly [Accounts, typeof repainted], Empty, Empty>>().toEqualTypeOf<{
+      readonly conflictingFields: 'notes.note.text';
+    }>();
+    // @ts-expect-error conflictingFields
+    defineApp({ id: 'x', modules: [accounts, repainted] });
+    // The part is inactive without its `when` module.
+    defineApp({ id: 'x', modules: [repainted] });
   });
 
   test('case 7: unknownContributionTargets, ignored when the target is absent', () => {
@@ -161,6 +245,36 @@ describe('the five defineApp checks fail with named errors (decision 31a)', () =
     }>();
     // @ts-expect-error danglingReferences
     defineApp({ id: 'x', modules: [accounts, dangling] });
+  });
+
+  test('danglingReferences checks what a module adds to a core entity', () => {
+    expectTypeOf<
+      AppChecks<readonly [Accounts, typeof coreReference], Empty, Empty>
+    >().toEqualTypeOf<{
+      readonly danglingReferences: 'core.tenant.owner -> accounts.nope';
+    }>();
+    // @ts-expect-error danglingReferences
+    defineApp({ id: 'x', modules: [accounts, coreReference] });
+  });
+
+  test('a reference to a core entity is not a finding', () => {
+    expectTypeOf<AppChecks<readonly [typeof tenantOwned], Empty, Empty>>().toEqualTypeOf<unknown>();
+    defineApp({ id: 'x', modules: [tenantOwned] });
+  });
+
+  test('conflictingFields checks what a module adds to a core entity', () => {
+    expectTypeOf<AppChecks<readonly [typeof coreClash], Empty, Empty>>().toEqualTypeOf<{
+      readonly conflictingFields: 'core.tenant.name';
+    }>();
+    // @ts-expect-error conflictingFields
+    defineApp({ id: 'x', modules: [coreClash] });
+  });
+
+  test('a valid selection has no app checks, and the core own references are not findings', () => {
+    expectTypeOf<
+      AppChecks<readonly [Accounts, Teams, Auth], Empty, Empty>
+    >().toEqualTypeOf<unknown>();
+    expectTypeOf<AppChecks<readonly [], Empty, Empty>>().toEqualTypeOf<unknown>();
   });
 });
 
