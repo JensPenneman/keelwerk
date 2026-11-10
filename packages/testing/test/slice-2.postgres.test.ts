@@ -1,5 +1,6 @@
 import { postgresAdapter } from '@keelwerk/adapter-postgres';
 import type { DataAdapterFactory, Unit } from '@keelwerk/core';
+import { frameworkTrack } from '@keelwerk/data';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createTestDatabase } from './support/create-test-database.ts';
@@ -65,7 +66,9 @@ describe.each([
         "select 1 from pg_stat_activity where application_name like '%-listen'",
       );
       if (off) expect(listeners.rowCount).toBe(0);
-      const history = await kit.adapters.adapter('main').schema.history(kit.adapters.namespace());
+      const history = (
+        await kit.adapters.adapter('main').schema.history(kit.adapters.namespace())
+      ).filter((entry) => entry.track !== frameworkTrack);
       expect(history.map((entry) => `${entry.track}/${entry.id}`)).toEqual([
         'library/0001-initial',
         'library/0002-related-to',

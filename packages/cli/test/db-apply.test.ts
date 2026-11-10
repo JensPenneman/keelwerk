@@ -62,6 +62,7 @@ test('db status lists pending files, db apply applies expand files and defers co
   const before = await db('status');
   expect(before.code).toBe(0);
   expect(before.stdout).toContain('main/demo');
+  expect(before.stdout).toContain('pending  keelwerk.framework 0002');
   expect(before.stdout).toContain('pending  shop 0001-initial');
   expect(before.stdout).toContain('pending  shop 0003-rename-total-contract');
 
@@ -76,6 +77,7 @@ test('db status lists pending files, db apply applies expand files and defers co
 
   const after = await db('status');
   expect(after.stdout).toContain('applied  shop 0003-rename-total-contract');
+  expect(after.stdout).toContain('applied  keelwerk.framework 0002');
   expect(after.stdout).not.toContain('pending');
   expect((await db('apply')).stdout).toContain('nothing to apply');
   expect(

@@ -3,6 +3,7 @@ import {
   applyPending,
   columnType,
   compareCatalogue,
+  frameworkTrack,
   pgSchemaConnection,
   postgresSchemaOperations,
   samePredicate,
@@ -32,9 +33,12 @@ test('a planned migration applies on PostgreSQL and is introspected back equal t
   const live = await schema.introspect({ namespace: migrationNamespace });
   const dialect = { typeOf: columnType, samePredicate };
   expect(compareCatalogue([...conformanceSnapshots.values()], live, dialect)).toEqual([]);
-  expect((await schema.history(migrationNamespace)).map((row) => row.track).sort()).toEqual(
-    tracks.map((entry) => entry.track).sort(),
-  );
+  expect(
+    (await schema.history(migrationNamespace))
+      .filter((row) => row.track !== frameworkTrack)
+      .map((row) => row.track)
+      .sort(),
+  ).toEqual(tracks.map((entry) => entry.track).sort());
   const again = await applyPending(schema, migrationNamespace, tracks);
   expect(again.applied).toEqual([]);
   const byUrl = await schema.introspect({

@@ -1,4 +1,4 @@
-import { memoryAdapter } from '@keelwerk/data';
+import { frameworkTrack, memoryAdapter } from '@keelwerk/data';
 import { afterAll, describe, expect, test } from 'vitest';
 import { pgliteFactory } from '../src/harness/pglite-factory.ts';
 import { runScenario } from './support/run-scenario.ts';
@@ -19,7 +19,9 @@ describe.each([
     }, async () => {
       const release = await kit.boot('test');
       await release.stop(1000);
-      const history = await kit.adapters.adapter('main').schema.history(kit.adapters.namespace());
+      const history = (
+        await kit.adapters.adapter('main').schema.history(kit.adapters.namespace())
+      ).filter((entry) => entry.track !== frameworkTrack);
       expect(history.map((entry) => `${entry.track}/${entry.id}`)).toEqual([
         'library/0001-initial',
         'library/0002-related-to',

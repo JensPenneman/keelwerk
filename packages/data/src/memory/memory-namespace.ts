@@ -13,8 +13,8 @@ export interface MemoryNamespace {
   /** Entity ref to physical table name, from `createTable` steps. */
   readonly tableOf: Map<string, string>;
   readonly migrations: AppliedMigration[];
-  /** Identity sequences are not transactional: a rolled-back unit leaves a gap, as on PostgreSQL. */
-  readonly sequences: { job: number; lane: number };
+  /** Identity sequences are not transactional: a rolled-back unit leaves a gap, as on PostgreSQL; `ledger` is the identity of `kw_ledger.seq`. */
+  readonly sequences: { job: number; lane: number; ledger: number };
 }
 
 /** An empty namespace. */
@@ -26,6 +26,6 @@ export function memoryNamespace(ref: NamespaceRef): MemoryNamespace {
     tables: new Map(),
     tableOf: new Map(),
     migrations: [],
-    sequences: { job: 0, lane: 0 },
+    sequences: { job: 0, lane: 0, ledger: 0 },
   };
 }

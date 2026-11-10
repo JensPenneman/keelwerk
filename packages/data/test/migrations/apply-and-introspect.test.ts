@@ -4,6 +4,7 @@ import {
   applyPending,
   columnType,
   compareCatalogue,
+  frameworkTrack,
   migrationChecksum,
   samePredicate,
 } from '../../src/index.ts';
@@ -40,7 +41,9 @@ describe('a planned migration applied on PGlite', () => {
     expect(result.deferred).toEqual([]);
     expect(result.applied.map((file) => file.track)).toEqual(tracks.map((entry) => entry.track));
     expect(warnings).toEqual([]);
-    const history = await adapter.schema.history(migrationNamespace);
+    const history = (await adapter.schema.history(migrationNamespace)).filter(
+      (row) => row.track !== frameworkTrack,
+    );
     expect(history.map((row) => `${row.track} ${row.id}`).sort()).toEqual(
       tracks.map((entry) => `${entry.track} 0001-initial`).sort(),
     );

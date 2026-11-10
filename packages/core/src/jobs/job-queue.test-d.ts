@@ -53,7 +53,8 @@ test('JobQueue reports its capabilities', () => {
   expectTypeOf<JobQueue['capabilities']>().toEqualTypeOf<QueueCapabilities>();
 });
 
-test('QueuePause names its scope and who paused', () => {
+test('QueuePause names its namespace, its scope and who paused', () => {
+  expectTypeOf<QueuePause['namespaceId']>().toEqualTypeOf<string | null>();
   expectTypeOf<QueuePause['scopeId']>().toEqualTypeOf<string | null>();
   expectTypeOf<QueuePause['pausedBy']>().toEqualTypeOf<ActorRef>();
 });

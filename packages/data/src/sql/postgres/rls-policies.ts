@@ -1,26 +1,10 @@
 import { assertNamespaceRoot } from './assert-namespace-root.ts';
+import { rlsParts } from './rls-parts.ts';
 
-const setting = (name: string): string =>
-  `nullif(current_setting('keelwerk.${name}', true), '')::uuid`;
-
-/**
- * The scope a unit runs in (section 14.3.7, decision 111). An application root admits one scope:
- * the tenant when the unit sets one, otherwise the backend, otherwise the deployment (whose event
- * log and counters live in the application root too), so a unit never spans two scopes. The
- * control root belongs to the deployment and admits its id only.
- */
-const unitScopeOf = (control: boolean): string =>
-  control
-    ? `scope_id = ${setting('deployment_id')}`
-    : `scope_id = coalesce(${setting('tenant_id')}, ${setting('backend_id')}, ${setting('deployment_id')})`;
-
-const inNamespaceScope = `current_setting('keelwerk.scope', true) = 'namespace'`;
+const { unitScope, inNamespaceScope, inDeploymentScope, enable, policy } = rlsParts;
 
 /** Counter rows of a group that spans the namespace's scopes carry no scope (S-07). */
-const groupScopeOf = (control: boolean): string => `scope_id is null or ${unitScopeOf(control)}`;
-
-/** `kw_scope_keys` has one policy: a unit that sets the deployment id is a deployment unit. */
-const inDeploymentScope = `nullif(current_setting('keelwerk.deployment_id', true), '') is not null`;
+const groupScopeOf = (control: boolean): string => `scope_id is null or ${unitScope(control)}`;
 
 /** Tables the fair take and the completions reach from namespace-scope units (section 9.5.3). */
 const queueTables: readonly string[] = [
@@ -44,17 +28,6 @@ const maintainedTables: readonly string[] = [
   'kw_subject_refs',
 ];
 
-function enable(root: string, table: string): readonly string[] {
-  return [
-    `alter table "${root}".${table} enable row level security`,
-    `alter table "${root}".${table} force row level security`,
-  ];
-}
-
-function policy(root: string, table: string, name: string, predicate: string): string {
-  return `create policy ${name} on "${root}".${table} using (${predicate}) with check (${predicate})`;
-}
-
 /**
  * Forced row-level security of every scoped framework table of a namespace: the `scoped` policy
  * matches `scope_id` against the setting of the unit's scope, each wrapped in `nullif` because a
@@ -69,7 +42,7 @@ export function rlsPoliciesDdl(
 ): readonly string[] {
   const schema = assertNamespaceRoot(root);
   const control = options.control === true;
-  const inUnitScope = unitScopeOf(control);
+  const inUnitScope = unitScope(control);
   const statements: string[] = [];
   for (const table of queueTables) {
     statements.push(...enable(schema, table));

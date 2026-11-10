@@ -3,14 +3,12 @@ import { errors } from '@keelwerk/core';
 import { migrationChecksum } from '../../migrations/migration-checksum.ts';
 import { encodeInstant } from '../encode-instant.ts';
 import { upsertJobGroup } from '../upsert-job-group.ts';
-import { applicationRoleDdl } from './application-role.ts';
+import { applyFrameworkSteps } from './apply-framework-steps.ts';
 import { assertNamespaceRoot } from './assert-namespace-root.ts';
-import { frameworkTablesDdl } from './framework-tables.ts';
 import { introspectCatalogue } from './introspect-catalogue.ts';
 import { namespaceLock } from './namespace-lock.ts';
 import { quoteIdentifier } from './quote-identifier.ts';
 import { renderStep } from './render-step.ts';
-import { rlsPoliciesDdl } from './rls-policies.ts';
 import type { SchemaConnection } from './schema-connection.ts';
 import type { SchemaSession } from './schema-session.ts';
 import { snapshotSteps } from './snapshot-steps.ts';
@@ -34,7 +32,7 @@ async function runAll(session: SchemaSession, statements: readonly string[]): Pr
 export interface PostgresSchemaOptions {
   /** The application role: granted the entity tables and the framework tables a namespace creates. */
   readonly role?: string;
-  /** Stamps the token bucket of a provisioned group; the system clock by default. */
+  /** The clock of every instant this stores (`applied_at` of the framework steps, the token bucket of a provisioned group); the adapter's, never the database's; the system clock by default. */
   readonly clock?: Clock;
 }
 
@@ -42,8 +40,9 @@ export interface PostgresSchemaOptions {
  * The schema contract on PostgreSQL (section 14.6.7), over any owner connection. `render` shows
  * the statements, `apply` (a file with a `data` step is refused: the kernel's runner does not exist yet) runs one file in one transaction under the namespace lock and records it
  * in `kw_migrations` (an applied file with another checksum is a conflict, an applied file with
- * the same checksum is skipped), `provision` creates a namespace's root, framework tables and the
- * tables of the given snapshots without replaying history, `introspect` reads the catalogue and
+ * the same checksum is skipped), `provision` applies the missing steps of the framework track first (a root created before a
+ * step existed gains its tables, S-117), then creates the tables of the given snapshots without
+ * replaying history, `introspect` reads the catalogue and
  * `lock` holds the planner's lock around several applies.
  */
 export function postgresSchemaOperations(
@@ -113,22 +112,19 @@ export function postgresSchemaOperations(
     },
     provision: async (namespace, snapshots, provisionOptions) => {
       const root = assertNamespaceRoot(namespace.root);
-      const control = root === controlRoot ? { control: true } : {};
       await connection.transaction(async (session) => {
         const lock = namespaceLock(root, 'apply');
         await session.query(lock.sql, lock.parameters);
         const present = await session.query('select 1 from pg_namespace where nspname = $1', [
           root,
         ]);
-        if (present.rows.length === 0) {
-          await runAll(session, [
-            ...frameworkTablesDdl(root, control),
-            ...rlsPoliciesDdl(root, control),
-          ]);
-          if (options.role !== undefined) {
-            await runAll(session, applicationRoleDdl(root, options.role, control));
-          }
-        }
+        await applyFrameworkSteps(session, {
+          root,
+          control: root === controlRoot,
+          role: options.role,
+          fresh: present.rows.length === 0,
+          now: (options.clock ?? systemClock).now(),
+        });
         for (const snapshot of snapshots) {
           const live = await introspectCatalogue(session, root);
           const steps = await snapshotSteps(snapshot, live.tables);
