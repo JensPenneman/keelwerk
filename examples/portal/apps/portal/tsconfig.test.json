@@ -37,6 +37,30 @@
     },
     {
       "path": "../../../../packages/testing"
+    },
+    {
+      "path": "../../../../packages/events"
+    },
+    {
+      "path": "../../../../packages/live"
+    },
+    {
+      "path": "../../../../packages/module-api-keys"
+    },
+    {
+      "path": "../../../../packages/module-audit"
+    },
+    {
+      "path": "../../../../packages/module-members"
+    },
+    {
+      "path": "../../../../packages/transport-graphql"
+    },
+    {
+      "path": "../../../../packages/transport-orpc"
+    },
+    {
+      "path": "../../../../packages/transport-trpc"
     }
   ]
 }

@@ -9,6 +9,7 @@ import { checkReferences } from './check-references.ts';
 import { checkTsconfigs } from './check-tsconfigs.ts';
 import type { DoctorFinding } from './doctor-finding.ts';
 import { layoutFindingsOf } from './layout-findings-of.ts';
+import { m2Checks } from './m2-checks.ts';
 import type { ProjectChecksInput } from './project-checks-input.ts';
 
 function unique(findings: readonly DoctorFinding[]): readonly DoctorFinding[] {
@@ -32,6 +33,7 @@ export async function projectChecks(input: ProjectChecksInput): Promise<readonly
     ...(await checkArtefacts(input.root, input.runArtefacts)),
     ...checkNamedTypes(workspace),
     ...(await checkDeclarationSizes(workspace)),
+    ...(await Promise.all(m2Checks.project.map((check) => check(input, workspace)))).flat(),
     ...layoutFindingsOf(await layoutPassOver(workspace)),
   ]);
 }

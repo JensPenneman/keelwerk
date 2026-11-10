@@ -17,7 +17,21 @@
     "examples/portal/apps/portal": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@keelwerk/cli", "@keelwerk/data"]
+      "ignoreDependencies": [
+        "@keelwerk/cli",
+        "@keelwerk/data",
+        "@keelwerk/events",
+        "@keelwerk/live",
+        "@keelwerk/module-api-keys",
+        "@keelwerk/module-audit",
+        "@keelwerk/module-members",
+        "@keelwerk/transport-graphql",
+        "@keelwerk/transport-orpc",
+        "@keelwerk/transport-trpc",
+        "@orpc/client",
+        "@trpc/client",
+        "eventsource"
+      ]
     },
     "packages/type-budgets": {
       "entry": ["src/**/*.test-d.ts"],
@@ -34,12 +48,13 @@
     },
     "packages/testing": {
       "entry": ["src/**/*.test-d.ts", "src/fixtures/modules/*/migrations/**/*.ts"],
-      "project": ["src/**/*.ts"]
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@keelwerk/events", "@keelwerk/live", "@keelwerk/transport-http"]
     },
     "packages/cli": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["tsc"]
+      "ignoreDependencies": ["@keelwerk/live", "tsc"]
     },
     "packages/module-accounts": {
       "entry": ["src/**/*.test-d.ts"],
@@ -47,15 +62,18 @@
     },
     "packages/transport-http": {
       "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts"]
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@keelwerk/live", "@types/ws", "ws"]
     },
     "packages/transport-rest": {
       "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts"]
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@keelwerk/live"]
     },
     "packages/client": {
       "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts"]
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@keelwerk/live"]
     },
     "packages/data": {
       "entry": ["src/**/*.test-d.ts"],
@@ -78,7 +96,94 @@
     },
     "examples/portal": {
       "entry": [".launchway/deployment.ts", ".launchway/launchway.ts"],
-      "ignoreDependencies": ["@keelwerk/cli"]
+      "ignoreDependencies": ["@keelwerk/cli", "@keelwerk/events"]
+    },
+    "packages/events": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@keelwerk/adapter-postgres", "@keelwerk/core", "@keelwerk/testing"]
+    },
+    "packages/live": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@keelwerk/core", "@keelwerk/testing", "@keelwerk/transport-http"]
+    },
+    "packages/transport-graphql": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": [
+        "@keelwerk/core",
+        "@keelwerk/live",
+        "@keelwerk/testing",
+        "@keelwerk/transport-http",
+        "dataloader",
+        "graphql",
+        "graphql-ws",
+        "graphql-yoga"
+      ]
+    },
+    "packages/transport-trpc": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": [
+        "@keelwerk/core",
+        "@keelwerk/live",
+        "@keelwerk/testing",
+        "@keelwerk/transport-http",
+        "@trpc/client",
+        "@trpc/server",
+        "@types/ws",
+        "eventsource",
+        "superjson"
+      ]
+    },
+    "packages/transport-orpc": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": [
+        "@keelwerk/core",
+        "@keelwerk/live",
+        "@keelwerk/testing",
+        "@keelwerk/transport-http",
+        "@keelwerk/transport-rest",
+        "@orpc/client",
+        "@orpc/openapi",
+        "@orpc/server"
+      ]
+    },
+    "packages/module-api-keys": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+      "ignoreDependencies": [
+        "@keelwerk/adapter-postgres",
+        "@keelwerk/core",
+        "@keelwerk/module-accounts",
+        "@keelwerk/testing"
+      ]
+    },
+    "packages/module-members": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+      "ignoreDependencies": [
+        "@keelwerk/adapter-postgres",
+        "@keelwerk/core",
+        "@keelwerk/module-accounts",
+        "@keelwerk/module-auth",
+        "@keelwerk/testing"
+      ]
+    },
+    "packages/module-audit": {
+      "entry": ["src/**/*.test-d.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+      "ignoreDependencies": [
+        "@keelwerk/adapter-postgres",
+        "@keelwerk/core",
+        "@keelwerk/events",
+        "@keelwerk/module-accounts",
+        "@keelwerk/module-auth",
+        "@keelwerk/module-members",
+        "@keelwerk/testing"
+      ]
     }
   }
 }

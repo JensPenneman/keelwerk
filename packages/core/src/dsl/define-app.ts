@@ -7,6 +7,7 @@ import type { AppEntitiesOf } from '../model/app-entities.ts';
 import type { WithCore } from '../model/selection.ts';
 import { buildRegistry } from '../registry/build-registry.ts';
 import { composeApp } from '../registry/compose-app.ts';
+import { m2ComposeChecks } from '../registry/m2-compose-checks.ts';
 import type { Registry } from '../registry/registry.ts';
 import { surfaceProblemsOf } from '../surface/surface-problems-of.ts';
 import type { Empty } from '../types/empty.ts';
@@ -86,7 +87,11 @@ export function defineApp<
   const built = buildRegistry(base);
   const registry: Registry = {
     ...built,
-    problems: [...built.problems, ...surfaceProblemsOf(base, built)],
+    problems: [
+      ...built.problems,
+      ...surfaceProblemsOf(base, built),
+      ...m2ComposeChecks.flatMap((check) => check(base, built)),
+    ],
   };
   composeApp(base, registry);
   return { ...base, registry } as unknown as App<Id, WithCore<Ms>, A, X>;

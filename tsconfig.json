@@ -26,6 +26,18 @@
       "path": "packages/adapter-postgres/tsconfig.test.json"
     },
     {
+      "path": "packages/events"
+    },
+    {
+      "path": "packages/events/tsconfig.test.json"
+    },
+    {
+      "path": "packages/live"
+    },
+    {
+      "path": "packages/live/tsconfig.test.json"
+    },
+    {
       "path": "packages/transport-http"
     },
     {
@@ -36,6 +48,24 @@
     },
     {
       "path": "packages/transport-rest/tsconfig.test.json"
+    },
+    {
+      "path": "packages/transport-graphql"
+    },
+    {
+      "path": "packages/transport-graphql/tsconfig.test.json"
+    },
+    {
+      "path": "packages/transport-trpc"
+    },
+    {
+      "path": "packages/transport-trpc/tsconfig.test.json"
+    },
+    {
+      "path": "packages/transport-orpc"
+    },
+    {
+      "path": "packages/transport-orpc/tsconfig.test.json"
     },
     {
       "path": "packages/client"
@@ -60,6 +90,24 @@
     },
     {
       "path": "packages/module-auth/tsconfig.test.json"
+    },
+    {
+      "path": "packages/module-api-keys"
+    },
+    {
+      "path": "packages/module-api-keys/tsconfig.test.json"
+    },
+    {
+      "path": "packages/module-members"
+    },
+    {
+      "path": "packages/module-members/tsconfig.test.json"
+    },
+    {
+      "path": "packages/module-audit"
+    },
+    {
+      "path": "packages/module-audit/tsconfig.test.json"
     },
     {
       "path": "packages/testing"

@@ -61,7 +61,7 @@ jobs:
       # Every project that starts no container (the Docker projects are named in the postgres job): unit, type, declaration-emit, transport
       # conformance and in-memory adapter suites, and the portal scenario in memory.
       - name: Tests, transport conformance and in-memory adapter suites (steps 4 and 7)
-        run: pnpm vitest run --project '!adapter-postgres-postgres' --project '!app-portal-postgres' --project '!data-postgres' --project '!module-accounts-postgres' --project '!module-auth-postgres' --project '!testing-postgres' --project '!spike-write-path'
+        run: pnpm vitest run --project '!adapter-postgres-postgres' --project '!app-portal-postgres' --project '!data-postgres' --project '!events-postgres' --project '!module-accounts-postgres' --project '!module-api-keys-postgres' --project '!module-audit-postgres' --project '!module-auth-postgres' --project '!module-members-postgres' --project '!testing-postgres' --project '!spike-write-path'
 
       - name: Generated files are current (step 5)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -112,7 +112,7 @@ jobs:
       # dump test and accelerations-off run, plus the write-path spike. Each project starts
       # its own container in its globalSetup (or beforeAll), so one worker runs at a time.
       - name: Adapter, dual-evaluation and portal suites on PostgreSQL (steps 4 and 7)
-        run: pnpm vitest run --project adapter-postgres-postgres --project app-portal-postgres --project data-postgres --project module-accounts-postgres --project module-auth-postgres --project testing-postgres --project spike-write-path --maxWorkers=1
+        run: pnpm vitest run --project adapter-postgres-postgres --project app-portal-postgres --project data-postgres --project events-postgres --project module-accounts-postgres --project module-api-keys-postgres --project module-audit-postgres --project module-auth-postgres --project module-members-postgres --project testing-postgres --project spike-write-path --maxWorkers=1
 
   budgets:
     name: Type budgets

@@ -2,6 +2,7 @@ import { produceAppGeneratedFiles } from './app-generated-files.ts';
 import { produceCliManifests } from './cli-manifest.ts';
 import { deriveApps } from './derive-apps.ts';
 import { joinResults } from './join-results.ts';
+import { m2Producers } from './m2-producers.ts';
 import { produceMigrationsAgainstSnapshots } from './migrations-against-snapshots.ts';
 import { produceModuleManifests } from './module-manifests.ts';
 import type { ProducedFiles } from './produced-files.ts';
@@ -74,6 +75,11 @@ export async function runProducers(options: RunProducersOptions): Promise<Produc
     if (wanted('migrations')) {
       results.push(await produceMigrationsAgainstSnapshots(root, derived.apps, check));
       progress('checked the migrations against their snapshots');
+    }
+    for (const producer of m2Producers) {
+      if (!wanted(producer.under)) continue;
+      results.push(await settle(root, check, await producer.produce(root, derived.apps, check)));
+      progress(producer.done);
     }
   }
   return joinResults(results);

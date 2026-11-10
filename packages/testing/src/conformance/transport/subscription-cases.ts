@@ -47,7 +47,7 @@ async function framesOf(
  * The scenarios that need `@keelwerk/live` (S-39, S-62): written against the planned endpoints
  * and skipped under the marker `m2`, so the suite names what the second milestone must add.
  */
-export function streamingCases(target: TransportTarget): void {
+export function subscriptionCases(target: TransportTarget): void {
   test.skip('m2: a subscription streams a head frame, then the rows that change', async () => {
     const ada = freshName('ada');
     const [head] = await framesOf(target, ada, undefined, 1);
@@ -71,38 +71,6 @@ export function streamingCases(target: TransportTarget): void {
     const stale = 'v1.0.0.stale.invalid';
     const frames = await framesOf(target, freshName('ada'), stale, 1);
     expect(frames.map((frame) => frame.event)).toEqual(['reset']);
-  });
-
-  test.skip('m2: waiting for the effects of a command returns when they are done', async () => {
-    const sent = await sendCall(
-      target,
-      lendCall(freshName('ada'), freshName('Odyssey'), { prefer: 'async' }),
-    );
-    expect(sent.decoded).toMatchObject({ ok: true, accepted: true });
-    const done = await sendCall(target, {
-      action: 'core.effects.wait',
-      input: { ids: [] },
-      caller: { subject: freshName('ada') },
-    });
-    expect(done.decoded.ok).toBe(true);
-  });
-
-  test.skip('m2: a selection beyond the limits is refused before any row is read', async () => {
-    const sent = await sendCall(target, {
-      action: 'loans.loan.query',
-      input: { first: 100_000 },
-      caller: { subject: freshName('ada') },
-    });
-    expect(sent.decoded).toMatchObject({ ok: false, kind: 'validation' });
-  });
-
-  test.skip('m2: a selection path that repeats an entity type is refused (16.4.12)', async () => {
-    const sent = await sendCall(target, {
-      action: 'loans.loan.query',
-      input: { include: ['book', 'loans', 'book'] },
-      caller: { subject: freshName('ada') },
-    });
-    expect(sent.decoded).toMatchObject({ ok: false, kind: 'validation', code: 'core.validation' });
   });
 
   test.skip('m2: a cross-site page cannot open the live stream with the user’s cookie', async () => {

@@ -27,15 +27,26 @@
     "@keelwerk/client": "workspace:*",
     "@keelwerk/core": "workspace:*",
     "@keelwerk/data": "workspace:*",
+    "@keelwerk/events": "workspace:*",
+    "@keelwerk/live": "workspace:*",
     "@keelwerk/module-accounts": "workspace:*",
+    "@keelwerk/module-api-keys": "workspace:*",
+    "@keelwerk/module-audit": "workspace:*",
     "@keelwerk/module-auth": "workspace:*",
+    "@keelwerk/module-members": "workspace:*",
+    "@keelwerk/transport-graphql": "workspace:*",
     "@keelwerk/transport-http": "workspace:*",
-    "@keelwerk/transport-rest": "workspace:*"
+    "@keelwerk/transport-orpc": "workspace:*",
+    "@keelwerk/transport-rest": "workspace:*",
+    "@keelwerk/transport-trpc": "workspace:*"
   },
   "devDependencies": {
     "@keelwerk/cli": "workspace:*",
     "@keelwerk/testing": "workspace:*",
+    "@orpc/client": "1.16.1",
+    "@trpc/client": "11.19.0",
     "@types/pg": "8.23.1",
+    "eventsource": "5.1.3",
     "pg": "8.23.1",
     "vitest": "5.0.5"
   }

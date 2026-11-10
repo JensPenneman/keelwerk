@@ -1,0 +1,32 @@
+{
+  "name": "@keelwerk/events",
+  "version": "0.0.0",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@keelwerk/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@keelwerk/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@keelwerk/adapter-postgres": "workspace:*",
+    "@keelwerk/testing": "workspace:*",
+    "vitest": "5.0.5"
+  }
+}

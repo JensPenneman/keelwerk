@@ -10,6 +10,7 @@
     "@keelwerk/adapter-postgres": "workspace:*",
     "@keelwerk/core": "workspace:*",
     "@keelwerk/data": "workspace:*",
+    "@keelwerk/events": "workspace:*",
     "@keelwerk/transport-http": "workspace:*"
   },
   "devDependencies": {

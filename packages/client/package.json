@@ -34,6 +34,7 @@
     "@keelwerk/core": "workspace:*"
   },
   "devDependencies": {
+    "@keelwerk/live": "workspace:*",
     "@keelwerk/testing": "workspace:*",
     "@keelwerk/transport-http": "workspace:*",
     "vitest": "5.0.5"

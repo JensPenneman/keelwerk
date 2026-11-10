@@ -6,13 +6,16 @@ import { backendRoutes } from './commands/backend/backend-routes.ts';
 import { buildRoutes } from './commands/build/build-routes.ts';
 import { callRoutes } from './commands/call/call-routes.ts';
 import { completionRoutes } from './commands/completion/completion-routes.ts';
+import { consumersRoutes } from './commands/consumers/consumers-routes.ts';
 import { dbRoutes } from './commands/db/db-routes.ts';
 import { devRoutes } from './commands/dev/dev-routes.ts';
 import { doctorRoutes } from './commands/doctor/doctor-routes.ts';
 import { explainRoutes } from './commands/explain/explain-routes.ts';
+import { flagsRoutes } from './commands/flags/flags-routes.ts';
 import { generateRoutes } from './commands/generate/generate-routes.ts';
 import { initRoutes } from './commands/init/init-routes.ts';
 import { introspectRoutes } from './commands/introspect/introspect-routes.ts';
+import { jobsRoutes } from './commands/jobs/jobs-routes.ts';
 import { loginRoutes } from './commands/login/login-routes.ts';
 import { newRoutes } from './commands/new/new-routes.ts';
 import { operatorRoutes } from './commands/operator/operator-routes.ts';
@@ -53,6 +56,9 @@ export function buildCliApp(
       ...startRoutes,
       ...devRoutes,
       ...doctorRoutes,
+      ...jobsRoutes,
+      ...consumersRoutes,
+      ...flagsRoutes,
     },
     docs: { brief: 'Build, run and operate keelwerk applications.' },
   });

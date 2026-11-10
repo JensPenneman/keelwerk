@@ -21,6 +21,9 @@
     },
     {
       "path": "../transport-http"
+    },
+    {
+      "path": "../live"
     }
   ]
 }

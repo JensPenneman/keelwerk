@@ -55,7 +55,8 @@ export async function stopPhase(input: StopInput, deadlineMs: number): Promise<v
     },
   );
   const mountsClosed = Promise.allSettled(input.mounts.map((mount) => mount.close(deadline)));
-  await within(Promise.all([hostStopped, mountsClosed]), remaining());
+  const phasesStopped = input.started.stopPhases(deadline);
+  await within(Promise.all([hostStopped, mountsClosed, phasesStopped]), remaining());
   await within(input.draining.idle(), remaining());
   input.started.unfollow();
   await within(input.started.following, remaining());

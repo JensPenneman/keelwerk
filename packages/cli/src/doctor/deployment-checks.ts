@@ -8,6 +8,7 @@ import { checkQueuesWithoutWorkers } from './check-queues-without-workers.ts';
 import type { DeploymentInput } from './deployment-input.ts';
 import type { DoctorFinding } from './doctor-finding.ts';
 import { fallbackReporterOf } from './fallback-reporter-of.ts';
+import { m2Checks } from './m2-checks.ts';
 import { readDeploymentFacts } from './read-deployment-facts.ts';
 
 /** The deployment checks of section 13.12 over the facts of one deployment. */
@@ -27,5 +28,6 @@ export async function deploymentChecks(
     ...checkAnchors(facts.anchors, now),
     ...checkPersonalFields(facts.personal),
     ...checkHealth(facts.processes, input.reader !== undefined),
+    ...(await Promise.all(m2Checks.deployment.map((check) => check(input, facts, now)))).flat(),
   ];
 }

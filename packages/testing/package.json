@@ -60,6 +60,9 @@
   },
   "devDependencies": {
     "@keelwerk/adapter-postgres": "workspace:*",
+    "@keelwerk/events": "workspace:*",
+    "@keelwerk/live": "workspace:*",
+    "@keelwerk/transport-http": "workspace:*",
     "@keelwerk/transport-rest": "workspace:*",
     "@types/pg": "8.23.1",
     "pg": "8.23.1",

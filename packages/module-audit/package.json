@@ -1,0 +1,36 @@
+{
+  "name": "@keelwerk/module-audit",
+  "version": "0.0.0",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@keelwerk/source": "./src/version.ts",
+      "types": "./dist/src/version.d.ts",
+      "default": "./dist/src/version.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/src/version.d.ts",
+        "default": "./dist/src/version.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@keelwerk/core": "workspace:*",
+    "@keelwerk/module-members": "workspace:*"
+  },
+  "devDependencies": {
+    "@keelwerk/adapter-postgres": "workspace:*",
+    "@keelwerk/events": "workspace:*",
+    "@keelwerk/module-accounts": "workspace:*",
+    "@keelwerk/module-auth": "workspace:*",
+    "@keelwerk/testing": "workspace:*",
+    "vitest": "5.0.5"
+  }
+}

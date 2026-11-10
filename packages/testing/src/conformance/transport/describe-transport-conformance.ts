@@ -4,11 +4,11 @@ import { concurrencyCases } from './concurrency-cases.ts';
 import { errorCases } from './error-cases.ts';
 import { idempotencyCases } from './idempotency-cases.ts';
 import { instanceCases } from './instance-cases.ts';
+import { m2Cases } from './m2-cases.ts';
 import { maskCases } from './mask-cases.ts';
 import { paginationCases } from './pagination-cases.ts';
 import { preconditionCases } from './precondition-cases.ts';
 import { receiptCases } from './receipt-cases.ts';
-import { streamingCases } from './streaming-cases.ts';
 import type { TransportTarget } from './transport-target.ts';
 import { valueCases } from './value-cases.ts';
 
@@ -30,6 +30,6 @@ export function describeTransportConformance(target: TransportTarget): void {
     describe('concurrency', () => concurrencyCases(target));
     describe('preconditions', () => preconditionCases(target));
     describe('browser', () => browserCases(target));
-    describe('streaming', () => streamingCases(target));
+    m2Cases(target);
   });
 }

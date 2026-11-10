@@ -1,0 +1,37 @@
+{
+  "name": "@keelwerk/transport-graphql",
+  "version": "0.0.0",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@keelwerk/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@keelwerk/core": "workspace:*",
+    "dataloader": "2.2.3",
+    "graphql": "17.0.2",
+    "graphql-ws": "6.4.1",
+    "graphql-yoga": "5.24.6"
+  },
+  "devDependencies": {
+    "@keelwerk/live": "workspace:*",
+    "@keelwerk/testing": "workspace:*",
+    "@keelwerk/transport-http": "workspace:*",
+    "vitest": "5.0.5"
+  }
+}

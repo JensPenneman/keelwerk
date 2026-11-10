@@ -1,0 +1,38 @@
+{
+  "name": "@keelwerk/transport-trpc",
+  "version": "0.0.0",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@keelwerk/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@keelwerk/core": "workspace:*",
+    "@trpc/server": "11.19.0",
+    "superjson": "2.2.6"
+  },
+  "devDependencies": {
+    "@keelwerk/live": "workspace:*",
+    "@keelwerk/testing": "workspace:*",
+    "@keelwerk/transport-http": "workspace:*",
+    "@trpc/client": "11.19.0",
+    "@types/ws": "8.18.2",
+    "eventsource": "5.1.3",
+    "vitest": "5.0.5"
+  }
+}

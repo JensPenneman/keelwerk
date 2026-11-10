@@ -146,15 +146,71 @@
         },
         {
           "type": "generic",
-          "path": "packages/module-auth/src/version.ts"
-        },
-        {
-          "type": "generic",
           "path": "packages/transport-http/src/version.ts"
         },
         {
           "type": "generic",
           "path": "packages/transport-rest/src/version.ts"
+        },
+        {
+          "type": "json",
+          "path": "packages/events/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/live/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/transport-graphql/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/transport-trpc/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/transport-orpc/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/module-api-keys/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/module-members/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/module-audit/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "generic",
+          "path": "packages/events/src/version.ts"
+        },
+        {
+          "type": "generic",
+          "path": "packages/live/src/version.ts"
+        },
+        {
+          "type": "generic",
+          "path": "packages/transport-graphql/src/version.ts"
+        },
+        {
+          "type": "generic",
+          "path": "packages/transport-trpc/src/version.ts"
+        },
+        {
+          "type": "generic",
+          "path": "packages/transport-orpc/src/version.ts"
         }
       ]
     }

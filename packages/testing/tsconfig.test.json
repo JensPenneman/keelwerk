@@ -27,6 +27,15 @@
     },
     {
       "path": "../transport-rest"
+    },
+    {
+      "path": "../events"
+    },
+    {
+      "path": "../live"
+    },
+    {
+      "path": "../transport-http"
     }
   ]
 }

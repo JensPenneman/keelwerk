@@ -27,6 +27,7 @@
     "hono": "4.13.14"
   },
   "devDependencies": {
+    "@keelwerk/live": "workspace:*",
     "@keelwerk/testing": "workspace:*",
     "@keelwerk/transport-http": "workspace:*",
     "@scalar/openapi-parser": "0.29.16",
