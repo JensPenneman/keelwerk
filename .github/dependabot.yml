@@ -40,6 +40,12 @@ updates:
       # Node.js types follow the runtime major the baseline names (.nvmrc).
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # TypeScript majors are taken by hand. packages/type-budgets (attest) and the
+      # CLI's typescript-6 alias stay on 6.x for the compiler API in JavaScript, which
+      # 7.x does not ship (register entry 138); the workspace compiler changes major
+      # together with the baseline (architecture.md section 13).
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
