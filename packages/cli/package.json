@@ -28,7 +28,7 @@
     "@keelwerk/client": "workspace:*",
     "@keelwerk/core": "workspace:*",
     "@keelwerk/data": "workspace:*",
-    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/api": "1.10.0",
     "@stricli/core": "1.3.0",
     "pino": "10.4.0",
     "typescript-6": "npm:typescript@6.0.3",
