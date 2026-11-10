@@ -1,3 +1,4 @@
+import type { EventWorker } from '../events/event-worker.ts';
 import type { LedgerSink } from '../kernel/ledger-sink.ts';
 import type { SecretProvider } from '../kernel/secret-provider.ts';
 import type { DataAdapterFactory } from '../storage/data-adapter-factory.ts';
@@ -35,6 +36,18 @@ function isFallbackReporter(value: unknown): value is FallbackReporter {
   return isRecord(value) && value.kind === 'fallbackReporter';
 }
 
+function isEventWorker(value: unknown): value is EventWorker {
+  return (
+    isRecord(value) &&
+    value.kind === 'eventWorker' &&
+    typeof value.id === 'string' &&
+    Array.isArray(value.roles) &&
+    Array.isArray(value.runs) &&
+    typeof value.start === 'function' &&
+    typeof value.stop === 'function'
+  );
+}
+
 function isHost(value: unknown): value is TransportHost {
   return isRecord(value) && typeof value.route === 'function' && typeof value.fetch === 'function';
 }
@@ -48,6 +61,8 @@ export interface RuntimeInfrastructure {
   readonly adapters: ReadonlyMap<string, DataAdapterFactory>;
   readonly ledgers: readonly LedgerSink[];
   readonly secretProviders: readonly SecretProvider[];
+  /** The event workers (S-154), in deployment order. */
+  readonly eventWorkers: readonly EventWorker[];
   readonly planner: SchemaPlanner | undefined;
   readonly fallbackReporter: FallbackReporter | undefined;
   readonly host: TransportHost | undefined;
@@ -59,13 +74,14 @@ export interface RuntimeInfrastructure {
 
 /**
  * Sorts the deployment's infrastructure by shape: a data adapter factory, a ledger sink, a secret
- * provider, the schema planner, the fallback reporter, and an entry that carries the HTTP host in its `host` member (or
+ * provider, an event worker, the schema planner, the fallback reporter, and an entry that carries the HTTP host in its `host` member (or
  * is one). Anything else is kept for the contracts it provides.
  */
 export function runtimeInfrastructure(entries: readonly unknown[]): RuntimeInfrastructure {
   const adapters = new Map<string, DataAdapterFactory>();
   const ledgers: LedgerSink[] = [];
   const secretProviders: SecretProvider[] = [];
+  const eventWorkers: EventWorker[] = [];
   const provided = new Set<string>();
   let planner: SchemaPlanner | undefined;
   let fallbackReporter: FallbackReporter | undefined;
@@ -75,6 +91,7 @@ export function runtimeInfrastructure(entries: readonly unknown[]): RuntimeInfra
     if (isAdapterFactory(entry)) adapters.set(entry.id, entry);
     if (isLedgerSink(entry)) ledgers.push(entry);
     if (isSecretProvider(entry)) secretProviders.push(entry);
+    if (isEventWorker(entry)) eventWorkers.push(entry);
     if (isSchemaPlanner(entry)) planner = entry;
     if (isFallbackReporter(entry)) fallbackReporter = entry;
     if (isHostEntry(entry)) hostEntry = entry;
@@ -92,6 +109,7 @@ export function runtimeInfrastructure(entries: readonly unknown[]): RuntimeInfra
     adapters,
     ledgers,
     secretProviders,
+    eventWorkers,
     planner,
     fallbackReporter,
     host,

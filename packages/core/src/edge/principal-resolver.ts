@@ -1,6 +1,7 @@
 import type { Carrier } from '../invoker/carrier.ts';
 import type { Gen } from '../protocol/gen.ts';
 import type { Scope } from '../storage/scope.ts';
+import type { PrincipalFromRef } from './principal-from-ref.ts';
 import type { PrincipalResolution } from './principal-resolution.ts';
 
 /**
@@ -21,4 +22,6 @@ export interface PrincipalResolver {
     carrier: Carrier,
     ctx: { readonly scope: Scope; readonly clock: { now(): Temporal.Instant } },
   ): Gen<PrincipalResolution | null>;
+  /** Re-resolves a stored principal reference when a job runs (section 7.4, S-122). */
+  readonly fromRef?: PrincipalFromRef['fromRef'];
 }
