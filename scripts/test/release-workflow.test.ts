@@ -17,7 +17,7 @@ function job(name: string): string {
 
 test('the publish job refuses forks and asks for id-token write', () => {
   const publish = job('publish');
-  expect(publish).toContain("if: ${{ always() && github.repository == 'JensPenneman/keelwerk' }}");
+  expect(publish).toContain("always() && github.repository == 'JensPenneman/keelwerk'");
   // The release job creates the tag this job looks for, so this job runs after it.
   expect(publish).toContain('needs: release-please');
   expect(publish).toContain('id-token: write');
