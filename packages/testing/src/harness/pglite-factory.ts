@@ -9,7 +9,7 @@ const role = 'kw_app';
 export interface PgliteFactoryOptions {
   /** Finds the descriptor of a relation's target by entity ref. */
   readonly entities?: (ref: string) => EntityDescriptor | undefined;
-  /** The time source of bucket refills and key timestamps; default: the system clock. */
+  /** The time source of bucket refills and key timestamps; default: the runtime's clock, else the system clock. */
   readonly clock?: Clock;
   /** Receives every adapter the factory creates, by placement id. */
   readonly onCreate?: (placementId: string, adapter: DataAdapter) => void;
@@ -33,12 +33,13 @@ export function pgliteFactory(options: PgliteFactoryOptions = {}): DataAdapterFa
           `PGlite hosts the shared-tables strategy, not ${placement.strategy}`,
         );
       }
+      const clock = options.clock ?? env.clock;
       const inner = pgliteAdapter(
         { deploymentId: env.deploymentId, tracer: env.tracer },
         {
           placementId: placement.id,
           role,
-          ...(options.clock === undefined ? {} : { clock: options.clock }),
+          ...(clock === undefined ? {} : { clock }),
           ...(options.entities === undefined ? {} : { entities: options.entities }),
           ...(env.keyWrapper === undefined ? {} : { keyWrapper: env.keyWrapper }),
         },

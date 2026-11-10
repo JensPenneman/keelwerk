@@ -133,6 +133,7 @@ export async function connectPhase(input: ConnectInput): Promise<Connected> {
     tracer: trace.getTracer('keelwerk'),
     secrets,
     signal: input.signal,
+    clock,
   };
   const controlRegistry = served[0]?.registry;
   if (controlRegistry === undefined) throw errors.internal('The process serves no app.');

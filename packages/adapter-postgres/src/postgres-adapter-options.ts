@@ -6,7 +6,7 @@ import type { AccelerationOptions } from './acceleration-options.ts';
 export interface PostgresAdapterOptions extends AccelerationOptions {
   /** Tags the sessions in `pg_stat_activity`; default `keelwerk`. */
   readonly applicationName?: string;
-  /** The time source of bucket refills and key timestamps; default: the system clock. */
+  /** The time source of bucket refills and key timestamps; default: the runtime's clock, else the system clock. */
   readonly clock?: Clock;
   /**
    * Finds the descriptor of a relation's target by entity ref. The adapter also learns every

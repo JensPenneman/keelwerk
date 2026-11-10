@@ -75,7 +75,7 @@ export function createPostgresInstance(
     return connection;
   };
   const entities = sqlEntityIndex(options.entities);
-  const clock: Clock = options.clock ?? { now: () => Temporal.Now.instant() };
+  const clock: Clock = options.clock ?? env.clock ?? { now: () => Temporal.Now.instant() };
   const keyWrapper = options.keyWrapper ?? env.keyWrapper;
   const request = (
     namespace: NamespaceRef,

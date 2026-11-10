@@ -31,6 +31,7 @@ export function devPgliteFactory(): DataAdapterFactory {
         {
           placementId: placement.id,
           role,
+          ...(env.clock === undefined ? {} : { clock: env.clock }),
           ...(placement.url === undefined ? {} : { dataDir: placement.url }),
           ...(env.keyWrapper === undefined ? {} : { keyWrapper: env.keyWrapper }),
         },

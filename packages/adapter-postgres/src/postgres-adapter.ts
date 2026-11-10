@@ -54,6 +54,7 @@ export function postgresAdapter(options: PostgresAdapterOptions = {}): DataAdapt
     options: postgresOptionsSchema,
     create: (placement, env) => {
       const instance = createPostgresInstance(options, placement, env);
+      const clock = options.clock ?? env.clock;
       const off = switchedOffAccelerations(options);
       const feed = createPostgresChangeFeed({
         url: placement.url ?? '',
@@ -111,7 +112,7 @@ export function postgresAdapter(options: PostgresAdapterOptions = {}): DataAdapt
           withCommandReceipts(
             postgresSchemaOperations(connection, {
               ...(role === undefined ? {} : { role }),
-              ...(options.clock === undefined ? {} : { clock: options.clock }),
+              ...(clock === undefined ? {} : { clock }),
             }),
             connection,
             role,

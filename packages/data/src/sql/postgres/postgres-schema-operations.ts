@@ -1,6 +1,7 @@
 import type { AppliedMigration, Clock, SchemaOperations } from '@keelwerk/core';
 import { errors } from '@keelwerk/core';
 import { migrationChecksum } from '../../migrations/migration-checksum.ts';
+import { encodeInstant } from '../encode-instant.ts';
 import { upsertJobGroup } from '../upsert-job-group.ts';
 import { applicationRoleDdl } from './application-role.ts';
 import { assertNamespaceRoot } from './assert-namespace-root.ts';
@@ -81,11 +82,12 @@ export function postgresSchemaOperations(
         await runAll(session, statements);
         await session.query(
           `insert into ${history}.kw_migrations (track, id, checksum, applied_at, duration_ms, steps_applied)
-           values ($1, $2, $3, now(), $4, $5)`,
+           values ($1, $2, $3, $4::timestamptz, $5, $6)`,
           [
             file.track,
             file.id,
             checksum,
+            encodeInstant((options.clock ?? systemClock).now()),
             Math.round(performance.now() - started),
             file.steps.length,
           ],

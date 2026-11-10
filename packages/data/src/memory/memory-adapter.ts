@@ -33,7 +33,7 @@ export function memoryAdapter(options: MemoryAdapterOptions = {}): DataAdapterFa
         );
       }
       const database = memoryDatabase(
-        options.clock ?? systemClock,
+        options.clock ?? env.clock ?? systemClock,
         { systemId: `memory-${newUuidV7()}`, timeline: '1' },
         env.deploymentId,
       );

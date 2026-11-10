@@ -34,6 +34,7 @@ export function transportPglite(options: PgliteTransportOptions = {}): DataAdapt
         {
           placementId: placement.id,
           role,
+          ...(env.clock === undefined ? {} : { clock: env.clock }),
           ...(options.entities === undefined ? {} : { entities: options.entities }),
           ...(env.keyWrapper === undefined ? {} : { keyWrapper: env.keyWrapper }),
         },

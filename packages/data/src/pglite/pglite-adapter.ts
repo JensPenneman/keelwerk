@@ -52,7 +52,7 @@ export interface PgliteAdapterOptions {
    * microtask, so it surfaces as an uncaught error without rejecting the committed unit.
    */
   readonly onAfterCommitError?: (error: unknown) => void;
-  /** The time source of bucket refills and key timestamps; default: the system clock. */
+  /** The time source of bucket refills and key timestamps; default: the system clock; the factories pass the runtime's clock. */
   readonly clock?: Clock;
   /**
    * Finds the descriptor of a relation's target by entity ref. The adapter also learns every
