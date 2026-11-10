@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { version } from '@keelwerk/core';
 import {
   checkModuleManifest,
   renderModuleManifest,
@@ -35,7 +34,6 @@ describe('slice 1: the library app in process on the in-memory adapter', () => {
     const id = 'library';
     const text = renderModuleManifest({
       id,
-      generatorVersion: version,
       scanned: scanModuleDirectory(files),
       migrations: existsSync(join(moduleRoot, 'migrations')),
     });

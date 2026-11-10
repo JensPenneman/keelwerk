@@ -1,7 +1,6 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { version } from '@keelwerk/core';
 import {
   renderModuleManifest,
   scanModuleDirectory,
@@ -30,7 +29,6 @@ export async function writeManifests(root: string): Promise<void> {
     if (module.sugar || module.id === undefined) continue;
     const text = renderModuleManifest({
       id: module.id,
-      generatorVersion: version,
       scanned: scanModuleDirectory(module.files),
       migrations: module.hasMigrations,
     });

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderModuleManifest, scanModuleDirectory, version } from '@keelwerk/core';
+import { renderModuleManifest, scanModuleDirectory } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import { library, loans } from './index.ts';
 
@@ -15,7 +15,6 @@ describe.each(['library', 'loans'])('the %s fixture module', (id) => {
     expect(scanned.unplaced).toEqual([]);
     const text = renderModuleManifest({
       id,
-      generatorVersion: version,
       scanned,
       migrations: existsSync(new URL(`modules/${id}/migrations/`, import.meta.url)),
     });

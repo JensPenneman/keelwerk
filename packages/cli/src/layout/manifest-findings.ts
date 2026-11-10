@@ -1,5 +1,4 @@
 import { join } from 'node:path';
-import { version } from '@keelwerk/core';
 import {
   checkModuleManifest,
   renderModuleManifest,
@@ -32,7 +31,6 @@ export async function manifestFindings(
   }
   const text = renderModuleManifest({
     id: module.id,
-    generatorVersion: version,
     scanned,
     migrations: module.hasMigrations,
   });

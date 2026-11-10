@@ -4927,7 +4927,6 @@
     "apiVersion": "2026-11-01",
     "format": "keelwerk.openapi/1",
     "producer": "@keelwerk/transport-rest",
-    "producerVersion": "0",
     "surface": "sha256-libraryFixture"
   }
 }

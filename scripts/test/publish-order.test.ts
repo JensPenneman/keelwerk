@@ -1,4 +1,4 @@
-import { rmSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, expect, test } from 'vitest';
@@ -71,6 +71,11 @@ test('the tarball is named after the package and version', () => {
 
 test('the workspace order holds every public package with core first and no private one', () => {
   const order = publishOrder(repositoryRoot).map((entry) => entry.name);
+  const coreVersion = (
+    JSON.parse(readFileSync(join(repositoryRoot, 'packages/core/package.json'), 'utf8')) as {
+      version: string;
+    }
+  ).version;
   expect(order).toHaveLength(11);
   expect(order[0]).toBe('@keelwerk/core');
   expect(order.indexOf('@keelwerk/core')).toBeLessThan(order.indexOf('@keelwerk/data'));
@@ -78,5 +83,5 @@ test('the workspace order holds every public package with core first and no priv
   expect(order).not.toContain('@keelwerk/events');
   expect(
     publishOrder(repositoryRoot).find((entry) => entry.name === '@keelwerk/core')?.tarball,
-  ).toBe('keelwerk-core-0.0.0.tgz');
+  ).toBe(`keelwerk-core-${coreVersion}.tgz`);
 });

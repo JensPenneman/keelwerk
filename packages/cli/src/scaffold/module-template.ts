@@ -60,7 +60,6 @@ export const ${name}Base: ${type}Base = ${name}BaseDef;
 `;
   const manifest = renderModuleManifest({
     id,
-    generatorVersion: version,
     scanned: { parts: [], unplaced: [] },
     migrations: false,
   });

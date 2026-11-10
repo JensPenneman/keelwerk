@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
-import { camelFromKebab, version } from '@keelwerk/core';
+import { camelFromKebab } from '@keelwerk/core';
 import {
   checkModuleManifest,
   renderModuleManifest,
@@ -46,7 +46,6 @@ export async function produceModuleManifests(
     }
     const text = renderModuleManifest({
       id,
-      generatorVersion: version,
       scanned,
       migrations: existsSync(join(moduleRoot, 'migrations')),
     });

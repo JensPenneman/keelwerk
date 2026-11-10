@@ -5,7 +5,6 @@ import {
   deriveSurface,
   renderAppGeneratedFile,
   renderSurfaceArtefact,
-  version,
 } from '@keelwerk/core';
 import { checkRestSurface } from '@keelwerk/transport-rest';
 import { describe, expect, test } from 'vitest';
@@ -36,10 +35,9 @@ describe('the library app surface (section 16.2)', () => {
     expect(renderSurfaceArtefact(surface)).toBe(committed);
   });
 
-  test('is the committed generated file, apart from the generator version', async () => {
+  test('is the committed generated file', async () => {
     const committed = await readFile(new URL('./keelwerk.generated.ts', import.meta.url), 'utf8');
     const text = renderAppGeneratedFile({
-      generatorVersion: version,
       appFile: './app.ts',
       appType: 'Library',
       apiVersion,

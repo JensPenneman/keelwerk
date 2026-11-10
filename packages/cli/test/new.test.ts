@@ -77,7 +77,6 @@ describe('new module', () => {
     expect(manifest).toBe(
       renderModuleManifest({
         id: 'mail-store',
-        generatorVersion: manifest.match(/by keelwerk (\S+) /)?.[1] ?? '',
         scanned: { parts: [], unplaced: [] },
         migrations: false,
       }),

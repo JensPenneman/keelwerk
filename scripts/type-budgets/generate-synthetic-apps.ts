@@ -5,7 +5,6 @@ import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'nod
 import { dirname, join } from 'node:path';
 import { renderModuleManifest } from '../../packages/core/src/manifest/render-module-manifest.ts';
 import { scanModuleDirectory } from '../../packages/core/src/manifest/scan-module-directory.ts';
-import { version } from '../../packages/core/src/version.ts';
 
 const core = '@keelwerk/core';
 const pad = (index: number): string => String(index).padStart(2, '0');
@@ -269,7 +268,6 @@ export function generateSyntheticApps(root: string, count: number, repo: string)
       join(dir, 'src', 'module.generated.ts'),
       renderModuleManifest({
         id: `m${current.n}`,
-        generatorVersion: version,
         scanned,
         migrations: false,
       }),

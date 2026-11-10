@@ -3,7 +3,6 @@ import { validate } from '@scalar/openapi-parser';
 import { describe, expect, test } from 'vitest';
 import { emitOpenapi } from '../src/openapi/emit-openapi.ts';
 import { openapiArtifact } from '../src/openapi/openapi-artifact.ts';
-import { version } from '../src/version.ts';
 import { emittedDocument, emittedText } from './support/emitted-document.ts';
 import { librarySurface } from './support/library-surface.ts';
 
@@ -34,7 +33,6 @@ describe('the artefact', () => {
       apiVersion: '2026-11-01',
       format: 'keelwerk.openapi/1',
       producer: '@keelwerk/transport-rest',
-      producerVersion: version,
       surface: 'sha256-libraryFixture',
     });
     expect(first).not.toMatch(/\d{4}-\d\d-\d\dT/);
@@ -47,10 +45,7 @@ describe('the artefact', () => {
       path: 'generated/openapi/library/2026-11-01.json',
       contentType: 'application/json',
     });
-    const content = (artifact.kind === 'file' ? artifact.content : '').replace(
-      /("producerVersion": )"[^"]*"/,
-      '$1"0"',
-    );
+    const content = artifact.kind === 'file' ? artifact.content : '';
     const stored = readFileSync(new URL('./fixtures/openapi.bytes', import.meta.url), 'utf8');
     expect(content).toBe(stored);
     const golden = readFileSync(new URL('./fixtures/openapi.json', import.meta.url), 'utf8');

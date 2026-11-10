@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { type AnyModule, defineApp, version } from '@keelwerk/core';
+import { type AnyModule, defineApp } from '@keelwerk/core';
 import { renderModuleManifest, scanModuleDirectory } from '@keelwerk/core/manifest';
 import { expect, test } from 'vitest';
 import { useNewWorkspace } from './support/new-workspace.ts';
@@ -32,7 +32,7 @@ async function regenerate(root: string, id: string): Promise<void> {
   expect(scanned.unplaced).toEqual([]);
   await writeFile(
     join(source, 'module.generated.ts'),
-    renderModuleManifest({ id, generatorVersion: version, scanned, migrations: false }),
+    renderModuleManifest({ id, scanned, migrations: false }),
   );
 }
 

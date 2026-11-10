@@ -211,6 +211,27 @@
         {
           "type": "generic",
           "path": "packages/transport-orpc/src/version.ts"
+        },
+        {
+          "type": "generic",
+          "path": "packages/module-api-keys/src/version.ts"
+        },
+        {
+          "type": "generic",
+          "path": "packages/module-audit/src/version.ts"
+        },
+        {
+          "type": "generic",
+          "path": "packages/module-members/src/version.ts"
+        },
+        {
+          "type": "generic",
+          "path": "packages/type-budgets/src/version.ts"
+        },
+        {
+          "type": "json",
+          "path": "packages/type-budgets/package.json",
+          "jsonpath": "$.version"
         }
       ]
     }

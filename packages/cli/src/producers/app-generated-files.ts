@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { coreApiVersions, renderAppGeneratedFile, version } from '@keelwerk/core';
+import { coreApiVersions, renderAppGeneratedFile } from '@keelwerk/core';
 import type { AppDerivation } from './app-derivation.ts';
 import type { ProducedFiles } from './produced-files.ts';
 
@@ -13,7 +13,6 @@ export function produceAppGeneratedFiles(apps: readonly AppDerivation[]): Produc
     files: apps.map((app) => ({
       path: join(app.directory, 'src', 'keelwerk.generated.ts'),
       text: renderAppGeneratedFile({
-        generatorVersion: version,
         appFile: './app.ts',
         appType: app.appType,
         apiVersion: app.app.api?.head ?? coreApiVersions.head,

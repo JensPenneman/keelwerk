@@ -1,7 +1,6 @@
 import type { ApiSurface, SurfaceAction } from '@keelwerk/core';
 import { camel } from '@keelwerk/core';
 import { buildRouteTable } from '../build-route-table.ts';
-import { version as producerVersion } from '../version.ts';
 import { actionSchemas } from './action-schemas.ts';
 import { commonComponents } from './common-components.ts';
 import { documentedRouteOf } from './documented-route-of.ts';
@@ -103,7 +102,6 @@ export function emitOpenapi(surface: ApiSurface, options: OpenapiOptions = {}): 
     'x-keelwerk-generated': {
       format: 'keelwerk.openapi/1',
       producer: '@keelwerk/transport-rest',
-      producerVersion,
       apiVersion: surface.apiVersion,
       surface: surface.hash,
     },
