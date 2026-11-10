@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { none } from './support/nodes.ts';
+import { anyJson, none } from './support/nodes.ts';
 import { portalSurface, withAction } from './support/portal-surface.ts';
 import { call, fakeInvoker, mountRest, session } from './support/rest-kit.ts';
 
@@ -85,5 +85,32 @@ describe('the http.cookie hint on a void output (16.4.10)', () => {
     expect(response.headers.getSetCookie()).toEqual([
       expect.stringMatching(/^__Host-keelwerk_session=; .*Max-Age=0/),
     ]);
+  });
+});
+
+describe('the http.cookie hint and the clock', () => {
+  test('Max-Age counts from the runtime clock, pinned in 2020, to the idle expiry', async () => {
+    const surface = withAction(portalSurface(), 'auth.login', {
+      output: anyJson(false),
+      hints: {
+        http: {
+          cookie: {
+            set: { name: '__Host-keelwerk_session', from: 'token', expiresFrom: 'idleExpiresAt' },
+          },
+        },
+      },
+    });
+    const fake = fakeInvoker(() => ({
+      ok: true,
+      value: { token: 'secret-token', idleExpiresAt: '2020-01-01T00:30:00Z' },
+    }));
+    const clock = { now: () => Temporal.Instant.from('2020-01-01T00:00:00Z') };
+    const { handler } = await mountRest(surface, fake.invoker, {}, {}, false, clock);
+    const response = await call(handler, 'POST', '/api/auth/login', {
+      headers: { origin: 'https://portal.example' },
+      body: { email: 'jens@acme.example', password: 'pw' },
+      session: session({ resolvedBy: 'hostname' }),
+    });
+    expect(response.headers.get('set-cookie')).toContain('Max-Age=1800');
   });
 });

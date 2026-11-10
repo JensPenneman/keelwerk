@@ -1,7 +1,12 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { DataAdapterFactory, EntityDescriptor, InfrastructureEntry } from '@keelwerk/core';
+import type {
+  Clock,
+  DataAdapterFactory,
+  EntityDescriptor,
+  InfrastructureEntry,
+} from '@keelwerk/core';
 import { secret, startRuntime } from '@keelwerk/core';
 import { memoryAdapter, schemaPlanner } from '@keelwerk/data';
 import type { TestApp } from '../../harness/test-app.ts';
@@ -24,6 +29,8 @@ export interface TransportRuntimeOptions {
   readonly config?: Readonly<Record<string, unknown>>;
   /** The tenants to create, by name; each gets the domain `<name>.example.test`. */
   readonly tenants?: readonly string[];
+  /** The runtime's clock; default: the system clock. */
+  readonly clock?: Clock;
 }
 
 /**
@@ -56,7 +63,12 @@ export async function startTransportRuntime(
       tenantResolution: [{ kind: 'hostname' }, { kind: 'header', header: 'x-tenant' }],
       keys: { masterKey: secret(testMasterKeyName) },
     },
-    { role: 'all', listen: true, environment: 'test' },
+    {
+      role: 'all',
+      listen: true,
+      environment: 'test',
+      ...(options.clock === undefined ? {} : { clock: options.clock }),
+    },
   );
   const host = runtime.host;
   if (host === undefined) {

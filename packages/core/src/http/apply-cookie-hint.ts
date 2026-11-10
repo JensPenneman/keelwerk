@@ -17,13 +17,15 @@ export interface CookieHintResult {
 /**
  * The `http.cookie` hint of section 16.4.10 under S-48: it applies only to a browser request under
  * host-based tenant resolution, then the cookie is set (or cleared) and the `omitFromBody` fields
- * leave the output. Every other request gets the full output and no cookie.
+ * leave the output. Every other request gets the full output and no cookie. `now` is the
+ * invocation's clock reading for the cookie's `Max-Age`; without it the system clock is read (F-09 change note, followups).
  */
 export function applyCookieHint(
   hint: CookieHint | undefined,
   value: unknown,
   session: InvocationSession,
   headers: Headers | Readonly<Record<string, string>>,
+  now?: Temporal.Instant,
 ): CookieHintResult {
   if (
     hint === undefined ||
@@ -43,6 +45,7 @@ export function applyCookieHint(
         sessionCookie(
           hint.set.name,
           token,
+          now ?? Temporal.Now.instant(),
           expires !== undefined && !Number.isNaN(expires.getTime()) ? expires : undefined,
         ),
       );

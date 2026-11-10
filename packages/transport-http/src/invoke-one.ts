@@ -94,6 +94,7 @@ export async function invokeOne(
       encoded,
       session,
       carrier.headers ?? {},
+      host.deps.clock?.now(),
     );
     state.setCookies.push(...hinted.setCookies);
     return {

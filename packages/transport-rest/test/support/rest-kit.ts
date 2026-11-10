@@ -1,5 +1,6 @@
 import type {
   ApiSurface,
+  Clock,
   HttpContext,
   HttpHandler,
   Invocation,
@@ -110,6 +111,7 @@ export async function mountRest(
   options: RestStaticOptions = {},
   config: Partial<RestConfig> = {},
   development = false,
+  clock?: Clock,
 ): Promise<Mounted> {
   const { host, registered } = fakeHost();
   const context: MountContext<RestConfig> = {
@@ -122,6 +124,7 @@ export async function mountRest(
     telemetry: {} as unknown as Telemetry,
     log,
     ...(development && { development }),
+    ...(clock !== undefined && { clock }),
   };
   const handle = await createRestAdapter(options).mount(context);
   const first = registered[0];

@@ -60,6 +60,16 @@ describe('the http.cookie hint (S-48)', () => {
   });
 });
 
+describe('the http.cookie hint and the clock', () => {
+  it('counts Max-Age from the runtime clock, pinned in 2020, to the session expiry', async () => {
+    const clock = { now: () => Temporal.Instant.from('2020-01-01T00:00:00Z') };
+    const { host } = setup({}, undefined, { clock });
+    const response = await host.fetch(postJson('/_keelwerk/v1/invoke', login, own));
+    // From 2020-01-01 to the 2030-01-01 expiry of the fake login: 3653 days.
+    expect(response.headers.get('set-cookie')).toContain(`Max-Age=${3653 * 86400}`);
+  });
+});
+
 describe('stale cookies', () => {
   const stale = createFakeInvoker({
     open: (carrier) =>

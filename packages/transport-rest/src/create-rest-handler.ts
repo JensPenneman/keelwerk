@@ -72,6 +72,7 @@ async function serveRoute(
     ...(commandId !== undefined && { commandId }),
     preferredAsync,
     ifNoneMatch: preconditions.ifNoneMatch,
+    ...(deps.clock === undefined ? {} : { clock: deps.clock }),
   });
   return method === 'HEAD'
     ? new Response(null, { status: response.status, headers: response.headers })

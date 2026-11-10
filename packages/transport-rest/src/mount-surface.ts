@@ -36,6 +36,7 @@ export async function mountSurface(
     artifacts: artifacts(),
     log: ctx.log,
     development: ctx.development === true,
+    ...(ctx.clock === undefined ? {} : { clock: ctx.clock }),
   };
   const base = inFlightHandler(createRestHandler(deps), basePath);
   ctx.host.route({ app: ctx.app, transport: 'rest', prefix: basePath }, base.handler);

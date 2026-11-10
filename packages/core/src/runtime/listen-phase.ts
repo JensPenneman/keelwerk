@@ -71,6 +71,7 @@ export async function listenPhase(input: {
     },
     ready: () => input.control.read(async () => true).catch(() => false),
     ...(input.development ? { development: true } : {}),
+    clock: input.clock,
   });
   const host = instance ?? input.host;
   if (host === undefined) {
@@ -97,6 +98,7 @@ export async function listenPhase(input: {
             telemetry,
             log: input.log.child({ app: app.id, transport: transport.name }),
             ...(input.development ? { development: true } : {}),
+            clock: input.clock,
           }),
         );
       }

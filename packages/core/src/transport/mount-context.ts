@@ -1,4 +1,5 @@
 import type { Invoker } from '../invoker/invoker.ts';
+import type { Clock } from '../kernel/clock.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Telemetry } from '../observability/telemetry.ts';
 import type { Scope } from '../storage/scope.ts';
@@ -18,4 +19,6 @@ export interface MountContext<Config> {
   readonly log: Logger;
   /** Set by the runtime in development: a transport picks the `development` error audience and enables its docs page from it. */
   readonly development?: boolean;
+  /** The runtime's clock: transports read the time of cookie lifetimes from it; absent: the system clock (change note, followups). */
+  readonly clock?: Clock;
 }

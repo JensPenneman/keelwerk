@@ -1,4 +1,4 @@
-import type { InvocationSession, Outcome, ResponseHint } from '@keelwerk/core';
+import type { Clock, InvocationSession, Outcome, ResponseHint } from '@keelwerk/core';
 import { commandReceiptId, errors, receiptScopeId } from '@keelwerk/core';
 import { applyCookieHint } from '@keelwerk/core/http';
 import { toWire } from '@keelwerk/core/wire';
@@ -113,6 +113,7 @@ function cookiesOf(context: ResponseContext, value: unknown, headers: Headers): 
     value,
     context.session,
     context.request.headers,
+    context.clock?.now(),
   );
   for (const setCookie of cookie.setCookies) {
     headers.append('set-cookie', setCookie);
@@ -247,4 +248,6 @@ export interface ResponseContext {
   /** The client sent `Prefer: respond-async` to an `either` command, so an accepted receipt honours it. */
   readonly preferredAsync: boolean;
   readonly ifNoneMatch: readonly string[];
+  /** The runtime's clock, for cookie lifetimes; absent: the system clock. */
+  readonly clock?: Clock;
 }

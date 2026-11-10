@@ -1,6 +1,7 @@
 import type { CarrierEnricher } from '../edge/carrier-enricher.ts';
 import type { InvocationSession } from '../invoker/invocation-session.ts';
 import type { Invoker } from '../invoker/invoker.ts';
+import type { Clock } from '../kernel/clock.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Telemetry } from '../observability/telemetry.ts';
 import type { ApiSurface } from '../surface/api-surface.ts';
@@ -17,6 +18,8 @@ interface HostDeps {
   allowedOrigins?(session: InvocationSession, transport?: string): readonly string[];
   ready?(): Promise<boolean>;
   readonly development?: boolean;
+  /** The runtime's clock, used for cookie lifetimes; when absent, the system clock. */
+  readonly clock?: Clock;
 }
 
 /** The running host: the transports' `TransportHost` plus the lifecycle the runtime drives. */

@@ -1,6 +1,7 @@
 import type {
   ApiSurface,
   CarrierEnricher,
+  Clock,
   InvocationSession,
   Invoker,
   Logger,
@@ -28,4 +29,6 @@ export interface HttpHostDeps {
   ready?(): Promise<boolean>;
   /** Development shows operators' detail to every caller (section 10). */
   readonly development?: boolean;
+  /** The runtime's clock: the time of cookie lifetimes; absent: the system clock (change note, followups). */
+  readonly clock?: Clock;
 }

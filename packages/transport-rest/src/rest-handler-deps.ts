@@ -1,4 +1,4 @@
-import type { ApiSurface, Artifact, Invoker, Logger, Scope } from '@keelwerk/core';
+import type { ApiSurface, Artifact, Clock, Invoker, Logger, Scope } from '@keelwerk/core';
 import type { RestConfig } from './rest-config.ts';
 import type { RestStaticOptions } from './rest-static-options.ts';
 import type { RouteTable } from './route-table.ts';
@@ -20,4 +20,6 @@ export interface RestHandlerDeps {
   readonly log: Logger;
   /** The runtime runs in development: the `development` error audience and the docs page. */
   readonly development: boolean;
+  /** The runtime's clock, for cookie lifetimes; absent: the system clock. */
+  readonly clock?: Clock;
 }
