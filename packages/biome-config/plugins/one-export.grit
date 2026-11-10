@@ -2,13 +2,13 @@
 // only (const, let, function, class, and the names of an `export { ... }` list); types and
 // interfaces are free. The unit of counting is one exported binding, so `export const a = 1, b = 2`
 // and `export { a, b }` are two units. The first unit of a file is the file's definition, every
-// further one is reported.
+// further one is reported. Assembly files, generated files, library entries and tests are left out
+// by `includes` in the preset.
 //
 // Biome 2.6 keeps a pattern variable bound for the rest of a plugin run, so a pattern that is
 // called twice must not bind variables of its own, and "the first unit" cannot be found by
 // binding one. A unit is reported when another unit comes before it, which the list patterns
-// below state through the order of their elements. Assembly files, generated files, library entries and tests are left out
-// by `includes` in the preset.
+// below state through the order of their elements.
 pattern export_unit() {
   or {
     and { JsVariableDeclarator(),

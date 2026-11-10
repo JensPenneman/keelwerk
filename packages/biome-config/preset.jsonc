@@ -10,13 +10,14 @@
       "quoteStyle": "single"
     }
   },
-  // GritQL plugins (architecture 13.9). Biome resolves a plugin path from the directory of the
-  // configuration that extends this one, so the paths go through the installed package, and the
-  // consuming project lists @keelwerk/biome-config as a dependency of its root. Each plugin is scoped by
-  // `includes`, because GritQL cannot read the file path.
+  // GritQL plugins (architecture 13.9). By default Biome resolves a plugin path from the project
+  // that extends this configuration; `resolutionKind: "config"` resolves it from this file instead,
+  // so the paths are relative to the preset. Each plugin is scoped by `includes`, because GritQL
+  // cannot read the file path.
   "plugins": [
     {
-      "path": "./node_modules/@keelwerk/biome-config/plugins/no-selection-augmentation.grit",
+      "path": "./plugins/no-selection-augmentation.grit",
+      "resolutionKind": "config",
       "includes": [
         "**/packages/module-*/src/**",
         "**/modules/*/src/**",
@@ -25,11 +26,13 @@
       ]
     },
     {
-      "path": "./node_modules/@keelwerk/biome-config/plugins/named-module-types.grit",
+      "path": "./plugins/named-module-types.grit",
+      "resolutionKind": "config",
       "includes": ["**/src/base.ts", "**/src/app.ts", "**/*.test.ts", "**/*.test-d.ts"]
     },
     {
-      "path": "./node_modules/@keelwerk/biome-config/plugins/no-null-in-conditions.grit",
+      "path": "./plugins/no-null-in-conditions.grit",
+      "resolutionKind": "config",
       "includes": [
         "**/packages/module-*/src/**",
         "**/modules/*/src/**",
@@ -39,32 +42,10 @@
         "!**/*.test-d.ts"
       ]
     },
-    "./node_modules/@keelwerk/biome-config/plugins/as-system-reason.grit",
+    { "path": "./plugins/as-system-reason.grit", "resolutionKind": "config" },
     {
-      "path": "./node_modules/@keelwerk/biome-config/plugins/pure-parts.grit",
-      "includes": [
-        "**/packages/module-*/src/**",
-        "**/modules/*/src/**",
-        "**/apps/*/src/**",
-        "!**/src/executors/**",
-        "!**/*.generated.ts",
-        "!**/*.test.ts",
-        "!**/*.test-d.ts"
-      ]
-    },
-    {
-      "path": "./node_modules/@keelwerk/biome-config/plugins/no-module-state.grit",
-      "includes": [
-        "**/packages/module-*/src/**",
-        "**/modules/*/src/**",
-        "**/apps/*/src/**",
-        "!**/*.generated.ts",
-        "!**/*.test.ts",
-        "!**/*.test-d.ts"
-      ]
-    },
-    {
-      "path": "./node_modules/@keelwerk/biome-config/plugins/no-await-in-parts.grit",
+      "path": "./plugins/pure-parts.grit",
+      "resolutionKind": "config",
       "includes": [
         "**/packages/module-*/src/**",
         "**/modules/*/src/**",
@@ -75,9 +56,35 @@
         "!**/*.test-d.ts"
       ]
     },
-    "./node_modules/@keelwerk/biome-config/plugins/error-code-format.grit",
     {
-      "path": "./node_modules/@keelwerk/biome-config/plugins/one-export.grit",
+      "path": "./plugins/no-module-state.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "**/packages/module-*/src/**",
+        "**/modules/*/src/**",
+        "**/apps/*/src/**",
+        "!**/*.generated.ts",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    {
+      "path": "./plugins/no-await-in-parts.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "**/packages/module-*/src/**",
+        "**/modules/*/src/**",
+        "**/apps/*/src/**",
+        "!**/src/executors/**",
+        "!**/*.generated.ts",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    },
+    { "path": "./plugins/error-code-format.grit", "resolutionKind": "config" },
+    {
+      "path": "./plugins/one-export.grit",
+      "resolutionKind": "config",
       "includes": [
         "**/src/**",
         "!**/src/base.ts",
@@ -94,7 +101,8 @@
       ]
     },
     {
-      "path": "./node_modules/@keelwerk/biome-config/plugins/no-import-effects.grit",
+      "path": "./plugins/no-import-effects.grit",
+      "resolutionKind": "config",
       "includes": [
         "**/src/**",
         "!**/*.config.ts",
@@ -105,7 +113,8 @@
       ]
     },
     {
-      "path": "./node_modules/@keelwerk/biome-config/plugins/wiring-only-assembly.grit",
+      "path": "./plugins/wiring-only-assembly.grit",
+      "resolutionKind": "config",
       "includes": ["**/src/base.ts", "**/src/app.ts", "**/src/modules.ts"]
     }
   ],

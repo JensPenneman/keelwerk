@@ -26,9 +26,10 @@ scopes, because GritQL cannot read the file path. Each message says what to do i
 - `no-import-effects`: top-level expression statements, `await` and bare imports in source files, outside tests, scripts and tool configuration.
 - `wiring-only-assembly`: a function or arrow function in `base.ts`, `app.ts` or `modules.ts`.
 
-Biome resolves a plugin path from the directory of the configuration that extends the preset,
-so the preset names them through `node_modules/@keelwerk/biome-config/plugins/`: the project lists
-`@keelwerk/biome-config` as a dependency of the package that holds its `biome.json`.
+By default Biome resolves a plugin path from the project that extends a preset. The preset sets
+`resolutionKind: "config"` on every plugin, so each path is resolved from the preset file itself
+(`./plugins/<name>.grit`) and a project needs only `@keelwerk/biome-config` as a dependency to
+extend it.
 
 The preset also configures Biome's own rules for the package-kind boundaries: `noNodejsModules`
 and `noRestrictedImports` in module packages (allowed under `src/executors/`), `noProcessEnv`,

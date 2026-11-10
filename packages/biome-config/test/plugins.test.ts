@@ -36,10 +36,9 @@ const fixtures = readdirSync(fixturesRoot, { withFileTypes: true })
   .map((entry) => entry.name)
   .sort();
 
-// The preset names its plugins through node_modules/@keelwerk/biome-config, because Biome resolves
-// a plugin path from the directory of the configuration that extends the preset. A fixture is a
-// project of its own, so each run lints a copy in a temporary directory that has the link a package
-// manager would put there; the source tree is never written to.
+// A fixture extends the preset by its package name, and a fixture is a project of its own, so each
+// run lints a copy in a temporary directory that has the link a package manager would put there;
+// the source tree is never written to.
 const scratch = mkdtempSync(join(tmpdir(), 'keelwerk-biome-'));
 const workdirs = new Map<string, string>();
 
