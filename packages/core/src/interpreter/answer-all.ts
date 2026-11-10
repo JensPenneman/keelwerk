@@ -6,6 +6,8 @@ import { refuseRequest } from './refuse-request.ts';
 /**
  * Answers `ctx.all` with one answer per member, in the members' order. The members run one after
  * the other on the unit's single session, so their positions are recorded in member order too.
+ * This is the member-by-member form: re-decide answers `ctx.all` with it (each load takes its own
+ * recorded read), and `batchAllMembers` falls back to it.
  */
 export async function answerAll(
   request: AllRequest,

@@ -1,7 +1,6 @@
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import type { RequestAnswerer } from '../kernel/request-answerer.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
-import { answerAll } from './answer-all.ts';
 import { answerAsk } from './answer-ask.ts';
 import { answerCompute } from './answer-compute.ts';
 import type { AnswerDeps, ScopeRunner } from './answer-deps.ts';
@@ -12,6 +11,7 @@ import { answerMaybe } from './answer-maybe.ts';
 import { answerPerform } from './answer-perform.ts';
 import { answerRandom } from './answer-random.ts';
 import { answerSecret } from './answer-secret.ts';
+import { batchAllMembers } from './batch-all-members.ts';
 import type { ContextFactory } from './context-factory.ts';
 import { createCallerViews } from './create-caller-views.ts';
 import type { QueryStateEncoder } from './query-state-encoder.ts';
@@ -54,7 +54,7 @@ export function createRequestAnswerer(options: AnswererOptions): RequestAnswerer
     load: (request, context) => answerLoad(request, context, deps),
     maybe: answerMaybe,
     ask: (request, context) => answerAsk(request, context, deps, options.rules),
-    all: answerAll,
+    all: (request, context) => batchAllMembers(request, context, deps),
     flag: answerFlag,
     id: answerId,
     random: answerRandom,

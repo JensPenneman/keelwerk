@@ -176,7 +176,7 @@ describe('positions and order', () => {
     expect(result.reads).toEqual([{ at: 1n }, { at: 2n }, { at: 3n }]);
   });
 
-  test('ctx.all keeps its members order, in the answers and in the positions', async () => {
+  test('ctx.all keeps its members order; its two byId members share one positioned read', async () => {
     const probe = withQuery('together', function* (_input: unknown, ctx: ProbeContext) {
       const loads = ctx.load.library.book;
       return yield* ctx.all([loads.byId(uuid(2)), loads.byId(uuid(1)), loads.count()]);
@@ -186,7 +186,7 @@ describe('positions and order', () => {
     const result = await run({ adapter: counting(adapter), concurrentUnits: true });
     const answers = result.output as [StorageRow, StorageRow, number];
     expect([answers[0].title, answers[1].title, answers[2]]).toEqual(['Book 2', 'Book 1', 2]);
-    expect(result.reads).toEqual([{ at: 1n }, { at: 2n }, { at: 3n }]);
+    expect(result.reads).toEqual([{ at: 1n }, { at: 1n }, { at: 2n }]);
   });
 
   test('a returned request is planned and answered, a plain value is the output', async () => {

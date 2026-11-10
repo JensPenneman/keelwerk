@@ -1,5 +1,6 @@
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { RecordedAnswer } from '../events/recorded-answer.ts';
+import { answerAll } from '../interpreter/answer-all.ts';
 import { answerCompute } from '../interpreter/answer-compute.ts';
 import { answerSecret } from '../interpreter/answer-secret.ts';
 import { requestName } from '../interpreter/request-name.ts';
@@ -44,15 +45,17 @@ async function keyKept<T>(name: string, answer: () => Promise<T>): Promise<T> {
  * the old one. Verifications, reveals and computations run for real, on the runtime's key service
  * and a compute pool (they are reproducible while their keys exist), and refuse with
  * `core.replay_key_destroyed` when a key is gone. They are handed to the interpreter through its
- * `replace` seam.
+ * `replace` seam. `ctx.all` is answered member by member, because the as-of unit hands out one
+ * recorded read per positioned find.
  */
 export function replayAnswerers(
   recorded: readonly RecordedAnswer[],
-): Pick<RequestAnswerer, 'id' | 'random' | 'secret' | 'compute'> {
+): Pick<RequestAnswerer, 'id' | 'random' | 'secret' | 'compute' | 'all'> {
   const ids = recorded.filter((answer) => answer.kind === 'id');
   const randoms = recorded.filter((answer) => answer.kind === 'random');
   const secrets = recorded.filter((answer) => answer.kind === 'secret');
   return {
+    all: answerAll,
     async id(request, context) {
       const next = ids.shift();
       if (next === undefined || next.entity !== request.entity) {
