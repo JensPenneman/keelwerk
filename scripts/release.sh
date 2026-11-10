@@ -23,13 +23,17 @@
 #
 # Packages are published with "engines": {"node": ">=26"} (decision S-116). The committed
 # manifests carry no engines field; with_publish_engines writes it into the publishable
-# package.json files, runs the publishing command it is given and restores the manifests
-# afterwards, so the field is in the tarballs and never in a commit. This script publishes no
-# package yet, so with_publish_engines has no call site on the release path (open point under
-# S-116: the publishing step must run inside it). --check-engines packs every package inside
+# package.json files, runs the command it is given and restores the manifests afterwards, so the
+# field is in the tarballs and never in a commit. --check-engines packs every package inside
 # with_publish_engines and reads engines from each tarball, without gh, signing or network.
 #
-# Usage: scripts/release.sh [--yes | --check-engines]
+# --dry-run and --publish run in the release workflow (never on a maintainer's machine for a real
+# release): they build and pack every package, check every tarball and dry-run the staging of each
+# one; --publish then stages every package with npm stage publish --provenance, in dependency
+# order (scripts/publish-packages.ts). Nothing becomes public by itself: the owner approves each
+# staged version with a second factor on npmjs.com.
+#
+# Usage: scripts/release.sh [--yes | --check-engines | --dry-run | --publish]
 set -euo pipefail
 
 readonly remote=origin
@@ -71,13 +75,28 @@ while (($# > 0)); do
       echo "every packed tarball carries engines node >=26 and the manifests are restored"
       exit 0
       ;;
+    --dry-run | --publish)
+      cd "$(git rev-parse --show-toplevel)"
+      [[ -z "$(git status --porcelain -- 'packages/*/package.json')" ]] ||
+        { echo "error: commit or stash changes to packages/*/package.json first" >&2; exit 1; }
+      pnpm tsc -b || exit 1
+      tmp=$(mktemp -d "${TMPDIR:-/tmp}/keelwerk-publish.XXXXXX")
+      status=0
+      with_publish_engines bash -c '
+        pnpm -r --filter "./packages/*" pack --pack-destination "$1" >/dev/null || exit 1
+        node scripts/publish-packages.ts --tarballs "$1" "$2"' _ "$tmp" "$1" || status=$?
+      rm -rf "$tmp"
+      [[ -z "$(git status --porcelain -- 'packages/*/package.json')" ]] ||
+        { echo "error: the manifests were not restored" >&2; exit 1; }
+      exit "$status"
+      ;;
     -h | --help)
-      echo "Usage: scripts/release.sh [--yes | --check-engines]"
+      echo "Usage: scripts/release.sh [--yes | --check-engines | --dry-run | --publish]"
       echo "Publishes the open release-please pull request as a signed release (see CONTRIBUTING.md)."
       exit 0
       ;;
     *)
-      echo "Usage: scripts/release.sh [--yes | --check-engines]" >&2
+      echo "Usage: scripts/release.sh [--yes | --check-engines | --dry-run | --publish]" >&2
       exit 2
       ;;
   esac

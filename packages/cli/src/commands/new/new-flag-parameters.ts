@@ -29,5 +29,6 @@ export const newFlagParameters: FlagParametersForType<NewFlags> = {
   modules: text('App: modules to select, comma separated.'),
   scope: text('Package scope for new packages and imports of other modules.'),
   dir: text('The module package directory, when it is not modules/<id> or packages/module-<id>.'),
+  license: text("Module, app: the package licence (SPDX); defaults to the root package's licence."),
   'dry-run': { kind: 'boolean', brief: 'List the files without writing them.', optional: true },
 };

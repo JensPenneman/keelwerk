@@ -263,3 +263,48 @@ describe('new module inside the framework repository', () => {
     expect(withoutAnsi(String((tested as { stdout?: string }).stdout))).toMatch(/Tests\s+2 passed/);
   }, 300_000);
 });
+
+describe('package licence (S-152)', () => {
+  const licenceOf = async (path: string): Promise<unknown> =>
+    (JSON.parse(await read(path)) as { license?: unknown }).license;
+
+  test('--license sets the licence of a new module and a new app', async () => {
+    expect(
+      (await runNew('module', 'mail-store', '--scope', '@acme', '--license', 'MIT')).code,
+    ).toBe(0);
+    expect((await runNew('app', 'portal', '--scope', '@acme', '--license', 'MIT')).code).toBe(0);
+    expect(await licenceOf('modules/mail-store/package.json')).toBe('MIT');
+    expect(await licenceOf('apps/portal/package.json')).toBe('MIT');
+  });
+
+  test('without the flag the root package licence is inherited', async () => {
+    await writeFile(
+      join(workspace.root(), 'package.json'),
+      '{ "name": "@acme/workspace", "license": "Apache-2.0" }\n',
+    );
+    await runNew('module', 'mail-store', '--scope', '@acme');
+    await runNew('app', 'portal', '--scope', '@acme');
+    expect(await licenceOf('modules/mail-store/package.json')).toBe('Apache-2.0');
+    expect(await licenceOf('apps/portal/package.json')).toBe('Apache-2.0');
+  });
+
+  test('the flag wins over the root licence', async () => {
+    await writeFile(
+      join(workspace.root(), 'package.json'),
+      '{ "name": "@acme/workspace", "license": "Apache-2.0" }\n',
+    );
+    await runNew('module', 'mail-store', '--scope', '@acme', '--license', 'MIT');
+    expect(await licenceOf('modules/mail-store/package.json')).toBe('MIT');
+  });
+
+  test('without the flag or a root licence the manifest has no licence member', async () => {
+    await runNew('module', 'mail-store', '--scope', '@acme');
+    expect(await licenceOf('modules/mail-store/package.json')).toBeUndefined();
+  });
+
+  test.each([' ', 'MIT\u0001'])('--license refuses %j and writes nothing', async (value) => {
+    const run = await runNew('module', 'mail-store', '--scope', '@acme', '--license', value);
+    expect(run.code).toBe(2);
+    expect(await listing(workspace.root())).toEqual([]);
+  });
+});

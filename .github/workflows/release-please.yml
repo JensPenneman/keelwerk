@@ -1,15 +1,26 @@
 name: Release Please
 
-# Releases start at the end of milestone M1 (the first runnable slice). Until then the workflow
-# runs only by hand, so no release pull request is opened for an empty toolchain.
+# Two jobs. release-please keeps the release pull request up to date (push on main, or by hand).
+# publish stages the npm packages once the release commit and its tag are on main
+# (scripts/release.sh --publish); nothing becomes public until the owner approves each staged
+# version with a second factor on npmjs.com. A manual run with dry-run (the default) builds, packs,
+# checks and dry-runs every package and stages nothing; it is how a scratch branch is tried.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Build, pack, check and dry-run every package; stage nothing
+        type: boolean
+        default: true
 
 permissions: {}
 
 jobs:
   release-please:
     name: Release Please
+    if: github.repository == 'JensPenneman/keelwerk' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -28,3 +39,79 @@ jobs:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  publish:
+    name: Stage the npm packages
+    # After the release job: on the push that merges the release pull request that job creates the
+    # tag, and this job only stages when the tag is at the commit. always() keeps it running for a
+    # manual dry run on another branch, where the release job is skipped.
+    needs: release-please
+    if: ${{ always() && github.repository == 'JensPenneman/keelwerk' }}
+    # GitHub-hosted: npm provenance and trusted publishing work only on cloud-hosted runners.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # OIDC for trusted publishing and the provenance signature
+    concurrency:
+      group: npm-publish
+      cancel-in-progress: false
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # the release tag must be visible
+
+      # A real run needs the release commit: the tag of the version points at this commit. A manual
+      # run with dry-run true always goes on; every other push has nothing to stage.
+      - name: Find the release
+        id: release
+        env:
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+        run: |
+          version=$(jq -r '."."' .release-please-manifest.json)
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "flag=--dry-run" >> "$GITHUB_OUTPUT"
+          elif git tag --points-at HEAD | grep -qx "v$version"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "flag=--publish" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No release at this commit (v$version is not here)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Must run before setup-node: its pnpm cache needs the pnpm binary.
+      - name: Install pnpm
+        if: steps.release.outputs.run == 'true'
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Set up Node.js
+        if: steps.release.outputs.run == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      # The stage commands need npm 11.15.0 or later, trusted publishing 11.5.1 or later. Always the
+      # pinned version (older than 14 days), so the npm that stages never floats with the Node LTS.
+      - name: npm with stage commands
+        if: steps.release.outputs.run == 'true'
+        run: |
+          npm install -g npm@11.21.1
+          npm --version
+
+      - name: Install dependencies
+        if: steps.release.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # NPM_TOKEN is a granular token that can only stage (no second-factor bypass). Without it the
+      # job authenticates through OIDC (trusted publishing), which stages as well.
+      - name: Stage every package of the version (or dry-run them)
+        if: steps.release.outputs.run == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_FLAG: ${{ steps.release.outputs.flag }}
+        run: bash scripts/release.sh "$RELEASE_FLAG"

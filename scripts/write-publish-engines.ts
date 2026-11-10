@@ -26,34 +26,22 @@ function publishableManifests(root: string): string[] {
   return manifests;
 }
 
-/** Rewrites each manifest with the engines field; returns the package names. */
-function writeEngines(files: readonly string[]): string[] {
-  return files.map((file) => {
-    const manifest = JSON.parse(readFileSync(file, 'utf8')) as { name: string };
-    writeFileSync(file, `${JSON.stringify({ ...manifest, engines }, null, 2)}\n`);
-    return manifest.name;
-  });
-}
-
-const root = fileURLToPath(new URL('..', import.meta.url));
-
-if (!process.argv.includes('--check')) {
-  const names = writeEngines(publishableManifests(root));
-  process.stdout.write(`engines written into ${names.length} manifests: ${names.join(', ')}\n`);
-} else {
+/** Rewrites copies of the publishable manifests and verifies the result; touches no manifest. */
+function checkEngines(root: string): void {
   const committed = publishableManifests(root);
   const before = committed.map((file) => readFileSync(file, 'utf8'));
   const scratch = mkdtempSync(join(tmpdir(), 'keelwerk-engines-'));
   try {
     for (const file of committed) {
-      const name = file.slice(root.length);
-      cpSync(file, join(scratch, name), { recursive: true, force: true });
+      cpSync(file, join(scratch, file.slice(root.length)), { recursive: true, force: true });
     }
-    const copies = committed.map((file) => join(scratch, file.slice(root.length)));
-    writeEngines(copies);
-    const missing = copies.filter((file) => {
-      const manifest = JSON.parse(readFileSync(file, 'utf8')) as { engines?: { node?: string } };
-      return manifest.engines?.node !== engines.node;
+    // The scratch tree mirrors packages/<dir>/package.json, so the writer finds the same set.
+    writePublishEngines(scratch);
+    const missing = committed.filter((file) => {
+      const copy = JSON.parse(readFileSync(join(scratch, file.slice(root.length)), 'utf8')) as {
+        engines?: { node?: string };
+      };
+      return copy.engines?.node !== engines.node;
     });
     if (missing.length > 0) throw new Error(`engines missing after the rewrite: ${missing.join()}`);
   } finally {
@@ -63,4 +51,27 @@ if (!process.argv.includes('--check')) {
   if (touched.length > 0)
     throw new Error(`the check changed committed manifests: ${touched.join()}`);
   process.stdout.write(`engines rewrite verified on ${committed.length} publishable manifests\n`);
+}
+
+if (import.meta.main) {
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  if (process.argv.includes('--check')) {
+    checkEngines(root);
+  } else {
+    const names = writePublishEngines(root);
+    process.stdout.write(`engines written into ${names.length} manifests: ${names.join(', ')}\n`);
+  }
+}
+
+/**
+ * Writes `"engines": { "node": ">=26" }` (S-116) into every package.json under `root`/packages that
+ * is not private; keeps every other member and its order, two-space JSON, trailing newline. Returns
+ * the package names in directory order. Throws on an unreadable or unparsable manifest.
+ */
+export function writePublishEngines(root: string): readonly string[] {
+  return publishableManifests(root).map((file) => {
+    const manifest = JSON.parse(readFileSync(file, 'utf8')) as { name: string };
+    writeFileSync(file, `${JSON.stringify({ ...manifest, engines }, null, 2)}\n`);
+    return manifest.name;
+  });
 }

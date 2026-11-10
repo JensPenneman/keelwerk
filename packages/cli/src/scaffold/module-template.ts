@@ -25,7 +25,7 @@ function references(request: ScaffoldRequest, ids: readonly string[]): { path: s
  */
 export function moduleTemplate(request: ScaffoldRequest): ScaffoldPlan {
   expectNames('module', request.names, [0], '<id>');
-  const { requires, optional, app } = request.options;
+  const { requires, optional, app, license } = request.options;
   if ((request.options.kind ?? 'domain') !== 'domain') {
     throw usageFailure(
       `--kind ${request.options.kind ?? ''} has no scaffold: section 16.9.8 gives the layout of a domain module only.`,
@@ -131,6 +131,7 @@ test('${id} composes into an app without problems and answers through a local cl
   const packageJson = {
     name: packageName,
     version: '0.0.0',
+    ...(license === undefined ? {} : { license }),
     type: 'module',
     exports: { '.': entry },
     publishConfig: {

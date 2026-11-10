@@ -20,7 +20,7 @@ export function appTemplate(request: ScaffoldRequest): ScaffoldPlan {
   const name = camelFromKebab(id);
   const type = pascal(id);
   const root = request.root;
-  const { modules } = request.options;
+  const { modules, license } = request.options;
   const modulesText = `${renderImports(modules.map((other) => moduleImport(scope, other)))}${modules.length > 0 ? '\n\n' : ''}export const modules = [${modules.map(camelFromKebab).join(', ')}] as const;
 `;
   const appText = `${renderImports([
@@ -55,6 +55,7 @@ describe('the ${id} app', () => {
     name: `${scope}/app-${id}`,
     version: '0.0.0',
     private: true,
+    ...(license === undefined ? {} : { license }),
     type: 'module',
     dependencies: {
       '@keelwerk/core': request.coreSibling ? 'workspace:*' : version,

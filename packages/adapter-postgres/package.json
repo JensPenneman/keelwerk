@@ -2,6 +2,11 @@
   "name": "@keelwerk/adapter-postgres",
   "version": "0.0.0",
   "license": "FSL-1.1-ALv2",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JensPenneman/keelwerk.git",
+    "directory": "packages/adapter-postgres"
+  },
   "type": "module",
   "exports": {
     ".": {

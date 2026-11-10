@@ -7,6 +7,7 @@ import type { NewKind } from '../../scaffold/new-kind.ts';
 import { newKinds } from '../../scaffold/new-kinds.ts';
 import { packageDirectory } from '../../scaffold/package-directory.ts';
 import { parseReference } from '../../scaffold/parse-reference.ts';
+import { rootLicense } from '../../scaffold/root-license.ts';
 import type { ScaffoldRequest } from '../../scaffold/scaffold-request.ts';
 import { workspaceFacts } from '../../scaffold/workspace-facts.ts';
 import type { NewFlags } from './new-flags.ts';
@@ -66,6 +67,10 @@ export async function prepareRequest(
   if (!isNewKind(kind)) {
     throw usageFailure(`Unknown kind "${kind}". M1 scaffolds ${newKinds.join(', ')}.`);
   }
+  if (flags.license !== undefined && !/^[\x20-\x7e]+$/.test(flags.license.trim())) {
+    throw usageFailure(`--license takes an SPDX expression such as MIT, not "${flags.license}".`);
+  }
+  const license = flags.license?.trim() ?? rootLicense(cwd);
   const options = {
     kind: flags.kind,
     requires: splitList(flags.requires),
@@ -82,6 +87,7 @@ export async function prepareRequest(
     modules: splitList(flags.modules),
     scope: flags.scope,
     dir: flags.dir,
+    ...(license === undefined ? {} : { license }),
   };
   checkOptions(options);
   if ((options.from !== undefined || options.when.length > 0) && !PLACED_KINDS.includes(kind)) {

@@ -2,6 +2,11 @@
   "name": "@keelwerk/transport-http",
   "version": "0.0.0",
   "license": "FSL-1.1-ALv2",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JensPenneman/keelwerk.git",
+    "directory": "packages/transport-http"
+  },
   "type": "module",
   "exports": {
     ".": {

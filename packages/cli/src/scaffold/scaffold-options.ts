@@ -15,4 +15,6 @@ export interface ScaffoldOptions {
   readonly modules: readonly string[];
   readonly scope: string | undefined;
   readonly dir: string | undefined;
+  /** The package licence: `--license`, else the root package's `license`; absent when neither. */
+  readonly license?: string;
 }

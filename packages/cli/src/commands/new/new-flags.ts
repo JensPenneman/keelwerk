@@ -15,5 +15,6 @@ export interface NewFlags {
   readonly modules?: string;
   readonly scope?: string;
   readonly dir?: string;
+  readonly license?: string;
   readonly 'dry-run'?: boolean;
 }
