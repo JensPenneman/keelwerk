@@ -1,12 +1,15 @@
 /** How many values an extension point takes (section 5.5). */
 export type ExtensionMode = 'set' | 'ordered' | 'single';
 
-/** Options of a `set` or `ordered` extension point. */
+/** Options of an extension point; `min: 0` lets a `single` point stay empty (section 5.5). */
 export interface ExtensionPointOptions {
   readonly min?: number;
 }
 
-/** A typed slot other modules may fill; the mode is part of the type, so a `single` point reads as `T`. */
+/**
+ * A typed slot other modules may fill; the mode is part of the type, so a `single` point reads as
+ * `T`; one declared with `min: 0` reads `undefined` while unfilled.
+ */
 export interface ExtensionPoint<T, M extends ExtensionMode = ExtensionMode> {
   readonly kind: 'extensionPoint';
   readonly mode: M;
@@ -20,14 +23,14 @@ export interface ExtensionPoint<T, M extends ExtensionMode = ExtensionMode> {
  * passed as an option would read as the whole union.
  */
 export interface ExtensionPointFactory {
-  single<T>(): ExtensionPoint<T, 'single'>;
+  single<T>(options?: ExtensionPointOptions): ExtensionPoint<T, 'single'>;
   set<T>(options?: ExtensionPointOptions): ExtensionPoint<T, 'set'>;
   ordered<T>(options?: ExtensionPointOptions): ExtensionPoint<T, 'ordered'>;
 }
 
 /** Declares an extension point: `extensionPoint.set<IdentityProvider>()`. */
 export const extensionPoint: ExtensionPointFactory = {
-  single: () => ({ kind: 'extensionPoint', mode: 'single', options: {} }),
+  single: (options = {}) => ({ kind: 'extensionPoint', mode: 'single', options }),
   set: (options = {}) => ({ kind: 'extensionPoint', mode: 'set', options }),
   ordered: (options = {}) => ({ kind: 'extensionPoint', mode: 'ordered', options }),
 };

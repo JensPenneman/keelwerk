@@ -122,6 +122,8 @@ describe('extension points and fills (section 5.5)', () => {
     expect([...full.extensionPoints.keys()]).toEqual([
       'accounts.identityProviders',
       'core.invocationMiddleware',
+      'core.liveCarriers',
+      'core.liveHub',
       'core.principalEnrichers',
       'core.principalResolvers',
       'core.transports',
@@ -188,6 +190,22 @@ describe('extension points and fills (section 5.5)', () => {
         ref: 'host.slot',
       }),
     ]);
+  });
+
+  test('a single point with min 0 may stay empty; without min it warns', () => {
+    const host = makeModule({
+      id: 'host',
+      extensionPoints: {
+        optional: extensionPoint.single<number>({ min: 0 }),
+        required: extensionPoint.single<number>(),
+      },
+    });
+    const registry = buildRegistry(appOf([host]));
+    expect(registry.problems.map((problem) => [problem.code, problem.ref])).toEqual([
+      ['emptyExtensionPoints', 'host.required'],
+    ]);
+    expect(buildRegistry(appOf([])).problems).toEqual([]);
+    expect(registry.extensionPoints.get('core.liveHub')).toMatchObject({ mode: 'single', min: 0 });
   });
 });
 

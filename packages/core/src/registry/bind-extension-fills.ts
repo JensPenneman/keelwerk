@@ -27,7 +27,7 @@ export interface BoundFills {
  * points of their target, a module's own `extensionPoints` mount fills its own points. A fill for a
  * point nobody declares is `unknownExtensionPoints`; a `single` point with several fillers is
  * `singleExtensionPointFillers`; `ordered` points sort by declared `order`, then module order.
- * Empty slots (`min`, or a `single` point without a filler) are warnings: the kernel refuses them at boot.
+ * Empty slots (`min`, or a `single` point without a filler and without `min: 0`) are warnings: the kernel refuses them at boot.
  */
 export function bindExtensionFills(
   ordered: readonly RuntimeModule[],
@@ -89,7 +89,7 @@ export function bindExtensionFills(
         ),
       );
     }
-    const needed = point.mode === 'single' && !point.hasDefault ? 1 : (point.min ?? 0);
+    const needed = point.min ?? (point.mode === 'single' && !point.hasDefault ? 1 : 0);
     if (slot.length < needed) {
       problems.push({
         code: 'emptyExtensionPoints',

@@ -1,3 +1,5 @@
+import type { FlagPurpose } from '../dsl/define-flag.ts';
+
 /** One selected module, in the topological order `compose` fixed. */
 export interface ModuleEntry {
   readonly id: string;
@@ -30,6 +32,11 @@ export interface ModuleEntry {
         readonly default: unknown;
         readonly variants?: readonly string[];
         readonly description?: string;
+        readonly purpose?: FlagPurpose;
+        /** ISO date. */
+        readonly expires?: string;
+        /** Readable through `core.flag.evaluate`. */
+        readonly client?: boolean;
       }
     >
   >;

@@ -1,19 +1,11 @@
+import type { FlagResolution } from '../contexts/flag-resolution.ts';
 import { defaultFlagReason } from '../events/default-flag-reason.ts';
 import type { AnswerContext } from '../kernel/answer-context.ts';
 import type { FlagRequest } from '../protocol/flag-request.ts';
 import { refuseRequest } from './refuse-request.ts';
 
 /** What a flag request answers: the value, or its resolution for `ctx.flagDetails`. */
-type FlagAnswer =
-  | boolean
-  | string
-  | number
-  | {
-      readonly value: unknown;
-      readonly variant: string;
-      readonly reason: typeof defaultFlagReason;
-      readonly provider: string;
-    };
+type FlagAnswer = boolean | string | number | FlagResolution<unknown>;
 
 /**
  * Answers a flag request with the flag's declared default and the reason `DEFAULT`, and records

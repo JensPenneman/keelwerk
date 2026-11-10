@@ -298,6 +298,8 @@ export type { PrincipalResolver } from './edge/principal-resolver.ts';
 export type { ScopeDirectory, ScopeKey, ScopeKeyOwner } from './edge/scope-directory.ts';
 export type { TenantResolver } from './edge/tenant-resolver.ts';
 export { deriveEffectId } from './effects/derive-effect-id.ts';
+export type { EffectAttemptRecord } from './effects/effect-attempt-record.ts';
+export type { EffectInputOf, PendingEffect } from './effects/pending-effect.ts';
 export { createSealingContext } from './encryption/create-sealing-context.ts';
 export { normalizedText } from './encryption/normalized-text.ts';
 export type { NormalizerEntry, NormalizerRegistry } from './encryption/normalizer-registry.ts';
@@ -424,6 +426,10 @@ export type {
 export type { SystemFields } from './fields/system-fields.ts';
 export type { ValidateOptions } from './fields/validate-value.ts';
 export { validateValue } from './fields/validate-value.ts';
+export type { FlagContext } from './flags/flag-context.ts';
+export type { FlagProvider } from './flags/flag-provider.ts';
+export type { FlagSnapshot } from './flags/flag-snapshot.ts';
+export type { FlagSpec } from './flags/flag-spec.ts';
 export type { RunGeneratedReadInput } from './generated-actions/run-generated-read.ts';
 export { runGeneratedRead } from './generated-actions/run-generated-read.ts';
 export type { BlobRef } from './ids/blob-ref.ts';
@@ -509,6 +515,12 @@ export type { SealedColumnBinding } from './keys/sealed-column-aad.ts';
 export { sealedValueRef } from './keys/sealed-value-ref.ts';
 export type { ErasureRecord } from './ledger/erasure-record.ts';
 export type { KeyTombstoneRecord } from './ledger/key-tombstone-record.ts';
+export type { CarrierConnection, CarrierEndReason } from './live/carrier-connection.ts';
+export type { CarrierOptions } from './live/carrier-options.ts';
+export type { LiveCarrier } from './live/live-carrier.ts';
+export type { LiveHub } from './live/live-hub.ts';
+export type { Poke } from './live/poke.ts';
+export type { WatchInput } from './live/watch-input.ts';
 export type { PartKind } from './manifest/part-conventions.ts';
 export type { ManifestSource } from './manifest/render-module-manifest.ts';
 export { renderModuleManifest } from './manifest/render-module-manifest.ts';
@@ -804,6 +816,7 @@ export type { UsageStore } from './storage/usage-store.ts';
 export type { WorkClassStats } from './storage/work-class-stats.ts';
 export type { WrappedScopeKey } from './storage/wrapped-scope-key.ts';
 export type { ApiSurface } from './surface/api-surface.ts';
+export { checkSelection } from './surface/check-selection.ts';
 export type { CliHint } from './surface/cli-hint.ts';
 export { compositionReport } from './surface/composition-report.ts';
 export type {
@@ -814,6 +827,7 @@ export type {
   CompositionRuleReport,
 } from './surface/composition-report-document.ts';
 export type { CookieHint } from './surface/cookie-hint.ts';
+export { defaultSelectionLimits } from './surface/default-selection-limits.ts';
 export { deriveSurface } from './surface/derive-surface.ts';
 export type { DerivedSurface } from './surface/derived-surface.ts';
 export type { FieldNode } from './surface/field-node.ts';
@@ -824,6 +838,8 @@ export type { AppGeneratedSource } from './surface/render-app-generated-file.ts'
 export { renderAppGeneratedFile } from './surface/render-app-generated-file.ts';
 export { renderSurfaceArtefact } from './surface/render-surface-artefact.ts';
 export type { ResponseHint } from './surface/response-hint.ts';
+export type { SelectionLimits } from './surface/selection-limits.ts';
+export type { SelectionMeasure, SelectionPath } from './surface/selection-measure.ts';
 export type { SurfaceAction } from './surface/surface-action.ts';
 export type { SurfaceEntity } from './surface/surface-entity.ts';
 export type { SurfaceError } from './surface/surface-error.ts';

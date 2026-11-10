@@ -25,6 +25,10 @@ export interface LiveQueries<B extends AnyModuleBase, W> {
     entity: E,
     query?: {
       readonly where?: Where<LiveRow<B, W, I, E>>;
+      readonly ids?: readonly string[];
+      readonly fields?: readonly string[];
+      readonly includeArchived?: boolean;
+      readonly from?: 'now' | 'beginning';
       readonly after?: StateToken | undefined;
     },
   ): LiveSource<EntityChange<LiveRow<B, W, I, E>>>;

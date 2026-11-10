@@ -11,6 +11,8 @@ import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
 import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
 import type { Id } from '../ids/id.ts';
+import type { LiveCarrier } from '../live/live-carrier.ts';
+import type { LiveHub } from '../live/live-hub.ts';
 import type { ActionRef } from '../model/action-ref.ts';
 import type { AnyModule } from '../model/any-module.ts';
 import type { AnyModuleBase } from '../model/any-module-base.ts';
@@ -55,6 +57,8 @@ const derived = defineModuleBase({
     principalResolvers: extensionPoint.ordered<PrincipalResolver>(),
     principalEnrichers: extensionPoint.set<PrincipalEnricher>(),
     invocationMiddleware: extensionPoint.ordered<AdmissionRule>(),
+    liveHub: extensionPoint.single<LiveHub>({ min: 0 }),
+    liveCarriers: extensionPoint.set<LiveCarrier>(),
   },
   entities: {
     backend: defineEntity({

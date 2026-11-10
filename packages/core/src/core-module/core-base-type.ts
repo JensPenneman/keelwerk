@@ -6,6 +6,8 @@ import type { PrincipalResolver } from '../edge/principal-resolver.ts';
 import type { FieldDef, OwnRef } from '../fields/field-def.ts';
 import type { NoFlags, WithFlag } from '../fields/field-flags.ts';
 import type { Shape } from '../fields/shape.ts';
+import type { LiveCarrier } from '../live/live-carrier.ts';
+import type { LiveHub } from '../live/live-hub.ts';
 import type { TransportAdapter } from '../transport/transport-adapter.ts';
 import type { Empty } from '../types/empty.ts';
 
@@ -59,6 +61,9 @@ export interface CoreBase {
     readonly principalResolvers: ExtensionPoint<PrincipalResolver, 'ordered'>;
     readonly principalEnrichers: ExtensionPoint<PrincipalEnricher, 'set'>;
     readonly invocationMiddleware: ExtensionPoint<AdmissionRule, 'ordered'>;
+    // Declared `single({ min: 0 })`: typed `LiveHub`, but reads `undefined` in an app without the live module.
+    readonly liveHub: ExtensionPoint<LiveHub, 'single'>;
+    readonly liveCarriers: ExtensionPoint<LiveCarrier, 'set'>;
   };
   readonly entities: {
     readonly backend: Entity<
