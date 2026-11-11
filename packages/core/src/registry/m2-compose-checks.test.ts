@@ -80,7 +80,10 @@ describe('the M2 compose checks', () => {
     for (const check of m2ComposeChecks) expect(check(app, registry)).toEqual([]);
   });
 
-  test('m2ComposeChecks lists the three checks', () => {
-    expect(m2ComposeChecks).toEqual([checkDeploymentGroups, checkObservesAll, checkStreamOffload]);
+  // Other packages append their own checks to the list, so this names what must be in it.
+  test('m2ComposeChecks holds the three checks', () => {
+    expect(m2ComposeChecks).toEqual(
+      expect.arrayContaining([checkDeploymentGroups, checkObservesAll, checkStreamOffload]),
+    );
   });
 });
