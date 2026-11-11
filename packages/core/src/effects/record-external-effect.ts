@@ -7,6 +7,7 @@ import type { ExecutorEntry } from '../registry/executor-entry.ts';
 import { commandActionOf } from './command-action-of.ts';
 import { durationMs } from './duration-ms.ts';
 import type { EffectScene } from './effect-scene.ts';
+import { executorOptionInput } from './executor-option-input.ts';
 import { jobInput } from './job-input.ts';
 import { requestedEffectDraft } from './requested-effect-draft.ts';
 import { sealEffectInput } from './seal-effect-input.ts';
@@ -25,7 +26,7 @@ async function enqueueEffectJob(
 ): Promise<void> {
   const { run, unit } = scene;
   const config = run.config?.(entry.module);
-  const context = { config, input };
+  const context = { config, input: executorOptionInput(entry, input) };
   const capability = executor.capabilityOf?.(context) ?? executor.capability;
   const group = executor.group?.(context);
   await unit.jobs.enqueue({
@@ -33,6 +34,7 @@ async function enqueueEffectJob(
       actor: scene.causeActor,
       scope: run.scope,
       principal: moduleServicePrincipal(entry.module, run.principal),
+      caller: scene.module,
       causation: {
         commandId: scene.commandId,
         ...(scene.causeEventId === undefined ? {} : { eventId: scene.causeEventId }),
@@ -80,8 +82,15 @@ export async function recordExternalEffect(
     effectId: id,
     input: validateEffectInput(entry.input, effect.input, `the effect "${entry.ref}"`),
   });
+  let requested = effect;
   if (effect.continueWith !== undefined) {
     const continuation = commandActionOf(registry, effect.continueWith, 'continueWith');
+    if (continuation.module !== scene.module) {
+      throw refuseRequest(
+        `the effect "${entry.ref}"`,
+        'its continuation is no command of the module whose decision requests it',
+      );
+    }
     const member =
       effect.with === undefined ? undefined : sensitiveWithMember(continuation, effect.with);
     if (member !== undefined) {
@@ -90,12 +99,22 @@ export async function recordExternalEffect(
         `its with member "${member}" is personal or secret in ${continuation.ref}, and a record keeps with in plaintext`,
       );
     }
+    if (effect.with !== undefined && continuation.outcomeWith !== undefined) {
+      requested = {
+        ...effect,
+        with: validateEffectInput(
+          continuation.outcomeWith,
+          effect.with,
+          `the with of the effect "${entry.ref}"`,
+        ) as Readonly<Record<string, unknown>>,
+      };
+    }
   }
-  await writeEffectRecord(scene, requestedEffectDraft(scene, effect, entry, id, input));
+  await writeEffectRecord(scene, requestedEffectDraft(scene, requested, entry, id, input));
   if (entry.performer === 'external') return;
   const executor = entry.executor === null ? undefined : registry.executors.get(entry.executor);
   if (executor === undefined) {
     throw errors.internal(`the effect "${entry.ref}" has no executor to perform it`);
   }
-  await enqueueEffectJob(scene, effect, entry, executor, id, input);
+  await enqueueEffectJob(scene, requested, entry, executor, id, input);
 }

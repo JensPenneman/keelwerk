@@ -56,6 +56,28 @@ describe('the principal of an explanation', () => {
     expect(plan.selects).not.toContain('borrower');
   });
 
+  test('--as service:<module>.system is the principal the kernel mints for the module, and the default rule names itself', async () => {
+    const { explain } = await setup('memory', {}, { apps: [withTestResolver(conformanceApp)] });
+    const own = await explain({
+      mode: 'decision',
+      ref: 'loans.loan.query',
+      as: 'service:loans.system',
+    });
+    expect(own).toMatchObject({
+      ok: true,
+      value: {
+        allowed: true,
+        principal: { kind: 'service', id: 'loans.system' },
+        rules: [{ id: 'core.ownModule.loans', effect: 'allow' }],
+      },
+    });
+    // Another module's system principal and a service that only has such an id are no module's principal.
+    for (const as of ['service:library.system', 'service:ghost.system']) {
+      const refused = await explain({ mode: 'decision', ref: 'loans.loan.query', as });
+      expect(refused).toMatchObject({ ok: true, value: { allowed: false } });
+    }
+  });
+
   test('--roles adds to the enriched roles', async () => {
     const { explain } = await setup(
       'memory',

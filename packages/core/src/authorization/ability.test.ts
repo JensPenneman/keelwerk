@@ -40,7 +40,8 @@ const registry = {
   ]),
   entities: new Map([['doc.post', { ref: 'doc.post', descriptor: post } as EntityEntry]]),
   rules: new Map(rules.map((r) => [r.id, r])),
-} satisfies Pick<Registry, 'actions' | 'entities' | 'rules'>;
+  modules: [],
+} satisfies Pick<Registry, 'actions' | 'entities' | 'rules' | 'modules'>;
 
 describe('createAbility', () => {
   test('can answers from the gate and the plan', () => {

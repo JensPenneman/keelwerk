@@ -146,7 +146,7 @@ function keyServiceOver(
       const key = await scopeKey(scope, false);
       return key !== undefined && verifySecret(key, token, verifier);
     },
-    async reveal(unit, ref, reason) {
+    async reveal(unit, ref, reason, expected) {
       if (configSecrets.isText(ref.ref)) {
         options.log?.info('secret revealed', { reason });
         const plain = await configSecrets.open(deriveExisting, ref.ref);
@@ -155,7 +155,7 @@ function keyServiceOver(
       }
       const sealed = parseSealedValueRef(ref);
       options.log?.info('secret revealed', { reason, keyId: sealed?.keyId });
-      const plain = sealed === undefined ? undefined : await unit.keys.openValue(sealed);
+      const plain = sealed === undefined ? undefined : await unit.keys.openValue(sealed, expected);
       if (plain === undefined) throw errors.not_found('the secret value is gone');
       return new TextDecoder().decode(plain);
     },

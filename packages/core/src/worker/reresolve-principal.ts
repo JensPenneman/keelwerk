@@ -90,16 +90,18 @@ export async function reresolvePrincipal(
   const ref = job.principal;
   const placeholder = placeholderPrincipal(scope);
   switch (ref.resolver) {
-    case moduleResolver:
-      return resolved(
-        moduleServicePrincipal(
-          ref.principalId.endsWith(moduleSuffix)
-            ? ref.principalId.slice(0, -moduleSuffix.length)
-            : ref.principalId,
-          placeholder,
-        ),
-        true,
-      );
+    case moduleResolver: {
+      const module = ref.principalId.endsWith(moduleSuffix)
+        ? ref.principalId.slice(0, -moduleSuffix.length)
+        : undefined;
+      if (
+        module === undefined ||
+        !env.appOf(resolvedScope.app).registry.modules.some((m) => m.id === module)
+      ) {
+        throw unresolved();
+      }
+      return resolved(moduleServicePrincipal(module, placeholder), true);
+    }
     case 'core.system':
       return resolved(systemPrincipalOf(ref.principalId, placeholder), true);
     case 'core.operator':

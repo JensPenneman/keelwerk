@@ -198,8 +198,9 @@ describe('the unwrapped key cache', () => {
 });
 
 describe('reveal', () => {
-  const unitOf = (open: (v: unknown) => Promise<Uint8Array | undefined>): Unit =>
-    ({ keys: { openValue: open } }) as unknown as Unit;
+  const unitOf = (
+    open: (v: unknown, expected?: unknown) => Promise<Uint8Array | undefined>,
+  ): Unit => ({ keys: { openValue: open } }) as unknown as Unit;
   const sealed = { keyId: 'k1', nonce: Uint8Array.of(1), ciphertext: Uint8Array.of(2) };
 
   it('returns the opened value and logs the reason, not the value', async () => {
@@ -220,6 +221,26 @@ describe('reveal', () => {
     expect(value).toBe('s3cret');
     expect(JSON.stringify(lines)).toContain('deploy');
     expect(JSON.stringify(lines)).not.toContain('s3cret');
+  });
+
+  it('opens a sealed value only for the binding it was sealed for: one copied to another effect or member is not found', async () => {
+    const { service } = setup();
+    const bound = { entity: 'core.effect', id: 'e1', field: 'signingKey' };
+    const unit = unitOf(async (_value, expected) => {
+      const wanted = expected as typeof bound | undefined;
+      return wanted?.entity === bound.entity &&
+        wanted.id === bound.id &&
+        wanted.field === bound.field
+        ? new TextEncoder().encode('s3cret')
+        : undefined;
+    });
+    expect(await service.reveal(unit, sealedValueRef(sealed), 'sign', bound)).toBe('s3cret');
+    await expect(
+      service.reveal(unit, sealedValueRef(sealed), 'sign', { ...bound, id: 'e2' }),
+    ).rejects.toMatchObject({ code: 'core.not_found' });
+    await expect(
+      service.reveal(unit, sealedValueRef(sealed), 'sign', { ...bound, field: 'other' }),
+    ).rejects.toMatchObject({ code: 'core.not_found' });
   });
 
   it('fails with not_found once the value key is destroyed', async () => {

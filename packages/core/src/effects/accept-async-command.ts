@@ -86,6 +86,8 @@ export async function acceptAsyncCommand(input: RunCommandInput): Promise<Comman
             ...jobInput({
               scope: input.scope,
               principal: input.principal,
+              caller: action.module,
+              action,
               causation: { commandId },
               build: input.build,
               apiVersion: input.apiVersion,

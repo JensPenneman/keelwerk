@@ -4,10 +4,19 @@ import { KeelwerkError } from '../../errors/keelwerk-error.ts';
 import type { Clock } from '../../kernel/clock.ts';
 import type { Principal } from '../../principals/principal.ts';
 import type { AnyEffect } from '../../protocol/any-effect.ts';
+import { moduleResolver } from '../../reactions/module-resolver.ts';
 import type { Scope } from '../../storage/scope.ts';
 import type { Carrier } from '../carrier.ts';
 import { placeholderPrincipal } from './placeholder-principal.ts';
 import type { ResolverKit } from './resolver-kit.ts';
+
+const kernelResolvers: ReadonlySet<string> = new Set([
+  'core.system',
+  'core.runtime',
+  'core.invoker',
+  'core.operator',
+  'core.operatorToken',
+]);
 
 function isResolver(value: unknown): value is PrincipalResolver {
   return (
@@ -16,6 +25,23 @@ function isResolver(value: unknown): value is PrincipalResolver {
     'resolve' in value &&
     typeof value.resolve === 'function'
   );
+}
+
+/**
+ * What a principal resolver may never answer: the principals only the kernel mints (a module's
+ * service principal, the system principal, the runtime and the placeholder), recognised by kind and
+ * by the resolver they name (the operator's two included: a user that a stored reference turned into an operator would skip the backend and tenant checks). A resolver's answer is never the object the kernel minted, so none of
+ * them is accepted.
+ */
+function kernelOnlyOf(principal: Principal): string | undefined {
+  if (principal.kind === 'system') return 'a system principal';
+  for (const resolver of [principal.via, principal.ref?.resolver]) {
+    if (resolver === moduleResolver) return "a principal of the kernel's module resolver";
+    if (kernelResolvers.has(resolver ?? '')) {
+      return `a principal of the kernel's resolver "${resolver}"`;
+    }
+  }
+  return undefined;
 }
 
 /** Where the principal was resolved (section 8.5), whatever scope the resolver wrote on it. */
@@ -68,6 +94,14 @@ export async function runPrincipalResolvers(
     if (resolution === null) continue;
     for (const name of resolution.clearCookies ?? []) cookies.add(name);
     if (resolution.principal.kind === 'anonymous') continue;
+    const forged = kernelOnlyOf(resolution.principal);
+    if (forged !== undefined) {
+      throw new KeelwerkError({
+        kind: 'internal',
+        code: 'core.internal',
+        message: `A fill of core.principalResolvers by "${module}" answered ${forged}.`,
+      });
+    }
     return {
       principal: { ...resolution.principal, scope: scopeOf(scope) },
       effects: resolution.effects ?? [],

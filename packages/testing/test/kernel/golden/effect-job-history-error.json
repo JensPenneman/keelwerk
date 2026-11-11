@@ -1,0 +1,10 @@
+{
+  "kind": "failed",
+  "error": {
+    "kind": "validation",
+    "code": "core.validation",
+    "retryable": false,
+    "requestId": "<request id>",
+    "message": "The effect failed with core.validation."
+  }
+}

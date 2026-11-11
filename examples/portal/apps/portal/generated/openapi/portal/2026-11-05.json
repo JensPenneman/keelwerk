@@ -20829,7 +20829,7 @@
   },
   "info": {
     "title": "portal",
-    "version": "sha256-dcpk1AcbSFxSUqJgzMnU_aPJ1XWAB0Yg6jjo8yJYYg8"
+    "version": "sha256-xtyYfxEF3bcgw1BUHHjwys6zbaniKnleTkmmrNZwjbQ"
   },
   "openapi": "3.1.1",
   "paths": {
@@ -32260,6 +32260,6 @@
     "apiVersion": "2026-11-05",
     "format": "keelwerk.openapi/1",
     "producer": "@keelwerk/transport-rest",
-    "surface": "sha256-dcpk1AcbSFxSUqJgzMnU_aPJ1XWAB0Yg6jjo8yJYYg8"
+    "surface": "sha256-xtyYfxEF3bcgw1BUHHjwys6zbaniKnleTkmmrNZwjbQ"
   }
 }

@@ -1,6 +1,6 @@
 import { trace } from '@opentelemetry/api';
 import { runAdmission } from '../admission/run-admission.ts';
-import { normalizeRule } from '../authorization/normalize-rule.ts';
+import { effectiveRules } from '../authorization/effective-rules.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import { errors } from '../errors/errors.ts';
 import { principalContextOf } from '../interpreter/principal-context-of.ts';
@@ -46,9 +46,7 @@ export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker 
   const rulesOf = (registry: Registry): readonly NormalizedRule[] => {
     const known = rulesCache.get(registry);
     if (known !== undefined) return known;
-    const built = [...registry.rules.values()]
-      .filter((rule) => rule.disabled !== true)
-      .map(normalizeRule);
+    const built = effectiveRules(registry);
     rulesCache.set(registry, built);
     return built;
   };

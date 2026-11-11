@@ -1,5 +1,5 @@
 import { trace } from '@opentelemetry/api';
-import { normalizeRule } from '../authorization/normalize-rule.ts';
+import { effectiveRules } from '../authorization/effective-rules.ts';
 import type { DecideContext } from '../contexts/decide-context.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
 import type { CoreBase } from '../core-module/core-base-type.ts';
@@ -75,9 +75,7 @@ export async function runControlCommand(
       compute: store.compute,
       log: store.log,
       trace: span,
-      rules: [...registry.rules.values()]
-        .filter((rule) => rule.disabled !== true)
-        .map(normalizeRule),
+      rules: effectiveRules(registry),
       apiVersion: coreApiVersions.dates[0] ?? '',
       build: store.writer.build,
       behaviours: registryBehaviours(registry),

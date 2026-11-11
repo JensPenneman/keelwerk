@@ -1,7 +1,7 @@
 import { trace } from '@opentelemetry/api';
 import { applyVersionChanges } from '../api-versions/apply-version-changes.ts';
 import type { VersionTranslation } from '../api-versions/version-translation.ts';
-import { normalizeRule } from '../authorization/normalize-rule.ts';
+import { effectiveRules } from '../authorization/effective-rules.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import type { TenantResolver } from '../edge/tenant-resolver.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
@@ -79,9 +79,7 @@ export function createInvokerEnv(options: InvokerOptions): InvokerEnv {
     rulesOf: (registry) => {
       const known = rules.get(registry);
       if (known !== undefined) return known;
-      const built = [...registry.rules.values()]
-        .filter((rule) => rule.disabled !== true)
-        .map(normalizeRule);
+      const built = effectiveRules(registry);
       rules.set(registry, built);
       return built;
     },

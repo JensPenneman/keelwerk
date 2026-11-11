@@ -58,6 +58,17 @@ function outcomeWithOf(part: AnyActionPart): StandardSchemaV1 | undefined {
     : undefined;
 }
 
+/** The reference of the effect a continuation takes the outcome of, found by the identity of the effect part. */
+function outcomeEffectOf(part: AnyActionPart, context: ActionEntryContext): string | undefined {
+  const input = specOf(part).input;
+  if (input?.kind !== 'outcome') return undefined;
+  const effect: unknown = Reflect.get(input, 'effect');
+  // An effect part is a callable (`effect(input)` builds the request), so it is no plain object.
+  return typeof effect === 'function' || (typeof effect === 'object' && effect !== null)
+    ? context.effects.get(effect)
+    : undefined;
+}
+
 function modelOfOutput(part: AnyActionPart, context: ActionEntryContext): EntityModel | undefined {
   const entity = specOf(part).output?.entity;
   if (entity === undefined) return undefined;
@@ -150,6 +161,8 @@ export interface PartMount {
 export interface ActionEntryContext {
   readonly app: ComposableApp;
   readonly entities: ReadonlyMap<string, EntityModel>;
+  /** The effect parts of the modules by identity, to their references. */
+  readonly effects: ReadonlyMap<object, string>;
 }
 
 /** The registry entry of a custom action part (section 16.2.2), after the app's execution overrides. */
@@ -171,6 +184,7 @@ export function actionEntryOf(
   const prepare = spec.prepare;
   const handler = handlerOf(part);
   const outcomeWith = outcomeWithOf(part);
+  const outcomeEffect = outcomeEffectOf(part, context);
   return {
     ref: mount.ref,
     module: mount.module,
@@ -181,6 +195,7 @@ export function actionEntryOf(
     instance: isInstance(part, mount),
     input: inputOf(part, mount, context),
     ...(outcomeWith === undefined ? {} : { outcomeWith }),
+    ...(outcomeEffect === undefined ? {} : { outcomeEffect }),
     output: outputOf(part, mount, context),
     ...(entityOutput === undefined ? {} : { entityOutput }),
     errors: (spec.errors ?? []).map((error) => error.code).sort(),

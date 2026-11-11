@@ -32,6 +32,8 @@ async function setTimer(scene: EffectScene, effect: SetTimerEffect): Promise<voi
       actor: scene.causeActor,
       scope: run.scope,
       principal: moduleServicePrincipal(scene.module, run.principal),
+      caller: scene.module,
+      action,
       causation: {
         commandId: scene.commandId,
         ...(scene.causeEventId === undefined ? {} : { eventId: scene.causeEventId }),

@@ -22,6 +22,8 @@ export interface ActionEntry {
   readonly input: StandardSchemaV1;
   /** A continuation (`outcomeOf(effect, extra)`): the shape of the `with` members it takes besides the outcome. */
   readonly outcomeWith?: StandardSchemaV1;
+  /** A continuation: the reference of the effect whose outcome it takes (`outcomeOf(effect)`), so a worker presents the output's secret members as references of that effect's module. */
+  readonly outcomeEffect?: string;
   readonly output: StandardSchemaV1;
   /** Set when the output is `rowOf(entity)` or `pageOf(entity)`: the entity whose rows it carries and whether it is one row or a page. A custom output has none. */
   readonly entityOutput?: { readonly entity: string; readonly shape: 'row' | 'page' };

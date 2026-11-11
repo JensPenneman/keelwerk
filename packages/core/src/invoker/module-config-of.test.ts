@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
+import { secretRefOwner } from '../keys/secret-ref-owner.ts';
 import { moduleConfigOf } from './module-config-of.ts';
 
 const shapes = new Map([['knobs', shape({ greeting: field.string().default('hello') })]]);
@@ -44,5 +45,22 @@ describe('moduleConfigOf', () => {
   test('an asynchronous config shape is internal', () => {
     const config = moduleConfigOf(asynchronous, {});
     expect(() => config('slow')).toThrow(expect.objectContaining({ kind: 'internal' }));
+  });
+});
+
+describe('moduleConfigOf with secret members (5.7, S-70)', () => {
+  const secrets = new Map([
+    ['hooks', shape({ endpoint: field.string(), signingKey: field.secret() })],
+  ]);
+
+  test('a secret member is a reference stamped with the module, holding the stored text', () => {
+    const text = 'kwc1.b.hooks.signingKey.1.n.c';
+    const config = moduleConfigOf(secrets, {
+      hooks: { endpoint: 'https://x.example', signingKey: text },
+    });
+    const value = config('hooks') as { endpoint: string; signingKey: { ref: string } };
+    expect(value.endpoint).toBe('https://x.example');
+    expect(value.signingKey).toEqual({ ref: text });
+    expect(Reflect.get(value.signingKey, secretRefOwner)).toBe('hooks');
   });
 });

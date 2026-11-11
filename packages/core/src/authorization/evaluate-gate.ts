@@ -5,6 +5,7 @@ import { isAlways } from './is-always.ts';
 import { isNever } from './is-never.ts';
 import { itemAction } from './item-action.ts';
 import { operationOf } from './operation-of.ts';
+import { ownModuleRulePrefix } from './own-module-rule-prefix.ts';
 import { ruleApplies } from './rule-applies.ts';
 import { ruleConditions } from './rule-conditions.ts';
 import { selectRules } from './select-rules.ts';
@@ -110,7 +111,8 @@ export function evaluateGate(input: GateInput): GateResult {
   // Denied by default: name the allow rules that cover the action but not this principal.
   const wouldAllow: RuleMatch[] = [];
   for (const rule of rules) {
-    if (rule.effect !== 'allow') continue;
+    // The core's default rule is no rule a caller could be granted: a refusal does not name it.
+    if (rule.effect !== 'allow' || rule.id.startsWith(ownModuleRulePrefix)) continue;
     for (const kind of ['anonymous', 'user', 'service', 'operator', 'system'] as const) {
       if (ruleApplies(rule, action, kind, transport)) {
         wouldAllow.push({ id: rule.id, effect: 'allow' });

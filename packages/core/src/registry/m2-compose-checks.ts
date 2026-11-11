@@ -1,6 +1,7 @@
 import { checkDeploymentGroups } from './check-deployment-groups.ts';
 import { checkEffectSubjects } from './check-effect-subjects.ts';
 import { checkEntitySubjects } from './check-entity-subjects.ts';
+import { checkExecutorInputReads } from './check-executor-input-reads.ts';
 import { checkObservesAll } from './check-observes-all.ts';
 import { checkPrincipalFromRef } from './check-principal-from-ref.ts';
 import { checkStreamDeclarations } from './check-stream-declarations.ts';
@@ -24,6 +25,7 @@ export const m2ComposeChecks: readonly ((
   checkVersionChanges,
   (_app, registry) => checkEffectSubjects(registry.effects, registry.entities),
   (_app, registry) => checkEntitySubjects(registry.entities),
+  (_app, registry) => checkExecutorInputReads(registry.effects, registry.executors),
   checkPrincipalFromRef,
   checkStreamDeclarations,
 ];

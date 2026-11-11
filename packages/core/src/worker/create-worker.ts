@@ -1,3 +1,4 @@
+import { trace } from '@opentelemetry/api';
 import { errors } from '../errors/errors.ts';
 import type { JobQueue } from '../jobs/job-queue.ts';
 import type { RuntimeService } from '../runtime/runtime-service.ts';
@@ -20,7 +21,7 @@ function isKernelQueue(queue: JobQueue): queue is KernelQueue {
  */
 export function createWorker(input: StartPhaseInput): RuntimeService {
   const handles: { drain(deadline: Temporal.Instant): Promise<number> }[] = [];
-  const { connected, invoker, clock } = input;
+  const { connected, invoker, clock, migrated } = input;
   return {
     id: 'core.workers',
     roles: ['work'],
@@ -41,6 +42,11 @@ export function createWorker(input: StartPhaseInput): RuntimeService {
                 clock,
                 random: Math.random,
                 log: connected.log,
+                keys: connected.keys,
+                directory: migrated.directory.lookup,
+                apps: input.apps,
+                egress: input.options.work?.egress,
+                tracer: trace.getTracer('keelwerk'),
               }),
             { slots, capabilitySets: role.capabilitySets, revision: role.revision },
           ),

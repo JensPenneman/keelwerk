@@ -46,6 +46,8 @@ export { findPlaintext } from './dump/find-plaintext.ts';
 export type { ClientRuntime } from './harness/client-runtime.ts';
 export { createLocalClient } from './harness/create-local-client.ts';
 export type { LocalClientOptions } from './harness/local-client-options.ts';
+export type { LoggedLine } from './harness/logged-line.ts';
+export { recordingLogger } from './harness/recording-logger.ts';
 export { startTestRuntime } from './harness/start-test-runtime.ts';
 export type { TestApp } from './harness/test-app.ts';
 export { testOperator } from './harness/test-operator.ts';

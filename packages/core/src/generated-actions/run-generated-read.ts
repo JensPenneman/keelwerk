@@ -1,4 +1,4 @@
-import { normalizeRule } from '../authorization/normalize-rule.ts';
+import { effectiveRules } from '../authorization/effective-rules.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
@@ -46,9 +46,7 @@ export async function runGeneratedRead(input: RunGeneratedReadInput): Promise<un
       message: `"${action.ref}" is not served by this release.`,
     });
   }
-  const rules =
-    input.rules ??
-    [...registry.rules.values()].filter((rule) => rule.disabled !== true).map(normalizeRule);
+  const rules = input.rules ?? effectiveRules(registry);
   input.signal?.throwIfAborted();
   return input.adapter.unit(
     input.namespace,

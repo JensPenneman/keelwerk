@@ -1,0 +1,39 @@
+{
+  "succeeded": {
+    "set": {
+      "status": "succeeded",
+      "attempts": 1,
+      "output": {
+        "status": 200
+      },
+      "outputDigest": "7cd85494eb375cc958155aca095fd0bae01e24f777c4ce4059e2edb82324618c",
+      "settledAt": "2026-03-01T08:00:00Z"
+    }
+  },
+  "failed": {
+    "set": {
+      "status": "failed",
+      "attempts": 1,
+      "error": {
+        "kind": "validation",
+        "code": "core.validation",
+        "retryable": false,
+        "requestId": "<request id>"
+      },
+      "settledAt": "2026-03-01T08:00:00Z"
+    }
+  },
+  "abandoned": {
+    "set": {
+      "status": "abandoned",
+      "attempts": 1,
+      "error": {
+        "kind": "unavailable",
+        "code": "core.effect_outcome_unknown",
+        "retryable": false,
+        "requestId": "<request id>"
+      },
+      "settledAt": "2026-03-01T08:02:00Z"
+    }
+  }
+}

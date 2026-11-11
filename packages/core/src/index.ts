@@ -393,6 +393,7 @@ export type { StreamAppend } from './events/stream-append.ts';
 export type { StreamRef } from './events/stream-ref.ts';
 export type { VerifyChainOptions } from './events/verify-chain.ts';
 export { verifyChain } from './events/verify-chain.ts';
+export type { EgressPolicy } from './executors/egress-policy.ts';
 export { answerExplain } from './explain/answer-explain.ts';
 export type {
   DecisionExplanation,

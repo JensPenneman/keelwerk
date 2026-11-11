@@ -1,4 +1,4 @@
-import { normalizeRule } from '../authorization/normalize-rule.ts';
+import { effectiveRules } from '../authorization/effective-rules.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { FlagRead } from '../events/flag-read.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
@@ -54,9 +54,7 @@ export async function runRead(input: RunReadInput): Promise<RunReadResult> {
       'runRead runs the `read` of a module query, not a command or a generated action',
     );
   }
-  const rules =
-    input.rules ??
-    [...registry.rules.values()].filter((rule) => rule.disabled !== true).map(normalizeRule);
+  const rules = input.rules ?? effectiveRules(registry);
 
   const { signal } = input;
   signal?.throwIfAborted();

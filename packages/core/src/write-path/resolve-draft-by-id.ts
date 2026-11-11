@@ -6,6 +6,7 @@ import type { EntityEntry } from '../registry/entity-entry.ts';
 import { createEntityRepository } from '../repositories/entity-repository.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
+import { chainTailOf } from './chain-tail-of.ts';
 
 /** What loading a row for a draft needs. */
 export interface ResolveDraftInput {
@@ -22,13 +23,18 @@ export interface ResolveDraftInput {
  * Loads and locks the row a draft changes (section 15.1.6, step 9; S-21). A draft built from an
  * id has no expected version: the row's version at the lock is used and the load is recorded in
  * `reads`; an absent row is `not_found`. A draft built from a row must find that version still
- * there, else `core.version_mismatch`, which the retries take up.
+ * there, else `core.version_mismatch`, which the retries take up. An entity of invocation tenancy
+ * (the effect record) has no chain columns, so the row carries the chain state of its stream's record at the row's version.
  */
 export async function resolveDraftById(input: ResolveDraftInput): Promise<StorageRow> {
   const { unit, entry, id } = input;
+  // An invocation table keeps no chain columns (decision 398): its chain state is the stream's tail.
+  const invocation = entry.descriptor.tenancy === 'invocation';
   const found = await createEntityRepository(unit, entry).find({
     where: { op: 'eq', field: 'id', value: id },
-    select: chainSelect(Object.keys(entry.descriptor.fields)),
+    select: invocation
+      ? Object.keys(entry.descriptor.fields)
+      : chainSelect(Object.keys(entry.descriptor.fields)),
     page: { first: 1 },
     includeArchived: true,
     forUpdate: true,
@@ -45,5 +51,5 @@ export async function resolveDraftById(input: ResolveDraftInput): Promise<Storag
       details: { entity: entry.ref, id, expectedVersion: input.expectedVersion },
     });
   }
-  return row;
+  return invocation ? { ...row, ...(await chainTailOf(unit, entry, row)) } : row;
 }

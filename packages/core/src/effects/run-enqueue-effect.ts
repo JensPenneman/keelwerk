@@ -30,6 +30,8 @@ export async function runEnqueueEffect(
       actor: scene.causeActor,
       scope: run.scope,
       principal: run.principal,
+      caller: scene.module,
+      action,
       causation: {
         commandId: scene.commandId,
         ...(scene.causeEventId === undefined ? {} : { eventId: scene.causeEventId }),

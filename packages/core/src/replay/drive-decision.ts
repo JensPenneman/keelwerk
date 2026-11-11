@@ -1,4 +1,4 @@
-import { normalizeRule } from '../authorization/normalize-rule.ts';
+import { effectiveRules } from '../authorization/effective-rules.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import { errors } from '../errors/errors.ts';
 import { assertLoadVisible } from '../interpreter/assert-load-visible.ts';
@@ -80,9 +80,7 @@ export async function driveDecision(input: DriveDecisionInput): Promise<Normaliz
   const contexts = buildReadContext({
     registry,
     authorities,
-    rules:
-      input.rules ??
-      [...registry.rules.values()].filter((rule) => rule.disabled !== true).map(normalizeRule),
+    rules: input.rules ?? effectiveRules(registry),
     principal: input.principal,
     scope: input.scope,
     clock: input.clock,

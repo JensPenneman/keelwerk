@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import { post } from '../../test/fixtures/modules/hooks/src/effects/post.ts';
-import { isOwnModuleAction } from '../reactions/is-own-module-action.ts';
+import { effectiveRules } from '../authorization/effective-rules.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
+import type { ActionEntry } from '../registry/action-entry.ts';
+import type { Registry } from '../registry/registry.ts';
+import { authorizeInvoke } from './authorize-invoke.ts';
 import { deriveEffectId } from './derive-effect-id.ts';
 import { durationMs } from './duration-ms.ts';
 import { plannedEffectIds } from './planned-effect-ids.ts';
-import { settledEffectDraft } from './settled-effect-draft.ts';
 
 const tenant = { level: 'tenant', backendId: 'b-1', tenantId: 't-1' } as const;
 
@@ -51,13 +53,61 @@ describe('effect ids', () => {
 
 describe('module service principals', () => {
   const caused = { scope: { backend: 'b-1', tenant: 't-1' } } as never;
+  const registry = {
+    modules: [
+      { id: 'a', flags: {} },
+      { id: 'b', flags: {} },
+    ],
+    entities: new Map(),
+    rules: new Map(),
+  } as unknown as Registry;
+  const action = (module: string): ActionEntry =>
+    ({
+      ref: `${module}.z`,
+      module,
+      name: 'z',
+      kind: 'command',
+      auth: 'policy',
+      scope: 'tenant',
+    }) as never;
+  const invoke = (
+    principal: ReturnType<typeof moduleServicePrincipal>,
+    module: string,
+    caller: string,
+  ) =>
+    authorizeInvoke({
+      registry,
+      rules: effectiveRules(registry),
+      action: action(module),
+      principal,
+      scope: tenant,
+      input: {},
+      caller,
+    });
 
-  test('<module>.system may invoke the actions of its own module only', () => {
+  test('the principal is a kernel-minted object of its module, frozen', () => {
     const principal = moduleServicePrincipal('library', caused);
     expect(principal).toMatchObject({ kind: 'service', id: 'library.system', via: 'core.module' });
     expect(principal.scope).toEqual({ backend: 'b-1', tenant: 't-1' });
-    expect(isOwnModuleAction(principal, { module: 'library' })).toBe(true);
-    expect(isOwnModuleAction(principal, { module: 'loans' })).toBe(false);
+    expect(Object.isFrozen(principal)).toBe(true);
+  });
+
+  test('the own action passes through the default rule, and only for the own module', () => {
+    const principal = moduleServicePrincipal('b', caused);
+    expect(() => invoke(principal, 'b', 'b')).not.toThrow();
+    expect(() => invoke(principal, 'a', 'b')).toThrowError(
+      expect.objectContaining({ kind: 'forbidden' }),
+    );
+  });
+
+  test("B.system invoking B.z from A's code is forbidden", () => {
+    const principal = moduleServicePrincipal('b', caused);
+    expect(() => invoke(principal, 'b', 'a')).toThrowError(
+      expect.objectContaining({
+        kind: 'forbidden',
+        reason: expect.stringContaining('Only the code of b'),
+      }),
+    );
   });
 });
 
@@ -65,43 +115,5 @@ describe('defineEffect', () => {
   test('keeps the input and the output shape on the part', () => {
     expect(Object.keys(post.input.fields)).toEqual(['url', 'signingKey', 'body']);
     expect(Object.keys(post.output.fields)).toEqual(['status']);
-  });
-});
-
-describe('settledEffectDraft', () => {
-  const at = Temporal.Instant.from('2026-01-01T00:00:10Z');
-
-  test('a success stores the output, its canonical digest, one attempt and the time', () => {
-    expect(settledEffectDraft('e-1', at, { ok: true, value: { ok: true } })).toEqual({
-      kind: 'update',
-      type: 'changed',
-      target: 'core.effect',
-      entity: 'core.effect',
-      id: 'e-1',
-      values: {
-        status: 'succeeded',
-        attempts: 1,
-        output: { ok: true },
-        outputDigest: '4062edaf750fb8074e7e83e0c9028c94e32468a8b6f1614774328ef045150f93',
-        settledAt: at,
-      },
-    });
-  });
-
-  test('a failure stores the error, one attempt and the time', () => {
-    const error = {
-      code: 'core.unavailable',
-      kind: 'unavailable',
-      message: 'down',
-      retryable: false,
-    } as const;
-    expect(settledEffectDraft('e-1', at, { ok: false, error })).toEqual({
-      kind: 'update',
-      type: 'changed',
-      target: 'core.effect',
-      entity: 'core.effect',
-      id: 'e-1',
-      values: { status: 'failed', attempts: 1, error, settledAt: at },
-    });
   });
 });

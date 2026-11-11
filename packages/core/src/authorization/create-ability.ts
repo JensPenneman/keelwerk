@@ -3,11 +3,11 @@ import type { PrincipalContext } from '../contexts/principal-context.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { AuthorizedAction } from './authorized-action.ts';
 import { compilePlan } from './compile-plan.ts';
+import { effectiveRules } from './effective-rules.ts';
 import { evaluateGate } from './evaluate-gate.ts';
 import { explainPlan } from './explain-plan.ts';
 import { isFieldRevealed } from './is-field-revealed.ts';
 import { itemAction } from './item-action.ts';
-import { normalizeRule } from './normalize-rule.ts';
 import type { NormalizedRule } from './normalized-rule.ts';
 import type { Plan } from './plan.ts';
 import { createPlanMemo } from './plan-memo.ts';
@@ -32,7 +32,7 @@ export interface AuthorizationAbility extends Ability {
 
 /** What `createAbility` reads. */
 export interface AbilityOptions {
-  readonly registry: Pick<Registry, 'actions' | 'entities' | 'rules'>;
+  readonly registry: Pick<Registry, 'actions' | 'entities' | 'rules' | 'modules'>;
   readonly context: PrincipalContext;
   readonly transport?: string | null;
   /** Normalised rules, when the caller already holds them (after the policy overrides). */
@@ -43,9 +43,7 @@ export interface AbilityOptions {
 export function createAbility(options: AbilityOptions): AuthorizationAbility {
   const { registry, context } = options;
   const transport = options.transport ?? null;
-  const rules =
-    options.rules ??
-    [...registry.rules.values()].filter((rule) => !rule.disabled).map(normalizeRule);
+  const rules = options.rules ?? effectiveRules(registry);
   const memo = createPlanMemo();
 
   const planOf = (action: AuthorizedAction): Plan | undefined => {

@@ -29,7 +29,12 @@ export function buildActionTable(
 ): ActionTable {
   const actions = new Map<string, ActionEntry>();
   const problems: CompositionProblem[] = [];
-  const context = { app, entities };
+  const effects = new Map<object, string>();
+  for (const module of ordered) {
+    for (const [name, part] of Object.entries(module.effects))
+      effects.set(part, `${module.id}.${name}`);
+  }
+  const context = { app, entities, effects };
   const put = (entry: ActionEntry): void => {
     if (actions.has(entry.ref)) {
       problems.push(

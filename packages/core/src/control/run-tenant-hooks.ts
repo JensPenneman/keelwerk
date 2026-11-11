@@ -1,12 +1,11 @@
 import { trace } from '@opentelemetry/api';
-import { normalizeRule } from '../authorization/normalize-rule.ts';
+import { effectiveRules } from '../authorization/effective-rules.ts';
 import type { DecideContext } from '../contexts/decide-context.ts';
 import type { CoreBase } from '../core-module/core-base-type.ts';
 import type { HookPayloads } from '../dsl/define-hook.ts';
 import { shape } from '../fields/shape.ts';
 import type { ScopeTarget } from '../invoker/scope-target.ts';
-import type { ServicePrincipal } from '../principals/service-principal.ts';
-import { moduleResolver } from '../reactions/module-resolver.ts';
+import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import { registryBehaviours } from '../write-path/registry-behaviours.ts';
@@ -77,20 +76,12 @@ export async function runTenantHooks(input: TenantHooksInput): Promise<readonly 
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const tenantId = tenantIdOf(input.hook, input.payload);
   for (const hook of hooks) {
-    const principal: ServicePrincipal = {
-      kind: 'service',
-      id: `${hook.module}.system`,
-      idAs: () => null,
+    const principal = moduleServicePrincipal(hook.module, {
       scope: {
         backend: target.scope.level === 'deployment' ? null : target.scope.backendId,
         tenant: target.scope.level === 'tenant' ? target.scope.tenantId : null,
       },
-      claims: {},
-      roles: [],
-      memberships: [],
-      via: moduleResolver,
-      ref: { resolver: moduleResolver, principalId: `${hook.module}.system` },
-    };
+    });
     const action: ActionEntry = {
       ref: hook.id,
       module: hook.contributedBy ?? hook.module,
@@ -130,9 +121,7 @@ export async function runTenantHooks(input: TenantHooksInput): Promise<readonly 
         compute: store.compute,
         log: store.log,
         trace: span,
-        rules: [...registry.rules.values()]
-          .filter((rule) => rule.disabled !== true)
-          .map(normalizeRule),
+        rules: effectiveRules(registry),
         apiVersion: input.head,
         build: store.writer.build,
         behaviours: registryBehaviours(registry),

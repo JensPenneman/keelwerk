@@ -1,8 +1,7 @@
 import type { EntityDescriptor } from '@keelwerk/core';
 import { commandReceiptDescriptor } from './command-receipt-descriptor.ts';
-import { commandReceiptTable } from './command-receipt-table.ts';
 import { commandReceiptTableSpec } from './command-receipt-table-spec.ts';
-import { createTableStatements } from './create-table-statements.ts';
+import { invocationTableDdl } from './invocation-table-ddl.ts';
 
 /**
  * The receipt table as the receipt store reads and writes it, provisioned from the descriptor of
@@ -17,11 +16,5 @@ export function commandReceiptDdl(
   root: string,
   entity: EntityDescriptor = commandReceiptDescriptor(),
 ): readonly string[] {
-  return [
-    ...createTableStatements(root, commandReceiptTableSpec(entity)),
-    `alter table "${root}".${commandReceiptTable} enable row level security`,
-    `alter table "${root}".${commandReceiptTable} force row level security`,
-    `create policy scoped on "${root}".${commandReceiptTable} using (scope_id = coalesce(nullif(current_setting('keelwerk.tenant_id', true), '')::uuid, nullif(current_setting('keelwerk.backend_id', true), '')::uuid, nullif(current_setting('keelwerk.deployment_id', true), '')::uuid)) with check (scope_id = coalesce(nullif(current_setting('keelwerk.tenant_id', true), '')::uuid, nullif(current_setting('keelwerk.backend_id', true), '')::uuid, nullif(current_setting('keelwerk.deployment_id', true), '')::uuid))`,
-    `create policy maintenance on "${root}".${commandReceiptTable} using (current_setting('keelwerk.scope', true) = 'namespace') with check (current_setting('keelwerk.scope', true) = 'namespace')`,
-  ];
+  return invocationTableDdl(root, commandReceiptTableSpec(entity));
 }

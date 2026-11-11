@@ -1,12 +1,11 @@
 import { argon2Sync } from 'node:crypto';
 import type { Logger } from '@keelwerk/core';
 import { dummyVerifier, needsRehash, parseSealedValueText } from '@keelwerk/core';
-import { dumpDatabase, findPlaintext } from '@keelwerk/testing';
+import { dumpDatabase, findPlaintext, type LoggedLine, recordingLogger } from '@keelwerk/testing';
 import { describe, expect, onTestFinished, test } from 'vitest';
 import { verifierOrDummy } from '../src/lib/verifier-or-dummy.ts';
 import { ada, enrol, signIn } from './support/auth-calls.ts';
 import { type BootedAuth, bootAuth, type StorageKind } from './support/boot-auth.ts';
-import { capturingLogger } from './support/capturing-logger.ts';
 
 const json = (value: unknown): string =>
   JSON.stringify(value, (_key, member: unknown) => {
@@ -55,8 +54,8 @@ describe.each(['memory', 'pglite'] as const)('auth secrecy on %s', (kind: Storag
   test("the token's secret enters no event, no decision record, no row and no receipt, and a replay conflicts", {
     timeout,
   }, async () => {
-    const captured = capturingLogger();
-    const auth = await boot(captured.logger);
+    const lines: LoggedLine[] = [];
+    const auth = await boot(recordingLogger(lines));
     const credentialId = await enrol(auth);
     const commandId = crypto.randomUUID();
     const first = await auth.request('auth.login', ada, { commandId });
@@ -79,9 +78,11 @@ describe.each(['memory', 'pglite'] as const)('auth secrecy on %s', (kind: Storag
     expect(receipt).toMatchObject({ action: 'auth.login', status: 'completed' });
     expect(json(receipt)).not.toContain(secret);
     expect(json(receipt)).toContain(sessionId);
-    expect(captured.lines.length).toBeGreaterThan(0);
+    expect(lines.length).toBeGreaterThan(0);
     expect(
-      captured.lines.filter((line) => line.includes(secret) || line.includes(ada.password)),
+      lines
+        .map((line) => json(line))
+        .filter((line) => line.includes(secret) || line.includes(ada.password)),
     ).toEqual([]);
     if (kind === 'pglite') {
       const owner = auth.runtime.adapter;

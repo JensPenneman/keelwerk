@@ -29,6 +29,7 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
       principal: stored.principal,
       transport,
       attempt: stored.attempt,
+      ...(stored.causation.eventId === undefined ? {} : { causationId: stored.causation.eventId }),
       worker: context.worker,
       signal: job.signal,
     },

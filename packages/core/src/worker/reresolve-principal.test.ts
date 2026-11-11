@@ -27,7 +27,9 @@ function carrier(resolver: string, principalId: string): JobCarrier {
   };
 }
 
-const env = {} as InvokerEnv;
+const env = {
+  appOf: () => ({ registry: { modules: [{ id: 'loans' }, { id: 'library' }] } }),
+} as unknown as InvokerEnv;
 
 describe('reresolvePrincipal: the kernel references', () => {
   test('core.module is the service principal of its module, in the job scope', async () => {
@@ -44,6 +46,15 @@ describe('reresolvePrincipal: the kernel references', () => {
       scope: { backend: 'b-1', tenant: 't-1' },
     });
   });
+
+  test.each(['loans', 'ghost.system', '.system', 'loans.system.system'])(
+    'a core.module reference %j that is no <module>.system of the app is unauthenticated',
+    async (principalId) => {
+      await expect(
+        reresolvePrincipal(env, carrier('core.module', principalId), resolved, context),
+      ).rejects.toMatchObject({ kind: 'unauthenticated' });
+    },
+  );
 
   test('core.system is the system principal of its reason', async () => {
     const { principal } = await reresolvePrincipal(

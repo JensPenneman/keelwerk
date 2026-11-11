@@ -261,17 +261,27 @@ describe('sealed effect output', () => {
     });
     expect(stub.bindings).toEqual([{ entity: 'core.effect', id: effectId, field: 'output.token' }]);
     expect(JSON.stringify(sealed)).not.toContain('plain-token-1');
-    const draft = settledEffectDraft('e-1', Temporal.Instant.from('2026-11-11T00:00:00Z'), {
-      ok: true,
-      value: { status: 200, token: `kwv1.${valueKeyId}.CQkJCQkJCQkJCQkJ.AAAAAAAAAAAAAAAAAAAAAA` },
-    });
+    const draft = settledEffectDraft(
+      'e-1',
+      Temporal.Instant.from('2026-11-11T00:00:00Z'),
+      {
+        ok: true,
+        value: { status: 200, token: `kwv1.${valueKeyId}.CQkJCQkJCQkJCQkJ.AAAAAAAAAAAAAAAAAAAAAA` },
+      },
+      1,
+    );
     expect(draft.values.outputDigest).toBe(
       'cb896f0d4746c35eaba68a678b6c15d805120049712fdd4210656c050af63ba4',
     );
-    const own = settledEffectDraft('e-1', Temporal.Instant.from('2026-11-11T00:00:00Z'), {
-      ok: true,
-      value: sealed as Record<string, unknown>,
-    });
+    const own = settledEffectDraft(
+      'e-1',
+      Temporal.Instant.from('2026-11-11T00:00:00Z'),
+      {
+        ok: true,
+        value: sealed as Record<string, unknown>,
+      },
+      1,
+    );
     expect(own.values.outputDigest).toBe(sha256(canonicalizeJson(sealed)));
     expect(own.values.outputDigest).toBe(draft.values.outputDigest);
   });

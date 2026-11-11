@@ -1,12 +1,18 @@
 import { errors } from '../errors/errors.ts';
 import type { AnyField } from '../fields/field-def.ts';
 import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
+import { configSecrets } from '../keys/config-secrets.ts';
 import { parseSealedValueText } from '../keys/parse-sealed-value-text.ts';
 import { sealedValueText } from '../keys/sealed-value-text.ts';
 import { secretRefOwner } from '../keys/secret-ref-owner.ts';
 import type { Unit } from '../storage/unit.ts';
 
 const encoder = new TextEncoder();
+
+/** Whether `text` is a sealed configuration secret of `module`: the module's own setting, which the executor reveals for the backend of the job. */
+function configSecretOf(text: string, module: string): boolean {
+  return configSecrets.isText(text) && configSecrets.parse(text)?.moduleId === module;
+}
 
 function holdsSecret(field: AnyField): boolean {
   return field.kind === 'secret' || (field.inner !== null && holdsSecret(field.inner));
@@ -38,7 +44,7 @@ async function sealMember(
         typeof value !== 'object' ||
         typeof ref !== 'string' ||
         Reflect.get(value, secretRefOwner) !== owner.module ||
-        parseSealedValueText(ref) === undefined
+        !(parseSealedValueText(ref) !== undefined || configSecretOf(ref, owner.module))
       ) {
         const why = 'takes a plain secret or a reference its module loaded';
         throw errors.validation(`${owner.effect}.${name} ${why}.`, {
@@ -49,6 +55,27 @@ async function sealMember(
       }
     }
     if (typeof ref !== 'string') return value;
+    if (owner !== undefined) {
+      // A value the module loaded from its own row is sealed for that row. The stamp proved the
+      // module loaded it, so it is opened here and sealed again for the effect: every secret of an
+      // effect is bound to the effect, and the executor reveals it under that one binding.
+      const loaded = parseSealedValueText(ref);
+      if (loaded !== undefined) {
+        const plain = await unit.keys.openValue(loaded);
+        if (plain === undefined) {
+          throw errors.validation(`${owner.effect}.${name} holds a secret whose key is gone.`, {
+            issues: [
+              { path: [name], message: 'The secret this reference names no longer exists.' },
+            ],
+          });
+        }
+        const sealed = await unit.keys.sealValue(
+          { entity: binding.entity, id: binding.id, field: binding.prefix + name },
+          plain,
+        );
+        return sealedValueText(sealed);
+      }
+    }
     return binding.refs === 'text' ? ref : { ref };
   }
   const { inner } = field;
@@ -71,8 +98,9 @@ export interface SecretMemberBinding {
   /** A `SecretRef` member (`{ ref }`): stored as its text (`text`, effect records, M1's form) or kept as `{ ref }` (`keep`, receipts, so a replay tells it from a value it sealed). */
   readonly refs: 'text' | 'keep';
   /**
-   * Set for an effect: a `{ ref }` is kept only when `module` loaded it (the `secretRefOwner`
-   * stamp of `decodeRow`) and its text is a sealed value; any other reference is `validation`.
+   * Set for an effect: a `{ ref }` is accepted only when `module` loaded it (the `secretRefOwner`
+   * stamp of `decodeRow`) and its text is a sealed value or a `kwc1` configuration secret of that module; any other reference is `validation`.
+   * A sealed value is opened and sealed again under the effect's binding; a configuration secret stays as it is.
    * Without it a reference passes as it is (receipts keep it as an object and never open it).
    */
   readonly owner?: { readonly module: string; readonly effect: string };
@@ -81,7 +109,7 @@ export interface SecretMemberBinding {
 /**
  * Every `field.secret()` member of `schema` in `value`, and each element of a list or set of them:
  * a non-empty string is sealed under a fresh value key (`unit.keys.sealValue`) and replaced by its
- * `kwv1` text; a `{ ref }` follows `binding.refs` and `binding.owner`; other members pass unchanged. Answers `value`
+ * `kwv1` text; a `{ ref }` follows `binding.refs` and `binding.owner` (an owner's sealed value is sealed again for the binding); other members pass unchanged. Answers `value`
  * itself when the schema has no fields or `value` is no object.
  */
 export async function sealSecretMembers(

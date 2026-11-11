@@ -49,6 +49,9 @@ export async function startTestRuntime<
       message: `The app does not compose: ${problems.map((problem) => problem.message).join('; ')}`,
     });
   }
+  if (options.join !== undefined && options.external === undefined) {
+    throw new Error('join attaches to a database another runtime created: it needs external');
+  }
   const names: readonly string[] = options.tenants ?? ['acme', 'globex'];
   const source = options.clock ?? { now: () => Temporal.Now.instant() };
   let pinned: Temporal.Instant | undefined;
@@ -159,6 +162,12 @@ export async function startTestRuntime<
                 options.workers === true
                   ? { '*': 4 }
                   : Object.fromEntries(options.workers.queues.map((queue) => [queue, 4])),
+              ...(options.workers === true || options.workers.capabilities === undefined
+                ? {}
+                : { capabilities: options.workers.capabilities }),
+              ...(options.workers === true || options.workers.egress === undefined
+                ? {}
+                : { egress: options.workers.egress }),
               probe: (probe: WorkersProbe) => {
                 workers.probe = probe;
                 probed.resolve();
@@ -168,16 +177,24 @@ export async function startTestRuntime<
       ...(options.env === undefined ? {} : { env: options.env }),
     },
   );
-  const backend = await runtime.control.createBackend({
-    name: 'test',
-    app: app.id,
-    placement: placementName,
-    ...(options.config === undefined ? {} : { config: options.config }),
-  });
+  const { join } = options;
+  const backend =
+    join === undefined
+      ? await runtime.control.createBackend({
+          name: 'test',
+          app: app.id,
+          placement: placementName,
+          ...(options.config === undefined ? {} : { config: options.config }),
+        })
+      : { id: join.backendId, config: options.config };
   const tenants: TestTenant[] = [];
   for (const name of names) {
-    const tenant = await runtime.control.createTenant({ backendId: backend.id, name });
-    tenants.push({ name, id: tenant.id });
+    const joined = join?.tenants[name];
+    if (join !== undefined && joined === undefined) {
+      throw new Error(`join names no id for the tenant "${name}"`);
+    }
+    const id = joined ?? (await runtime.control.createTenant({ backendId: backend.id, name })).id;
+    tenants.push({ name, id });
   }
   // The runtime starts its workers in the background and hands the probe over when they run.
   if (options.workers !== undefined) await probed.promise;

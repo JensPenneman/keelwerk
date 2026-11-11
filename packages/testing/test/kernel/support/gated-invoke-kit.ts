@@ -35,7 +35,9 @@ const target = defineCommand(pipesBase, {
   gate: 'open',
   input: shape({}),
   output: shape({ ran: field.boolean() }),
-  principal: 'user',
+  // The inline reaction invokes it as the module's own service principal: the core's default rule
+  // applies to the action only when the action admits service principals.
+  principal: ['user', 'service'],
   *decide(_input, ctx) {
     const id = yield* ctx.newId(mark);
     return {

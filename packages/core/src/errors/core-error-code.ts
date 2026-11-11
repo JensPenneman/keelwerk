@@ -35,6 +35,7 @@ export type CoreErrorCode =
   | 'core.reaction_depth'
   | 'core.effect_outcome_unknown'
   | 'core.effect_deadline'
+  | 'core.effect_output_too_large'
   | 'core.request_not_allowed'
   | 'core.replay_outside_horizon'
   | 'core.replay_key_destroyed'

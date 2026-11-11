@@ -1,5 +1,5 @@
 import { trace } from '@opentelemetry/api';
-import { normalizeRule } from '../authorization/normalize-rule.ts';
+import { effectiveRules } from '../authorization/effective-rules.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
 import { errors } from '../errors/errors.ts';
 import type { RequestAnswerer } from '../kernel/request-answerer.ts';
@@ -64,7 +64,7 @@ export async function runControlCreate(
     compute: store.compute,
     log: store.log,
     trace: span,
-    rules: [...registry.rules.values()].filter((rule) => rule.disabled !== true).map(normalizeRule),
+    rules: effectiveRules(registry),
     apiVersion: who.apiVersion ?? coreApiVersions.dates[0] ?? '',
     build: store.writer.build,
     behaviours: registryBehaviours(registry),

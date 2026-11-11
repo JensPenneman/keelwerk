@@ -2,6 +2,7 @@ import type {
   Clock,
   DataAdapter,
   DataAdapterFactory,
+  EgressPolicy,
   EventWorker,
   FlagProvider,
   Logger,
@@ -32,9 +33,25 @@ export interface TestRuntimeOptions<Name extends string = 'acme' | 'globex'> {
   /**
    * Starts the kernel workers in the test runtime (role 'all'); absent: role 'serve' and no worker, so
    * asynchronous commands keep their `accepted` receipts. `true` gives every action queue four
-   * slots; `{ queues }` gives each named queue four.
+   * slots; `{ queues }` gives each named queue four, and `capabilities` are the ones this process
+   * advertises for effect jobs (21.2) and `egress` its outbound policy (12.3).
    */
-  readonly workers?: true | { readonly queues: readonly string[] };
+  readonly workers?:
+    | true
+    | {
+        readonly queues: readonly string[];
+        readonly capabilities?: readonly string[];
+        readonly egress?: EgressPolicy;
+      };
+  /**
+   * Attaches this runtime to a deployment that another runtime created on the same `external`
+   * database, creating nothing: the backend and the tenants have these ids (`tenants` by name).
+   * Needs `external`; `config` is then only what `TestRuntime.config` reads.
+   */
+  readonly join?: {
+    readonly backendId: string;
+    readonly tenants: Readonly<Record<string, string>>;
+  };
   /**
    * Event workers added to the deployment's infrastructure (S-154), such as `consumers()` of
    * `@keelwerk/events`; the runtime then runs role 'all', so they and the kernel workers start.

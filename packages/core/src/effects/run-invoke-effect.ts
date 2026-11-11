@@ -41,6 +41,7 @@ export async function runInvokeEffect(
     scope: run.scope,
     input,
     flags: run.flags,
+    caller: scene.module,
   });
   if (effect.as !== undefined) {
     run.log.info('a command runs as the system principal', {
@@ -57,6 +58,8 @@ export async function runInvokeEffect(
         actor: scene.causeActor,
         scope: run.scope,
         principal,
+        caller: scene.module,
+        action,
         causation: {
           commandId: scene.commandId,
           ...(scene.causeEventId === undefined ? {} : { eventId: scene.causeEventId }),

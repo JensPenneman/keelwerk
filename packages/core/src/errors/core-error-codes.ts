@@ -111,6 +111,11 @@ export const coreErrorCodes: Readonly<Record<CoreErrorCode, ErrorSpec>> = Object
     message: 'The external effect failed at its deadline.',
     retryable: false,
   },
+  'core.effect_output_too_large': {
+    kind: 'unsupported',
+    message: 'The effect output is larger than 64 KiB; blob references arrive with M4.',
+    retryable: false,
+  },
   'core.request_not_allowed': {
     kind: 'internal',
     message: 'The request is not allowed or not answered by this release.',

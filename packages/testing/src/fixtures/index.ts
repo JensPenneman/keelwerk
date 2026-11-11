@@ -8,6 +8,8 @@ export type { Vault as VaultApp } from './apps/vault/src/app.ts';
 export { vault as vaultApp } from './apps/vault/src/app.ts';
 export type { Versioned as VersionedApp } from './apps/versioned/src/app.ts';
 export { versioned as versionedApp } from './apps/versioned/src/app.ts';
+export type { Hooks } from './modules/hooks/src/module.generated.ts';
+export { hooks } from './modules/hooks/src/module.generated.ts';
 export type { Library } from './modules/library/src/module.generated.ts';
 export { library } from './modules/library/src/module.generated.ts';
 export type { Loans } from './modules/loans/src/module.generated.ts';

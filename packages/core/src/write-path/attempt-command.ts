@@ -68,6 +68,8 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   const now = clock.now();
 
   const job = input.nested === undefined ? run.job : undefined;
+  // A nested command is caused by the command that invoked it; a continuation job by its effect.
+  const causationId = input.nested?.causationId ?? job?.causationId;
   const receipt = receiptRow({
     commandId,
     action: action.ref,
@@ -191,7 +193,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
         commandId,
         action: action.ref,
         correlationId: run.correlationId ?? run.request.requestId,
-        ...(input.nested === undefined ? {} : { causationId: input.nested.causationId }),
+        ...(causationId === undefined ? {} : { causationId }),
         ...(run.client === undefined ? {} : { client: run.client }),
         ...(run.traceparent === undefined ? {} : { traceparent: run.traceparent }),
         build: run.build,

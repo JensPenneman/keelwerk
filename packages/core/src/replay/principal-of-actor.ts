@@ -5,7 +5,11 @@ import type { Principal } from '../principals/principal.ts';
 import type { ServicePrincipal } from '../principals/service-principal.ts';
 import type { SystemPrincipal } from '../principals/system-principal.ts';
 import type { UserPrincipal } from '../principals/user-principal.ts';
+import { moduleResolver } from '../reactions/module-resolver.ts';
+import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
 import type { Scope } from '../storage/scope.ts';
+
+const moduleSuffix = '.system';
 
 /**
  * A principal standing for the actor of a recorded event. It carries the identity the envelope
@@ -37,6 +41,9 @@ export function principalOfActor(actor: ActorRef, scope: Scope): Principal {
       return user;
     }
     case 'service': {
+      if (actor.via === moduleResolver && id.endsWith(moduleSuffix)) {
+        return moduleServicePrincipal(id.slice(0, -moduleSuffix.length), base);
+      }
       const service: ServicePrincipal = {
         ...base,
         kind: 'service',

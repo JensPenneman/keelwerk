@@ -10598,6 +10598,12 @@
       "retryable": false
     },
     {
+      "code": "core.effect_output_too_large",
+      "kind": "unsupported",
+      "message": "The effect output is larger than 64 KiB; blob references arrive with M4.",
+      "retryable": false
+    },
+    {
       "code": "core.feature_disabled",
       "kind": "forbidden",
       "message": "The feature is not enabled for the caller.",
@@ -11037,7 +11043,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-XgBtyHuQxJ6tSA-ZeLQ6_vEe7_R_YrLdA8QMDrCyWpw",
+  "hash": "sha256-yn1-GR-w5gZ48s6dMwxCU6_TeYUESTm-D12c0eoV1iA",
   "modules": [
     {
       "id": "core",

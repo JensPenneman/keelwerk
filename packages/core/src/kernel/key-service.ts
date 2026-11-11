@@ -16,8 +16,17 @@ export interface KeyService {
   ): Promise<IssuedSecret>;
   /** `ctx.secrets.verify(token, verifier)` under the scope's key, in constant time. */
   verify(scope: StorageScope, token: string, verifier: string): Promise<boolean>;
-  /** `ctx.secrets.reveal(ref, reason)`; the value key comes from `unit.keys.openValue`, `reason` is logged. */
-  reveal(unit: Unit, ref: SecretRef, reason: string): Promise<string>;
+  /**
+   * `ctx.secrets.reveal(ref, reason)`; the value key comes from `unit.keys.openValue`, `reason` is
+   * logged. With `expected`, a sealed value opens only for the binding (entity, row id and member)
+   * it was sealed for, so a text copied to another row, effect or member is `not_found`.
+   */
+  reveal(
+    unit: Unit,
+    ref: SecretRef,
+    reason: string,
+    expected?: { readonly entity: string; readonly id: string; readonly field: string },
+  ): Promise<string>;
   /** HKDF-SHA-256 from the scope's current key (index keys, bucket keys: S-36); `info` names the purpose and version. */
   derive(scope: StorageScope, info: string, length: number): Promise<Uint8Array>;
   /** Drops cached keys of the scope, after an erasure or a retirement. */

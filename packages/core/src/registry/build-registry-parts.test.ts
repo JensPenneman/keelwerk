@@ -48,6 +48,14 @@ describe('services, hooks, effects, executors and schedules', () => {
     });
   });
 
+  test('a continuation names the effect it takes the outcome of, found by identity', () => {
+    const recordOutcome = [...full.actions.values()].find((action) =>
+      action.ref.endsWith('.recordOutcome'),
+    );
+    expect(recordOutcome).toMatchObject({ module: 'hooks', outcomeEffect: 'hooks.post' });
+    expect(full.actions.get('hooks.notify')?.outcomeEffect).toBeUndefined();
+  });
+
   test('a lifecycle hook runs at the level of its name (S-27)', () => {
     const base = shopBase as never;
     const registry = buildRegistry(

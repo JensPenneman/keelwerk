@@ -1,10 +1,11 @@
+import { secretMembersAsRefs } from '../effects/secret-members-as-refs.ts';
 import { errors } from '../errors/errors.ts';
 import type { Shape } from '../fields/shape.ts';
 
 /**
  * What `ctx.config` answers for a backend (section 3.4): the module's validated values over the
  * defaults its config shape declares, so a setting nobody set reads its default. A module without
- * a config shape has none; stored values the shape no longer accepts are an internal error naming the module (a 5.7 migration is missing). A backend's configuration is complete at creation (S-107), so a module with nothing stored reads its defaults.
+ * a config shape has none; stored values the shape no longer accepts are an internal error naming the module (a 5.7 migration is missing). A backend's configuration is complete at creation (S-107), so a module with nothing stored reads its defaults. Secret members are presented as references stamped with the module (`secretMembersAsRefs`, 5.7): the stored `kwc1` text is the reference, and only the module's own reveal opens it.
  */
 export function moduleConfigOf(
   shapes: ReadonlyMap<string, Shape> | undefined,
@@ -20,6 +21,6 @@ export function moduleConfigOf(
     if (result.issues !== undefined) {
       throw errors.internal(`The stored configuration of module "${module}" is not valid.`);
     }
-    return result.value;
+    return secretMembersAsRefs(schema, module, result.value as Readonly<Record<string, unknown>>);
   };
 }

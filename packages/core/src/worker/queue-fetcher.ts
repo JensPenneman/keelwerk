@@ -4,6 +4,7 @@ import type { Job } from '../jobs/job.ts';
 import type { WorkerOptions } from '../jobs/worker-options.ts';
 import type { StoredJob } from '../storage/stored-job.ts';
 import type { KernelQueueOptions } from './create-kernel-queue.ts';
+import { defaultHeartbeatSeconds } from './default-heartbeat-seconds.ts';
 import type { FetcherHooks } from './fetcher-hooks.ts';
 import type { HeldJob } from './held-job.ts';
 import { jobOutcomeOfError } from './job-outcome-of-error.ts';
@@ -18,7 +19,6 @@ const pollMs = 1000;
 const pollJitter = 0.2;
 /** The lease a take asks for: three of the default heartbeats (D3). */
 const takeLeaseMs = 30_000;
-const defaultHeartbeatSeconds = 10;
 const maxRetakes = 3;
 const pacingMs = 25;
 
