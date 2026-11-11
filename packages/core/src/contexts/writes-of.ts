@@ -1,5 +1,6 @@
+import type { StreamDeclaration } from '../dsl/define-stream.ts';
 import type { Shape } from '../fields/shape.ts';
-import type { ShapeValue } from '../fields/shape-value.ts';
+import type { FieldValue, ShapeValue } from '../fields/shape-value.ts';
 import type { Id } from '../ids/id.ts';
 import type { AnyModule } from '../model/any-module.ts';
 import type { AnyModuleBase } from '../model/any-module-base.ts';
@@ -15,9 +16,11 @@ import type { OwnFields, OwnRow } from '../model/own-row.ts';
 import type { PatchOf } from '../model/patch-of.ts';
 import type { ModuleById, PresentIds, PresentModules } from '../model/present-modules.ts';
 import type { Prettify } from '../model/prettify.ts';
+import type { StreamsOf } from '../model/streams-of.ts';
 import type { EventDraft } from '../protocol/event-draft.ts';
 import type { UpdateDraft } from '../protocol/update-draft.ts';
 import type { EntityWrites } from './entity-writes.ts';
+import type { StreamWrites } from './stream-writes.ts';
 
 type EventPayload<S, Owner extends string> =
   S extends Shape<infer F> ? ShapeValue<F, Owner, 'draft'> : never;
@@ -35,6 +38,15 @@ type OwnWrites<B extends AnyModuleBase, E extends string> = EntityWrites<
   PatchOf<OwnFields<B, E>, B['id']>
 > &
   EventWrites<OwnRow<B, E>, EventsOf<EntityAt<B, E>>, B['id']>;
+
+type OwnStreamWrites<B extends AnyModuleBase> = {
+  readonly [S in keyof StreamsOf<B> & string]: StreamsOf<B>[S] extends StreamDeclaration<
+    infer K,
+    infer Rf
+  >
+    ? StreamWrites<FieldValue<K, B['id'], 'draft'>, ShapeValue<Rf, B['id'], 'draft'>>
+    : never;
+};
 
 type ContributionTargetIds<B> = {
   [K in keyof ContributionsOf<B>]: ContributionsOf<B>[K] extends {
@@ -68,7 +80,9 @@ type ContributedWrites<B extends AnyModuleBase, W, D, E extends string> = D exte
  * the part (section 7.6, decision 106).
  */
 export type WritesOf<B extends AnyModuleBase, W> = {
-  readonly [I in B['id'] as CamelCase<I>]: { readonly [E in EntityNames<B>]: OwnWrites<B, E> };
+  readonly [I in B['id'] as CamelCase<I>]: {
+    readonly [E in EntityNames<B>]: OwnWrites<B, E>;
+  } & OwnStreamWrites<B>;
 } & {
   readonly [I in Extract<PresentIds<B, W>, ContributionTargetIds<B>> as CamelCase<I>]: {
     readonly [E in ContributedEntityNames<B, I>]: ContributedWrites<

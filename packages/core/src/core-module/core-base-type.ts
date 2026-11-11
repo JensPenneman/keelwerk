@@ -1,8 +1,10 @@
 import type { Entity } from '../dsl/define-entity.ts';
+import type { StreamDeclaration } from '../dsl/define-stream.ts';
 import type { ExtensionPoint } from '../dsl/extension-point.ts';
 import type { AdmissionRule } from '../edge/admission-rule.ts';
 import type { PrincipalEnricher } from '../edge/principal-enricher.ts';
 import type { PrincipalResolver } from '../edge/principal-resolver.ts';
+import type { EffectAttemptError } from '../effects/effect-attempt-error.ts';
 import type { FieldDef, OwnRef } from '../fields/field-def.ts';
 import type { NoFlags, WithFlag } from '../fields/field-flags.ts';
 import type { Shape } from '../fields/shape.ts';
@@ -49,6 +51,7 @@ type OptionalOwnId<E extends string> = FieldDef<
   'ref'
 >;
 type Status = FieldDef<'active' | 'suspended', WithFlag<NoFlags, 'defaulted', true>, null, 'enum'>;
+type AttemptError = FieldDef<EffectAttemptError, WithFlag<NoFlags, 'optional', true>, null, 'json'>;
 type NoSet = { readonly set: false };
 type NoCreate = { readonly create: false };
 
@@ -241,6 +244,19 @@ export interface CoreBase {
       'state',
       NoSet,
       Empty
+    >;
+  };
+  readonly streams: {
+    readonly effectAttempt: StreamDeclaration<
+      OwnId<'effect'>,
+      {
+        readonly process: Text;
+        readonly build: Text;
+        readonly attempt: Count;
+        readonly startedAt: Text;
+        readonly endedAt: OptionalText;
+        readonly error: AttemptError;
+      }
     >;
   };
 }

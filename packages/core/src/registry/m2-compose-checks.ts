@@ -3,6 +3,7 @@ import { checkEffectSubjects } from './check-effect-subjects.ts';
 import { checkEntitySubjects } from './check-entity-subjects.ts';
 import { checkObservesAll } from './check-observes-all.ts';
 import { checkPrincipalFromRef } from './check-principal-from-ref.ts';
+import { checkStreamDeclarations } from './check-stream-declarations.ts';
 import { checkStreamOffload } from './check-stream-offload.ts';
 import type { ComposableApp } from './composable-app.ts';
 import type { CompositionProblem } from './composition-problem.ts';
@@ -22,4 +23,5 @@ export const m2ComposeChecks: readonly ((
   (_app, registry) => checkEffectSubjects(registry.effects, registry.entities),
   (_app, registry) => checkEntitySubjects(registry.entities),
   checkPrincipalFromRef,
+  checkStreamDeclarations,
 ];

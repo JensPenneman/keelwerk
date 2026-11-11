@@ -203,9 +203,9 @@ describe('F-24 effects', () => {
     }>();
   });
 
-  test('EffectAttemptRecord.error is an optional WireError', () => {
+  test('EffectAttemptRecord.error is an optional projection of a WireError: code and status only', () => {
     expectTypeOf<Pick<EffectAttemptRecord, 'error'>>().toEqualTypeOf<{
-      readonly error?: WireError;
+      readonly error?: Pick<WireError, 'kind' | 'code' | 'retryable' | 'retryAfter' | 'requestId'>;
     }>();
     expectTypeOf<EffectAttemptRecord['attempt']>().toEqualTypeOf<number>();
   });

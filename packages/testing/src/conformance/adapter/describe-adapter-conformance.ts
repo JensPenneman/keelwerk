@@ -23,6 +23,7 @@ import { rowIsolationCases } from './row-isolation-cases.ts';
 import { serialCases } from './serial-cases.ts';
 import { storeCases } from './store-cases.ts';
 import { storeIsolationCases } from './store-isolation-cases.ts';
+import { streamRecordCases } from './stream-record-cases.ts';
 import { timeoutCases } from './timeout-cases.ts';
 import { toggleRebuildCases } from './toggle-rebuild-cases.ts';
 import { unitCases } from './unit-cases.ts';
@@ -99,6 +100,7 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('event store', () => eventStoreCases(subject));
     describe('job store', () => jobStoreCases(subject));
     describe('serials', () => serialCases(subject));
+    describe('stream records', () => streamRecordCases(subject));
     describe('migrations', () => migrationCases(subject));
     describe('toggle then rebuild', () => toggleRebuildCases(subject));
     describe('capability honesty', () => capabilityHonestyCases(subject));

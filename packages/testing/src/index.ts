@@ -7,6 +7,7 @@ export { receiptInstantCases } from './conformance/adapter/receipt-instant-cases
 export { receiptIsolationCases } from './conformance/adapter/receipt-isolation-cases.ts';
 export { receiptStoreCases } from './conformance/adapter/receipt-store-cases.ts';
 export type { ReceiptStoreSubject } from './conformance/adapter/receipt-store-subject.ts';
+export { streamRecordCases } from './conformance/adapter/stream-record-cases.ts';
 export type { Call, Caller } from './conformance/transport/call.ts';
 export { decodeAnswer } from './conformance/transport/decode-answer.ts';
 export type { Decoded } from './conformance/transport/decoded.ts';

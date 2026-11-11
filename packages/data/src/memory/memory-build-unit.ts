@@ -8,6 +8,7 @@ import { memoryReceiptStore } from './memory-receipt-store.ts';
 import { memoryRowStore } from './memory-row-store.ts';
 import { memoryScopeKeyStore } from './memory-scope-key-store.ts';
 import { memorySerialStore } from './memory-serial-store.ts';
+import { memoryStreamRecordStore } from './memory-stream-record-store.ts';
 import type { MemoryUnitContext } from './memory-unit-context.ts';
 import { memoryUsageStore } from './memory-usage-store.ts';
 
@@ -30,6 +31,7 @@ export function memoryBuildUnit(ctx: MemoryUnitContext, hooks: (() => void)[]): 
     buckets: memoryBucketStore(ctx),
     keys: memoryKeyStore(ctx),
     serials: memorySerialStore(ctx),
+    streams: memoryStreamRecordStore(ctx),
     ...(ctx.scope.level === 'deployment' ? { scopeKeys: memoryScopeKeyStore(ctx) } : {}),
     nested: async (fn, options) => {
       const view = memoryNestedContext(ctx, options);

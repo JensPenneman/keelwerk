@@ -1,4 +1,4 @@
-import type { WireError } from '../errors/wire-error.ts';
+import type { EffectAttemptError } from './effect-attempt-error.ts';
 
 /** One record of the stream `core.effectAttempt`, keyed by effect id (7.9.6). */
 export interface EffectAttemptRecord {
@@ -10,5 +10,6 @@ export interface EffectAttemptRecord {
   readonly startedAt: string;
   /** An ISO instant. */
   readonly endedAt?: string;
-  readonly error?: WireError;
+  /** The closed projection of the failure (code and status), not the full error. */
+  readonly error?: EffectAttemptError;
 }

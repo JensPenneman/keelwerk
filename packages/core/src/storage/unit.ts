@@ -8,6 +8,7 @@ import type { RowStore } from './row-store.ts';
 import type { ScopeKeyStore } from './scope-key-store.ts';
 import type { SerialStore } from './serial-store.ts';
 import type { StorageScope } from './storage-scope.ts';
+import type { StreamRecordStore } from './stream-record-store.ts';
 import type { SubjectKeyStore } from './subject-key-store.ts';
 import type { UsageStore } from './usage-store.ts';
 
@@ -34,6 +35,8 @@ export interface Unit {
   readonly keys: SubjectKeyStore;
   /** Section 15.1.4. */
   readonly serials: SerialStore;
+  /** Section 15.1.12. */
+  readonly streams: StreamRecordStore;
   /** Wrapped deployment, backend and tenant keys; present on deployment-scope units only (S-55). */
   readonly scopeKeys?: ScopeKeyStore;
   /**

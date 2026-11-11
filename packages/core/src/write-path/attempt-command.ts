@@ -22,6 +22,7 @@ import type { Unit } from '../storage/unit.ts';
 import { completeJob } from '../worker/complete-job.ts';
 import { appendEvents } from './append-events.ts';
 import { appendReceiptChange } from './append-receipt-change.ts';
+import { appendStreamRecords } from './append-stream-records.ts';
 import { checkWrittenItems } from './check-written-items.ts';
 import { commandFingerprint } from './command-fingerprint.ts';
 import { commandOutput } from './command-output.ts';
@@ -213,6 +214,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   if (meta === undefined) throw errors.internal('the decision wrote without building its meta');
   await writeStateRows(unit, written);
   await appendEvents(unit, written);
+  await appendStreamRecords({ registry, unit, authority, appends: decided.appends });
   await checkWrittenItems({
     unit,
     registry,

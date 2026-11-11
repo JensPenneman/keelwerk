@@ -16,6 +16,7 @@ function registryOf(name: string, contextName: string): Registry {
   } as unknown as EntityEntry;
   return {
     entities: new Map([[entry.ref, entry]]),
+    streams: new Map(),
     modules: [{ id: 'library', contextName }],
   } as unknown as Registry;
 }

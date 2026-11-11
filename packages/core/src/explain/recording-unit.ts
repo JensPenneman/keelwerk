@@ -37,6 +37,7 @@ export function recordingUnit(
     buckets: unit.buckets,
     keys: keysOf(unit.keys),
     serials: unit.serials,
+    streams: unit.streams,
     ...(unit.scopeKeys === undefined ? {} : { scopeKeys: unit.scopeKeys }),
     nested: (fn, options) =>
       unit.nested((inner) => fn(recordingUnit(inner, record, keysOf)), options),

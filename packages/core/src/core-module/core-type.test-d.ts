@@ -1,4 +1,5 @@
 import { describe, expectTypeOf, test } from 'vitest';
+import { derivedEffectAttempt } from '../../test/derived-effect-attempt.ts';
 import { defineApp } from '../dsl/define-app.ts';
 import { defineEntity } from '../dsl/define-entity.ts';
 import { defineModule } from '../dsl/define-module.ts';
@@ -203,6 +204,7 @@ const derived = defineModuleBase({
       generated: { set: false },
     }),
   },
+  streams: { effectAttempt: derivedEffectAttempt },
 });
 
 // What `defineModule` derives from the same base and the same parts.

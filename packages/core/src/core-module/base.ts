@@ -16,6 +16,7 @@ import { operatorToken } from './entities/operator-token.ts';
 import { placement } from './entities/placement.ts';
 import { process } from './entities/process.ts';
 import { tenant } from './entities/tenant.ts';
+import { effectAttempt } from './streams/effect-attempt.ts';
 
 /** The base of the implicit core module (S-11, S-26). */
 export const coreBase: CoreBase = defineModuleBase({
@@ -40,4 +41,5 @@ export const coreBase: CoreBase = defineModuleBase({
     effect,
     process,
   },
+  streams: { effectAttempt },
 });

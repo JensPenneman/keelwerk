@@ -3,8 +3,7 @@ import { createError } from './create-error.ts';
 import type { ErrorDefinition } from './error-definition.ts';
 import type { ErrorSpec } from './error-spec.ts';
 import type { ErrorThrowOptions } from './error-throw-options.ts';
-
-const codePattern = /^[a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*\.[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
+import { isErrorCode } from './is-error-code.ts';
 
 /**
  * Declares a domain error under a code of the form `<module>.<snake_case>` (section 10). The code
@@ -18,7 +17,7 @@ export function defineError<
   code: Code,
   spec: ErrorSpec & { readonly data?: Schema },
 ): ErrorDefinition<Code, Schema extends StandardSchemaV1 ? StandardOutput<Schema> : undefined> {
-  if (!codePattern.test(code)) {
+  if (!isErrorCode(code)) {
     throw new TypeError(`Error code "${code}" must have the form <module>.<snake_case>.`);
   }
   const hasData = spec.data !== undefined;

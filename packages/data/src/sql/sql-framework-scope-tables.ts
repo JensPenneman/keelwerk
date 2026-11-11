@@ -9,4 +9,5 @@ export const sqlFrameworkScopeTables: readonly string[] = [
   'kw_value_keys',
   'kw_index_keys',
   'kw_subject_refs',
+  'kw_stream_records',
 ];

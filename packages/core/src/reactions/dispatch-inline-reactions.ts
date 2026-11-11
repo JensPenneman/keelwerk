@@ -8,6 +8,7 @@ import type { EventMeta } from '../events/event-meta.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
 import { reactionMatches } from '../registry/reaction-matches.ts';
 import { appendEvents } from '../write-path/append-events.ts';
+import { appendStreamRecords } from '../write-path/append-stream-records.ts';
 import { checkWrittenItems } from '../write-path/check-written-items.ts';
 import { draftsToEvents } from '../write-path/drafts-to-events.ts';
 import { normalizeDecision } from '../write-path/normalize-decision.ts';
@@ -95,6 +96,12 @@ export async function dispatchInlineReactions(
       if (meta === undefined) throw errors.internal('the reaction wrote without building its meta');
       await writeStateRows(unit, wrote);
       await appendEvents(unit, wrote);
+      await appendStreamRecords({
+        registry: run.registry,
+        unit,
+        authority: reaction.module,
+        appends: decided.appends,
+      });
       await checkWrittenItems({
         unit,
         registry: run.registry,

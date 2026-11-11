@@ -3,8 +3,10 @@ import type { Unit } from '../storage/unit.ts';
 import { createSealingContext } from './create-sealing-context.ts';
 import { encryptPersonalValues } from './encrypt-personal-values.ts';
 import { openPersonalValues } from './open-personal-values.ts';
+import { openStreamRecords } from './open-stream-records.ts';
 import type { PersonalSealer } from './personal-sealer.ts';
 import { personalSealerKey } from './personal-sealer-key.ts';
+import { sealStreamRecords } from './seal-stream-records.ts';
 import type { SealedMembers } from './sealed-members.ts';
 import type { SealingContext } from './sealing-context.ts';
 import type { SealingOptions } from './sealing-options.ts';
@@ -31,6 +33,8 @@ export function sealingUnit(unit: Unit, options: SealingOptions): Unit {
     sealEvent: (input) => encryptPersonalValues(context, input),
     openEvents: (events) => openAll(context, events, 'keep'),
     readEvents: (events) => openAll(context, events, 'drop'),
+    sealRecords: (input) => sealStreamRecords(context, input),
+    openRecords: (input) => openStreamRecords(context, input),
   };
   const wrapped: Unit = {
     ...unit,

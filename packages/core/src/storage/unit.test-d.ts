@@ -10,6 +10,7 @@ import type { RowPage } from './row-page.ts';
 import type { RowQuery } from './row-query.ts';
 import type { RowStore } from './row-store.ts';
 import type { ScopeKeyStore } from './scope-key-store.ts';
+import type { StreamRecordStore } from './stream-record-store.ts';
 import type { Unit } from './unit.ts';
 
 test('Unit has exactly the members of S-03', () => {
@@ -25,12 +26,14 @@ test('Unit has exactly the members of S-03', () => {
     | 'buckets'
     | 'keys'
     | 'serials'
+    | 'streams'
     | 'scopeKeys'
     | 'nested'
     | 'afterCommit'
   >();
   expectTypeOf<Unit['scopeKeys']>().toEqualTypeOf<ScopeKeyStore | undefined>();
   expectTypeOf<Unit['jobs']>().toEqualTypeOf<JobStore>();
+  expectTypeOf<Unit['streams']>().toEqualTypeOf<StreamRecordStore>();
 });
 
 test('JobStore lacks schedules until M2', () => {

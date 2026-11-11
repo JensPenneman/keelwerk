@@ -9,6 +9,7 @@ import type {
   ScopeKeyStore,
   SerialStore,
   StorageScope,
+  StreamRecordStore,
   SubjectKeyStore,
   UsageStore,
 } from '@keelwerk/core';
@@ -32,6 +33,7 @@ import { sqlRowStore } from './sql-row-store.ts';
 import { sqlScopeKeyStore } from './sql-scope-key-store.ts';
 import { sqlSerialStore } from './sql-serial-store.ts';
 import type { SqlSession } from './sql-session.ts';
+import { sqlStreamRecordStore } from './sql-stream-record-store.ts';
 import { sqlSubjectKeyStore } from './sql-subject-key-store.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
 import { sqlUnitContext } from './sql-unit-context.ts';
@@ -72,6 +74,7 @@ export interface SqlUnit {
   readonly buckets: BucketStore;
   readonly keys: SubjectKeyStore;
   readonly serials: SerialStore;
+  readonly streams: StreamRecordStore;
   readonly scopeKeys?: ScopeKeyStore;
   nested<T>(fn: (u: SqlUnit) => Promise<T>, options?: NestedUnitOptions): Promise<T>;
   afterCommit(fn: () => void): void;
@@ -132,6 +135,7 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
       buckets: sqlBucketStore(ctx),
       keys: sqlSubjectKeyStore(keyCtx),
       serials: sqlSerialStore(ctx),
+      streams: sqlStreamRecordStore(ctx),
       ...(scopeKeys === undefined ? {} : { scopeKeys }),
       nested: async <T>(fn: (u: SqlUnit) => Promise<T>, options?: NestedUnitOptions) => {
         const target = options?.as ?? current.scope;

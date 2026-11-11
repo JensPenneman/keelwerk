@@ -10,6 +10,7 @@ import { shape } from '../fields/shape.ts';
 import { buildRegistry } from './build-registry.ts';
 import { checkDeploymentGroups } from './check-deployment-groups.ts';
 import { checkObservesAll } from './check-observes-all.ts';
+import { checkStreamDeclarations } from './check-stream-declarations.ts';
 import { checkStreamOffload } from './check-stream-offload.ts';
 import { m2ComposeChecks } from './m2-compose-checks.ts';
 
@@ -81,9 +82,14 @@ describe('the M2 compose checks', () => {
   });
 
   // Other packages append their own checks to the list, so this names what must be in it.
-  test('m2ComposeChecks holds the three checks', () => {
+  test('m2ComposeChecks holds the checks', () => {
     expect(m2ComposeChecks).toEqual(
-      expect.arrayContaining([checkDeploymentGroups, checkObservesAll, checkStreamOffload]),
+      expect.arrayContaining([
+        checkDeploymentGroups,
+        checkObservesAll,
+        checkStreamOffload,
+        checkStreamDeclarations,
+      ]),
     );
   });
 });

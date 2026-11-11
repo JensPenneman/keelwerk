@@ -14,7 +14,9 @@ describe('the M2 entries of the registry', () => {
   });
 
   test("lists the fixture's stream, topic, version change and quotas by reference", () => {
-    expect([...registry.streams.keys()]).toEqual(['m2-parts.log']);
+    expect([...registry.streams.keys()]).toEqual(
+      expect.arrayContaining(['core.effectAttempt', 'm2-parts.log']),
+    );
     expect(registry.streams.get('m2-parts.log')).toMatchObject({
       module: 'm2-parts',
       name: 'log',

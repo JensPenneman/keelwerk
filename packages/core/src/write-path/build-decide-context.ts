@@ -6,6 +6,7 @@ import type { IdRequest } from '../protocol/id-request.ts';
 import type { PerformRequest } from '../protocol/perform-request.ts';
 import type { RandomRequest } from '../protocol/random-request.ts';
 import type { SecretRequest } from '../protocol/secret-request.ts';
+import type { StreamAppendDraft } from '../protocol/stream-append-draft.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 
@@ -112,6 +113,24 @@ export function buildDecideContext(input: DecideContextInput): Constructors {
     if (owner === undefined) continue;
     const group: Record<string, Constructors> = write[owner.contextName] ?? Object.create(null);
     group[entry.name] = constructorsOf(entry, input, own);
+    write[owner.contextName] = group;
+  }
+  for (const stream of registry.streams.values()) {
+    if (stream.module !== module) continue;
+    const owner = registry.modules.find((candidate) => candidate.id === stream.module);
+    if (owner === undefined) continue;
+    const group: Record<string, Constructors> = write[owner.contextName] ?? Object.create(null);
+    group[stream.name] = Object.freeze({
+      append: (key: unknown, records: readonly unknown[]): StreamAppendDraft =>
+        Object.freeze({
+          kind: 'append',
+          type: 'append',
+          target: stream.ref,
+          stream: stream.ref,
+          key: String(key),
+          records: Object.freeze([...records]),
+        }),
+    });
     write[owner.contextName] = group;
   }
   for (const [name, group] of Object.entries(write)) write[name] = Object.freeze(group);
