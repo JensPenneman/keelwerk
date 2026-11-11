@@ -5,7 +5,6 @@ import type {
   ComputePool,
   DataAdapter,
   EntityDescriptor,
-  KeyService,
   Logger,
   NamespaceRef,
   Principal,
@@ -18,6 +17,7 @@ import type {
 import { runRead } from '@keelwerk/core';
 import { memoryAdapter } from '@keelwerk/data';
 import { libraryApp } from '../../../src/fixtures/index.ts';
+import { deriveOnlyKeys } from './derive-only-keys.ts';
 
 const bookEntry = libraryApp.registry.entities.get('library.book');
 if (bookEntry === undefined) throw new Error('the library fixture has no book');
@@ -178,7 +178,7 @@ export function runnable(over: {
         principal: over.principal ?? userOf('ada'),
         request: { transport: 'test', requestId: 'r1' },
         clock,
-        keys: {} as KeyService,
+        keys: deriveOnlyKeys,
         compute: {} as ComputePool,
         log: silent,
         trace: {} as Span,

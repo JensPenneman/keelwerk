@@ -15,6 +15,7 @@ export function setResultWithState(
   unit: Unit,
   entry: EntityEntry,
   result: unknown,
+  sealKey: Uint8Array,
 ): unknown {
   const output = {
     ...(result as { oldState: string }),
@@ -34,6 +35,7 @@ export function setResultWithState(
           rules: run.rules,
           principal: run.principal,
           epoch: run.epoch ?? 0,
+          sealKey,
           flags: run.flags,
         },
         entry.ref,

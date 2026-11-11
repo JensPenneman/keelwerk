@@ -7,6 +7,7 @@ import type { Span } from '../../observability/span.ts';
 import type { ActionEntry } from '../../registry/action-entry.ts';
 import type { Scope } from '../../storage/scope.ts';
 import { stateTokenEncoder } from '../../tokens/state-token-encoder.ts';
+import { stateTokenSealing } from '../../tokens/state-token-sealing.ts';
 import type { CommandResult } from '../command-runner.ts';
 import type { Invocation } from '../invocation.ts';
 import type { InvocationSession } from '../invocation-session.ts';
@@ -115,6 +116,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
           adapter: target.handle.adapter,
           namespace: target.namespace,
           scope: target.scope,
+          keys: options.keys,
           action,
           input: input.value,
           principal: session.principal,
@@ -123,6 +125,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
           flags: input.flags,
         });
       }
+      const sealing = await stateTokenSealing(options.keys, target.scope);
       const result = await runRead({
         signal,
         registry,
@@ -146,6 +149,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
           rules,
           principal: session.principal,
           epoch,
+          ...sealing,
           flags: input.flags,
         }),
         namespaceOf: (scope) => (scope.level === 'backend' ? backendNamespace : target.namespace),

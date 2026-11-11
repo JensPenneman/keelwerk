@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import type { StateToken } from '../events/state-token.ts';
 import type { InvocationDecision } from '../invoker/decision-hook.ts';
 import type { Invocation } from '../invoker/invocation.ts';
 import type { Invoker } from '../invoker/invoker.ts';
@@ -34,13 +35,18 @@ function decision(over: Partial<InvocationDecision> = {}): InvocationDecision {
   };
 }
 
+const resumed: ({ readonly after: StateToken } | undefined)[] = [];
+
 function fake(outcome: Outcome<unknown>, frames: () => AsyncIterable<LiveFrame<unknown>>): Invoker {
   return {
     open: async () => {
       throw new Error('not used');
     },
     invoke: async <I, O>(_inv: Invocation<I>) => outcome as Outcome<O>,
-    subscribe: <I, E>(_inv: Invocation<I>) => frames() as AsyncIterable<LiveFrame<E>>,
+    subscribe: <I, E>(_inv: Invocation<I>, resume?: { readonly after: StateToken }) => {
+      resumed.push(resume);
+      return frames() as AsyncIterable<LiveFrame<E>>;
+    },
   };
 }
 
@@ -146,6 +152,35 @@ describe('the explain stream line', () => {
       }
     }).rejects.toBe(unavailable);
     expect(lines).toEqual(['test -> a.x core.live_unavailable 0 ms rules=- kind=subscribe']);
+  });
+
+  test('writes a line when return() comes before the first next(), and one line for each subscription', async () => {
+    const frames = () => ({
+      async *[Symbol.asyncIterator]() {
+        yield { control: 'gap' } as const;
+      },
+    });
+    const { lines, invoker } = setup({ ok: true, value: 1 }, frames);
+    const stream = invoker.subscribe(inv());
+    const closed = stream[Symbol.asyncIterator]();
+    await closed.return?.();
+    expect(lines).toEqual(['test -> a.x ok 0 ms rules=- kind=subscribe']);
+    // A second iterator of the same subscription writes no second line.
+    const again = stream[Symbol.asyncIterator]();
+    await again.next();
+    await again.return?.();
+    expect(lines).toHaveLength(1);
+  });
+});
+
+describe('the explain stream and a resumed subscription', () => {
+  test('subscribe passes resume to the inner invoker', async () => {
+    const { invoker } = setup({ ok: true, value: {} });
+    const after = 'v1.0.5.aaaaaaaa.bbbbbbbb' as StateToken;
+    for await (const _frame of invoker.subscribe(inv(), { after })) {
+      // no frames
+    }
+    expect(resumed.at(-1)).toEqual({ after });
   });
 });
 

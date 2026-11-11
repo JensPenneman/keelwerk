@@ -3,12 +3,14 @@ import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
+import type { KeyService } from '../kernel/key-service.ts';
 import type { Principal } from '../principals/principal.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { DataAdapter } from '../storage/data-adapter.ts';
 import type { NamespaceRef } from '../storage/namespace-ref.ts';
 import type { Scope } from '../storage/scope.ts';
+import { stateTokenKey } from '../tokens/state-token-key.ts';
 import { registerGeneratedActions } from './register-generated-actions.ts';
 
 /** What a generated read runs with; the invoker has authorized the call and validated `input`. */
@@ -17,6 +19,8 @@ export interface RunGeneratedReadInput {
   readonly adapter: DataAdapter;
   readonly namespace: NamespaceRef;
   readonly scope: Scope;
+  /** The key service: the token key of the scope seals the state tokens the read issues and checks. */
+  readonly keys: KeyService;
   readonly action: ActionEntry;
   readonly input: unknown;
   readonly principal: Principal;
@@ -48,6 +52,8 @@ export async function runGeneratedRead(input: RunGeneratedReadInput): Promise<un
   }
   const rules = input.rules ?? effectiveRules(registry);
   input.signal?.throwIfAborted();
+  const sealKey = await stateTokenKey(input.keys, input.scope);
+  input.signal?.throwIfAborted();
   return input.adapter.unit(
     input.namespace,
     input.scope,
@@ -67,6 +73,7 @@ export async function runGeneratedRead(input: RunGeneratedReadInput): Promise<un
           rules,
           principal: input.principal,
           epoch: input.epoch ?? 0,
+          sealKey,
           flags: input.flags,
         },
         scope: unit.scope,

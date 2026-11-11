@@ -15,7 +15,7 @@ import type { SealingContext } from './sealing-context.ts';
  * leaves those to the database).
  */
 export function verifyUnsealed(
-  context: SealingContext,
+  context: Pick<SealingContext, 'normalizers'>,
   entity: EntityDescriptor,
   original: Condition,
   rows: readonly StorageRow[],

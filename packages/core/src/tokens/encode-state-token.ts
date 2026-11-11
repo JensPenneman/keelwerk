@@ -1,7 +1,8 @@
 import type { StateToken } from '../events/state-token.ts';
-import type { StateTokenParts } from './state-token-parts.ts';
+import { sealTokenCheck } from './seal-token-check.ts';
+import type { StateTokenSource } from './state-token-parts.ts';
 
-/** `v1.<epoch in base 36>.<position in decimal>.<scope>.<check>` (section 15.2.6). Final from M1. */
-export function encodeStateToken(parts: StateTokenParts): StateToken {
-  return `v1.${parts.epoch.toString(36)}.${parts.position.toString()}.${parts.scope}.${parts.check}` as StateToken;
+/** `v2.<epoch in base 36>.<position in decimal>.<scope>.<check>` (section 15.2.6); the check is sealed under the scope's token key and covers the other parts. */
+export function encodeStateToken(source: StateTokenSource, key: Uint8Array): StateToken {
+  return `v2.${source.epoch.toString(36)}.${source.position.toString()}.${source.scope}.${sealTokenCheck(source, key)}` as StateToken;
 }

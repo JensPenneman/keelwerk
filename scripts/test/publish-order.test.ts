@@ -76,7 +76,7 @@ test('the workspace order holds every public package with core first and no priv
       version: string;
     }
   ).version;
-  expect(order).toHaveLength(12);
+  expect(order).toHaveLength(13);
   expect(order[0]).toBe('@keelwerk/core');
   expect(order.indexOf('@keelwerk/core')).toBeLessThan(order.indexOf('@keelwerk/data'));
   expect(order).not.toContain('@keelwerk/type-budgets');

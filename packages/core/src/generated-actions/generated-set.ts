@@ -20,6 +20,9 @@ import { assertTokenScope } from '../tokens/assert-token-scope.ts';
 import { currentTokenCheck } from '../tokens/current-token-check.ts';
 import { decodeStateToken } from '../tokens/decode-state-token.ts';
 import { issueStateToken } from '../tokens/issue-state-token.ts';
+import type { StateTokenContext } from '../tokens/state-token-context.ts';
+import { stateTokenKey } from '../tokens/state-token-key.ts';
+import { tokenCheckHolds } from '../tokens/token-check-holds.ts';
 import type { OpenedDecision } from '../write-path/open-decision.ts';
 import type { RunCommandInput } from '../write-path/run-command-input.ts';
 import { argumentsOf } from './arguments-of.ts';
@@ -93,21 +96,18 @@ async function validated(
 }
 
 /** The collection-level `ifInState` (section 6.7): refused unless nothing of the type changed after the token. */
-async function assertState(input: GeneratedSetInput, token: string): Promise<void> {
+async function assertState(
+  input: GeneratedSetInput,
+  context: StateTokenContext,
+  token: string,
+): Promise<void> {
   const { run, unit, entry } = input;
   const scope = run.scope;
   const parts = decodeStateToken(token);
   assertTokenScope(parts, scope);
-  const context = {
-    registry: run.registry,
-    rules: run.rules,
-    principal: run.principal,
-    epoch: run.epoch ?? 0,
-    flags: run.flags,
-  };
   const stale =
     parts.epoch !== context.epoch ||
-    parts.check !== currentTokenCheck(context, entry.ref, scope) ||
+    !tokenCheckHolds(parts, currentTokenCheck(context, entry.ref, scope), context.sealKey) ||
     ((await unit.events.head({ streamTypes: [entry.ref] })) ?? 0n) > parts.position;
   if (stale) {
     throw new KeelwerkError({
@@ -140,19 +140,16 @@ export async function generatedSet(input: GeneratedSetInput): Promise<unknown> {
   const { run, unit, entry, decision } = input;
   const args = argumentsOf(run.input);
   const token = readString(args.ifInState, 'ifInState');
-  if (token !== undefined) await assertState(input, token);
-  const oldState = issueStateToken(
-    {
-      registry: run.registry,
-      rules: run.rules,
-      principal: run.principal,
-      epoch: run.epoch ?? 0,
-      flags: run.flags,
-    },
-    entry.ref,
-    run.scope,
-    (await unit.events.head()) ?? 0n,
-  );
+  const tokens: StateTokenContext = {
+    registry: run.registry,
+    rules: run.rules,
+    principal: run.principal,
+    epoch: run.epoch ?? 0,
+    sealKey: await stateTokenKey(run.keys, run.scope),
+    flags: run.flags,
+  };
+  if (token !== undefined) await assertState(input, tokens, token);
+  const oldState = issueStateToken(tokens, entry.ref, run.scope, (await unit.events.head()) ?? 0n);
 
   const context = principalContextOf(run.registry, run.principal, run.scope, run.flags);
   const setAction = run.action;

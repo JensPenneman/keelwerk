@@ -269,11 +269,12 @@ describe('the pipeline stages fail closed', () => {
     });
   });
 
-  test('a subscription answers live_unavailable', async () => {
+  test('subscribing to a query is unsupported, at locate', async () => {
     const { invoker } = kit();
     const frames = invoker.subscribe(call('library.findByIsbn', {}, { carrier: ada }));
     await expect(frames[Symbol.asyncIterator]().next()).rejects.toMatchObject({
-      code: 'core.live_unavailable',
+      kind: 'unsupported',
+      code: 'core.unsupported',
     });
   });
 

@@ -36,7 +36,8 @@ function generatedPositions(action: ActionEntry): Omit<EntityPositions, 'entity'
     case 'history':
       return { ...empty, outputRows: [['entries', '*', 'changes']] };
     case 'watch':
-      return { ...empty, outputRows: root, filters: [['filter']] };
+      // The hub puts the row under `event.row`, and the subscriber's `fields` select its members.
+      return { ...empty, outputRows: [['row']], selections: [['fields']], filters: [['filter']] };
     case 'changes':
     case undefined:
       return undefined;

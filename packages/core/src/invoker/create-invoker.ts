@@ -3,8 +3,8 @@ import { chargeFailureBuckets } from '../admission/charge-failure-buckets.ts';
 import type { Admitted } from '../admission/run-admission.ts';
 import { translateError } from '../api-versions/translate-error.ts';
 import type { VersionTranslation } from '../api-versions/version-translation.ts';
-import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { RuleMatch } from '../errors/rule-match.ts';
+import type { StateToken } from '../events/state-token.ts';
 import { buildSnapshot } from '../flags/build-snapshot.ts';
 import { flagClientIdOf } from '../flags/flag-client-id-of.ts';
 import type { Logger } from '../observability/logger.ts';
@@ -12,7 +12,6 @@ import type { Span } from '../observability/span.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import type { InvokerStage } from './decision-hook.ts';
 import type { Invocation } from './invocation.ts';
-import type { InvocationSession } from './invocation-session.ts';
 import type { Invoker } from './invoker.ts';
 import type { InvokerEnv } from './invoker-env.ts';
 import { createInvokerEnv } from './invoker-env.ts';
@@ -21,6 +20,8 @@ import type { LiveFrame } from './live-frame.ts';
 import { mapUnknownError } from './map-unknown-error.ts';
 import { openSession } from './open-session.ts';
 import type { Outcome } from './outcome.ts';
+import { routeSubscribe } from './route-subscribe.ts';
+import { sessionOf } from './session-of.ts';
 import { admit } from './stages/admit.ts';
 import { authorize } from './stages/authorize.ts';
 import { complete } from './stages/complete.ts';
@@ -31,26 +32,6 @@ import { relationsAfter } from './stages/relations-after.ts';
 import { shape as shapeOutput } from './stages/shape.ts';
 import { translate } from './stages/translate.ts';
 import { validate } from './stages/validate.ts';
-
-/** The session an invocation runs under: its own when this invoker made it, else a fresh one; a foreign object is `internal`. */
-async function sessionOf(
-  env: InvokerEnv,
-  inv: Invocation<unknown>,
-): Promise<Outcome<InvocationSession>> {
-  if (inv.session === undefined)
-    return openSession(env, inv.carrier, { signal: inv.signal, requestId: inv.requestId });
-  if (env.sessions.detailsOf(inv.session) === undefined) {
-    return {
-      ok: false,
-      error: new KeelwerkError({
-        kind: 'internal',
-        code: 'core.internal',
-        message: 'The session was not created by this invoker.',
-      }),
-    };
-  }
-  return { ok: true, value: inv.session };
-}
 
 /** What one invocation leaves behind for the decision hook. */
 interface RunState {
@@ -269,15 +250,9 @@ export function createInvoker(options: InvokerOptions): Invoker {
           : completed
       ) as Outcome<O>;
     },
-    subscribe: <I, E>(_inv: Invocation<I>): AsyncIterable<LiveFrame<E>> => ({
-      // biome-ignore lint/correctness/useYield: live updates are not available in this release
-      async *[Symbol.asyncIterator]() {
-        throw new KeelwerkError({
-          kind: 'unavailable',
-          code: 'core.live_unavailable',
-          message: 'Live updates are not available in this release.',
-        });
-      },
-    }),
+    subscribe: <I, E>(
+      inv: Invocation<I>,
+      resume?: { readonly after: StateToken },
+    ): AsyncIterable<LiveFrame<E>> => routeSubscribe<E>(env, inv, resume),
   };
 }

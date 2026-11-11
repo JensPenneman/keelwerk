@@ -4,7 +4,7 @@ import type { LiveQueries } from '../src/contexts/live-queries.ts';
 import type { CoreBase } from '../src/core-module/core-base-type.ts';
 import { defineEffect } from '../src/dsl/define-effect.ts';
 import type { FlagPurpose } from '../src/dsl/define-flag.ts';
-import { extensionPoint } from '../src/dsl/extension-point.ts';
+import { type ExtensionPoint, extensionPoint } from '../src/dsl/extension-point.ts';
 import type { EffectAttemptRecord } from '../src/effects/effect-attempt-record.ts';
 import type { EffectInputOf, PendingEffect } from '../src/effects/pending-effect.ts';
 import type { WireError } from '../src/errors/wire-error.ts';
@@ -135,7 +135,7 @@ describe('F-22 live', () => {
 
   test('a single point takes the options of a set point', () => {
     expectTypeOf(extensionPoint.single<number>({ min: 0 })).toEqualTypeOf<
-      ReturnType<typeof extensionPoint.single<number>>
+      ExtensionPoint<number, 'single', true>
     >();
     // @ts-expect-error `min` is a number
     extensionPoint.single<number>({ min: 'none' });

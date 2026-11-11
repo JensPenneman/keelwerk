@@ -235,7 +235,12 @@ describe.each(['memory', 'pglite'] as const)('personal fields on %s (14.7.9)', (
     // Ada left the filter: removed, found by the unsealed value at the old position.
     expect(moved).toMatchObject({ ok: true, value: { added: [], removed: [a.id] } });
     for (const outcome of [changes, moved]) {
-      expect(JSON.stringify(outcome)).not.toMatch(/example\.org|elsewhere|[0-9a-f]{32}/i);
+      // The sealed check of a state token is 32 hexadecimal characters too: leave the tokens out.
+      const withoutTokens = JSON.stringify(outcome).replace(
+        /v2\.[0-9a-z]+\.\d+\.[0-9a-f]{8}\.[0-9a-f]{32}/g,
+        '',
+      );
+      expect(withoutTokens).not.toMatch(/example\.org|elsewhere|[0-9a-f]{32}/i);
     }
   });
 

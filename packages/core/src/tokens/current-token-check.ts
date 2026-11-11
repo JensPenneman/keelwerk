@@ -19,6 +19,7 @@ export function currentTokenCheck(
     ...readVisibility(context, entry, scope),
     entity,
     partition: selector.partition ?? '',
+    ...(selector.live === undefined ? {} : { live: selector.live }),
     ...(selector.query === undefined
       ? {}
       : {

@@ -3,7 +3,7 @@ import type { AnyContract } from '../dsl/define-contract.ts';
 import type { AnyContributionDecl } from '../dsl/define-contribution.ts';
 import type { AnyEntity } from '../dsl/define-entity.ts';
 import type { AnyStreamDeclaration } from '../dsl/define-stream.ts';
-import type { ExtensionPoint } from '../dsl/extension-point.ts';
+import type { ExtensionMode, ExtensionPoint } from '../dsl/extension-point.ts';
 import type { QuotaDimension } from '../dsl/quota.ts';
 import type { Shape } from '../fields/shape.ts';
 import type { Dependency } from './any-module.ts';
@@ -22,7 +22,9 @@ export interface AnyModuleBase {
     readonly needs?: readonly unknown[];
     readonly sql?: 'postgres' | 'mysql' | 'sqlite';
   };
-  readonly extensionPoints?: { readonly [name: string]: ExtensionPoint<unknown> };
+  readonly extensionPoints?: {
+    readonly [name: string]: ExtensionPoint<unknown, ExtensionMode, boolean>;
+  };
   /** The fields of the principal reference this module's resolver stores (decision 92). */
   readonly principalRef?: Shape;
   readonly entities?: { readonly [name: string]: AnyEntity };

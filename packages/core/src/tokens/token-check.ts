@@ -1,5 +1,6 @@
 import { sha256 } from '../crypto/sha256.ts';
 import { canonicalizeJson } from '../json/canonicalize-json.ts';
+import type { LiveSelector } from './token-selector.ts';
 
 /** What a token's `check` part covers (section 15.2.6), as plain values. */
 export interface TokenCheckInput {
@@ -24,6 +25,12 @@ export interface TokenCheckInput {
   readonly flags?: readonly { readonly key: string; readonly variant: string }[];
   /** `queryState` only: the filter and sort. */
   readonly selector?: { readonly filter: unknown; readonly sort: unknown };
+  /**
+   * A live stream token only: the API version of the request that opened the stream, its ids and
+   * fields (`null` when the input names none) and whether it follows archived rows. Part of the check only when present, so every token of M1
+   * is what it was.
+   */
+  readonly live?: LiveSelector;
 }
 
 /** The `check` part of a state token: the first 8 hexadecimal characters of SHA-256 over the input in canonical form. */
@@ -42,6 +49,16 @@ export function tokenCheck(input: TokenCheckInput): string {
       entity: input.entity,
       partition: input.partition,
       selector: input.selector ?? null,
+      ...(input.live === undefined
+        ? {}
+        : {
+            live: {
+              apiVersion: input.live.apiVersion,
+              ids: input.live.ids === undefined ? null : sorted(input.live.ids),
+              fields: input.live.fields === undefined ? null : sorted(input.live.fields),
+              includeArchived: input.live.includeArchived === true,
+            },
+          }),
       ...(input.flags === undefined || input.flags.length === 0
         ? {}
         : {

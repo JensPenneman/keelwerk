@@ -92,6 +92,7 @@ function outputOf(
   mount: PartMount,
   context: ActionEntryContext,
 ): StandardSchemaV1 {
+  if (part.kind === 'subscription') return specOf(part).event ?? shape({});
   const output = specOf(part).output;
   const model = modelOfOutput(part, context);
   if (output?.kind === 'entityOutput' && model !== undefined) {

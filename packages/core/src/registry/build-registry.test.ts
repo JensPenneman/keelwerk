@@ -124,6 +124,16 @@ describe('contributions and conditional parts (sections 5.3 and 5.4)', () => {
     });
   });
 
+  test("a subscription's output is its event shape", () => {
+    const live = makeModule({ id: 'live', provides: [contracts.live] });
+    const entry = buildRegistry(appOf([auth, live])).actions.get('auth.sessionEvents');
+    const output = entry?.output as { readonly fields?: Record<string, unknown> } | undefined;
+    expect(Object.keys(output?.fields ?? {})).toEqual(['sessionId', 'kind']);
+    expect(entry?.output['~standard'].validate({ kind: 'sleeping' })).toMatchObject({
+      issues: expect.any(Array),
+    });
+  });
+
   test('a reaction of a conditional part names the modules that activate it', () => {
     expect(full.reactions.get('auth.revokeOnDeactivation')).toMatchObject({
       module: 'auth',

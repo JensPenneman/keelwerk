@@ -8,6 +8,7 @@ import { createInvoker } from '../../src/invoker/create-invoker.ts';
 import type { Invocation } from '../../src/invoker/invocation.ts';
 import type { InvocationSession } from '../../src/invoker/invocation-session.ts';
 import type { Invoker } from '../../src/invoker/invoker.ts';
+import type { InvokerApp } from '../../src/invoker/invoker-app.ts';
 import type { InvokerOptions } from '../../src/invoker/invoker-options.ts';
 import type { Outcome } from '../../src/invoker/outcome.ts';
 import type { Principal } from '../../src/principals/principal.ts';
@@ -18,6 +19,7 @@ import type { Registry } from '../../src/registry/registry.ts';
 import type { DataAdapter } from '../../src/storage/data-adapter.ts';
 import type { NamespaceRef } from '../../src/storage/namespace-ref.ts';
 import { post } from '../authorization/post-fixture.ts';
+import { fixedKeys } from './fixed-keys.ts';
 import { staticScopeDirectory } from './static-scope-directory.ts';
 
 const namespace: NamespaceRef = {
@@ -89,7 +91,18 @@ function actionOf(ref: string, over: Partial<ActionEntry> = {}): ActionEntry {
 
 /** A registry of the actions given, over the `doc.post` entity, with no modules beyond `doc`. */
 function registryOf(actions: readonly ActionEntry[], extra: Partial<Registry> = {}): Registry {
-  const entity = { ref: 'doc.post', module: 'doc', name: 'post', descriptor: post } as EntityEntry;
+  const entity = {
+    ref: 'doc.post',
+    module: 'doc',
+    name: 'post',
+    descriptor: post,
+    page: {
+      sortable: ['id'],
+      defaultSort: [{ field: 'id', direction: 'asc' }],
+      defaultSize: 50,
+      maxSize: 100,
+    },
+  } as unknown as EntityEntry;
   return {
     app: 'doc',
     modules: [
@@ -98,6 +111,7 @@ function registryOf(actions: readonly ActionEntry[], extra: Partial<Registry> = 
     entities: new Map([['doc.post', entity]]),
     actions: new Map(actions.map((action) => [action.ref, action])),
     rules: new Map(),
+    contributions: [],
     fills: new Map(),
     extensionPoints: new Map(),
     versionChanges: new Map(),
@@ -151,17 +165,22 @@ const withResolver = (registry: Registry): Registry => ({
   ]),
 });
 
-function invokerOf(registry: Registry, over: Partial<InvokerOptions> = {}): Invoker {
+/** An invoker over the registry; `served` adds to the app it serves (its live hub, for one). */
+function invokerOf(
+  registry: Registry,
+  over: Partial<InvokerOptions> = {},
+  served: Partial<InvokerApp> = {},
+): Invoker {
   return createInvoker({
     apps: new Map([
-      ['doc', { registry: withResolver(registry), head: '2026-11-01' }],
+      ['doc', { registry: withResolver(registry), head: '2026-11-01', ...served }],
       ['core', { registry: withResolver(registry), head: '2026-11-01' }],
     ]),
     directory,
     placement: () => ({ adapter: adapterOf() }),
     tenantResolution: [{ kind: 'header', header: 'x-tenant' }, { kind: 'hostname' }],
     clock: { now: () => Temporal.Instant.from('2026-11-04T00:00:00Z') },
-    keys: {} as InvokerOptions['keys'],
+    keys: fixedKeys(),
     compute: {} as InvokerOptions['compute'],
     log: silentLog,
     environment: 'test',

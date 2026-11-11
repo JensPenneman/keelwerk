@@ -65,8 +65,8 @@ export interface CoreBase {
     readonly principalResolvers: ExtensionPoint<PrincipalResolver, 'ordered'>;
     readonly principalEnrichers: ExtensionPoint<PrincipalEnricher, 'set'>;
     readonly invocationMiddleware: ExtensionPoint<AdmissionRule, 'ordered'>;
-    // Declared `single({ min: 0 })`: typed `LiveHub`, but reads `undefined` in an app without the live module.
-    readonly liveHub: ExtensionPoint<LiveHub, 'single'>;
+    // Declared `single({ min: 0 })`: it reads `LiveHub | undefined`, since an app without the live module has no hub.
+    readonly liveHub: ExtensionPoint<LiveHub, 'single', true>;
     readonly liveCarriers: ExtensionPoint<LiveCarrier, 'set'>;
   };
   readonly entities: {

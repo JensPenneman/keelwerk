@@ -5,6 +5,7 @@ import { hooks } from '../../test/fixtures/modules/hooks/src/module.generated.ts
 import { teams } from '../../test/fixtures/modules/teams/src/module.generated.ts';
 import { appOf, contributionTo, makeModule } from '../../test/registry-kit.ts';
 import { core } from '../core-module/module.ts';
+import { contracts } from '../dsl/contracts.ts';
 import { defineApiVersions } from '../dsl/define-api-versions.ts';
 import { defineApp } from '../dsl/define-app.ts';
 import { defineEntity } from '../dsl/define-entity.ts';
@@ -262,5 +263,18 @@ describe('deriveSurface (section 16.2)', () => {
     const broken = defineEntity({ prefix: 'brk', fields: { blob: field.json(plain as never) } });
     const module = makeModule({ id: 'broken', entities: { broken } });
     expect(() => defineApp({ id: 'broken-app', modules: [module as never] })).toThrow();
+  });
+});
+
+describe('the surface of a subscription', () => {
+  test('shows its event as the output', () => {
+    const live = makeModule({ id: 'live', provides: [contracts.live] });
+    const surface = surfaceOf([accounts, auth, live]);
+    const action = surface.actions.find((one) => one.ref === 'auth.sessionEvents');
+    expect(action?.kind).toBe('subscription');
+    expect(action?.output).toMatchObject({
+      kind: 'shape',
+      fields: { sessionId: expect.anything(), kind: expect.anything() },
+    });
   });
 });

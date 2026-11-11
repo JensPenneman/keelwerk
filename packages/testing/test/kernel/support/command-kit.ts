@@ -23,6 +23,7 @@ import {
   shape,
 } from '@keelwerk/core';
 import { conformanceApp } from '../../../src/fixtures/index.ts';
+import { deriveOnlyKeys } from './derive-only-keys.ts';
 import { ada, base, call, kit } from './invoker-kit.ts';
 import { clock, namespace, open, silent, tenant, userOf } from './run-read-kit.ts';
 
@@ -158,7 +159,7 @@ export function runDirect(over: {
     principal: over.principal ?? userOf('ada'),
     request: { transport: 'test', requestId: 'req-1' },
     clock,
-    keys: {} as never,
+    keys: deriveOnlyKeys,
     compute: {} as never,
     log: silent,
     trace: {} as never,

@@ -105,7 +105,7 @@
     "packages/live": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@keelwerk/core", "@keelwerk/testing", "@keelwerk/transport-http"]
+      "ignoreDependencies": ["@keelwerk/transport-http"]
     },
     "packages/transport-graphql": {
       "entry": ["src/**/*.test-d.ts"],

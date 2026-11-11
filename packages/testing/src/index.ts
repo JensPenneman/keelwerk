@@ -50,6 +50,7 @@ export type { LoggedLine } from './harness/logged-line.ts';
 export { recordingLogger } from './harness/recording-logger.ts';
 export { startTestRuntime } from './harness/start-test-runtime.ts';
 export type { TestApp } from './harness/test-app.ts';
+export { testCarrier } from './harness/test-carrier.ts';
 export { testOperator } from './harness/test-operator.ts';
 export type { TestPrincipal } from './harness/test-principal.ts';
 export { testPrincipal } from './harness/test-principal.ts';

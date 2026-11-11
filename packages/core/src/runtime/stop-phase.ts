@@ -1,5 +1,6 @@
 import type { Anchoring } from '../anchors/start-anchoring.ts';
 import { setProcessState } from '../control/set-process-state.ts';
+import type { RuntimeLiveHub } from '../live/runtime-live-hub.ts';
 import type { MountHandle } from '../transport/mount-handle.ts';
 import type { Connected } from './connected.ts';
 import type { DrainingInvoker } from './draining-invoker.ts';
@@ -28,12 +29,14 @@ export interface StopInput {
   readonly host?: HostInstance | undefined;
   readonly abort: AbortController;
   readonly anchoring: Anchoring;
+  /** The live hubs this runtime opened: they close with the mounts, before the drain is awaited. */
+  readonly hubs: readonly RuntimeLiveHub[];
 }
 
 /**
  * `stop` (section 3.3, the drain of 21.6): the process is marked `draining` and takes no new
  * invocations; the listeners stop accepting; the invocations in flight continue until the
- * deadline, which is one absolute deadline for the whole stop; the change feed ends; the chain anchors still waiting are written (within the same deadline); the process deregisters as `stopped`; the computation pool and
+ * deadline, which is one absolute deadline for the whole stop; the live hubs end their streams; the change feed ends; the chain anchors still waiting are written (within the same deadline); the process deregisters as `stopped`; the computation pool and
  * the adapters close.
  */
 export async function stopPhase(input: StopInput, deadlineMs: number): Promise<void> {
@@ -55,8 +58,16 @@ export async function stopPhase(input: StopInput, deadlineMs: number): Promise<v
     },
   );
   const mountsClosed = Promise.allSettled(input.mounts.map((mount) => mount.close(deadline)));
+  // After every mount was asked to close, so each carrier knows it is closing when its streams end.
+  const hubsClosed = Promise.all(
+    input.hubs.map((hub) =>
+      hub.close(deadline).catch((error: unknown) => {
+        connected.log.warn('a live hub did not close cleanly', { cause: error });
+      }),
+    ),
+  );
   const phasesStopped = input.started.stopPhases(deadline);
-  await within(Promise.all([hostStopped, mountsClosed, phasesStopped]), remaining());
+  await within(Promise.all([hostStopped, mountsClosed, phasesStopped, hubsClosed]), remaining());
   await within(input.draining.idle(), remaining());
   input.started.unfollow();
   await within(input.started.following, remaining());

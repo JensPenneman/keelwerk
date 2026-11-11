@@ -5,7 +5,6 @@ import type {
   Invocation,
   Invoker,
   InvokerOptions,
-  KeyService,
   Outcome,
   Principal,
   PrincipalResolver,
@@ -13,6 +12,7 @@ import type {
   Scope,
 } from '@keelwerk/core';
 import { createInvoker, errors, type KeelwerkError, shape } from '@keelwerk/core';
+import { deriveOnlyKeys } from './derive-only-keys.ts';
 import type { ProbeContext } from './run-read-kit.ts';
 import {
   anonymous,
@@ -170,7 +170,7 @@ function kit(
     placement: () => ({ adapter }),
     tenantResolution: [{ kind: 'header', header: 'x-tenant' }, { kind: 'hostname' }],
     clock,
-    keys: {} as KeyService,
+    keys: deriveOnlyKeys,
     compute: {
       argon2idHash: async () => '',
       argon2idVerify: async () => true,

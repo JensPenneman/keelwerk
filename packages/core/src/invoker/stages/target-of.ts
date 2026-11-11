@@ -4,7 +4,7 @@ import type { ScopeTarget } from '../scope-target.ts';
 import type { SessionDetails } from '../session-details.ts';
 
 /** A backend-scope action of a tenant session runs in the backend's own unit, so it reaches no tenant data (section 8.8). */
-export function targetOf(action: ActionEntry, details: SessionDetails): ScopeTarget {
+export function targetOf(action: Pick<ActionEntry, 'scope'>, details: SessionDetails): ScopeTarget {
   const { resolved } = details;
   const target =
     action.scope === 'backend' && resolved.backendTarget !== null

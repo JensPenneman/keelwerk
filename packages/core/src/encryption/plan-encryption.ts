@@ -7,7 +7,7 @@ import { normalizedText } from './normalized-text.ts';
 import { normalizerOf } from './normalizer-of.ts';
 import { personalOperatorError } from './personal-operator-error.ts';
 import type { PlannedCondition } from './planned-condition.ts';
-import type { SealingContext } from './sealing-context.ts';
+import type { PlannerContext } from './planner-context.ts';
 
 interface State {
   touched: boolean;
@@ -24,7 +24,7 @@ function codePoints(text: string): number {
 
 /** The entity a (possibly dotted) relation path reaches, or `undefined` when a hop is unknown. */
 function relatedEntity(
-  context: SealingContext,
+  context: PlannerContext,
   entity: EntityDescriptor,
   path: string,
 ): EntityDescriptor | undefined {
@@ -38,7 +38,7 @@ function relatedEntity(
 }
 
 async function leaf(
-  context: SealingContext,
+  context: PlannerContext,
   state: State,
   entity: EntityDescriptor,
   condition: Extract<Condition, { readonly field: string }>,
@@ -109,7 +109,7 @@ async function leaf(
 }
 
 async function walk(
-  context: SealingContext,
+  context: PlannerContext,
   state: State,
   entity: EntityDescriptor,
   condition: Condition,
@@ -160,7 +160,7 @@ async function walk(
  * `core.personal_operator`; a comparison inside a relation quantifier must be exact.
  */
 export async function planEncryption(
-  context: SealingContext,
+  context: PlannerContext,
   entity: EntityDescriptor,
   condition: Condition,
 ): Promise<PlannedCondition> {

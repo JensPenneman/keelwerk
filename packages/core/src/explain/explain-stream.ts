@@ -1,4 +1,5 @@
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import type { StateToken } from '../events/state-token.ts';
 import type { Invocation } from '../invoker/invocation.ts';
 import type { Invoker } from '../invoker/invoker.ts';
 import type { LiveFrame } from '../invoker/live-frame.ts';
@@ -23,7 +24,7 @@ export interface ExplainStreamOptions {
  * invocation writes one line, `<transport> -> <action> <outcome> <n> ms rules=<ids|->`, where the
  * outcome is `ok` or the error code, the rules are those `authorize` matched (`-` when the invoker
  * reported none), and a failure adds `stage=<stage>` when the invoker reported where it stopped.
- * A subscription writes one line, with `kind=subscribe`, when its first `next()` settles. Any
+ * A subscription writes one line, with `kind=subscribe`, when its first `next()` settles or, if it is closed first, when `return()` is called. Any
  * other value, and any process that is not in development, leaves the invoker as it is.
  */
 export function explainStream(inner: Invoker, options: ExplainStreamOptions): Invoker {
@@ -50,18 +51,22 @@ export function explainStream(inner: Invoker, options: ExplainStreamOptions): In
       options.write(lineOf(inv, outcome.ok ? 'ok' : outcome.error.code, since(started), 'invoke'));
       return outcome;
     },
-    subscribe: <I, E>(inv: Invocation<I>): AsyncIterable<LiveFrame<E>> => {
+    subscribe: <I, E>(
+      inv: Invocation<I>,
+      resume?: { readonly after: StateToken },
+    ): AsyncIterable<LiveFrame<E>> => {
       const started = options.clock.now().epochMilliseconds;
-      const source = inner.subscribe<I, E>(inv);
+      const source = inner.subscribe<I, E>(inv, resume);
+      // One line for the subscription, whichever iterator of it settles first.
+      let written = false;
+      const write = (code: string): void => {
+        if (written) return;
+        written = true;
+        options.write(lineOf(inv, code, since(started), 'subscribe'));
+      };
       return {
         [Symbol.asyncIterator]: () => {
           const iterator = source[Symbol.asyncIterator]();
-          let written = false;
-          const write = (code: string): void => {
-            if (written) return;
-            written = true;
-            options.write(lineOf(inv, code, since(started), 'subscribe'));
-          };
           return {
             next: async (...args) => {
               try {
@@ -73,8 +78,11 @@ export function explainStream(inner: Invoker, options: ExplainStreamOptions): In
                 throw error;
               }
             },
-            return: async (value?: unknown) =>
-              (await iterator.return?.(value)) ?? { done: true, value: undefined },
+            return: async (value?: unknown) => {
+              // A stream closed before its first `next()` is a subscription that ended: it gets its line too.
+              write('ok');
+              return (await iterator.return?.(value)) ?? { done: true, value: undefined };
+            },
           };
         },
       };

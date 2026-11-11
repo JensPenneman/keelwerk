@@ -2,6 +2,7 @@ import type { Position } from '../storage/position.ts';
 import { assertTokenScope } from '../tokens/assert-token-scope.ts';
 import { currentTokenCheck } from '../tokens/current-token-check.ts';
 import { decodeStateToken } from '../tokens/decode-state-token.ts';
+import { tokenCheckHolds } from '../tokens/token-check-holds.ts';
 import type { TokenSelector } from '../tokens/token-selector.ts';
 import type { GeneratedReadInput } from './generated-read-input.ts';
 
@@ -26,7 +27,8 @@ export function readSinceToken(
   const parts = decodeStateToken(token);
   assertTokenScope(parts, input.scope);
   if (parts.epoch !== input.tokens.epoch) return { ok: false, reason: 'epoch' };
-  if (parts.check !== currentTokenCheck(input.tokens, input.entry.ref, input.scope, selector)) {
+  const check = currentTokenCheck(input.tokens, input.entry.ref, input.scope, selector);
+  if (!tokenCheckHolds(parts, check, input.tokens.sealKey)) {
     return { ok: false, reason: 'check' };
   }
   if (parts.position > input.head) return { ok: false, reason: 'position' };

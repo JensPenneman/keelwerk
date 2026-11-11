@@ -19,6 +19,7 @@ import { sealedValueText } from '../keys/sealed-value-text.ts';
 import { decodeRow } from '../repositories/decode-row.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
+import { stateTokenKey } from '../tokens/state-token-key.ts';
 import { completeJob } from '../worker/complete-job.ts';
 import { appendEvents } from './append-events.ts';
 import { appendReceiptChange } from './append-receipt-change.ts';
@@ -251,16 +252,23 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
         nestedUnit,
       ),
   });
+  const result =
+    action.generated === 'set' && generated !== undefined
+      ? setResultWithState(
+          run,
+          unit,
+          generated,
+          decided.result,
+          await stateTokenKey(run.keys, run.scope),
+        )
+      : decided.result;
   const { output, outcome } = commandOutput({
     registry,
     action,
     authority,
     written,
     target,
-    result:
-      action.generated === 'set' && generated !== undefined
-        ? setResultWithState(run, unit, generated, decided.result)
-        : decided.result,
+    result,
     effects,
   });
   run.signal?.throwIfAborted();

@@ -30,3 +30,49 @@ describe('tokenCheck over flags', () => {
     );
   });
 });
+
+describe('tokenCheck over a live selector', () => {
+  const live = { apiVersion: '2026-11-04', ids: ['b', 'a'], includeArchived: false };
+
+  test('without live the M1 check b0dcbba4 stands', () => {
+    expect(tokenCheck(base)).toBe('b0dcbba4');
+  });
+
+  // The live member now tells a selector without `ids` or `fields` from an empty list (`null` against
+  // `[]`) and covers `fields`, so these goldens replace cf5f3386 of the earlier format.
+  test('golden: the live check of the base with apiVersion 2026-11-04, ids [b, a], includeArchived false is 9834e8ad', () => {
+    expect(tokenCheck({ ...base, live })).toBe('9834e8ad');
+  });
+
+  test('goldens: a live member without ids is 2cc0e6a4, with ids [] is fde6b953, with fields [title] is 92721a7e', () => {
+    const open = { apiVersion: '2026-11-04', includeArchived: false };
+    expect(tokenCheck({ ...base, live: open })).toBe('2cc0e6a4');
+    expect(tokenCheck({ ...base, live: { ...open, ids: [] } })).toBe('fde6b953');
+    expect(tokenCheck({ ...base, live: { ...open, fields: ['title'] } })).toBe('92721a7e');
+  });
+
+  test('no ids is not an empty list of ids, and the fields are part of the check', () => {
+    const open = { apiVersion: '2026-11-04', includeArchived: false };
+    expect(tokenCheck({ ...base, live: open })).not.toBe(
+      tokenCheck({ ...base, live: { ...open, ids: [] } }),
+    );
+    const title = tokenCheck({ ...base, live: { ...open, fields: ['title'] } });
+    expect(title).not.toBe(tokenCheck({ ...base, live: open }));
+    expect(title).not.toBe(tokenCheck({ ...base, live: { ...open, fields: ['title', 'note'] } }));
+    expect(tokenCheck({ ...base, live: { ...open, fields: ['note', 'title'] } })).toBe(
+      tokenCheck({ ...base, live: { ...open, fields: ['title', 'note'] } }),
+    );
+    expect(tokenCheck({ ...base, live: { ...open, fields: [] } })).not.toBe(
+      tokenCheck({ ...base, live: open }),
+    );
+  });
+
+  test('another apiVersion, ids or includeArchived changes the check; id order does not', () => {
+    const check = tokenCheck({ ...base, live });
+    expect(check).not.toBe('b0dcbba4');
+    expect(tokenCheck({ ...base, live: { ...live, apiVersion: '2026-11-11' } })).not.toBe(check);
+    expect(tokenCheck({ ...base, live: { ...live, ids: ['a'] } })).not.toBe(check);
+    expect(tokenCheck({ ...base, live: { ...live, includeArchived: true } })).not.toBe(check);
+    expect(tokenCheck({ ...base, live: { ...live, ids: ['a', 'b'] } })).toBe(check);
+  });
+});

@@ -44,9 +44,10 @@ describe('the rules in the explain stream line', () => {
       for await (const _frame of frames) {
         // never reached
       }
-    }).rejects.toMatchObject({ code: 'core.live_unavailable' });
+    }).rejects.toMatchObject({ code: 'core.unsupported' });
     const written = lined(lines);
     expect(written).toHaveLength(1);
-    expect(written[0]).toMatch(/rules=- kind=subscribe$/);
+    // A query is no subscription: the setup stops at `locate`, and reports its decision like an invocation does.
+    expect(written[0]).toMatch(/rules=- stage=locate kind=subscribe$/);
   });
 });

@@ -2,6 +2,7 @@ import type { Carrier, Logger } from '@keelwerk/core';
 import { dryRun, normalizeRule } from '@keelwerk/core';
 import { testCarrier } from '../../../src/harness/test-carrier.ts';
 import { behaviours, bookEntity, loanEntity } from './command-kit.ts';
+import { deriveOnlyKeys } from './derive-only-keys.ts';
 import { effectEntity, type registryWith } from './effects-kit.ts';
 import { clock, namespace, open, silent, tenant, userOf } from './run-read-kit.ts';
 import { ada, boot, deploymentOf, type Kind } from './runtime-kit.ts';
@@ -117,7 +118,7 @@ export function dry(registry: ReturnType<typeof registryWith>, ref: string, over
         principal: userOf('ada'),
         request: { transport: 'test', requestId: 'r1' },
         clock,
-        keys: {} as never,
+        keys: deriveOnlyKeys,
         compute: {} as never,
         log: silent,
         trace: {} as never,

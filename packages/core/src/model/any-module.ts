@@ -5,7 +5,7 @@ import type {
   HistoryMode,
   Relations,
 } from '../dsl/define-entity.ts';
-import type { ExtensionPoint } from '../dsl/extension-point.ts';
+import type { ExtensionMode, ExtensionPoint } from '../dsl/extension-point.ts';
 import type { ShapeFields } from '../fields/shape.ts';
 import type { AnyActionPart } from './action-part.ts';
 import type { GeneratorTemplate } from './generator-template.ts';
@@ -55,7 +55,9 @@ export interface AnyModule {
   readonly optional?: readonly Dependency[];
   readonly provides?: readonly AnyContract[];
   readonly generates?: readonly GeneratorTemplate[];
-  readonly extensionPoints?: { readonly [name: string]: ExtensionPoint<unknown> };
+  readonly extensionPoints?: {
+    readonly [name: string]: ExtensionPoint<unknown, ExtensionMode, boolean>;
+  };
   readonly entities?: { readonly [entity: string]: AnyNormalisedEntity };
   readonly actions?: Actions;
   readonly services?: { readonly [name: string]: object };

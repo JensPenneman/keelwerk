@@ -15,10 +15,13 @@ export function issueStateToken(
   position: Position,
   selector: TokenSelector = {},
 ): StateToken {
-  return encodeStateToken({
-    epoch: context.epoch,
-    position,
-    scope: tokenScopePart(scope),
-    check: currentTokenCheck(context, entity, scope, selector),
-  });
+  return encodeStateToken(
+    {
+      epoch: context.epoch,
+      position,
+      scope: tokenScopePart(scope),
+      check: currentTokenCheck(context, entity, scope, selector),
+    },
+    context.sealKeyOf?.(scope) ?? context.sealKey,
+  );
 }

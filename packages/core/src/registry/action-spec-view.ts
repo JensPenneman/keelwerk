@@ -1,4 +1,5 @@
 import type { AnyErrorDefinition } from '../errors/error-definition.ts';
+import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
 import type { AnyActionPart } from '../model/action-part.ts';
 import type { PrincipalKind } from '../principals/principal-kind.ts';
 import type { ActionHandler } from './action-handler.ts';
@@ -18,6 +19,8 @@ export interface ActionSpecView {
     readonly form?: string;
     readonly entity?: { readonly prefix: string };
   };
+  /** A subscription's event shape: what each item it delivers looks like (7.3). */
+  readonly event?: StandardSchemaV1;
   readonly errors?: readonly AnyErrorDefinition[];
   readonly auth?: 'policy' | { readonly public: true };
   readonly principal?: PrincipalKind | readonly PrincipalKind[];

@@ -15,6 +15,7 @@ import { createInvoker } from '../invoker/create-invoker.ts';
 import type { InvokerApp } from '../invoker/invoker-app.ts';
 import type { InvokerOptions } from '../invoker/invoker-options.ts';
 import { moduleConfigShapes } from '../invoker/module-config-shapes.ts';
+import type { RuntimeLiveHub } from '../live/runtime-live-hub.ts';
 import { createOperatorTokenResolver } from '../principals/operator-token-resolver.ts';
 import type { ApiSurface } from '../surface/api-surface.ts';
 import { deriveSurface } from '../surface/derive-surface.ts';
@@ -32,6 +33,7 @@ import type { DeploymentDefinition } from './deployment-definition.ts';
 import { drainingInvoker } from './draining-invoker.ts';
 import { listenPhase } from './listen-phase.ts';
 import type { Listening } from './listening.ts';
+import { liveHubFillerOf } from './live-hub-filler-of.ts';
 import { migratePhase } from './migrate-phase.ts';
 import { refuseUnknownApiVersion } from './refuse-unknown-api-version.ts';
 import { registerTelemetry } from './register-telemetry.ts';
@@ -81,6 +83,7 @@ export async function startRuntime(
     signal: abort.signal,
   });
   let started: Started | undefined;
+  const hubs: RuntimeLiveHub[] = [];
   try {
     log.debug('phase', { phase: 'migrate' });
     const migrated = await migratePhase({ deployment, composed, served, connected, development });
@@ -93,18 +96,27 @@ export async function startRuntime(
       });
     }
 
+    // Each runtime opens its own hub for each app it serves, so two runtimes of one app share nothing.
     const apps = new Map<string, InvokerApp>(
-      served.map((app) => [
-        app.id,
-        {
-          registry: app.registry,
-          head: app.head,
-          ...(app.source.api === null || app.source.api === undefined
-            ? {}
-            : { api: app.source.api }),
-          configShapes: moduleConfigShapes(app.source.modules),
-        },
-      ]),
+      served.map((app) => {
+        const hub = liveHubFillerOf(app.registry)?.open({
+          clock,
+          log: log.child({ app: app.id }),
+        });
+        if (hub !== undefined) hubs.push(hub);
+        return [
+          app.id,
+          {
+            registry: app.registry,
+            head: app.head,
+            ...(app.source.api === null || app.source.api === undefined
+              ? {}
+              : { api: app.source.api }),
+            configShapes: moduleConfigShapes(app.source.modules),
+            ...(hub === undefined ? {} : { liveHub: hub }),
+          },
+        ];
+      }),
     );
     const sole = served.length === 1 ? served[0] : undefined;
     apps.set('core', {
@@ -297,6 +309,7 @@ export async function startRuntime(
               host: listening.instance,
               abort,
               anchoring,
+              hubs,
             },
             deadlineMs,
           );
@@ -308,6 +321,7 @@ export async function startRuntime(
   } catch (error) {
     abort.abort();
     started?.unfollow();
+    await Promise.allSettled(hubs.map((hub) => hub.close(AbortSignal.abort())));
     await setProcessState(connected.control, connected.processId, 'stopped').catch(() => undefined);
     await Promise.allSettled([
       connected.compute.close(),

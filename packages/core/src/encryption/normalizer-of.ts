@@ -5,7 +5,7 @@ import type { SealingContext } from './sealing-context.ts';
 
 /** The normaliser a personal field names; an unregistered one is an internal error, never a silent `exact`. */
 export function normalizerOf(
-  context: SealingContext,
+  context: Pick<SealingContext, 'normalizers'>,
   personal: PersonalDeclaration,
 ): NormalizerEntry {
   const found = context.normalizers.resolve(personal.normalize);

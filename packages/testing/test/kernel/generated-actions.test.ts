@@ -1,6 +1,7 @@
 import { runGeneratedRead } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import { testPrincipal } from '../../src/harness/test-principal.ts';
+import { deriveOnlyKeys } from './support/derive-only-keys.ts';
 import { caller, tenantOf, value } from './support/generated-kit.ts';
 import { namespace, open, registry, tenant, userOf } from './support/run-read-kit.ts';
 
@@ -38,7 +39,7 @@ describe.each(['memory', 'pglite'] as const)('the generated actions on %s', (kin
     );
     expect(got.list.map((row) => row.id)).toEqual([created.id]);
     expect(got.notFound).toEqual(['missing']);
-    expect(got.state).toMatch(/^v1\.0\.\d+\.[0-9a-f]{8}\.[0-9a-f]{8}$/);
+    expect(got.state).toMatch(/^v2\.0\.\d+\.[0-9a-f]{8}\.[0-9a-f]{32}$/);
 
     const updated = await value<Row>(
       call('library.book.update', {
@@ -239,7 +240,7 @@ describe.each(['memory', 'pglite'] as const)('the generated actions on %s', (kin
     expect(result.created).toHaveLength(1);
     expect(result.updated).toEqual([a.id]);
     expect(result.oldState).toBe(state);
-    expect(result.newState).toMatch(/^v1\./);
+    expect(result.newState).toMatch(/^v2\./);
     const codes = result.failed.map((item) => [item.operation, item.id, item.code]);
     expect(codes).toEqual(
       expect.arrayContaining([
@@ -282,13 +283,14 @@ describe('the scope epoch', () => {
         adapter,
         namespace,
         scope: tenant,
+        keys: deriveOnlyKeys,
         action: registry.actions.get(action) ?? (undefined as never),
         input,
         principal: userOf('ada'),
         epoch,
       }) as Promise<Record<string, unknown>>;
     const { state } = await read(0, 'library.book.get', { ids: [] });
-    expect(state).toMatch(/^v1\.0\./);
+    expect(state).toMatch(/^v2\.0\./);
     expect(await read(1, 'library.book.changes', { since: state })).toMatchObject({
       cannotCalculateChanges: true,
       reason: 'epoch',
