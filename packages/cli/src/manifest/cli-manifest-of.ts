@@ -1,4 +1,5 @@
 import type { ApiSurface, SurfaceAction } from '@keelwerk/core';
+import { requiredIfVersion } from '@keelwerk/core';
 import { commonFlags } from '../routes/common-flags.ts';
 import { flagTable } from '../routes/flag-table.ts';
 import type { CliManifestCommand } from './cli-manifest-command.ts';
@@ -20,6 +21,13 @@ function positionalsOf(action: SurfaceAction): readonly CliManifestFlag[] {
   });
 }
 
+function ifVersionFlagOf(action: SurfaceAction): readonly CliManifestFlag[] {
+  const node = requiredIfVersion(action);
+  return node === undefined
+    ? []
+    : [{ name: 'if-version', kind: node.kind, required: true, ...describe(node) }];
+}
+
 function commandOf(action: SurfaceAction): CliManifestCommand {
   const hint = action.hints.cli;
   const aliases = [
@@ -35,12 +43,15 @@ function commandOf(action: SurfaceAction): CliManifestCommand {
     scope: action.scope,
     ...describe(action),
     positionals: positionalsOf(action),
-    flags: flagTable(action).map((entry) => ({
-      name: entry.key,
-      kind: entry.role === 'negate' ? 'boolean' : entry.node.kind,
-      required: entry.role === 'value' && entry.node.optional !== true,
-      ...(entry.role === 'negate' ? {} : describe(entry.node)),
-    })),
+    flags: [
+      ...flagTable(action).map((entry) => ({
+        name: entry.key,
+        kind: entry.role === 'negate' ? 'boolean' : entry.node.kind,
+        required: entry.role === 'value' && entry.node.optional !== true,
+        ...(entry.role === 'negate' ? {} : describe(entry.node)),
+      })),
+      ...ifVersionFlagOf(action),
+    ],
   };
 }
 

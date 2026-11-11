@@ -1,10 +1,12 @@
-import { trace } from '@opentelemetry/api';
+import { metrics, trace } from '@opentelemetry/api';
 import { applyVersionChanges } from '../api-versions/apply-version-changes.ts';
 import type { VersionTranslation } from '../api-versions/version-translation.ts';
 import { effectiveRules } from '../authorization/effective-rules.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import type { TenantResolver } from '../edge/tenant-resolver.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { createFlagTelemetry } from '../flags/create-flag-telemetry.ts';
+import type { FlagTelemetry } from '../flags/flag-telemetry.ts';
 import type { Tracer } from '../observability/tracer.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import type { Registry } from '../registry/registry.ts';
@@ -34,6 +36,7 @@ export interface InvokerEnv {
   readonly options: InvokerOptions;
   readonly sessions: SessionRegistry;
   readonly tracer: Tracer;
+  readonly flagTelemetry: FlagTelemetry;
   readonly tenantResolution: readonly TenantResolver[];
   /** The app served under the id; `unavailable` when this process does not hold it. */
   appOf(id: string): InvokerApp;
@@ -64,6 +67,7 @@ export function createInvokerEnv(options: InvokerOptions): InvokerEnv {
     options,
     sessions: createSessionRegistry(),
     tracer: options.tracer ?? trace.getTracer('keelwerk'),
+    flagTelemetry: createFlagTelemetry(options.meter ?? metrics.getMeter('keelwerk')),
     tenantResolution,
     appOf: (id) => {
       const app = options.apps.get(id);

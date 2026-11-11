@@ -8,9 +8,11 @@ export function createFlagChain(input: {
   readonly providers: readonly FlagProvider[];
   readonly environment: RowEnvironment;
   readonly env: Readonly<Record<string, string | undefined>>;
+  /** The head of the chain; default the inert `core.targeting`. */
+  readonly targeting?: FlagProvider;
 }): readonly FlagProvider[] {
   return [
-    targetingProvider(),
+    input.targeting ?? targetingProvider(),
     ...input.providers,
     ...(input.environment === 'production' ? [] : [envFlagProvider(input.env)]),
   ];

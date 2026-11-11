@@ -1,0 +1,96 @@
+{
+  "afterSet": {
+    "id": "<flag id>",
+    "createdAt": "2026-11-11T08:00:00Z",
+    "updatedAt": "2026-11-11T08:00:00Z",
+    "version": 2,
+    "slot": "rollout.layout",
+    "key": "rollout.layout",
+    "targeting": {
+      "enabled": true,
+      "rules": [],
+      "fallthrough": {
+        "value": "control",
+        "variant": "control"
+      }
+    },
+    "previous": {
+      "enabled": true,
+      "rules": [
+        {
+          "id": "staff",
+          "when": {
+            "principalRoles": {
+              "contains": "staff"
+            }
+          },
+          "serve": {
+            "value": "compact",
+            "variant": "compact"
+          }
+        }
+      ],
+      "fallthrough": {
+        "split": [
+          {
+            "value": "control",
+            "weight": 9000
+          },
+          {
+            "value": "compact",
+            "weight": 1000
+          }
+        ],
+        "salt": "exp:layout:1"
+      }
+    },
+    "reason": "pull the layout test back"
+  },
+  "afterRestore": {
+    "id": "<flag id>",
+    "createdAt": "2026-11-11T08:00:00Z",
+    "updatedAt": "2026-11-11T08:00:00Z",
+    "version": 3,
+    "slot": "rollout.layout",
+    "key": "rollout.layout",
+    "targeting": {
+      "enabled": true,
+      "rules": [
+        {
+          "id": "staff",
+          "when": {
+            "principalRoles": {
+              "contains": "staff"
+            }
+          },
+          "serve": {
+            "value": "compact",
+            "variant": "compact"
+          }
+        }
+      ],
+      "fallthrough": {
+        "split": [
+          {
+            "value": "control",
+            "weight": 9000
+          },
+          {
+            "value": "compact",
+            "weight": 1000
+          }
+        ],
+        "salt": "exp:layout:1"
+      }
+    },
+    "previous": {
+      "enabled": true,
+      "rules": [],
+      "fallthrough": {
+        "value": "control",
+        "variant": "control"
+      }
+    },
+    "reason": "the layout test goes on"
+  }
+}

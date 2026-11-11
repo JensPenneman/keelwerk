@@ -1,28 +1,19 @@
 import { describe, expectTypeOf, test } from 'vitest';
-import { derivedEffectAttempt } from '../../test/derived-effect-attempt.ts';
+import type { derivedCoreBase } from '../../test/derived-core-base.ts';
 import { defineApp } from '../dsl/define-app.ts';
-import { defineEntity } from '../dsl/define-entity.ts';
 import { defineModule } from '../dsl/define-module.ts';
-import { defineModuleBase } from '../dsl/define-module-base.ts';
-import { extensionPoint } from '../dsl/extension-point.ts';
-import type { AdmissionRule } from '../edge/admission-rule.ts';
-import type { PrincipalEnricher } from '../edge/principal-enricher.ts';
-import type { PrincipalResolver } from '../edge/principal-resolver.ts';
-import { field } from '../fields/field.ts';
-import { shape } from '../fields/shape.ts';
-import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
 import type { Id } from '../ids/id.ts';
-import type { LiveCarrier } from '../live/live-carrier.ts';
-import type { LiveHub } from '../live/live-hub.ts';
 import type { ActionRef } from '../model/action-ref.ts';
 import type { AnyModule } from '../model/any-module.ts';
 import type { AnyModuleBase } from '../model/any-module-base.ts';
 import type { Insert } from '../model/insert.ts';
 import type { Row } from '../model/row.ts';
-import type { TransportAdapter } from '../transport/transport-adapter.ts';
 import { create as createBackend } from './actions/backend/create.ts';
 import { capabilities } from './actions/capabilities.ts';
 import { composition } from './actions/composition.ts';
+import { evaluate as evaluateFlag } from './actions/flag/evaluate.ts';
+import { restoreRules } from './actions/flag/restore-rules.ts';
+import { set as setFlag } from './actions/flag/set.ts';
 import { introspect } from './actions/introspect.ts';
 import { me } from './actions/me.ts';
 import { issue } from './actions/operator-token/issue.ts';
@@ -38,174 +29,12 @@ import { operators as backendOperators } from './policies/backend/operators.ts';
 import { submitter } from './policies/command-receipt/submitter.ts';
 import { operators as compositionOperators } from './policies/composition/operators.ts';
 import { operators as domainOperators } from './policies/domain/operators.ts';
+import { operators as flagOperators } from './policies/flag/operators.ts';
 import { signedIn as introspectSignedIn } from './policies/introspect/signed-in.ts';
 import { operators as operatorTokenOperators } from './policies/operator-token/operators.ts';
 import { operators as tenantOperators } from './policies/tenant/operators.ts';
 import { syncDomains } from './reactions/sync-domains.ts';
 import { syncDomainsOnChange } from './reactions/sync-domains-on-change.ts';
-
-declare const configSchema: StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
-declare const document: StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
-const status = field.enum(['active', 'suspended']).default('active');
-
-// What the DSL derives from the same definitions, with isolatedDeclarations off: the hand-written
-// `CoreBase` must be exactly this (decision 104).
-const derived = defineModuleBase({
-  id: 'core',
-  version: '0.0.0',
-  extensionPoints: {
-    transports: extensionPoint.set<TransportAdapter>(),
-    principalResolvers: extensionPoint.ordered<PrincipalResolver>(),
-    principalEnrichers: extensionPoint.set<PrincipalEnricher>(),
-    invocationMiddleware: extensionPoint.ordered<AdmissionRule>(),
-    liveHub: extensionPoint.single<LiveHub>({ min: 0 }),
-    liveCarriers: extensionPoint.set<LiveCarrier>(),
-  },
-  entities: {
-    backend: defineEntity({
-      prefix: 'bknd',
-      fields: {
-        name: field.string().unique(),
-        app: field.string(),
-        placement: field.string(),
-        apiVersion: field.string().optional(),
-        config: field.json(configSchema).optional(),
-        status,
-      },
-      tenancy: 'deployment',
-      generated: { create: false },
-    }),
-    tenant: defineEntity({
-      prefix: 'tnt',
-      fields: {
-        backendId: field.ref.own('backend'),
-        name: field.string(),
-        placement: field.string().optional(),
-        apiVersion: field.string().optional(),
-        domains: field.list(field.string()),
-        status,
-      },
-      events: {
-        entered: shape({ reason: field.string() }),
-        hookFailed: shape({ hook: field.string() }),
-        hookCompleted: shape({ hook: field.string() }),
-      },
-      evolve: {
-        entered: (state) => state,
-        hookFailed: (state) => state,
-        hookCompleted: (state) => state,
-      },
-      tenancy: 'deployment',
-      generated: { history: true, create: false },
-    }),
-    domain: defineEntity({
-      prefix: 'dom',
-      fields: {
-        hostname: field.string().unique(),
-        backendId: field.ref.own('backend'),
-        tenantId: field.ref.own('tenant'),
-      },
-      tenancy: 'deployment',
-      generated: { set: false },
-    }),
-    placement: defineEntity({
-      prefix: 'plc',
-      fields: {
-        name: field.string().unique(),
-        adapter: field.string(),
-        strategy: field.enum(['shared-tables', 'schema-per-tenant', 'database-per-tenant']),
-      },
-      tenancy: 'deployment',
-      generated: { set: false },
-    }),
-    namespace: defineEntity({
-      prefix: 'nsp',
-      fields: {
-        placementId: field.ref.own('placement'),
-        appId: field.string(),
-        tenantId: field.ref.own('tenant').optional(),
-        root: field.string(),
-      },
-      tenancy: 'deployment',
-      generated: { set: false },
-    }),
-    operatorToken: defineEntity({
-      prefix: 'otk',
-      fields: {
-        label: field.string(),
-        publicId: field.string().unique(),
-        verifier: field.verifier(),
-        expiresAt: field.instant(),
-        revokedAt: field.instant().optional(),
-      },
-      tenancy: 'deployment',
-      generated: { set: false },
-    }),
-    commandReceipt: defineEntity({
-      prefix: 'rcpt',
-      fields: {
-        commandId: field.string().unique(),
-        action: field.string(),
-        fingerprint: field.string(),
-        principal: field.json(document).optional().hidden(),
-        principalResolver: field.string().optional(),
-        principalId: field.string().optional(),
-        status: field.enum(['pending', 'accepted', 'completed', 'failed']),
-        outcome: field.json(document).optional(),
-        apiVersion: field.string(),
-        transport: field.string(),
-        remoteAddress: field.string().optional(),
-        userAgent: field.string().optional(),
-        clientId: field.string().optional(),
-        clientSeq: field.integer().optional(),
-        expiresAt: field.instant(),
-        acknowledgedAt: field.instant().optional(),
-      },
-      history: 'state',
-      tenancy: 'invocation',
-      generated: { set: false },
-    }),
-    effect: defineEntity({
-      prefix: 'eff',
-      fields: {
-        type: field.string(),
-        commandId: field.string(),
-        status: field.enum(['requested', 'succeeded', 'failed', 'abandoned']),
-        attempts: field.integer().default(0),
-        performer: field.enum(['executor', 'external']),
-        input: field.json(document).optional(),
-        eventIds: field.list(field.string()),
-        continuation: field.string().optional(),
-        continuationWith: field.json(document).optional(),
-        key: field.string().optional(),
-        runAt: field.instant().optional(),
-        deadline: field.instant().optional(),
-        output: field.json(document).optional(),
-        error: field.json(document).optional(),
-        outputDigest: field.string().optional(),
-        settledAt: field.instant().optional(),
-      },
-      tenancy: 'invocation',
-      generated: { set: false },
-    }),
-    process: defineEntity({
-      prefix: 'proc',
-      fields: {
-        name: field.string().optional(),
-        node: field.string(),
-        roles: field.list(field.enum(['serve', 'work'])),
-        buildId: field.string(),
-        revision: field.integer(),
-        state: field.enum(['starting', 'ready', 'draining', 'stopped']),
-        heartbeatAt: field.instant(),
-      },
-      tenancy: 'deployment',
-      history: 'state',
-      generated: { set: false },
-    }),
-  },
-  streams: { effectAttempt: derivedEffectAttempt },
-});
 
 // What `defineModule` derives from the same base and the same parts.
 const derivedCore = defineModule(coreBase, {
@@ -214,6 +43,7 @@ const derivedCore = defineModule(coreBase, {
     backend: { create: createBackend },
     tenant: { create: createTenant, enter, setApiVersion },
     operatorToken: { issue, revoke },
+    flag: { set: setFlag, restoreRules, evaluate: evaluateFlag },
   },
   policies: {
     introspect: { signedIn: introspectSignedIn },
@@ -222,6 +52,7 @@ const derivedCore = defineModule(coreBase, {
     backend: { operators: backendOperators },
     tenant: { operators: tenantOperators },
     domain: { operators: domainOperators },
+    flag: { operators: flagOperators },
     commandReceipt: { submitter },
   },
   reactions: { syncDomains, syncDomainsOnChange },
@@ -232,7 +63,7 @@ type OnlyCore = typeof app;
 
 describe('the hand-written core module types (decision 104, S-11, S-26)', () => {
   test('CoreBase is what the DSL derives from the entity definitions', () => {
-    expectTypeOf<CoreBase>().toEqualTypeOf<typeof derived>();
+    expectTypeOf<CoreBase>().toEqualTypeOf<typeof derivedCoreBase>();
     expectTypeOf<CoreBase>().toExtend<AnyModuleBase>();
   });
 
@@ -255,6 +86,7 @@ describe('the hand-written core module types (decision 104, S-11, S-26)', () => 
       | 'commandReceipt'
       | 'effect'
       | 'process'
+      | 'flag'
     >();
     expectTypeOf<Row<OnlyCore, 'core.backend'>['name']>().toEqualTypeOf<string>();
     expectTypeOf<Row<OnlyCore, 'core.backend'>['status']>().toEqualTypeOf<'active' | 'suspended'>();
@@ -295,6 +127,12 @@ describe('the hand-written core module types (decision 104, S-11, S-26)', () => 
       | 'core.capabilities'
       | 'core.commandReceipt.get'
       | 'core.effect.get'
+      | 'core.flag.set'
+      | 'core.flag.restoreRules'
+      | 'core.flag.evaluate'
+      | 'core.flag.get'
+      | 'core.flag.query'
+      | 'core.flag.history'
     >().toExtend<ActionRef<OnlyCore>>();
     expectTypeOf<
       | 'core.domain.create'
@@ -304,6 +142,8 @@ describe('the hand-written core module types (decision 104, S-11, S-26)', () => 
       | 'core.effect.update'
       | 'core.process.archive'
       | 'core.operatorToken.create'
+      | 'core.flag.create'
+      | 'core.flag.update'
     >().not.toExtend<ActionRef<OnlyCore>>();
   });
 });

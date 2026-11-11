@@ -10,6 +10,7 @@ import type { EntityDescriptor } from '../storage/entity-descriptor.ts';
 import type { NamespaceRef } from '../storage/namespace-ref.ts';
 import type { Scope } from '../storage/scope.ts';
 import type { Unit } from '../storage/unit.ts';
+import type { ControlFlags } from './control-flags.ts';
 
 /**
  * The control store (section 14.2): the deployment namespace of the core module in the control
@@ -41,6 +42,8 @@ export interface ControlStore {
   epochOf(scope: Scope): number;
   /** The descriptor of a core entity ('core.backend'). */
   entity(ref: string): EntityDescriptor;
+  /** The targeting rows of core.flag and their change subscription (WP-98). */
+  readonly flags: ControlFlags;
   /** Runs `fn` in a read-only deployment-scope unit. */
   read<T>(fn: (unit: Unit) => Promise<T>): Promise<T>;
 }

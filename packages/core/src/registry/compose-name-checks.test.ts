@@ -10,6 +10,7 @@ import {
   widget,
 } from '../../test/registry-kit.ts';
 import { defineEntity } from '../dsl/define-entity.ts';
+import { defineFlag } from '../dsl/define-flag.ts';
 import { field } from '../fields/field.ts';
 import { relation } from '../fields/relation.ts';
 import { shape } from '../fields/shape.ts';
@@ -56,6 +57,25 @@ const naming: readonly Case[] = [
       Object.assign(first, { requires: [second] });
       return appOf([first, second]);
     },
+  },
+  {
+    name: 'a flag name that could make two rows share a slot',
+    code: 'invalidFlagName',
+    ref: 'shop.beta@6b1f',
+    app: () =>
+      appOf([
+        makeModule({
+          id: 'shop',
+          flags: {
+            'beta@6b1f': defineFlag({
+              kind: 'boolean',
+              default: false,
+              level: 'tenant',
+              purpose: 'operational',
+            }),
+          },
+        }),
+      ]),
   },
   {
     name: 'two entities with one prefix',

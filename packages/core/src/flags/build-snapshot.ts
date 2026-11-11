@@ -1,6 +1,7 @@
 import type { FlagResolution } from '../contexts/flag-resolution.ts';
 import type { FlagRead } from '../events/flag-read.ts';
 import type { Logger } from '../observability/logger.ts';
+import type { Span } from '../observability/span.ts';
 import type { Principal } from '../principals/principal.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import type { Registry } from '../registry/registry.ts';
@@ -12,7 +13,9 @@ import type { FlagProvider } from './flag-provider.ts';
 import type { FlagSnapshot } from './flag-snapshot.ts';
 import type { FlagSpec } from './flag-spec.ts';
 import { flagSpecOf } from './flag-spec-of.ts';
+import type { FlagTelemetry } from './flag-telemetry.ts';
 import { resolveFlag } from './resolve-flag.ts';
+import { telemetryVariantOf } from './telemetry-variant-of.ts';
 
 function noop(): void {}
 
@@ -56,8 +59,14 @@ export interface BuildSnapshotInput {
   /** flagClientIdOf(invocation.carrier). */
   readonly clientId: string | null;
   readonly providers: readonly FlagProvider[];
-  /** Warns once per key a provider failed for (the default was served with ERROR). */
+  /** Logs at error level once per key a provider failed for (the default was served with ERROR). */
   readonly log: Logger;
+  /** Awaited first, so the targeting is no older than its refresh bound (WP-98). */
+  readonly targeting?: { fresh(): Promise<void> } | undefined;
+  /** Counts each key's first read on `keelwerk.flags.evaluations`, the variant as `telemetryVariantOf` shows it. */
+  readonly telemetry?: FlagTelemetry | undefined;
+  /** Receives `keelwerk.flags`: `<key>=<variant>` in read order, the variant as `telemetryVariantOf` shows it. */
+  readonly span?: Pick<Span, 'setAttribute'> | undefined;
 }
 
 /**
@@ -69,11 +78,13 @@ export interface BuildSnapshotInput {
  * `evaluations`.
  */
 export async function buildSnapshot(input: BuildSnapshotInput): Promise<FlagSnapshot> {
+  await input.targeting?.fresh();
   const { registry, providers } = input;
   const resolved = new Map<string, FlagResolution<unknown>>();
   const evaluations: FlagRead[] = [];
   const listed = new Set<string>();
   const warned = new Set<string>();
+  const readOrder: string[] = [];
   const lazyProviders = providers.map(strictlySynchronous);
   const asynchronous = providers.some((provider) => !provider.sync);
 
@@ -92,7 +103,7 @@ export async function buildSnapshot(input: BuildSnapshotInput): Promise<FlagSnap
       (provider, error) => {
         if (warned.has(spec.key)) return;
         warned.add(spec.key);
-        input.log.warn('a flag provider failed; the declared default was served', {
+        input.log.error('a flag provider failed; the declared default was served', {
           flag: spec.key,
           provider,
           error: error instanceof Error ? error.message : String(error),
@@ -139,6 +150,11 @@ export async function buildSnapshot(input: BuildSnapshotInput): Promise<FlagSnap
           reason: answer.reason,
           ruleVersion: answer.ruleVersion ?? null,
         });
+        // Telemetry never carries a served value: a string, number or scalar json flag shows its position.
+        const shown = telemetryVariantOf(spec, answer);
+        readOrder.push(`${key}=${shown}`);
+        input.telemetry?.evaluated(spec, answer, input.scope);
+        input.span?.setAttribute('keelwerk.flags', [...readOrder]);
       }
       return answer as FlagResolution<T>;
     },

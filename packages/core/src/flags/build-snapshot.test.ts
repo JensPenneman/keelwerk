@@ -1,84 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { appOf, makeModule } from '../../test/registry-kit.ts';
-import { defineFlag } from '../dsl/define-flag.ts';
+import { snapshotInput, snapshotScope } from '../../test/flag-snapshot-kit.ts';
 import { placeholderPrincipal } from '../invoker/edge/placeholder-principal.ts';
-import type { Logger } from '../observability/logger.ts';
-import type { Principal } from '../principals/principal.ts';
-import type { ActionEntry } from '../registry/action-entry.ts';
-import { buildRegistry } from '../registry/build-registry.ts';
-import type { Scope } from '../storage/scope.ts';
 import { buildSnapshot } from './build-snapshot.ts';
 import { envFlagProvider } from './env-flag-provider.ts';
 import type { FlagContext } from './flag-context.ts';
 import type { FlagProvider } from './flag-provider.ts';
-
-const registry = buildRegistry(
-  appOf([
-    makeModule({
-      id: 'shop',
-      gate: 'checkout',
-      flags: {
-        checkout: defineFlag({
-          kind: 'boolean',
-          default: false,
-          level: 'tenant',
-          purpose: 'release',
-          expires: '2027-06-30',
-        }),
-        banner: defineFlag({
-          kind: 'string',
-          default: 'hi',
-          level: 'backend',
-          purpose: 'operational',
-        }),
-        beta: defineFlag({
-          kind: 'boolean',
-          default: false,
-          level: 'principal',
-          purpose: 'permission',
-        }),
-      },
-    }),
-    makeModule({
-      id: 'other',
-      flags: {
-        unrelated: defineFlag({
-          kind: 'boolean',
-          default: false,
-          level: 'tenant',
-          purpose: 'operational',
-        }),
-      },
-    }),
-  ]),
-);
-const action = { ref: 'shop.pay', module: 'shop' } as ActionEntry;
-const scope: Scope = { level: 'tenant', backendId: 'b1', tenantId: 't1' };
-
-function capture(): { readonly log: Logger; readonly warnings: unknown[] } {
-  const warnings: unknown[] = [];
-  const log: Logger = {
-    debug: () => undefined,
-    info: () => undefined,
-    warn: (_message, fields) => {
-      warnings.push(fields);
-    },
-    error: () => undefined,
-    child: () => log,
-  };
-  return { log, warnings };
-}
-
-function input(
-  providers: readonly FlagProvider[],
-  principal: Principal = placeholderPrincipal(scope),
-) {
-  const { log, warnings } = capture();
-  return {
-    warnings,
-    input: { registry, action, scope, principal, clientId: null, providers, log },
-  };
-}
 
 describe('buildSnapshot', () => {
   test('synchronous providers resolve a flag on its first read, once', async () => {
@@ -94,7 +20,7 @@ describe('buildSnapshot', () => {
           : undefined;
       },
     };
-    const { input: built } = input([counting]);
+    const { input: built } = snapshotInput([counting]);
     const snapshot = await buildSnapshot(built);
     expect(asked).toBe(0);
     expect(snapshot.read('shop.checkout')).toMatchObject({ value: true, provider: 'counting' });
@@ -105,7 +31,7 @@ describe('buildSnapshot', () => {
   test('a flag flipped in its provider after the first read is not seen by the same snapshot', async () => {
     const variable = 'KEELWERK_FLAG_SHOP_CHECKOUT';
     const env: Record<string, string | undefined> = Object.fromEntries([[variable, 'true']]);
-    const { input: built } = input([envFlagProvider(env)]);
+    const { input: built } = snapshotInput([envFlagProvider(env)]);
     const snapshot = await buildSnapshot(built);
     expect(snapshot.read('shop.checkout')).toMatchObject({ value: true });
     env[variable] = 'false';
@@ -129,10 +55,10 @@ describe('buildSnapshot', () => {
         } as never as T);
       },
     };
-    const { input: built } = input([remote]);
+    const { input: built } = snapshotInput([remote]);
     const snapshot = await buildSnapshot({
       ...built,
-      principal: { ...placeholderPrincipal(scope), kind: 'user', subject: 'u1' } as never,
+      principal: { ...placeholderPrincipal(snapshotScope), kind: 'user', subject: 'u1' } as never,
     });
     expect([...asked].sort()).toEqual(['shop.banner', 'shop.beta', 'shop.checkout']);
     expect(snapshot.evaluations).toEqual([]);
@@ -156,7 +82,7 @@ describe('buildSnapshot', () => {
         return undefined;
       },
     };
-    const { input: built } = input([spy]);
+    const { input: built } = snapshotInput([spy]);
     const snapshot = await buildSnapshot({ ...built, clientId: 'client-1' });
     expect(snapshot.read('shop.beta')).toMatchObject({ reason: 'DEFAULT' });
     expect(snapshot.read('shop.checkout')).toMatchObject({ reason: 'DEFAULT' });
@@ -169,7 +95,7 @@ describe('buildSnapshot', () => {
   });
 
   test('evaluations list each key once, in read order', async () => {
-    const { input: built } = input([]);
+    const { input: built } = snapshotInput([]);
     const snapshot = await buildSnapshot(built);
     snapshot.read('shop.banner');
     snapshot.read('shop.checkout');
@@ -181,7 +107,7 @@ describe('buildSnapshot', () => {
   });
 
   test('an unknown key answers FLAG_NOT_FOUND and is not listed', async () => {
-    const { input: built } = input([]);
+    const { input: built } = snapshotInput([]);
     const snapshot = await buildSnapshot(built);
     expect(snapshot.read('shop.nothing')).toEqual({
       value: undefined,
@@ -193,7 +119,7 @@ describe('buildSnapshot', () => {
     expect(snapshot.evaluations).toEqual([]);
   });
 
-  test('a provider that fails serves the default with ERROR and warns once per key', async () => {
+  test('a provider that fails serves the default with ERROR and logs at error level once per key', async () => {
     const failing: FlagProvider = {
       id: 'failing',
       sync: true,
@@ -202,7 +128,7 @@ describe('buildSnapshot', () => {
         throw new Error('down');
       },
     };
-    const { input: built, warnings } = input([failing]);
+    const { input: built, warnings } = snapshotInput([failing]);
     const snapshot = await buildSnapshot(built);
     expect(snapshot.read('shop.checkout')).toMatchObject({
       value: false,
@@ -221,12 +147,36 @@ describe('buildSnapshot', () => {
       start: () => Promise.resolve(),
       resolve: () => Promise.reject(new Error('late')),
     };
-    const { input: built } = input([liar]);
+    const { input: built } = snapshotInput([liar]);
     const snapshot = await buildSnapshot(built);
     expect(snapshot.read('shop.checkout')).toMatchObject({
       reason: 'ERROR',
       errorCode: 'GENERAL',
       provider: 'liar',
     });
+  });
+
+  test('the snapshot awaits targeting.fresh() before it resolves', async () => {
+    const order: string[] = [];
+    const provider: FlagProvider = {
+      id: 'late',
+      sync: false,
+      start: () => Promise.resolve(),
+      resolve: () => {
+        order.push('resolve');
+        return Promise.resolve(undefined);
+      },
+    };
+    const { input: built } = snapshotInput([provider]);
+    await buildSnapshot({
+      ...built,
+      targeting: {
+        fresh: async () => {
+          await Promise.resolve();
+          order.push('fresh');
+        },
+      },
+    });
+    expect(order[0]).toBe('fresh');
   });
 });

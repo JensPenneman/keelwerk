@@ -1,3 +1,4 @@
+import { ifMatchParameter } from './if-match-parameter.ts';
 import type { JsonObject } from './json-object.ts';
 import { problemResponse } from './problem-response.ts';
 
@@ -75,12 +76,7 @@ export function commonComponents(): {
         description: 'The command id: a repeated key replays the first answer.',
         schema: { type: 'string' },
       },
-      ifMatch: {
-        name: 'If-Match',
-        in: 'header',
-        description: 'The `ETag` of the version the change applies to; a mismatch answers 412.',
-        schema: { type: 'string' },
-      },
+      ifMatch: ifMatchParameter,
       ifNoneMatch: {
         name: 'If-None-Match',
         in: 'header',

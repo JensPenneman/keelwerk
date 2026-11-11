@@ -1,5 +1,7 @@
 import type { ReactionPart } from '../dsl/define-reaction.ts';
 import type { RulePart } from '../dsl/define-rule.ts';
+import type { ClientFlagDocument } from '../flags/client-flag-document.ts';
+import type { FlagTargeting } from '../flags/flag-targeting.ts';
 import type { Id } from '../ids/id.ts';
 import type { CapabilitiesDocument } from '../invoker/capabilities-document.ts';
 import type { ActionPart, PartTypes, RowOutput } from '../model/action-part.ts';
@@ -45,6 +47,32 @@ type TenantCreate<In, Out> = ActionPart<
   'sync',
   PartTypes<Prettify<In & {}>, Out, never, never>
 >;
+type FlagCreate<In, Out> = ActionPart<
+  'command',
+  CoreBase,
+  'flag',
+  'sync',
+  PartTypes<Prettify<In & {}>, Out, never, never>
+>;
+type FlagCommand<In> = ActionPart<
+  'command',
+  CoreBase,
+  'flag',
+  'sync',
+  PartTypes<
+    Prettify<Prettify<In & {}> & InstanceInput<'core.flag'>>,
+    RowOutput<'core.flag'>,
+    never,
+    never
+  >
+>;
+type FlagQuery<In, Out> = ActionPart<
+  'query',
+  CoreBase,
+  'flag',
+  'sync',
+  PartTypes<Prettify<In & {}>, Out, never, never>
+>;
 type TokenCreate<In, Out> = ActionPart<
   'command',
   CoreBase,
@@ -81,6 +109,7 @@ export interface CoreLiteral {
     readonly backend: { readonly operators: RulePart<CoreBase, 'backend', readonly ['*']> };
     readonly tenant: { readonly operators: RulePart<CoreBase, 'tenant', readonly ['*']> };
     readonly domain: { readonly operators: RulePart<CoreBase, 'domain', readonly ['*']> };
+    readonly flag: { readonly operators: RulePart<CoreBase, 'flag', readonly ['*']> };
     readonly commandReceipt: {
       readonly submitter: RulePart<CoreBase, 'commandReceipt', readonly ['get']>;
     };
@@ -126,6 +155,19 @@ export interface CoreLiteral {
         }
       >;
       readonly revoke: TokenCommand<Empty, RowOutput<'core.operatorToken'>>;
+    };
+    readonly flag: {
+      readonly set: FlagCreate<
+        {
+          readonly key: string;
+          readonly backendId?: Id<'core.backend'> | undefined;
+          readonly targeting: FlagTargeting;
+          readonly reason: string;
+        },
+        { readonly id: Id<'core.flag'>; readonly ruleVersion: number }
+      >;
+      readonly restoreRules: FlagCommand<{ readonly reason: string; readonly ifVersion: number }>;
+      readonly evaluate: FlagQuery<{ readonly key: string }, ClientFlagDocument>;
     };
   };
 }

@@ -4,4 +4,5 @@ export const runtimeAnswered: ReadonlySet<string> = new Set([
   'core.composition',
   'core.me',
   'core.capabilities',
+  'core.flag.evaluate',
 ]);

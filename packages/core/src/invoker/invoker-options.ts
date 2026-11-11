@@ -2,10 +2,12 @@ import type { RowEnvironment } from '../authorization/row-environment.ts';
 import type { CarrierEnricher } from '../edge/carrier-enricher.ts';
 import type { TenantResolver } from '../edge/tenant-resolver.ts';
 import type { FlagProvider } from '../flags/flag-provider.ts';
+import type { TargetingCache } from '../flags/targeting-cache.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { ComputePool } from '../kernel/compute-pool.ts';
 import type { KeyService } from '../kernel/key-service.ts';
 import type { Logger } from '../observability/logger.ts';
+import type { Meter } from '../observability/meter.ts';
 import type { Tracer } from '../observability/tracer.ts';
 import type { OperatorPrincipal } from '../principals/operator-principal.ts';
 import type { Scope } from '../storage/scope.ts';
@@ -55,6 +57,10 @@ export interface InvokerOptions {
   ) => Promise<Temporal.Instant | undefined>;
   /** The ordered flag providers (20.3); default none: every flag answers its declared default. */
   readonly flagProviders?: readonly FlagProvider[];
+  /** The targeting cache, refreshed before each snapshot (WP-98); without it the flag chain is not refreshed. */
+  readonly targeting?: Pick<TargetingCache, 'fresh'>;
+  /** The meter of the flag counter; default the global meter. */
+  readonly meter?: Meter;
   /** The command write path (WP-38); without it a command is `not_implemented`. */
   readonly commands?: CommandRunner;
   /**

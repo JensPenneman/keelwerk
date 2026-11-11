@@ -182,6 +182,57 @@ describe('call: routes and flags for every field kind', () => {
     });
   });
 
+  test('a command whose input requires ifVersion refuses to run without --if-version (2)', async () => {
+    const strict = {
+      ...portalSurface,
+      actions: portalSurface.actions.map((candidate) => {
+        const input = candidate.input;
+        const version = input.kind === 'shape' ? input.fields.ifVersion : undefined;
+        return input.kind !== 'shape' || version === undefined
+          ? candidate
+          : {
+              ...candidate,
+              input: {
+                ...input,
+                fields: { ...input.fields, ifVersion: { ...version, optional: false } },
+              },
+            };
+      }),
+    };
+    const portal = portalServer();
+    const fake = createFakeHost({
+      files: remoteProfileFiles,
+      handler: (sent) => (sent.url.endsWith('/surface') ? json(strict) : portal(sent)),
+    });
+    const id = 'prof_01h455vb4pex5vsknk084sn02q';
+    const without = await runCliWith(
+      ['call', 'accounts.profile.deactivate', id, 'left'],
+      fake.host,
+    );
+    expect(without.code).toBe(2);
+    expect(invokeBodies(fake.sent)).toEqual([]);
+    const given = await runCliWith(
+      ['call', 'accounts.profile.deactivate', id, 'left', '--if-version', '3'],
+      fake.host,
+    );
+    expect(given.code).toBe(0);
+    const sentBefore = invokeBodies(fake.sent).length;
+    const viaInput = await runCliWith(
+      ['call', 'accounts.profile.deactivate', id, '--input', '{"reason":"left","ifVersion":3}'],
+      fake.host,
+    );
+    expect(viaInput.code).toBe(0);
+    expect(invokeBodies(fake.sent)).toHaveLength(sentBefore + 1);
+    expect(invokeBodies(fake.sent)[sentBefore]?.input).toMatchObject({ ifVersion: 3 });
+    const neither = await runCliWith(
+      ['call', 'accounts.profile.deactivate', id, '--input', '{"reason":"left"}'],
+      fake.host,
+    );
+    expect(neither.code).toBe(2);
+    expect(neither.stderr).toContain('--if-version');
+    expect(invokeBodies(fake.sent)).toHaveLength(sentBefore + 1);
+  });
+
   test('an id with the wrong prefix is a usage error (2) and nothing is sent', async () => {
     const fake = setup();
     const run = await runCliWith(

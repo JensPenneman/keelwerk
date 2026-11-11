@@ -42,9 +42,13 @@ function inputOf(
   }
   if (input.kind !== 'shape' || input.fields === undefined) return permissiveSchema();
   if (!(instance || paged)) return input as unknown as StandardSchemaV1;
+  const declared = input.fields as Parameters<typeof shape>[0];
   return shape({
-    ...(input.fields as Parameters<typeof shape>[0]),
-    ...(instance ? { id: field.string(), ifVersion: field.integer().optional() } : {}),
+    ...declared,
+    // A command may declare `ifVersion` as required; it keeps its place and its declaration.
+    ...(instance
+      ? { id: field.string(), ifVersion: declared.ifVersion ?? field.integer().optional() }
+      : {}),
     ...(paged ? { first: field.integer().optional(), after: field.string().optional() } : {}),
   });
 }

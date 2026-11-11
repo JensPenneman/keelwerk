@@ -1,4 +1,5 @@
 import type { FlagPurpose } from '../dsl/define-flag.ts';
+import type { Shape } from '../fields/shape.ts';
 
 /** One selected module, in the topological order `compose` fixed. */
 export interface ModuleEntry {
@@ -36,6 +37,11 @@ export interface ModuleEntry {
         readonly level: 'deployment' | 'backend' | 'tenant' | 'principal';
         readonly default: unknown;
         readonly variants?: readonly string[];
+        /** Bounds of a number flag (WP-98): what a value check needs. */
+        readonly min?: number;
+        readonly max?: number;
+        /** The shape a json flag's value must satisfy (WP-98). */
+        readonly schema?: Shape;
         readonly description?: string;
         readonly purpose?: FlagPurpose;
         /** ISO date. */

@@ -123,6 +123,9 @@ async function run(
     clientId: flagClientIdOf(inv.carrier),
     providers: env.options.flagProviders ?? [],
     log,
+    targeting: env.options.targeting,
+    telemetry: env.flagTelemetry,
+    span,
   });
   state.admitted = await admit(env, { action, session, details, invocation: inv, span, flags });
   state.stage = 'validate';

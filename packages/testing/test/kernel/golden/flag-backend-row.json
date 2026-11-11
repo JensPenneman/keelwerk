@@ -1,0 +1,40 @@
+{
+  "id": "<flag id>",
+  "createdAt": "2026-11-11T08:00:00Z",
+  "updatedAt": "2026-11-11T08:00:00Z",
+  "version": 1,
+  "slot": "rollout.layout@<backend id>",
+  "key": "rollout.layout",
+  "backendId": "<backend id>",
+  "targeting": {
+    "enabled": true,
+    "rules": [
+      {
+        "id": "staff",
+        "when": {
+          "principalRoles": {
+            "contains": "staff"
+          }
+        },
+        "serve": {
+          "value": "compact",
+          "variant": "compact"
+        }
+      }
+    ],
+    "fallthrough": {
+      "split": [
+        {
+          "value": "control",
+          "weight": 9000
+        },
+        {
+          "value": "compact",
+          "weight": 1000
+        }
+      ],
+      "salt": "exp:layout:1"
+    }
+  },
+  "reason": "start the layout test"
+}

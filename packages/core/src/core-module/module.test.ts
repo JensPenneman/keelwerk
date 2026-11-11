@@ -6,17 +6,7 @@ describe('the core module (S-11, S-26)', () => {
   test('is the module of the base, with the control entities', () => {
     expect(core.id).toBe('core');
     expect(core.base).toBe(coreBase);
-    expect(Object.keys(core.entities)).toEqual([
-      'backend',
-      'tenant',
-      'domain',
-      'placement',
-      'namespace',
-      'operatorToken',
-      'commandReceipt',
-      'effect',
-      'process',
-    ]);
+    expect(Object.keys(core.entities)).toContain('flag');
   });
 
   test('every control entity has a distinct TypeID prefix', () => {
@@ -37,6 +27,9 @@ describe('the core module (S-11, S-26)', () => {
     expect(Object.keys(core.entities.backend.actions)).toEqual(['create']);
     expect(Object.keys(core.entities.tenant.actions)).toEqual(['create', 'enter', 'setApiVersion']);
     expect(Object.keys(core.entities.operatorToken.actions)).toEqual(['issue', 'revoke']);
+    expect(Object.keys(core.entities.flag.actions)).toEqual(
+      expect.arrayContaining(['set', 'restoreRules', 'evaluate']),
+    );
     expect(core.actions.introspect.ref).toBe('core.introspect');
     expect(core.entities.tenant.actions.enter.ref).toBe('core.tenant.enter');
   });

@@ -31,3 +31,30 @@ test('the manifest names routes, positionals and flags, and renders the same byt
   expect(create?.route).toBe('call accounts.profile.create');
   expect(create?.flags.map((flag) => flag.name)).toContain('owner');
 });
+
+test('a command whose input requires ifVersion lists --if-version as required; others do not', () => {
+  const strict = portalSurface.actions.map((candidate) => {
+    const input = candidate.input;
+    if (candidate.ref !== 'accounts.profile.deactivate' || input.kind !== 'shape') {
+      return candidate;
+    }
+    const version = input.fields.ifVersion;
+    return version === undefined
+      ? candidate
+      : {
+          ...candidate,
+          input: {
+            ...input,
+            fields: { ...input.fields, ifVersion: { ...version, optional: false } },
+          },
+        };
+  });
+  const manifest = JSON.parse(renderCliManifest({ ...portalSurface, actions: strict })) as {
+    commands: { ref: string; flags: { name: string; required: boolean }[] }[];
+  };
+  const flagsOf = (ref: string) => manifest.commands.find((command) => command.ref === ref)?.flags;
+  expect(flagsOf('accounts.profile.deactivate')).toContainEqual(
+    expect.objectContaining({ name: 'if-version', kind: 'integer', required: true }),
+  );
+  expect(flagsOf('accounts.profile.create')?.map((flag) => flag.name)).not.toContain('if-version');
+});

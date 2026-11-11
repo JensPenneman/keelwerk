@@ -2,6 +2,7 @@ import { checkDeploymentGroups } from './check-deployment-groups.ts';
 import { checkEffectSubjects } from './check-effect-subjects.ts';
 import { checkEntitySubjects } from './check-entity-subjects.ts';
 import { checkExecutorInputReads } from './check-executor-input-reads.ts';
+import { checkJsonFlagDefaults } from './check-json-flag-defaults.ts';
 import { checkObservesAll } from './check-observes-all.ts';
 import { checkPrincipalFromRef } from './check-principal-from-ref.ts';
 import { checkStreamDeclarations } from './check-stream-declarations.ts';
@@ -21,6 +22,7 @@ export const m2ComposeChecks: readonly ((
 ) => readonly CompositionProblem[])[] = [
   checkDeploymentGroups,
   checkObservesAll,
+  checkJsonFlagDefaults,
   checkStreamOffload,
   checkVersionChanges,
   (_app, registry) => checkEffectSubjects(registry.effects, registry.entities),

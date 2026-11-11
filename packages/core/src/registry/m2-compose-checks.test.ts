@@ -3,12 +3,14 @@ import { m2Parts } from '../../test/fixtures/modules/m2-parts/src/module.generat
 import { appOf, makeModule } from '../../test/registry-kit.ts';
 import { defineEffect } from '../dsl/define-effect.ts';
 import { defineEffectExecutor } from '../dsl/define-effect-executor.ts';
+import { defineFlag } from '../dsl/define-flag.ts';
 import { defineReaction } from '../dsl/define-reaction.ts';
 import { defineStream } from '../dsl/define-stream.ts';
 import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
 import { buildRegistry } from './build-registry.ts';
 import { checkDeploymentGroups } from './check-deployment-groups.ts';
+import { checkJsonFlagDefaults } from './check-json-flag-defaults.ts';
 import { checkObservesAll } from './check-observes-all.ts';
 import { checkStreamDeclarations } from './check-stream-declarations.ts';
 import { checkStreamOffload } from './check-stream-offload.ts';
@@ -87,9 +89,59 @@ describe('the M2 compose checks', () => {
       expect.arrayContaining([
         checkDeploymentGroups,
         checkObservesAll,
+        checkJsonFlagDefaults,
         checkStreamOffload,
         checkStreamDeclarations,
       ]),
     );
+  });
+
+  test('refuses the default of a json flag that its shape converts, and accepts one it keeps', () => {
+    const json = (fallback: unknown) =>
+      appOf([
+        makeModule({
+          id: 'shop',
+          flags: {
+            layout: defineFlag({
+              kind: 'json',
+              level: 'tenant',
+              purpose: 'operational',
+              schema: shape({ size: field.integer().default(3) }),
+              default: fallback,
+            }),
+          },
+        }),
+      ]);
+    const converted = json({});
+    expect(checkJsonFlagDefaults(converted, buildRegistry(converted))).toEqual([
+      expect.objectContaining({
+        code: 'jsonFlagDefaultInvalid',
+        severity: 'error',
+        module: 'shop',
+        ref: 'shop.layout',
+      }),
+    ]);
+    const unchanged = json({ size: 3 });
+    expect(checkJsonFlagDefaults(unchanged, buildRegistry(unchanged))).toEqual([]);
+  });
+
+  test('refuses the default of a json flag whose shape turns a string into a Temporal value', () => {
+    const app = appOf([
+      makeModule({
+        id: 'shop',
+        flags: {
+          opens: defineFlag({
+            kind: 'json',
+            level: 'tenant',
+            purpose: 'operational',
+            schema: shape({ from: field.date() }),
+            default: { from: '2026-11-11' },
+          }),
+        },
+      }),
+    ]);
+    expect(checkJsonFlagDefaults(app, buildRegistry(app))).toEqual([
+      expect.objectContaining({ code: 'jsonFlagDefaultInvalid', ref: 'shop.opens' }),
+    ]);
   });
 });

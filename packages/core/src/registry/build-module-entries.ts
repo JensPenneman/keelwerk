@@ -1,4 +1,5 @@
 import type { FlagPurpose } from '../dsl/define-flag.ts';
+import type { Shape } from '../fields/shape.ts';
 import { camelFromKebab } from '../naming/camel-from-kebab.ts';
 import type { ActionEntry } from './action-entry.ts';
 import { dependencyName } from './dependency-name.ts';
@@ -16,6 +17,9 @@ interface FlagView {
   readonly level: 'deployment' | 'backend' | 'tenant' | 'principal';
   readonly default: unknown;
   readonly variants?: readonly string[];
+  readonly min?: number;
+  readonly max?: number;
+  readonly schema?: Shape;
   readonly purpose?: FlagPurpose;
   readonly expires?: string;
   readonly client?: boolean;
@@ -80,6 +84,9 @@ export function buildModuleEntries(
             level: flag.level,
             default: flag.default,
             ...(flag.variants === undefined ? {} : { variants: flag.variants }),
+            ...(flag.min === undefined ? {} : { min: flag.min }),
+            ...(flag.max === undefined ? {} : { max: flag.max }),
+            ...(flag.schema === undefined ? {} : { schema: flag.schema }),
             ...(flag.purpose === undefined ? {} : { purpose: flag.purpose }),
             ...(flag.expires === undefined ? {} : { expires: flag.expires }),
             ...(flag.client === undefined ? {} : { client: flag.client }),

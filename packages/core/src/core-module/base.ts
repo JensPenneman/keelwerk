@@ -11,6 +11,7 @@ import { backend } from './entities/backend.ts';
 import { commandReceipt } from './entities/command-receipt.ts';
 import { domain } from './entities/domain.ts';
 import { effect } from './entities/effect.ts';
+import { flag } from './entities/flag.ts';
 import { namespace } from './entities/namespace.ts';
 import { operatorToken } from './entities/operator-token.ts';
 import { placement } from './entities/placement.ts';
@@ -40,6 +41,7 @@ export const coreBase: CoreBase = defineModuleBase({
     commandReceipt,
     effect,
     process,
+    flag,
   },
   streams: { effectAttempt },
 });

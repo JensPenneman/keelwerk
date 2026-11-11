@@ -8,6 +8,7 @@ import type { EffectAttemptError } from '../effects/effect-attempt-error.ts';
 import type { FieldDef, OwnRef } from '../fields/field-def.ts';
 import type { NoFlags, WithFlag } from '../fields/field-flags.ts';
 import type { Shape } from '../fields/shape.ts';
+import type { FlagTargeting } from '../flags/flag-targeting.ts';
 import type { LiveCarrier } from '../live/live-carrier.ts';
 import type { LiveHub } from '../live/live-hub.ts';
 import type { TransportAdapter } from '../transport/transport-adapter.ts';
@@ -243,6 +244,26 @@ export interface CoreBase {
       Empty,
       'state',
       NoSet,
+      Empty
+    >;
+    readonly flag: Entity<
+      'flg',
+      {
+        readonly slot: UniqueText;
+        readonly key: Text;
+        readonly backendId: OptionalOwnId<'backend'>;
+        readonly targeting: FieldDef<FlagTargeting, NoFlags, null, 'json'>;
+        readonly previous: FieldDef<
+          FlagTargeting,
+          WithFlag<NoFlags, 'optional', true>,
+          null,
+          'json'
+        >;
+        readonly reason: Text;
+      },
+      Empty,
+      'chain',
+      { readonly set: false; readonly history: true },
       Empty
     >;
   };

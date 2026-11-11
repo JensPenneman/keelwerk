@@ -1,7 +1,12 @@
+import { metrics } from '@opentelemetry/api';
 import type { ControlStore } from '../control/control-store.ts';
 import { findControlRows } from '../control/find-control-rows.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
 import { errors } from '../errors/errors.ts';
+import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { createFlagTelemetry } from '../flags/create-flag-telemetry.ts';
+import { evaluateClientFlag } from '../flags/evaluate-client-flag.ts';
+import { flagClientIdOf } from '../flags/flag-client-id-of.ts';
 import type { Invocation } from '../invoker/invocation.ts';
 import type { Invoker } from '../invoker/invoker.ts';
 import type { InvokerOptions } from '../invoker/invoker-options.ts';
@@ -28,7 +33,7 @@ async function introspectionOf(store: ControlStore, backendId: string): Promise<
 }
 
 /**
- * Wraps the invoker so `core.introspect`, `core.composition`, `core.me` and `core.capabilities` are answered from the app the
+ * Wraps the invoker so `core.introspect`, `core.composition`, `core.me`, `core.capabilities` and `core.flag.evaluate` are answered from the app the
  * session runs in (16.2.5, 16.2.6; a deployment-scope session answers from the one app only when the process serves exactly one): the pipeline authorises them as any query, the handler is a
  * placeholder, and the answer replaces its output. The backend setting `config.core.introspection`
  * makes the surface `public` (anonymous callers too) or `operator` only; without it the rule of
@@ -39,8 +44,12 @@ export function answerRuntimeQueries(
   served: ReadonlyMap<string, ServedApp>,
   store: ControlStore,
   clock: Clock,
-  options: Pick<InvokerOptions, 'directory' | 'placement' | 'control'>,
+  options: Pick<
+    InvokerOptions,
+    'directory' | 'placement' | 'control' | 'flagProviders' | 'targeting' | 'log' | 'meter'
+  >,
 ): Invoker {
+  const telemetry = createFlagTelemetry(options.meter ?? metrics.getMeter('keelwerk'));
   return {
     ...inner,
     invoke: async <I, O>(inv: Invocation<I>): Promise<Outcome<O>> => {
@@ -99,6 +108,25 @@ export function answerRuntimeQueries(
       }
       const outcome = await inner.invoke<I, O>({ ...inv, session });
       if (!outcome.ok) return outcome;
+      if (inv.action === 'core.flag.evaluate') {
+        try {
+          const document = await evaluateClientFlag({
+            registry: app.registry,
+            key: (inv.input as { readonly key: string }).key,
+            scope,
+            principal,
+            clientId: flagClientIdOf(inv.carrier),
+            providers: options.flagProviders ?? [],
+            targeting: options.targeting,
+            telemetry,
+            log: options.log,
+          });
+          return { ...outcome, value: document as O };
+        } catch (error) {
+          if (error instanceof KeelwerkError) return { ok: false, error };
+          throw error;
+        }
+      }
       const value =
         inv.action === 'core.introspect'
           ? deriveSurface(app.source, session.apiVersion).surface

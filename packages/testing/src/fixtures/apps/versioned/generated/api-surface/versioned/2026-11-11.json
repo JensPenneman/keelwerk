@@ -3707,6 +3707,1148 @@
     {
       "auth": "policy",
       "changedIn": [],
+      "entity": "core.flag",
+      "errors": [],
+      "execution": "sync",
+      "generated": "changes",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "max": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "partition": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
+          "since": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-b3niwumxsQYaLcsIcE9n-6794P-vj8pNzePh8iQ0_8Y",
+      "instance": false,
+      "kind": "query",
+      "module": "core",
+      "mount": "entity",
+      "name": "changes",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "archived": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "flg",
+              "target": "core.flag"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "changed": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "flg",
+              "target": "core.flag"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "created": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "flg",
+              "target": "core.flag"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "hasMoreChanges": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": false
+          },
+          "newState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "oldState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-RevuKn7fLc1WIkqFCoXlyJbOYmNZLrphJ_aAnvS16cg",
+      "ref": "core.flag.changes",
+      "resumable": false,
+      "scope": "deployment",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "public",
+      "changedIn": [],
+      "entity": "core.flag",
+      "errors": [],
+      "execution": "sync",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "key": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-y3mE7likAHn8tHuBB0SJnFWUqyRhs6gtyONpywgMwqE",
+      "instance": false,
+      "kind": "query",
+      "module": "core",
+      "mount": "entity",
+      "name": "evaluate",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "input": {
+          "type": "object"
+        },
+        "kind": "foreign",
+        "optional": false,
+        "output": {
+          "type": "object"
+        }
+      },
+      "outputHash": "sha256-txLfO2J6Z7iplmLeb0kdcS9Do9iNwcH3de-SruvQjIc",
+      "ref": "core.flag.evaluate",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "core.flag",
+      "errors": [],
+      "execution": "sync",
+      "generated": "get",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "asOf": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true
+          },
+          "ids": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "flg",
+              "target": "core.flag"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
+          "properties": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-nmzBeNUOoB7APLAshB1XkpR9mz4OuaHLpfv37A8oLWk",
+      "instance": false,
+      "kind": "query",
+      "module": "core",
+      "mount": "entity",
+      "name": "get",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "list": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "archivedAt": {
+                  "access": "read",
+                  "kind": "instant",
+                  "optional": true
+                },
+                "backendId": {
+                  "access": "read-write",
+                  "kind": "ref",
+                  "optional": true,
+                  "prefix": "bknd",
+                  "tag": 3,
+                  "target": "core.backend"
+                },
+                "createdAt": {
+                  "access": "read",
+                  "kind": "instant",
+                  "optional": false
+                },
+                "id": {
+                  "access": "read",
+                  "kind": "id",
+                  "optional": false,
+                  "prefix": "flg",
+                  "target": "core.flag"
+                },
+                "key": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false,
+                  "tag": 2
+                },
+                "previous": {
+                  "access": "read-write",
+                  "input": {
+                    "type": "object"
+                  },
+                  "kind": "json",
+                  "optional": true,
+                  "output": {
+                    "type": "object"
+                  },
+                  "schema": {
+                    "type": "object"
+                  },
+                  "tag": 5
+                },
+                "reason": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false,
+                  "tag": 6
+                },
+                "slot": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "merge": "exclusive",
+                  "optional": false,
+                  "tag": 1,
+                  "unique": true
+                },
+                "targeting": {
+                  "access": "read-write",
+                  "input": {
+                    "type": "object"
+                  },
+                  "kind": "json",
+                  "optional": false,
+                  "output": {
+                    "type": "object"
+                  },
+                  "schema": {
+                    "type": "object"
+                  },
+                  "tag": 4
+                },
+                "updatedAt": {
+                  "access": "read",
+                  "kind": "instant",
+                  "optional": false
+                },
+                "version": {
+                  "access": "read",
+                  "kind": "integer",
+                  "optional": false,
+                  "wide": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "notFound": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "flg",
+              "target": "core.flag"
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "state": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-QrBgmM2dryrMWRzZO-cObb8qvkuDisyABqzRoodLP0I",
+      "ref": "core.flag.get",
+      "resumable": false,
+      "scope": "deployment",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "core.flag",
+      "errors": [],
+      "execution": "sync",
+      "generated": "history",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "asOf": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true
+          },
+          "fromVersion": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "flg",
+            "target": "core.flag"
+          },
+          "limit": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-Y_IntDH6NLkzDN6UDUlDVZq8lvSpN0F7Kew8eHCZu6M",
+      "instance": false,
+      "kind": "query",
+      "module": "core",
+      "mount": "entity",
+      "name": "history",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "entries": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "actor": {
+                  "access": "read-write",
+                  "input": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "via": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "via"
+                    ],
+                    "type": "object"
+                  },
+                  "kind": "json",
+                  "optional": false,
+                  "output": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "via": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "via"
+                    ],
+                    "type": "object"
+                  },
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "via": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "via"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "at": {
+                  "access": "read-write",
+                  "kind": "instant",
+                  "optional": false
+                },
+                "changes": {
+                  "access": "read-write",
+                  "input": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "after": {},
+                        "before": {}
+                      },
+                      "required": [
+                        "before"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "kind": "json",
+                  "optional": false,
+                  "output": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "after": {},
+                        "before": {}
+                      },
+                      "required": [
+                        "before"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "schema": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "after": {},
+                        "before": {}
+                      },
+                      "required": [
+                        "before"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "object"
+                  }
+                },
+                "event": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                },
+                "version": {
+                  "access": "read-write",
+                  "kind": "integer",
+                  "optional": false,
+                  "wide": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-VlOHK4m7CMW3rVU1hf4njbNw6MQ0WFJkc9Y3CJPWPXs",
+      "ref": "core.flag.history",
+      "resumable": false,
+      "scope": "deployment",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "core.flag",
+      "errors": [],
+      "execution": "sync",
+      "generated": "query",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "after": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
+          "before": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true
+          },
+          "filter": {
+            "access": "read-write",
+            "input": {},
+            "kind": "json",
+            "optional": true,
+            "output": {},
+            "schema": {}
+          },
+          "first": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "includeArchived": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          },
+          "last": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "properties": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          },
+          "sort": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          },
+          "total": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": true
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-64PykrMhBYYnrO2xz5pUVUqaGqIDDg6K3GFgd_trAKE",
+      "instance": false,
+      "kind": "query",
+      "module": "core",
+      "mount": "entity",
+      "name": "query",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "item": {
+          "access": "read-write",
+          "fields": {
+            "archivedAt": {
+              "access": "read",
+              "kind": "instant",
+              "optional": true
+            },
+            "backendId": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": true,
+              "prefix": "bknd",
+              "tag": 3,
+              "target": "core.backend"
+            },
+            "createdAt": {
+              "access": "read",
+              "kind": "instant",
+              "optional": false
+            },
+            "id": {
+              "access": "read",
+              "kind": "id",
+              "optional": false,
+              "prefix": "flg",
+              "target": "core.flag"
+            },
+            "key": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false,
+              "tag": 2
+            },
+            "previous": {
+              "access": "read-write",
+              "input": {
+                "type": "object"
+              },
+              "kind": "json",
+              "optional": true,
+              "output": {
+                "type": "object"
+              },
+              "schema": {
+                "type": "object"
+              },
+              "tag": 5
+            },
+            "reason": {
+              "access": "read-write",
+              "kind": "string",
+              "optional": false,
+              "tag": 6
+            },
+            "slot": {
+              "access": "read-write",
+              "kind": "string",
+              "merge": "exclusive",
+              "optional": false,
+              "tag": 1,
+              "unique": true
+            },
+            "targeting": {
+              "access": "read-write",
+              "input": {
+                "type": "object"
+              },
+              "kind": "json",
+              "optional": false,
+              "output": {
+                "type": "object"
+              },
+              "schema": {
+                "type": "object"
+              },
+              "tag": 4
+            },
+            "updatedAt": {
+              "access": "read",
+              "kind": "instant",
+              "optional": false
+            },
+            "version": {
+              "access": "read",
+              "kind": "integer",
+              "optional": false,
+              "wide": false
+            }
+          },
+          "kind": "shape",
+          "optional": false
+        },
+        "kind": "page",
+        "optional": false
+      },
+      "outputHash": "sha256-NpQ5kr7QUGXwrUt90UGQlNDzxHbkD9MXItd8llEp__o",
+      "page": {
+        "defaultSize": 50,
+        "defaultSort": [
+          {
+            "direction": "asc",
+            "field": "id"
+          }
+        ],
+        "maxSize": 500,
+        "sortable": [
+          "createdAt",
+          "id",
+          "slot",
+          "updatedAt"
+        ]
+      },
+      "ref": "core.flag.query",
+      "resumable": false,
+      "scope": "deployment",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "core.flag",
+      "errors": [],
+      "execution": "sync",
+      "generated": "queryChanges",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "filter": {
+            "access": "read-write",
+            "input": {},
+            "kind": "json",
+            "optional": true,
+            "output": {},
+            "schema": {}
+          },
+          "maxChanges": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": true,
+            "wide": false
+          },
+          "sinceQueryState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "sort": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "direction": {
+                  "access": "read-write",
+                  "kind": "enum",
+                  "optional": true,
+                  "values": [
+                    "asc",
+                    "desc"
+                  ]
+                },
+                "field": {
+                  "access": "read-write",
+                  "kind": "string",
+                  "optional": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": true
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-pDOmM6-ILNCXiEBwVjs4ooC0bp_1K0aTq4ZKtS-foO4",
+      "instance": false,
+      "kind": "query",
+      "module": "core",
+      "mount": "entity",
+      "name": "queryChanges",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "added": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "fields": {
+                "id": {
+                  "access": "read-write",
+                  "kind": "ref",
+                  "optional": false,
+                  "prefix": "flg",
+                  "target": "core.flag"
+                },
+                "index": {
+                  "access": "read-write",
+                  "kind": "integer",
+                  "optional": false,
+                  "wide": false
+                }
+              },
+              "kind": "shape",
+              "optional": false
+            },
+            "kind": "list",
+            "optional": false
+          },
+          "newQueryState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "oldQueryState": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false
+          },
+          "removed": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "flg",
+              "target": "core.flag"
+            },
+            "kind": "list",
+            "optional": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-55BXWKNvfMWz9GIUOh-qx3CVMb-ZXvrCDCQpsTpQo3k",
+      "page": {
+        "defaultSize": 50,
+        "defaultSort": [
+          {
+            "direction": "asc",
+            "field": "id"
+          }
+        ],
+        "maxSize": 500,
+        "sortable": [
+          "createdAt",
+          "id",
+          "slot",
+          "updatedAt"
+        ]
+      },
+      "ref": "core.flag.queryChanges",
+      "resumable": false,
+      "scope": "deployment",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "core.flag",
+      "errors": [],
+      "execution": "sync",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "flg",
+            "target": "core.flag"
+          },
+          "ifVersion": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": false,
+            "tag": 2,
+            "wide": false
+          },
+          "reason": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-K35GVtn2qWel6Rq_s2UZY-taKiab0vibBx5JlDPBOII",
+      "instance": true,
+      "kind": "command",
+      "module": "core",
+      "mount": "entity",
+      "name": "restoreRules",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "archivedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": true
+          },
+          "backendId": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": true,
+            "prefix": "bknd",
+            "tag": 3,
+            "target": "core.backend"
+          },
+          "createdAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "id": {
+            "access": "read",
+            "kind": "id",
+            "optional": false,
+            "prefix": "flg",
+            "target": "core.flag"
+          },
+          "key": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 2
+          },
+          "previous": {
+            "access": "read-write",
+            "input": {
+              "type": "object"
+            },
+            "kind": "json",
+            "optional": true,
+            "output": {
+              "type": "object"
+            },
+            "schema": {
+              "type": "object"
+            },
+            "tag": 5
+          },
+          "reason": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 6
+          },
+          "slot": {
+            "access": "read-write",
+            "kind": "string",
+            "merge": "exclusive",
+            "optional": false,
+            "tag": 1,
+            "unique": true
+          },
+          "targeting": {
+            "access": "read-write",
+            "input": {
+              "type": "object"
+            },
+            "kind": "json",
+            "optional": false,
+            "output": {
+              "type": "object"
+            },
+            "schema": {
+              "type": "object"
+            },
+            "tag": 4
+          },
+          "updatedAt": {
+            "access": "read",
+            "kind": "instant",
+            "optional": false
+          },
+          "version": {
+            "access": "read",
+            "kind": "integer",
+            "optional": false,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-e_cX2zjEEmGSyAzCX_-cZfwPeHi_h_To9CJ7kf-SOWs",
+      "ref": "core.flag.restoreRules",
+      "resumable": false,
+      "scope": "deployment",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "entity": "core.flag",
+      "errors": [],
+      "execution": "sync",
+      "hints": {
+        "rest": {
+          "path": "rules"
+        }
+      },
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "backendId": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": true,
+            "prefix": "bknd",
+            "tag": 2,
+            "target": "core.backend"
+          },
+          "key": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 200,
+            "minLength": 3,
+            "optional": false,
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*(?:\\.[a-z][a-zA-Z0-9]*)+$",
+            "tag": 1
+          },
+          "reason": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "optional": false,
+            "tag": 4
+          },
+          "targeting": {
+            "access": "read-write",
+            "input": {
+              "type": "object"
+            },
+            "kind": "json",
+            "optional": false,
+            "output": {
+              "type": "object"
+            },
+            "schema": {
+              "type": "object"
+            },
+            "tag": 3
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-aehxudqOgQHTaGO9dOZpEACcx6dbOcL-O0bBkHSe6dc",
+      "instance": false,
+      "kind": "command",
+      "module": "core",
+      "mount": "entity",
+      "name": "set",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "flg",
+            "tag": 1,
+            "target": "core.flag"
+          },
+          "ruleVersion": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": false,
+            "tag": 2,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-5wbgukFqZNE1OZGSgC4fjsvgH2oMGbd0M5wvhORWci4",
+      "ref": "core.flag.set",
+      "resumable": false,
+      "scope": "deployment",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
       "errors": [],
       "execution": "sync",
       "hints": {},
@@ -9985,6 +11127,127 @@
     },
     {
       "fields": {
+        "archivedAt": {
+          "access": "read",
+          "kind": "instant",
+          "optional": true
+        },
+        "backendId": {
+          "access": "read-write",
+          "kind": "ref",
+          "optional": true,
+          "prefix": "bknd",
+          "tag": 3,
+          "target": "core.backend"
+        },
+        "createdAt": {
+          "access": "read",
+          "kind": "instant",
+          "optional": false
+        },
+        "id": {
+          "access": "read",
+          "kind": "id",
+          "optional": false,
+          "prefix": "flg",
+          "target": "core.flag"
+        },
+        "key": {
+          "access": "read-write",
+          "kind": "string",
+          "optional": false,
+          "tag": 2
+        },
+        "previous": {
+          "access": "read-write",
+          "input": {
+            "type": "object"
+          },
+          "kind": "json",
+          "optional": true,
+          "output": {
+            "type": "object"
+          },
+          "schema": {
+            "type": "object"
+          },
+          "tag": 5
+        },
+        "reason": {
+          "access": "read-write",
+          "kind": "string",
+          "optional": false,
+          "tag": 6
+        },
+        "slot": {
+          "access": "read-write",
+          "kind": "string",
+          "merge": "exclusive",
+          "optional": false,
+          "tag": 1,
+          "unique": true
+        },
+        "targeting": {
+          "access": "read-write",
+          "input": {
+            "type": "object"
+          },
+          "kind": "json",
+          "optional": false,
+          "output": {
+            "type": "object"
+          },
+          "schema": {
+            "type": "object"
+          },
+          "tag": 4
+        },
+        "updatedAt": {
+          "access": "read",
+          "kind": "instant",
+          "optional": false
+        },
+        "version": {
+          "access": "read",
+          "kind": "integer",
+          "optional": false,
+          "wide": false
+        }
+      },
+      "generated": [
+        "get",
+        "query",
+        "changes",
+        "queryChanges",
+        "history"
+      ],
+      "history": "chain",
+      "module": "core",
+      "name": "flag",
+      "origin": {},
+      "page": {
+        "defaultSize": 50,
+        "defaultSort": [
+          {
+            "direction": "asc",
+            "field": "id"
+          }
+        ],
+        "maxSize": 500,
+        "sortable": [
+          "createdAt",
+          "id",
+          "slot",
+          "updatedAt"
+        ]
+      },
+      "prefix": "flg",
+      "ref": "core.flag",
+      "relations": {},
+      "tenancy": "deployment"
+    },
+    {
+      "fields": {
         "appId": {
           "access": "read-write",
           "kind": "string",
@@ -10904,6 +12167,26 @@
       "name": "restored"
     },
     {
+      "entity": "core.flag",
+      "generated": true,
+      "name": "archived"
+    },
+    {
+      "entity": "core.flag",
+      "generated": true,
+      "name": "changed"
+    },
+    {
+      "entity": "core.flag",
+      "generated": true,
+      "name": "created"
+    },
+    {
+      "entity": "core.flag",
+      "generated": true,
+      "name": "restored"
+    },
+    {
       "entity": "core.namespace",
       "generated": true,
       "name": "archived"
@@ -11059,7 +12342,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-KeflbS9dcJzxyYsjzipd7TNFHsC5x75SHNSM-n4wntY",
+  "hash": "sha256-fKtlFPNJaS7dq2uxlG0wECUzhya0681l54RftfwdA0Y",
   "modules": [
     {
       "id": "core",

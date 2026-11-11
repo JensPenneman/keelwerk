@@ -6556,6 +6556,1338 @@
         "required": ["items", "pageInfo"],
         "type": "object"
       },
+      "CoreFlag": {
+        "additionalProperties": false,
+        "properties": {
+          "$masked": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "archivedAt": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "backendId": {
+            "pattern": "^bknd_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "readOnly": true,
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "previous": {
+            "type": "object"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "slot": {
+            "type": "string"
+          },
+          "targeting": {
+            "type": "object"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "version": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "readOnly": true,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "createdAt",
+          "id",
+          "key",
+          "reason",
+          "slot",
+          "targeting",
+          "updatedAt",
+          "version"
+        ],
+        "type": "object"
+      },
+      "CoreFlagChangesInput": {
+        "additionalProperties": false,
+        "properties": {
+          "max": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "partition": {
+            "type": "string"
+          },
+          "since": {
+            "type": "string"
+          }
+        },
+        "required": ["since"],
+        "type": "object"
+      },
+      "CoreFlagChangesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "items": {
+              "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "changed": {
+            "items": {
+              "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "created": {
+            "items": {
+              "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "hasMoreChanges": {
+            "type": "boolean"
+          },
+          "newState": {
+            "type": "string"
+          },
+          "oldState": {
+            "type": "string"
+          }
+        },
+        "required": ["oldState", "newState", "hasMoreChanges", "created", "changed", "archived"],
+        "type": "object"
+      },
+      "CoreFlagCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "backendId": {
+            "pattern": "^bknd_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "previous": {
+            "type": "object"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "slot": {
+            "type": "string"
+          },
+          "targeting": {
+            "type": "object"
+          }
+        },
+        "required": ["key", "reason", "slot", "targeting"],
+        "type": "object"
+      },
+      "CoreFlagEvaluateInput": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": ["key"],
+        "type": "object"
+      },
+      "CoreFlagEvaluateOutput": {
+        "type": "object"
+      },
+      "CoreFlagFilter": {
+        "additionalProperties": false,
+        "properties": {
+          "and": {
+            "items": {
+              "$ref": "#/components/schemas/CoreFlagFilter"
+            },
+            "type": "array"
+          },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "gt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "gte": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "lte": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "backendId": {
+            "anyOf": [
+              {
+                "pattern": "^bknd_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "pattern": "^bknd_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "pattern": "^bknd_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "pattern": "^bknd_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "pattern": "^bknd_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "gt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "gte": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "lte": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "id": {
+            "anyOf": [
+              {
+                "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "contains": {
+                    "type": "string"
+                  },
+                  "eq": {
+                    "type": "string"
+                  },
+                  "gt": {
+                    "type": "string"
+                  },
+                  "gte": {
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "type": "string"
+                  },
+                  "lte": {
+                    "type": "string"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "startsWith": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "not": {
+            "$ref": "#/components/schemas/CoreFlagFilter"
+          },
+          "or": {
+            "items": {
+              "$ref": "#/components/schemas/CoreFlagFilter"
+            },
+            "type": "array"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "isNull": {
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "contains": {
+                    "type": "string"
+                  },
+                  "eq": {
+                    "type": "string"
+                  },
+                  "gt": {
+                    "type": "string"
+                  },
+                  "gte": {
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "type": "string"
+                  },
+                  "lte": {
+                    "type": "string"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "startsWith": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "slot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "contains": {
+                    "type": "string"
+                  },
+                  "eq": {
+                    "type": "string"
+                  },
+                  "gt": {
+                    "type": "string"
+                  },
+                  "gte": {
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "type": "string"
+                  },
+                  "lte": {
+                    "type": "string"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "startsWith": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "targeting": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "isNull": {
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "gt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "gte": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "in": {
+                    "items": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "lte": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "version": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "eq": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "gt": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "gte": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "in": {
+                    "items": {
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "isNull": {
+                    "type": "boolean"
+                  },
+                  "lt": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "lte": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "ne": {
+                    "anyOf": [
+                      {
+                        "maximum": 9007199254740991,
+                        "minimum": -9007199254740991,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nin": {
+                    "items": {
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "CoreFlagGetInput": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ids": {
+            "items": {
+              "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "includeArchived": {
+            "type": "boolean"
+          },
+          "properties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["ids"],
+        "type": "object"
+      },
+      "CoreFlagGetOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "list": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "archivedAt": {
+                  "format": "date-time",
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "backendId": {
+                  "pattern": "^bknd_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                  "type": "string"
+                },
+                "createdAt": {
+                  "format": "date-time",
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "id": {
+                  "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "previous": {
+                  "type": "object"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "slot": {
+                  "type": "string"
+                },
+                "targeting": {
+                  "type": "object"
+                },
+                "updatedAt": {
+                  "format": "date-time",
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "version": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "readOnly": true,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "createdAt",
+                "id",
+                "key",
+                "reason",
+                "slot",
+                "targeting",
+                "updatedAt",
+                "version"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "notFound": {
+            "items": {
+              "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": ["list", "notFound"],
+        "type": "object"
+      },
+      "CoreFlagHistoryInput": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fromVersion": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "id": {
+            "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": ["id"],
+        "type": "object"
+      },
+      "CoreFlagHistoryOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "entries": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "actor": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": ["string", "null"]
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "via": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "id", "via"],
+                  "type": "object"
+                },
+                "at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "changes": {
+                  "additionalProperties": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "after": {},
+                      "before": {}
+                    },
+                    "required": ["before"],
+                    "type": "object"
+                  },
+                  "type": "object"
+                },
+                "event": {
+                  "type": "string"
+                },
+                "version": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                }
+              },
+              "required": ["version", "at", "event", "actor", "changes"],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["entries"],
+        "type": "object"
+      },
+      "CoreFlagPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "backendId": {
+            "pattern": "^bknd_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "previous": {
+            "type": "object"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "slot": {
+            "type": "string"
+          },
+          "targeting": {
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "CoreFlagQueryChangesInput": {
+        "additionalProperties": false,
+        "properties": {
+          "filter": {
+            "$ref": "#/components/schemas/CoreFlagFilter"
+          },
+          "maxChanges": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "sinceQueryState": {
+            "type": "string"
+          },
+          "sort": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "direction": {
+                  "enum": ["asc", "desc"],
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                }
+              },
+              "required": ["field"],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["sinceQueryState"],
+        "type": "object"
+      },
+      "CoreFlagQueryChangesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "added": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                  "type": "string"
+                },
+                "index": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                }
+              },
+              "required": ["id", "index"],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "newQueryState": {
+            "type": "string"
+          },
+          "oldQueryState": {
+            "type": "string"
+          },
+          "removed": {
+            "items": {
+              "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["oldQueryState", "newQueryState", "removed", "added"],
+        "type": "object"
+      },
+      "CoreFlagQueryInput": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/CoreFlagFilter"
+          },
+          "first": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "includeArchived": {
+            "type": "boolean"
+          },
+          "last": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "properties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sort": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "direction": {
+                  "enum": ["asc", "desc"],
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                }
+              },
+              "required": ["field"],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "CoreFlagQueryOutput": {
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "archivedAt": {
+                  "format": "date-time",
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "backendId": {
+                  "pattern": "^bknd_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                  "type": "string"
+                },
+                "createdAt": {
+                  "format": "date-time",
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "id": {
+                  "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "previous": {
+                  "type": "object"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "slot": {
+                  "type": "string"
+                },
+                "targeting": {
+                  "type": "object"
+                },
+                "updatedAt": {
+                  "format": "date-time",
+                  "readOnly": true,
+                  "type": "string"
+                },
+                "version": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "readOnly": true,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "createdAt",
+                "id",
+                "key",
+                "reason",
+                "slot",
+                "targeting",
+                "updatedAt",
+                "version"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "pageInfo": {
+            "properties": {
+              "endCursor": {
+                "type": ["string", "null"]
+              },
+              "hasNextPage": {
+                "type": "boolean"
+              },
+              "hasPreviousPage": {
+                "type": "boolean"
+              },
+              "startCursor": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": ["hasNextPage", "hasPreviousPage", "startCursor", "endCursor"],
+            "type": "object"
+          },
+          "queryState": {
+            "type": "string"
+          },
+          "total": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": ["items", "pageInfo"],
+        "type": "object"
+      },
+      "CoreFlagRestoreRulesInput": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": ["reason"],
+        "type": "object"
+      },
+      "CoreFlagRestoreRulesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "archivedAt": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "backendId": {
+            "pattern": "^bknd_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "readOnly": true,
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "previous": {
+            "type": "object"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "slot": {
+            "type": "string"
+          },
+          "targeting": {
+            "type": "object"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "version": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "readOnly": true,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "createdAt",
+          "id",
+          "key",
+          "reason",
+          "slot",
+          "targeting",
+          "updatedAt",
+          "version"
+        ],
+        "type": "object"
+      },
+      "CoreFlagSetInput": {
+        "additionalProperties": false,
+        "properties": {
+          "backendId": {
+            "pattern": "^bknd_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "type": "string"
+          },
+          "key": {
+            "maxLength": 200,
+            "minLength": 3,
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*(?:\\.[a-z][a-zA-Z0-9]*)+$",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "targeting": {
+            "type": "object"
+          }
+        },
+        "required": ["key", "targeting", "reason"],
+        "type": "object"
+      },
+      "CoreFlagSetOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "type": "string"
+          },
+          "ruleVersion": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": ["id", "ruleVersion"],
+        "type": "object"
+      },
       "CoreIntrospectOutput": {
         "type": "object"
       },
@@ -14139,7 +15471,7 @@
   },
   "info": {
     "title": "versioned",
-    "version": "sha256-ZaPTQWHUoG0Hkzg4guEdCTZdiz992hMM-DuPfwJRTp4"
+    "version": "sha256-R9VPUoi5opsDapcMmlKjNC1PeQOYV5bCLd_H_X92Qf4"
   },
   "openapi": "3.1.1",
   "paths": {
@@ -16780,6 +18112,870 @@
         "x-keelwerk-action": "core.effect.get",
         "x-keelwerk-execution": "sync",
         "x-keelwerk-scope": "invocation"
+      }
+    },
+    "/core/flags": {
+      "get": {
+        "operationId": "coreFlagQuery",
+        "parameters": [
+          {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreFlagFilter"
+                }
+              }
+            },
+            "in": "query",
+            "name": "filter",
+            "required": false
+          },
+          {
+            "description": "Fields separated by commas; a leading `-` sorts descending.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "first",
+            "required": false,
+            "schema": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "last",
+            "required": false,
+            "schema": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "total",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "includeArchived",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "properties",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreFlagQueryOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "Link": {
+                "$ref": "#/components/headers/link"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": ["core"],
+        "x-keelwerk-action": "core.flag.query",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "deployment"
+      }
+    },
+    "/core/flags/changes": {
+      "get": {
+        "operationId": "coreFlagChanges",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max",
+            "required": false,
+            "schema": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "partition",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreFlagChangesOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": ["core"],
+        "x-keelwerk-action": "core.flag.changes",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "deployment"
+      }
+    },
+    "/core/flags/evaluate": {
+      "get": {
+        "operationId": "coreFlagEvaluate",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreFlagEvaluateOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": ["core"],
+        "x-keelwerk-action": "core.flag.evaluate",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/core/flags/get": {
+      "post": {
+        "operationId": "coreFlagGetPost",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoreFlagGetInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreFlagGetOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": ["core"],
+        "x-keelwerk-action": "core.flag.get",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-safe": true,
+        "x-keelwerk-scope": "deployment"
+      }
+    },
+    "/core/flags/query": {
+      "post": {
+        "operationId": "coreFlagQueryPost",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoreFlagQueryInput"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreFlagQueryOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "Link": {
+                "$ref": "#/components/headers/link"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": ["core"],
+        "x-keelwerk-action": "core.flag.query",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-safe": true,
+        "x-keelwerk-scope": "deployment"
+      }
+    },
+    "/core/flags/query-changes": {
+      "post": {
+        "operationId": "coreFlagQueryChanges",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoreFlagQueryChangesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreFlagQueryChangesOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": ["core"],
+        "x-keelwerk-action": "core.flag.queryChanges",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-safe": true,
+        "x-keelwerk-scope": "deployment"
+      }
+    },
+    "/core/flags/rules": {
+      "post": {
+        "operationId": "coreFlagSet",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoreFlagSetInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreFlagSetOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/idempotentReplayed"
+              },
+              "Keelwerk-Command-Id": {
+                "$ref": "#/components/headers/keelwerkCommandId"
+              },
+              "Keelwerk-Effects": {
+                "$ref": "#/components/headers/keelwerkEffects"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": ["core"],
+        "x-keelwerk-action": "core.flag.set",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "deployment"
+      }
+    },
+    "/core/flags/{id}": {
+      "get": {
+        "operationId": "coreFlagGet",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            }
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "properties",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "in": "query",
+            "name": "includeArchived",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/ifNoneMatch"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreFlag"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/etag"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/etag"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": ["core"],
+        "x-keelwerk-action": "core.flag.get",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "deployment"
+      }
+    },
+    "/core/flags/{id}/history": {
+      "get": {
+        "operationId": "coreFlagHistory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fromVersion",
+            "required": false,
+            "schema": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreFlagHistoryOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": ["core"],
+        "x-keelwerk-action": "core.flag.history",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "deployment"
+      }
+    },
+    "/core/flags/{id}/restore-rules": {
+      "post": {
+        "operationId": "coreFlagRestoreRules",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^flg_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
+          },
+          {
+            "description": "The `ETag` of the version the change applies to; a mismatch answers 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoreFlagRestoreRulesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreFlagRestoreRulesOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/etag"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/idempotentReplayed"
+              },
+              "Keelwerk-Command-Id": {
+                "$ref": "#/components/headers/keelwerkCommandId"
+              },
+              "Keelwerk-Effects": {
+                "$ref": "#/components/headers/keelwerkEffects"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/problem404"
+          },
+          "412": {
+            "$ref": "#/components/responses/problem412"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": ["core"],
+        "x-keelwerk-action": "core.flag.restoreRules",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "deployment"
       }
     },
     "/core/introspect": {
@@ -21402,6 +23598,6 @@
     "apiVersion": "2026-11-11",
     "format": "keelwerk.openapi/1",
     "producer": "@keelwerk/transport-rest",
-    "surface": "sha256-ZaPTQWHUoG0Hkzg4guEdCTZdiz992hMM-DuPfwJRTp4"
+    "surface": "sha256-R9VPUoi5opsDapcMmlKjNC1PeQOYV5bCLd_H_X92Qf4"
   }
 }

@@ -9,6 +9,7 @@ import type { AdapterCapabilities } from '../storage/adapter-capabilities.ts';
 import type { DataAdapter } from '../storage/data-adapter.ts';
 import type { NamespaceRef } from '../storage/namespace-ref.ts';
 import type { ControlStore } from './control-store.ts';
+import { createControlFlags } from './create-control-flags.ts';
 
 /** What the control store is built from. */
 export interface ControlStoreOptions {
@@ -39,6 +40,7 @@ export function createControlStore(options: ControlStoreOptions): ControlStore {
     compute: options.compute,
     log: options.log,
     writer: { hybridClock: options.hybridClock, build: options.build },
+    flags: createControlFlags({ adapter, namespace, registry }),
     epochOf: () => 0,
     entity: (ref) => {
       const entry = registry.entities.get(ref);

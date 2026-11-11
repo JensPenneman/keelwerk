@@ -466,10 +466,21 @@ export type {
 export type { SystemFields } from './fields/system-fields.ts';
 export type { ValidateOptions } from './fields/validate-value.ts';
 export { validateValue } from './fields/validate-value.ts';
+export type { ClientFlagDocument } from './flags/client-flag-document.ts';
 export type { FlagContext } from './flags/flag-context.ts';
 export type { FlagProvider } from './flags/flag-provider.ts';
 export type { FlagSnapshot } from './flags/flag-snapshot.ts';
 export type { FlagSpec } from './flags/flag-spec.ts';
+export type {
+  FlagRule,
+  FlagServe,
+  FlagShare,
+  FlagSplit,
+  FlagTargeting,
+  FlagValue,
+  FlagVariant,
+} from './flags/flag-targeting.ts';
+export { splitHash } from './flags/split-hash.ts';
 export type { RunGeneratedReadInput } from './generated-actions/run-generated-read.ts';
 export { runGeneratedRead } from './generated-actions/run-generated-read.ts';
 export type { BlobRef } from './ids/blob-ref.ts';
@@ -891,6 +902,7 @@ export type { PageSpec } from './surface/page-spec.ts';
 export type { AppGeneratedSource } from './surface/render-app-generated-file.ts';
 export { renderAppGeneratedFile } from './surface/render-app-generated-file.ts';
 export { renderSurfaceArtefact } from './surface/render-surface-artefact.ts';
+export { requiredIfVersion } from './surface/required-if-version.ts';
 export type { ResponseHint } from './surface/response-hint.ts';
 export type { SelectionLimits } from './surface/selection-limits.ts';
 export type { SelectionMeasure, SelectionPath } from './surface/selection-measure.ts';

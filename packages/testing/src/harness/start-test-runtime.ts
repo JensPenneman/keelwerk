@@ -230,6 +230,7 @@ export async function startTestRuntime<
     clock,
     config: moduleConfigOf(moduleConfigShapes(app.modules), backend.config),
     namespace,
+    control: { adapter: controlAdapter, namespace: controlNamespace },
     log: environment.log,
     tracer: environment.tracer,
     tenants: Object.fromEntries(tenants.map((tenant) => [tenant.name, tenant])) as Record<

@@ -1,8 +1,9 @@
 import type { FieldNode, SurfaceAction } from '@keelwerk/core';
-import { camel } from '@keelwerk/core';
+import { camel, requiredIfVersion } from '@keelwerk/core';
 import { bodyNodeOf } from './body-node-of.ts';
 import type { DocumentedRoute } from './documented-route.ts';
 import { hasIfMatch } from './has-if-match.ts';
+import { ifMatchParameter } from './if-match-parameter.ts';
 import { isSingleGet } from './is-single-get.ts';
 import type { JsonObject } from './json-object.ts';
 import { keelwerkExtensions } from './keelwerk-extensions.ts';
@@ -56,7 +57,11 @@ function parametersOf(
     parameters.push(parameterRef('idempotencyKey'));
   }
   if (hasIfMatch(action)) {
-    parameters.push(parameterRef('ifMatch'));
+    parameters.push(
+      requiredIfVersion(action) !== undefined
+        ? { ...ifMatchParameter, required: true }
+        : parameterRef('ifMatch'),
+    );
   }
   if (isSingleGet(action, route)) {
     parameters.push(parameterRef('ifNoneMatch'));

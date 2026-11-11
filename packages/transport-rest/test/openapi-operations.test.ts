@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { emitOpenapi } from '../src/openapi/emit-openapi.ts';
 import { emittedDocument } from './support/emitted-document.ts';
 import { librarySurface } from './support/library-surface.ts';
-import { action, anyJson, id, list, none, shape, str } from './support/nodes.ts';
+import { action, anyJson, id, int, list, none, shape, str } from './support/nodes.ts';
 import { withActions } from './support/with-actions.ts';
 
 const _resolvers = [
@@ -78,6 +78,33 @@ describe('request and response documentation', () => {
     expect(create['x-keelwerk-execution']).toBe('either');
     expect(create['x-keelwerk-scope']).toBe('tenant');
     expect(document.paths['/app/health'].get['x-keelwerk-scope']).toBe('deployment');
+  });
+});
+
+describe('an instance command that requires ifVersion', () => {
+  const surface = withActions(
+    librarySurface,
+    action('library.book.restore2', {
+      mount: 'entity',
+      instance: true,
+      kind: 'command',
+      input: shape({
+        id: id('library.book', 'bk'),
+        ifVersion: int(),
+        reason: str(),
+      }),
+      output: none,
+    }),
+  );
+
+  test('documents If-Match inline as required, and the optional one stays the shared parameter', () => {
+    const document = emittedDocument(surface);
+    const required = document.paths['/library/books/{id}/restore2'].post.parameters;
+    expect(required).toContainEqual(
+      expect.objectContaining({ name: 'If-Match', in: 'header', required: true }),
+    );
+    const shared = document.paths['/library/books/{id}'].patch.parameters;
+    expect(shared).toContainEqual({ $ref: '#/components/parameters/ifMatch' });
   });
 });
 

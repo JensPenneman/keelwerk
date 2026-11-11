@@ -1,4 +1,5 @@
 import type { SurfaceAction } from '@keelwerk/core';
+import { requiredIfVersion } from '@keelwerk/core';
 import type { CliContext } from '../context/cli-context.ts';
 import { usageFailure } from '../context/usage-failure.ts';
 import type { FlagEntry } from './flag-entry.ts';
@@ -74,6 +75,9 @@ export async function assembleInput(
   }
   if (flags['if-version'] !== undefined) {
     input.ifVersion = flags['if-version'];
+  }
+  if (requiredIfVersion(action) !== undefined && input.ifVersion === undefined) {
+    throw usageFailure('--if-version is required: give the version the change applies to.');
   }
   return Object.keys(input).length === 0 && action.input.kind === 'void' ? undefined : input;
 }

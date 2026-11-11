@@ -9,6 +9,8 @@ import { answerExplain } from '../explain/answer-explain.ts';
 import { explainDecisions } from '../explain/explain-decisions.ts';
 import { explainStream } from '../explain/explain-stream.ts';
 import { createFlagChain } from '../flags/create-flag-chain.ts';
+import { startFlagProviders } from '../flags/start-flag-providers.ts';
+import { createTargetingCache } from '../flags/targeting-cache.ts';
 import { createInvoker } from '../invoker/create-invoker.ts';
 import type { InvokerApp } from '../invoker/invoker-app.ts';
 import type { InvokerOptions } from '../invoker/invoker-options.ts';
@@ -118,6 +120,19 @@ export async function startRuntime(
       clock,
     };
     const decisions = explainDecisions(streamOptions);
+    const targeting = createTargetingCache({
+      flags: connected.control.flags,
+      clock,
+      log,
+      signal: connected.signal,
+    });
+    const flagProviders = createFlagChain({
+      providers: composed.infrastructure.flagProviders,
+      environment,
+      env: options.env ?? {},
+      targeting: targeting.provider,
+    });
+    startFlagProviders(flagProviders, connected.signal, log);
     const invokerOptions: InvokerOptions = {
       apps,
       directory: migrated.directory.lookup,
@@ -143,11 +158,8 @@ export async function startRuntime(
       compute: connected.compute,
       log,
       environment,
-      flagProviders: createFlagChain({
-        providers: composed.infrastructure.flagProviders,
-        environment,
-        env: options.env ?? {},
-      }),
+      flagProviders,
+      targeting,
       build: connected.build,
       commands: routeControlCommands(
         createCommandRunner({

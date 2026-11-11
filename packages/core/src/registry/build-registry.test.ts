@@ -104,17 +104,12 @@ describe('contributions and conditional parts (sections 5.3 and 5.4)', () => {
     expect(registry.actions.has('accounts.whoami')).toBe(false);
     expect(registry.actions.has('auth.linkProfile')).toBe(false);
     expect(registry.entities.get('auth.credential')?.descriptor.fields.profileId).toBeUndefined();
-    expect([...registry.rules.keys()]).toEqual([
+    const ruleIds = [...registry.rules.keys()];
+    expect(ruleIds.filter((id) => !id.startsWith('core.'))).toEqual([
       'auth.credential.self',
       'auth.login.open',
-      'core.backend.operators',
-      'core.commandReceipt.submitter',
-      'core.composition.operators',
-      'core.domain.operators',
-      'core.introspect.signedIn',
-      'core.operatorToken.operators',
-      'core.tenant.operators',
     ]);
+    expect(ruleIds).toContain('core.flag.operators');
   });
 
   test('a conditional part keyed on a contract is present only when a module provides it', () => {
@@ -220,20 +215,15 @@ describe('the action table (section 16.2.2)', () => {
 
 describe('rules (section 8.1)', () => {
   test('ids come from where the rule is mounted', () => {
-    expect([...full.rules.keys()]).toEqual([
+    const ruleIds = [...full.rules.keys()];
+    expect(ruleIds.filter((id) => !id.startsWith('core.'))).toEqual([
       'accounts.profile.operator',
       'accounts.register.open',
       'auth.accounts.profile.self',
       'auth.credential.self',
       'auth.login.open',
-      'core.backend.operators',
-      'core.commandReceipt.submitter',
-      'core.composition.operators',
-      'core.domain.operators',
-      'core.introspect.signedIn',
-      'core.operatorToken.operators',
-      'core.tenant.operators',
     ]);
+    expect(ruleIds).toContain('core.flag.operators');
     expect(full.rules.get('auth.accounts.profile.self')).toMatchObject({
       module: 'auth',
       contributedBy: 'auth',

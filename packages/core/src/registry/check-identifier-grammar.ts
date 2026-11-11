@@ -10,8 +10,9 @@ const idPattern = /^[a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*$/;
 /**
  * The identifier grammar of section 5.1: module and app ids are words separated by single hyphens
  * (`invalidModuleIds`, `invalidAppId`); entity and field names match `[a-z][a-zA-Z0-9]*`
- * (`invalidEntityName` and `invalidFieldName` as the DSL raises them); action, relation and event
- * names have checks of their own.
+ * (`invalidEntityName` and `invalidFieldName` as the DSL raises them) and so do flag names
+ * (`invalidFlagName`: a flag key `<module>.<flag>` never holds `@`, which a flag row's slot relies
+ * on); action, relation and event names have checks of their own.
  */
 export function checkIdentifierGrammar(
   app: ComposableApp,
@@ -48,6 +49,9 @@ export function checkIdentifierGrammar(
           },
         ),
       );
+    }
+    for (const name of Object.keys(module.base.flags ?? {})) {
+      badName(name, `${module.id}.${name}`, module.id, 'invalidFlagName');
     }
     for (const [entity, definition] of Object.entries(module.entities)) {
       const at = `${module.id}.${entity}`;
