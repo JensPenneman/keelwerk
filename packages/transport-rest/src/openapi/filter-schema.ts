@@ -1,57 +1,13 @@
-import type { ApiSurface, FieldNode, SurfaceEntity } from '@keelwerk/core';
+import {
+  type ApiSurface,
+  type FieldNode,
+  filterOperatorsOf,
+  type SurfaceEntity,
+} from '@keelwerk/core';
 import type { JsonObject } from './json-object.ts';
 import { plainSchema } from './plain-schema.ts';
 import { schemaName } from './schema-name.ts';
 import { schemaRef } from './schema-ref.ts';
-
-const orderedKinds: ReadonlySet<string> = new Set([
-  'integer',
-  'float',
-  'decimal',
-  'serial',
-  'instant',
-  'date',
-]);
-
-const skippedKinds: ReadonlySet<string> = new Set(['secret', 'void', 'foreign', 'page']);
-
-/** The operators a field of this kind accepts (sections 14.3.4 and 16.4.4); personal fields take only the equality operators. */
-function operatorsOf(node: FieldNode): readonly string[] {
-  if (node.personal === true) {
-    return ['eq', 'isNull'];
-  }
-  switch (node.kind) {
-    case 'string':
-    case 'text':
-      return [
-        'eq',
-        'ne',
-        'lt',
-        'lte',
-        'gt',
-        'gte',
-        'in',
-        'nin',
-        'startsWith',
-        'contains',
-        'isNull',
-      ];
-    case 'binary':
-      return ['eq', 'ne', 'isNull'];
-    case 'list':
-    case 'set':
-      return ['contains', 'isNull'];
-    case 'json':
-    case 'shape':
-    case 'richText':
-    case 'blob':
-      return ['isNull'];
-    default:
-      return orderedKinds.has(node.kind)
-        ? ['eq', 'ne', 'lt', 'lte', 'gt', 'gte', 'in', 'nin', 'isNull']
-        : ['eq', 'ne', 'in', 'nin', 'isNull'];
-  }
-}
 
 function operandOf(operator: string, node: FieldNode, value: JsonObject): JsonObject {
   switch (operator) {
@@ -73,9 +29,8 @@ function operandOf(operator: string, node: FieldNode, value: JsonObject): JsonOb
   }
 }
 
-function fieldFilter(node: FieldNode): JsonObject {
+function fieldFilter(node: FieldNode, operators: readonly string[]): JsonObject {
   const value = plainSchema(node);
-  const operators = operatorsOf(node);
   const ops: JsonObject = {
     type: 'object',
     properties: Object.fromEntries(
@@ -93,8 +48,9 @@ export function filterSchema(entity: SurfaceEntity, surface: ApiSurface): JsonOb
   const self = schemaRef(schemaName('filter', entity.ref));
   const properties: JsonObject = {};
   for (const [name, node] of Object.entries(entity.fields)) {
-    if (node.access !== 'write' && !skippedKinds.has(node.kind)) {
-      properties[name] = fieldFilter(node);
+    const operators = filterOperatorsOf(node);
+    if (operators.length > 0) {
+      properties[name] = fieldFilter(node, operators);
     }
   }
   for (const [name, relation] of Object.entries(entity.relations)) {

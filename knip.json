@@ -110,16 +110,7 @@
     "packages/transport-graphql": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": [
-        "@keelwerk/core",
-        "@keelwerk/live",
-        "@keelwerk/testing",
-        "@keelwerk/transport-http",
-        "dataloader",
-        "graphql",
-        "graphql-ws",
-        "graphql-yoga"
-      ]
+      "ignoreDependencies": ["@keelwerk/live", "graphql-ws"]
     },
     "packages/transport-trpc": {
       "entry": ["src/**/*.test-d.ts"],

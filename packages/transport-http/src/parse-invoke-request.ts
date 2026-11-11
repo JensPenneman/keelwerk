@@ -1,5 +1,5 @@
 import type { InvokeRequest } from '@keelwerk/core';
-import { coreError } from '@keelwerk/core/http';
+import { coreError, isCommandId } from '@keelwerk/core/http';
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -21,8 +21,8 @@ export function parseInvokeRequest(
   if (typeof action !== 'string' || action === '') {
     throw issue('action', 'Expected the reference of an action.');
   }
-  if (commandId !== undefined && (typeof commandId !== 'string' || commandId === '')) {
-    throw issue('commandId', 'Expected a non-empty string.');
+  if (commandId !== undefined && (typeof commandId !== 'string' || !isCommandId(commandId))) {
+    throw issue('commandId', 'Expected 1 to 255 visible ASCII characters.');
   }
   if (prefer !== undefined && prefer !== 'sync' && prefer !== 'async') {
     throw issue('prefer', "Expected 'sync' or 'async'.");

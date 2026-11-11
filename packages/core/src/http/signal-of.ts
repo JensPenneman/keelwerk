@@ -1,4 +1,4 @@
-import type { SurfaceAction } from '@keelwerk/core';
+import type { SurfaceAction } from '../surface/surface-action.ts';
 
 /**
  * The invocation's signal (section 16.4.11): it carries the action's `timeoutMs`. A client

@@ -35,6 +35,20 @@ describe('the invocation protocol', () => {
     expect(invoker.invoked.map((i) => i.commandId)).toEqual(['mine', undefined]);
   });
 
+  it('refuses a command id that is no 1 to 255 visible ASCII characters', async () => {
+    const { host, invoker } = setup();
+    for (const commandId of ['bad\nid', 'x'.repeat(256), 'caf\u00e9', '']) {
+      const response = await host.fetch(
+        postJson('/_keelwerk/v1/invoke', { action: 'library.echo', commandId }),
+      );
+      expect(response.status, commandId).toBe(400);
+      expect(await response.json()).toMatchObject({
+        error: { code: 'core.malformed_request' },
+      });
+    }
+    expect(invoker.invoked).toEqual([]);
+  });
+
   it('encodes outputs with the wire codecs', async () => {
     const { host } = setup();
     const response = await host.fetch(

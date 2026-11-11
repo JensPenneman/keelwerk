@@ -6,8 +6,13 @@ import {
   type KeelwerkError,
   newUuidV7,
 } from '@keelwerk/core';
-import { asKeelwerkError, coreError, decodeActionInput } from '@keelwerk/core/http';
-import { audienceOf } from './audience-of.ts';
+import {
+  asKeelwerkError,
+  audienceOf,
+  coreError,
+  decodeActionInput,
+  signalOf,
+} from '@keelwerk/core/http';
 import { decodeRequest } from './decode-request.ts';
 import { encodeResponse } from './encode-response.ts';
 import { idempotencyKey } from './idempotency-key.ts';
@@ -20,7 +25,6 @@ import { referencePage } from './reference-page.ts';
 import type { RestHandlerDeps } from './rest-handler-deps.ts';
 import type { RestVersionMount } from './rest-version-mount.ts';
 import type { RouteMatch } from './route-table.ts';
-import { signalOf } from './signal-of.ts';
 
 async function serveRoute(
   deps: RestHandlerDeps,

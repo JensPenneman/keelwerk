@@ -1,4 +1,4 @@
-import type { ApiSurface, TransportProblem } from '@keelwerk/core';
+import { type ApiSurface, hasProjectableInput, type TransportProblem } from '@keelwerk/core';
 import { restProblem } from './rest-problem.ts';
 
 /** What the document cannot describe: an entity action without its entity, an input that is neither a shape, a foreign schema nor void, and a declared error the surface does not list. */
@@ -17,11 +17,7 @@ export function unsupportedShapes(surface: ApiSurface): readonly TransportProble
         ),
       );
     }
-    if (
-      action.input.kind !== 'shape' &&
-      action.input.kind !== 'foreign' &&
-      action.input.kind !== 'void'
-    ) {
+    if (!hasProjectableInput(action)) {
       problems.push(
         restProblem(
           'unsupportedShape',

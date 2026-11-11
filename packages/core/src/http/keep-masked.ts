@@ -1,4 +1,4 @@
-import type { FieldNode } from '@keelwerk/core';
+import type { FieldNode } from '../surface/field-node.ts';
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

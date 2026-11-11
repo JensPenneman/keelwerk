@@ -37,4 +37,6 @@ export interface TransportCodec {
    * domains (REST has one; the invocation protocol has none, so a configured origin is a stranger to it).
    */
   readonly configurableCors: boolean;
+  /** Whether the transport follows relations inside one request, so the selection limits apply (16.4.12, S-174); absent is false. */
+  readonly followsRelations?: boolean;
 }

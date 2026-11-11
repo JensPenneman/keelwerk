@@ -1,9 +1,13 @@
 export { applyCookieHint, type CookieHintResult } from './apply-cookie-hint.ts';
 export { asKeelwerkError } from './as-keelwerk-error.ts';
+export { audienceOf } from './audience-of.ts';
 export { clearedCookie } from './cleared-cookie.ts';
 export { type CoreErrorOverrides, coreError } from './core-error.ts';
 export { decodeActionInput } from './decode-action-input.ts';
 export { decodeInput } from './decode-input.ts';
+export { isCommandId } from './is-command-id.ts';
+export { keepMasked } from './keep-masked.ts';
 export { problemTitles } from './problem-titles.ts';
+export { signalOf } from './signal-of.ts';
 export { statusOfError } from './status-of-error.ts';
 export { wwwAuthenticateValue } from './www-authenticate-value.ts';

@@ -1,1 +1,10 @@
+export { checkGraphqlSurface } from './check/check-graphql-surface.ts';
+export { createGraphqlAdapter } from './create-graphql-adapter.ts';
+export type { GraphqlConfig } from './graphql-config.ts';
+export type { GraphqlModule } from './graphql-module.ts';
+export type { GraphqlStaticOptions } from './graphql-static-options.ts';
+export { graphqlTransport } from './graphql-transport.ts';
+export { graphql } from './module.ts';
+export { buildGraphqlSchema } from './schema/build-graphql-schema.ts';
+export type { GraphqlProjection } from './schema/graphql-projection.ts';
 export { version } from './version.ts';

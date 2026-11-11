@@ -7,10 +7,14 @@ import {
   newUuidV7,
   type Outcome,
 } from '@keelwerk/core';
-import { applyCookieHint, asKeelwerkError, decodeActionInput } from '@keelwerk/core/http';
+import {
+  applyCookieHint,
+  asKeelwerkError,
+  decodeActionInput,
+  keepMasked,
+} from '@keelwerk/core/http';
 import { toWire } from '@keelwerk/core/wire';
 import type { EndpointCall } from './endpoint-call.ts';
-import { keepMasked } from './keep-masked.ts';
 
 /**
  * The surface of the session's app and version, or `undefined` when the process does not serve the

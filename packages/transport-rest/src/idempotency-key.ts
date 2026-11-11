@@ -1,6 +1,4 @@
-import { coreError } from '@keelwerk/core/http';
-
-const visibleAscii = /^[\x21-\x7e]{1,255}$/;
+import { coreError, isCommandId } from '@keelwerk/core/http';
 
 /** The client's `Idempotency-Key`, an opaque string of 1 to 255 visible characters (section 16.4.8). */
 export function idempotencyKey(headers: Headers): string | undefined {
@@ -8,7 +6,7 @@ export function idempotencyKey(headers: Headers): string | undefined {
   if (value === undefined) {
     return undefined;
   }
-  if (!visibleAscii.test(value)) {
+  if (!isCommandId(value)) {
     throw coreError('core.malformed_request', {
       message: 'Idempotency-Key must be 1 to 255 visible ASCII characters.',
     });
