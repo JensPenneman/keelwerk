@@ -12,6 +12,7 @@ export function buildEffectEntries(
       const ref = `${module.id}.${name}`;
       const performer = Reflect.get(part, 'performer') === 'external' ? 'external' : 'executor';
       const executor = module.executors[name];
+      const dataSubject = Reflect.get(part, 'dataSubject');
       effects.set(ref, {
         ref,
         module: module.id,
@@ -21,6 +22,7 @@ export function buildEffectEntries(
           executor !== undefined && executor !== null && performer === 'executor' ? ref : null,
         input: Reflect.get(part, 'input') as StandardSchemaV1,
         output: Reflect.get(part, 'output') as StandardSchemaV1,
+        ...(typeof dataSubject === 'string' ? { dataSubject } : {}),
       });
     }
   }

@@ -10,7 +10,9 @@ import { refOf } from './ref-of.ts';
 /** Options of an effect request: the continuation and its extra input, a key and timing. */
 export interface EffectOptions {
   readonly continueWith?: AnyActionPart;
+  /** Stored in plaintext next to the sealed input: a member the continuation's input declares personal or secret is refused. */
   readonly with?: Readonly<Record<string, unknown>>;
+  /** Stored in plaintext in the record: it must not carry a personal or secret value. */
   readonly key?: string;
   readonly runAt?: Temporal.Instant;
   readonly deadline?: Temporal.Instant;
@@ -26,6 +28,8 @@ export interface EffectPart<S, Din, Sin, O> {
   readonly input: Shape;
   /** The output shape; the empty shape when the effect declares none. */
   readonly output: Shape;
+  /** The path in the input that holds the data subject of its personal fields (S-127). */
+  readonly dataSubject?: string;
   /** The reference (`hooks.post`) `defineModule` records; it is the `type` of the effect payload. */
   readonly ref?: string;
   readonly '~types'?: { readonly input: Sin; readonly output: O };
@@ -45,6 +49,8 @@ export function defineEffect<
     readonly input: Shape<InFields>;
     readonly output?: Shape<OutFields>;
     readonly performer?: 'executor' | 'external';
+    /** The input field that holds the data subject of the personal input fields, or a path through references from it (S-127). */
+    readonly dataSubject?: (keyof InFields & string) | `${keyof InFields & string}.${string}`;
   },
 ): EffectPart<
   S,
@@ -72,5 +78,6 @@ export function defineEffect<
     performer: spec.performer ?? ('executor' as const),
     input: spec.input as Shape,
     output: (spec.output ?? shape({})) as Shape,
+    ...(spec.dataSubject === undefined ? {} : { dataSubject: spec.dataSubject as string }),
   });
 }

@@ -141,9 +141,17 @@ export function memoryKeyStore(ctx: MemoryUnitContext): SubjectKeyStore {
       ctx.tx.write<ValueKey>(values()).set(keyId, { keyId, material, aad });
       return { keyId, nonce: sealed.nonce, ciphertext: sealed.ciphertext };
     },
-    openValue: async (sealed) => {
+    openValue: async (sealed, expected) => {
       const record = ctx.tx.read<ValueKey>(values()).get(sealed.keyId);
       if (record === undefined) return undefined;
+      if (
+        expected !== undefined &&
+        !Buffer.from(record.aad).equals(
+          encoder.encode([expected.entity, expected.id, expected.field].join('\u0000')),
+        )
+      ) {
+        return undefined;
+      }
       return memoryOpen(record.material, sealed.nonce, sealed.ciphertext, record.aad);
     },
     destroyValueKey: async (keyId) => {

@@ -20,6 +20,8 @@ export interface ActionEntry {
   /** Entity commands: the input carries `id` and an optional `ifVersion`. */
   readonly instance: boolean;
   readonly input: StandardSchemaV1;
+  /** A continuation (`outcomeOf(effect, extra)`): the shape of the `with` members it takes besides the outcome. */
+  readonly outcomeWith?: StandardSchemaV1;
   readonly output: StandardSchemaV1;
   /** Set when the output is `rowOf(entity)` or `pageOf(entity)`: the entity whose rows it carries and whether it is one row or a page. A custom output has none. */
   readonly entityOutput?: { readonly entity: string; readonly shape: 'row' | 'page' };

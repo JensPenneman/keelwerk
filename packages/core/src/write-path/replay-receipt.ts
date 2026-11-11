@@ -7,6 +7,7 @@ import { decodeRow } from '../repositories/decode-row.ts';
 import type { Receipt } from '../storage/receipt.ts';
 import type { Unit } from '../storage/unit.ts';
 import { decodeCommandValue } from './decode-command-value.ts';
+import { openCommandOutput } from './open-command-output.ts';
 
 /**
  * Answers a retried command from its finished receipt (section 7.5): the stored error again, the
@@ -38,7 +39,14 @@ export async function replayReceipt(
     throw errors.conflict('Shown once; issue a new token.');
   }
   if (!('ref' in outcome))
-    return { output: decodeCommandValue(action, outcome.value), ...effects, replayed: true };
+    return {
+      output: decodeCommandValue(
+        action,
+        await openCommandOutput(unit, receipt.commandId, action, outcome.value),
+      ),
+      ...effects,
+      replayed: true,
+    };
   const entry = registry.entities.get(outcome.ref.entity);
   if (entry === undefined) throw errors.internal(`${outcome.ref.entity} is no longer an entity`);
   const row = await unit.rows.findOne(entry.descriptor, {

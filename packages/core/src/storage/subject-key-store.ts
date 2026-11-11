@@ -20,6 +20,14 @@ export interface SubjectKeyStore {
     binding: { readonly entity: string; readonly id: string; readonly field: string },
     plain: Uint8Array,
   ): Promise<SealedValue>;
-  openValue(sealed: SealedValue): Promise<Uint8Array | undefined>;
+  /**
+   * The value of a sealed text; undefined once its key is destroyed. With `expected`, also
+   * undefined when the key was sealed for another binding (entity, row id and field), so a text
+   * moved to another row, effect or receipt does not open there.
+   */
+  openValue(
+    sealed: SealedValue,
+    expected?: { readonly entity: string; readonly id: string; readonly field: string },
+  ): Promise<Uint8Array | undefined>;
   destroyValueKey(keyId: string): Promise<void>;
 }

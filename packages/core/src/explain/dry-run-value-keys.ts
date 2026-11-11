@@ -23,11 +23,16 @@ export function dryRunValueKeys(): (inner: SubjectKeyStore) => SubjectKeyStore {
       held.set(keyId, { material, aad });
       return { keyId, nonce: sealed.nonce, ciphertext: sealed.ciphertext };
     },
-    openValue: async (sealed) => {
+    openValue: async (sealed, expected) => {
       const key = held.get(sealed.keyId);
-      return key === undefined
-        ? inner.openValue(sealed)
-        : openAesGcm(key.material, sealed.nonce, sealed.ciphertext, key.aad);
+      if (key === undefined) return inner.openValue(sealed, expected);
+      if (
+        expected !== undefined &&
+        !Buffer.from(key.aad).equals(encodeAad([expected.entity, expected.id, expected.field]))
+      ) {
+        return undefined;
+      }
+      return openAesGcm(key.material, sealed.nonce, sealed.ciphertext, key.aad);
     },
     destroyValueKey: async (keyId) => {
       if (!held.delete(keyId)) await inner.destroyValueKey(keyId);

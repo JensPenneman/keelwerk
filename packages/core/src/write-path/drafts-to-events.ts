@@ -235,6 +235,10 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
             data: stored,
             before: plainBefore,
             row: next,
+            decided: (entity, id) =>
+              written.get(`${entity}/${id}`)?.row ??
+              loadedRows.get(`${entity}/${id}`) ??
+              input.loaded.get(`${entity}/${id}`),
           });
     const before = sealedPayload.before;
     const sealedData = sealedPayload.data;

@@ -78,7 +78,7 @@ export interface EntityDefinition<
   I extends readonly EntityIndex<F>[] = readonly EntityIndex<F>[],
 > {
   readonly prefix: P;
-  readonly dataSubject?: (keyof F & string) | 'id';
+  readonly dataSubject?: (keyof F & string) | 'id' | `${keyof F & string}.${string}`;
   readonly fields: F;
   readonly relations?: Rel;
   readonly indexes?: I;

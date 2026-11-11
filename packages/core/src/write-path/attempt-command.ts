@@ -34,6 +34,7 @@ import { refuseGeneratedWrite } from './refuse-generated-write.ts';
 import { replayReceipt } from './replay-receipt.ts';
 import type { RunCommandInput } from './run-command-input.ts';
 import { runInUnitKeys } from './run-in-unit-keys.ts';
+import { sealCommandOutput } from './seal-command-output.ts';
 import { sealDrafts } from './seal-drafts.ts';
 import { writeStateRows } from './write-state-rows.ts';
 
@@ -253,6 +254,9 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     effects,
   });
   run.signal?.throwIfAborted();
-  await unit.receipts.complete(commandId, outcome);
+  await unit.receipts.complete(
+    commandId,
+    await sealCommandOutput(unit, commandId, action, outcome),
+  );
   return { output, ...(effects.length > 0 ? { effects } : {}) };
 }

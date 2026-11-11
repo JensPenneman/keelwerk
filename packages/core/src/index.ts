@@ -324,7 +324,10 @@ export type { ScopeDirectory, ScopeKey, ScopeKeyOwner } from './edge/scope-direc
 export type { TenantResolver } from './edge/tenant-resolver.ts';
 export { deriveEffectId } from './effects/derive-effect-id.ts';
 export type { EffectAttemptRecord } from './effects/effect-attempt-record.ts';
+export { openEffectInput } from './effects/open-effect-input.ts';
 export type { EffectInputOf, PendingEffect } from './effects/pending-effect.ts';
+export { sealEffectOutput } from './effects/seal-effect-output.ts';
+export { secretMembersAsRefs } from './effects/secret-members-as-refs.ts';
 export { createSealingContext } from './encryption/create-sealing-context.ts';
 export { normalizedText } from './encryption/normalized-text.ts';
 export type { NormalizerEntry, NormalizerRegistry } from './encryption/normalizer-registry.ts';

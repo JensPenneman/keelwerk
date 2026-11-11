@@ -220,7 +220,7 @@ export function sqlSubjectKeyStore(ctx: SqlUnitContext): SubjectKeyStore {
       const sealed = await sqlSeal(material, plain, aad);
       return { keyId, nonce: sealed.nonce, ciphertext: sealed.ciphertext };
     },
-    openValue: async (sealed) => {
+    openValue: async (sealed, expected) => {
       const record = await sqlGuard(async () =>
         ctx
           .scopedDb()
@@ -235,7 +235,14 @@ export function sqlSubjectKeyStore(ctx: SqlUnitContext): SubjectKeyStore {
         decodeBytes(record.wrapped),
         encoder.encode(sealed.keyId),
       );
-      return sqlOpen(bundle.subarray(0, 32), sealed.nonce, sealed.ciphertext, bundle.subarray(32));
+      const aad = bundle.subarray(32);
+      if (
+        expected !== undefined &&
+        !Buffer.from(aad).equals(encodeAad([expected.entity, expected.id, expected.field]))
+      ) {
+        return undefined;
+      }
+      return sqlOpen(bundle.subarray(0, 32), sealed.nonce, sealed.ciphertext, aad);
     },
     destroyValueKey: async (keyId) => {
       ctx.writable();

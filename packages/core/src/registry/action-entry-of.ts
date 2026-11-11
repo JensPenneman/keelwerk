@@ -49,6 +49,15 @@ function inputOf(
   });
 }
 
+/** The shape of the `with` input of a continuation (`outcomeOf(effect, extra)`), if it declares one. */
+function outcomeWithOf(part: AnyActionPart): StandardSchemaV1 | undefined {
+  const input = specOf(part).input;
+  const extra = input?.kind === 'outcome' ? input.extra : undefined;
+  return extra?.kind === 'shape' && extra.fields !== undefined
+    ? (extra as unknown as StandardSchemaV1)
+    : undefined;
+}
+
 function modelOfOutput(part: AnyActionPart, context: ActionEntryContext): EntityModel | undefined {
   const entity = specOf(part).output?.entity;
   if (entity === undefined) return undefined;
@@ -161,6 +170,7 @@ export function actionEntryOf(
     part.kind === 'command' ? (context.app.execution[mount.ref] ?? part.execution) : 'sync';
   const prepare = spec.prepare;
   const handler = handlerOf(part);
+  const outcomeWith = outcomeWithOf(part);
   return {
     ref: mount.ref,
     module: mount.module,
@@ -170,6 +180,7 @@ export function actionEntryOf(
     kind: part.kind,
     instance: isInstance(part, mount),
     input: inputOf(part, mount, context),
+    ...(outcomeWith === undefined ? {} : { outcomeWith }),
     output: outputOf(part, mount, context),
     ...(entityOutput === undefined ? {} : { entityOutput }),
     errors: (spec.errors ?? []).map((error) => error.code).sort(),

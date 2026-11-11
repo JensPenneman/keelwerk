@@ -5,7 +5,14 @@ import type { ActionHandler } from './action-handler.ts';
 
 /** The members of an action literal that `compose` reads. */
 export interface ActionSpecView {
-  readonly input?: { readonly kind?: string; readonly fields?: object } | undefined;
+  readonly input?:
+    | {
+        readonly kind?: string;
+        readonly fields?: object;
+        /** `outcomeOf(effect, extra)`: the shape of the continuation's `with` input. */
+        readonly extra?: { readonly kind?: string; readonly fields?: object };
+      }
+    | undefined;
   readonly output?: {
     readonly kind?: string;
     readonly form?: string;

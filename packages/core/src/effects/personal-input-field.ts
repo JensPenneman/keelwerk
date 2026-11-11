@@ -8,10 +8,8 @@ function personalIn(name: string, field: AnyField): string | undefined {
 }
 
 /**
- * The first field of an effect's input shape that is personal, if any. The record of an effect
- * stores its input; secret fields are sealed before it is written (`sealEffectInput`), and the
- * sealing of personal fields arrives with WP-53: until then such an effect is refused instead of
- * stored in plaintext (section 7.9.6).
+ * The first field of an effect's input or output shape that is personal, if any: the checks of
+ * what an effect record may hold (section 7.9.6).
  */
 export function personalInputField(schema: StandardSchemaV1): string | undefined {
   const { fields } = schema as { readonly fields?: Readonly<Record<string, AnyField>> };

@@ -199,6 +199,19 @@ export function storeCases(subject: ConformanceSubject): void {
       };
       const sealed = await subject.run(tenantA, (unit) => unit.keys.sealValue(binding, plain));
       expect(await subject.run(tenantA, (unit) => unit.keys.openValue(sealed))).toEqual(plain);
+      // An expected binding must be the one the value was sealed for.
+      expect(await subject.run(tenantA, (unit) => unit.keys.openValue(sealed, binding))).toEqual(
+        plain,
+      );
+      for (const other of [
+        { ...binding, entity: 'conf.other' },
+        { ...binding, id: '00000000-0000-7000-8000-000000000002' },
+        { ...binding, field: 'secret' },
+      ]) {
+        expect(
+          await subject.run(tenantA, (unit) => unit.keys.openValue(sealed, other)),
+        ).toBeUndefined();
+      }
       await subject.run(tenantA, (unit) => unit.keys.destroyValueKey(sealed.keyId));
       expect(await subject.run(tenantA, (unit) => unit.keys.openValue(sealed))).toBeUndefined();
     });

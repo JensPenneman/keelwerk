@@ -2,6 +2,7 @@ import { errors } from '../errors/errors.ts';
 import { sealKwe } from '../keys/seal-kwe.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
+import type { DataSubjectHops } from '../write-path/resolve-data-subject-hops.ts';
 import { addSubjectRef } from './add-subject-ref.ts';
 import type { EventSlot } from './event-slots.ts';
 import { eventSlots } from './event-slots.ts';
@@ -36,6 +37,8 @@ export interface EncryptPersonalValuesInput {
   readonly before: Readonly<Record<string, unknown>> | null;
   /** The row after the event: the data subjects are read from it. */
   readonly row: StorageRow;
+  /** The rows the deciding command wrote or loaded, read before the store when a data-subject path walks references (S-100). */
+  readonly decided?: DataSubjectHops['decided'];
 }
 
 /** An event payload with its personal values sealed. */
@@ -60,7 +63,13 @@ export async function encryptPersonalValues(
   let before: unknown = input.before;
   const referenced = new Set<string>();
   for (const slot of slots) {
-    const subject = await subjectIdOf(context, input.entry.descriptor, slot.subject, input.row);
+    const subject = await subjectIdOf(
+      context,
+      input.entry.descriptor,
+      slot.subject,
+      input.row,
+      input.decided,
+    );
     if (subject === undefined) {
       throw errors.validation(
         `${input.entry.ref}.${slot.field} is personal and needs its data subject "${slot.subject}".`,

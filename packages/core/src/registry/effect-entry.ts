@@ -12,4 +12,6 @@ export interface EffectEntry {
   readonly input: StandardSchemaV1;
   /** The output shape; an effect without one has the empty shape. */
   readonly output: StandardSchemaV1;
+  /** The path in the input that holds the data subject of its personal fields (S-127). */
+  readonly dataSubject?: string;
 }
