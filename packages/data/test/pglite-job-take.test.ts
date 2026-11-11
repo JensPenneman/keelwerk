@@ -200,6 +200,8 @@ describe('statistics', () => {
       arrivalsPerSecond: 2 / 60,
       meanRunSeconds: 4,
       running: 0,
+      // The job due now and the one scheduled ten minutes on; the finished one is not queued.
+      queued: 2,
       nextDueAt: stamp,
       sloSeconds: 0,
     });

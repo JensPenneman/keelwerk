@@ -18,7 +18,6 @@ import { buildStreamEntries } from './build-stream-entries.ts';
 import { buildTopicEntries } from './build-topic-entries.ts';
 import { buildVersionChangeEntries } from './build-version-change-entries.ts';
 import { checkActionNames } from './check-action-names.ts';
-import { checkAsyncReactions } from './check-async-reactions.ts';
 import { checkCamelCaseCollisions } from './check-camel-case-collisions.ts';
 import { checkColumnCollisions } from './check-column-collisions.ts';
 import { checkConflictingFields } from './check-conflicting-fields.ts';
@@ -164,7 +163,6 @@ export function buildRegistry(app: ComposableApp): Registry {
     ...checkOfflineCommands(table.actions),
     ...checkPersonalCommandOutput(table.actions),
     ...checkPrepareCommands(table.actions),
-    ...checkAsyncReactions(reactions),
   );
   return {
     app: app.id,

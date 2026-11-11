@@ -20,6 +20,7 @@ import type { LiveKernel } from '../live/live-kernel.ts';
 import type { LiveView } from '../live/live-view.ts';
 import type { WatchInput } from '../live/watch-input.ts';
 import type { Span } from '../observability/span.ts';
+import { isProcessStream } from '../reactions/is-process-stream.ts';
 import { callerView } from '../repositories/caller-view.ts';
 import type { Position } from '../storage/position.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
@@ -303,6 +304,7 @@ export function createLiveKernel(
     audience: session.scope.level === 'tenant' ? session.scope.tenantId : scopeId,
     target,
     log,
+    isProcessStream: (streamType) => isProcessStream(registry, streamType),
     read: (fn, options) =>
       target.handle.adapter.unit(target.namespace, scope, fn, {
         readOnly: true,

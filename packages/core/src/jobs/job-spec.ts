@@ -27,9 +27,18 @@ export interface JobSpec {
   readonly priority?: 'high' | 'normal' | 'low';
   /** Fair-share units; default 1. */
   readonly cost?: number;
+  /**
+   * `keep`, `replace` and `coalesce` act on a pending job of the same key and lane. `append` looks
+   * nothing up: the new job joins the key's FIFO as a follower (an ordering of `fifo-per-key`), so
+   * every event of one key is decided, in order. `replace` keeps the pending job instead, and
+   * inserts nothing, when both inputs name a `position` (decimal text, as a reaction job's input
+   * does) and the pending job's is the same or later: the job of the later event wins. That rule
+   * holds on the `reactions` queue only; on any other queue (a timer, say) `replace` always
+   * replaces, whatever the input holds.
+   */
   readonly key?: {
     readonly value: string;
-    readonly onConflict: 'keep' | 'replace' | 'coalesce';
+    readonly onConflict: 'keep' | 'replace' | 'coalesce' | 'append';
   };
   readonly ordering?: 'none' | 'fifo-per-key';
   readonly group?: JobGroup;

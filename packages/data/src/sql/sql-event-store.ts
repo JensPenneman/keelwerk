@@ -130,11 +130,15 @@ export function sqlEventStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): Eve
       ctx.writable();
       if (!hasLog) throw errors.internal(`a ${ctx.scope.level}-scope unit has no event log`);
       for (const append of batch) {
-        const entity = ctx.entities.find(append.stream.type);
-        if (entity === undefined) {
-          throw errors.internal(`the shape of ${append.stream.type} is unknown to this unit`);
+        if (append.tenancy !== undefined) {
+          assertStreamInScope({ ref: append.stream.type, tenancy: append.tenancy }, ctx.scope);
+        } else {
+          const entity = ctx.entities.find(append.stream.type);
+          if (entity === undefined) {
+            throw errors.internal(`the shape of ${append.stream.type} is unknown to this unit`);
+          }
+          assertStreamInScope(entity, ctx.scope);
         }
-        assertStreamInScope(entity, ctx.scope);
       }
       const unknown = new Map<string, StreamRef>();
       for (const append of batch) {

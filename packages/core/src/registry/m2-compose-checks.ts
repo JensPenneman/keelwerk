@@ -2,9 +2,11 @@ import { checkDeploymentGroups } from './check-deployment-groups.ts';
 import { checkEffectSubjects } from './check-effect-subjects.ts';
 import { checkEntitySubjects } from './check-entity-subjects.ts';
 import { checkExecutorInputReads } from './check-executor-input-reads.ts';
+import { checkExecutorQueues } from './check-executor-queues.ts';
 import { checkJsonFlagDefaults } from './check-json-flag-defaults.ts';
 import { checkObservesAll } from './check-observes-all.ts';
 import { checkPrincipalFromRef } from './check-principal-from-ref.ts';
+import { checkProcessEvents } from './check-process-events.ts';
 import { checkStreamDeclarations } from './check-stream-declarations.ts';
 import { checkStreamOffload } from './check-stream-offload.ts';
 import { checkVersionChanges } from './check-version-changes.ts';
@@ -28,6 +30,8 @@ export const m2ComposeChecks: readonly ((
   (_app, registry) => checkEffectSubjects(registry.effects, registry.entities),
   (_app, registry) => checkEntitySubjects(registry.entities),
   (_app, registry) => checkExecutorInputReads(registry.effects, registry.executors),
+  (_app, registry) => checkExecutorQueues(registry.executors),
   checkPrincipalFromRef,
   checkStreamDeclarations,
+  checkProcessEvents,
 ];

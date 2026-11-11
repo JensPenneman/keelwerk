@@ -1,3 +1,4 @@
+import type { Shape } from '../fields/shape.ts';
 import type { JobRetry } from '../jobs/job-retry.ts';
 import type { ActionHandler } from './action-handler.ts';
 import type { AppliedPart } from './applied-part.ts';
@@ -11,6 +12,7 @@ interface ReactionSpecView {
   readonly on: string | readonly string[];
   readonly except?: readonly string[];
   readonly events?: { readonly [name: string]: unknown };
+  readonly dataSubject?: 'instanceKey';
   readonly initial?: unknown;
   readonly evolve?: ActionHandler;
   readonly timing?: 'inline' | 'async';
@@ -52,6 +54,8 @@ function entriesOf(
         ...(spec.evolve === undefined ? {} : { evolve: spec.evolve }),
         initial: spec.initial,
         events: Object.keys(spec.events ?? {}),
+        eventShapes: { ...(spec.events as Readonly<Record<string, Shape>> | undefined) },
+        ...(spec.dataSubject === undefined ? {} : { dataSubject: spec.dataSubject }),
       } satisfies ReactionEntry;
     }
     return {
@@ -75,7 +79,8 @@ export interface BuiltReactions {
 /**
  * The reactions of the modules (section 7.7): the modules' own, and those of active contributions
  * and conditional parts, which carry the modules whose presence activates them. `timing` defaults
- * to 'async', which M1 refuses (S-24).
+ * to 'async'; an async reaction needs an event worker that runs `asyncReactions`, which the boot
+ * check refuses a deployment without (S-154).
  */
 export function buildReactionEntries(
   ordered: readonly RuntimeModule[],

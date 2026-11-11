@@ -16,6 +16,14 @@ export interface JobCarrier {
   readonly attempt: JobAttempt;
   /** The event that caused the job (a continuation's settled record, a reaction's event): the `causationId` of the events its command writes. */
   readonly causationId?: string;
+  /**
+   * The key of the job (a reaction job: `<reaction id>:<sha256 of the part>`, never the part). A
+   * process computes its instance key again from the event and refuses a job whose key is not the
+   * hash of it, so it writes only to the instance whose lane the job was queued in.
+   */
+  readonly key?: string;
+  /** Set when the job runs the reaction its `action` names: the invoker locates a reaction, and the write path decides it with the event it reads (7.7). */
+  readonly reaction?: true;
   /** The fencing id: the process id. */
   readonly worker: string;
   /** `Job.signal`: aborts at expireInSeconds (`core.timeout`) or a lost lease (`core.job_lease_lost`). */

@@ -1,3 +1,4 @@
+import type { Shape } from '../fields/shape.ts';
 import type { JobRetry } from '../jobs/job-retry.ts';
 import type { ActionHandler } from './action-handler.ts';
 
@@ -24,6 +25,10 @@ export interface ReactionEntry {
   readonly initial?: unknown;
   /** Processes: the event names of their own stream (S-124). */
   readonly events?: readonly string[];
+  /** Processes: the declared shape of each event of the process's stream, by name. */
+  readonly eventShapes?: Readonly<Record<string, Shape>>;
+  /** Processes: `'instanceKey'` says the personal members of the process's events belong to the data subject the instance key names (Q2). */
+  readonly dataSubject?: 'instanceKey';
   readonly react: ActionHandler;
   /** Processes: folds the process's stream into its state. */
   readonly evolve?: ActionHandler;

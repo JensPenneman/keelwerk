@@ -1,6 +1,7 @@
 import type { HybridClock } from '../clock/hybrid-clock.ts';
 import type { EventMeta } from '../events/event-meta.ts';
 import type { Clock } from '../kernel/clock.ts';
+import type { ActorRef } from '../principals/actor-ref.ts';
 import type { AnyEffect } from '../protocol/any-effect.ts';
 import type { Unit } from '../storage/unit.ts';
 import type { RunCommandInput } from '../write-path/run-command-input.ts';
@@ -24,4 +25,6 @@ export interface KernelEffectsInput {
   readonly runNested: NestedCommandRunner;
   /** The commands nested above this one; default 0. */
   readonly depth?: number;
+  /** An async reaction job: the event it decided on and the actor that caused it. The effects it requests name them as their cause. */
+  readonly cause?: { readonly eventId: string; readonly actor: ActorRef };
 }

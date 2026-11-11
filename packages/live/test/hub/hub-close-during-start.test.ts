@@ -31,6 +31,7 @@ function hubWithSlowView() {
     scopeId: 's',
     audience: 'a',
     log: silent,
+    isProcessStream: () => false,
     target: { namespace: { id: 'ns' }, handle: { adapter: {} } },
     view: () =>
       new Promise<LiveView>((resolve) => {

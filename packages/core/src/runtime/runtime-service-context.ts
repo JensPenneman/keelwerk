@@ -9,7 +9,7 @@ import type { ServedApp } from './served-app.ts';
 
 /** What a runtime service receives at start (S-154). */
 export interface RuntimeServiceContext
-  extends Pick<Connected, 'control' | 'keys' | 'log' | 'placements' | 'signal'> {
+  extends Pick<Connected, 'build' | 'control' | 'keys' | 'log' | 'placements' | 'signal'> {
   /** The served apps by id: registries for action jobs and reactions. */
   readonly apps: ReadonlyMap<string, ServedApp>;
   /** Action jobs run through it (section 9.5.6). */

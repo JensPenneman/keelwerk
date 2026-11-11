@@ -1,3 +1,4 @@
+import type { ErrorSpec } from '../errors/error-spec.ts';
 import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
 import type { PrincipalKind } from '../principals/principal-kind.ts';
 import type { PageSpec } from '../surface/page-spec.ts';
@@ -29,6 +30,8 @@ export interface ActionEntry {
   readonly entityOutput?: { readonly entity: string; readonly shape: 'row' | 'page' };
   /** Declared error codes, sorted. */
   readonly errors: readonly string[];
+  /** The declaration of each declared error by code (kind, message, retryable, data); absent when the action declares none. */
+  readonly errorSpecs?: Readonly<Record<string, ErrorSpec>>;
   readonly auth: 'policy' | 'public';
   readonly scope: 'tenant' | 'backend' | 'deployment' | 'invocation';
   /** Effective, after `defineApp({ execution })`; queries are 'sync'. */

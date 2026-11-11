@@ -1,4 +1,4 @@
-import { deriveEffectId } from '@keelwerk/core';
+import { deriveEffectId, kernelCommandId } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import {
   command,
@@ -10,6 +10,10 @@ import {
 } from './support/effects-kit.ts';
 import { otherTenant } from './support/invoker-kit.ts';
 import { clock, tenant } from './support/run-read-kit.ts';
+
+/** The command id a decision's effect runs under: the kernel form of the effect's derived id. */
+const commandIdOf = (cause: string, index: number): string =>
+  kernelCommandId('effect', deriveEffectId(tenant, cause, index));
 
 interface Writes {
   readonly write: {
@@ -45,7 +49,7 @@ describe('invoke', () => {
     expect(outcome).toMatchObject({ ok: true });
     const { books } = await stored(adapter);
     expect(books.map((book) => book.title).sort()).toEqual(['First', 'Second']);
-    const nested = deriveEffectId(tenant, 'c1', 0);
+    const nested = commandIdOf('c1', 0);
     expect((await receiptOf(adapter, nested))?.status).toBe('completed');
     expect((await receiptOf(adapter, 'c1'))?.status).toBe('completed');
   });
@@ -68,7 +72,7 @@ describe('invoke', () => {
     expect(outcome.ok).toBe(false);
     expect((await stored(adapter)).books).toHaveLength(0);
     expect(await receiptOf(adapter, 'c1')).toBeUndefined();
-    expect(await receiptOf(adapter, deriveEffectId(tenant, 'c1', 0))).toBeUndefined();
+    expect(await receiptOf(adapter, commandIdOf('c1', 0))).toBeUndefined();
   });
 
   test('an async command is enqueued with the unit instead of run', async () => {
@@ -86,7 +90,11 @@ describe('invoke', () => {
     expect(jobs[0]).toMatchObject({
       kind: 'action',
       queue: 'commands',
-      run: { action: 'library.later', input: { n: 1 }, commandId: deriveEffectId(tenant, 'c1', 0) },
+      run: {
+        action: 'library.later',
+        input: { n: 1 },
+        commandId: commandIdOf('c1', 0),
+      },
     });
   });
 
@@ -299,10 +307,12 @@ describe('retries', () => {
     await run('library.launch', {}, { commandId: 'c1' });
     expect(recorded.enqueued).toHaveLength(2);
     expect(recorded.enqueued[0]?.run).toEqual(recorded.enqueued[1]?.run);
-    expect(recorded.enqueued[1]?.run).toMatchObject({ commandId: deriveEffectId(tenant, 'c1', 0) });
+    expect(recorded.enqueued[1]?.run).toMatchObject({
+      commandId: commandIdOf('c1', 0),
+    });
     const { jobs, books } = await stored(adapter);
     expect(jobs).toHaveLength(1);
     expect(books).toHaveLength(1);
-    expect((await receiptOf(adapter, deriveEffectId(tenant, 'c1', 1)))?.status).toBe('completed');
+    expect((await receiptOf(adapter, commandIdOf('c1', 1)))?.status).toBe('completed');
   });
 });

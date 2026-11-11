@@ -2,10 +2,14 @@ import type { ConsumerSpec, EventWorker, RuntimeServiceContext } from '@keelwerk
 
 /** What `consumers()` takes (section 15.2.3). */
 export interface ConsumersOptions {
-  /** A spec, or a builder called once at start (the dispatcher reads `context.apps`). Ids are unique. */
+  /**
+   * A spec, or a builder called once at start (the dispatcher reads `context.apps`). Ids are unique.
+   * A builder may name the id of the spec it builds, so `consumers()` can check at construction that
+   * `runs` is true (the dispatcher does).
+   */
   readonly consumers: readonly (
     | ConsumerSpec
-    | ((context: RuntimeServiceContext) => ConsumerSpec)
+    | (((context: RuntimeServiceContext) => ConsumerSpec) & { readonly id?: string })
   )[];
   /** What the worker lifts at boot; default none. The reaction dispatcher passes `['asyncReactions']`. */
   readonly runs?: EventWorker['runs'];

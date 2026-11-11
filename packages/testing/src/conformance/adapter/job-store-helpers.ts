@@ -13,6 +13,8 @@ export interface TakeOptions {
   readonly capabilitySets?: readonly string[];
   readonly maxRevision?: number;
   readonly leaseMs?: number;
+  /** The queue to take from; default `commands`. */
+  readonly queue?: string;
 }
 
 /** The enqueue, take and completion helpers the job store cases share. */
@@ -29,7 +31,7 @@ export function jobStoreHelpers(subject: Pick<ConformanceSubject, 'run'>): {
 } {
   const take = async (worker: string, options: TakeOptions = {}): Promise<readonly StoredJob[]> =>
     subject.run(namespaceScope, async (unit) => {
-      const taken = await unit.jobs.take('commands', worker, {
+      const taken = await unit.jobs.take(options.queue ?? 'commands', worker, {
         limit: options.limit ?? 10,
         ...(options.lanes === undefined ? {} : { lanes: options.lanes }),
         capabilitySets: options.capabilitySets ?? [''],

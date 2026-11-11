@@ -1,5 +1,6 @@
 import { type HybridClock, hybridClock } from '../clock/hybrid-clock.ts';
 import { acceptAsyncCommand } from '../effects/accept-async-command.ts';
+import { refuseReservedCommandId } from '../ids/refuse-reserved-command-id.ts';
 import type { CommandRunner } from '../invoker/command-runner.ts';
 import { commandReceiptId } from './command-receipt-id.ts';
 import { defaultNodeId } from './default-node-id.ts';
@@ -35,6 +36,14 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
   return (run) => {
     const { invocation } = run;
     const job = invocation.carrier.job;
+    // Before any receipt is written, so a refused id is never recorded or claimed.
+    if (job === undefined) {
+      try {
+        refuseReservedCommandId(invocation.commandId);
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
     const input: RunCommandInput = {
       registry: run.registry,
       adapter: run.target.handle.adapter,

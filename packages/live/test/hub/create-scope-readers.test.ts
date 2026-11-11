@@ -51,6 +51,7 @@ function kernelOf(
     audience,
     log: recordingLog(lines, { backend: 'backend-1', tenant: audience }),
     target: { namespace: { id: 'ns-1' }, handle: { adapter } },
+    isProcessStream: () => false,
     read,
   } as unknown as LiveKernel;
 }

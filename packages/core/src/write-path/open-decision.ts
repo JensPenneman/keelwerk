@@ -28,6 +28,12 @@ export interface OpenDecisionInput {
     readonly entry: EntityEntry;
     readonly row: Readonly<Record<string, unknown>>;
   };
+  /** A process manager's job: the process, its instance's stream and the event names `ctx.events` builds drafts for. */
+  readonly process?: {
+    readonly ref: string;
+    readonly streamId: string;
+    readonly events: readonly string[];
+  };
 }
 
 /** A decision being driven in a unit: its context, and what the interpreter recorded while answering. */
@@ -116,6 +122,7 @@ export function openDecision(input: OpenDecisionInput): OpenedDecision {
     module: authority,
     prepared: input.prepared,
     ...(input.target === undefined ? {} : { target: input.target }),
+    ...(input.process === undefined ? {} : { process: input.process }),
     withPerform: input.form === 'prepare',
     newId: (entity) => {
       const value = newUuidV7();

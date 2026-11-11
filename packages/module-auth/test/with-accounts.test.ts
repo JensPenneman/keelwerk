@@ -64,7 +64,8 @@ describe.each(['memory', 'pglite'] as const)('auth with accounts on %s', (kind: 
       displayName: 'Grace',
       email: grace.identifier,
     });
-    // the profile exists, so the registration the sign-up invokes refuses with its own error
+    // The profile exists, so the registration the sign-up invokes refuses with its own error, which
+    // the sign-up names in its map: its client sees the code it always saw.
     expect(codeOf(await both.request('auth.signUp', grace))).toBe('accounts.email_taken');
     expect(await both.rows('accounts.profile', { sealed: true })).toHaveLength(2);
   });

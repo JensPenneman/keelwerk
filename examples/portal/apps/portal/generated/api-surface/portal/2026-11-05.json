@@ -15903,6 +15903,12 @@
       "retryable": false
     },
     {
+      "code": "core.command_id_reserved",
+      "kind": "validation",
+      "message": "The command id is in the form the kernel reserves for its own commands.",
+      "retryable": false
+    },
+    {
       "code": "core.command_in_progress",
       "kind": "conflict",
       "message": "The command is still running.",
@@ -16035,6 +16041,12 @@
       "retryable": false
     },
     {
+      "code": "core.process_instance_key_invalid",
+      "kind": "validation",
+      "message": "The instance key of a process that holds personal data is not a data subject id.",
+      "retryable": false
+    },
+    {
       "code": "core.protocol_retired",
       "kind": "not_found",
       "message": "The protocol major is no longer served.",
@@ -16062,6 +16074,12 @@
       "code": "core.reaction_depth",
       "kind": "internal",
       "message": "Inline reactions are nested too deeply.",
+      "retryable": false
+    },
+    {
+      "code": "core.reaction_key_invalid",
+      "kind": "validation",
+      "message": "The key of a reaction was empty or failed for the event.",
       "retryable": false
     },
     {
@@ -16507,7 +16525,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-h7V1DFhek03kBFN67WzjKiReNr2DKwvN1sjijBupBQc",
+  "hash": "sha256-GQVLV4CuLRCQP3qP5f7kqdvMjAUApYj8lztdVkNZwBo",
   "modules": [
     {
       "id": "accounts",

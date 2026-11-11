@@ -6,11 +6,10 @@ import { buildRegistry } from './build-registry.ts';
 const registry = buildRegistry(appOf([m2Parts]));
 
 describe('the M2 entries of the registry', () => {
-  test('whole beside asyncReactionsUnavailable', () => {
-    expect(registry.problems.map((problem) => problem.code).sort()).toEqual([
+  test('the fixture composes whole: no refusal names an asynchronous reaction', () => {
+    expect(registry.problems.map((problem) => problem.code)).not.toContain(
       'asyncReactionsUnavailable',
-      'asyncReactionsUnavailable',
-    ]);
+    );
   });
 
   test("lists the fixture's stream, topic, version change and quotas by reference", () => {

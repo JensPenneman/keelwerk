@@ -12,6 +12,7 @@ import { buildRegistry } from './build-registry.ts';
 import { checkDeploymentGroups } from './check-deployment-groups.ts';
 import { checkJsonFlagDefaults } from './check-json-flag-defaults.ts';
 import { checkObservesAll } from './check-observes-all.ts';
+import { checkProcessEvents } from './check-process-events.ts';
 import { checkStreamDeclarations } from './check-stream-declarations.ts';
 import { checkStreamOffload } from './check-stream-offload.ts';
 import { m2ComposeChecks } from './m2-compose-checks.ts';
@@ -92,6 +93,7 @@ describe('the M2 compose checks', () => {
         checkJsonFlagDefaults,
         checkStreamOffload,
         checkStreamDeclarations,
+        checkProcessEvents,
       ]),
     );
   });

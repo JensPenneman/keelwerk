@@ -3,9 +3,12 @@ import type { Unit } from '../storage/unit.ts';
 import { createSealingContext } from './create-sealing-context.ts';
 import { encryptPersonalValues } from './encrypt-personal-values.ts';
 import { openPersonalValues } from './open-personal-values.ts';
+import { openProcessSubject } from './open-process-subject.ts';
 import { openStreamRecords } from './open-stream-records.ts';
 import type { PersonalSealer } from './personal-sealer.ts';
 import { personalSealerKey } from './personal-sealer-key.ts';
+import { sealProcessEvent } from './seal-process-event.ts';
+import { sealProcessSubject } from './seal-process-subject.ts';
 import { sealStreamRecords } from './seal-stream-records.ts';
 import type { SealedMembers } from './sealed-members.ts';
 import type { SealingContext } from './sealing-context.ts';
@@ -35,6 +38,9 @@ export function sealingUnit(unit: Unit, options: SealingOptions): Unit {
     readEvents: (events) => openAll(context, events, 'drop'),
     sealRecords: (input) => sealStreamRecords(context, input),
     openRecords: (input) => openStreamRecords(context, input),
+    sealProcessEvent: (input) => sealProcessEvent(context, input),
+    sealProcessSubject: (input) => sealProcessSubject(context, input),
+    openProcessSubject: (input) => openProcessSubject(context, input),
   };
   const wrapped: Unit = {
     ...unit,

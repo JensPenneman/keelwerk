@@ -48,11 +48,15 @@ export function memoryEventStore(ctx: MemoryUnitContext): EventStore {
       }
       const planned = new Map<string, number>();
       for (const append of batch) {
-        const entity = ctx.entity(append.stream.type);
-        if (entity === undefined) {
-          throw errors.internal(`the shape of ${append.stream.type} is unknown to this unit`);
+        if (append.tenancy !== undefined) {
+          assertStreamInScope({ ref: append.stream.type, tenancy: append.tenancy }, ctx.scope);
+        } else {
+          const entity = ctx.entity(append.stream.type);
+          if (entity === undefined) {
+            throw errors.internal(`the shape of ${append.stream.type} is unknown to this unit`);
+          }
+          assertStreamInScope(entity, ctx.scope);
         }
-        assertStreamInScope(entity, ctx.scope);
         const key = memoryStreamKey(append.stream.type, append.stream.id);
         const version = planned.get(key) ?? committedVersion(append.stream.type, append.stream.id);
         if (version !== append.expectedVersion) {

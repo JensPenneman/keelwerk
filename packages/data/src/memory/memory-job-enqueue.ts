@@ -1,5 +1,5 @@
 import type { JobId, Scope, StorageScope, StoredJobSpec } from '@keelwerk/core';
-import { errors, KeelwerkError } from '@keelwerk/core';
+import { errors, jobPositionOf, KeelwerkError, reactionQueue } from '@keelwerk/core';
 import { memoryAdjustLane } from './memory-adjust-lane.ts';
 import { memoryCapabilitySet } from './memory-capability-set.ts';
 import type { MemoryJob } from './memory-job.ts';
@@ -78,7 +78,7 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
   const key = spec.key;
   const pending = (job: MemoryJob): boolean =>
     job.state === 'scheduled' || job.state === 'available' || job.state === 'waiting';
-  if (key !== undefined) {
+  if (key !== undefined && key.onConflict !== 'append') {
     const found = [...tables.jobs().values()].find(
       (job) => job.laneKey === laneKey && job.spec.key?.value === key.value && pending(job),
     );
@@ -91,6 +91,16 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
         if (due)
           memoryAdjustLane(tables, laneKey, (lane) => ({ ...lane, enqueued: lane.enqueued + 1 }));
         return String(found.id);
+      }
+      // Only a reaction job's input holds a position of the log: a module's own input is no order.
+      if (spec.queue === reactionQueue) {
+        const pendingAt = jobPositionOf(
+          'input' in found.spec.run ? found.spec.run.input : undefined,
+        );
+        const newAt = jobPositionOf('input' in spec.run ? spec.run.input : undefined);
+        if (pendingAt !== undefined && newAt !== undefined && pendingAt >= newAt) {
+          return String(found.id);
+        }
       }
       memoryJobFinish(ctx, tables, found, 'cancelled', null);
       if (found.state !== 'waiting') memoryJobRelease(ctx, tables, found);

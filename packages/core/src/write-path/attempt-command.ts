@@ -16,6 +16,8 @@ import { setResultWithState } from '../generated-actions/set-result-with-state.t
 import type { CommandResult } from '../invoker/command-runner.ts';
 import type { Clock } from '../kernel/clock.ts';
 import { sealedValueText } from '../keys/sealed-value-text.ts';
+import { appendReactionProcessEvents } from '../reactions/append-reaction-process-events.ts';
+import { processDraftsOf } from '../reactions/process-drafts-of.ts';
 import { decodeRow } from '../repositories/decode-row.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
@@ -25,14 +27,15 @@ import { appendEvents } from './append-events.ts';
 import { appendReceiptChange } from './append-receipt-change.ts';
 import { appendStreamRecords } from './append-stream-records.ts';
 import { checkWrittenItems } from './check-written-items.ts';
-import { commandFingerprint } from './command-fingerprint.ts';
 import { commandOutput } from './command-output.ts';
 import { defaultNodeId } from './default-node-id.ts';
 import { draftsToEvents } from './drafts-to-events.ts';
 import { insertPendingReceipt } from './insert-pending-receipt.ts';
 import { loadTarget } from './load-target.ts';
+import { nestedFingerprint } from './nested-fingerprint.ts';
 import { normalizeDecision } from './normalize-decision.ts';
 import { openDecision } from './open-decision.ts';
+import { openReactionJob } from './open-reaction-job.ts';
 import { receiptRow } from './receipt-row.ts';
 import { refuseGeneratedWrite } from './refuse-generated-write.ts';
 import { replayReceipt } from './replay-receipt.ts';
@@ -127,6 +130,9 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     loaded.set(`${entry.ref}/${String(target.id)}`, target);
   }
 
+  // A job that runs a reaction reads the event it names before its decision opens (7.7); the
+  // receipt above already answered a replay.
+  const opened = await openReactionJob(unit, run, job);
   const decision = openDecision({
     run,
     unit,
@@ -134,10 +140,13 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     clock,
     prepared: input.prepared,
     ...(entry === undefined || target === undefined ? {} : { target: { entry, row: target } }),
+    ...(opened?.decisionProcess === undefined ? {} : { process: opened.decisionProcess }),
   });
   let handled: unknown;
   const generated = action.generated === undefined ? undefined : generatedEntity(registry, action);
-  if (action.generated === 'set' && generated !== undefined) {
+  if (opened !== undefined) {
+    handled = opened.decide(decision.ctx);
+  } else if (action.generated === 'set' && generated !== undefined) {
     handled = await generatedSet({ run, unit, entry: generated, decision });
   } else {
     const handler =
@@ -158,7 +167,10 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   const processClock = run.hybridClock ?? hybridClock(run.nodeId ?? defaultNodeId);
   let meta: EventMeta | undefined;
   const sealedVerifiers = new Map<string, string>();
-  const drafts = await sealDrafts({ registry, unit, drafts: decided.drafts, sealedVerifiers });
+  // The events a process's decision holds for its own stream are not entity drafts: they follow
+  // the entity events, sealed under the instance and chained by `appendProcessEvents`.
+  const split = processDraftsOf(opened, decided.drafts);
+  const drafts = await sealDrafts({ registry, unit, drafts: split.entities, sealedVerifiers });
   // The record keeps an issued verifier sealed, never plain: the row's own sealed text, or a value
   // of its own under the decision when no row took it (7.9.3, 14.7.4).
   const answers: RecordedAnswer[] = [];
@@ -217,6 +229,14 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   if (meta === undefined) throw errors.internal('the decision wrote without building its meta');
   await writeStateRows(unit, written);
   await appendEvents(unit, written);
+  await appendReactionProcessEvents({
+    unit,
+    opened,
+    drafts: split.events,
+    meta,
+    hybridClock: processClock,
+    now,
+  });
   await appendStreamRecords({ registry, unit, authority, appends: decided.appends });
   await checkWrittenItems({
     unit,
@@ -239,12 +259,15 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     effects: decided.effects,
     hybridClock: processClock,
     depth: input.nested?.depth ?? 0,
+    ...(opened?.event === undefined
+      ? {}
+      : { cause: { eventId: opened.event.id, actor: opened.event.actor } }),
     runNested: async (nestedUnit, nestedRun, nested) =>
       attemptCommand(
         {
           run: nestedRun,
           commandId: nested.commandId,
-          fingerprint: await commandFingerprint(nestedRun),
+          fingerprint: await nestedFingerprint(nestedRun),
           clock,
           prepared: undefined,
           nested,

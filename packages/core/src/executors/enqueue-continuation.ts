@@ -3,7 +3,7 @@ import { commandQueue } from '../effects/command-queue.ts';
 import { jobInput } from '../effects/job-input.ts';
 import { sealJobInput } from '../effects/seal-job-input.ts';
 import { errors } from '../errors/errors.ts';
-import { deriveUuidV8 } from '../ids/derive-uuid-v8.ts';
+import { kernelCommandId } from '../ids/kernel-command-id.ts';
 import type { EffectOutcome } from '../model/effect-outcome.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
 import type { Registry } from '../registry/registry.ts';
@@ -14,7 +14,7 @@ import type { Unit } from '../storage/unit.ts';
 /**
  * Hands the outcome of a settled effect to its continuation (7.9.5, D9): a command job in the
  * settling unit, so the settled record and the job commit together. No-op for an effect without
- * `continueWith`. The command id is derived from the effect id and the job key is
+ * `continueWith`. The command id is the kernel form of the effect id and the job key is
  * `continuation:<effect id>` (kept on conflict), so the continuation is enqueued once however
  * often the effect is settled; the command runs under `<module>.system` of its own module (a
  * continuation is a command of the module whose decision requested the effect, which
@@ -46,7 +46,7 @@ export async function enqueueContinuation(
     );
   }
   const { scope } = cause;
-  const commandId = deriveUuidV8('continuation', effectId);
+  const commandId = kernelCommandId('continuation', effectId);
   const stored: unknown = row.continuationWith;
   const extra = typeof stored === 'object' && stored !== null ? stored : {};
   await unit.jobs.enqueue({

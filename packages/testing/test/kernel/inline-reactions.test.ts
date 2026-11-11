@@ -1,5 +1,5 @@
 import type { InlineReactionEvent } from '@keelwerk/core';
-import { deriveEffectId } from '@keelwerk/core';
+import { deriveEffectId, kernelCommandId } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import {
   command,
@@ -55,7 +55,10 @@ describe('inline reactions', () => {
     expect(events[0]?.actor).toMatchObject({ kind: 'service', id: 'library.system' });
     const first = books.find((book) => book.title === 'First');
     const origin = await eventsOf(adapter, 'library.book', String(first?.id));
-    const reactionId = deriveEffectId(tenant, `library.noteBook:${origin[0]?.eventId}`, 0);
+    const reactionId = kernelCommandId(
+      'effect',
+      deriveEffectId(tenant, `library.noteBook:${origin[0]?.eventId}`, 0),
+    );
     expect((await receiptOf(adapter, reactionId))?.status).toBe('completed');
     expect(events[0]?.commandId).toBe(reactionId);
   });

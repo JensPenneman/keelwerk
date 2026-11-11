@@ -1,13 +1,16 @@
+import { kernelCommandId } from '../ids/kernel-command-id.ts';
 import { refuseRequest } from '../interpreter/refuse-request.ts';
 import type { InvokeEffect } from '../protocol/invoke-effect.ts';
 import { maxReactionDepth } from '../reactions/max-reaction-depth.ts';
 import { reactionDepthError } from '../reactions/reaction-depth-error.ts';
 import { authorizeInvoke } from './authorize-invoke.ts';
+import { checkInvokeErrors } from './check-invoke-errors.ts';
 import { commandActionOf } from './command-action-of.ts';
 import { commandJobRun } from './command-job-run.ts';
 import { commandQueue } from './command-queue.ts';
 import type { EffectScene } from './effect-scene.ts';
 import { jobInput } from './job-input.ts';
+import { mapInvokeError } from './map-invoke-error.ts';
 import { sameScopeAction } from './same-scope-action.ts';
 import { systemPrincipalOf } from './system-principal-of.ts';
 import { validateEffectInput } from './validate-effect-input.ts';
@@ -18,9 +21,11 @@ import { validateEffectInput } from './validate-effect-input.ts';
  * events, so a failure rolls the savepoint back and fails the unit; an `async` one, or an `either`
  * one with `prefer: 'async'`, is enqueued with the unit. The result never returns to the decision;
  * only the ids of the deferred effects the invoked command requested come back, for the response.
- * The effect's derived id is the command id the invoked command runs under, so a repeated decision
- * invokes it under the same id. `as: system(reason)` runs it as the system principal, logged with
- * the reason; the default is the principal the decision acts as, checked by the gate.
+ * The command id the invoked command runs under is the kernel form of the effect's derived id
+ * (`kernelCommandId`), so a repeated decision invokes it under the same id. `as: system(reason)` runs it as the system principal, logged with
+ * the reason; the default is the principal the decision acts as, checked by the gate. A failure of
+ * the nested command whose code `errors` maps becomes the caller's declared error (`checkInvokeErrors`
+ * refuses a map that cannot hold); the nested command's cause is the event a reaction decided on, else the command.
  */
 export async function runInvokeEffect(
   scene: EffectScene,
@@ -52,6 +57,7 @@ export async function runInvokeEffect(
   }
   const deferred =
     action.execution === 'async' || (action.execution === 'either' && effect.prefer === 'async');
+  checkInvokeErrors(effect, action, run.action, deferred);
   if (deferred) {
     await unit.jobs.enqueue({
       ...jobInput({
@@ -69,7 +75,7 @@ export async function runInvokeEffect(
       }),
       kind: 'action',
       queue: commandQueue,
-      run: commandJobRun(action.ref, input, id),
+      run: commandJobRun(action.ref, input, kernelCommandId('effect', id)),
     });
     return [];
   }
@@ -89,12 +95,22 @@ export async function runInvokeEffect(
     replayOnly: _replayOnly,
     ...outer
   } = run;
-  const result = await unit.nested((nested) =>
-    scene.runNested(
-      nested,
-      { ...outer, action, input, principal },
-      { commandId: id, depth: scene.depth + 1, causationId: scene.commandId },
-    ),
-  );
+  // A nested command of a reaction is caused by the event the reaction decided on (D12).
+  let result: Awaited<ReturnType<typeof scene.runNested>>;
+  try {
+    result = await unit.nested((nested) =>
+      scene.runNested(
+        nested,
+        { ...outer, action, input, principal },
+        {
+          commandId: kernelCommandId('effect', id),
+          depth: scene.depth + 1,
+          causationId: scene.causeEventId ?? scene.commandId,
+        },
+      ),
+    );
+  } catch (error) {
+    throw mapInvokeError(error, effect, run.action);
+  }
   return result.effects ?? [];
 }

@@ -1,6 +1,7 @@
 import { anchorCadenceMs } from '../anchors/anchor-cadence-ms.ts';
 import { compositionRefusal } from '../dsl/composition-refusal.ts';
 import { errors } from '../errors/errors.ts';
+import { checkAsyncReactions } from '../registry/check-async-reactions.ts';
 import { runtimeModule } from '../registry/runtime-module.ts';
 import type { DeployedApp } from './deployed-app.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
@@ -29,7 +30,9 @@ export interface Composed {
  * `compose` for a process (section 3.3): the apps of the catalogue this process serves, already
  * composed by `defineApp`, which is pure and has done the module checks; the runtime repeats the
  * two that depend on the deployment: an app that did not compose is refused, and every
- * deployment-level contract the apps require must be provided (`missingInfrastructure`). No I/O.
+ * deployment-level contract the apps require must be provided (`missingInfrastructure`), and an
+ * app that mounts an asynchronous reaction needs an event worker that runs `asyncReactions`
+ * (`asyncReactionsUnavailable`). No I/O.
  */
 export function composePhase(deployment: DeploymentDefinition, options: RuntimeOptions): Composed {
   const catalogue = deployment.apps.map((entry) => {
@@ -57,6 +60,11 @@ export function composePhase(deployment: DeploymentDefinition, options: RuntimeO
     if (first !== undefined) throw compositionRefusal(first);
   }
   const infrastructure = runtimeInfrastructure(deployment.infrastructure);
+  // An asynchronous reaction needs the dispatcher: some event worker of the deployment must run it (S-154).
+  for (const app of apps) {
+    const [unavailable] = checkAsyncReactions(app.registry.reactions, infrastructure.eventWorkers);
+    if (unavailable !== undefined) throw compositionRefusal(unavailable);
+  }
   for (const app of apps) {
     for (const module of app.modules) {
       const runtime = runtimeModule(module);

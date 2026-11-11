@@ -28,6 +28,7 @@ export async function sqlJobStats(
     arrivalsPerSecond: Number(row.arrivals) / 60,
     meanRunSeconds: Number(row.mean_run),
     running: Number(row.running),
+    queued: Number(row.queued),
     nextDueAt: row.next_due === null ? null : decodeInstant(row.next_due),
     sloSeconds: 0,
   }));

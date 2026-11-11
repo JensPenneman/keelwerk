@@ -28,8 +28,27 @@ export type ProcessEventDrafts<Pe extends EventShapes, I extends string> = {
 /** The literal of a process manager (section 7.7). */
 export interface ProcessSpec<S, On extends string, Pe extends EventShapes, St> {
   readonly on: readonly On[];
-  /** The instance key; jobs are FIFO per instance. */
-  readonly key: (event: ReactionEventOf<S, On, 'async'>) => string;
+  /**
+   * The instance key; jobs are FIFO per instance. It is a function of the event alone: it receives
+   * the event without `current` (the row moves between the dispatch and the run, and a `changed`
+   * event carries only the changed fields, so read what names the instance from the stream or from
+   * data). The dispatcher computes it once, when it queues the job, and the job carries the id of the
+   * instance's stream, derived from it with a one-way function: the job never computes the key again,
+   * so a deploy that changes this function leaves the jobs already queued on their instances (only
+   * the events dispatched after it fall on the new ones). It must not return a personal value: it is
+   * stored only as a hash (in the job key) and inside the derived stream id, and nothing erases
+   * those with a subject. The one exception is the process that declares `dataSubject:
+   * 'instanceKey'`: its key is then the id of the data subject (a lower-case UUID, no value about
+   * the person), and the job keeps it only sealed under that subject's own key, so erasing the
+   * subject also ends the jobs still queued for it: they decide nothing.
+   */
+  readonly key: (
+    event: ReactionEventOf<S, On, 'async'> extends infer E
+      ? E extends unknown
+        ? Omit<E, 'current'>
+        : never
+      : never,
+  ) => string;
   readonly events: Pe;
   readonly initial: St;
   readonly evolve: (state: St, event: ProcessEventOf<Pe, OwnerOf<S>>) => St;
@@ -42,6 +61,15 @@ export interface ProcessSpec<S, On extends string, Pe extends EventShapes, St> {
   ) => Decision | Gen<Decision>;
   readonly concurrency?: number;
   readonly retry?: JobRetry;
+  /**
+   * Says that the personal members of the process's events belong to one data subject: the one the
+   * instance key names, so erasing that subject shreds them. Without it a process may hold no
+   * personal member; the only value today is `'instanceKey'`. The instance key then is the id of
+   * the data subject and must be a lower-case UUID: the dispatcher checks it where the key is first
+   * known, and an instance key that is none makes that process's job fail with
+   * `core.process_instance_key_invalid`, no other reaction held back.
+   */
+  readonly dataSubject?: 'instanceKey';
 }
 
 /** A process part, mounted as `reactions.<name>`. */

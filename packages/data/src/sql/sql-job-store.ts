@@ -1,5 +1,5 @@
 import type { JobGroup, JobId, JobStore, Scope, StorageScope, StoredJobSpec } from '@keelwerk/core';
-import { errors } from '@keelwerk/core';
+import { errors, jobPositionOf, reactionQueue } from '@keelwerk/core';
 import { decodeInstant } from './decode-instant.ts';
 import { encodeInstant } from './encode-instant.ts';
 import { jobCapabilitySet } from './job-capability-set.ts';
@@ -56,7 +56,7 @@ export interface SqlJobStore
  * heartbeats, completion and statistics live in `sqlJobPromote`, `sqlJobTake`, `sqlJobHeartbeat`,
  * `sqlJobComplete` and `sqlJobStats`; a completion gives its counters back at the end of its unit,
  * before the commit tail. Enqueue and cancel run in the unit of the cause. Enqueue upserts the lane (scope, queue, capability set, priority) and its two counter rows, applies the
- * key policy to a pending job of the same key and lane (`keep`, `replace`, `coalesce`), keeps the
+ * key policy to a pending job of the same key and lane (`keep`, `replace`, `coalesce`; `append` looks nothing up), keeps the
  * group's counter row, and inserts the job: `available` when due, `scheduled` when its time has
  * not come, `waiting` behind an earlier job of the same key when the queue orders by key. A job
  * that becomes available moves its lane's `enqueued` counter at the commit tail (`runCommitTail`),
@@ -96,12 +96,16 @@ export function sqlJobStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): SqlJo
             sql: 'select pg_advisory_xact_lock(hashtextextended($1, 0))',
             parameters: [`${ctx.namespace.root}:${laneId}:${key.value}`],
           });
-          const [found] = await runSql(ctx.db, {
-            sql: `select id::text as id, state, run_at, ordering from ${root}.kw_jobs
+          // `append` looks nothing up: the job joins the key's FIFO below.
+          const [found] =
+            key.onConflict === 'append'
+              ? []
+              : await runSql(ctx.db, {
+                  sql: `select id::text as id, state, run_at, ordering, input->'input'->>'position' as position from ${root}.kw_jobs
 where scope_id = $3::uuid and lane_id = $1::bigint and key = $2 and state in ${pending}
 order by id limit 1 for update`,
-            parameters: [laneId, key.value, scopeId],
-          });
+                  parameters: [laneId, key.value, scopeId],
+                });
           if (found !== undefined) {
             const foundId = String(found.id);
             if (key.onConflict === 'keep') return foundId;
@@ -117,6 +121,14 @@ where id = $1::bigint and scope_id = $4::uuid`,
               });
               if (becomesDue) buffer.moveLane(laneId, 1);
               return foundId;
+            }
+            // Only a reaction job's input holds a position of the log: a module's own input is no order.
+            if (spec.queue === reactionQueue) {
+              const pendingAt = jobPositionOf({ position: found.position });
+              const newAt = jobPositionOf('input' in spec.run ? spec.run.input : undefined);
+              if (pendingAt !== undefined && newAt !== undefined && pendingAt >= newAt) {
+                return foundId;
+              }
             }
             await sqlJobCancel(ctx, buffer, { ids: [foundId] });
             if (found.state !== 'waiting' && found.ordering === 'fifo-per-key') {

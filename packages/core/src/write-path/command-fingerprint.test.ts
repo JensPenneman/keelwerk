@@ -51,4 +51,18 @@ describe('the input fingerprint of a command with secret members (S-111)', () =>
       inputFingerprint('core.backend.create', '2026-01-01', plain),
     );
   });
+
+  test('a reaction job has no version in it; any other command does', async () => {
+    const plain = { name: 'acme' };
+    const at = (apiVersion: string, extra: object = {}) =>
+      commandFingerprint(source({ input: plain, apiVersion, ...extra }));
+    const job = { job: { reaction: true } };
+    expect(await at('2026-01-01', job)).toBe(await at('2027-06-01', job));
+    expect(await at('2026-01-01', job)).toBe(inputFingerprint('core.backend.create', '', plain));
+    expect(await at('2026-01-01')).not.toBe(await at('2027-06-01'));
+    const sealed = (apiVersion: string, extra: object = {}) =>
+      commandFingerprint(source({ fingerprintInput: input, apiVersion, ...extra }));
+    expect(await sealed('2026-01-01', job)).toBe(await sealed('2027-06-01', job));
+    expect(await sealed('2026-01-01')).not.toBe(await sealed('2027-06-01'));
+  });
 });

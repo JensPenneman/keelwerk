@@ -50,6 +50,12 @@ export function memoryJobStats(ctx: MemoryUnitContext, queue?: string): readonly
         arrivalsPerSecond: (before?.arrivalsPerSecond ?? 0) + arrivals / 60,
         meanRunSeconds: Math.max(before?.meanRunSeconds ?? 0, meanRunSeconds),
         running: (before?.running ?? 0) + (lane.taken - lane.done),
+        queued:
+          (before?.queued ?? 0) +
+          jobs.filter(
+            (job) =>
+              job.state === 'available' || job.state === 'scheduled' || job.state === 'waiting',
+          ).length,
         nextDueAt:
           before?.nextDueAt == null ||
           (upcoming !== undefined && Temporal.Instant.compare(upcoming, before.nextDueAt) < 0)

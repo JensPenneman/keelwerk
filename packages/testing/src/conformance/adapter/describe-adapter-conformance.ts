@@ -19,6 +19,7 @@ import { eventStoreCases } from './event-store-cases.ts';
 import { jobStoreCases } from './job-store-cases.ts';
 import { migrationCases } from './migration-cases.ts';
 import { paginationCases } from './pagination-cases.ts';
+import { processStreamCases } from './process-stream-cases.ts';
 import { rowCases } from './row-cases.ts';
 import { rowIsolationCases } from './row-isolation-cases.ts';
 import { serialCases } from './serial-cases.ts';
@@ -99,6 +100,7 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('row isolation', () => rowIsolationCases(subject));
     describe('store isolation', () => storeIsolationCases(subject));
     describe('event store', () => eventStoreCases(subject));
+    processStreamCases(subject);
     describe('job store', () => jobStoreCases(subject));
     describe('consumers', () => consumerCases(subject));
     describe('serials', () => serialCases(subject));

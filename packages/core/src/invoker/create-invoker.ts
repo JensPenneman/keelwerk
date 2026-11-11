@@ -9,6 +9,7 @@ import { buildSnapshot } from '../flags/build-snapshot.ts';
 import { flagClientIdOf } from '../flags/flag-client-id-of.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Span } from '../observability/span.ts';
+import { reactionJobAction } from '../reactions/reaction-job-action.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import type { InvokerStage } from './decision-hook.ts';
 import type { Invocation } from './invocation.ts';
@@ -83,7 +84,10 @@ async function run(
     ...(scope.level === 'tenant' ? { 'keelwerk.tenant': scope.tenantId } : {}),
   });
   state.stage = 'locate';
-  const action = locate(registry, inv.action, scope, translation);
+  const action =
+    inv.carrier.job?.reaction === true
+      ? reactionJobAction(registry, inv.action, scope, session.apiVersion)
+      : locate(registry, inv.action, scope, translation);
   state.action = action;
   const log = logOf(action.ref);
   state.log = log;

@@ -5,6 +5,7 @@ import { secretRefOwner } from '../keys/secret-ref-owner.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 import type { SealedValue } from '../storage/sealed-value.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
+import { fieldWithheldFrom } from './field-withheld-from.ts';
 
 function sealedText(value: unknown): string {
   return typeof value === 'string' ? value : sealedValueText(value as SealedValue);
@@ -30,15 +31,8 @@ export function decodeRow(entry: EntityEntry, row: StorageRow, authority: string
       decoded[name] = value;
       continue;
     }
-    const contributor = entry.origin[name];
-    if (contributor !== undefined && contributor !== authority) continue;
-    const owner = contributor ?? entry.module;
-    if (
-      (field.hidden !== false || field.kind === 'verifier' || field.kind === 'secret') &&
-      owner !== authority
-    ) {
-      continue;
-    }
+    if (fieldWithheldFrom(entry, name, authority)) continue;
+    const owner = entry.origin[name] ?? entry.module;
     if (field.kind === 'secret' && value !== null && value !== undefined) {
       const ref = { ref: sealedText(value) };
       Object.defineProperty(ref, secretRefOwner, { value: owner });

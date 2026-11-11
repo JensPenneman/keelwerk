@@ -88,6 +88,12 @@ export interface DecideContextInput {
     readonly entry: EntityEntry;
     readonly row: Readonly<Record<string, unknown>>;
   };
+  /** A process manager's job: `ctx.events` holds drafts for the instance's own stream (S-124). */
+  readonly process?: {
+    readonly ref: string;
+    readonly streamId: string;
+    readonly events: readonly string[];
+  };
   /** Mints the id of a `create` that names none, and records it as an answer. */
   readonly newId: (entity: string) => string;
   /** Adds `perform` (the `prepare` form): the request exists and the interpreter refuses it (S-05). */
@@ -100,7 +106,8 @@ export interface DecideContextInput {
  * entities and its domain events by name, and for another module's entity `update` only (the
  * runtime refuses a draft outside the fields the module contributed, section 8.4); `ctx.events`
  * holds the target entity's domain events; `newId` and `random` build requests. A draft built
- * from a row carries that row's version, one built from an id carries none (S-21).
+ * from a row carries that row's version, one built from an id carries none (S-21). For a process
+ * manager's job `ctx.events` holds the drafts of the process's own events, aimed at the instance's stream.
  */
 export function buildDecideContext(input: DecideContextInput): Constructors {
   const { registry, module, authorities } = input;
@@ -141,6 +148,13 @@ export function buildDecideContext(input: DecideContextInput): Constructors {
     for (const name of Object.keys(entry.events)) {
       events[name] = (payload: Readonly<Record<string, unknown>>): AnyDraft =>
         draftOf('event', name, entry.ref, payload, targetOf(row as { id: unknown }));
+    }
+  }
+  if (input.process !== undefined) {
+    const { ref, streamId } = input.process;
+    for (const name of input.process.events) {
+      events[name] = (payload: Readonly<Record<string, unknown>>): AnyDraft =>
+        draftOf('event', name, ref, payload, { id: streamId });
     }
   }
   const prefixes = new Map<string, string>();

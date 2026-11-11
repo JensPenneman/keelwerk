@@ -133,20 +133,6 @@ const appLevel: readonly Case[] = [
       ]),
   },
   {
-    name: 'a reaction that is asynchronous',
-    code: 'asyncReactionsUnavailable',
-    ref: 'shop.later',
-    app: () => {
-      const reaction = defineReaction(
-        shopBase as never,
-        { on: 'shop.widget.created', react: () => ({ events: [] }) } as never,
-      );
-      return appOf([
-        makeModule({ id: 'shop', entities: { widget } }, { reactions: { later: reaction } }),
-      ]);
-    },
-  },
-  {
     name: 'a field whose column is a system column',
     code: 'columnCollisions',
     ref: 'shop.widget.createdAt',
@@ -243,6 +229,20 @@ describe('compose (sections 3.3 and 4.7)', () => {
       expect(registry.problems.filter((problem) => problem.severity === 'error')).toEqual([]);
       expect(composeApp(app())).toBeDefined();
     });
+  });
+
+  test('an asynchronous reaction composes: the boot check, not compose, needs a worker for it', () => {
+    const reaction = defineReaction(
+      shopBase as never,
+      { on: 'shop.widget.created', react: () => ({ events: [] }) } as never,
+    );
+    const app = appOf([
+      makeModule({ id: 'shop', entities: { widget } }, { reactions: { later: reaction } }),
+    ]);
+    expect(buildRegistry(app).problems.map((problem) => problem.code)).not.toContain(
+      'asyncReactionsUnavailable',
+    );
+    expect(composeApp(app)).toBeDefined();
   });
 
   test('defineApp refuses the same apps at runtime when the compiler is bypassed', () => {

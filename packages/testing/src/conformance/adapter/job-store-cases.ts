@@ -3,6 +3,7 @@ import { conformanceScopes } from '@keelwerk/data/conformance';
 import { describe, expect, test } from 'vitest';
 import type { ConformanceSubject } from './conformance-subject.ts';
 import { jobStoreHelpers } from './job-store-helpers.ts';
+import { jobStorePendingCases } from './job-store-pending-cases.ts';
 import { jobStoreTenantCases } from './job-store-tenant-cases.ts';
 
 const { tenantA, tenantB } = conformanceScopes;
@@ -33,6 +34,7 @@ export function jobStoreCases(subject: Pick<ConformanceSubject, 'run' | 'clock'>
 
   describe('job store (9.5, 14.3.9)', () => {
     jobStoreTenantCases(subject);
+    jobStorePendingCases(subject);
 
     test('a taken job carries its spec, its scope and the attempt the worker holds', async () => {
       const [id] = await enqueue([
@@ -158,6 +160,25 @@ export function jobStoreCases(subject: Pick<ConformanceSubject, 'run' | 'clock'>
       expect(await take('w3')).toEqual([]);
       expect(await finish(next, 'w2', { kind: 'failed', error: unavailable })).toBe(true);
       expect(inputs(await take('w3'))).toEqual([3]);
+    });
+
+    test('append joins the key FIFO as a follower: no job is dropped or replaced, and a dead head releases the next', async () => {
+      const appended = (n: number) =>
+        numbered(n, { key: { value: 'chain', onConflict: 'append' }, ordering: 'fifo-per-key' });
+      await enqueue([appended(1), appended(2), appended(3)]);
+      const head = only(await take('w1'));
+      expect(inputs([head])).toEqual([1]);
+      expect(await take('w2')).toEqual([]);
+      expect(await finish(head, 'w1', { kind: 'dead', error: unavailable })).toBe(true);
+      const second = only(await take('w2'));
+      expect(inputs([second])).toEqual([2]);
+      await enqueue([appended(4)]);
+      expect(await take('w3')).toEqual([]);
+      expect(await finish(second, 'w2', succeeded)).toBe(true);
+      const third = only(await take('w3'));
+      expect(inputs([third])).toEqual([3]);
+      expect(await finish(third, 'w3', succeeded)).toBe(true);
+      expect(inputs(await take('w3'))).toEqual([4]);
     });
 
     test('a group admits as many jobs as its concurrency, and a finished job gives its slot back', async () => {

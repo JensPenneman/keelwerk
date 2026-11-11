@@ -12,6 +12,8 @@ import type {
 export interface TestRuntimeOptions<Name extends string = 'acme' | 'globex'> {
   /** The tenants to create, by name; default `['acme', 'globex']`. */
   readonly tenants?: readonly Name[];
+  /** The API version a tenant is pinned to (its record's `apiVersion`), by name; default none, so the head answers. */
+  readonly tenantApiVersions?: Readonly<Partial<Record<Name, string>>>;
   /** The time source; default: the system clock. */
   readonly clock?: Clock;
   /**

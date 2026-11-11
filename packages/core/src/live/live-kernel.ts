@@ -24,6 +24,11 @@ export interface LiveKernel {
   readonly target: ScopeTarget;
   /** A logger bound to the backend and tenant; the hub logs ids and counts only. */
   readonly log: Logger;
+  /**
+   * Whether a stream type is the state stream of a process (`isProcessStream`): the events of such a
+   * stream are the process's own record and reach no subscriber of the hub.
+   */
+  isProcessStream(streamType: string): boolean;
   /** A read-only unit of the target with the kernel's authority (personal values opened). */
   read<T>(
     fn: (unit: Unit) => Promise<T>,

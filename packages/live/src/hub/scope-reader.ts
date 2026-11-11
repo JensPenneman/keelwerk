@@ -136,7 +136,7 @@ export function createScopeReader(input: ScopeReaderInput): ScopeReader {
         views.set(entry, view);
       }
     }
-    const { events, to } = await readPassEvents({
+    const page = await readPassEvents({
       unit,
       expired,
       from,
@@ -144,6 +144,12 @@ export function createScopeReader(input: ScopeReaderInput): ScopeReader {
       batchSize: limits.batchSize,
       streamTypes: viewless ? undefined : [...kernels.keys()],
     });
+    const { to } = page;
+    // The state streams of processes are the processes' own record: no subscriber is told of them.
+    const kernelsOf = [...carried, ...joining].map((entry) => entry.kernel);
+    const events = page.events.filter(
+      (event) => !kernelsOf.some((kernel) => kernel.isProcessStream(event.stream.type)),
+    );
     const changed = new Map<string, Set<string>>();
     for (const event of events) {
       if (!kernels.has(event.stream.type)) continue;

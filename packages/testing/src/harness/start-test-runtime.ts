@@ -193,7 +193,16 @@ export async function startTestRuntime<
     if (join !== undefined && joined === undefined) {
       throw new Error(`join names no id for the tenant "${name}"`);
     }
-    const id = joined ?? (await runtime.control.createTenant({ backendId: backend.id, name })).id;
+    const pin = (options.tenantApiVersions as Readonly<Record<string, string>> | undefined)?.[name];
+    const id =
+      joined ??
+      (
+        await runtime.control.createTenant({
+          backendId: backend.id,
+          name,
+          ...(pin === undefined ? {} : { apiVersion: pin }),
+        })
+      ).id;
     tenants.push({ name, id });
   }
   // The runtime starts its workers in the background and hands the probe over when they run.

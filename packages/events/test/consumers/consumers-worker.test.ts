@@ -4,6 +4,7 @@ import { createLocalClient, startTestRuntime, testPrincipal } from '@keelwerk/te
 import { libraryApp } from '@keelwerk/testing/fixtures';
 import { describe, expect, test } from 'vitest';
 import { consumers } from '../../src/consumers/consumers.ts';
+import { reactionDispatcher } from '../../src/dispatcher/reaction-dispatcher.ts';
 import type { ConsumerKitKind } from './support/consumer-kit.ts';
 
 const spec = (id: string, over: Partial<ConsumerSpec> = {}): ConsumerSpec => ({
@@ -34,7 +35,9 @@ describe('the consumers worker', () => {
       provides: [],
       runs: [],
     });
-    expect(consumers({ consumers: [], runs: ['asyncReactions'] }).runs).toEqual(['asyncReactions']);
+    expect(consumers({ consumers: [reactionDispatcher()], runs: ['asyncReactions'] }).runs).toEqual(
+      ['asyncReactions'],
+    );
   });
 
   test('a duplicate consumer id is refused', async () => {

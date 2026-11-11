@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest';
 import type { ControlStore } from '../control/control-store.ts';
 import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
-import { deriveUuidV8 } from '../ids/derive-uuid-v8.ts';
 import type { EffectEntry } from '../registry/effect-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { StoredJobSpec } from '../storage/stored-job-spec.ts';
@@ -160,7 +159,7 @@ describe('enqueueContinuation, idempotence', () => {
     expect(job?.key).toEqual({ value: 'continuation:e1', onConflict: 'keep' });
     expect(job?.run).toMatchObject({
       action: 'hooks.recordOutcome',
-      commandId: deriveUuidV8('continuation', 'e1'),
+      commandId: 'kernel:continuation:e1',
     });
     expect(job?.causation).toMatchObject({ commandId: 'c1', eventId: 'v1' });
     expect(job?.principal).toMatchObject({ principalId: 'hooks.system' });

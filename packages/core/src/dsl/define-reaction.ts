@@ -1,6 +1,7 @@
 import type { DecideContext } from '../contexts/decide-context.ts';
 import type { Shape } from '../fields/shape.ts';
 import type { ShapeValue } from '../fields/shape-value.ts';
+import type { JobRetry } from '../jobs/job-retry.ts';
 import type { AnyModule } from '../model/any-module.ts';
 import type { DependencyRow } from '../model/dependency-row.ts';
 import type { EntityAt, EntityNames } from '../model/entities-of.ts';
@@ -90,7 +91,19 @@ export interface ReactionSpec<S, On extends string, Tm extends 'inline' | 'async
   readonly timing?: Tm;
   /** With `on: 'all'`: event types never delivered (S-136). */
   readonly except?: 'all' extends On ? readonly string[] : never;
+  /**
+   * Async only. The key an ordered or coalescing reaction groups its events by (7.7): the events of
+   * one key run in order, or the newest replaces the pending one. It must not return a personal value.
+   */
   readonly key?: (event: ReactionEventOf<S, On, Tm>) => string;
+  /** Async only: `fifo-per-key` runs the events of one key one at a time, in event order. Default `none`. */
+  readonly ordering?: Tm extends 'inline' ? never : 'none' | 'fifo-per-key';
+  /** Async only: a newer event of one key replaces the pending job of the older one. Default false. */
+  readonly coalesce?: Tm extends 'inline' ? never : boolean;
+  /** Async only: jobs of this reaction running at once in one scope. */
+  readonly concurrency?: Tm extends 'inline' ? never : number;
+  /** Async only: the retry policy of the job; absent, the worker's default. */
+  readonly retry?: Tm extends 'inline' ? never : JobRetry;
   readonly react: (
     event: ReactionEventOf<S, On, Tm>,
     ctx: DecideContext<BaseOf<S>, WhenOf<S>>,

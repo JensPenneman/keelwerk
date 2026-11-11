@@ -62,8 +62,10 @@ describe.each([
       await runScenario(kit, runtime);
       expect(lockSeen.length).toBeGreaterThan(0);
       expect(new Set(lockSeen)).toEqual(new Set([!off]));
+      // Only this suite's database: other test files run against the same cluster at the same time.
       const listeners = await owner.query(
-        "select 1 from pg_stat_activity where application_name like '%-listen'",
+        "select 1 from pg_stat_activity where application_name like '%-listen' and datname = $1",
+        [database],
       );
       if (off) expect(listeners.rowCount).toBe(0);
       const history = (

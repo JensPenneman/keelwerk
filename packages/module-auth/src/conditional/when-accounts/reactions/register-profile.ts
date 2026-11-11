@@ -1,13 +1,14 @@
 import { defineReaction, invoke, system, within } from '@keelwerk/core';
 import { authBase } from '../../../base.ts';
+import { registerErrorMap } from '../../../lib/register-error-map.ts';
 import { whenAccounts } from '../condition.ts';
 
 /**
  * A sign-up creates its profile in the same unit, by the accounts action (S-40). Profiles are never
  * looked at first: `accounts.register` decides, so its gate answers the same for every address,
  * and an address that already has a profile fails the unit with `accounts.email_taken`, which
- * is what M1 answers (S-112): a failed invoke effect cannot be remapped to `auth.identifier_taken`
- * until error mapping on `invoke` exists (follow-up on 7.4/7.7).
+ * is what M1 answered (S-112) and still is: the invoke names each error of the registration as
+ * itself (`registerErrorMap`), and the sign-up declares them, so its surface lists them.
  */
 export const registerProfile = defineReaction(within(authBase, whenAccounts), {
   on: 'auth.credential.signedUp',
@@ -20,7 +21,7 @@ export const registerProfile = defineReaction(within(authBase, whenAccounts), {
         invoke(
           'accounts.register',
           { displayName: event.data.displayName ?? identifier, email: identifier },
-          { as: system('create the profile of a sign-up') },
+          { as: system('create the profile of a sign-up'), errors: registerErrorMap },
         ),
       ],
     };

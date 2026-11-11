@@ -57,6 +57,7 @@ export function startRuntimeServices(
       writer: connected.control.writer,
     });
     const context: RuntimeServiceContext = {
+      build: connected.build,
       control: connected.control,
       keys: connected.keys,
       log: connected.log,

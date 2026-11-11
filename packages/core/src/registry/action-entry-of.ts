@@ -204,6 +204,9 @@ export function actionEntryOf(
     output: outputOf(part, mount, context),
     ...(entityOutput === undefined ? {} : { entityOutput }),
     errors: (spec.errors ?? []).map((error) => error.code).sort(),
+    ...(spec.errors === undefined || spec.errors.length === 0
+      ? {}
+      : { errorSpecs: Object.fromEntries(spec.errors.map((error) => [error.code, error.spec])) }),
     auth: spec.auth === undefined || spec.auth === 'policy' ? 'policy' : 'public',
     scope: spec.scope ?? (model === undefined ? 'tenant' : scopeOfTenancy(model.tenancy)),
     execution,

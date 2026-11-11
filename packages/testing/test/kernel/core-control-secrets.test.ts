@@ -181,7 +181,10 @@ describe('a nested invoke of a control command', () => {
     const runtime = await boot(deploymentOf('memory', { apps: [nest, libraryApp] }));
     const outcome = await call(runtime.invoker, local, 'nest.launch', {});
     expect(outcome).toMatchObject({ ok: false, error: { kind: 'forbidden' } });
-    expect(outcome.ok ? '' : outcome.error.message).toContain('control path');
+    // The refusal reaches the caller as the closed projection: the registered message, not the nested text.
+    expect(outcome).toMatchObject({
+      error: { code: 'core.forbidden', message: 'The caller is not allowed to do this.' },
+    });
     const rows = await ok(call(runtime.invoker, local, 'core.backend.query', {}));
     expect(rows.items).toEqual([]);
   });

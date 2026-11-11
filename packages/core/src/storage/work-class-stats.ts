@@ -9,6 +9,8 @@ export interface WorkClassStats {
   readonly arrivalsPerSecond: number;
   readonly meanRunSeconds: number;
   readonly running: number;
+  /** Available, scheduled and waiting jobs (no running or dead job), in the unit's reach. */
+  readonly queued: number;
   readonly nextDueAt: Temporal.Instant | null;
   /** `queues.<q>.slo` in seconds: target wait from due to start. */
   readonly sloSeconds: number;

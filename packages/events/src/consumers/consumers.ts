@@ -1,5 +1,6 @@
 import type { ConsumerSpec, Position, RuntimeServiceContext, StreamRef } from '@keelwerk/core';
 import { errors, sourceReadiness } from '@keelwerk/core';
+import { isReactionDispatcher } from '../dispatcher/is-reaction-dispatcher.ts';
 import type { ConsumerRunner } from './consumer-runner.ts';
 import type { ConsumersOptions } from './consumers-options.ts';
 import type { ConsumersWorker } from './consumers-worker.ts';
@@ -12,6 +13,9 @@ const maxBatchSize = 1000;
 const maxTimerMs = 1000;
 const minTimerMs = 100;
 
+const noDispatcher =
+  "runs lists 'asyncReactions' and no consumer is the reaction dispatcher (core.reactions)";
+
 function integerIn(name: string, value: number, least: number, most?: number): void {
   if (!Number.isInteger(value) || value < least || (most !== undefined && value > most)) {
     throw errors.validation(
@@ -22,8 +26,18 @@ function integerIn(name: string, value: number, least: number, most?: number): v
   }
 }
 
+/** The `core.` ids are the kernel's: only the reaction dispatcher, recognised by its mark and not by its id, may use one. */
+function checkKernelId(entry: { readonly id?: string }): void {
+  if (entry.id?.startsWith('core.') === true && !isReactionDispatcher(entry)) {
+    throw errors.validation(
+      `the consumer id ${entry.id} starts with "core.", which is reserved for the kernel's consumers`,
+    );
+  }
+}
+
 function checkSpec(spec: ConsumerSpec, seen: Set<string>): void {
   if (spec.id.length === 0) throw errors.validation('a consumer needs an id');
+  checkKernelId(spec);
   if (seen.has(spec.id)) throw errors.validation(`the consumer id ${spec.id} is used twice`);
   seen.add(spec.id);
   if (spec.maxAttempts !== undefined) integerIn('maxAttempts', spec.maxAttempts, 1);
@@ -43,7 +57,18 @@ export function consumers(options: ConsumersOptions): ConsumersWorker {
   integerIn('leaseMs', leaseMs, 3);
   integerIn('batchSize', batchSize, 1, maxBatchSize);
   const plain = new Set<string>();
-  for (const entry of options.consumers) if (typeof entry !== 'function') checkSpec(entry, plain);
+  for (const entry of options.consumers) {
+    if (typeof entry === 'function') checkKernelId(entry);
+    else checkSpec(entry, plain);
+  }
+  // The reaction dispatcher is what makes `asyncReactions` true. Claiming it without the dispatcher
+  // would lift the boot check and leave every async reaction without a worker, and a failure inside
+  // the asynchronous start does not stop a runtime, so the claim is checked here, before any boot.
+  if (options.runs?.includes('asyncReactions') === true) {
+    if (!options.consumers.some((entry) => isReactionDispatcher(entry))) {
+      throw errors.validation(noDispatcher);
+    }
+  }
 
   const runners: ConsumerRunner[] = [];
   const running = new Map<ConsumerRunner, { again: boolean; promise: Promise<void> | undefined }>();
@@ -149,6 +174,14 @@ export function consumers(options: ConsumersOptions): ConsumersWorker {
           typeof entry === 'function' ? entry(start) : entry,
         );
         for (const spec of specs) checkSpec(spec, seen);
+        // The reaction dispatcher is what makes `asyncReactions` true: claiming it without the
+        // dispatcher would lift the boot check and leave every async reaction without a worker.
+        if (
+          options.runs?.includes('asyncReactions') === true &&
+          !specs.some(isReactionDispatcher)
+        ) {
+          throw errors.validation(noDispatcher);
+        }
         const owner = crypto.randomUUID();
         const readiness = sourceReadiness(start.clock, start.log, 'its consumers');
         for (const spec of specs) {

@@ -7,15 +7,31 @@ import type {
   JobAttempt,
   JobOutcome,
   NamespaceRef,
+  StoredJob,
+  StoredJobSpec,
   Unit,
 } from '@keelwerk/core';
 import { memoryAdapter } from '@keelwerk/data';
 
-function spied(unit: Unit, spy: JobSpy): Unit {
+function spied(unit: Unit, spy: JobSpy, pending: StoredJobSpec[]): Unit {
   return {
     ...unit,
     jobs: {
       ...unit.jobs,
+      enqueue: async (job) => {
+        const id = await unit.jobs.enqueue(job);
+        pending.push(job);
+        return id;
+      },
+      take: async (queue, worker, request) => {
+        if (spy.refuseTake?.(queue, worker) === true) return { jobs: [], skippedLanes: 0 };
+        // Recorded when the call starts, so its index orders it against the commits that precede it.
+        const entry = { queue, worker, jobs: [] as readonly StoredJob[] };
+        spy.takes.push(entry);
+        const taken = await unit.jobs.take(queue, worker, request);
+        entry.jobs = taken.jobs;
+        return taken;
+      },
       complete: async (attempt, worker, outcome) => {
         const forced = spy.complete?.(attempt, outcome);
         const granted = forced ?? (await unit.jobs.complete(attempt, worker, outcome));
@@ -27,9 +43,13 @@ function spied(unit: Unit, spy: JobSpy): Unit {
     },
     receipts: {
       ...unit.receipts,
+      claim: async (receipt) => {
+        spy.beforeReceiptClaim?.(receipt.commandId);
+        return unit.receipts.claim(receipt);
+      },
       complete: async (commandId, outcome) => {
         await unit.receipts.complete(commandId, outcome);
-        spy.afterReceiptComplete?.();
+        await spy.afterReceiptComplete?.();
       },
     },
   };
@@ -41,6 +61,20 @@ export interface Completion {
   readonly worker: string;
   readonly outcome: JobOutcome;
   readonly granted: boolean;
+}
+
+/** One call of `jobs.take` and the jobs it claimed. */
+export interface Take {
+  readonly queue: string;
+  readonly worker: string;
+  readonly jobs: readonly StoredJob[];
+}
+
+/** A job a committed unit enqueued, and how many takes had started by then. */
+export interface Enqueued {
+  readonly job: StoredJobSpec;
+  /** `spy.takes.length` once the unit committed: the takes from this index on started after the commit. */
+  readonly takesStarted: number;
 }
 
 /** A door a unit waits at: `entered` settles when one arrived, `release` lets every waiting unit through. */
@@ -71,12 +105,20 @@ export function gate(after = 0): Gate {
 /** What a test changes of the in-memory adapter it runs on; every member may be set while the runtime runs. */
 export interface JobSpy {
   readonly completions: Completion[];
+  /** Every take of the job store, in the order the calls started (empty takes included). */
+  readonly takes: Take[];
+  /** The jobs of every unit that enqueued and committed, in commit order. */
+  readonly enqueued: Enqueued[];
   /** Answers instead of the store when it returns a boolean. */
   complete?: ((attempt: JobAttempt, outcome: JobOutcome) => boolean | undefined) | undefined;
   /** Answers instead of the store when it returns attempts. */
   heartbeat?: ((attempts: readonly JobAttempt[]) => readonly JobAttempt[] | undefined) | undefined;
-  /** Runs after `receipts.complete`; a throw rolls the unit back. */
-  afterReceiptComplete?: (() => void) | undefined;
+  /** Runs after `receipts.complete`, with the receipt row still held; a throw rolls the unit back, and the unit waits for a promise. */
+  afterReceiptComplete?: (() => void | Promise<void>) | undefined;
+  /** Runs when a unit is about to claim the receipt of a command id, before the store sees the call. */
+  beforeReceiptClaim?: ((commandId: string) => void) | undefined;
+  /** True: the take of this worker on this queue answers no job, without asking the store. */
+  refuseTake?: ((queue: string, worker: string) => boolean) | undefined;
   /** A read-only unit waits for this gate before it opens (after the first `after` ones): the principal resolution of a job. */
   hold?: Gate;
   /** What the adapter of the app's placement reports at connect, merged over the in-memory capabilities. */
@@ -85,13 +127,19 @@ export interface JobSpy {
   history?: (namespace: NamespaceRef) => readonly AppliedMigration[] | undefined;
 }
 
-/** The in-memory adapter with its job and receipt stores watched and, where the test says so, altered. */
-export function jobSpy(entities: (ref: string) => EntityDescriptor | undefined): {
+/**
+ * The in-memory adapter, or the adapter factory `over` names, with its job and receipt stores
+ * watched and, where the test says so, altered.
+ */
+export function jobSpy(
+  entities: (ref: string) => EntityDescriptor | undefined,
+  over?: DataAdapterFactory,
+): {
   readonly spy: JobSpy;
   readonly factory: DataAdapterFactory;
 } {
-  const spy: JobSpy = { completions: [] };
-  const base = memoryAdapter({ entities });
+  const spy: JobSpy = { completions: [], takes: [], enqueued: [] };
+  const base = over ?? memoryAdapter({ entities });
   const factory: DataAdapterFactory = {
     ...base,
     create: (placement, env): DataAdapter => {
@@ -115,7 +163,15 @@ export function jobSpy(entities: (ref: string) => EntityDescriptor | undefined):
               await spy.hold.open;
             }
           }
-          return adapter.unit(namespace, scope, (unit) => fn(spied(unit, spy)), options);
+          const pending: StoredJobSpec[] = [];
+          const result = await adapter.unit(
+            namespace,
+            scope,
+            (unit) => fn(spied(unit, spy, pending)),
+            options,
+          );
+          for (const job of pending) spy.enqueued.push({ job, takesStarted: spy.takes.length });
+          return result;
         },
       };
     },

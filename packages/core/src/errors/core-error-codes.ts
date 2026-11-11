@@ -82,6 +82,18 @@ export const coreErrorCodes: Readonly<Record<CoreErrorCode, ErrorSpec>> = Object
     message: 'The history before this point was compacted.',
   },
   'core.queue_full': { kind: 'rate_limited', message: 'The queue is full.' },
+  'core.command_id_reserved': {
+    kind: 'validation',
+    message: 'The command id is in the form the kernel reserves for its own commands.',
+  },
+  'core.process_instance_key_invalid': {
+    kind: 'validation',
+    message: 'The instance key of a process that holds personal data is not a data subject id.',
+  },
+  'core.reaction_key_invalid': {
+    kind: 'validation',
+    message: 'The key of a reaction was empty or failed for the event.',
+  },
   'core.job_lease_lost': { kind: 'unavailable', message: 'The job lease was lost.' },
   'core.capability_unplaceable': {
     kind: 'unsupported',

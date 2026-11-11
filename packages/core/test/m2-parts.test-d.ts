@@ -39,6 +39,21 @@ describe('M2 kernel contract: the parts, typed against their base', () => {
     });
   });
 
+  test("a process's key narrows type and data together over several events and has no current", () => {
+    defineProcess(m2PartsBase, {
+      on: ['m2-parts.task.created', 'm2-parts.task.renamed'],
+      key: (event) => {
+        // @ts-expect-error the key is a function of the event alone: the row is not there
+        event.current;
+        return event.type === 'm2-parts.task.created' ? event.stream.id : event.data.displayName;
+      },
+      events: { stepped: shape({ step: field.integer() }) },
+      initial: { steps: 0 },
+      evolve: (state) => state,
+      react: () => ({ events: [] }),
+    });
+  });
+
   test("a process's evolve folds its own events, typed by their shapes", () => {
     defineProcess(m2PartsBase, {
       on: ['m2-parts.task.renamed'],

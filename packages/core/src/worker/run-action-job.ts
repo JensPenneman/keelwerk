@@ -1,6 +1,9 @@
+import { declaredErrorCodesOf } from '../executors/declared-error-codes-of.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import type { Carrier } from '../invoker/carrier.ts';
 import type { Job } from '../jobs/job.ts';
+import { reactionJobError } from '../reactions/reaction-job-error.ts';
+import { reactionQueue } from '../reactions/reaction-queue.ts';
 import { jobOutcomeOfError } from './job-outcome-of-error.ts';
 import { prepareActionJob } from './prepare-action-job.ts';
 import type { RunJobContext } from './run-job.ts';
@@ -20,7 +23,12 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
   const { stored } = job;
   if (!('action' in stored.run)) return;
   const { action, commandId } = stored.run;
-  const { input, transport } = await prepareActionJob(context.source, stored, stored.run);
+  // A reaction job's input is the event reference the dispatcher stored: it holds no secret member and no receipt of
+  // its own, so there is nothing to prepare, and the gate judges an unknown transport.
+  const reaction = stored.queue === reactionQueue;
+  const { input, transport } = reaction
+    ? { input: stored.run.input, transport: null }
+    : await prepareActionJob(context.source, stored, stored.run);
   const carrier: Carrier = {
     transport: 'job',
     job: {
@@ -29,6 +37,8 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
       principal: stored.principal,
       transport,
       attempt: stored.attempt,
+      ...(reaction ? { reaction: true as const } : {}),
+      ...(reaction && stored.key !== undefined ? { key: stored.key.value } : {}),
       ...(stored.causation.eventId === undefined ? {} : { causationId: stored.causation.eventId }),
       worker: context.worker,
       signal: job.signal,
@@ -47,7 +57,17 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
     signal: job.signal,
   });
   if (outcome.ok) return;
-  const next = jobOutcomeOfError(outcome.error, stored, context.clock.now(), context.random);
+  // A reaction's history error is the closed projection, never its own text (the reaction's module declares the codes it may keep).
+  const failure = reaction
+    ? reactionJobError(
+        outcome.error,
+        declaredErrorCodesOf(
+          context.source.registry,
+          context.source.registry.reactions.get(action)?.module,
+        ),
+      )
+    : outcome.error;
+  const next = jobOutcomeOfError(failure, stored, context.clock.now(), context.random);
   if (next === undefined) return;
   await settleJobAttempt(context, stored, next);
 }

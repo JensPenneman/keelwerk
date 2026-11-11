@@ -18,6 +18,9 @@ interface Line {
   readonly fields: Readonly<Record<string, unknown>> | undefined;
 }
 
+/** The stream type the fake kernel says is a process's state stream. */
+const processStream = 't.tally';
+
 /** A stored log of the reader: ids and counts only, so the tests can assert nothing else was written. */
 function capturingLog(lines: Line[]) {
   const log = {
@@ -48,7 +51,11 @@ function fakeScope(
 ) {
   const lines: Line[] = [];
   const statements: Statements = { head: 0, readAll: 0, find: 0 };
-  const state = { head: 0n, reads: 0, events: [] as { position: bigint; id: string }[] };
+  const state = {
+    head: 0n,
+    reads: 0,
+    events: [] as { position: bigint; id: string; streamType: string }[],
+  };
   const unit = {
     events: {
       head: async () => {
@@ -62,7 +69,7 @@ function fakeScope(
           .slice(0, query.limit)
           .map((event) => ({
             position: event.position,
-            stream: { type: 't.card', id: event.id },
+            stream: { type: event.streamType, id: event.id },
             type: 't.card.changed',
             partition: null,
           }));
@@ -86,15 +93,16 @@ function fakeScope(
     scopeId: 'scope-1',
     audience: options.audience ?? 'tenant-1',
     log: capturingLog(lines),
+    isProcessStream: (streamType: string) => streamType === processStream,
     read: async <T>(fn: (unit: Unit) => Promise<T>): Promise<T> => {
       state.reads += 1;
       await options.readStalls?.();
       return fn(unit);
     },
   } as unknown as LiveKernel;
-  const commit = (id: string): bigint => {
+  const commit = (id: string, streamType = 't.card'): bigint => {
     state.head += 1n;
-    state.events.push({ position: state.head, id });
+    state.events.push({ position: state.head, id, streamType });
     return state.head;
   };
   return { kernel, lines, state, statements, commit, unit };
@@ -175,4 +183,4 @@ function readerOf(scope: ReturnType<typeof fakeScope>, over: Parameters<typeof l
 }
 
 export type { Line };
-export { fakeListener, fakeScope, fakeView, limits, readerOf };
+export { fakeListener, fakeScope, fakeView, limits, processStream, readerOf };

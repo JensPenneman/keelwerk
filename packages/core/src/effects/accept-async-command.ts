@@ -3,6 +3,7 @@ import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { buildEventMeta } from '../events/build-event-meta.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
+import { refuseReservedCommandId } from '../ids/refuse-reserved-command-id.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import { appendReceiptChange } from '../write-path/append-receipt-change.ts';
 import { assertSameRequest } from '../write-path/assert-same-request.ts';
@@ -32,6 +33,7 @@ import { sealJobInput } from './seal-job-input.ts';
 export async function acceptAsyncCommand(input: RunCommandInput): Promise<CommandResult> {
   const { action } = input;
   input.signal?.throwIfAborted();
+  refuseReservedCommandId(input.commandId);
   const commandId = input.commandId ?? newUuidV7();
   const now = input.clock.now();
   const fingerprint = await commandFingerprint(input);
