@@ -12,6 +12,12 @@ export interface SqlSession {
   readonly scope: StorageScope;
   readonly readOnly: boolean;
   readonly db: Kysely<SqlDb>;
+  /**
+   * Throws `internal` when the unit's function has settled and the caller is not the unit's own end
+   * work. What a unit hands to its commit tail (events, lane changes, work) is registered through
+   * it, so work that outlived the unit cannot add to what the tail writes.
+   */
+  check(): void;
   /** A savepoint: rolls back to it when `fn` throws, then rethrows. */
   nested<T>(fn: (session: SqlSession) => Promise<T>): Promise<T>;
   /** Runs after a successful commit; work registered inside a rolled-back savepoint is dropped. */

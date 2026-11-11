@@ -5,6 +5,7 @@ import type { SqlDb } from '../sql/sql-db.ts';
 import type { SqlSession } from '../sql/sql-session.ts';
 import type { SqlUnit, SqlUnitParts } from '../sql/sql-unit.ts';
 import { sqlUnit } from '../sql/sql-unit.ts';
+import { unitFence } from '../sql/unit-fence.ts';
 import { pgliteKyselyDialect } from './pglite-kysely-dialect.ts';
 
 /**
@@ -33,6 +34,10 @@ export type PgliteUnit = SqlUnit;
 /** A unit and the callbacks to run once it has committed. */
 export interface OpenedPgliteUnit {
   readonly unit: PgliteUnit;
+  /** The unit's function has settled: a statement of work that outlived it is refused from now on. */
+  end(): void;
+  /** The unit has committed or rolled back: nothing reaches it any more, not even work started by its commit tail. */
+  finish(): void;
   /** Takes the callbacks registered so far, for the adapter to run after `commit`. */
   takeAfterCommit(): readonly (() => void)[];
   /** Runs the work registered for the end of the unit (the commit tail), in order, inside the transaction and before `commit`. */
@@ -53,15 +58,18 @@ export function pgliteUnit(
   const callbacks: (() => void)[] = [];
   const beforeCommit: (() => Promise<void>)[] = [];
   let savepoints = 0;
+  const fence = unitFence();
   const db = new Kysely<SqlDb>({
-    dialect: pgliteKyselyDialect(database, { transactions: 'refuse' }),
+    dialect: pgliteKyselyDialect(database, { transactions: 'refuse', fence }),
   });
   const session: SqlSession = {
     namespace,
     scope,
     readOnly,
     db,
+    check: fence.check,
     async nested<T>(fn: (u: SqlSession) => Promise<T>): Promise<T> {
+      fence.check();
       savepoints += 1;
       const name = `kw_sp_${savepoints}`;
       const mark = callbacks.length;
@@ -69,13 +77,18 @@ export function pgliteUnit(
       await database.query(`savepoint ${name}`);
       try {
         const result = await fn(session);
+        fence.check();
         await database.query(`release savepoint ${name}`);
         return result;
       } catch (error) {
-        callbacks.length = mark;
-        beforeCommit.length = beforeMark;
-        await database.query(`rollback to savepoint ${name}`);
-        await database.query(`release savepoint ${name}`);
+        // A unit that has ended no longer owns the session: nothing more is sent to it, and what the
+        // unit registered after this savepoint was abandoned stays registered.
+        if (fence.open()) {
+          callbacks.length = mark;
+          beforeCommit.length = beforeMark;
+          await database.query(`rollback to savepoint ${name}`);
+          await database.query(`release savepoint ${name}`);
+        }
         throw error;
       }
     },
@@ -88,9 +101,15 @@ export function pgliteUnit(
   };
   return {
     unit: sqlUnit(session, parts),
+    end: () => {
+      fence.end();
+    },
+    finish: () => {
+      fence.finish();
+    },
     takeAfterCommit: () => callbacks.splice(0),
     runBeforeCommit: async () => {
-      for (const work of beforeCommit.splice(0)) await work();
+      for (const work of beforeCommit.splice(0)) await fence.closing(work);
     },
   };
 }

@@ -36,8 +36,11 @@ export interface SqlCommitBuffer {
   restore(mark: SqlCommitMark): void;
 }
 
-/** An empty buffer for one unit. */
-export function sqlCommitBuffer(): SqlCommitBuffer {
+/**
+ * An empty buffer for one unit. `guard` throws once the unit may no longer hand anything to its
+ * commit tail: `push`, `defer`, `moveLane` and `restore` call it first, so a savepoint abandoned by its unit cannot take back what the commit tail is about to write.
+ */
+export function sqlCommitBuffer(guard: () => void = () => undefined): SqlCommitBuffer {
   const events: SqlPendingEvent[] = [];
   const lanes: CommitTailLane[] = [];
   const work: (() => Promise<void>)[] = [];
@@ -48,18 +51,22 @@ export function sqlCommitBuffer(): SqlCommitBuffer {
     assigned: [],
     versionOf: (type, id) => versions.get(sqlStreamKey({ type, id })),
     push: (event) => {
+      guard();
       events.push(event);
       versions.set(sqlStreamKey(event.stream), event.version);
     },
     takeWork: () => work.splice(0),
     defer: (fn) => {
+      guard();
       work.push(fn);
     },
     moveLane: (laneId, delta) => {
+      guard();
       lanes.push({ laneId, delta });
     },
     mark: () => ({ events: events.length, lanes: lanes.length, work: work.length }),
     restore: (mark) => {
+      guard();
       if (events.length > mark.events) {
         events.length = mark.events;
         versions.clear();

@@ -103,7 +103,7 @@ export interface SqlUnitParts {
  * database itself refuse writes.
  */
 export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
-  const root = sqlCommitBuffer();
+  const root = sqlCommitBuffer(session.check);
   const build = (current: SqlSession, buffer: SqlCommitBuffer): SqlUnit => {
     const ctx = sqlUnitContext({
       namespace: current.namespace,
@@ -183,7 +183,10 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
             }
             // A savepoint in another scope sees none of this unit's buffered events or lane changes.
             const value = await fn(
-              build({ ...inner, scope: target, readOnly }, swapped ? sqlCommitBuffer() : buffer),
+              build(
+                { ...inner, scope: target, readOnly },
+                swapped ? sqlCommitBuffer(session.check) : buffer,
+              ),
             );
             if (readOnly) {
               outcome.value = value;

@@ -23,7 +23,7 @@ import { pgliteChangeFeed } from './pglite-change-feed.ts';
 import { pgliteIdentity } from './pglite-identity.ts';
 import { PgliteReentrantUnitError } from './pglite-reentrant-unit-error.ts';
 import { pgliteSchemaConnection } from './pglite-schema-connection.ts';
-import { type PgliteUnit, pgliteUnit } from './pglite-unit.ts';
+import { type OpenedPgliteUnit, type PgliteUnit, pgliteUnit } from './pglite-unit.ts';
 
 function scopeIdOf(scope: StorageScope, deploymentId: string): string | undefined {
   switch (scope.level) {
@@ -226,17 +226,23 @@ export function pgliteAdapter(
             async () => {
               unitOptions.signal?.throwIfAborted();
               await db.query(begun.begin);
+              let opened: OpenedPgliteUnit | undefined;
               try {
                 for (const statement of begun.settings) {
                   await db.query(statement.sql, [...statement.parameters]);
                 }
-                const opened = pgliteUnit(db, namespace, scope, readOnly, {
+                opened = pgliteUnit(db, namespace, scope, readOnly, {
                   deploymentId: env.deploymentId,
                   clock,
                   entities,
                   ...(options.keyWrapper === undefined ? {} : { keyWrapper: options.keyWrapper }),
                 });
-                const value = await fn(opened.unit);
+                let value: T;
+                try {
+                  value = await fn(opened.unit);
+                } finally {
+                  opened.end();
+                }
                 unitOptions.signal?.throwIfAborted();
                 await opened.runBeforeCommit();
                 await db.query('commit');
@@ -244,6 +250,10 @@ export function pgliteAdapter(
               } catch (error) {
                 await db.query('rollback');
                 throw mapSqlError(error);
+              } finally {
+                // Committed or rolled back: not even work that the commit tail started and did not
+                // await may send a statement to the session any more.
+                opened?.finish();
               }
             },
           ),

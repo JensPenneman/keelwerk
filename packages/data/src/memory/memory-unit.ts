@@ -58,13 +58,20 @@ export async function memoryUnit<T>(
       environment.lookup,
     );
     const hooks: (() => void)[] = [];
-    const result = await fn(memoryBuildUnit(ctx, hooks));
-    options.signal?.throwIfAborted();
-    if (!readOnly) {
-      memoryCommitTail(ctx);
-      for (const [name, collection] of ctx.tx.changes()) state.collections.set(name, collection);
+    let result: T;
+    try {
+      result = await fn(memoryBuildUnit(ctx, hooks));
+      options.signal?.throwIfAborted();
+      if (!readOnly) {
+        memoryCommitTail(ctx);
+        for (const [name, collection] of ctx.tx.changes()) state.collections.set(name, collection);
+      }
+      if (ctx.assigned.length > 0) database.committed(namespace.id, ctx.scopeId());
+    } finally {
+      // Settled: work of the unit that is still running (a consumer raced against a deadline) can
+      // no longer read or change what the unit saw or committed.
+      ctx.tx.end();
     }
-    if (ctx.assigned.length > 0) database.committed(namespace.id, ctx.scopeId());
     for (const hook of hooks) {
       try {
         hook();

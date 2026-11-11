@@ -11,6 +11,8 @@ export interface PostgresUnitSession {
   readonly scope: StorageScope;
   readonly readOnly: boolean;
   readonly db: Kysely<SqlDb>;
+  /** Throws `internal` once the unit's function has settled, except for the unit's own end work. */
+  check(): void;
   /** A savepoint: rolls back to it when `fn` throws, then rethrows the mapped error. */
   nested<T>(fn: (session: PostgresUnitSession) => Promise<T>): Promise<T>;
   /** Runs after a successful commit; work registered inside a rolled-back savepoint is dropped. */

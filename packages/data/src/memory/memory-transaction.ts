@@ -1,3 +1,4 @@
+import { errors } from '@keelwerk/core';
 import type { MemoryCollection } from './memory-collection.ts';
 
 interface Owned {
@@ -18,6 +19,14 @@ export interface MemoryTransaction {
   savepoint(): () => void;
   /** The collections this unit wrote, for the commit; names starting with `~` stay in the unit. */
   changes(): ReadonlyMap<string, MemoryCollection>;
+  /** Throws `internal` once the unit has ended. */
+  check(): void;
+  /**
+   * The unit's function has settled and its commit is made (or abandoned): a late read, write or
+   * savepoint of work that outlived the unit is refused, so it can neither see nor change what the
+   * unit committed.
+   */
+  end(): void;
 }
 
 /**
@@ -30,10 +39,23 @@ export function memoryTransaction(base: ReadonlyMap<string, MemoryCollection>): 
   let owned = new Map<string, Owned>();
   let generation = 0;
   const empty: ReadonlyMap<string, unknown> = new Map();
+  let ended = false;
+  const check = (): void => {
+    if (ended) {
+      throw errors.internal('the unit has ended; an access of work that outlived it was refused');
+    }
+  };
   return {
-    read: <V>(name: string) =>
-      (owned.get(name)?.map ?? base.get(name) ?? empty) as ReadonlyMap<string, V>,
+    check,
+    end: () => {
+      ended = true;
+    },
+    read: <V>(name: string) => {
+      check();
+      return (owned.get(name)?.map ?? base.get(name) ?? empty) as ReadonlyMap<string, V>;
+    },
     write: <V>(name: string) => {
+      check();
       const current = owned.get(name);
       if (current !== undefined && current.generation === generation) {
         return current.map as Map<string, V>;
@@ -43,15 +65,18 @@ export function memoryTransaction(base: ReadonlyMap<string, MemoryCollection>): 
       return copy as Map<string, V>;
     },
     names: (prefix) => {
+      check();
       const found = new Set<string>();
       for (const name of base.keys()) if (name.startsWith(prefix)) found.add(name);
       for (const name of owned.keys()) if (name.startsWith(prefix)) found.add(name);
       return [...found];
     },
     savepoint: () => {
+      check();
       const saved = new Map(owned);
       generation += 1;
       return () => {
+        check();
         owned = saved;
         generation += 1;
       };

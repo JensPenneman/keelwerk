@@ -102,6 +102,7 @@ export function memoryUnitContext(
     assigned: [],
     scopeId,
     writable: () => {
+      parts.tx.check();
       if (parts.readOnly) throw errors.internal('a read-only unit cannot write');
     },
     entity: (ref) => state.entities.get(ref) ?? lookup?.(ref),

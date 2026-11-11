@@ -9,6 +9,7 @@ import {
   PostgresQueryCompiler,
   type QueryResult,
 } from 'kysely';
+import type { UnitFence } from '../sql/unit-fence.ts';
 
 /** The one connection PGlite has: every statement runs on the same session. */
 function connectionOf(database: PGlite): DatabaseConnection {
@@ -48,6 +49,8 @@ export interface PgliteKyselyDialectOptions {
    * scope settings), so `transaction()` throws; nested work goes through `Unit.nested`.
    */
   readonly transactions?: 'own' | 'refuse';
+  /** A unit's fence: once it is closed, no statement reaches the session. */
+  readonly fence?: UnitFence;
 }
 
 /**
@@ -61,7 +64,10 @@ export function pgliteKyselyDialect(
   database: PGlite,
   options: PgliteKyselyDialectOptions = {},
 ): Dialect {
-  const connection = connectionOf(database);
+  const connection =
+    options.fence === undefined
+      ? connectionOf(database)
+      : options.fence.connection(connectionOf(database));
   const refuse = options.transactions === 'refuse';
   const guard = (): void => {
     if (refuse) throw new Error('the unit owns the transaction; use nested');
