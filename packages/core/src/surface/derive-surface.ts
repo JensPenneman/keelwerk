@@ -9,6 +9,7 @@ import { selectModules } from '../registry/select-modules.ts';
 import type { ApiSurface } from './api-surface.ts';
 import { declaredErrorsOf } from './declared-errors-of.ts';
 import type { DeriveSurfaceOptions } from './derive-surface-options.ts';
+import { deriveVersionSurface } from './derive-version-surface.ts';
 import type { DerivedSurface } from './derived-surface.ts';
 import { entityModelsOf } from './entity-models-of.ts';
 import { recordedMemberTags } from './recorded-member-tags.ts';
@@ -107,17 +108,21 @@ export function deriveSurface(
   }));
   if (actions.some((action) => action.module === appModule.id)) modules.push(appModule);
   modules.sort((left, right) => compareCodePoints(left.id, right.id));
-  const body = {
-    format: 'keelwerk.surface/1',
-    app: app.id,
-    apiVersion,
-    modules,
-    entities,
-    actions,
-    errors: errors.errors,
-    events: events.events,
-    resolvers: security.resolvers,
-  } as const;
+  const body = deriveVersionSurface({
+    body: {
+      format: 'keelwerk.surface/1',
+      app: app.id,
+      apiVersion,
+      modules,
+      entities,
+      actions,
+      errors: errors.errors,
+      events: events.events,
+      resolvers: security.resolvers,
+    },
+    registry,
+    api: app.api,
+  });
   const surface: ApiSurface = { ...body, hash: surfaceHash(body) };
   return { surface, problems };
 }

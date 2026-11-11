@@ -1,5 +1,6 @@
 import { connectRewindCheck } from '../anchors/connect-rewind-check.ts';
 import { startAnchoring } from '../anchors/start-anchoring.ts';
+import { type VersionProjection, versionProjection } from '../api-versions/version-projection.ts';
 import { latestTenantEntry } from '../control/latest-tenant-entry.ts';
 import { setProcessState } from '../control/set-process-state.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
@@ -19,6 +20,7 @@ import type { SurfaceSource } from '../surface/surface-source.ts';
 import { createCommandRunner } from '../write-path/create-command-runner.ts';
 import { anchorScopes } from './anchor-scopes.ts';
 import { answerRuntimeQueries } from './answer-runtime-queries.ts';
+import { AppNotServedError } from './app-not-served-error.ts';
 import { composePhase } from './compose-phase.ts';
 import { connectPhase } from './connect-phase.ts';
 import { createControlPath } from './create-control-path.ts';
@@ -35,6 +37,7 @@ import { routeControlCommands } from './route-control-commands.ts';
 import type { Runtime } from './runtime.ts';
 import { runtimeEnvironment } from './runtime-environment.ts';
 import type { RuntimeOptions } from './runtime-options.ts';
+import type { ServedApp } from './served-app.ts';
 import { setupPhase } from './setup-phase.ts';
 import type { Started } from './start-phase.ts';
 import { startPhase } from './start-phase.ts';
@@ -180,13 +183,39 @@ export async function startRuntime(
       coreApp ??= defineApp({ id: 'core', modules: [], execution: {}, api: coreApiVersions });
       return coreApp;
     };
+    // One surface per declared version of each app, derived at first use and kept, so the host, the
+    // transports' mounts and `runtime.surface` serve the same document (hash and ETag included).
+    const projections = new Map<string, VersionProjection<ApiSurface>>();
+    const datesOf = (app: ServedApp): readonly string[] => app.source.api?.dates ?? [app.head];
+    const projectionOf = (
+      id: string,
+      source: SurfaceSource,
+      versions: readonly string[],
+    ): VersionProjection<ApiSurface> => {
+      let projection = projections.get(id);
+      if (projection === undefined) {
+        projection = versionProjection(
+          versions,
+          (version) => deriveSurface(source, version).surface,
+        );
+        projections.set(id, projection);
+      }
+      return projection;
+    };
     const surface = (appId: string, version?: string): ApiSurface => {
       const app = served.find((candidate) => candidate.id === appId);
-      if (app !== undefined) return deriveSurface(app.source, version ?? app.head).surface;
+      if (app !== undefined)
+        return projectionOf(app.id, app.source, datesOf(app)).at(version ?? app.head);
       if (appId !== 'core') {
-        throw new RangeError(`The process does not serve app "${appId}".`);
+        throw new AppNotServedError(appId);
       }
-      return deriveSurface(coreSource(), version ?? sole?.head ?? coreHead).surface;
+      // A session of the app `core` carries a version of the operator endpoint's own calendar, which
+      // the one served app need not declare; both calendars are served.
+      const head = sole?.head ?? coreHead;
+      const dates = [
+        ...new Set([...coreApiVersions.dates, ...(sole?.source.api?.dates ?? [])]),
+      ].sort();
+      return projectionOf('core', coreSource(), dates).at(version ?? head);
     };
 
     log.debug('phase', { phase: 'start' });
@@ -223,6 +252,7 @@ export async function startRuntime(
           control: connected.control,
           clock,
           surface,
+          surfaces: (app) => projectionOf(app.id, app.source, datesOf(app)),
         })
       : { host: undefined, instance: undefined, mounts: [] };
     await setProcessState(connected.control, connected.processId, 'ready');
@@ -233,7 +263,7 @@ export async function startRuntime(
       surface,
       registry: (appId) => {
         const app = served.find((candidate) => candidate.id === appId);
-        if (app === undefined) throw new RangeError(`The process does not serve app "${appId}".`);
+        if (app === undefined) throw new AppNotServedError(appId);
         return app.source.registry;
       },
       ...(listening.host === undefined ? {} : { host: listening.host }),

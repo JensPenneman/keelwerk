@@ -1,4 +1,5 @@
 import type { ApiVersionLedger, LedgerEntry } from './api-version-ledger.ts';
+import { sameChangeIds } from './same-change-ids.ts';
 
 function sameModules(
   left: Readonly<Record<string, string>>,
@@ -15,6 +16,8 @@ export interface ExpectedLedgerEntry {
   readonly version: string;
   readonly surfaceHash: string;
   readonly modules: Readonly<Record<string, string>>;
+  /** The ids of the version changes the version adopts, as `defineApiVersions` lists them; absent: not compared. */
+  readonly changes?: readonly string[];
 }
 
 /** One disagreement between the ledger and the app. */
@@ -25,7 +28,9 @@ export interface LedgerProblem {
     | 'ledgerEntryMissing'
     | 'ledgerEntryUnknown'
     | 'ledgerHashDrift'
-    | 'ledgerModulesDrift';
+    | 'ledgerModulesDrift'
+    | 'ledgerChangeUnknown'
+    | 'ledgerChangesDrift';
   readonly version?: string;
   readonly message: string;
 }
@@ -35,12 +40,16 @@ export interface LedgerProblem {
  * declared version, the surface hash and module versions the app derives for the head entry only
  * (an additive change reaches every version, section 18.2, and a released entry is never edited,
  * section 18.6, so only the head's record follows the app), and no entry newer than the head.
- * Entries older than the oldest declared version are retired versions and stay.
+ * Entries older than the oldest declared version are retired versions and stay. The adopted
+ * change ids of every declared version, released ones included, must equal what
+ * `defineApiVersions` lists (`ledgerChangesDrift`), and, when `registered` is given, each id the
+ * ledger records must be one a module registers (`ledgerChangeUnknown`).
  */
 export function checkLedger(
   ledger: ApiVersionLedger,
   app: string,
   expected: readonly ExpectedLedgerEntry[],
+  registered?: ReadonlySet<string>,
 ): readonly LedgerProblem[] {
   const problems: LedgerProblem[] = [];
   if (ledger.app !== app) {
@@ -60,6 +69,17 @@ export function checkLedger(
     }
     previous = entry.version;
   }
+  if (registered !== undefined) {
+    for (const entry of ledger.versions) {
+      for (const id of entry.changes.filter((item) => !registered.has(item))) {
+        problems.push({
+          code: 'ledgerChangeUnknown',
+          version: entry.version,
+          message: `The ledger entry '${entry.version}' adopts '${id}', which no module registers.`,
+        });
+      }
+    }
+  }
   const byVersion = new Map<string, LedgerEntry>(
     ledger.versions.map((entry) => [entry.version, entry]),
   );
@@ -75,6 +95,13 @@ export function checkLedger(
         message: `The ledger has no entry for '${want.version}'.`,
       });
       continue;
+    }
+    if (want.changes !== undefined && !sameChangeIds(have.changes, want.changes)) {
+      problems.push({
+        code: 'ledgerChangesDrift',
+        version: want.version,
+        message: `The changes '${want.version}' adopts in defineApiVersions (${want.changes.join(', ') || 'none'}) differ from the ledger's (${have.changes.join(', ') || 'none'}).`,
+      });
     }
     if (want.version !== head) continue;
     if (have.surfaceHash !== want.surfaceHash) {

@@ -1,6 +1,8 @@
 import { context, propagation } from '@opentelemetry/api';
 import { chargeFailureBuckets } from '../admission/charge-failure-buckets.ts';
 import type { Admitted } from '../admission/run-admission.ts';
+import { translateError } from '../api-versions/translate-error.ts';
+import type { VersionTranslation } from '../api-versions/version-translation.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { RuleMatch } from '../errors/rule-match.ts';
 import { buildSnapshot } from '../flags/build-snapshot.ts';
@@ -57,6 +59,7 @@ interface RunState {
   admitted?: Admitted;
   stage: InvokerStage;
   rules?: readonly RuleMatch[];
+  translation?: VersionTranslation;
 }
 
 async function run(
@@ -71,17 +74,24 @@ async function run(
   const session = opened.value;
   const details = env.sessions.detailsOf(session);
   if (details === undefined) throw new Error('unreachable: the session was just registered');
-  const { registry } = env.appOf(details.resolved.app);
+  const app = env.appOf(details.resolved.app);
+  const { registry } = app;
+  const translation = env.translationOf(
+    app,
+    inv.carrier.job === undefined ? session.apiVersion : null,
+  );
+  state.translation = translation;
   const rules = env.rulesOf(registry);
   const { scope } = session;
   const build = env.options.build ?? { id: 'development', revision: 1 };
-  const log = env.options.log.child({
-    requestId: inv.requestId,
-    action: inv.action,
-    ...(scope.level === 'deployment' ? {} : { backend: scope.backendId }),
-    ...(scope.level === 'tenant' ? { tenant: scope.tenantId } : {}),
-  });
-  state.log = log;
+  const logOf = (ref: string): Logger =>
+    env.options.log.child({
+      requestId: inv.requestId,
+      action: ref,
+      ...(scope.level === 'deployment' ? {} : { backend: scope.backendId }),
+      ...(scope.level === 'tenant' ? { tenant: scope.tenantId } : {}),
+    });
+  state.log = logOf(inv.action);
   span.setAttributes({
     'keelwerk.app': session.app,
     'keelwerk.transport': inv.carrier.transport,
@@ -92,9 +102,13 @@ async function run(
     ...(scope.level === 'tenant' ? { 'keelwerk.tenant': scope.tenantId } : {}),
   });
   state.stage = 'locate';
-  const action = locate(registry, inv.action, scope);
+  const action = locate(registry, inv.action, scope, translation);
   state.action = action;
+  const log = logOf(action.ref);
+  state.log = log;
   span.setAttributes({
+    'keelwerk.action': action.ref,
+    'keelwerk.action.requested': inv.action,
     'keelwerk.module': action.module,
     'keelwerk.kind': action.kind,
     'keelwerk.execution': action.execution,
@@ -112,9 +126,9 @@ async function run(
   });
   state.admitted = await admit(env, { action, session, details, invocation: inv, span, flags });
   state.stage = 'validate';
-  const validated = await validate(action, inv.input);
+  const validated = await validate(action, inv.input, translation);
   state.stage = 'translate';
-  const input = translate('input', validated);
+  const input = await translate(translation, 'input', action, validated);
   state.stage = 'authorize';
   const matched = authorize({
     registry,
@@ -145,25 +159,29 @@ async function run(
   });
   // An accepted command has no output yet: its receipt is the answer and nothing is shaped.
   state.stage = 'shape';
-  const output =
-    answered.receipt?.status === 'accepted'
-      ? answered.output
-      : await shapeOutput({
-          registry,
-          rules,
-          action,
-          principal: session.principal,
-          scope: answered.scope,
-          flags,
-          outputOf: (one) => env.entityOutputOf(registry, one),
-          relations: relationsAfter(registry, action, details),
-          environment: env.options.environment,
-          output: translate('output', answered.output),
-          ...(answered.replayRef === undefined ? {} : { replayRef: answered.replayRef }),
-          onDropped: (dropped) => {
-            log.warn('a row outside the read plan was dropped', { ...dropped });
-          },
-        });
+  let output: unknown;
+  if (answered.receipt?.status === 'accepted') {
+    output = answered.output;
+  } else {
+    const shaped = await shapeOutput({
+      registry,
+      rules,
+      action,
+      principal: session.principal,
+      scope: answered.scope,
+      flags,
+      outputOf: (one) => env.entityOutputOf(registry, one),
+      relations: relationsAfter(registry, action, details),
+      environment: env.options.environment,
+      output: answered.output,
+      ...(answered.replayRef === undefined ? {} : { replayRef: answered.replayRef }),
+      onDropped: (dropped) => {
+        log.warn('a row outside the read plan was dropped', { ...dropped });
+      },
+    });
+    state.stage = 'translate';
+    output = await translate(translation, 'output', action, shaped, validated);
+  }
   return {
     ok: true,
     value: output,
@@ -223,7 +241,7 @@ export function createInvoker(options: InvokerOptions): Invoker {
       const completed = complete({
         span,
         log: state.log,
-        action: inv.action,
+        action: state.action?.ref ?? inv.action,
         outcome,
       }) as Outcome<O>;
       if (options.onDecision !== undefined) {
@@ -231,7 +249,7 @@ export function createInvoker(options: InvokerOptions): Invoker {
           options.onDecision({
             kind: 'invoke',
             requestId: inv.requestId,
-            action: inv.action,
+            action: state.action?.ref ?? inv.action,
             transport: inv.carrier.transport,
             stage: completed.ok ? 'complete' : state.stage,
             rules: state.rules ?? (completed.ok ? [] : (completed.error.rules ?? [])),
@@ -241,7 +259,12 @@ export function createInvoker(options: InvokerOptions): Invoker {
           state.log.warn('the decision hook failed', { error: String(error) });
         }
       }
-      return completed;
+      // The log, the span and the decision hook keep the head's action reference and error code; the caller sees the version's.
+      return (
+        !completed.ok && state.translation !== undefined
+          ? { ok: false, error: translateError(state.translation, completed.error, state.action) }
+          : completed
+      ) as Outcome<O>;
     },
     subscribe: <I, E>(_inv: Invocation<I>): AsyncIterable<LiveFrame<E>> => ({
       // biome-ignore lint/correctness/useYield: live updates are not available in this release

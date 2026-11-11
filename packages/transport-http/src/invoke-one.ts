@@ -1,6 +1,7 @@
 import {
   type InvokeRequest,
   type InvokeResponse,
+  isAppNotServedError,
   type KeelwerkError,
   newUuidV7,
   type Outcome,
@@ -11,12 +12,19 @@ import { toWire } from '@keelwerk/core/wire';
 import type { EndpointCall } from './endpoint-call.ts';
 import { keepMasked } from './keep-masked.ts';
 
+/**
+ * The action the request names, or `undefined` when the process does not serve the session's app
+ * (the invoker then answers for it). Any other failure of the surface, a version the projection
+ * cannot derive for one, is not an unknown action: it propagates, so the endpoint answers an
+ * internal error and logs it, and no answer leaves without its wire encoding.
+ */
 function actionOf(call: EndpointCall, ref: string): SurfaceAction | undefined {
+  const { session, host } = call;
   try {
-    const { session, host } = call;
     return host.deps.surface(session.app, session.apiVersion).actions.find((a) => a.ref === ref);
-  } catch {
-    return undefined;
+  } catch (failure) {
+    if (isAppNotServedError(failure)) return undefined;
+    throw failure;
   }
 }
 

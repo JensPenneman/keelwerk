@@ -1,4 +1,6 @@
 import { trace } from '@opentelemetry/api';
+import { applyVersionChanges } from '../api-versions/apply-version-changes.ts';
+import type { VersionTranslation } from '../api-versions/version-translation.ts';
 import { normalizeRule } from '../authorization/normalize-rule.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import type { TenantResolver } from '../edge/tenant-resolver.ts';
@@ -39,6 +41,8 @@ export interface InvokerEnv {
   rulesOf(registry: Registry): readonly NormalizedRule[];
   /** The entity rows an action's output carries, found once per registry and action; throws when ambiguous. */
   entityOutputOf(registry: Registry, action: ActionEntry): EntityOutput | undefined;
+  /** The version changes an API version lacks, compiled once per registry and version; null is the code's head (jobs, explain), which lacks nothing. */
+  translationOf(app: InvokerApp, apiVersion: string | null): VersionTranslation;
 }
 
 /** Builds the shared environment of an invoker; refuses an unusable tenant resolution at once. */
@@ -55,6 +59,7 @@ export function createInvokerEnv(options: InvokerOptions): InvokerEnv {
   checkResolvers(tenantResolution);
   const rules = new WeakMap<Registry, readonly NormalizedRule[]>();
   const outputs = new WeakMap<Registry, Map<string, EntityOutput | undefined>>();
+  const translations = new WeakMap<Registry, Map<string, VersionTranslation>>();
   return {
     options,
     sessions: createSessionRegistry(),
@@ -87,6 +92,16 @@ export function createInvokerEnv(options: InvokerOptions): InvokerEnv {
       const found = entityOutputOf(registry, action);
       known.set(action.ref, found);
       return found;
+    },
+    translationOf: (app, apiVersion) => {
+      const known = translations.get(app.registry) ?? new Map<string, VersionTranslation>();
+      translations.set(app.registry, known);
+      const key = apiVersion ?? '';
+      const built = known.get(key);
+      if (built !== undefined) return built;
+      const made = applyVersionChanges({ registry: app.registry, api: app.api, apiVersion });
+      known.set(key, made);
+      return made;
     },
   };
 }

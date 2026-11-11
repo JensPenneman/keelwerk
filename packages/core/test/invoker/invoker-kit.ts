@@ -100,6 +100,7 @@ function registryOf(actions: readonly ActionEntry[], extra: Partial<Registry> = 
     rules: new Map(),
     fills: new Map(),
     extensionPoints: new Map(),
+    versionChanges: new Map(),
     ...extra,
   } as unknown as Registry;
 }

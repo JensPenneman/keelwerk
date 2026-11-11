@@ -1,23 +1,26 @@
-import type { Artifact, MountContext, MountHandle, Scope } from '@keelwerk/core';
+import type { ApiSurface, Artifact, MountContext, MountHandle, Scope } from '@keelwerk/core';
 import { buildRouteTable } from './build-route-table.ts';
 import { checkRestSurface } from './check/check-rest-surface.ts';
 import { createRestHandler } from './create-rest-handler.ts';
 import { inFlightHandler } from './in-flight-handler.ts';
+import { perVersionMount } from './per-version-mount.ts';
 import type { RestConfig } from './rest-config.ts';
 import { restConfigOf } from './rest-config-of.ts';
 import type { RestStaticOptions } from './rest-static-options.ts';
 
 /**
- * Mounts the REST surface of one app on the host (section 16.3.2): refuses a surface the check
- * names a problem for, builds the route table of the app's surface and registers one handler
- * under the base path and one per host-root `rest.path`. The host strips the prefix it routed on;
- * the handler never does. The backend's configuration comes through `ctx.config`, which the
- * runtime reads from the control store.
+ * Mounts the REST surface of one app on the host (section 16.3.2): refuses a head surface the
+ * check names a problem for, builds the route table of the head surface for the host-root paths
+ * (a `rest.path` hint never changes per version) and registers one handler under the base path
+ * and one per host-root `rest.path`. The handler serves each request from the route table of the
+ * session's API version, built at first use. The host strips the prefix it routed on; the handler
+ * never does. The backend's configuration comes through `ctx.config`, which the runtime reads from
+ * the control store.
  */
 export async function mountSurface(
   ctx: MountContext<RestConfig>,
   options: RestStaticOptions,
-  artifacts: () => readonly Artifact[],
+  artifacts: (surface: ApiSurface) => readonly Artifact[],
 ): Promise<MountHandle> {
   const refused = checkRestSurface(ctx.surface, options)[0];
   if (refused !== undefined) {
@@ -28,12 +31,10 @@ export async function mountSurface(
   const deps = {
     app: ctx.app,
     deploymentId: ctx.deploymentId,
-    surface: ctx.surface,
+    versions: perVersionMount(ctx, options, artifacts),
     invoker: ctx.invoker,
-    table,
     options,
     config: (scope: Scope) => restConfigOf(ctx.config(scope)),
-    artifacts: artifacts(),
     log: ctx.log,
     development: ctx.development === true,
     ...(ctx.clock === undefined ? {} : { clock: ctx.clock }),

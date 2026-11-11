@@ -6,6 +6,7 @@ export type { AnchorWriterOptions } from './anchors/create-anchor-writer.ts';
 export { createAnchorWriter } from './anchors/create-anchor-writer.ts';
 export type { AnchorVerdict } from './anchors/verify-anchors.ts';
 export { verifyAnchors } from './anchors/verify-anchors.ts';
+export { adoptedChanges } from './api-versions/adopted-changes.ts';
 export type { ApiVersionLedger, LedgerEntry } from './api-versions/api-version-ledger.ts';
 export { appendLedgerEntry } from './api-versions/append-ledger-entry.ts';
 export type { ExpectedLedgerEntry, LedgerProblem } from './api-versions/check-ledger.ts';
@@ -25,6 +26,8 @@ export { refreshHeadEntry } from './api-versions/refresh-head-entry.ts';
 export { renderApiVersionLedger } from './api-versions/render-api-version-ledger.ts';
 export type { ChosenVersion, VersionChoice } from './api-versions/resolve-version.ts';
 export { resolveVersion } from './api-versions/resolve-version.ts';
+export type { ChangeFixtureFailure } from './api-versions/run-change-fixtures.ts';
+export { runChangeFixtures } from './api-versions/run-change-fixtures.ts';
 export type {
   SurfaceChange,
   SurfaceChangeClass,
@@ -37,6 +40,8 @@ export type {
   VersionChangeFixture,
   VersionTransforms,
 } from './api-versions/version-change.ts';
+export type { VersionProjection } from './api-versions/version-projection.ts';
+export { versionProjection } from './api-versions/version-projection.ts';
 export { applyPolicyOverrides } from './authorization/apply-policy-overrides.ts';
 export type { AuthorizedAction } from './authorization/authorized-action.ts';
 export type { CaslRule } from './authorization/casl-rule.ts';
@@ -773,10 +778,12 @@ export type { StreamEntry } from './registry/stream-entry.ts';
 export type { TopicEntry } from './registry/topic-entry.ts';
 export type { TrackRef } from './registry/track-ref.ts';
 export type { VersionChangeEntry } from './registry/version-change-entry.ts';
+export { AppNotServedError } from './runtime/app-not-served-error.ts';
 export type { BuildIdApp } from './runtime/build-manifest-of.ts';
 export { buildManifestOf } from './runtime/build-manifest-of.ts';
 export type { DeploymentDefinition } from './runtime/deployment-definition.ts';
 export type { FallbackReporter } from './runtime/fallback-reporter.ts';
+export { isAppNotServedError } from './runtime/is-app-not-served-error.ts';
 export type { ProcessRole } from './runtime/process-role.ts';
 export type { Runtime, StartRuntime } from './runtime/runtime.ts';
 export type { RuntimeControl } from './runtime/runtime-control.ts';

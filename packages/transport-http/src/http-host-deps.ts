@@ -11,7 +11,10 @@ import type {
 /** What the runtime hands the host when it builds it (wired by the runtime, section 3.3). */
 export interface HttpHostDeps {
   readonly invoker: Invoker;
-  /** The surface of an app at an API version; default: the head. */
+  /**
+   * The surface of an app at an API version; default: the head. It throws `AppNotServedError` for an
+   * app this process does not serve; any other throw is an internal failure.
+   */
   surface(appId: string, version?: string): ApiSurface;
   readonly telemetry: Telemetry;
   readonly log: Logger;

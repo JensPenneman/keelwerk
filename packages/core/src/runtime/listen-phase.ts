@@ -1,11 +1,11 @@
 import { metrics, trace } from '@opentelemetry/api';
+import type { VersionProjection } from '../api-versions/version-projection.ts';
 import type { ControlStore } from '../control/control-store.ts';
 import { errors } from '../errors/errors.ts';
 import type { Invoker } from '../invoker/invoker.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { ApiSurface } from '../surface/api-surface.ts';
-import { deriveSurface } from '../surface/derive-surface.ts';
 import type { MountHandle } from '../transport/mount-handle.ts';
 import type { TransportHost } from '../transport/transport-host.ts';
 import { backendConfigs } from './backend-configs.ts';
@@ -41,6 +41,8 @@ export async function listenPhase(input: {
   readonly control: ControlStore;
   readonly clock: Clock;
   readonly surface: (appId: string, version?: string) => ApiSurface;
+  /** The app's surface at each declared version: the one the runtime's `surface` serves, so a mount and the host answer the same document. */
+  readonly surfaces: (app: ServedApp) => VersionProjection<ApiSurface>;
 }): Promise<Listening> {
   const telemetry = { tracer: trace.getTracer('keelwerk'), meter: metrics.getMeter('keelwerk') };
   const configs = backendConfigs(input.control, input.clock);
@@ -86,12 +88,14 @@ export async function listenPhase(input: {
   let bound: Awaited<ReturnType<HostInstance['listen']>> | undefined;
   try {
     for (const app of input.served) {
-      const { surface } = deriveSurface(app.source, app.head);
+      const surfaces = input.surfaces(app);
+      const surface = surfaces.at(app.head);
       for (const transport of app.transports) {
         mounts.push(
           await transport.mount({
             app: app.id,
             surface,
+            surfaces,
             deploymentId: input.deploymentId,
             invoker,
             host,

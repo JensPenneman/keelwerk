@@ -10,6 +10,10 @@ import type { TransportHost } from '../transport/transport-host.ts';
 /** What the runtime hands the HTTP host when it builds it (section 16.3.3). */
 interface HostDeps {
   readonly invoker: Invoker;
+  /**
+   * Throws `AppNotServedError` for an app this process does not serve; any other throw is an
+   * internal failure.
+   */
   surface(appId: string, version?: string): ApiSurface;
   readonly telemetry: Telemetry;
   readonly log: Logger;

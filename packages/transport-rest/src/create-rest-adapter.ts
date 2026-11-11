@@ -27,6 +27,6 @@ export function createRestAdapter(
     static: fixed,
     check: (surface) => checkRestSurface(surface, fixed),
     artifacts,
-    mount: (ctx) => mountSurface(ctx, fixed, () => artifacts(ctx.surface)),
+    mount: (ctx) => mountSurface(ctx, fixed, artifacts),
   };
 }

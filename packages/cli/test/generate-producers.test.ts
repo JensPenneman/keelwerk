@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { TransportAdapter } from '@keelwerk/core';
@@ -6,6 +7,7 @@ import { describe, expect, test } from 'vitest';
 import { cutVersion } from '../src/commands/surface/cut-version.ts';
 import type { AppDerivation } from '../src/producers/app-derivation.ts';
 import { deriveApps } from '../src/producers/derive-apps.ts';
+import { produceSurfaces } from '../src/producers/surfaces.ts';
 import { produceTransportArtefacts } from '../src/producers/transport-artefacts.ts';
 import { demoApp, useScratchProject } from './support/scratch-project.ts';
 
@@ -74,6 +76,46 @@ describe('transport artefacts', () => {
   }, 60_000);
 });
 
+describe('the ledger a first run writes', () => {
+  test('golden: every entry is created, the adopted change ids included', async () => {
+    const { apps } = await deriveApps(repository);
+    const versioned = apps.find((app) => app.app.id === 'versioned');
+    if (versioned === undefined) throw new Error('the versioned fixture app was not found');
+    const empty = join(tmpdir(), 'keelwerk-no-ledger', 'versioned');
+    const produced = await produceSurfaces(repository, [{ ...versioned, directory: empty }], false);
+    expect(produced.failures).toEqual([]);
+    const [older, newer] = versioned.implied;
+    const file = produced.files.find((item) => item.path.endsWith('ledger.json'));
+    expect(file?.text).toBe(`{
+  "app": "versioned",
+  "format": "keelwerk.ledger/1",
+  "versions": [
+    {
+      "changes": [],
+      "modules": {
+        "core": "0.0.0",
+        "roster": "1.0.0"
+      },
+      "surfaceHash": "${older?.surfaceHash}",
+      "version": "2026-11-04"
+    },
+    {
+      "changes": [
+        "roster.contactDisplayName"
+      ],
+      "modules": {
+        "core": "0.0.0",
+        "roster": "1.0.0"
+      },
+      "surfaceHash": "${newer?.surfaceHash}",
+      "version": "2026-11-11"
+    }
+  ]
+}
+`);
+  }, 60_000);
+});
+
 describe('cutting an API version', () => {
   test('the head entry follows the sources one last time, then the new version is appended', () => {
     const ledger = {
@@ -130,6 +172,36 @@ describe('surface version new', () => {
     const check = await project.run('generate', '--check');
     expect(check.code).toBe(1);
     expect(check.stderr).toContain('ledgerEntryUnknown');
+  }, 60_000);
+
+  test('adopting a change prints the quoted id in the line for defineApiVersions and records it in the ledger', async () => {
+    const project = await newProject();
+    await project.write({ 'apps/demo/src/app.ts': demoApp });
+    expect((await project.run('generate')).code).toBe(0);
+    const cut = await project.run(
+      'surface',
+      'version',
+      'new',
+      '2026-12-01',
+      '--app',
+      'demo',
+      '--change',
+      'roster.contactDisplayName',
+    );
+    expect(cut.code).toBe(0);
+    expect(cut.stdout.split('\n')).toContain(
+      "add to defineApiVersions of demo: '2026-12-01': { changes: ['roster.contactDisplayName'] }",
+    );
+    const ledger = JSON.parse(
+      await readFile(
+        join(project.root, 'apps/demo/generated/api-surface/demo/ledger.json'),
+        'utf8',
+      ),
+    ) as { versions: { version: string; changes?: string[] }[] };
+    expect(ledger.versions.at(-1)).toMatchObject({
+      version: '2026-12-01',
+      changes: ['roster.contactDisplayName'],
+    });
   }, 60_000);
 
   test('a date out of order, a malformed date and an unknown app are usage mistakes', async () => {

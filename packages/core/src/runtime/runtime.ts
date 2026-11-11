@@ -9,7 +9,10 @@ import type { RuntimeOptions } from './runtime-options.ts';
 /** A booted process (section 3.3). */
 export interface Runtime {
   readonly invoker: Invoker;
-  /** Default: the app's head. */
+  /**
+   * Default: the app's head. Throws `AppNotServedError` for an app this process does not serve; any
+   * other throw is an internal failure.
+   */
   surface(appId: string, version?: string): ApiSurface;
   /** The composed registry of an app (section 3.3). */
   registry(appId: string): Registry;

@@ -11,13 +11,13 @@ import { decodeRequest } from './decode-request.ts';
 import { encodeResponse } from './encode-response.ts';
 import { idempotencyKey } from './idempotency-key.ts';
 import { locateRoute } from './locate-route.ts';
-import { type OpenApiDocuments, openApiDocuments } from './openapi-documents.ts';
+import type { OpenApiDocuments } from './openapi-documents.ts';
 import { readPreconditions } from './preconditions.ts';
 import { preferHeader } from './prefer-header.ts';
 import { problemResponse } from './problem-details.ts';
-import { problemPages } from './problem-pages.ts';
 import { referencePage } from './reference-page.ts';
 import type { RestHandlerDeps } from './rest-handler-deps.ts';
+import type { RestVersionMount } from './rest-version-mount.ts';
 import type { RouteMatch } from './route-table.ts';
 import { signalOf } from './signal-of.ts';
 
@@ -149,11 +149,19 @@ function failure(
  */
 export function createRestHandler(deps: RestHandlerDeps): HttpHandler {
   const basePath = deps.options.basePath ?? '/api';
-  const pages: Pages = { problem: problemPages(deps.surface), reference: referencePage() };
-  const documents = openApiDocuments(deps.artifacts);
+  const reference = referencePage();
   return async (request, ctx) => {
     const method = request.method === 'HEAD' ? 'GET' : request.method;
-    const located = locateRoute(deps.table, method, {
+    let mount: RestVersionMount;
+    try {
+      mount = deps.versions.at(ctx.session.apiVersion);
+    } catch (thrown) {
+      const mountPath = deps.root === true ? basePath : ctx.basePath;
+      return failure(deps, asKeelwerkError(thrown), request, ctx, mountPath);
+    }
+    const pages: Pages = { problem: mount.problem, reference };
+    const { documents } = mount;
+    const located = locateRoute(mount.table, method, {
       path: ctx.path,
       stripped: ctx.basePath,
       basePath,

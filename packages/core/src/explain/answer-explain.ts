@@ -126,7 +126,8 @@ export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker 
     }
     const validated =
       request.input === undefined ? undefined : await validate(action, request.input);
-    const value = validated === undefined ? undefined : translate('input', validated);
+    const value =
+      validated === undefined ? undefined : await translate(undefined, 'input', action, validated);
     const explanation = explainDecision({
       registry,
       rules,
@@ -138,7 +139,9 @@ export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker 
     if (!dry) return { mode: 'decision', ...explanation };
 
     const dryInput =
-      request.input === undefined ? translate('input', await validate(action, {})) : value;
+      request.input === undefined
+        ? await translate(undefined, 'input', action, await validate(action, {}))
+        : value;
     authorize({
       registry,
       rules,

@@ -51,14 +51,20 @@ export async function produceSurfaces(
       if (ledgerText === undefined) {
         failures.push(`${name} does not exist; run keelwerk generate`);
       } else {
-        for (const problem of checkLedger(ledger, app.app.id, app.implied)) {
+        for (const problem of checkLedger(
+          ledger,
+          app.app.id,
+          app.implied,
+          new Set(app.app.registry.versionChanges.keys()),
+        )) {
           failures.push(`${name}: ${problem.code}: ${problem.message}`);
         }
       }
     } else {
       let next: ApiVersionLedger = ledger;
       if (ledgerText === undefined) {
-        for (const entry of app.implied) next = appendLedgerEntry(next, { ...entry, changes: [] });
+        for (const entry of app.implied)
+          next = appendLedgerEntry(next, { ...entry, changes: entry.changes ?? [] });
       } else {
         const head = app.implied.at(-1);
         const recorded = ledger.versions.at(-1)?.version;

@@ -1,6 +1,7 @@
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { ApiVersionLedger } from './api-version-ledger.ts';
 import type { ExpectedLedgerEntry } from './check-ledger.ts';
+import { sameChangeIds } from './same-change-ids.ts';
 
 function sameModules(
   left: Readonly<Record<string, string>>,
@@ -13,7 +14,8 @@ function sameModules(
 /**
  * The ledger with its head entry brought to the surface the sources imply (section 13.7): the head
  * is the working entry until `surface version new` cuts it, so its hash and module versions follow
- * the sources; released entries are never touched (18.6). A head of another version is refused.
+ * the sources, the adopted change ids included when the implied entry lists them (compared as sets, so the order of `defineApiVersions` never rewrites the ledger); released
+ * entries are never touched (18.6). A head of another version is refused.
  */
 export function refreshHeadEntry(
   ledger: ApiVersionLedger,
@@ -27,14 +29,19 @@ export function refreshHeadEntry(
       message: `The ledger of '${ledger.app}' has no head entry for '${implied.version}'.`,
     });
   }
-  if (head.surfaceHash === implied.surfaceHash && sameModules(head.modules, implied.modules)) {
+  const changes = implied.changes ?? head.changes;
+  if (
+    head.surfaceHash === implied.surfaceHash &&
+    sameModules(head.modules, implied.modules) &&
+    sameChangeIds(head.changes, changes)
+  ) {
     return ledger;
   }
   return {
     ...ledger,
     versions: [
       ...ledger.versions.slice(0, -1),
-      { ...head, surfaceHash: implied.surfaceHash, modules: implied.modules },
+      { ...head, surfaceHash: implied.surfaceHash, modules: implied.modules, changes },
     ],
   };
 }

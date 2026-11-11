@@ -79,7 +79,7 @@ export const versionNewCommand: Command<CliContext> = buildCommand<
         await writeModuleManifest(path, renderApiVersionLedger(cut.ledger));
         scoped.output.line(`${shownPath(root, path)} written`);
         scoped.output.line(
-          `add to defineApiVersions of ${app.app.id}: '${date}': ${changes.length === 0 ? '{}' : `{ changes: [${changes.join(', ')}] }`}`,
+          `add to defineApiVersions of ${app.app.id}: '${date}': ${changes.length === 0 ? '{}' : `{ changes: [${changes.map((id) => `'${id}'`).join(', ')}] }`}`,
         );
       }
     } catch (failure) {

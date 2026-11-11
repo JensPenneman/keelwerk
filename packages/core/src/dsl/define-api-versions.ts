@@ -24,10 +24,14 @@ type BadDates<V> = Exclude<keyof V & string, ApiVersionDate>;
 /** A dated API version: `YYYY-MM-DD` (section 18.2). */
 type ApiVersionDate = `${number}-${number}-${number}`;
 
-/** One dated version: when it is deprecated and retired, and the app-level changes it adopts. */
+/**
+ * One dated version: when it is deprecated and retired, and the changes it adopts. A string is the
+ * id of a module's version change (`'<module>.<key>'`, mirrored from the ledger); an object is an
+ * app-level change.
+ */
 export interface ApiVersionEntry {
   readonly deprecated?: { readonly at: string; readonly sunset: string };
-  readonly changes?: readonly object[];
+  readonly changes?: readonly (string | object)[];
 }
 
 /** The versions of an app by date, oldest first. */

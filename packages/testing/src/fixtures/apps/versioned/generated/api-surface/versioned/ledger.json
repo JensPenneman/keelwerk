@@ -1,0 +1,26 @@
+{
+  "app": "versioned",
+  "format": "keelwerk.ledger/1",
+  "versions": [
+    {
+      "changes": [],
+      "modules": {
+        "core": "0.0.0",
+        "roster": "1.0.0"
+      },
+      "surfaceHash": "sha256-XgBtyHuQxJ6tSA-ZeLQ6_vEe7_R_YrLdA8QMDrCyWpw",
+      "version": "2026-11-04"
+    },
+    {
+      "changes": [
+        "roster.contactDisplayName"
+      ],
+      "modules": {
+        "core": "0.0.0",
+        "roster": "1.0.0"
+      },
+      "surfaceHash": "sha256-1Ktxo3fmWRzaIcYE6BAfAhJGRVFaAVkaJV-uwZcZ2yo",
+      "version": "2026-11-11"
+    }
+  ]
+}

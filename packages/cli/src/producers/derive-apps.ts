@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ExpectedLedgerEntry } from '@keelwerk/core';
-import { coreApiVersions, deriveSurface, pascal } from '@keelwerk/core';
+import { adoptedChanges, coreApiVersions, deriveSurface, pascal } from '@keelwerk/core';
 import type { AppDerivation } from './app-derivation.ts';
 import type { DerivedApps } from './derived-apps.ts';
 import { findRoots } from './find-roots.ts';
@@ -64,6 +64,7 @@ export async function deriveApps(
         version: date,
         surfaceHash: derived.surface.hash,
         modules: Object.fromEntries(derived.surface.modules.map((item) => [item.id, item.version])),
+        changes: adoptedChanges(app.api, date),
       });
     }
     if (!broken) apps.push({ directory, shown, app, appType, dates, surfaces, implied });

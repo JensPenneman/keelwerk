@@ -1,4 +1,4 @@
-import { KeelwerkError } from '@keelwerk/core';
+import { AppNotServedError, KeelwerkError, type Logger } from '@keelwerk/core';
 import { describe, expect, it } from 'vitest';
 import { createFakeInvoker } from './support/fake-invoker.ts';
 import { fakeSession } from './support/fake-session.ts';
@@ -226,6 +226,88 @@ describe('body limit', () => {
     const body = JSON.stringify({ action: 'library.lookup' });
     const { host } = setup({ maxBodyBytes: body.length });
     const response = await host.fetch(postJson('/_keelwerk/v1/invoke', body));
+    expect(response.status).toBe(200);
+  });
+});
+
+describe('a surface that cannot be derived for the session', () => {
+  const recorded = (): { lines: [string, Record<string, unknown>][]; log: Logger } => {
+    const lines: [string, Record<string, unknown>][] = [];
+    const log: Logger = {
+      debug() {},
+      info() {},
+      warn() {},
+      error: (message, fields) => lines.push([message, { ...fields }]),
+      child: (bindings) => ({
+        ...log,
+        error: (message, fields) => lines.push([message, { ...bindings, ...fields }]),
+      }),
+    };
+    return { lines, log };
+  };
+  const failing = (): never => {
+    throw new RangeError('Version 2026-01-01 is not among the declared versions.');
+  };
+
+  it('answers 500 and logs it once, never an answer without its wire encoding', async () => {
+    const { lines, log } = recorded();
+    const invoker = createFakeInvoker({
+      actions: { 'library.echo': () => ({ ok: true, value: 'raw' }) },
+    });
+    const { host } = setup({}, invoker, { surface: failing, log });
+    const response = await host.fetch(postJson('/_keelwerk/v1/invoke', { action: 'library.echo' }));
+    expect(response.status).toBe(500);
+    expect(invoker.invoked).toHaveLength(0);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]?.[0]).toBe('request failed');
+    expect(lines[0]?.[1]).toMatchObject({
+      requestId: response.headers.get('x-request-id'),
+      cause: 'Version 2026-01-01 is not among the declared versions.',
+    });
+  });
+
+  it('answers a batch the same way: 500, nothing invoked, one line in the log', async () => {
+    const { lines, log } = recorded();
+    const invoker = createFakeInvoker({
+      actions: { 'library.echo': () => ({ ok: true, value: 'raw' }) },
+    });
+    const { host } = setup({}, invoker, { surface: failing, log });
+    const response = await host.fetch(
+      postJson('/_keelwerk/v1/batch', { invocations: [{ action: 'library.echo' }] }),
+    );
+    expect(response.status).toBe(500);
+    expect(invoker.invoked).toHaveLength(0);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]?.[0]).toBe('request failed');
+    expect(lines[0]?.[1]).toMatchObject({ requestId: response.headers.get('x-request-id') });
+  });
+
+  it('still hands an app the process does not serve to the invoker', async () => {
+    const invoker = createFakeInvoker({
+      actions: { 'library.echo': () => ({ ok: true, value: 'raw' }) },
+    });
+    const notServed = (): never => {
+      throw new AppNotServedError('library');
+    };
+    const { host } = setup({}, invoker, { surface: notServed });
+    const response = await host.fetch(postJson('/_keelwerk/v1/invoke', { action: 'library.echo' }));
+    expect(response.status).toBe(200);
+  });
+
+  it('hands a look-alike made by another copy of the core to the invoker too', async () => {
+    const invoker = createFakeInvoker({
+      actions: { 'library.echo': () => ({ ok: true, value: 'raw' }) },
+    });
+    const lookAlike = Object.assign(new RangeError('not served'), {
+      name: 'AppNotServedError',
+      appId: 'library',
+    });
+    expect(lookAlike).not.toBeInstanceOf(AppNotServedError);
+    const notServed = (): never => {
+      throw lookAlike;
+    };
+    const { host } = setup({}, invoker, { surface: notServed });
+    const response = await host.fetch(postJson('/_keelwerk/v1/invoke', { action: 'library.echo' }));
     expect(response.status).toBe(200);
   });
 });
