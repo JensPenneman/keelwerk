@@ -54,7 +54,11 @@ function checkedUrl(endpoint: string, source: string): string {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw errors.validation(`telemetry.otlp (${source}) is not an http or https URL.`);
   }
-  return endpoint.replace(/\/+$/, '');
+  // Trailing slashes are cut without a regular expression: a pattern like /\/+$/ takes quadratic
+  // time on a long run of slashes.
+  let end = endpoint.length;
+  while (end > 0 && endpoint.charCodeAt(end - 1) === 47) end -= 1;
+  return endpoint.slice(0, end);
 }
 
 /** Races `work` against the deadline; a failure or the deadline is logged as a warning. */
