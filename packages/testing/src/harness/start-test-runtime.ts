@@ -128,6 +128,7 @@ export async function startTestRuntime<
         schemaPlanner(),
         ...(kind === 'pglite' || external !== undefined ? [fallbackReporter()] : []),
         testSecrets,
+        ...(options.flagProviders ?? []),
       ],
       control:
         external === undefined
@@ -163,6 +164,7 @@ export async function startTestRuntime<
               },
             },
           }),
+      ...(options.env === undefined ? {} : { env: options.env }),
     },
   );
   const backend = await runtime.control.createBackend({

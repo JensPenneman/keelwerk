@@ -1,4 +1,5 @@
 import { KeelwerkError } from '../../errors/keelwerk-error.ts';
+import type { FlagSnapshot } from '../../flags/flag-snapshot.ts';
 import { runGeneratedRead } from '../../generated-actions/run-generated-read.ts';
 import { runRead } from '../../interpreter/run-read.ts';
 import type { Logger } from '../../observability/logger.ts';
@@ -30,6 +31,8 @@ export interface ExecuteInput {
   readonly details: SessionDetails;
   readonly span: Span;
   readonly log: Logger;
+  /** The invocation's flag snapshot; absent: declared defaults. */
+  readonly flags?: FlagSnapshot | undefined;
 }
 
 /** What the execute stage answered, and the scope it ran in (a backend action of a tenant session runs in the backend's). */
@@ -71,6 +74,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
           signal,
           registry,
           rules: env.rulesOf(registry),
+          flags: input.flags,
           request: requestInfoOf(invocation),
           config: moduleConfigOf(configShapes, details.resolved.backendConfig),
           clock: options.clock,
@@ -116,6 +120,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
           principal: session.principal,
           rules,
           epoch,
+          flags: input.flags,
         });
       }
       const result = await runRead({
@@ -135,7 +140,14 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
         log: input.log,
         trace: input.span,
         rules,
-        queryState: stateTokenEncoder({ registry, rules, principal: session.principal, epoch }),
+        flags: input.flags,
+        queryState: stateTokenEncoder({
+          registry,
+          rules,
+          principal: session.principal,
+          epoch,
+          flags: input.flags,
+        }),
         namespaceOf: (scope) => (scope.level === 'backend' ? backendNamespace : target.namespace),
         ...(capabilities === undefined
           ? {}

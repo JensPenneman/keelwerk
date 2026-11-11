@@ -7,6 +7,7 @@ import { buildDecisionRecord } from '../events/build-decision-record.ts';
 import { buildEventMeta } from '../events/build-event-meta.ts';
 import { encodeDecisionRecord } from '../events/encode-decision-record.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
+import { recordedFlagSnapshot } from '../flags/recorded-flag-snapshot.ts';
 import { canonicalizeJson } from '../json/canonicalize-json.ts';
 import { decodeRow } from '../repositories/decode-row.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
@@ -104,6 +105,7 @@ async function replayIn(unit: Unit, input: RedecideInput): Promise<RedecideResul
     log: input.log,
     trace: input.trace,
     rules: input.rules,
+    flags: recordedFlagSnapshot(registry, first.flags),
     apiVersion: input.apiVersion,
     build,
     behaviours: input.behaviours,
@@ -152,6 +154,7 @@ async function replayIn(unit: Unit, input: RedecideInput): Promise<RedecideResul
         scope: input.scope,
         input: input.input,
         reads: targetReads,
+        flags: run.flags,
       });
       loaded.set(`${entry.ref}/${String(target.id)}`, target);
     }

@@ -44,7 +44,12 @@ export function createCallerViews(
       entry,
       rules,
       action,
-      context: principalContextOf(context.registry, context.principal, context.scope),
+      context: principalContextOf(
+        context.registry,
+        context.principal,
+        context.scope,
+        context.flagSnapshot,
+      ),
     });
     views.set(entry.ref, view);
     return view;

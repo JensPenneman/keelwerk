@@ -1,3 +1,4 @@
+import type { FlagResolution } from '../contexts/flag-resolution.ts';
 import type { WireError } from '../errors/wire-error.ts';
 import type { AnyRequest } from '../protocol/any-request.ts';
 import type { AnswerContext } from './answer-context.ts';
@@ -14,32 +15,7 @@ interface RequestAnswers {
   /** One answer per member, in order. */
   all: readonly unknown[];
   /** The flag's value (any kind of 20.2; json values are objects, hence `unknown` in the details), or its `FlagResolution` (20.3) for `ctx.flagDetails`. */
-  flag:
-    | boolean
-    | string
-    | number
-    | {
-        readonly value: unknown;
-        readonly variant: string;
-        readonly reason:
-          | 'STATIC'
-          | 'DEFAULT'
-          | 'TARGETING_MATCH'
-          | 'SPLIT'
-          | 'DISABLED'
-          | 'CACHED'
-          | 'STALE'
-          | 'ERROR';
-        readonly errorCode?:
-          | 'FLAG_NOT_FOUND'
-          | 'TYPE_MISMATCH'
-          | 'TARGETING_KEY_MISSING'
-          | 'PARSE_ERROR'
-          | 'GENERAL';
-        readonly ruleId?: string;
-        readonly ruleVersion?: number;
-        readonly provider: string;
-      };
+  flag: boolean | string | number | FlagResolution<unknown>;
   id: string;
   random: Uint8Array;
   /** `issue`, `reveal` and `verify`, by `op`. */

@@ -51,6 +51,7 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
       log: run.log,
       trace: run.span,
       rules: run.rules,
+      flags: run.flags,
       apiVersion: run.session.apiVersion,
       build: run.build,
       behaviours: options.behaviours?.(run.session.app) ?? registryBehaviours(run.registry),

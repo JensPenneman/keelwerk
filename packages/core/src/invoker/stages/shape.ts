@@ -10,6 +10,7 @@ import type { RowEnvironment } from '../../authorization/row-environment.ts';
 import type { RowMatcher } from '../../authorization/row-matcher.ts';
 import { errors } from '../../errors/errors.ts';
 import { KeelwerkError } from '../../errors/keelwerk-error.ts';
+import type { FlagSnapshot } from '../../flags/flag-snapshot.ts';
 import { principalContextOf } from '../../interpreter/principal-context-of.ts';
 import { refuseRequest } from '../../interpreter/refuse-request.ts';
 import type { Principal } from '../../principals/principal.ts';
@@ -101,7 +102,7 @@ async function shapeRows(
     entry,
     rules: input.rules,
     action: plannedAs(entry, input.action, form),
-    context: principalContextOf(input.registry, input.principal, input.scope),
+    context: principalContextOf(input.registry, input.principal, input.scope, input.flags),
   });
   const answerer = input.relations ?? noRelations;
   const matches = await createRowMatcher([view.plan.where], list, {
@@ -184,6 +185,8 @@ export interface ShapeInput {
   readonly action: ActionEntry;
   readonly principal: Principal;
   readonly scope: Scope;
+  /** The invocation's flag snapshot; absent: declared defaults. */
+  readonly flags?: FlagSnapshot | undefined;
   readonly environment: RowEnvironment;
   /** Finds the entity rows of an output; default: read from the registry on every call (the invoker memoises it). */
   readonly outputOf?: (action: ActionEntry) => EntityOutput | undefined;

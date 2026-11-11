@@ -118,6 +118,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
       scope: run.scope,
       input: run.input,
       reads: targetReads,
+      flags: run.flags,
     });
     loaded.set(`${entry.ref}/${String(target.id)}`, target);
   }
@@ -220,6 +221,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     principal: run.principal,
     scope: run.scope,
     written,
+    flags: run.flags,
   });
 
   const effects = await runKernelEffects({

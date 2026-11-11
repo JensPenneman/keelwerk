@@ -103,6 +103,7 @@ export async function dispatchInlineReactions(
         principal,
         scope: run.scope,
         written: wrote,
+        flags: run.flags,
       });
       performed.push({
         scene: {

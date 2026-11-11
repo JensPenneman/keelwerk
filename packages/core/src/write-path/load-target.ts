@@ -5,6 +5,7 @@ import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { chainSelect } from '../events/chain-select.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
+import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import { principalContextOf } from '../interpreter/principal-context-of.ts';
 import type { Principal } from '../principals/principal.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
@@ -26,6 +27,8 @@ export interface LoadTargetInput {
   readonly scope: Scope;
   readonly input: unknown;
   readonly reads: RecordedRead[];
+  /** The invocation's flag snapshot; absent: declared defaults. */
+  readonly flags?: FlagSnapshot | undefined;
 }
 
 /**
@@ -42,7 +45,7 @@ export async function loadTarget(input: LoadTargetInput): Promise<StorageRow> {
     rules: input.rules,
     action: input.action,
     entity: input.entry.descriptor,
-    context: principalContextOf(input.registry, input.principal, input.scope),
+    context: principalContextOf(input.registry, input.principal, input.scope, input.flags),
   });
   const found = await createEntityRepository(input.unit, input.entry).find({
     where: allOf([{ op: 'eq', field: 'id', value: id }, plan.where]),

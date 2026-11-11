@@ -1901,6 +1901,27 @@
     {
       "aliases": [],
       "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "title",
+          "required": true
+        },
+        {
+          "kind": "string",
+          "name": "isbn",
+          "required": true
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "library.addFeaturedBook",
+      "route": "call library.addFeaturedBook",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
       "flags": [],
       "kind": "command",
       "positionals": [
@@ -2259,5 +2280,5 @@
     "wait-effects"
   ],
   "format": "keelwerk.cli/1",
-  "surface": "sha256-onP1afoJOSM0_dFScISBaMi_Yae8H5hr2jN2r-nB7jU"
+  "surface": "sha256-x0XzkoxmN1mRKFjMoD4R_2poGPj7kMQsRBOGBqoRqBk"
 }

@@ -65,6 +65,7 @@ export function openDecision(input: OpenDecisionInput): OpenedDecision {
     config: run.config ?? (() => undefined),
     log: run.log,
     trace: run.trace,
+    flags: run.flags,
   });
   const inScope: ScopeRunner =
     run.concurrentUnits === true
@@ -94,6 +95,7 @@ export function openDecision(input: OpenDecisionInput): OpenedDecision {
     compute: run.compute,
     log: run.log,
     flags,
+    flagSnapshot: run.flags,
     answer: (request) => dispatchRequest(answerer, request, context),
     record: {
       read: (read) => {

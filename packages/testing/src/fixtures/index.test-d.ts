@@ -2,9 +2,11 @@ import { defineModule } from '@keelwerk/core';
 import { describe, expectTypeOf, test } from 'vitest';
 import type { Library } from './index.ts';
 import { addBook } from './modules/library/src/actions/add-book.ts';
+import { addFeaturedBook } from './modules/library/src/actions/add-featured-book.ts';
 import { findByIsbn } from './modules/library/src/actions/find-by-isbn.ts';
 import { libraryBase } from './modules/library/src/base.ts';
 import { signedIn as addBookSignedIn } from './modules/library/src/policies/add-book/signed-in.ts';
+import { signedIn as addFeaturedBookSignedIn } from './modules/library/src/policies/add-featured-book/signed-in.ts';
 import { operators } from './modules/library/src/policies/book/operators.ts';
 import { readers } from './modules/library/src/policies/book/readers.ts';
 import { writers } from './modules/library/src/policies/book/writers.ts';
@@ -13,9 +15,10 @@ import { signedIn as findByIsbnSignedIn } from './modules/library/src/policies/f
 describe('the library fixture manifest', () => {
   test('has the type of the same module written in one file', () => {
     const written = defineModule(libraryBase, {
-      actions: { addBook, findByIsbn },
+      actions: { addBook, addFeaturedBook, findByIsbn },
       policies: {
         addBook: { signedIn: addBookSignedIn },
+        addFeaturedBook: { signedIn: addFeaturedBookSignedIn },
         book: { operators, readers, writers },
         findByIsbn: { signedIn: findByIsbnSignedIn },
       },

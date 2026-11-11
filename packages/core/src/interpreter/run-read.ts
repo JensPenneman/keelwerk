@@ -80,6 +80,7 @@ export async function runRead(input: RunReadInput): Promise<RunReadResult> {
         log: input.log,
         trace: input.trace,
         action,
+        flags: input.flags,
       });
       const inScope: ScopeRunner =
         input.concurrentUnits === true
@@ -109,6 +110,7 @@ export async function runRead(input: RunReadInput): Promise<RunReadResult> {
         compute: input.compute,
         log: input.log,
         flags,
+        flagSnapshot: input.flags,
         answer: (request) => dispatchRequest(answerer, request, context),
         record: {
           read: (read) => {

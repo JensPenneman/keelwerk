@@ -8320,6 +8320,70 @@
     {
       "auth": "policy",
       "changedIn": [],
+      "errors": [
+        "library.isbn_taken"
+      ],
+      "execution": "sync",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "isbn": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 17,
+            "optional": false,
+            "tag": 2
+          },
+          "title": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 200,
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-EA3qkvdCcLDvgz8Vr5aHlqO6vytGwCqPQ9dA02fwQfo",
+      "instance": false,
+      "kind": "command",
+      "module": "library",
+      "mount": "module",
+      "name": "addFeaturedBook",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "bookId": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "book",
+            "tag": 1,
+            "target": "library.book"
+          },
+          "newFlow": {
+            "access": "read-write",
+            "kind": "boolean",
+            "optional": false,
+            "tag": 2
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-zIGNj5dl3ZSyJMirJKi4IOc_E2RtwXPonvooCR_P638",
+      "ref": "library.addFeaturedBook",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
       "entity": "library.book",
       "errors": [],
       "execution": "sync",
@@ -11643,7 +11707,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-onP1afoJOSM0_dFScISBaMi_Yae8H5hr2jN2r-nB7jU",
+  "hash": "sha256-x0XzkoxmN1mRKFjMoD4R_2poGPj7kMQsRBOGBqoRqBk",
   "modules": [
     {
       "id": "core",

@@ -2,6 +2,7 @@ import { normalizeRule } from '../authorization/normalize-rule.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import type { Principal } from '../principals/principal.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import type { Registry } from '../registry/registry.ts';
@@ -23,6 +24,8 @@ export interface RunGeneratedReadInput {
   readonly rules?: readonly NormalizedRule[];
   /** The scope's epoch (section 15.2.6); default 0, the epoch of a scope whose positions never restarted. */
   readonly epoch?: number;
+  /** The invocation's flag snapshot; absent: declared defaults. */
+  readonly flags?: FlagSnapshot | undefined;
   readonly signal?: AbortSignal;
 }
 
@@ -61,7 +64,13 @@ export async function runGeneratedRead(input: RunGeneratedReadInput): Promise<un
         action,
         principal: input.principal,
         rules,
-        tokens: { registry, rules, principal: input.principal, epoch: input.epoch ?? 0 },
+        tokens: {
+          registry,
+          rules,
+          principal: input.principal,
+          epoch: input.epoch ?? 0,
+          flags: input.flags,
+        },
         scope: unit.scope,
         input: input.input,
         head,

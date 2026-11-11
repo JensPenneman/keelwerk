@@ -24,7 +24,7 @@ describe('parts in a copy of the library fixture', () => {
         ['rule', 'library.book.no-reading', '--effect', 'deny'],
         ['src/policies/book/no-reading.ts'],
       ],
-      [['flag', 'library.newFlow', '--expires', '2027-01-31'], ['src/flags/new-flow.ts']],
+      [['flag', 'library.trialFlow', '--expires', '2027-01-31'], ['src/flags/trial-flow.ts']],
       [['error', 'library.not-available'], ['src/errors/not-available.ts']],
       [['service', 'library.find-title'], ['src/services/find-title.ts']],
       [
@@ -112,17 +112,17 @@ describe('parts in a copy of the library fixture', () => {
     expect(entity.stdout).toContain('entities: { reader },');
     const flag = await runNew(
       'flag',
-      'library.newFlow',
+      'library.trialFlow',
       '--expires',
       '2027-01-31',
       '--dir',
       'modules/library',
     );
-    expect(flag.stdout).toContain('flags: { newFlow },');
-    const generated = await read('modules/library/src/flags/new-flow.ts');
+    expect(flag.stdout).toContain('flags: { trialFlow },');
+    const generated = await read('modules/library/src/flags/trial-flow.ts');
     expect(generated).toContain("kind: 'boolean'");
     expect(generated).toContain("expires: '2027-01-31'");
-    expect(await read('modules/library/src/base.ts')).not.toContain('newFlow');
+    expect(await read('modules/library/src/base.ts')).not.toContain('trialFlow');
   });
 
   test('a file that exists is never overwritten', async () => {

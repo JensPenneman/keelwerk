@@ -4,6 +4,7 @@ import { createRowMatcher } from '../authorization/create-row-matcher.ts';
 import { forbiddenError } from '../authorization/forbidden-error.ts';
 import { itemAction } from '../authorization/item-action.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
+import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import { principalContextOf } from '../interpreter/principal-context-of.ts';
 import type { Principal } from '../principals/principal.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
@@ -42,6 +43,8 @@ export interface CheckWrittenItemsInput {
   readonly principal: Principal;
   readonly scope: Scope;
   readonly written: readonly WrittenRow[];
+  /** The invocation's flag snapshot; absent: declared defaults. */
+  readonly flags?: FlagSnapshot | undefined;
 }
 
 /**
@@ -60,7 +63,7 @@ export async function checkWrittenItems(input: CheckWrittenItemsInput): Promise<
   if (own.length === 0) return;
   const entry = own[0]?.entry;
   if (entry === undefined) return;
-  const context = principalContextOf(input.registry, input.principal, input.scope);
+  const context = principalContextOf(input.registry, input.principal, input.scope, input.flags);
   const planOf = (item: WrittenRow) =>
     compilePlan({
       rules: input.rules,

@@ -103,6 +103,7 @@ async function assertState(input: GeneratedSetInput, token: string): Promise<voi
     rules: run.rules,
     principal: run.principal,
     epoch: run.epoch ?? 0,
+    flags: run.flags,
   };
   const stale =
     parts.epoch !== context.epoch ||
@@ -141,13 +142,19 @@ export async function generatedSet(input: GeneratedSetInput): Promise<unknown> {
   const token = readString(args.ifInState, 'ifInState');
   if (token !== undefined) await assertState(input, token);
   const oldState = issueStateToken(
-    { registry: run.registry, rules: run.rules, principal: run.principal, epoch: run.epoch ?? 0 },
+    {
+      registry: run.registry,
+      rules: run.rules,
+      principal: run.principal,
+      epoch: run.epoch ?? 0,
+      flags: run.flags,
+    },
     entry.ref,
     run.scope,
     (await unit.events.head()) ?? 0n,
   );
 
-  const context = principalContextOf(run.registry, run.principal, run.scope);
+  const context = principalContextOf(run.registry, run.principal, run.scope, run.flags);
   const setAction = run.action;
   const allowed = new Map<Operation, KeelwerkError | undefined>();
   const gate = (operation: Operation): KeelwerkError | undefined => {

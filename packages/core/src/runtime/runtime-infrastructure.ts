@@ -1,4 +1,5 @@
 import type { EventWorker } from '../events/event-worker.ts';
+import type { FlagProvider } from '../flags/flag-provider.ts';
 import type { LedgerSink } from '../kernel/ledger-sink.ts';
 import type { SecretProvider } from '../kernel/secret-provider.ts';
 import type { DataAdapterFactory } from '../storage/data-adapter-factory.ts';
@@ -24,8 +25,24 @@ function isLedgerSink(value: unknown): value is LedgerSink {
   );
 }
 
+function isFlagProvider(value: unknown): value is FlagProvider {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.sync === 'boolean' &&
+    typeof value.resolve === 'function' &&
+    typeof value.start === 'function'
+  );
+}
+
+/** A flag provider also has an `id` and a `resolve`: its boolean `sync` tells the two apart. */
 function isSecretProvider(value: unknown): value is SecretProvider {
-  return isRecord(value) && typeof value.id === 'string' && typeof value.resolve === 'function';
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.resolve === 'function' &&
+    typeof value.sync !== 'boolean'
+  );
 }
 
 function isSchemaPlanner(value: unknown): value is SchemaPlanner {
@@ -61,6 +78,8 @@ export interface RuntimeInfrastructure {
   readonly adapters: ReadonlyMap<string, DataAdapterFactory>;
   readonly ledgers: readonly LedgerSink[];
   readonly secretProviders: readonly SecretProvider[];
+  /** The flag providers (20.3), in deployment order. */
+  readonly flagProviders: readonly FlagProvider[];
   /** The event workers (S-154), in deployment order. */
   readonly eventWorkers: readonly EventWorker[];
   readonly planner: SchemaPlanner | undefined;
@@ -74,13 +93,14 @@ export interface RuntimeInfrastructure {
 
 /**
  * Sorts the deployment's infrastructure by shape: a data adapter factory, a ledger sink, a secret
- * provider, an event worker, the schema planner, the fallback reporter, and an entry that carries the HTTP host in its `host` member (or
+ * provider, a flag provider, an event worker, the schema planner, the fallback reporter, and an entry that carries the HTTP host in its `host` member (or
  * is one). Anything else is kept for the contracts it provides.
  */
 export function runtimeInfrastructure(entries: readonly unknown[]): RuntimeInfrastructure {
   const adapters = new Map<string, DataAdapterFactory>();
   const ledgers: LedgerSink[] = [];
   const secretProviders: SecretProvider[] = [];
+  const flagProviders: FlagProvider[] = [];
   const eventWorkers: EventWorker[] = [];
   const provided = new Set<string>();
   let planner: SchemaPlanner | undefined;
@@ -91,6 +111,7 @@ export function runtimeInfrastructure(entries: readonly unknown[]): RuntimeInfra
     if (isAdapterFactory(entry)) adapters.set(entry.id, entry);
     if (isLedgerSink(entry)) ledgers.push(entry);
     if (isSecretProvider(entry)) secretProviders.push(entry);
+    if (isFlagProvider(entry)) flagProviders.push(entry);
     if (isEventWorker(entry)) eventWorkers.push(entry);
     if (isSchemaPlanner(entry)) planner = entry;
     if (isFallbackReporter(entry)) fallbackReporter = entry;
@@ -109,6 +130,7 @@ export function runtimeInfrastructure(entries: readonly unknown[]): RuntimeInfra
     adapters,
     ledgers,
     secretProviders,
+    flagProviders,
     eventWorkers,
     planner,
     fallbackReporter,

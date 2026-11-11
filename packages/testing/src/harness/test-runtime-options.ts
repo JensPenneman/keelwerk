@@ -1,4 +1,4 @@
-import type { Clock, DataAdapter, DataAdapterFactory, Logger } from '@keelwerk/core';
+import type { Clock, DataAdapter, DataAdapterFactory, FlagProvider, Logger } from '@keelwerk/core';
 
 /** What `startTestRuntime` takes; every member is optional. */
 export interface TestRuntimeOptions<Name extends string = 'acme' | 'globex'> {
@@ -28,4 +28,11 @@ export interface TestRuntimeOptions<Name extends string = 'acme' | 'globex'> {
    * slots; `{ queues }` gives each named queue four.
    */
   readonly workers?: true | { readonly queues: readonly string[] };
+  /**
+   * The process environment the runtime reads flags from: `KEELWERK_FLAG_<MODULE>_<FLAG>` (20.3).
+   * Read when a flag is resolved, so a test that changes the object it passed changes the flag.
+   */
+  readonly env?: Readonly<Record<string, string | undefined>>;
+  /** Flag providers added to the deployment, after the targeting provider and before `env` (20.3). */
+  readonly flagProviders?: readonly FlagProvider[];
 }

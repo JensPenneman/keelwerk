@@ -1,5 +1,6 @@
 import type { FlagResolution } from '../contexts/flag-resolution.ts';
-import { defaultFlagReason } from '../events/default-flag-reason.ts';
+import { defaultFlagResolution } from '../flags/default-flag-resolution.ts';
+import { flagSpecOf } from '../flags/flag-spec-of.ts';
 import type { AnswerContext } from '../kernel/answer-context.ts';
 import type { FlagRequest } from '../protocol/flag-request.ts';
 import { refuseRequest } from './refuse-request.ts';
@@ -8,24 +9,25 @@ import { refuseRequest } from './refuse-request.ts';
 type FlagAnswer = boolean | string | number | FlagResolution<unknown>;
 
 /**
- * Answers a flag request with the flag's declared default and the reason `DEFAULT`, and records
- * the read in the flags the invocation read (S-23). The key is `<module id>.<flag>`; providers,
- * targeting and `core.flag` arrive with M2.
+ * Answers a flag request from the invocation's snapshot (20.3), or, without one, with the flag's
+ * declared default and the reason `DEFAULT` (M1, decision 185), and records the read in the flags
+ * the invocation read (S-23). The key is `<module id>.<flag>`.
  */
 export async function answerFlag(
   request: FlagRequest,
   context: AnswerContext,
 ): Promise<FlagAnswer> {
-  const split = request.key.lastIndexOf('.');
-  const module = context.registry.modules.find((entry) => entry.id === request.key.slice(0, split));
-  const flag = module?.flags[request.key.slice(split + 1)];
-  if (module === undefined || flag === undefined) {
+  const spec = flagSpecOf(context.registry, request.key);
+  if (spec === undefined) {
     throw refuseRequest('flag', `"${request.key}" is not a flag of this app`);
   }
-  const value = flag.default;
-  const variant = typeof value === 'object' ? 'default' : String(value);
-  const read = { key: request.key, variant, reason: defaultFlagReason, ruleVersion: null };
-  context.record.flag(read);
-  if (!request.details) return value as FlagAnswer;
-  return { value, variant, reason: defaultFlagReason, provider: 'default' };
+  const resolution: FlagResolution<unknown> =
+    context.flagSnapshot?.read(request.key) ?? defaultFlagResolution(spec);
+  context.record.flag({
+    key: request.key,
+    variant: resolution.variant,
+    reason: resolution.reason,
+    ruleVersion: resolution.ruleVersion ?? null,
+  });
+  return request.details ? resolution : (resolution.value as FlagAnswer);
 }

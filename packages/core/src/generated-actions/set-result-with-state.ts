@@ -34,6 +34,7 @@ export function setResultWithState(
           rules: run.rules,
           principal: run.principal,
           epoch: run.epoch ?? 0,
+          flags: run.flags,
         },
         entry.ref,
         run.scope,

@@ -1,4 +1,5 @@
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
+import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { ComputePool } from '../kernel/compute-pool.ts';
 import type { KeyService } from '../kernel/key-service.ts';
@@ -27,6 +28,8 @@ export interface CommandRun {
   readonly signal: AbortSignal;
   /** The registry of the app the action belongs to. */
   readonly registry: Registry;
+  /** The invocation's flag snapshot (20.3); absent: declared defaults. */
+  readonly flags?: FlagSnapshot | undefined;
   /** The registry's enabled rules, normalised. */
   readonly rules: readonly NormalizedRule[];
   readonly request: RequestInfo;

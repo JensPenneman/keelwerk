@@ -1,5 +1,6 @@
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import type { HybridClock } from '../clock/hybrid-clock.ts';
+import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import type { JobCarrier } from '../invoker/job-carrier.ts';
 import type { RequestInfo } from '../invoker/request-info.ts';
 import type { Clock } from '../kernel/clock.ts';
@@ -42,6 +43,8 @@ export interface RunCommandInput {
   readonly log: Logger;
   readonly trace: Span;
   readonly rules: readonly NormalizedRule[];
+  /** The invocation's flag snapshot; absent: declared defaults. */
+  readonly flags?: FlagSnapshot | undefined;
   /** The API version the outcome is expressed in; the fingerprint covers it. */
   readonly apiVersion: string;
   /** The build that appends the events (section 19.1). */

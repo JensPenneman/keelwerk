@@ -30,7 +30,7 @@ export function readSession(input: GeneratedReadInput): ReadSession {
     entry,
     rules: input.rules,
     action: input.action,
-    context: principalContextOf(registry, input.principal, input.scope),
+    context: principalContextOf(registry, input.principal, input.scope, input.tokens.flags),
   });
   const answerer: RelationAnswerer = async (ref, node, ids) => {
     const related = registry.entities.get(ref);

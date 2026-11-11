@@ -1,6 +1,7 @@
 import { createAbility } from '../authorization/create-ability.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import type { RequestInfo } from '../invoker/request-info.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { Logger } from '../observability/logger.ts';
@@ -39,6 +40,8 @@ export interface ReadContextInput {
   readonly trace: Span;
   /** Where the requests of the contexts are recorded with the module that built them; the answerers read the same map. */
   readonly authorities: RequestAuthorities;
+  /** The invocation's flag snapshot; rules read it through the principal context. */
+  readonly flags?: FlagSnapshot | undefined;
   /** The invoked action: `ctx.target` of its module is its entity's loads through its plan. */
   readonly action?: ActionEntry;
 }
@@ -60,7 +63,7 @@ export function buildReadContext(input: ReadContextInput): ContextFactory {
     createRequest<FlagRequest>(authorities, { kind: 'flag', key, details });
 
   const build = (module: ModuleEntry, scope: Scope): Readonly<Record<string, unknown>> => {
-    const principalContext = principalContextOf(registry, input.principal, scope);
+    const principalContext = principalContextOf(registry, input.principal, scope, input.flags);
     const contextOf = (id: string) => factory.forModule(id, scope);
     const compute = (op: ComputeRequest['op'], ...args: readonly unknown[]): ComputeRequest =>
       createRequest<ComputeRequest>(authorities, {

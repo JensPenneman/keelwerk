@@ -2,6 +2,7 @@ import type { AdmissionInput, AdmissionRule } from '../edge/admission-rule.ts';
 import type { AdmissionVerdict } from '../edge/admission-verdict.ts';
 import type { BucketDemand } from '../edge/bucket-demand.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import { withResolverKit } from '../invoker/edge/with-resolver-kit.ts';
 import type { Invocation } from '../invoker/invocation.ts';
 import type { InvocationSession } from '../invoker/invocation-session.ts';
@@ -30,6 +31,8 @@ export interface AdmissionRun {
   readonly details: SessionDetails;
   readonly invocation: Invocation<unknown>;
   readonly span: Span;
+  /** The invocation's flag snapshot (20.3), built before admission for the kill switch. */
+  readonly flags?: FlagSnapshot | undefined;
   /** Takes the `admit` charges in a unit that rolls back (a dry run), so the answer is real and no token is used. */
   readonly dry?: boolean;
 }

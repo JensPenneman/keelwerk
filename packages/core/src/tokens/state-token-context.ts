@@ -1,4 +1,5 @@
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
+import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import type { Principal } from '../principals/principal.ts';
 import type { Registry } from '../registry/registry.ts';
 
@@ -9,4 +10,6 @@ export interface StateTokenContext {
   readonly principal: Principal;
   /** The scope's epoch (section 15.2.6); a scope's positions restart only with a new one. */
   readonly epoch: number;
+  /** The invocation's flag snapshot: the flags the read rules read are part of the token's check (20.6). */
+  readonly flags?: FlagSnapshot | undefined;
 }

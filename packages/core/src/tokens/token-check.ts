@@ -17,6 +17,11 @@ export interface TokenCheckInput {
   readonly entity: string;
   /** The partition of the token's selector; the empty string for none. */
   readonly partition: string;
+  /**
+   * The flags the governing read rules read, each with the variant it had (20.6). Part of the
+   * check only when not empty, so a token over rules that read no flag is what M1 issued.
+   */
+  readonly flags?: readonly { readonly key: string; readonly variant: string }[];
   /** `queryState` only: the filter and sort. */
   readonly selector?: { readonly filter: unknown; readonly sort: unknown };
 }
@@ -37,6 +42,13 @@ export function tokenCheck(input: TokenCheckInput): string {
       entity: input.entity,
       partition: input.partition,
       selector: input.selector ?? null,
+      ...(input.flags === undefined || input.flags.length === 0
+        ? {}
+        : {
+            flags: [...input.flags]
+              .map(({ key, variant }) => ({ key, variant }))
+              .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)),
+          }),
     }),
   ).slice(0, 8);
 }

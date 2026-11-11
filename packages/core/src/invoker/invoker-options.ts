@@ -1,6 +1,7 @@
 import type { RowEnvironment } from '../authorization/row-environment.ts';
 import type { CarrierEnricher } from '../edge/carrier-enricher.ts';
 import type { TenantResolver } from '../edge/tenant-resolver.ts';
+import type { FlagProvider } from '../flags/flag-provider.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { ComputePool } from '../kernel/compute-pool.ts';
 import type { KeyService } from '../kernel/key-service.ts';
@@ -51,6 +52,8 @@ export interface InvokerOptions {
     tenantId: string,
     actor: { readonly via: string; readonly id: string },
   ) => Promise<Temporal.Instant | undefined>;
+  /** The ordered flag providers (20.3); default none: every flag answers its declared default. */
+  readonly flagProviders?: readonly FlagProvider[];
   /** The command write path (WP-38); without it a command is `not_implemented`. */
   readonly commands?: CommandRunner;
 }

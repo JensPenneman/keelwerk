@@ -1,6 +1,7 @@
 import type { FlagRead } from '../events/flag-read.ts';
 import type { RecordedAnswer } from '../events/recorded-answer.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
+import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Principal } from '../principals/principal.ts';
 import type { AnyRequest } from '../protocol/any-request.ts';
@@ -28,6 +29,8 @@ export interface AnswerContext {
   readonly log: Logger;
   /** The flag answers the invocation has given so far; they become `meta.flags` (S-23). */
   readonly flags: ReadonlyMap<string, FlagRead>;
+  /** The invocation's flag snapshot (20.3); absent: every flag answers its declared default (M1). */
+  readonly flagSnapshot?: FlagSnapshot | undefined;
   /** Answers a nested request (`all`, `maybe`) in the same context. */
   answer(request: AnyRequest): Promise<unknown>;
   /** Appends to the decision record being built. */

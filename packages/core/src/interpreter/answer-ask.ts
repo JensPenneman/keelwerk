@@ -44,7 +44,12 @@ export async function answerAsk(
   }
   const ability = createAbility({
     registry: context.registry,
-    context: principalContextOf(context.registry, context.principal, context.scope),
+    context: principalContextOf(
+      context.registry,
+      context.principal,
+      context.scope,
+      context.flagSnapshot,
+    ),
     rules,
   });
   if (!ability.can(request.ref, request.input)) {

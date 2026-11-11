@@ -2,6 +2,8 @@ import { context, propagation } from '@opentelemetry/api';
 import { chargeFailureBuckets } from '../admission/charge-failure-buckets.ts';
 import type { Admitted } from '../admission/run-admission.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { buildSnapshot } from '../flags/build-snapshot.ts';
+import { flagClientIdOf } from '../flags/flag-client-id-of.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Span } from '../observability/span.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
@@ -85,7 +87,16 @@ async function run(
     'keelwerk.execution': action.execution,
     ...(action.entity === undefined ? {} : { 'keelwerk.entity': action.entity }),
   });
-  state.admitted = await admit(env, { action, session, details, invocation: inv, span });
+  const flags = await buildSnapshot({
+    registry,
+    action,
+    scope,
+    principal: session.principal,
+    clientId: flagClientIdOf(inv.carrier),
+    providers: env.options.flagProviders ?? [],
+    log,
+  });
+  state.admitted = await admit(env, { action, session, details, invocation: inv, span, flags });
   const validated = await validate(action, inv.input);
   const input = translate('input', validated);
   const matched = authorize({
@@ -95,6 +106,7 @@ async function run(
     session,
     transport: inv.carrier.job === undefined ? inv.carrier.transport : inv.carrier.job.transport,
     value: input,
+    flags,
   });
   span.setAttribute(
     'keelwerk.rules',
@@ -109,6 +121,7 @@ async function run(
     details,
     span,
     log,
+    flags,
   });
   // An accepted command has no output yet: its receipt is the answer and nothing is shaped.
   const output =
@@ -120,6 +133,7 @@ async function run(
           action,
           principal: session.principal,
           scope: answered.scope,
+          flags,
           outputOf: (one) => env.entityOutputOf(registry, one),
           relations: relationsAfter(registry, action, details),
           environment: env.options.environment,

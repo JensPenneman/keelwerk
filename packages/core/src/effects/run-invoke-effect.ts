@@ -40,6 +40,7 @@ export async function runInvokeEffect(
     principal,
     scope: run.scope,
     input,
+    flags: run.flags,
   });
   if (effect.as !== undefined) {
     run.log.info('a command runs as the system principal', {

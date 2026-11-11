@@ -1,4 +1,5 @@
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
+import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import type { RequestInfo } from '../invoker/request-info.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { ComputePool } from '../kernel/compute-pool.ts';
@@ -44,6 +45,8 @@ export interface RunReadInput {
   readonly namespaceOf?: (scope: StorageScope) => NamespaceRef;
   /** A module's configuration (section 3.4); default: none. */
   readonly config?: (module: string) => unknown;
+  /** The invocation's flag snapshot; absent: declared defaults. */
+  readonly flags?: FlagSnapshot | undefined;
   /** Normalised rules after the policy overrides; default: the registry's rules. */
   readonly rules?: readonly NormalizedRule[];
   /** Produces the `queryState` of a `query` load; default: the decimal position (the state-token work package supplies the token of 15.2.6). */

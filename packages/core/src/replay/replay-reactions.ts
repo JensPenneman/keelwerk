@@ -4,6 +4,7 @@ import { buildDecisionRecord } from '../events/build-decision-record.ts';
 import { buildEventMeta } from '../events/build-event-meta.ts';
 import { encodeDecisionRecord } from '../events/encode-decision-record.ts';
 import type { StoredEvent } from '../events/stored-event.ts';
+import { recordedFlagSnapshot } from '../flags/recorded-flag-snapshot.ts';
 import { canonicalizeJson } from '../json/canonicalize-json.ts';
 import type { Clock } from '../kernel/clock.ts';
 import { inlineReactionsOf } from '../reactions/inline-reactions-of.ts';
@@ -131,6 +132,7 @@ export async function replayReactions(input: ReplayReactionsInput): Promise<Repl
           ...run,
           action: reactionActionOf(reaction, run.action),
           principal,
+          flags: recordedFlagSnapshot(run.registry, matched?.[0]?.flags ?? []),
           adapter: asOfAdapter(input.adapter, reactionContext),
           replace: replayAnswerers(record?.answers ?? []),
         };

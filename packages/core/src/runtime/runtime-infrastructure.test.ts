@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import type { EventWorker } from '../events/event-worker.ts';
+import type { FlagProvider } from '../flags/flag-provider.ts';
 import { runtimeInfrastructure } from './runtime-infrastructure.ts';
 
 function worker(id: string): EventWorker {
@@ -41,4 +42,34 @@ test('keeps the event workers in deployment order', () => {
   const sorted = runtimeInfrastructure([first, second]);
   expect(sorted.eventWorkers).toEqual([first, second]);
   expect(sorted.eventWorkers[0]).toBe(first);
+});
+
+function flagProvider(id: string): FlagProvider {
+  return {
+    id,
+    sync: true,
+    start: () => Promise.resolve(),
+    resolve: () => undefined,
+  };
+}
+
+test('a flag provider is sorted into flagProviders and never taken for a secret provider', () => {
+  const first = flagProvider('vendor');
+  const second = flagProvider('other');
+  const sorted = runtimeInfrastructure([first, worker('events.retention'), second]);
+  expect(sorted.flagProviders).toEqual([first, second]);
+  expect(sorted.flagProviders[0]).toBe(first);
+  expect(sorted.secretProviders).toHaveLength(0);
+});
+
+test('a secret provider without sync stays one', () => {
+  const secrets = { id: 'vault', resolve: () => Promise.resolve('value') };
+  const sorted = runtimeInfrastructure([secrets, { ...secrets, id: 'sync-string', sync: 'yes' }]);
+  expect(sorted.secretProviders).toHaveLength(2);
+  expect(sorted.flagProviders).toHaveLength(0);
+});
+
+test('an entry with a boolean sync but no start is not a flag provider', () => {
+  const sorted = runtimeInfrastructure([{ id: 'x', sync: true, resolve: () => undefined }]);
+  expect(sorted.flagProviders).toHaveLength(0);
 });

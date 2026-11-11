@@ -6,6 +6,7 @@ import { coreApiVersions } from '../core-module/core-api-versions.ts';
 import { defineApp } from '../dsl/define-app.ts';
 import { answerExplain } from '../explain/answer-explain.ts';
 import { explainStream } from '../explain/explain-stream.ts';
+import { createFlagChain } from '../flags/create-flag-chain.ts';
 import { createInvoker } from '../invoker/create-invoker.ts';
 import type { InvokerApp } from '../invoker/invoker-app.ts';
 import type { InvokerOptions } from '../invoker/invoker-options.ts';
@@ -130,6 +131,11 @@ export async function startRuntime(
       compute: connected.compute,
       log,
       environment,
+      flagProviders: createFlagChain({
+        providers: composed.infrastructure.flagProviders,
+        environment,
+        env: options.env ?? {},
+      }),
       build: connected.build,
       commands: routeControlCommands(
         createCommandRunner({

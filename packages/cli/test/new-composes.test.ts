@@ -79,7 +79,7 @@ export const extrasBase: ExtrasBase = extrasBaseDef;
     ['action', 'library.reader.register'],
     ['rule', 'library.borrow.signed-in'],
     ['rule', 'library.book.no-reading', '--effect', 'deny'],
-    ['flag', 'library.newFlow', '--expires', '2027-01-31'],
+    ['flag', 'library.trialFlow', '--expires', '2027-01-31'],
     ['service', 'library.find-title'],
     ['reaction', 'library.on-book', '--on', 'library.book.created'],
     ['lib', 'library.add-days'],

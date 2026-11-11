@@ -11,7 +11,7 @@ describe('the library fixture app', () => {
     expect(registry.modules.map((module) => module.id)).toEqual(['core', 'library']);
   });
 
-  test('holds the book, its two actions and its rules', () => {
+  test('holds the book, its actions and its rules', () => {
     expect([...registry.entities.keys()].filter((ref) => ref.startsWith('library.'))).toEqual([
       'library.book',
     ]);
@@ -32,6 +32,7 @@ describe('the library fixture app', () => {
     expect(registry.actions.get('library.findByIsbn')?.kind).toBe('query');
     expect([...registry.rules.keys()].filter((id) => id.startsWith('library.'))).toEqual([
       'library.addBook.signedIn',
+      'library.addFeaturedBook.signedIn',
       'library.book.operators',
       'library.book.readers',
       'library.book.writers',

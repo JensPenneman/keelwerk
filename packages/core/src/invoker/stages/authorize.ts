@@ -3,6 +3,8 @@ import { forbiddenError } from '../../authorization/forbidden-error.ts';
 import type { NormalizedRule } from '../../authorization/normalized-rule.ts';
 import { errors } from '../../errors/errors.ts';
 import type { RuleMatch } from '../../errors/rule-match.ts';
+import { closedGateRefusal } from '../../flags/closed-gate-refusal.ts';
+import type { FlagSnapshot } from '../../flags/flag-snapshot.ts';
 import { principalContextOf } from '../../interpreter/principal-context-of.ts';
 import type { ActionEntry } from '../../registry/action-entry.ts';
 import type { Registry } from '../../registry/registry.ts';
@@ -21,12 +23,17 @@ export function authorize(input: {
   readonly transport: string | null;
   /** The validated input, for `when`. */
   readonly value: unknown;
+  /** The invocation's flag snapshot; absent: declared defaults. */
+  readonly flags?: FlagSnapshot | undefined;
 }): readonly RuleMatch[] {
   const { action, session } = input;
+  // The gates come first (20.6): a closed one is a deny rule named after the gate.
+  const closed = closedGateRefusal(input.registry, action, input.flags, 'authorize');
+  if (closed !== undefined) throw closed;
   const result = evaluateGate({
     rules: input.rules,
     action,
-    context: principalContextOf(input.registry, session.principal, session.scope),
+    context: principalContextOf(input.registry, session.principal, session.scope, input.flags),
     transport: input.transport,
     input: input.value,
   });
