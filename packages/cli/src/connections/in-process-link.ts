@@ -1,6 +1,6 @@
 import type { ApiSurface, InvokeResponse, Outcome, Runtime } from '@keelwerk/core';
 import { toWire as errorToWire, newUuidV7 } from '@keelwerk/core';
-import { asKeelwerkError, decodeInput } from '@keelwerk/core/http';
+import { asKeelwerkError, decodeActionInput } from '@keelwerk/core/http';
 import { toWire } from '@keelwerk/core/wire';
 import { CliFailure } from '../context/cli-failure.ts';
 import type { DeploymentLink } from '../context/deployment-link.ts';
@@ -29,10 +29,11 @@ export function inProcessLink(
   return {
     async invoke(request, options) {
       const requestId = newUuidV7();
-      const action = surfaceOf().actions.find((candidate) => candidate.ref === request.action);
+      const surface = surfaceOf();
+      const action = surface.actions.find((candidate) => candidate.ref === request.action);
       try {
         const input =
-          action === undefined ? request.input : decodeInput(action.input, request.input);
+          action === undefined ? request.input : decodeActionInput(surface, action, request.input);
         const outcome: Outcome<unknown> = await runtime.invoker.invoke({
           action: request.action,
           input,

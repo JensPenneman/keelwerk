@@ -271,6 +271,11 @@ describe('what the transport presents, at the head and at an older version', asy
       const page = (await found.json()) as { items: Row[] };
       expect(page.items.map((item) => item.id)).toEqual([row.id]);
       expectPresented(page.items[0] ?? {}, parent);
+      const byParent = encodeURIComponent(JSON.stringify({ parent }));
+      const children = await send(`/api/shelf/items?filter=${byParent}`, version);
+      expect(children.status).toBe(200);
+      const withParent = (await children.json()) as { items: Row[] };
+      expect(withParent.items.map((item) => item.id)).toEqual([row.id]);
     },
   );
 

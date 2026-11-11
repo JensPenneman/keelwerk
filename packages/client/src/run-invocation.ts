@@ -2,7 +2,7 @@ import { ClientError } from './client-error.ts';
 import { clientFailure } from './client-failure.ts';
 import { decodeWithSurface } from './decode-with-surface.ts';
 import type { EffectReferences } from './effect-references.ts';
-import { encodeWithSurface } from './encode-with-surface.ts';
+import { encodeActionInput } from './encode-action-input.ts';
 import { errorOfEnvelope } from './error-of-envelope.ts';
 import type { InvocationResult } from './invocation-result.ts';
 import type { InvokeOptions } from './invoke-options.ts';
@@ -35,7 +35,7 @@ async function invoke(
   if (action === undefined) {
     throw clientFailure('core.not_found', `The surface has no action ${ref}.`);
   }
-  const wireInput = encodeWithSurface(action.input, input, ref);
+  const wireInput = encodeActionInput(loaded.surface, action, input);
   // One command id per call: every retry of the request below carries the same body.
   const commandId = options.commandId ?? (action.kind === 'command' ? newCommandId() : undefined);
   const body = JSON.stringify({

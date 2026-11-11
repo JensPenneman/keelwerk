@@ -225,3 +225,53 @@ describe('conditionFields', () => {
     });
   });
 });
+
+describe('the bounds of the normaliser', () => {
+  function refusal(run: () => unknown): KeelwerkError {
+    try {
+      run();
+    } catch (failure) {
+      if (failure instanceof KeelwerkError) return failure;
+    }
+    throw new Error('expected a KeelwerkError');
+  }
+
+  function nested(levels: number): Record<string, unknown> {
+    let filter: Record<string, unknown> = { a: 1 };
+    for (let level = 0; level < levels; level += 1) filter = { not: filter };
+    return filter;
+  }
+
+  test('takes 32 levels and refuses 33 and 10 000, in code and on the wire', () => {
+    expect(() => normalizeCondition(nested(32))).not.toThrow();
+    for (const levels of [33, 10_000]) {
+      const failure = refusal(() => normalizeCondition(nested(levels)));
+      expect(failure.code).toBe('core.malformed_request');
+      expect(failure.issues?.[0]?.message).toBe(
+        'nests more than 32 levels of and, or, not and relations',
+      );
+      expect(refusal(() => normalizeWireFilter(nested(levels))).code).toBe(
+        'core.malformed_request',
+      );
+    }
+  });
+
+  test('counts the segments of a dotted relation path as levels', () => {
+    const key = Array<string>(40).fill('owner').join('.');
+    expect(refusal(() => normalizeCondition({ [key]: { is: { a: 1 } } })).code).toBe(
+      'core.malformed_request',
+    );
+  });
+
+  test('refuses more than 10 000 members', () => {
+    const many = (count: number): Record<string, unknown> => ({
+      and: Array.from({ length: count }, () => ({ a: 1 })),
+    });
+    expect(() => normalizeCondition(many(4_000))).not.toThrow();
+    const failure = refusal(() => normalizeCondition(many(10_001)));
+    expect(failure.code).toBe('core.malformed_request');
+    expect(failure.issues?.[0]?.message).toBe('holds more than 10000 members and items');
+    const wide = { f: { in: Array.from({ length: 10_001 }, (_, index) => index) } };
+    expect(refusal(() => normalizeCondition(wide)).code).toBe('core.malformed_request');
+  });
+});

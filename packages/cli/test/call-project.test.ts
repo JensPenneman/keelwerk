@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { renderTypeId } from '@keelwerk/core';
 import { expect, test } from 'vitest';
 import { createFakeHost } from './support/fake-host.ts';
 import { runCliWith } from './support/run-cli-with.ts';
@@ -90,6 +91,19 @@ test('in a project the CLI creates a backend and a tenant through the control pa
   expect(other.code).toBe(CONFLICT);
   expect(JSON.parse(other.stderr)).toMatchObject({ kind: 'conflict', code: 'core.conflict' });
   expect(JSON.parse((await run('tenant', 'list', '--backend', 'main')).stdout)).toHaveLength(1);
+
+  // A backend named by its public id is found by that id (the filter carries the TypeID): the
+  // command gets as far as the tenant, which is not entered; an id no backend has is a usage error.
+  const backendId = (JSON.parse(backend.stdout) as { id: string }).id;
+  const tenantId = (JSON.parse(tenant.stdout) as { id: string }).id;
+  const callIn = (id: string) =>
+    run('call', 'core.tenant.query', '--backend', id, '--tenant', tenantId, '--input', '{}');
+  const found = await callIn(backendId);
+  expect(found.code).toBe(5);
+  expect(JSON.parse(found.stderr)).toMatchObject({ code: 'core.tenant_not_entered' });
+  const missing = await callIn(renderTypeId('bknd', crypto.randomUUID()));
+  expect(missing.code).toBe(2);
+  expect(missing.stderr).toContain('No backend is named');
 
   // A dev socket left behind by a `keelwerk dev` that died does not stop the in-process runtime.
   const stale = await runCliWith(

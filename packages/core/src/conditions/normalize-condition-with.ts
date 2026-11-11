@@ -1,3 +1,4 @@
+import { isPlainRecord } from '../api-versions/is-plain-record.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { Condition } from './condition.ts';
 
@@ -27,6 +28,26 @@ function isQuantifier(key: string): key is Quantifier {
   return key === 'some' || key === 'none' || key === 'every' || key === 'is';
 }
 
+const maxDepth = 32;
+const maxMembers = 10_000;
+
+/** What one normalisation carries: the wire flag and the members counted so far. */
+interface Run {
+  readonly wire: boolean;
+  members: number;
+}
+
+/** Counts `members` and refuses a level or a total over the bounds of the filter walk. */
+function enter(run: Run, path: readonly string[], depth: number, members: number): void {
+  if (depth > maxDepth) {
+    throw malformed(path, `nests more than ${maxDepth} levels of and, or, not and relations`);
+  }
+  run.members += members;
+  if (run.members > maxMembers) {
+    throw malformed(path, `holds more than ${maxMembers} members and items`);
+  }
+}
+
 const never: Condition = { op: 'never' };
 
 function malformed(path: readonly string[], message: string): KeelwerkError {
@@ -36,12 +57,6 @@ function malformed(path: readonly string[], message: string): KeelwerkError {
     message: `${path.length === 0 ? 'condition' : path.join('.')}: ${message}`,
     issues: [{ path, message }],
   });
-}
-
-function isPlainObject(value: unknown): value is Readonly<Record<string, unknown>> {
-  if (typeof value !== 'object' || value === null) return false;
-  const proto: unknown = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null;
 }
 
 function isAbsent(value: unknown): boolean {
@@ -69,7 +84,7 @@ function operatorCondition(
   field: string,
   value: unknown,
   path: readonly string[],
-  wire: boolean,
+  run: Run,
 ): Condition {
   if (op === 'isNull') {
     if (typeof value !== 'boolean') throw malformed(path, 'isNull takes true or false');
@@ -78,7 +93,9 @@ function operatorCondition(
   if (isAbsent(value)) return never;
   if (op === 'in' || op === 'nin') {
     if (!Array.isArray(value)) throw malformed(path, `${op} takes an array`);
-    if (value.some(isAbsent)) throw absentListEntry(op, path, wire);
+    enter(run, path, 0, value.length);
+    const absent = value.findIndex(isAbsent);
+    if (absent >= 0) throw absentListEntry(op, [...path, String(absent)], run.wire);
     return { op, field, value: [...value] };
   }
   return { op, field, value };
@@ -87,23 +104,25 @@ function operatorCondition(
 function fieldConditions(
   field: string,
   value: unknown,
-  wire: boolean,
+  run: Run,
   path: readonly string[],
+  depth: number,
 ): Condition[] {
-  if (value === null && wire) return [{ op: 'isNull', field, value: true }];
+  if (value === null && run.wire) return [{ op: 'isNull', field, value: true }];
   if (isAbsent(value)) return [never];
-  if (isPlainObject(value)) {
+  if (isPlainRecord(value)) {
     const keys = Object.keys(value);
     if (keys.length === 0) throw malformed(path, 'an empty operator object');
+    enter(run, path, depth, keys.length);
     const known = keys.filter(isFieldOperator);
     if (known.length === keys.length) {
-      return known.map((key) => operatorCondition(key, field, value[key], [...path, key], wire));
+      return known.map((key) => operatorCondition(key, field, value[key], [...path, key], run));
     }
     if (known.length > 0) {
       const stray = keys.find((key) => !isFieldOperator(key));
       throw malformed(path, `unknown operator "${stray}"`);
     }
-    return relationConditions(field, value, wire, path);
+    return relationConditions(field, value, run, path, depth);
   }
   return [{ op: 'eq', field, value }];
 }
@@ -115,15 +134,17 @@ function fieldConditions(
 function relationConditions(
   relation: string,
   value: Readonly<Record<string, unknown>>,
-  wire: boolean,
+  run: Run,
   path: readonly string[],
+  depth: number,
 ): Condition[] {
   const keys = Object.keys(value);
   if (keys.length === 0) throw malformed(path, 'an empty relation object');
+  enter(run, path, depth, 0);
   const quantifiers = keys.filter(isQuantifier);
   if (quantifiers.length === keys.length) {
     return quantifiers.map((key) =>
-      relationCondition(key, relation, value[key], wire, [...path, key]),
+      relationCondition(key, relation, value[key], run, [...path, key], depth + 1),
     );
   }
   const stray = keys.find((key) => isQuantifier(key) || isFieldOperator(key));
@@ -133,10 +154,16 @@ function relationConditions(
   return keys.flatMap((key) => {
     const inner = value[key];
     const here = [...path, key];
-    if (inner === null && wire) throw malformed(here, 'takes a relation quantifier object');
+    if (inner === null && run.wire) throw malformed(here, 'takes a relation quantifier object');
     if (isAbsent(inner)) return [never];
-    if (!isPlainObject(inner)) throw malformed(here, 'takes a relation quantifier object');
-    return relationConditions(`${relation}.${key}`, inner, wire, here);
+    if (!isPlainRecord(inner)) throw malformed(here, 'takes a relation quantifier object');
+    return relationConditions(
+      `${relation}.${key}`,
+      inner,
+      run,
+      here,
+      depth + key.split('.').length,
+    );
   });
 }
 
@@ -144,41 +171,51 @@ function relationCondition(
   op: Quantifier,
   relation: string,
   value: unknown,
-  wire: boolean,
+  run: Run,
   path: readonly string[],
+  depth: number,
 ): Condition {
   if (isAbsent(value)) return never;
-  if (!isPlainObject(value)) throw malformed(path, `${op} takes a condition object`);
-  return { op, relation, where: normalizeObject(value, wire, path) };
+  if (!isPlainRecord(value)) throw malformed(path, `${op} takes a condition object`);
+  return { op, relation, where: normalizeObject(value, run, path, depth) };
 }
 
-function listOf(value: unknown, wire: boolean, path: readonly string[]): readonly Condition[] {
+function listOf(
+  value: unknown,
+  run: Run,
+  path: readonly string[],
+  depth: number,
+): readonly Condition[] {
   if (!Array.isArray(value)) throw malformed(path, 'takes an array of conditions');
+  enter(run, path, depth, value.length);
   return value.map((entry: unknown, index) => {
     const here = [...path, String(index)];
-    if (!isPlainObject(entry)) throw malformed(here, 'takes a condition object');
-    return normalizeObject(entry, wire, here);
+    if (!isPlainRecord(entry)) throw malformed(here, 'takes a condition object');
+    return normalizeObject(entry, run, here, depth + 1);
   });
 }
 
 function normalizeObject(
   input: Readonly<Record<string, unknown>>,
-  wire: boolean,
+  run: Run,
   path: readonly string[],
+  depth: number,
 ): Condition {
+  const keys = Object.keys(input);
+  enter(run, path, depth, keys.length);
   const parts: Condition[] = [];
-  for (const key of Object.keys(input)) {
+  for (const key of keys) {
     const value = input[key];
     const here = [...path, key];
     if (key === 'and' || key === 'or') {
-      if (value !== undefined) parts.push({ op: key, conditions: listOf(value, wire, here) });
+      if (value !== undefined) parts.push({ op: key, conditions: listOf(value, run, here, depth) });
     } else if (key === 'not') {
       if (value !== undefined) {
-        if (!isPlainObject(value)) throw malformed(here, 'takes a condition object');
-        parts.push({ op: 'not', condition: normalizeObject(value, wire, here) });
+        if (!isPlainRecord(value)) throw malformed(here, 'takes a condition object');
+        parts.push({ op: 'not', condition: normalizeObject(value, run, here, depth + 1) });
       }
     } else {
-      parts.push(...fieldConditions(key, value, wire, here));
+      parts.push(...fieldConditions(key, value, run, here, depth + key.split('.').length - 1));
     }
   }
   const [only] = parts;
@@ -187,9 +224,12 @@ function normalizeObject(
 
 /**
  * Normalises the object form of section 8.3 to the AST. `wire` makes a bare `null` mean absent
- * (section 16.4.4); in code it is a comparison that matches nothing.
+ * (section 16.4.4); in code it is a comparison that matches nothing. Nesting deeper than 32 levels
+ * of `and`, `or`, `not`, quantifiers and relation steps, or more than 10 000 members and items in
+ * all, is refused with `core.malformed_request` like the filter walk does, so the bound holds for
+ * a caller that did not pass through the walk.
  */
 export function normalizeConditionWith(input: unknown, wire: boolean): Condition {
-  if (!isPlainObject(input)) throw malformed([], 'takes a condition object');
-  return normalizeObject(input, wire, []);
+  if (!isPlainRecord(input)) throw malformed([], 'takes a condition object');
+  return normalizeObject(input, { wire, members: 0 }, [], 0);
 }

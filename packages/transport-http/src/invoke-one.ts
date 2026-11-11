@@ -1,27 +1,27 @@
 import {
+  type ApiSurface,
   type InvokeRequest,
   type InvokeResponse,
   isAppNotServedError,
   type KeelwerkError,
   newUuidV7,
   type Outcome,
-  type SurfaceAction,
 } from '@keelwerk/core';
-import { applyCookieHint, asKeelwerkError, decodeInput } from '@keelwerk/core/http';
+import { applyCookieHint, asKeelwerkError, decodeActionInput } from '@keelwerk/core/http';
 import { toWire } from '@keelwerk/core/wire';
 import type { EndpointCall } from './endpoint-call.ts';
 import { keepMasked } from './keep-masked.ts';
 
 /**
- * The action the request names, or `undefined` when the process does not serve the session's app
- * (the invoker then answers for it). Any other failure of the surface, a version the projection
+ * The surface of the session's app and version, or `undefined` when the process does not serve the
+ * app (the invoker then answers for it). Any other failure of the surface, a version the projection
  * cannot derive for one, is not an unknown action: it propagates, so the endpoint answers an
  * internal error and logs it, and no answer leaves without its wire encoding.
  */
-function actionOf(call: EndpointCall, ref: string): SurfaceAction | undefined {
+function surfaceOf(call: EndpointCall): ApiSurface | undefined {
   const { session, host } = call;
   try {
-    return host.deps.surface(session.app, session.apiVersion).actions.find((a) => a.ref === ref);
+    return host.deps.surface(session.app, session.apiVersion);
   } catch (failure) {
     if (isAppNotServedError(failure)) return undefined;
     throw failure;
@@ -45,7 +45,8 @@ export async function invokeOne(
   single: boolean,
 ): Promise<InvokeResult> {
   const { host, state, session, carrier, request } = call;
-  const action = actionOf(call, item.action);
+  const surface = surfaceOf(call);
+  const action = surface?.actions.find((a) => a.ref === item.action);
   const commandId = item.commandId ?? (action?.kind === 'command' ? newUuidV7() : undefined);
   if (single) {
     state.action = item.action;
@@ -63,7 +64,10 @@ export async function invokeOne(
   try {
     outcome = await host.deps.invoker.invoke({
       action: item.action,
-      input: action === undefined ? item.input : decodeInput(action.input, item.input),
+      input:
+        surface === undefined || action === undefined
+          ? item.input
+          : decodeActionInput(surface, action, item.input),
       carrier,
       session,
       requestId: state.requestId,

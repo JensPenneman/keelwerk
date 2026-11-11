@@ -8,6 +8,9 @@ const sourceDirectory = resolve(wireDirectory, '..');
 
 /** Leaf modules outside `src/wire/` the subpath may import by value; each must import nothing itself. */
 const leaves = new Set([
+  'api-versions/is-member-record.ts',
+  'api-versions/is-plain-record.ts',
+  'api-versions/relation-target.ts',
   'fields/decode-base64-url.ts',
   'ids/parse-type-id.ts',
   'ids/render-type-id.ts',

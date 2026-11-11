@@ -1,4 +1,3 @@
-import { parseTypeId } from '@keelwerk/core';
 import { backendIdOf } from '../../connections/backend-id-of.ts';
 import type { CliContext } from '../../context/cli-context.ts';
 import { CliFailure } from '../../context/cli-failure.ts';
@@ -18,12 +17,10 @@ export async function tenantIdOf(
   if (reference.startsWith('tnt_')) return reference;
   const backendId =
     backend === undefined ? undefined : await backendIdOf(contextLink(context), backend);
-  // A filter compares stored values: a reference is the row's UUID, not its TypeID.
-  const backendRow = backendId === undefined ? undefined : parseTypeId(backendId, 'bknd');
   const response = await context.client.invoke(
     'core.tenant.query',
     {
-      filter: { name: reference, ...(backendRow !== undefined && { backendId: backendRow }) },
+      filter: { name: reference, ...(backendId !== undefined && { backendId }) },
       first: 2,
     },
     { signal: context.signal },

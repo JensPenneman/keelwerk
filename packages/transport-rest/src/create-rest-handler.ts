@@ -1,11 +1,12 @@
 import {
+  type ApiSurface,
   errors,
   type HttpContext,
   type HttpHandler,
   type KeelwerkError,
   newUuidV7,
 } from '@keelwerk/core';
-import { asKeelwerkError, coreError, decodeInput } from '@keelwerk/core/http';
+import { asKeelwerkError, coreError, decodeActionInput } from '@keelwerk/core/http';
 import { audienceOf } from './audience-of.ts';
 import { decodeRequest } from './decode-request.ts';
 import { encodeResponse } from './encode-response.ts';
@@ -23,6 +24,7 @@ import { signalOf } from './signal-of.ts';
 
 async function serveRoute(
   deps: RestHandlerDeps,
+  surface: ApiSurface,
   request: Request,
   ctx: HttpContext,
   match: RouteMatch,
@@ -50,7 +52,7 @@ async function serveRoute(
     preferHeader(request.headers.get('prefer')).respondAsync;
   const outcome = await deps.invoker.invoke({
     action: action.ref,
-    input: decodeInput(action.input, input),
+    input: decodeActionInput(surface, action, input),
     carrier: { ...ctx.carrier, transport: 'rest' },
     session: ctx.session,
     requestId: ctx.requestId,
@@ -185,6 +187,7 @@ export function createRestHandler(deps: RestHandlerDeps): HttpHandler {
         case 'route':
           return await serveRoute(
             deps,
+            mount.surface,
             request,
             ctx,
             located.match,

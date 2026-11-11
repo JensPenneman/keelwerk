@@ -55,4 +55,26 @@ describe('renameCondition', () => {
     const same = { racks: { items: { some: { size: 1 } } }, and: [{ name: 'r' }] };
     expect(renameCondition(same, 'shelf', renameOf, targetOf)).toBe(same);
   });
+
+  test('keeps a key __proto__ as an own key beside a renamed field, at any level', () => {
+    const sent = JSON.parse(
+      '{"title":"a","__proto__":1,"and":[{"title":"b","__proto__":{"x":1}}],"rack":{"is":{"__proto__":"y"}}}',
+    );
+    const renamed = renameCondition(sent, 'item', renameOf, targetOf) as Record<string, unknown>;
+    expect(Object.keys(renamed)).toEqual(['label', '__proto__', 'and', 'rack']);
+    expect(Object.getPrototypeOf(renamed)).toBe(Object.prototype);
+    expect(Reflect.get(renamed, '__proto__')).toBe(1);
+    const [inner] = renamed.and as Record<string, unknown>[];
+    expect(Object.keys(inner ?? {})).toEqual(['label', '__proto__']);
+    const only = JSON.parse('{"__proto__":"x"}');
+    expect(renameCondition(only, 'item', renameOf, targetOf)).toBe(only);
+  });
+
+  test('refuses a condition nested over the bounds, with the path of the level', () => {
+    let deep: unknown = { title: 'x' };
+    for (let level = 0; level < 10_000; level += 1) deep = { not: deep };
+    expect(() => renameCondition(deep, 'item', renameOf, targetOf)).toThrow(
+      expect.objectContaining({ code: 'core.malformed_request' }),
+    );
+  });
 });

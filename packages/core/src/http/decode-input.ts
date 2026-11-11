@@ -1,7 +1,6 @@
-import { KeelwerkError } from '../errors/keelwerk-error.ts';
-import { issuesOf } from '../invoker/stages/issues-of.ts';
 import type { FieldNode } from '../surface/field-node.ts';
 import { fromWire } from '../wire/from-wire.ts';
+import { inputMismatchError } from './input-mismatch-error.ts';
 
 /**
  * Decodes the wire form of an action's input (section 16.4.2) once, over the action's input node:
@@ -13,10 +12,5 @@ export function decodeInput(node: FieldNode, wire: unknown): unknown {
   if (node.kind === 'void') return wire;
   const result = fromWire(node, wire);
   if (result.issues === undefined) return result.value;
-  throw new KeelwerkError({
-    kind: 'validation',
-    code: 'core.validation',
-    message: 'The input does not match the schema of the action.',
-    issues: issuesOf(result.issues),
-  });
+  throw inputMismatchError(result.issues);
 }
