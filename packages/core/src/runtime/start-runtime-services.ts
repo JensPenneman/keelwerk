@@ -48,8 +48,9 @@ export function startRuntimeServices(
       ),
     ).then(() => undefined);
   const running = (async (): Promise<readonly RuntimeService[]> => {
+    const sources = await queueSources(input);
     const queue = createKernelQueue({
-      sources: await queueSources(input),
+      sources,
       worker: connected.processId,
       clock: input.clock,
       log: connected.log,
@@ -64,6 +65,8 @@ export function startRuntimeServices(
       apps: input.apps,
       invoker: input.invoker,
       queue: queue satisfies JobQueue,
+      namespaces: sources,
+      directory: input.migrated.directory.lookup,
       ledgers: input.composed.infrastructure.ledgers,
       clock: input.clock,
     };

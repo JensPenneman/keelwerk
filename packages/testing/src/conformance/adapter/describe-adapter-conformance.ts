@@ -13,6 +13,7 @@ import { codecCases } from './codec-cases.ts';
 import { conditionCases } from './condition-cases.ts';
 import type { ConformanceSubject } from './conformance-subject.ts';
 import type { ConformanceTarget } from './conformance-target.ts';
+import { consumerCases } from './consumer-cases.ts';
 import { encryptedQueryCases } from './encrypted-query-cases.ts';
 import { eventStoreCases } from './event-store-cases.ts';
 import { jobStoreCases } from './job-store-cases.ts';
@@ -99,6 +100,7 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('store isolation', () => storeIsolationCases(subject));
     describe('event store', () => eventStoreCases(subject));
     describe('job store', () => jobStoreCases(subject));
+    describe('consumers', () => consumerCases(subject));
     describe('serials', () => serialCases(subject));
     describe('stream records', () => streamRecordCases(subject));
     describe('migrations', () => migrationCases(subject));

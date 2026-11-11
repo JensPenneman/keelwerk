@@ -1,7 +1,6 @@
 {
   "name": "@keelwerk/events",
   "version": "0.1.0",
-  "private": true,
   "license": "FSL-1.1-ALv2",
   "repository": {
     "type": "git",
@@ -33,6 +32,8 @@
   "devDependencies": {
     "@keelwerk/adapter-postgres": "workspace:*",
     "@keelwerk/testing": "workspace:*",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1",
     "vitest": "5.0.5"
   }
 }

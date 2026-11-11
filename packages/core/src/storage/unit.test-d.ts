@@ -22,6 +22,7 @@ test('Unit has exactly the members of S-03', () => {
     | 'events'
     | 'receipts'
     | 'jobs'
+    | 'consumers'
     | 'usage'
     | 'buckets'
     | 'keys'

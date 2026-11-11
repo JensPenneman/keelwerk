@@ -76,11 +76,11 @@ test('the workspace order holds every public package with core first and no priv
       version: string;
     }
   ).version;
-  expect(order).toHaveLength(11);
+  expect(order).toHaveLength(12);
   expect(order[0]).toBe('@keelwerk/core');
   expect(order.indexOf('@keelwerk/core')).toBeLessThan(order.indexOf('@keelwerk/data'));
   expect(order).not.toContain('@keelwerk/type-budgets');
-  expect(order).not.toContain('@keelwerk/events');
+  expect(order).toContain('@keelwerk/events');
   expect(
     publishOrder(repositoryRoot).find((entry) => entry.name === '@keelwerk/core')?.tarball,
   ).toBe(`keelwerk-core-${coreVersion}.tgz`);

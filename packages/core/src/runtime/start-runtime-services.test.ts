@@ -36,6 +36,7 @@ function inputOf(probe: (probe: unknown) => void = () => undefined): StartPhaseI
       placements: new Map(),
       signal: new AbortController().signal,
     },
+    migrated: { directory: { lookup: {} } },
     options: { role: 'all', listen: false, work: { probe } },
     clock: { now: () => Temporal.Now.instant() },
     apps: new Map(),

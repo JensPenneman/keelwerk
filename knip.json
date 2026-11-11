@@ -99,9 +99,8 @@
       "ignoreDependencies": ["@keelwerk/cli", "@keelwerk/events"]
     },
     "packages/events": {
-      "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@keelwerk/adapter-postgres", "@keelwerk/core", "@keelwerk/testing"]
+      "entry": ["src/**/*.test-d.ts", "test/**/*.test.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/live": {
       "entry": ["src/**/*.test-d.ts"],

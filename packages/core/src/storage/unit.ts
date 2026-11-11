@@ -1,5 +1,6 @@
 import type { EventStore } from '../events/event-store.ts';
 import type { BucketStore } from './bucket-store.ts';
+import type { ConsumerStore } from './consumer-store.ts';
 import type { JobStore } from './job-store.ts';
 import type { NamespaceRef } from './namespace-ref.ts';
 import type { NestedUnitOptions } from './nested-unit-options.ts';
@@ -14,7 +15,7 @@ import type { UsageStore } from './usage-store.ts';
 
 /**
  * One transaction on one namespace for one scope. M1 freezes the stores it implements (S-03):
- * `consumers`, `tombstones`, `streams` and `sql` join with their users in M2 and M5.
+ * `tombstones`, `streams` and `sql` join with their users in M2 and M5; `consumers` joined in M2.
  */
 export interface Unit {
   readonly namespace: NamespaceRef;
@@ -27,6 +28,8 @@ export interface Unit {
   readonly receipts: ReceiptStore;
   /** Section 14.3.9. */
   readonly jobs: JobStore;
+  /** Section 15.2.3. */
+  readonly consumers: ConsumerStore;
   /** Per-scope quota counters (section 12.2). */
   readonly usage: UsageStore;
   /** Shared token buckets (S-36). */

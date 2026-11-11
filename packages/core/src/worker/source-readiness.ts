@@ -23,9 +23,15 @@ export interface SourceReadiness {
 /**
  * The framework check of the fetchers (D8): a source that is behind takes no jobs, is logged once as
  * a warning, and is checked again at every explicit wake and otherwise at most once per minute of
- * clock time. An adapter without SQL tables is always ready.
+ * clock time. An adapter without SQL tables is always ready. `waiting` names what waits (the
+ * warning reads "<waiting> wait for keelwerk db apply").
  */
-export function sourceReadiness(clock: Clock, log: Logger): SourceReadiness {
+export function sourceReadiness(
+  clock: Clock,
+  log: Logger,
+  /** What waits on a source that is behind, as the warning names it. */
+  waiting = 'its jobs',
+): SourceReadiness {
   const states = new Map<QueueSource, State>();
   return {
     recheck: () => {
@@ -62,7 +68,7 @@ export function sourceReadiness(clock: Clock, log: Logger): SourceReadiness {
       if (!state.ready && !state.warned) {
         state.warned = true;
         log.warn(
-          `namespace ${source.namespace.id} misses framework step 0002; its jobs wait for \`keelwerk db apply\``,
+          `namespace ${source.namespace.id} misses framework step 0002; ${waiting} wait for \`keelwerk db apply\``,
           { namespace: source.namespace.id },
         );
       }

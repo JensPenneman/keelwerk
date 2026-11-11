@@ -129,6 +129,7 @@ export async function startTestRuntime<
         ...(kind === 'pglite' || external !== undefined ? [fallbackReporter()] : []),
         testSecrets,
         ...(options.flagProviders ?? []),
+        ...(options.eventWorkers ?? []),
       ],
       control:
         external === undefined
@@ -145,7 +146,7 @@ export async function startTestRuntime<
       keys: { masterKey: secret(testMasterKeyName) },
     },
     {
-      role: options.workers === undefined ? 'serve' : 'all',
+      role: options.workers === undefined && options.eventWorkers === undefined ? 'serve' : 'all',
       listen: false,
       environment: 'test',
       clock,

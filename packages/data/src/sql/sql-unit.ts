@@ -1,6 +1,7 @@
 import type {
   BucketStore,
   Clock,
+  ConsumerStore,
   EventStore,
   NamespaceRef,
   NestedUnitOptions,
@@ -22,6 +23,7 @@ import { sqlBucketStore } from './sql-bucket-store.ts';
 import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
 import { sqlCommitBuffer } from './sql-commit-buffer.ts';
 import { runCommitTail } from './sql-commit-tail.ts';
+import { sqlConsumerStore } from './sql-consumer-store.ts';
 import type { SqlDb } from './sql-db.ts';
 import type { SqlEntityIndex } from './sql-entity-index.ts';
 import { sqlEventStore } from './sql-event-store.ts';
@@ -69,6 +71,7 @@ export interface SqlUnit {
   readonly rows: RowStore;
   readonly events: EventStore;
   readonly jobs: SqlJobStore;
+  readonly consumers: ConsumerStore;
   readonly receipts: ReceiptStore;
   readonly usage: UsageStore;
   readonly buckets: BucketStore;
@@ -130,6 +133,7 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
       rows: sqlRowStore(ctx),
       events: sqlEventStore(ctx, buffer),
       jobs: sqlJobStore(ctx, buffer),
+      consumers: sqlConsumerStore(ctx),
       receipts: sqlReceiptStore(ctx),
       usage: sqlUsageStore(ctx),
       buckets: sqlBucketStore(ctx),

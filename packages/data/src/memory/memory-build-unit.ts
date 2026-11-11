@@ -1,5 +1,6 @@
 import type { Unit } from '@keelwerk/core';
 import { memoryBucketStore } from './memory-bucket-store.ts';
+import { memoryConsumerStore } from './memory-consumer-store.ts';
 import { memoryEventStore } from './memory-event-store.ts';
 import { memoryJobStore } from './memory-job-store.ts';
 import { memoryKeyStore } from './memory-key-store.ts';
@@ -27,6 +28,7 @@ export function memoryBuildUnit(ctx: MemoryUnitContext, hooks: (() => void)[]): 
     events: memoryEventStore(ctx),
     receipts: memoryReceiptStore(ctx),
     jobs: memoryJobStore(ctx),
+    consumers: memoryConsumerStore(ctx),
     usage: memoryUsageStore(ctx),
     buckets: memoryBucketStore(ctx),
     keys: memoryKeyStore(ctx),

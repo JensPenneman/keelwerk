@@ -1,4 +1,11 @@
-import type { Clock, DataAdapter, DataAdapterFactory, FlagProvider, Logger } from '@keelwerk/core';
+import type {
+  Clock,
+  DataAdapter,
+  DataAdapterFactory,
+  EventWorker,
+  FlagProvider,
+  Logger,
+} from '@keelwerk/core';
 
 /** What `startTestRuntime` takes; every member is optional. */
 export interface TestRuntimeOptions<Name extends string = 'acme' | 'globex'> {
@@ -28,6 +35,11 @@ export interface TestRuntimeOptions<Name extends string = 'acme' | 'globex'> {
    * slots; `{ queues }` gives each named queue four.
    */
   readonly workers?: true | { readonly queues: readonly string[] };
+  /**
+   * Event workers added to the deployment's infrastructure (S-154), such as `consumers()` of
+   * `@keelwerk/events`; the runtime then runs role 'all', so they and the kernel workers start.
+   */
+  readonly eventWorkers?: readonly EventWorker[];
   /**
    * The process environment the runtime reads flags from: `KEELWERK_FLAG_<MODULE>_<FLAG>` (20.3).
    * Read when a flag is resolved, so a test that changes the object it passed changes the flag.

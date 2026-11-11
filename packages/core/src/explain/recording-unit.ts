@@ -33,6 +33,7 @@ export function recordingUnit(
     events: recording,
     receipts: unit.receipts,
     jobs: unit.jobs,
+    consumers: unit.consumers,
     usage: unit.usage,
     buckets: unit.buckets,
     keys: keysOf(unit.keys),

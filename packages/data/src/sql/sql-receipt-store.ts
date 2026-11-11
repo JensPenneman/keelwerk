@@ -4,9 +4,11 @@ import { commandReceiptUuid, errors, KeelwerkError } from '@keelwerk/core';
 import { sql } from 'kysely';
 import { decodeInstant } from './decode-instant.ts';
 import { encodeInstant } from './encode-instant.ts';
+import { isLockUnavailable } from './is-lock-unavailable.ts';
 import { commandReceiptTable } from './postgres/command-receipt-table.ts';
 import { sqlGuard } from './sql-guard.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
+import { withLockTimeout } from './with-lock-timeout.ts';
 
 type Raw = Readonly<Record<string, unknown>>;
 
@@ -47,15 +49,6 @@ function receiptOf(row: Raw): Receipt {
 
 /** How long a concurrent duplicate waits on the first unit's receipt row before it answers `core.command_in_progress`. */
 const claimWaitMs = 1000;
-
-/** SQLSTATE `lock_not_available`: the statement waited longer than `lock_timeout`. */
-const lockNotAvailable = '55P03';
-
-function sqlStateOf(error: unknown): string | undefined {
-  if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
-  const { code } = error;
-  return typeof code === 'string' ? code : undefined;
-}
 
 const columns = [
   'command_id',
@@ -153,19 +146,10 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
   const insertWithin = async (
     receipt: Receipt,
   ): Promise<{ readonly command_id: unknown } | undefined> => {
-    const db = ctx.db;
-    const before = await sqlGuard(async () =>
-      sql<{ value: string }>`select current_setting('lock_timeout') as value`.execute(db),
-    );
-    const previous = before.rows[0]?.value ?? '0';
-    await sqlGuard(async () =>
-      sql`select set_config('lock_timeout', ${`${claimWaitMs}ms`}, true)`.execute(db),
-    );
-    let inserted: { readonly command_id: unknown } | undefined;
     try {
-      inserted = await insert(receipt, true);
+      return await withLockTimeout(ctx, claimWaitMs, () => insert(receipt, true));
     } catch (error) {
-      if (sqlStateOf(error) === lockNotAvailable) {
+      if (isLockUnavailable(error)) {
         throw new KeelwerkError({
           kind: 'conflict',
           code: 'core.command_in_progress',
@@ -176,10 +160,6 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
       }
       throw error;
     }
-    await sqlGuard(async () =>
-      sql`select set_config('lock_timeout', ${previous}, true)`.execute(db),
-    );
-    return inserted;
   };
   return {
     get: read,

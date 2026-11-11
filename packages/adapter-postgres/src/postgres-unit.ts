@@ -16,6 +16,7 @@ function toUnit(base: SqlUnit): Unit {
     events: base.events,
     receipts: base.receipts,
     jobs: base.jobs,
+    consumers: base.consumers,
     usage: base.usage,
     buckets: base.buckets,
     keys: base.keys,
