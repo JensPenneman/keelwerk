@@ -90,11 +90,7 @@ describe('the layout pass on fixtures', () => {
 describe('the layout pass on this repository', () => {
   test('reports no finding', async () => {
     const root = join(here, '..', '..', '..');
-    // new.test.ts scaffolds module-scaffold-probe inside the repository while it runs and removes it again.
-    const findings = (await layoutPass(root)).filter(
-      (finding) => !`${finding.path} ${finding.message}`.includes('module-scaffold-probe'),
-    );
-    expect(findings).toEqual([]);
+    expect(await layoutPass(root)).toEqual([]);
   });
 });
 

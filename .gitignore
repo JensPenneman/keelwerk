@@ -26,3 +26,6 @@ coverage/
 .attest/
 .keelwerk/
 .vitest/
+
+# Scratch projects of the cli tests
+packages/cli/test/.scratch/

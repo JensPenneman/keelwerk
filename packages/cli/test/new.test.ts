@@ -1,10 +1,12 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { copyFile, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { renderModuleManifest } from '@keelwerk/core/manifest';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { parseReference } from '../src/scaffold/parse-reference.ts';
 import { createFakeHost } from './support/fake-host.ts';
 import { useNewWorkspace } from './support/new-workspace.ts';
@@ -228,19 +230,35 @@ describe('new module', () => {
 describe('new module inside the framework repository', () => {
   const repository = fileURLToPath(new URL('../../..', import.meta.url));
   const id = 'scaffold-probe';
-  const created = join(repository, 'packages', `module-${id}`);
   const bin = (name: string): string => join(repository, 'node_modules', '.bin', name);
-
+  let outside = '';
+  beforeEach(async () => {
+    outside = await mkdtemp(join(tmpdir(), 'keelwerk-probe-'));
+  });
   afterEach(async () => {
-    await rm(created, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
   });
 
   test('the generated type test and alone test compile and pass', async () => {
+    // The scaffold is written into a workspace in the system temporary directory that borrows the packages it needs; nothing under the repository's tracked tree is created, changed or removed.
+    const packages = join(outside, 'packages');
+    await mkdir(packages);
+    for (const sibling of await readdir(join(repository, 'packages'))) {
+      await symlink(join(repository, 'packages', sibling), join(packages, sibling));
+    }
+    await copyFile(join(repository, 'tsconfig.base.json'), join(outside, 'tsconfig.base.json'));
+    await symlink(join(repository, 'node_modules'), join(outside, 'node_modules'));
+    const created = join(packages, `module-${id}`);
     const run = await runCliWith(
       ['new', 'module', id, '--scope', '@keelwerk'],
-      createFakeHost({ cwd: repository }).host,
+      createFakeHost({
+        cwd: outside,
+        files: { [`${outside}/pnpm-workspace.yaml`]: 'packages:\n  - packages/*\n' },
+      }).host,
     );
     expect(run.code).toBe(0);
+    expect(existsSync(join(repository, 'packages', `module-${id}`))).toBe(false);
+    expect(await listing(created)).toContain('src/base.ts');
     const modules = join(created, 'node_modules');
     await mkdir(join(modules, '@keelwerk'), { recursive: true });
     await symlink(join(repository, 'packages', 'core'), join(modules, '@keelwerk', 'core'));
@@ -250,7 +268,7 @@ describe('new module inside the framework repository', () => {
       join(modules, 'vitest'),
     );
     const compiled = await execFileAsync(bin('tsc'), ['-b', join(created, 'tsconfig.test.json')], {
-      cwd: repository,
+      cwd: outside,
     }).catch((error: { stdout?: string }) => error);
     expect(compiled).not.toHaveProperty('code');
     const tested = await execFileAsync(

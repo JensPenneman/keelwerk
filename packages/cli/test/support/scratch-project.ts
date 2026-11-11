@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, rm, rmdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach } from 'vitest';
@@ -35,12 +35,11 @@ export interface ScratchProject {
   fork(): Promise<ScratchProject>;
 }
 
-/** Registers the hooks that make and remove the projects; call it at the top of a test file. */
+/** Registers the hooks that make and remove the projects; call it at the top of a test file. Each caller removes only the directories it made: the shared parent stays, ignored by git. */
 export function useScratchProject(): () => Promise<ScratchProject> {
   const made: string[] = [];
   afterEach(async () => {
     for (const directory of made.splice(0)) await rm(directory, { recursive: true, force: true });
-    await rmdir(scratchParent).catch(() => undefined);
   });
   const bind = (root: string): ScratchProject => ({
     root,
