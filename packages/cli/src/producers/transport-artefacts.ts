@@ -3,6 +3,7 @@ import type { AppDerivation } from './app-derivation.ts';
 import { orphanFiles } from './orphan-files.ts';
 import type { ProducedFiles } from './produced-files.ts';
 import type { ProducerFile } from './producer-file.ts';
+import { projectSurface } from './project-surface.ts';
 import { transportsOf } from './transports-of.ts';
 
 /**
@@ -25,14 +26,14 @@ export async function produceTransportArtefacts(
     const mine = new Map<string, ProducerFile>();
     for (const surface of app.surfaces) {
       for (const transport of transports) {
-        const problems = transport.check(surface);
+        const { problems, artifacts } = projectSurface(transport, surface);
         for (const problem of problems) {
           failures.push(
             `${app.shown}: ${transport.name} ${surface.apiVersion}: ${problem.code} ${problem.subject}: ${problem.message}`,
           );
         }
         if (problems.length > 0) continue;
-        for (const artifact of transport.artifacts(surface)) {
+        for (const artifact of artifacts) {
           if (artifact.kind !== 'file') continue;
           const path = join(app.directory, artifact.path);
           if (mine.has(path)) {

@@ -1,0 +1,15 @@
+import type { AppClient, EventOf } from '@keelwerk/client';
+import type { ActionRef as ActionRefOf, AppActionTree, AppEntities, Row } from '@keelwerk/core';
+import type { FallbackRow } from '@keelwerk/data';
+import type { Library } from './app.ts';
+
+export type App = Library;
+export type Entities = AppEntities<App>;
+export type Actions = AppActionTree<App>;
+export type ActionRef = ActionRefOf<App>;
+export type Client = AppClient<App>;
+export type RowOf<R extends string> = Row<App, R>;
+export type Fallback = FallbackRow;
+export type LibraryRows = Row<App, string>;
+export type ProbeEvent = EventOf<App, never>;
+export const apiVersion = '2026-11-04';

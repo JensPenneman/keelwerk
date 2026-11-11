@@ -59,7 +59,7 @@ export async function runProducers(options: RunProducersOptions): Promise<Produc
       progress('produced the API surfaces');
     }
     if (wanted('app')) {
-      results.push(await settle(root, check, produceAppGeneratedFiles(derived.apps)));
+      results.push(await settle(root, check, await produceAppGeneratedFiles(root, derived.apps)));
       progress('produced the generated app files');
     }
     if (wanted('openapi')) {
