@@ -8,6 +8,9 @@ export default defineConfig({
   },
   test: {
     name: 'live',
+    // The hub suites boot a runtime on the embedded database in beforeAll; on a slow or loaded machine
+    // that takes longer than the default ten seconds.
+    hookTimeout: 60_000,
     include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
     exclude: [...configDefaults.exclude, 'test/**/*.postgres.test.ts'],
     typecheck: {
