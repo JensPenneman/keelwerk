@@ -1,5 +1,6 @@
 import type { ScopeKey } from '../edge/scope-directory.ts';
 import type { Connection } from './connection.ts';
+import type { JobCarrier } from './job-carrier.ts';
 
 /** What a transport or listener knows of a request before scope and principal are resolved (section 16.4.10). */
 export interface Carrier {
@@ -25,4 +26,6 @@ export interface Carrier {
   readonly receiver?: string;
   /** The operator socket, or the CLI's project mode and tests. */
   readonly local?: { readonly socket: string } | { readonly inProcess: true };
+  /** A worker's invocation of a job's action: its scope and principal reference stand in for credentials (S-122). Set by the worker only, like `local`. */
+  readonly job?: JobCarrier;
 }

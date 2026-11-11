@@ -65,7 +65,7 @@ async function sealMember(
 /** How the secret members of one stored document are sealed (14.7.4, S-127). */
 export interface SecretMemberBinding {
   /** The value key's binding is `{ entity, id, field: prefix + member name }`. */
-  readonly entity: 'core.effect' | 'core.commandReceipt';
+  readonly entity: 'core.effect' | 'core.commandReceipt' | 'core.job';
   readonly id: string;
   readonly prefix: '' | 'output.' | 'outcome.';
   /** A `SecretRef` member (`{ ref }`): stored as its text (`text`, effect records, M1's form) or kept as `{ ref }` (`keep`, receipts, so a replay tells it from a value it sealed). */

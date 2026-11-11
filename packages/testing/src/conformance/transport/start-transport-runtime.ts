@@ -64,7 +64,8 @@ export async function startTransportRuntime(
       keys: { masterKey: secret(testMasterKeyName) },
     },
     {
-      role: 'all',
+      // Serve only: the cases read receipts that stay `accepted`, which a worker would finish.
+      role: 'serve',
       listen: true,
       environment: 'test',
       ...(options.clock === undefined ? {} : { clock: options.clock }),

@@ -67,7 +67,9 @@ async function appIdOf(
  * The project connection (section 16.9.1): the dev socket `.keelwerk/dev.sock` while
  * `keelwerk dev` runs, otherwise an in-process runtime of the project's deployment, connected
  * without listening (`startRuntime` with `listen: false`) and answering as the operator. The
- * runtime stops when the connection closes.
+ * runtime has the `serve` role: a command of the CLI never takes jobs, which belong to the
+ * processes that work (a worker here would lose its leases when the command ends, section 21.1).
+ * The runtime stops when the connection closes.
  */
 export async function projectConnection(
   host: CliHost,
@@ -88,7 +90,7 @@ export async function projectConnection(
   const definition = await loadDefinition(configPath);
   const [first] = definition.apps;
   if (first === undefined) throw usageFailure('The deployment serves no app.');
-  const runtime = await startRuntime(definition, { role: 'all', listen: false, env: host.env });
+  const runtime = await startRuntime(definition, { role: 'serve', listen: false, env: host.env });
   try {
     const located = await appIdOf(
       runtime,

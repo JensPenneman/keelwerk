@@ -116,9 +116,18 @@ const sendReversed = defineCommand(courierBase, {
 });
 
 const issue = defineCommand(courierBase, {
+  execution: 'either',
   output: shape({ apiKey: field.secret() }),
   principal: 'user',
   decide: () => ({ result: { apiKey: 'plain-api-key-1' as never } }),
+});
+
+const lodge = defineCommand(courierBase, {
+  execution: 'either',
+  input: shape({ token: field.secret() }),
+  output: shape({ length: field.integer() }),
+  principal: 'user',
+  decide: (input) => ({ result: { length: String(input.token).length } }),
 });
 
 const forward = defineCommand(courierBase, {
@@ -155,7 +164,7 @@ const chain = defineCommand(courierBase, {
 });
 
 const courierDef = defineModule(courierBase, {
-  actions: { send, open, sendReversed, issue, forward, chain, afterPost },
+  actions: { send, open, sendReversed, issue, lodge, forward, chain, afterPost },
   effects: { post, deliver },
   executors: { post: postExecutor },
   policies: {
@@ -165,6 +174,7 @@ const courierDef = defineModule(courierBase, {
       signedIn: defineRule(courierBase, sendReversed, { effect: 'allow', principal: 'user' }),
     },
     issue: { signedIn: defineRule(courierBase, issue, { effect: 'allow', principal: 'user' }) },
+    lodge: { signedIn: defineRule(courierBase, lodge, { effect: 'allow', principal: 'user' }) },
     forward: { signedIn: defineRule(courierBase, forward, { effect: 'allow', principal: 'user' }) },
     chain: { signedIn: defineRule(courierBase, chain, { effect: 'allow', principal: 'user' }) },
     afterPost: {

@@ -93,7 +93,7 @@ async function run(
     rules,
     action,
     session,
-    transport: inv.carrier.transport,
+    transport: inv.carrier.job === undefined ? inv.carrier.transport : inv.carrier.job.transport,
     value: input,
   });
   span.setAttribute(

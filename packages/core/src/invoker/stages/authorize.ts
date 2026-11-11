@@ -18,7 +18,7 @@ export function authorize(input: {
   readonly rules: readonly NormalizedRule[];
   readonly action: ActionEntry;
   readonly session: InvocationSession;
-  readonly transport: string;
+  readonly transport: string | null;
   /** The validated input, for `when`. */
   readonly value: unknown;
 }): readonly RuleMatch[] {

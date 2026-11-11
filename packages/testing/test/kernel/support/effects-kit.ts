@@ -25,6 +25,9 @@ const servedRegistry: Registry = {
 
 const effectEntry = servedRegistry.entities.get('core.effect');
 if (effectEntry === undefined) throw new Error('the fixture has no core.effect');
+const receiptEntry = servedRegistry.entities.get('core.commandReceipt');
+if (receiptEntry === undefined) throw new Error('the fixture has no core.commandReceipt');
+const receiptEntity = receiptEntry.descriptor;
 function invoker(registry: Registry, adapter: DataAdapter) {
   const built = kit({
     registry,
@@ -178,7 +181,7 @@ export function effectsKit(
   registry: Registry,
   over: { readonly adapter?: DataAdapter } = {},
 ): { readonly adapter: DataAdapter; readonly invoke: ReturnType<typeof invoker> } {
-  const adapter = over.adapter ?? open([bookEntity, loanEntity, effectEntity]);
+  const adapter = over.adapter ?? open([bookEntity, loanEntity, effectEntity, receiptEntity]);
   return { adapter, invoke: invoker(registry, adapter) };
 }
 

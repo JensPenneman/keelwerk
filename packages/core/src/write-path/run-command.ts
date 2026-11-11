@@ -35,7 +35,7 @@ export async function runCommand(input: RunCommandInput): Promise<CommandResult>
     });
   }
   refuseGeneratedWrite(input);
-  if (action.execution === 'async') {
+  if (action.execution === 'async' && input.job === undefined) {
     throw new KeelwerkError({
       kind: 'not_implemented',
       code: 'core.not_implemented',

@@ -1,6 +1,7 @@
 import type { RowEnvironment } from '../authorization/row-environment.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { ProcessRole } from './process-role.ts';
+import type { WorkOptions } from './work-options.ts';
 
 export interface RuntimeOptions {
   readonly role: ProcessRole;
@@ -23,4 +24,6 @@ export interface RuntimeOptions {
   readonly env?: Readonly<Record<string, string | undefined>>;
   /** Tests: a fixed or stepped clock. */
   readonly clock?: { now(): Temporal.Instant };
+  /** What a process with the `work` role works: slots, capabilities and the drain (section 21.1). */
+  readonly work?: WorkOptions;
 }

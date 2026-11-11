@@ -19,7 +19,9 @@ import { sealedValueText } from '../keys/sealed-value-text.ts';
 import { decodeRow } from '../repositories/decode-row.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
+import { completeJob } from '../worker/complete-job.ts';
 import { appendEvents } from './append-events.ts';
+import { appendReceiptChange } from './append-receipt-change.ts';
 import { checkWrittenItems } from './check-written-items.ts';
 import { commandFingerprint } from './command-fingerprint.ts';
 import { commandOutput } from './command-output.ts';
@@ -64,20 +66,19 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   refuseGeneratedWrite(run);
   const now = clock.now();
 
-  const pending = await insertPendingReceipt(
-    unit,
-    receiptRow({
-      commandId,
-      action: action.ref,
-      fingerprint,
-      principal: run.principal,
-      apiVersion: run.apiVersion,
-      request: run.request,
-      ...(run.client === undefined ? {} : { client: run.client }),
-      now,
-      ...(action.idempotencyWindowMs === undefined ? {} : { windowMs: action.idempotencyWindowMs }),
-    }),
-  );
+  const job = input.nested === undefined ? run.job : undefined;
+  const receipt = receiptRow({
+    commandId,
+    action: action.ref,
+    fingerprint,
+    principal: run.principal,
+    apiVersion: run.apiVersion,
+    request: run.request,
+    ...(run.client === undefined ? {} : { client: run.client }),
+    now,
+    ...(action.idempotencyWindowMs === undefined ? {} : { windowMs: action.idempotencyWindowMs }),
+  });
+  const pending = await insertPendingReceipt(unit, receipt, { takeOver: job !== undefined });
   if (pending.kind === 'inserted' && run.replayOnly === true) {
     throw new KeelwerkError({
       kind: 'conflict',
@@ -86,8 +87,11 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
       retryable: true,
     });
   }
-  if (pending.kind === 'replay')
-    return replayReceipt(unit, registry, action, authority, pending.receipt);
+  if (pending.kind === 'replay') {
+    const replayed = await replayReceipt(unit, registry, action, authority, pending.receipt);
+    if (job !== undefined) await completeJob(unit, job, { kind: 'succeeded' });
+    return replayed;
+  }
 
   const targetReads: RecordedRead[] = [];
   const loaded = new Map<string, StorageRow>();
@@ -254,9 +258,28 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     effects,
   });
   run.signal?.throwIfAborted();
-  await unit.receipts.complete(
-    commandId,
-    await sealCommandOutput(unit, commandId, action, outcome),
-  );
+  const sealedOutcome = await sealCommandOutput(unit, commandId, action, outcome);
+  await unit.receipts.complete(commandId, sealedOutcome);
+  if (job !== undefined) {
+    if (pending.kind === 'taken') {
+      await appendReceiptChange(unit, {
+        registry,
+        scope: run.scope,
+        receipt: { ...receipt, status: 'completed', outcome: sealedOutcome },
+        meta: buildEventMeta({
+          principal: run.principal,
+          commandId,
+          action: action.ref,
+          correlationId: run.correlationId ?? run.request.requestId,
+          build: run.build,
+          flags: [],
+          decision: null,
+        }),
+        hybridClock: processClock,
+        now,
+      });
+    }
+    await completeJob(unit, job, { kind: 'succeeded' });
+  }
   return { output, ...(effects.length > 0 ? { effects } : {}) };
 }

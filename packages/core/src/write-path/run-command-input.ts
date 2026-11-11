@@ -1,5 +1,6 @@
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import type { HybridClock } from '../clock/hybrid-clock.ts';
+import type { JobCarrier } from '../invoker/job-carrier.ts';
 import type { RequestInfo } from '../invoker/request-info.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { ComputePool } from '../kernel/compute-pool.ts';
@@ -47,6 +48,8 @@ export interface RunCommandInput {
   readonly build: { readonly id: string; readonly revision: number };
   /** The `evolve`, invariant and defaults of the entities. */
   readonly behaviours: EntityBehaviours;
+  /** Set when a worker runs the command of a job: the receipt is taken over and the job completes in the command's unit. */
+  readonly job?: JobCarrier;
   /** The client's id for the command, or one is minted. */
   readonly commandId?: string;
   /** Offline-authored mutations (M6). */

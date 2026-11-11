@@ -1,0 +1,167 @@
+{
+  "rec-1": [
+    {
+      "type": "core.commandReceipt.created",
+      "version": 1,
+      "transient": true,
+      "hash": null,
+      "prevHash": null,
+      "schemaVersion": 1,
+      "partition": null,
+      "actor": {
+        "kind": "operator",
+        "id": "olive",
+        "via": "test.principal"
+      },
+      "commandId": "rec-1",
+      "action": "loans.closeAll",
+      "causationId": null,
+      "correlationId": "the request id",
+      "client": null,
+      "merge": null,
+      "writer": {
+        "revision": 1,
+        "build": "the build id"
+      },
+      "flags": [],
+      "decision": null,
+      "traceparent": null,
+      "before": null,
+      "data": {
+        "values": {
+          "commandId": "rec-1",
+          "action": "loans.closeAll",
+          "status": "accepted",
+          "apiVersion": "2026-11-04",
+          "expiresAt": "2026-03-02T08:00:00Z",
+          "principalResolver": "test.principal",
+          "principalId": "olive"
+        }
+      }
+    },
+    {
+      "type": "core.commandReceipt.changed",
+      "version": 2,
+      "transient": true,
+      "hash": null,
+      "prevHash": null,
+      "schemaVersion": 1,
+      "partition": null,
+      "actor": {
+        "kind": "operator",
+        "id": "olive",
+        "via": "test.principal"
+      },
+      "commandId": "rec-1",
+      "action": "loans.closeAll",
+      "causationId": null,
+      "correlationId": "the request id",
+      "client": null,
+      "merge": null,
+      "writer": {
+        "revision": 1,
+        "build": "the build id"
+      },
+      "flags": [],
+      "decision": null,
+      "traceparent": null,
+      "before": null,
+      "data": {
+        "set": {
+          "status": "completed",
+          "outcome": {
+            "ok": true,
+            "value": {
+              "closed": 1
+            },
+            "effects": []
+          }
+        }
+      }
+    }
+  ],
+  "rec-2": [
+    {
+      "type": "core.commandReceipt.created",
+      "version": 1,
+      "transient": true,
+      "hash": null,
+      "prevHash": null,
+      "schemaVersion": 1,
+      "partition": null,
+      "actor": {
+        "kind": "operator",
+        "id": "gone",
+        "via": "test.principal"
+      },
+      "commandId": "rec-2",
+      "action": "loans.closeAll",
+      "causationId": null,
+      "correlationId": "the request id",
+      "client": null,
+      "merge": null,
+      "writer": {
+        "revision": 1,
+        "build": "the build id"
+      },
+      "flags": [],
+      "decision": null,
+      "traceparent": null,
+      "before": null,
+      "data": {
+        "values": {
+          "commandId": "rec-2",
+          "action": "loans.closeAll",
+          "status": "accepted",
+          "apiVersion": "2026-11-04",
+          "expiresAt": "2026-03-02T08:00:00Z",
+          "principalResolver": "test.principal",
+          "principalId": "gone"
+        }
+      }
+    },
+    {
+      "type": "core.commandReceipt.changed",
+      "version": 2,
+      "transient": true,
+      "hash": null,
+      "prevHash": null,
+      "schemaVersion": 1,
+      "partition": null,
+      "actor": {
+        "kind": "operator",
+        "id": "gone",
+        "via": "test.principal"
+      },
+      "commandId": "rec-2",
+      "action": "loans.closeAll",
+      "causationId": null,
+      "correlationId": "rec-2",
+      "client": null,
+      "merge": null,
+      "writer": {
+        "revision": 1,
+        "build": "the build id"
+      },
+      "flags": [],
+      "decision": null,
+      "traceparent": null,
+      "before": null,
+      "data": {
+        "set": {
+          "status": "failed",
+          "outcome": {
+            "ok": false,
+            "error": {
+              "kind": "unauthenticated",
+              "code": "core.unauthenticated",
+              "message": "The principal of this job no longer resolves.",
+              "retryable": false,
+              "requestId": ""
+            }
+          }
+        }
+      }
+    }
+  ]
+}

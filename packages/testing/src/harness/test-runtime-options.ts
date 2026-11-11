@@ -22,4 +22,10 @@ export interface TestRuntimeOptions<Name extends string = 'acme' | 'globex'> {
   readonly config?: Readonly<Record<string, unknown>>;
   /** Whether a carrier whose principal holds the claim `operator: true` is an operator, as the CLI's local socket is (section 3.5); default false. */
   readonly operators?: boolean;
+  /**
+   * Starts the kernel workers in the test runtime (role 'all'); absent: role 'serve' and no worker, so
+   * asynchronous commands keep their `accepted` receipts. `true` gives every action queue four
+   * slots; `{ queues }` gives each named queue four.
+   */
+  readonly workers?: true | { readonly queues: readonly string[] };
 }

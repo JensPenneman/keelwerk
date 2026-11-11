@@ -4,6 +4,7 @@ import type {
   DataAdapterFactory,
   EntityDescriptor,
   NamespaceRef,
+  WorkersProbe,
 } from '@keelwerk/core';
 import {
   coreApiVersions,
@@ -16,9 +17,13 @@ import {
   startRuntime,
 } from '@keelwerk/core';
 import { fallbackReporter, memoryAdapter, schemaPlanner } from '@keelwerk/data';
+import { advanceTo } from './advance-to.ts';
+import { drainJobs } from './drain-jobs.ts';
+import type { DrainState } from './drain-state.ts';
 import type { TestApp } from './test-app.ts';
 import { testMasterKeyBytes } from './test-master-key-bytes.ts';
 import { testMasterKeyName } from './test-master-key-name.ts';
+import type { TestPrincipalBook } from './test-principal-book.ts';
 import type { TestRuntime } from './test-runtime.ts';
 import type { TestRuntimeOptions } from './test-runtime-options.ts';
 import { testSecrets } from './test-secrets.ts';
@@ -45,7 +50,12 @@ export async function startTestRuntime<
     });
   }
   const names: readonly string[] = options.tenants ?? ['acme', 'globex'];
-  const clock = options.clock ?? { now: () => Temporal.Now.instant() };
+  const source = options.clock ?? { now: () => Temporal.Now.instant() };
+  let pinned: Temporal.Instant | undefined;
+  const clock = { now: () => pinned ?? source.now() };
+  const workers: DrainState = { probe: undefined, counted: 0 };
+  const probed = Promise.withResolvers<void>();
+  const book: TestPrincipalBook = { seen: new Map(), revoked: new Set() };
   const descriptors = new Map<string, EntityDescriptor>(
     [...app.registry.entities].map(([ref, entry]) => [ref, entry.descriptor] as const),
   );
@@ -109,7 +119,7 @@ export async function startTestRuntime<
             return adapter;
           },
         };
-  const served = withTestResolver(app, options.operators === true);
+  const served = withTestResolver(app, options.operators === true, book);
   const runtime = await startRuntime(
     {
       apps: [served],
@@ -134,11 +144,25 @@ export async function startTestRuntime<
       keys: { masterKey: secret(testMasterKeyName) },
     },
     {
-      role: 'all',
+      role: options.workers === undefined ? 'serve' : 'all',
       listen: false,
       environment: 'test',
       clock,
       ...(options.logger === undefined ? {} : { logger: options.logger }),
+      ...(options.workers === undefined
+        ? {}
+        : {
+            work: {
+              slots:
+                options.workers === true
+                  ? { '*': 4 }
+                  : Object.fromEntries(options.workers.queues.map((queue) => [queue, 4])),
+              probe: (probe: WorkersProbe) => {
+                workers.probe = probe;
+                probed.resolve();
+              },
+            },
+          }),
     },
   );
   const backend = await runtime.control.createBackend({
@@ -152,6 +176,8 @@ export async function startTestRuntime<
     const tenant = await runtime.control.createTenant({ backendId: backend.id, name });
     tenants.push({ name, id: tenant.id });
   }
+  // The runtime starts its workers in the background and hands the probe over when they run.
+  if (options.workers !== undefined) await probed.promise;
   const adapter = created[0];
   const namespace = namespaces.find((candidate) => candidate.appId === app.id);
   if (adapter === undefined || environment === undefined || namespace === undefined) {
@@ -192,6 +218,21 @@ export async function startTestRuntime<
     >,
     invoker: runtime.invoker,
     head: app.api?.dates.at(-1) ?? coreApiVersions.dates.at(-1) ?? '',
-    stop: () => runtime.stop(0),
+    drainJobs: () => drainJobs(workers),
+    advanceTo: (at) =>
+      advanceTo(
+        {
+          clock,
+          pin: (instant) => {
+            pinned = instant;
+          },
+          workers,
+        },
+        at,
+      ),
+    revoke: (subject) => {
+      book.revoked.add(subject);
+    },
+    stop: (deadlineMs = 0) => runtime.stop(deadlineMs),
   };
 }

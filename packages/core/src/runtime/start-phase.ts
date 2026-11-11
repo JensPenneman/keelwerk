@@ -16,24 +16,36 @@ export interface Started {
 /**
  * `start` (section 3.3), after data is available and before any listener accepts traffic: the
  * scope directory follows the control namespace's change feed so a changed or suspended backend or
- * tenant is dropped from the cache. M1 runs no queue worker, reaction dispatcher, projection or
- * schedule (S-24); every process stamps its `core.process` row every 10 s (19.1), so a process with the `work` role logs that and starts nothing more.
+ * tenant is dropped from the cache, and the runtime services of `m2Phases` start (the workers of a
+ * process with the `work` role among them). Every process stamps its `core.process` row every 10 s
+ * (19.1). The phases run before the heartbeat interval exists: one that throws synchronously stops
+ * the phases already started and rethrows, so a failed start leaves no timer behind.
  */
 export function startPhase(input: StartPhaseInput): Started {
-  const { connected, migrated, options } = input;
-  if (options.role !== 'serve') {
-    connected.log.info('this release runs no queue worker; the work role starts nothing', {
-      role: options.role,
-    });
-  }
+  const { connected, migrated } = input;
   const follow = new AbortController();
+  const stops: ((deadline: AbortSignal) => Promise<void>)[] = [];
+  try {
+    for (const phase of m2Phases) stops.push(phase(input));
+  } catch (error) {
+    const now = AbortSignal.abort();
+    for (const stop of stops) {
+      void (async () => {
+        try {
+          await stop(now);
+        } catch (failure) {
+          connected.log.warn('a runtime service did not stop cleanly', { cause: failure });
+        }
+      })();
+    }
+    throw error;
+  }
   const beating = setInterval(() => {
     heartbeatProcess(connected.control, connected.processId).catch((error: unknown) => {
       connected.log.warn('the process could not stamp its heartbeat', { cause: error });
     });
   }, heartbeatEveryMs);
   beating.unref();
-  const stops = m2Phases.map((phase) => phase(input));
   return {
     following: migrated.directory.follow(follow.signal),
     unfollow: () => {

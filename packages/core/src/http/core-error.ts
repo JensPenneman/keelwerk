@@ -8,16 +8,19 @@ export interface CoreErrorOverrides {
   readonly message?: string;
   readonly issues?: readonly ErrorIssue[];
   readonly retryAfter?: number;
+  /** Replaces the registered retry flag, for a code whose unit must not be re-run by a retry. */
+  readonly retryable?: boolean;
 }
 
 /** Builds the error of a registered core code with its registered kind and message. */
 export function coreError(code: CoreErrorCode, overrides: CoreErrorOverrides = {}): KeelwerkError {
   const spec = coreErrorCodes[code];
+  const retryable = overrides.retryable ?? spec.retryable;
   return new KeelwerkError({
     kind: spec.kind,
     code,
     message: overrides.message ?? spec.message,
-    ...(spec.retryable !== undefined && { retryable: spec.retryable }),
+    ...(retryable !== undefined && { retryable }),
     ...(overrides.issues !== undefined && { issues: overrides.issues }),
     ...(overrides.retryAfter !== undefined && { retryAfter: overrides.retryAfter }),
   });

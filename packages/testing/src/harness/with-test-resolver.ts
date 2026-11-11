@@ -1,8 +1,13 @@
 import type { TestApp } from './test-app.ts';
+import type { TestPrincipalBook } from './test-principal-book.ts';
 import { testPrincipalResolver } from './test-principal-resolver.ts';
 
-/** The app with the test principal resolver added to the core's resolvers, so a carrier can hold its principal as plain data; `operators` lets the claim `operator: true` make it an operator. */
-export function withTestResolver<const App extends TestApp>(app: App, operators = false): App {
+/** The app with the test principal resolver added to the core's resolvers, so a carrier can hold its principal as plain data; `operators` lets the claim `operator: true` make it an operator, and `book` remembers who was seen so a job can re-resolve them. */
+export function withTestResolver<const App extends TestApp>(
+  app: App,
+  operators = false,
+  book?: TestPrincipalBook,
+): App {
   return {
     ...app,
     registry: {
@@ -17,7 +22,7 @@ export function withTestResolver<const App extends TestApp>(app: App, operators 
               point: 'core.principalResolvers',
               module: 'core',
               bound: false,
-              fill: testPrincipalResolver(operators),
+              fill: testPrincipalResolver(operators, book),
             },
           ],
         ],

@@ -24,7 +24,7 @@ export interface TestRuntime<App, Name extends string = string> {
   readonly namespace: NamespaceRef;
   /** The key service over the runtime's control store and master key: the one a re-decide verifies and reveals with. */
   readonly keys: KeyService;
-  /** The time source the runtime runs on (the system clock unless the options gave one). */
+  /** The time source the runtime runs on: the options' clock or the system clock, until `advanceTo` pins it. */
   readonly clock: Clock;
   /** What `ctx.config` answers for a module: the backend's stored configuration through the module's shape. */
   config(module: string): unknown;
@@ -35,6 +35,18 @@ export interface TestRuntime<App, Name extends string = string> {
   readonly invoker: Invoker;
   /** The API version the runtime serves. */
   readonly head: string;
-  /** Closes the adapter. */
-  stop(): Promise<void>;
+  /**
+   * Wakes the workers and settles once they are idle; answers the attempts settled. Throws without
+   * `workers`.
+   */
+  drainJobs(): Promise<number>;
+  /**
+   * Pins the clock at `at` (RangeError when earlier than now), then drains the jobs when workers
+   * run, else answers 0.
+   */
+  advanceTo(at: Temporal.Instant): Promise<number>;
+  /** Every later re-resolution of the subject answers null (a revoked credential). */
+  revoke(subject: string): void;
+  /** Stops the runtime: running jobs may finish for `deadlineMs` (default 0), then the adapter closes. */
+  stop(deadlineMs?: number): Promise<void>;
 }

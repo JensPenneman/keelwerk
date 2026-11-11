@@ -34,6 +34,7 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
   const processClock = options.hybridClock ?? hybridClock(options.nodeId ?? defaultNodeId);
   return (run) => {
     const { invocation } = run;
+    const job = invocation.carrier.job;
     const input: RunCommandInput = {
       registry: run.registry,
       adapter: run.target.handle.adapter,
@@ -54,7 +55,8 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
       build: run.build,
       behaviours: options.behaviours?.(run.session.app) ?? registryBehaviours(run.registry),
       correlationId: invocation.requestId,
-      signal: run.signal,
+      signal: job === undefined ? run.signal : AbortSignal.any([run.signal, job.signal]),
+      ...(job === undefined ? {} : { job }),
       ...(invocation.commandId === undefined ? {} : { commandId: invocation.commandId }),
       ...(invocation.sync === undefined
         ? {}
@@ -69,7 +71,8 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
     };
     const { execution } = run.action;
     const deferred =
-      execution === 'async' || (execution === 'either' && invocation.prefer === 'async');
+      job === undefined &&
+      (execution === 'async' || (execution === 'either' && invocation.prefer === 'async'));
     if (deferred) {
       return acceptAsyncCommand(input).then((result) =>
         result.receipt === undefined
@@ -84,8 +87,9 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
       );
     }
     return runCommand(input).catch(async (error: unknown) => {
-      // A deterministic refusal after the unit rolled back is pinned to the command id (15.1.7).
-      if (invocation.commandId !== undefined && isRecordedFailure(error)) {
+      // A deterministic refusal after the unit rolled back is pinned to the command id (15.1.7); a
+      // job's worker records its failure itself, in the unit that completes the job.
+      if (job === undefined && invocation.commandId !== undefined && isRecordedFailure(error)) {
         await recordFailedReceipt(input, invocation.commandId, error).catch(() => undefined);
       }
       throw error;

@@ -80,6 +80,8 @@ export async function setup(
   const stores = async (commandId?: string) => {
     const found: Record<string, unknown> = {};
     for (const [key, { adapter, namespace, scope }] of watched.seen) {
+      // The workers' own units (promote and take) run at namespace scope: they hold no events, receipts or rows.
+      if (scope.level === 'namespace') continue;
       found[key] = await adapter.unit(
         namespace,
         scope,
