@@ -8,7 +8,11 @@ import { resolvePartReference } from './resolve-part-references.ts';
 import type { PartMap, RuntimeModule } from './runtime-module.ts';
 
 interface ReactionSpecView {
-  readonly on: string;
+  readonly on: string | readonly string[];
+  readonly except?: readonly string[];
+  readonly events?: { readonly [name: string]: unknown };
+  readonly initial?: unknown;
+  readonly evolve?: ActionHandler;
   readonly timing?: 'inline' | 'async';
   readonly key?: ReactionEntry['key'];
   readonly ordering?: ReactionEntry['ordering'];
@@ -27,21 +31,38 @@ function entriesOf(
 ): readonly ReactionEntry[] {
   return Object.entries(reactions).map(([key, part]) => {
     const spec = Reflect.get(part, 'spec') as ReactionSpecView;
-    return {
+    const base = {
       id: resolvePartReference(part) ?? `${prefix}.${key}`,
       module,
-      on: [spec.on],
-      timing: spec.timing ?? 'async',
       ...(spec.key === undefined ? {} : { key: spec.key }),
-      ordering: spec.ordering ?? 'none',
-      coalesce: spec.coalesce ?? false,
       ...(spec.concurrency === undefined ? {} : { concurrency: spec.concurrency }),
       ...(spec.retry === undefined ? {} : { retry: spec.retry }),
-      process: false,
       react: spec.react,
       when,
       ...(contributedBy === undefined ? {} : { contributedBy }),
     };
+    if (Reflect.get(part, 'kind') === 'process') {
+      return {
+        ...base,
+        on: spec.on as readonly string[],
+        timing: 'async',
+        ordering: 'fifo-per-key',
+        coalesce: false,
+        process: true,
+        ...(spec.evolve === undefined ? {} : { evolve: spec.evolve }),
+        initial: spec.initial,
+        events: Object.keys(spec.events ?? {}),
+      } satisfies ReactionEntry;
+    }
+    return {
+      ...base,
+      on: spec.on === 'all' ? 'all' : [spec.on as string],
+      ...(spec.except === undefined ? {} : { except: spec.except }),
+      timing: spec.timing ?? 'async',
+      ordering: spec.ordering ?? 'none',
+      coalesce: spec.coalesce ?? false,
+      process: false,
+    } satisfies ReactionEntry;
   });
 }
 

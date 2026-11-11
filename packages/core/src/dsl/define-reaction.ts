@@ -12,6 +12,7 @@ import type { ActorRef } from '../principals/actor-ref.ts';
 import type { Decision } from '../protocol/decision.ts';
 import type { Gen } from '../protocol/gen.ts';
 import type { Position } from '../storage/position.ts';
+import type { Observes } from './observes.ts';
 
 type GeneratedEventName = 'created' | 'changed' | 'archived' | 'restored' | 'erased';
 type EventRefsOfModule<I extends string, M> = {
@@ -53,6 +54,8 @@ export interface ReactionEventBase<Name extends string, Data, R> {
   readonly before: Partial<R> | null;
   readonly actor: ActorRef;
   readonly commandId: string | null;
+  /** The event or command that caused this event (the envelope's `causationId`). */
+  readonly causationId: string | null;
   readonly at: Temporal.Instant;
 }
 
@@ -69,20 +72,24 @@ export interface AsyncReactionEvent<Name extends string, Data, R>
 }
 
 /** The event a reaction receives, typed by its reference and timing. */
-export type ReactionEventOf<
-  S,
-  On extends string,
-  Tm,
-> = On extends `${infer I}.${infer E}.${infer N}`
-  ? Tm extends 'inline'
-    ? InlineReactionEvent<On, ReactionData<S, I, E, N>, ReactionRow<S, I, E>>
-    : AsyncReactionEvent<On, ReactionData<S, I, E, N>, ReactionRow<S, I, E>>
-  : never;
+export type ReactionEventOf<S, On extends string, Tm> = On extends 'all'
+  ? AsyncReactionEvent<
+      string,
+      { readonly [field: string]: unknown },
+      { readonly [field: string]: unknown }
+    >
+  : On extends `${infer I}.${infer E}.${infer N}`
+    ? Tm extends 'inline'
+      ? InlineReactionEvent<On, ReactionData<S, I, E, N>, ReactionRow<S, I, E>>
+      : AsyncReactionEvent<On, ReactionData<S, I, E, N>, ReactionRow<S, I, E>>
+    : never;
 
 /** A reaction literal. */
 export interface ReactionSpec<S, On extends string, Tm extends 'inline' | 'async'> {
   readonly on: On;
   readonly timing?: Tm;
+  /** With `on: 'all'`: event types never delivered (S-136). */
+  readonly except?: 'all' extends On ? readonly string[] : never;
   readonly key?: (event: ReactionEventOf<S, On, Tm>) => string;
   readonly react: (
     event: ReactionEventOf<S, On, Tm>,
@@ -101,8 +108,8 @@ export interface ReactionPart<S> {
 /** Defines a reaction; `timing` defaults to 'async' (section 7.7). */
 export function defineReaction<
   const S extends PartSource,
-  const On extends EventRefsOf<S>,
-  const Tm extends 'inline' | 'async' = 'async',
+  const On extends EventRefsOf<S> | Observes<S>,
+  const Tm extends 'all' extends On ? 'async' : 'inline' | 'async' = 'async',
 >(source: S, spec: ReactionSpec<S, On, Tm>): ReactionPart<S> {
   return { kind: 'reaction', source, on: spec.on, spec };
 }

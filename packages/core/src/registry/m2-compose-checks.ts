@@ -1,3 +1,6 @@
+import { checkDeploymentGroups } from './check-deployment-groups.ts';
+import { checkObservesAll } from './check-observes-all.ts';
+import { checkStreamOffload } from './check-stream-offload.ts';
 import type { ComposableApp } from './composable-app.ts';
 import type { CompositionProblem } from './composition-problem.ts';
 import type { Registry } from './registry.ts';
@@ -9,4 +12,8 @@ import type { Registry } from './registry.ts';
 export const m2ComposeChecks: readonly ((
   app: ComposableApp,
   registry: Registry,
-) => readonly CompositionProblem[])[] = [];
+) => readonly CompositionProblem[])[] = [
+  checkDeploymentGroups,
+  checkObservesAll,
+  checkStreamOffload,
+];

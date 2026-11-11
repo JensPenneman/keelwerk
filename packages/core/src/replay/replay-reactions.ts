@@ -12,6 +12,7 @@ import { moduleServicePrincipal } from '../reactions/module-service-principal.ts
 import { reactionActionOf } from '../reactions/reaction-action-of.ts';
 import { reactionDepthError } from '../reactions/reaction-depth-error.ts';
 import { reactionEventsOf } from '../reactions/reaction-events-of.ts';
+import { reactionMatches } from '../registry/reaction-matches.ts';
 import type { DataAdapter } from '../storage/data-adapter.ts';
 import type { Position } from '../storage/position.ts';
 import type { Unit } from '../storage/unit.ts';
@@ -113,7 +114,7 @@ export async function replayReactions(input: ReplayReactionsInput): Promise<Repl
     for (let index = 0; index < count; index += 1) {
       for (const reaction of reactions) {
         const event = seen.get(reaction.id)?.[index];
-        if (event === undefined || !reaction.on.includes(event.type)) continue;
+        if (event === undefined || !reactionMatches(reaction, event.type)) continue;
         if (depth > maxReactionDepth) throw reactionDepthError(`The reaction "${reaction.id}"`);
         const cause = recordedIds.get(event.id) ?? event.id;
         const group = groups[cursor];

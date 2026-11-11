@@ -1,13 +1,13 @@
 {
-  "basis": "synthetic budgets are the figures measured on 2026-11-10 (fold 196,693 and 330,148; whole program 1,293,289 and 2,005,864 instantiations) after the app field checks skipped own fields (WP-68), plus 15 %, rounded up to the next hundred; before that, on 2026-11-05, after the contributions of a module are filtered once per module instead of once per entity (fold 213,162 and 357,867; whole program 1,303,360 and 2,023,465 instantiations; 2026-11-04 had fold 510,100 and 1,098,895, whole program 1,599,176 and 2,762,051) plus 15 %; the spike figures are the M0 reference measurements",
+  "basis": "synthetic whole-program budgets were raised on 2026-11-11 by WP-78 to the figures measured with every M2 form in every synthetic module (a stream, a boolean flag, a quota, a process that invokes an action with an error mapping, an observer with an exception, a topic, a version change, a configuration access level and ctx.flags in touch; 25 modules 1,579,647 and 40 modules 2,396,472 instantiations) plus 15 %, rounded up to the next hundred; measured with the same cut in and the generator of 2026-11-10 (no M2 form) the whole program is 1,264,913 and 1,959,878, so the forms' own cost is +314,734 (+24.9 %) and +436,594 (+22.3 %), against 1,293,289 and 2,005,864 before the cut (-2.2 % and -2.3 %); the fold is 169,451 and 286,226 both with and without the forms (the forms add nothing to the fold), down from 196,693 and 330,148 because the execution-override check no longer walks the action tree when an app sets none, so the fold limits stay; before that, the synthetic budgets are the figures measured on 2026-11-10 (fold 196,693 and 330,148; whole program 1,293,289 and 2,005,864 instantiations) after the app field checks skipped own fields (WP-68), plus 15 %, rounded up to the next hundred; before that, on 2026-11-05, after the contributions of a module are filtered once per module instead of once per entity (fold 213,162 and 357,867; whole program 1,303,360 and 2,023,465 instantiations; 2026-11-04 had fold 510,100 and 1,098,895, whole program 1,599,176 and 2,762,051) plus 15 %; the spike figures are the M0 reference measurements",
   "synthetic": {
     "25": {
       "fold": 226200,
-      "wholeProgram": 1487300
+      "wholeProgram": 1816600
     },
     "40": {
       "fold": 379700,
-      "wholeProgram": 2306800
+      "wholeProgram": 2756000
     }
   },
   "spike": {

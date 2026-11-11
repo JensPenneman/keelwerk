@@ -11,6 +11,8 @@ export { appendLedgerEntry } from './api-versions/append-ledger-entry.ts';
 export type { ExpectedLedgerEntry, LedgerProblem } from './api-versions/check-ledger.ts';
 export { checkLedger } from './api-versions/check-ledger.ts';
 export { classifySurfaceChange } from './api-versions/classify-surface-change.ts';
+export type { VersionChangePart } from './api-versions/define-version-change.ts';
+export { defineVersionChange } from './api-versions/define-version-change.ts';
 export { diffSurfaces } from './api-versions/diff-surfaces.ts';
 export { emptyApiVersionLedger } from './api-versions/empty-api-version-ledger.ts';
 export type {
@@ -28,6 +30,13 @@ export type {
   SurfaceChangeClass,
   SurfaceChangeKind,
 } from './api-versions/surface-change.ts';
+export type { SurfaceChangeSpec } from './api-versions/surface-change-spec.ts';
+export type { Translator } from './api-versions/translator.ts';
+export type {
+  VersionChange,
+  VersionChangeFixture,
+  VersionTransforms,
+} from './api-versions/version-change.ts';
 export { applyPolicyOverrides } from './authorization/apply-policy-overrides.ts';
 export type { AuthorizedAction } from './authorization/authorized-action.ts';
 export type { CaslRule } from './authorization/casl-rule.ts';
@@ -111,6 +120,7 @@ export type { ExecutorBlobs } from './contexts/executor-blobs.ts';
 export type { ExecutorContext } from './contexts/executor-context.ts';
 export type { ExtensionsOf } from './contexts/extensions-of.ts';
 export type { FlagRequests } from './contexts/flag-requests.ts';
+export type { FlagRequestsOf } from './contexts/flag-requests-of.ts';
 export type { FlagResolution } from './contexts/flag-resolution.ts';
 export type { HistoryEntry } from './contexts/history-entry.ts';
 export type { LiveOf } from './contexts/live-of.ts';
@@ -224,6 +234,13 @@ export { defineHook } from './dsl/define-hook.ts';
 export type { LiteralChecks } from './dsl/define-module.ts';
 export { defineModule } from './dsl/define-module.ts';
 export { defineModuleBase } from './dsl/define-module-base.ts';
+export type {
+  ProcessEventDrafts,
+  ProcessEventOf,
+  ProcessPart,
+  ProcessSpec,
+} from './dsl/define-process.ts';
+export { defineProcess } from './dsl/define-process.ts';
 export type { EntityQuerySpec, ModuleQuerySpec, QueryOptions } from './dsl/define-query.ts';
 export { defineQuery } from './dsl/define-query.ts';
 export type {
@@ -249,8 +266,12 @@ export { defineRule } from './dsl/define-rule.ts';
 export type { SchedulePart, ScheduleSpec, ScheduleTick } from './dsl/define-schedule.ts';
 export { defineSchedule } from './dsl/define-schedule.ts';
 export { defineService } from './dsl/define-service.ts';
+export type { AnyStreamDeclaration, StreamDeclaration } from './dsl/define-stream.ts';
+export { defineStream } from './dsl/define-stream.ts';
 export type { SubscriptionSpec } from './dsl/define-subscription.ts';
 export { defineSubscription } from './dsl/define-subscription.ts';
+export type { TopicPart, TopicSpec } from './dsl/define-topic.ts';
+export { defineTopic } from './dsl/define-topic.ts';
 export type {
   TransportBase,
   TransportLiteral,
@@ -268,14 +289,18 @@ export type {
   ExtensionPointOptions,
 } from './dsl/extension-point.ts';
 export { extensionPoint } from './dsl/extension-point.ts';
+export type { GateOption } from './dsl/gate-option.ts';
 export type { InvokeOptions } from './dsl/invoke.ts';
 export { invoke } from './dsl/invoke.ts';
 export { mapItems } from './dsl/map-items.ts';
 export { mountName } from './dsl/mount-name.ts';
+export type { Observes } from './dsl/observes.ts';
 export type { OutcomeShape } from './dsl/outcome-of.ts';
 export { outcomeOf } from './dsl/outcome-of.ts';
 export type { EntityOutputSpec } from './dsl/page-of.ts';
 export { pageOf } from './dsl/page-of.ts';
+export type { QuotaBuilder, QuotaDimension, QuotaKind, QuotaValue } from './dsl/quota.ts';
+export { quota } from './dsl/quota.ts';
 export { rowOf } from './dsl/row-of.ts';
 export { secret } from './dsl/secret.ts';
 export type { SetTimerRefSpec, SetTimerSpec, TimerWhen } from './dsl/set-timer.ts';
@@ -724,12 +749,17 @@ export type { ExtensionPointEntry } from './registry/extension-point-entry.ts';
 export type { GeneratedActionKind } from './registry/generated-action-kind.ts';
 export type { HookEntry } from './registry/hook-entry.ts';
 export type { ModuleEntry } from './registry/module-entry.ts';
+export type { QuotaEntry } from './registry/quota-entry.ts';
 export type { ReactionEntry } from './registry/reaction-entry.ts';
+export { reactionMatches } from './registry/reaction-matches.ts';
 export type { Registry } from './registry/registry.ts';
 export type { RuleEntry } from './registry/rule-entry.ts';
 export type { ScheduleEntry } from './registry/schedule-entry.ts';
 export type { ServiceEntry } from './registry/service-entry.ts';
+export type { StreamEntry } from './registry/stream-entry.ts';
+export type { TopicEntry } from './registry/topic-entry.ts';
 export type { TrackRef } from './registry/track-ref.ts';
+export type { VersionChangeEntry } from './registry/version-change-entry.ts';
 export type { BuildIdApp } from './runtime/build-manifest-of.ts';
 export { buildManifestOf } from './runtime/build-manifest-of.ts';
 export type { DeploymentDefinition } from './runtime/deployment-definition.ts';

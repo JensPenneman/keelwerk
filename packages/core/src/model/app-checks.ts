@@ -126,4 +126,9 @@ export type AppChecks<Ms extends readonly AnyModule[], A, X> = Check<
   Check<ConflictingFields<WithCore<Ms>>, 'conflictingFields'> &
   Check<UnknownContributionTargets<WithCore<Ms>>, 'unknownContributionTargets'> &
   Check<DanglingRefs<WithCore<Ms>>, 'danglingReferences'> &
-  Check<Exclude<keyof X & string, CommandRefsOf<WithCore<Ms>, A>>, 'unknownExecutionOverrides'>;
+  Check<
+    [keyof X & string] extends [never]
+      ? never
+      : Exclude<keyof X & string, CommandRefsOf<WithCore<Ms>, A>>,
+    'unknownExecutionOverrides'
+  >;

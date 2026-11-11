@@ -35,6 +35,8 @@ export type MountsFor<B extends AnyModuleBase> = BehaviourMounts<B, EntityNames<
   readonly effects?: SourcedBy<B>;
   readonly executors?: SourcedBy<B>;
   readonly schedules?: SourcedBy<B>;
+  readonly topics?: SourcedBy<B>;
+  readonly changes?: SourcedBy<B>;
   readonly contributes?: {
     readonly [K in keyof ContributionsOf<B>]?: BehaviourMounts<
       Within<B, K & string, 'contributions'>,

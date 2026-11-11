@@ -6,6 +6,7 @@ import { buildDecisionRecord } from '../events/build-decision-record.ts';
 import { buildEventMeta } from '../events/build-event-meta.ts';
 import type { EventMeta } from '../events/event-meta.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
+import { reactionMatches } from '../registry/reaction-matches.ts';
 import { appendEvents } from '../write-path/append-events.ts';
 import { checkWrittenItems } from '../write-path/check-written-items.ts';
 import { draftsToEvents } from '../write-path/drafts-to-events.ts';
@@ -49,7 +50,7 @@ export async function dispatchInlineReactions(
   for (let index = 0; index < count; index += 1) {
     for (const reaction of reactions) {
       const event = seen.get(reaction.id)?.[index];
-      if (event === undefined || !reaction.on.includes(event.type)) continue;
+      if (event === undefined || !reactionMatches(reaction, event.type)) continue;
       if (depth > maxReactionDepth) throw reactionDepthError(`The reaction "${reaction.id}"`);
       const principal = moduleServicePrincipal(reaction.module, run.principal);
       const reactionRun = { ...run, action: reactionActionOf(reaction, run.action), principal };

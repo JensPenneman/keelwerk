@@ -20,7 +20,7 @@ import type { AnswersOf } from './answers-of.ts';
 import type { CoreComputations } from './core-computations.ts';
 import type { EventDraftsOf } from './event-drafts-of.ts';
 import type { ExtensionsOf } from './extensions-of.ts';
-import type { FlagRequests } from './flag-requests.ts';
+import type { FlagRequestsOf } from './flag-requests-of.ts';
 import type { FlagResolution } from './flag-resolution.ts';
 import type { LoadsOf } from './loads-of.ts';
 import type { PrincipalRefOf } from './principal-ref-of.ts';
@@ -53,7 +53,7 @@ export interface DecideContext<
   readonly load: LoadsOf<B, W>;
   readonly write: WritesOf<B, W>;
   readonly events: EventDraftsOf<B, E>;
-  readonly flags: FlagRequests;
+  readonly flags: FlagRequestsOf<B, W>;
   flagDetails(key: string): FlagRequest<FlagResolution>;
   readonly services: ServicesOf<B, W>;
   readonly extensions: ExtensionsOf<B>;

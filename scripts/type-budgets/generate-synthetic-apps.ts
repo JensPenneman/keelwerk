@@ -102,6 +102,73 @@ export const b: B = bDef;`,
   read: (input, ctx) => ctx.target.query({ where: { name: input.name } }),
 });`,
     },
+    'streams/log.ts': {
+      imports: [`import { defineStream, field, shape } from '${core}';`],
+      body: `export const log = defineStream({
+  key: field.ref.own('a'),
+  record: shape({ line: field.string() }),
+  readAs: 'a',
+});`,
+    },
+    'flags/beta.ts': {
+      imports: [`import { defineFlag } from '${core}';`],
+      body: `export const beta = defineFlag({
+  kind: 'boolean',
+  level: 'tenant',
+  purpose: 'operational',
+  default: false,
+});`,
+    },
+    'reactions/progress.ts': {
+      imports: [
+        `import { defineProcess, field, type Id, invoke, shape } from '${core}';`,
+        `import { touch } from '../actions/touch.ts';`,
+        `import { m${n}Base } from '../base.ts';`,
+      ],
+      body: `export const progress = defineProcess(m${n}Base, {
+  on: ['m${n}.a.renamed'],
+  key: (event) => event.stream.id,
+  events: { stepped: shape({ step: field.integer() }) },
+  initial: { steps: 0 },
+  evolve: (state) => ({ steps: state.steps + 1 }),
+  react: (event, state, ctx) => ({
+    events: [ctx.events.stepped({ step: state.steps + 1 })],
+    effects: [invoke(touch, { id: event.stream.id as Id<'m${n}.b'> }, { errors: { 'm${n}.x': 'm${n}.y' } })],
+  }),
+});`,
+    },
+    'reactions/audit.ts': {
+      imports: [
+        `import { defineReaction } from '${core}';`,
+        `import { m${n}Base } from '../base.ts';`,
+      ],
+      body: `export const audit = defineReaction(m${n}Base, {
+  on: 'all',
+  except: ['m${n}.b.created'],
+  react: () => ({ events: [] }),
+});`,
+    },
+    'topics/ticks.ts': {
+      imports: [
+        `import { defineTopic, field, shape } from '${core}';`,
+        `import { m${n}Base } from '../base.ts';`,
+      ],
+      body: `export const ticks = defineTopic(m${n}Base, {
+  key: shape({ a: field.ref.own('a') }),
+  record: shape({ tick: field.integer() }),
+});`,
+    },
+    'versions/rename-count.ts': {
+      imports: [
+        `import { defineVersionChange } from '${core}';`,
+        `import { m${n}Base } from '../base.ts';`,
+        `import { a } from '../entities/a.ts';`,
+      ],
+      body: `export const renameCount = defineVersionChange(m${n}Base, {
+  since: '0.1.0',
+  surface: [{ entity: a, field: 'count', renamedFrom: 'total' }],
+});`,
+    },
     'actions/touch.ts': {
       imports: [
         `import { defineCommand, field, shape } from '${core}';`,
@@ -111,9 +178,10 @@ export const b: B = bDef;`,
   input: shape({ id: field.ref.own('b') }),
   output: shape({ count: field.integer() }),
   *decide(input, ctx) {
+    const beta = yield* ctx.flags.m${n}.beta;
     const row = yield* ctx.load.m${n}.b.byId(input.id);
     const count = ${prev ? `yield* ctx.load.m${prev}.a.count({ name: row?.title })` : '0'};
-    return { events: row ? [ctx.write.m${n}.b.update(row, { flag: true })] : [], result: { count } };
+    return { events: row ? [ctx.write.m${n}.b.update(row, { flag: beta })] : [], result: { count } };
   },
 });`,
     },
@@ -172,19 +240,27 @@ function baseSource({ n, prev, prev2 }: Names): Source {
   const deps = [prev, prev2].filter((d): d is string => d !== null);
   return {
     imports: [
-      `import { defineModuleBase, field, type ModuleBaseType, shape } from '${core}';`,
+      `import { defineModuleBase, field, type ModuleBaseType, quota, shape } from '${core}';`,
       ...deps.map((d) => `import { m${d} } from '@synthetic/m${d}';`),
       ...(prev2 ? [`import { whenPrev2 } from './conditional/when-prev2/condition.ts';`] : []),
       ...(prev ? [`import { toPrev } from './contributions/to-prev/contribution.ts';`] : []),
       `import { a } from './entities/a.ts';`,
       `import { b } from './entities/b.ts';`,
+      `import { beta } from './flags/beta.ts';`,
+      `import { log } from './streams/log.ts';`,
     ],
     body: `const m${n}BaseDef = defineModuleBase({
   id: 'm${n}',
   version: '0.1.0',
   requires: [${deps.map((d) => `m${d}`).join(', ')}],
   config: shape({ limit: field.integer().default(10) }),
-  entities: { a, b },${prev ? '\n  contributions: { toPrev },' : ''}${prev2 ? '\n  conditions: { whenPrev2 },' : ''}
+  entities: { a, b },
+  streams: { log },
+  flags: { beta },
+  quotas: { items: quota.count().default(1000) },
+  observes: 'all',
+  configAccess: { level: 'tenant', edit: 'policy' },
+  gate: 'beta',${prev ? '\n  contributions: { toPrev },' : ''}${prev2 ? '\n  conditions: { whenPrev2 },' : ''}
 });
 
 export interface M${n}Base extends ModuleBaseType<typeof m${n}BaseDef> {}
@@ -200,8 +276,8 @@ function json(value: unknown): string {
  * Writes a synthetic workspace under `root` in the pnpm layout: one package per module with a
  * node_modules holding symlinks to its declared dependencies only, project references between
  * them, and an app package composing all of them. Every module has two entities of four fields, two
- * entity actions, a module action, a contribution and a conditional part, and requires its two
- * predecessors. `repo` is the keelwerk checkout whose core the modules build against.
+ * entity actions, a module action, a contribution and a conditional part, a stream, a boolean flag,
+ * a quota, a process that invokes an action with an error mapping, an observer with an exception, a topic, a version change and a configuration access level, and requires its two predecessors. `repo` is the keelwerk checkout whose core the modules build against.
  */
 export function generateSyntheticApps(root: string, count: number, repo: string): void {
   rmSync(root, { recursive: true, force: true });

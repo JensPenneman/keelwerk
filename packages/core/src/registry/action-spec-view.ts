@@ -16,6 +16,7 @@ export interface ActionSpecView {
   readonly principal?: PrincipalKind | readonly PrincipalKind[];
   readonly scope?: 'tenant' | 'backend' | 'deployment';
   readonly idempotent?: boolean;
+  readonly gate?: string;
   readonly timeoutMs?: number;
   readonly idempotency?: { readonly window: string };
   readonly hints?: { readonly [transport: string]: unknown };

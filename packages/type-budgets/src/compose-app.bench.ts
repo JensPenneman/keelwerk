@@ -8,6 +8,9 @@
 // app. Two commits that added twelve core entity fields each carry 1,684 of the 2,408
 // instantiations by which the 3-module case grew (12,467 to 14,875); the checks now walk only the
 // fields other modules add to an entity.
+// The check `unknownExecutionOverrides` skips the action-tree walk when an app sets no execution
+// override (WP-78); the two benches with `execution: { 'm01.touch': 'async' }` keep that walk, and so
+// the core action tree, measured.
 // biome-ignore-all lint/style/noExcessiveLinesPerFile: twenty-five explicit module literals, the point of the benchmark
 import { bench } from '@ark/attest';
 import {
@@ -523,7 +526,7 @@ const m25 = defineModule(m25Base, {
 // attest needs each `bench` call as a statement of its own.
 bench('defineApp over 3 modules', () =>
   defineApp({ id: 'bench-3', modules: [m01, m02, m03] as const }),
-).types([9492, 'instantiations']);
+).types([5135, 'instantiations']);
 bench('defineApp over 25 modules', () =>
   defineApp({
     id: 'bench-25',
@@ -555,4 +558,44 @@ bench('defineApp over 25 modules', () =>
       m25,
     ] as const,
   }),
-).types([46195, 'instantiations']);
+).types([26768, 'instantiations']);
+bench('defineApp over 3 modules with an execution override', () =>
+  defineApp({
+    id: 'bench-3-override',
+    modules: [m01, m02, m03] as const,
+    execution: { 'm01.touch': 'async' },
+  }),
+).types([9480, 'instantiations']);
+bench('defineApp over 25 modules with an execution override', () =>
+  defineApp({
+    id: 'bench-25-override',
+    modules: [
+      m01,
+      m02,
+      m03,
+      m04,
+      m05,
+      m06,
+      m07,
+      m08,
+      m09,
+      m10,
+      m11,
+      m12,
+      m13,
+      m14,
+      m15,
+      m16,
+      m17,
+      m18,
+      m19,
+      m20,
+      m21,
+      m22,
+      m23,
+      m24,
+      m25,
+    ] as const,
+    execution: { 'm01.touch': 'async' },
+  }),
+).types([46183, 'instantiations']);

@@ -9,6 +9,11 @@ export interface ModuleEntry {
   /** Position in the topological order. */
   readonly order: number;
   readonly description?: string;
+  /** 'all': the module's reactions may say `on: 'all'` (G12). */
+  readonly observes?: 'all';
+  readonly configAccess?: { readonly level: 'tenant'; readonly edit: 'policy' };
+  /** The boolean flag that gates the module's actions (section 20.6). */
+  readonly gate?: string;
   readonly requires: readonly string[];
   readonly optional: readonly string[];
   /** Contracts the module provides and requires (section 5.4). */

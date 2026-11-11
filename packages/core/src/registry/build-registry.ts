@@ -9,10 +9,14 @@ import { buildExecutorEntries } from './build-executor-entries.ts';
 import { buildExtensionPoints } from './build-extension-points.ts';
 import { buildHookEntries } from './build-hook-entries.ts';
 import { buildModuleEntries } from './build-module-entries.ts';
+import { buildQuotaEntries } from './build-quota-entries.ts';
 import { buildReactionEntries } from './build-reaction-entries.ts';
 import { buildRuleSet } from './build-rule-set.ts';
 import { buildScheduleEntries } from './build-schedule-entries.ts';
 import { buildServiceEntries } from './build-service-entries.ts';
+import { buildStreamEntries } from './build-stream-entries.ts';
+import { buildTopicEntries } from './build-topic-entries.ts';
+import { buildVersionChangeEntries } from './build-version-change-entries.ts';
 import { checkActionNames } from './check-action-names.ts';
 import { checkAsyncReactions } from './check-async-reactions.ts';
 import { checkCamelCaseCollisions } from './check-camel-case-collisions.ts';
@@ -74,6 +78,10 @@ function emptyRegistry(app: string, problems: readonly CompositionProblem[]): Re
     effects: none,
     executors: none,
     schedules: none,
+    streams: none,
+    topics: none,
+    versionChanges: none,
+    quotas: none,
     extensionPoints: none,
     fills: none,
     contributions: [],
@@ -178,6 +186,10 @@ export function buildRegistry(app: ComposableApp): Registry {
     effects: sortedMap(buildEffectEntries(ordered)),
     executors: sortedMap(buildExecutorEntries(ordered)),
     schedules: sortedMap(scheduleTable.schedules),
+    streams: sortedMap(buildStreamEntries(ordered)),
+    topics: sortedMap(buildTopicEntries(ordered)),
+    versionChanges: sortedMap(buildVersionChangeEntries(ordered)),
+    quotas: sortedMap(buildQuotaEntries(ordered)),
     extensionPoints: sortedMap(points),
     fills: sortedMap(bound.fills),
     contributions: buildContributionEntries(parts),

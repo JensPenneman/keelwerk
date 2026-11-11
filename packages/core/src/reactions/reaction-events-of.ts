@@ -24,6 +24,7 @@ export function reactionEventsOf(
       > | null,
       actor: event.meta.actor,
       commandId: event.meta.commandId,
+      causationId: event.meta.causationId,
       at: event.recordedAt,
       state: decodeRow(item.entry, item.images[index] ?? item.row, module),
     }));

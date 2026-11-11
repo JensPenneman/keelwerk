@@ -1,6 +1,7 @@
 import type { AnyModuleBase } from '../model/any-module-base.ts';
 import type { BaseChecks } from '../model/base-checks.ts';
 import { compositionRefusal } from './composition-refusal.ts';
+import type { GateOption } from './gate-option.ts';
 import { isPlainName } from './is-plain-name.ts';
 
 /**
@@ -8,7 +9,9 @@ import { isPlainName } from './is-plain-name.ts';
  * `contributedFieldsNeedDefault`, `contributionsOutsideDependencies`, `unknownConditionTargets`)
  * run here, because the data lives in the base (decision 98).
  */
-export function defineModuleBase<const B extends AnyModuleBase>(base: B & BaseChecks<B>): B {
+export function defineModuleBase<const B extends AnyModuleBase>(
+  base: B & BaseChecks<B> & { readonly gate?: GateOption<B> },
+): B {
   for (const name of Object.keys(base.entities ?? {})) {
     if (!isPlainName(name)) {
       throw compositionRefusal({

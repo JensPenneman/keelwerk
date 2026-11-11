@@ -6,7 +6,7 @@ import type { PrincipalKind } from '../principals/principal-kind.ts';
 import type { PrincipalOf } from '../principals/principal-of.ts';
 import type { Scope } from '../storage/scope.ts';
 import type { Ability } from './ability.ts';
-import type { FlagRequests } from './flag-requests.ts';
+import type { FlagRequestsOf } from './flag-requests-of.ts';
 import type { LiveOf } from './live-of.ts';
 
 /** The context of a subscription's `source` (section 7.6). */
@@ -21,7 +21,7 @@ export interface SourceContext<
   readonly ability: Ability;
   readonly config: ConfigOf<B>;
   readonly request: RequestInfo;
-  readonly flags: FlagRequests;
+  readonly flags: FlagRequestsOf<B, W>;
   readonly live: LiveOf<B, W>;
   readonly target: T;
   readonly log: Logger;

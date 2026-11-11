@@ -30,6 +30,8 @@ export interface ActionEntry {
   /** Effective, after `defineApp({ execution })`; queries are 'sync'. */
   readonly execution: 'sync' | 'async' | 'either';
   readonly idempotent: boolean;
+  /** The boolean flag that must be on for the action to run (section 20.6). */
+  readonly gate?: string;
   readonly offline: boolean;
   readonly resumable: boolean;
   /** Narrows `ctx.principal` and refuses other kinds. */

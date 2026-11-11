@@ -185,6 +185,7 @@ export function actionEntryOf(
     ...(spec.idempotency === undefined
       ? {}
       : { idempotencyWindowMs: durationMs(spec.idempotency.window) }),
+    ...(spec.gate === undefined ? {} : { gate: spec.gate }),
     ...(spec.trace === undefined || part.kind !== 'command' ? {} : { trace: spec.trace }),
     ...(spec.shownOnce === undefined || part.kind !== 'command'
       ? {}

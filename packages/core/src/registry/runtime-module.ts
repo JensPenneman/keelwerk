@@ -71,6 +71,8 @@ export interface RuntimeModule {
   readonly reactions: PartMap;
   readonly fills: PartMap;
   readonly schedules: PartMap;
+  readonly topics: PartMap;
+  readonly changes: PartMap;
   readonly lifecycle: PartMap;
   readonly contributes: readonly RuntimeContribution[];
   readonly conditional: readonly RuntimeConditional[];

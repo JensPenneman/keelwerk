@@ -9,6 +9,8 @@ type AnyCommand = ActionPart<'command', unknown, string | null, Execution, PartT
 export interface InvokeOptions {
   readonly as?: SystemReason;
   readonly prefer?: 'sync' | 'async';
+  /** Maps the invoked command's error codes to the codes this decision's caller sees. */
+  readonly errors?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -33,5 +35,6 @@ export function invoke(
     input,
     ...(options.as === undefined ? {} : { as: options.as }),
     ...(options.prefer === undefined ? {} : { prefer: options.prefer }),
+    ...(options.errors === undefined ? {} : { errors: Object.freeze({ ...options.errors }) }),
   });
 }

@@ -7,7 +7,9 @@ export interface ReactionEntry {
   readonly id: string;
   readonly module: string;
   /** Event references, 'accounts.profile.deactivated'. */
-  readonly on: readonly string[];
+  readonly on: readonly string[] | 'all';
+  /** With `on: 'all'`: event types never dispatched (S-136). */
+  readonly except?: readonly string[];
   readonly timing: 'inline' | 'async';
   /** Async: derives the job key from the event. */
   key?(event: unknown): string;
@@ -18,6 +20,10 @@ export interface ReactionEntry {
   readonly retry?: JobRetry;
   /** `defineProcess`: carries its own state stream per instance. */
   readonly process: boolean;
+  /** Processes: the state before the first event. */
+  readonly initial?: unknown;
+  /** Processes: the event names of their own stream (S-124). */
+  readonly events?: readonly string[];
   readonly react: ActionHandler;
   /** Processes: folds the process's stream into its state. */
   readonly evolve?: ActionHandler;
