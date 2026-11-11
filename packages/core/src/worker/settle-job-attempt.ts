@@ -6,7 +6,9 @@ import { receiptOfJob } from './receipt-of-job.ts';
 import type { RunJobContext } from './run-job.ts';
 
 /**
- * Completes an attempt that did not succeed, in one unit of the job's scope (D5). An attempt that
+ * Completes an attempt in one unit of the job's scope (D5): one that did not succeed, and the
+ * `succeeded` attempt of a tenant's job whose command ran in the tenant's backend unit, which
+ * could not complete it there (`completeJobHere`). An attempt that
  * ends the job (`failed`, `dead`) also fails the job's own `accepted` receipt and appends its change
  * record, so the submitter reads the failure; a receipt that is not the job's own (another
  * principal's, or another command's) is left as it is. The unit is the one a handler that threw is

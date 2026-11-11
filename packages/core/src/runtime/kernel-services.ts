@@ -1,3 +1,4 @@
+import { createScheduleTicker } from '../schedules/schedule-ticker.ts';
 import { createWorker } from '../worker/create-worker.ts';
 import type { RuntimeService } from './runtime-service.ts';
 import type { StartPhaseInput } from './start-phase-input.ts';
@@ -9,4 +10,5 @@ import type { StartPhaseInput } from './start-phase-input.ts';
  */
 export const kernelServices: readonly ((input: StartPhaseInput) => RuntimeService)[] = [
   createWorker,
+  () => createScheduleTicker(),
 ];

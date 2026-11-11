@@ -2,6 +2,7 @@ import type { BackendRecord } from '../invoker/backend-record.ts';
 import type { ScopeLookup } from '../invoker/scope-lookup.ts';
 import type { TenantRecord } from '../invoker/tenant-record.ts';
 import type { Logger } from '../observability/logger.ts';
+import type { NamespaceRef } from '../storage/namespace-ref.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { ControlStore } from './control-store.ts';
 import { findControlRows } from './find-control-rows.ts';
@@ -37,6 +38,16 @@ export function createScopeDirectoryCache(options: {
   readonly store: ControlStore;
   readonly book: NamespaceBook;
   readonly log: Logger;
+  /**
+   * Called before a backend, or a tenant of it, is first answered, and again after the cache was
+   * dropped: it makes what the backend's scope needs in its namespace (idempotent; a failure fails
+   * the lookup, which is not cached).
+   */
+  readonly provisionBackend?: (backend: {
+    readonly backendId: string;
+    readonly placementId: string;
+    readonly namespace: NamespaceRef;
+  }) => Promise<void>;
 }): ScopeDirectoryCache {
   const { store, book } = options;
   const domains = new Map<string, { backendId: string; tenantId: string | null }>();
@@ -82,6 +93,11 @@ export function createScopeDirectoryCache(options: {
         ...(typeof row.apiVersion === 'string' ? { apiVersion: row.apiVersion } : {}),
         ...(isConfig(row.config) ? { config: row.config } : {}),
       };
+      await options.provisionBackend?.({
+        backendId: id,
+        placementId: placement,
+        namespace: record.namespace,
+      });
       backends.set(id, record);
       return record;
     },
@@ -103,6 +119,11 @@ export function createScopeDirectoryCache(options: {
         status: statusOf(row),
         ...(typeof row.apiVersion === 'string' ? { apiVersion: row.apiVersion } : {}),
       };
+      await options.provisionBackend?.({
+        backendId: record.backendId,
+        placementId: placement,
+        namespace: record.namespace,
+      });
       tenants.set(id, record);
       return record;
     },

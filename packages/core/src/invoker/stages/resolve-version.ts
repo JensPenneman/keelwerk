@@ -1,3 +1,4 @@
+import { headApiVersion } from '../../api-versions/head-api-version.ts';
 import type { ChosenVersion } from '../../api-versions/resolve-version.ts';
 import { resolveVersion as chooseVersion } from '../../api-versions/resolve-version.ts';
 import type { Principal } from '../../principals/principal.ts';
@@ -22,7 +23,7 @@ export function resolveVersion(
   // A reaction job runs at the head of the build that runs it (7.7): the header, the credential's
   // pin and the tenant's or backend's pin are ignored, so a retired pin cannot fail the job.
   if (carrier.job?.reaction === true) {
-    return { apiVersion: (app.api?.dates ?? [app.head]).at(-1) ?? app.head, deprecation: null };
+    return { apiVersion: headApiVersion(app), deprecation: null };
   }
   return chooseVersion({
     dates: app.api?.dates ?? [app.head],

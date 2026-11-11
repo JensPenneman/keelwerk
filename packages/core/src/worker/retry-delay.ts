@@ -1,10 +1,8 @@
 import { durationMs } from '../effects/duration-ms.ts';
+import { defaultJobRetry } from '../jobs/default-job-retry.ts';
 import type { JobRetry } from '../jobs/job-retry.ts';
 
-/** The attempts a job without a count limit may use: three, as long as no `giveUpAfter` replaces the count. */
-const defaultLimit = 3;
 const baseDelayMs = 1000;
-const defaultMaxDelay = '10m';
 
 /**
  * The milliseconds before the next attempt of a job that failed with a retryable error (9.5.4, D4),
@@ -21,14 +19,15 @@ export function retryDelay(
 ): number | undefined {
   const policy: JobRetry = retry ?? { delays: 'exponential' };
   const limit =
-    policy.limit ?? (policy.giveUpAfter === undefined ? defaultLimit : Number.POSITIVE_INFINITY);
+    policy.limit ??
+    (policy.giveUpAfter === undefined ? defaultJobRetry.limit : Number.POSITIVE_INFINITY);
   if (attempt >= limit) return undefined;
-  const ceiling = durationMs(policy.maxDelay ?? defaultMaxDelay);
+  const ceiling = durationMs(policy.maxDelay ?? defaultJobRetry.maxDelay);
   const { delays } = policy;
   const wanted =
     delays === 'exponential'
       ? baseDelayMs * 2 ** Math.min(attempt - 1, 40)
-      : durationMs(delays[Math.min(attempt, delays.length) - 1] ?? defaultMaxDelay);
+      : durationMs(delays[Math.min(attempt, delays.length) - 1] ?? defaultJobRetry.maxDelay);
   const delay = Math.min(wanted, ceiling);
   return Math.floor(random() * (delay + 1));
 }

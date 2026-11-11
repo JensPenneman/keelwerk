@@ -118,13 +118,13 @@ describe('invoke', () => {
     expect(queued.jobs).toHaveLength(1);
   });
 
-  test('a command of another scope, an unknown command and a prepare command are refused', async () => {
+  test('a command of a level this unit cannot reach, an unknown command and a prepare command are refused', async () => {
     const registry = registryWith({
       actions: [
         command('toBackend', () => ({ effects: [invoke('library.elsewhere')] })),
         command('toNowhere', () => ({ effects: [invoke('library.nothing')] })),
         command('toPrepared', () => ({ effects: [invoke('library.prepared')] })),
-        command('elsewhere', () => [], { scope: 'backend' }),
+        command('elsewhere', () => [], { scope: 'deployment' }),
         command('prepared', () => [], { prepare: () => ({}) }),
       ],
     });
@@ -200,13 +200,13 @@ describe('enqueue', () => {
     expect([other.jobs.length, other.effects.length]).toEqual([0, 0]);
   });
 
-  test('a command of another scope has no path', async () => {
+  test('a command of a level this unit cannot reach has no path', async () => {
     const registry = registryWith({
       actions: [
         command('launch', () => ({
           effects: [{ kind: 'enqueue', type: 'enqueue', action: 'library.elsewhere', input: {} }],
         })),
-        command('elsewhere', () => [], { scope: 'backend' }),
+        command('elsewhere', () => [], { scope: 'deployment' }),
       ],
     });
     const { adapter, invoke: run } = effectsKit(registry);

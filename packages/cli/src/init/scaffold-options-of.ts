@@ -15,6 +15,7 @@ export function scaffoldOptionsOf(modules: readonly string[]): ScaffoldOptions {
     effect: undefined,
     on: undefined,
     every: undefined,
+    ticks: undefined,
     modules,
     scope: undefined,
     dir: undefined,

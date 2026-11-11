@@ -119,7 +119,10 @@ describe('the stored formats of effects (F-12)', () => {
     });
     const { adapter, invoke } = effectsKit(registry);
     await invoke('library.launch', {}, { commandId: 'c1' });
-    golden('timer-job', plain((await stored(adapter)).jobs[0]));
+    const ids = new Map([
+      [`kernel:timer:${deriveEffectId(tenant, 'c1', 0)}`, 'kernel:timer:<effect id>'],
+    ]);
+    golden('timer-job', plain((await stored(adapter)).jobs[0], ids));
   });
 
   test('the job of an accepted command and its receipt', async () => {

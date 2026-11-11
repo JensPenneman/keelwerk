@@ -37,7 +37,7 @@ test('Unit has exactly the members of S-03', () => {
   expectTypeOf<Unit['streams']>().toEqualTypeOf<StreamRecordStore>();
 });
 
-test('JobStore lacks schedules until M2', () => {
+test('JobStore has schedules (M2)', () => {
   expectTypeOf<keyof JobStore>().toEqualTypeOf<
     | 'provisionGroup'
     | 'enqueue'
@@ -47,6 +47,7 @@ test('JobStore lacks schedules until M2', () => {
     | 'heartbeat'
     | 'complete'
     | 'stats'
+    | 'schedules'
   >();
 });
 

@@ -4,20 +4,24 @@ import type { InvokeEffect } from '../protocol/invoke-effect.ts';
 import { maxReactionDepth } from '../reactions/max-reaction-depth.ts';
 import { reactionDepthError } from '../reactions/reaction-depth-error.ts';
 import { authorizeInvoke } from './authorize-invoke.ts';
+import { checkEffectScope } from './check-effect-scope.ts';
 import { checkInvokeErrors } from './check-invoke-errors.ts';
 import { commandActionOf } from './command-action-of.ts';
 import { commandJobRun } from './command-job-run.ts';
 import { commandQueue } from './command-queue.ts';
+import { crossScopeGroup } from './cross-scope-group.ts';
 import type { EffectScene } from './effect-scene.ts';
 import { jobInput } from './job-input.ts';
 import { mapInvokeError } from './map-invoke-error.ts';
-import { sameScopeAction } from './same-scope-action.ts';
+import { sealJobInput } from './seal-job-input.ts';
 import { systemPrincipalOf } from './system-principal-of.ts';
 import { validateEffectInput } from './validate-effect-input.ts';
 
 /**
- * `invoke(action, input, { as?, prefer? })` (section 7.4): a command of the same scope. The
- * action's mode decides: a `sync` command runs in a savepoint of this unit after the decision's
+ * `invoke(action, input, { as?, prefer? })` (section 7.4): a command of the same scope, or a backend
+ * command from a tenant unit (always deferred: the job stays in the tenant's unit and the invoker
+ * runs it in the tenant's own backend unit; a system principal never crosses scopes, `checkEffectScope`).
+ * The action's mode decides: a `sync` command runs in a savepoint of this unit after the decision's
  * events, so a failure rolls the savepoint back and fails the unit; an `async` one, or an `either`
  * one with `prefer: 'async'`, is enqueued with the unit. The result never returns to the decision;
  * only the ids of the deferred effects the invoked command requested come back, for the response.
@@ -34,9 +38,9 @@ export async function runInvokeEffect(
 ): Promise<readonly string[]> {
   const { run, unit } = scene;
   const action = commandActionOf(run.registry, effect.action, 'invoke');
-  sameScopeAction(run.scope, action, 'invoke');
   const principal =
     effect.as === undefined ? run.principal : systemPrincipalOf(effect.as.reason, run.principal);
+  const placement = checkEffectScope(run.scope, action, 'invoke', principal);
   const input = validateEffectInput(action.input, effect.input, `"${action.ref}"`);
   authorizeInvoke({
     registry: run.registry,
@@ -56,9 +60,12 @@ export async function runInvokeEffect(
     });
   }
   const deferred =
-    action.execution === 'async' || (action.execution === 'either' && effect.prefer === 'async');
+    placement === 'backend' ||
+    action.execution === 'async' ||
+    (action.execution === 'either' && effect.prefer === 'async');
   checkInvokeErrors(effect, action, run.action, deferred);
   if (deferred) {
+    const commandId = kernelCommandId('effect', id);
     await unit.jobs.enqueue({
       ...jobInput({
         actor: scene.causeActor,
@@ -75,7 +82,10 @@ export async function runInvokeEffect(
       }),
       kind: 'action',
       queue: commandQueue,
-      run: commandJobRun(action.ref, input, kernelCommandId('effect', id)),
+      run: commandJobRun(action.ref, await sealJobInput(unit, commandId, action, input), commandId),
+      ...(placement === 'backend' && run.scope.level === 'tenant'
+        ? { group: crossScopeGroup(run.scope.backendId) }
+        : {}),
     });
     return [];
   }

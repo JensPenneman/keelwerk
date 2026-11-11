@@ -26,6 +26,9 @@ export const newFlagParameters: FlagParametersForType<NewFlags> = {
   effect: text('Rule: allow|deny.'),
   on: text('Reaction: the event, module.entity.event.'),
   every: text('Schedule: the interval, such as 5m or 1d.'),
+  ticks: text(
+    'Schedule: each-tenant (the default, for a tenant action) or backend (for an action with scope backend).',
+  ),
   modules: text('App: modules to select, comma separated.'),
   scope: text('Package scope for new packages and imports of other modules.'),
   dir: text('The module package directory, when it is not modules/<id> or packages/module-<id>.'),

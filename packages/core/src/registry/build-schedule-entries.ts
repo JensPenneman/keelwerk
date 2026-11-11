@@ -1,3 +1,5 @@
+import { durationMs } from '../effects/duration-ms.ts';
+import { acceptedScopeLevels } from '../invoker/stages/accepted-scope-levels.ts';
 import type { ActionEntry } from './action-entry.ts';
 import { compositionError } from './composition-error.ts';
 import type { CompositionProblem } from './composition-problem.ts';
@@ -13,6 +15,20 @@ interface ScheduleSpecView {
   readonly jitter?: string;
 }
 
+/** What is wrong with a schedule's `every` and `jitter`, if anything: both parse, `every` is above zero and the jitter is below it. */
+function durationProblem(spec: ScheduleSpecView): string | undefined {
+  try {
+    const every = durationMs(spec.every);
+    if (every <= 0) return `runs every "${spec.every}", which is not above zero`;
+    if (spec.jitter !== undefined && durationMs(spec.jitter) >= every) {
+      return `has a jitter "${spec.jitter}" that is not below its interval "${spec.every}"`;
+    }
+    return undefined;
+  } catch {
+    return `has an interval "${spec.every}" or a jitter "${spec.jitter ?? ''}" that is no duration`;
+  }
+}
+
 /** The schedules and the problems met resolving what they invoke. */
 export interface ScheduleTable {
   readonly schedules: ReadonlyMap<string, ScheduleEntry>;
@@ -21,8 +37,12 @@ export interface ScheduleTable {
 
 /**
  * The schedules of the modules by reference. What a schedule invokes must be an own command the
- * app mounts: an unmounted part (`unresolvedPartReferences`) or a missing or non-command reference
- * (`unknownScheduleActions`) is refused.
+ * app mounts: an unmounted part (`unresolvedPartReferences`) or a missing, non-command or foreign
+ * reference (`unknownScheduleActions`) is refused. The command must also be reachable at the level
+ * the schedule ticks at (`mismatchedScheduleScopes`: a backend schedule needs a backend or invocation
+ * command, an each-tenant one a tenant or invocation command: a backend command would run once per
+ * tenant in the backend unit), and `every` and `jitter` must
+ * be durations with the jitter below `every` (`invalidScheduleDurations`).
  */
 export function buildScheduleEntries(
   ordered: readonly RuntimeModule[],
@@ -48,16 +68,49 @@ export function buildScheduleEntries(
         );
         continue;
       }
-      if (actions.get(invoke)?.kind !== 'command') {
+      const action = actions.get(invoke);
+      if (action?.kind !== 'command' || action.module !== module.id) {
         problems.push(
           compositionError(
             'unknownScheduleActions',
-            `The schedule '${ref}' invokes '${invoke}', which is not a command of the app.`,
+            `The schedule '${ref}' invokes '${invoke}', which is not a command of its own module ${module.id}.`,
             {
               module: module.id,
               ref,
             },
           ),
+        );
+        continue;
+      }
+      const scope = spec.scope ?? 'backend';
+      const level = scope === 'backend' ? 'backend' : 'tenant';
+      if (!acceptedScopeLevels[action.scope].includes(level)) {
+        problems.push(
+          compositionError(
+            'mismatchedScheduleScopes',
+            `The schedule '${ref}' ticks at the ${level} level and '${invoke}' runs at the ${action.scope} level.`,
+            { module: module.id, ref },
+          ),
+        );
+        continue;
+      }
+      if (scope === 'each-tenant' && action.scope === 'backend') {
+        problems.push(
+          compositionError(
+            'mismatchedScheduleScopes',
+            `The schedule '${ref}' ticks in each tenant and '${invoke}' is a backend command: it would run once per tenant in the backend unit as the module's service principal. Use a tenant or invocation command.`,
+            { module: module.id, ref },
+          ),
+        );
+        continue;
+      }
+      const durations = durationProblem(spec);
+      if (durations !== undefined) {
+        problems.push(
+          compositionError('invalidScheduleDurations', `The schedule '${ref}' ${durations}.`, {
+            module: module.id,
+            ref,
+          }),
         );
         continue;
       }
@@ -67,7 +120,7 @@ export function buildScheduleEntries(
         name,
         every: spec.every,
         invoke,
-        scope: spec.scope ?? 'backend',
+        scope,
         ...(spec.jitter === undefined ? {} : { jitter: spec.jitter }),
         ...(spec.input === undefined ? {} : { input: spec.input }),
       });

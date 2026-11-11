@@ -99,6 +99,26 @@ describe('parts in a copy of the library fixture', () => {
     expect(from).toContain("actions: ['read']");
   });
 
+  test('a schedule ticks for each tenant, or for each backend with --ticks backend', async () => {
+    await libraryCopy();
+    await runNew('action', 'library.sync', '--dir', 'modules/library');
+    await runNew('schedule', 'library.sync', '--every', '5m', '--dir', 'modules/library');
+    const tenants = await read('modules/library/src/schedules/sync.ts');
+    expect(tenants).toContain("scope: 'each-tenant',");
+    await runNew('action', 'library.rebuild', '--dir', 'modules/library');
+    await runNew('schedule', 'library.rebuild', '--ticks', 'backend', '--dir', 'modules/library');
+    expect(await read('modules/library/src/schedules/rebuild.ts')).toContain("scope: 'backend',");
+    const refused = await runNew(
+      'schedule',
+      'library.sync',
+      '--ticks',
+      'all',
+      '--dir',
+      'modules/library',
+    );
+    expect(refused.stderr).toContain('--ticks is one of each-tenant, backend');
+  });
+
   test('the base hand edit of a condition prints the module import', async () => {
     await libraryCopy();
     const run = await runNew('condition', 'library.when-accounts', '--dir', 'modules/library');

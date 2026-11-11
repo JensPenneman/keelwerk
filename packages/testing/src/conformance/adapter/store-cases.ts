@@ -12,12 +12,12 @@ export function storeCases(subject: ConformanceSubject): void {
   receiptStoreCases(subject);
 
   describe('jobs (14.3.9)', () => {
-    const take = (subject2: ConformanceSubject, worker = 'w1') =>
+    const take = (subject2: ConformanceSubject, worker = 'w1', queue = 'commands') =>
       subject2.run(
         namespaceScope,
         async (unit) =>
           (
-            await unit.jobs.take('commands', worker, {
+            await unit.jobs.take(queue, worker, {
               limit: 10,
               capabilitySets: [''],
               maxRevision: 100,
@@ -87,6 +87,89 @@ export function storeCases(subject: ConformanceSubject): void {
       );
       expect(await subject.run(tenantA, (unit) => unit.jobs.cancel('commands', 'later'))).toBe(1);
       expect(await subject.run(tenantA, (unit) => unit.jobs.cancel('commands', 'later'))).toBe(0);
+    });
+
+    test('cancel of a key in the timers queue takes the running attempt too: its completion is refused and its command unit rolls back', async () => {
+      await subject.run(tenantA, (unit) =>
+        unit.jobs.enqueue(
+          storedJob({ queue: 'timers', key: { value: 'running', onConflict: 'replace' } }),
+        ),
+      );
+      const [job] = await take(subject, 'w1', 'timers');
+      if (job === undefined) throw new Error('no job was taken');
+      expect(await subject.run(tenantA, (unit) => unit.jobs.cancel('timers', 'running'))).toBe(1);
+      // The command the job ran commits in a unit of its own that also completes the job: refused.
+      await expect(
+        subject.run(tenantA, async (unit) => {
+          await unit.jobs.enqueue(storedJob({ key: { value: 'effect', onConflict: 'keep' } }));
+          if (!(await unit.jobs.complete(job.attempt, 'w1', { kind: 'succeeded' }))) {
+            throw new Error('lease lost');
+          }
+        }),
+      ).rejects.toThrow('lease lost');
+      expect(await subject.run(tenantA, (unit) => unit.jobs.cancel('commands', 'effect'))).toBe(0);
+      expect(
+        await subject.run(namespaceScope, (unit) => unit.jobs.heartbeat([job.attempt], 'w1', 1000)),
+      ).toEqual([]);
+      expect(await take(subject, 'w1', 'timers')).toEqual([]);
+      expect(await subject.run(tenantA, (unit) => unit.jobs.cancel('timers', 'running'))).toBe(0);
+    });
+
+    test('cancel of a running keyed timer gives its group slot back', async () => {
+      await subject.run(namespaceScope, (unit) =>
+        unit.jobs.provisionGroup({ id: 'g', concurrency: 1, scope: 'namespace' }),
+      );
+      const grouped = (key: string, input: number) =>
+        storedJob({
+          queue: 'timers',
+          key: { value: key, onConflict: 'keep' },
+          group: { id: 'g', concurrency: 1, scope: 'namespace' },
+          run: { action: 'a', input },
+        });
+      await subject.run(tenantA, async (unit) => {
+        await unit.jobs.enqueue(grouped('first', 1));
+        await unit.jobs.enqueue(grouped('second', 2));
+      });
+      expect((await take(subject, 'w1', 'timers')).map((job) => job.run)).toEqual([
+        { action: 'a', input: 1 },
+      ]);
+      // The group is full: the second job waits for the slot.
+      expect(await take(subject, 'w1', 'timers')).toEqual([]);
+      expect(await subject.run(tenantA, (unit) => unit.jobs.cancel('timers', 'first'))).toBe(1);
+      expect((await take(subject, 'w1', 'timers')).map((job) => job.run)).toEqual([
+        { action: 'a', input: 2 },
+      ]);
+    });
+
+    test('cancel of a key in another queue leaves the running attempt: it is not counted and its completion succeeds', async () => {
+      await subject.run(tenantA, (unit) =>
+        unit.jobs.enqueue(storedJob({ key: { value: 'crossing', onConflict: 'replace' } })),
+      );
+      const [job] = await take(subject);
+      if (job === undefined) throw new Error('no job was taken');
+      expect(await subject.run(tenantA, (unit) => unit.jobs.cancel('commands', 'crossing'))).toBe(
+        0,
+      );
+      expect(
+        await subject.run(namespaceScope, (unit) => unit.jobs.heartbeat([job.attempt], 'w1', 1000)),
+      ).toEqual([job.attempt]);
+      expect(
+        await subject.run(namespaceScope, (unit) =>
+          unit.jobs.complete(job.attempt, 'w1', { kind: 'succeeded' }),
+        ),
+      ).toBe(true);
+    });
+
+    test('a job that ended before the cancel is not cancelled', async () => {
+      await subject.run(tenantA, (unit) =>
+        unit.jobs.enqueue(storedJob({ key: { value: 'done', onConflict: 'replace' } })),
+      );
+      const [job] = await take(subject);
+      if (job === undefined) throw new Error('no job was taken');
+      await subject.run(namespaceScope, (unit) =>
+        unit.jobs.complete(job.attempt, 'w1', { kind: 'succeeded' }),
+      );
+      expect(await subject.run(tenantA, (unit) => unit.jobs.cancel('commands', 'done'))).toBe(0);
     });
 
     test('complete is conditional on the worker and the attempt', async () => {

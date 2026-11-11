@@ -11,6 +11,7 @@ import type { WorkerOptions } from './worker-options.ts';
 export interface JobQueue {
   readonly capabilities: QueueCapabilities;
   enqueue(job: JobSpec, unit: Unit): Promise<JobId>;
+  /** Cancels the pending jobs of the key; a running attempt only in the timers queue (see `JobStore.cancel`); outside it a running job is left to finish and is not counted. Answers a count only. */
   cancel(queue: string, key: string, unit: Unit): Promise<number>;
   work(
     queue: string,

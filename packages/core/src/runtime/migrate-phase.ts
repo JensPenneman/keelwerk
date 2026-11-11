@@ -8,6 +8,7 @@ import type { Composed } from './compose-phase.ts';
 import type { Connected } from './connected.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
 import { prepareNamespace } from './prepare-namespace.ts';
+import { provisionBackendGroup } from './provision-backend-group.ts';
 import type { ServedApp } from './served-app.ts';
 
 /** The namespace-wide job groups of the deployment's queues (`queues.<q>.running`, section 9.5.5). */
@@ -73,6 +74,7 @@ export async function migratePhase(input: {
     store: connected.control,
     book,
     log: connected.log,
+    provisionBackend: provisionBackendGroup(connected),
   });
   connected.bindDirectory(directory.lookup);
   return { book, directory };

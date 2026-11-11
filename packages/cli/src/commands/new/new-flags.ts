@@ -12,6 +12,7 @@ export interface NewFlags {
   readonly effect?: string;
   readonly on?: string;
   readonly every?: string;
+  readonly ticks?: string;
   readonly modules?: string;
   readonly scope?: string;
   readonly dir?: string;

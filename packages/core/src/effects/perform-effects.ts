@@ -28,7 +28,7 @@ export async function performEffects(
         break;
       case 'setTimer':
       case 'cancelTimer':
-        await runTimerEffects(scene, effect);
+        await runTimerEffects(scene, effect, id);
         break;
       case 'settle':
         refuseSettle(effect);

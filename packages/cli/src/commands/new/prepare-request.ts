@@ -84,6 +84,7 @@ export async function prepareRequest(
     effect: flags.effect,
     on: flags.on,
     every: flags.every,
+    ticks: flags.ticks,
     modules: splitList(flags.modules),
     scope: flags.scope,
     dir: flags.dir,

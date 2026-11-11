@@ -57,8 +57,14 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
   let started = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
+  const attended: (() => Promise<void>)[] = [];
+  const attending = new Set<Promise<void>>();
+
   const quiet = (): boolean =>
-    held.size === 0 && renewing.size === 0 && fetchers.every((fetcher) => fetcher.idle);
+    held.size === 0 &&
+    renewing.size === 0 &&
+    attending.size === 0 &&
+    fetchers.every((fetcher) => fetcher.idle);
   const changed = (): void => {
     if (!quiet()) return;
     for (const resolve of waiters.splice(0)) resolve();
@@ -145,10 +151,27 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
   const unsupported = (what: string, wp: string): KeelwerkError =>
     errors.not_implemented(`${what} of the kernel queue arrives with ${wp}.`);
 
+  /** Starts every attended run; each settles with a wake of the fetchers and a check for quiet. */
+  const runAttended = (): void => {
+    for (const run of attended) {
+      const running: Promise<void> = run()
+        .catch((error: unknown) => {
+          log.error('an attended run failed', { cause: error });
+        })
+        .finally(() => {
+          attending.delete(running);
+          wakeAll();
+          changed();
+        });
+      attending.add(running);
+    }
+  };
+
   const probe = {
     wake: () => {
       readiness.recheck();
       wakeAll();
+      runAttended();
     },
     idle: () =>
       new Promise<void>((resolve) => {
@@ -174,6 +197,9 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
       const source = sourceOfJob.get(job);
       if (source === undefined) throw errors.internal('The job was not taken by this queue.');
       return source;
+    },
+    attend: (run) => {
+      attended.push(run);
     },
     enqueue: (job, unit) =>
       unit.jobs.enqueue({
@@ -221,7 +247,12 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
         },
       };
     },
-    schedule: () => Promise.reject(unsupported('Schedules', 'WP-82')),
+    schedule: () =>
+      Promise.reject(
+        errors.not_implemented(
+          'Schedules are declared with defineSchedule; the kernel queue registers none at run time.',
+        ),
+      ),
     explain: () => Promise.reject(unsupported('Explaining a job', 'WP-83')),
     stats: async (selector) => {
       if (selector.backendId !== undefined) {

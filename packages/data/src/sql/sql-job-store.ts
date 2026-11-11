@@ -19,6 +19,7 @@ import { sqlJobPromote } from './sql-job-promote.ts';
 import { sqlJobRelease } from './sql-job-release.ts';
 import { sqlJobStats } from './sql-job-stats.ts';
 import { sqlJobTake } from './sql-job-take.ts';
+import { sqlScheduleStore } from './sql-schedule-store.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
 
 function sameScope(unit: StorageScope, job: Scope): boolean {
@@ -38,11 +39,11 @@ function sameScope(unit: StorageScope, job: Scope): boolean {
 
 const pending = `('scheduled', 'available', 'waiting')`;
 
-/** The job store of a unit (14.3.9) without `schedules()` (S-03), plus the provisioning of namespace groups. */
+/** The job store of a unit (14.3.9), plus the provisioning of namespace groups. */
 export interface SqlJobStore
   extends Pick<
     JobStore,
-    'cancel' | 'complete' | 'enqueue' | 'heartbeat' | 'promote' | 'stats' | 'take'
+    'cancel' | 'complete' | 'enqueue' | 'heartbeat' | 'promote' | 'schedules' | 'stats' | 'take'
   > {
   /**
    * Creates or re-limits a job group that spans the namespace's scopes; only a namespace-scope unit
@@ -202,6 +203,7 @@ returning id::text as id`,
       return sqlGuard(async () => sqlJobComplete(ctx, buffer, attempt, worker, outcome));
     },
     stats: async (queue) => sqlGuard(async () => sqlJobStats(ctx, queue)),
+    schedules: () => sqlScheduleStore(ctx),
 
     cancel: async (queue, key) => {
       ctx.writable();

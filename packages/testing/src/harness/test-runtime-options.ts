@@ -45,6 +45,8 @@ export interface TestRuntimeOptions<Name extends string = 'acme' | 'globex'> {
         readonly capabilities?: readonly string[];
         readonly egress?: EgressPolicy;
       };
+  /** The seconds `stop` gives the running services before it abandons them (the runtime's `drainSeconds`, default 60); only with workers. */
+  readonly drainSeconds?: number;
   /**
    * Attaches this runtime to a deployment that another runtime created on the same `external`
    * database, creating nothing: the backend and the tenants have these ids (`tenants` by name).

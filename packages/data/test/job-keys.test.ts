@@ -113,26 +113,55 @@ describe('keys: keep, replace, coalesce', () => {
     expect(await store.run(tenantScope, (unit) => unit.jobs.enqueue(keyed('keep')))).toBe('3');
   });
 
-  test('fifo per key: a later job waits behind a running head and is cancelled with its key', async () => {
-    const fifo = (over = {}): ReturnType<typeof jobSpec> =>
-      jobSpec({ ordering: 'fifo-per-key', key: { value: 'q', onConflict: 'replace' }, ...over });
-    await store.run(tenantScope, (unit) => unit.jobs.enqueue(fifo()));
-    await rows(`update app.kw_jobs set state = 'running'`);
-    await store.run(tenantScope, async (unit) => {
-      await unit.jobs.enqueue(
-        jobSpec({ ordering: 'fifo-per-key', key: { value: 'q', onConflict: 'keep' } }),
-      );
-    });
-    expect(await states()).toEqual([
-      [1, 'running', 'q'],
-      [2, 'waiting', 'q'],
-    ]);
-    expect(
-      await rows(`select value::int as n from app.kw_job_lane_counts where kind = 'enqueued'`),
-    ).toEqual([{ n: 1 }]);
-    await store.run(tenantScope, (unit) => unit.jobs.cancel('commands', 'q'));
-    expect(await states()).toEqual([[1, 'running', 'q']]);
-  });
+  test.each([
+    {
+      queue: 'timers',
+      after: [],
+      doneRise: 1,
+      title: 'a cancel of the key takes both and the head counts as done',
+    },
+    {
+      queue: 'commands',
+      after: [[1, 'running', 'q']],
+      doneRise: 0,
+      title: 'a cancel of the key takes the waiting job and leaves the running head',
+    },
+  ])(
+    'fifo per key in the $queue queue: a later job waits behind a running head, $title',
+    async ({ queue, after, doneRise }) => {
+      const fifo = (over = {}): ReturnType<typeof jobSpec> =>
+        jobSpec({
+          queue,
+          ordering: 'fifo-per-key',
+          key: { value: 'q', onConflict: 'replace' },
+          ...over,
+        });
+      await store.run(tenantScope, (unit) => unit.jobs.enqueue(fifo()));
+      await rows(`update app.kw_jobs set state = 'running'`);
+      await store.run(tenantScope, async (unit) => {
+        await unit.jobs.enqueue(fifo({ key: { value: 'q', onConflict: 'keep' } }));
+      });
+      expect(await states()).toEqual([
+        [1, 'running', 'q'],
+        [2, 'waiting', 'q'],
+      ]);
+      expect(
+        await rows(`select value::int as n from app.kw_job_lane_counts where kind = 'enqueued'`),
+      ).toEqual([{ n: 1 }]);
+      const done = async (): Promise<number> =>
+        Number(
+          (
+            await rows(
+              `select coalesce(sum(value), 0)::int as n from app.kw_job_lane_counts where kind = 'done'`,
+            )
+          )[0]?.n,
+        );
+      const doneBefore = await done();
+      await store.run(tenantScope, (unit) => unit.jobs.cancel(queue, 'q'));
+      expect(await states()).toEqual(after);
+      expect(await done()).toBe(doneBefore + doneRise);
+    },
+  );
 
   test('cancel removes the pending jobs of a key, counts them, and leaves history', async () => {
     await store.run(tenantScope, async (unit) => {

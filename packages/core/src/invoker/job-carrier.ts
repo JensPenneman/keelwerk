@@ -1,3 +1,4 @@
+import type { JobRetry } from '../jobs/job-retry.ts';
 import type { PrincipalRef } from '../principals/principal-ref.ts';
 import type { JobAttempt } from '../storage/job-attempt.ts';
 import type { Scope } from '../storage/scope.ts';
@@ -14,6 +15,8 @@ export interface JobCarrier {
    */
   readonly transport: string | null;
   readonly attempt: JobAttempt;
+  /** The retry policy of the job: the receipt of a job that crosses scopes outlives its horizon (`receiptWindowMs`). */
+  readonly retry?: JobRetry;
   /** The event that caused the job (a continuation's settled record, a reaction's event): the `causationId` of the events its command writes. */
   readonly causationId?: string;
   /**

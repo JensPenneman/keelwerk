@@ -26,6 +26,7 @@
   "queue": "timers",
   "run": {
     "action": "library.later",
+    "commandId": "kernel:timer:<effect id>",
     "input": {
       "n": 3
     }

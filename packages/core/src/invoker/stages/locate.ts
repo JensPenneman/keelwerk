@@ -3,14 +3,7 @@ import { KeelwerkError } from '../../errors/keelwerk-error.ts';
 import type { ActionEntry } from '../../registry/action-entry.ts';
 import type { Registry } from '../../registry/registry.ts';
 import type { Scope } from '../../storage/scope.ts';
-
-/** The session scope levels an action of each scope level accepts (section 8.8). */
-const accepted: Readonly<Record<ActionEntry['scope'], readonly Scope['level'][]>> = {
-  tenant: ['tenant'],
-  backend: ['backend', 'tenant'],
-  deployment: ['deployment'],
-  invocation: ['tenant', 'backend', 'deployment'],
-};
+import { acceptedScopeLevels } from './accepted-scope-levels.ts';
 
 /**
  * `locate` (section 9.2): the action in the app's registry. `not_implemented` when the app lacks
@@ -36,7 +29,7 @@ export function locate(
       message: `"${ref}" is not an action of this app.`,
     });
   }
-  if (!accepted[action.scope].includes(scope.level)) {
+  if (!acceptedScopeLevels[action.scope].includes(scope.level)) {
     throw new KeelwerkError({
       kind: 'forbidden',
       code: 'core.forbidden',

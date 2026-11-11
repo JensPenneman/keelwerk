@@ -12,8 +12,9 @@ import type { ScaffoldRequest } from './scaffold-request.ts';
 /**
  * `keelwerk new schedule <module>.<action>` or `<module>.<entity>.<action> --every 1d`:
  * `src/schedules/<action>.ts` (`<entity>-<action>.ts` for an entity action) exporting
- * `<action>Schedule`, the schedule of an action the module owns (section 23.4). M1 declares it;
- * the worker that fires it is M2 (S-24).
+ * `<action>Schedule`, the schedule of an action the module owns (section 23.4). A new action is a
+ * tenant action, so the schedule ticks once for each tenant; for an action with scope backend pass
+ * `--ticks backend`, and the schedule ticks once for each backend.
  */
 export function scheduleTemplate(request: ScaffoldRequest): ScaffoldPlan {
   const names = expectNames(
@@ -34,6 +35,10 @@ export function scheduleTemplate(request: ScaffoldRequest): ScaffoldPlan {
   if (!/^\d+(ms|s|m|h|d)$/.test(every)) {
     throw usageFailure(`--every is a duration such as 5m or 1d, not "${every}".`);
   }
+  const ticks = request.options.ticks ?? 'each-tenant';
+  if (ticks !== 'each-tenant' && ticks !== 'backend') {
+    throw usageFailure(`--ticks is one of each-tenant, backend, not "${ticks}".`);
+  }
   const file = owner === undefined ? action : `${owner}-${action}`;
   const placement = partPlacement(request, 'schedules', undefined, file);
   const name = camelFromKebab(action);
@@ -45,6 +50,7 @@ export function scheduleTemplate(request: ScaffoldRequest): ScaffoldPlan {
 
 export const ${camelFromKebab(file)}Schedule = defineSchedule(${placement.source}, {
   every: '${every}',
+  scope: '${ticks}',
   invoke: ${name},
 });
 `;

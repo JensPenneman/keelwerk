@@ -22,7 +22,7 @@ import { decodeRow } from '../repositories/decode-row.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
 import { stateTokenKey } from '../tokens/state-token-key.ts';
-import { completeJob } from '../worker/complete-job.ts';
+import { completeJobHere } from '../worker/complete-job-here.ts';
 import { appendEvents } from './append-events.ts';
 import { appendReceiptChange } from './append-receipt-change.ts';
 import { appendStreamRecords } from './append-stream-records.ts';
@@ -37,6 +37,7 @@ import { normalizeDecision } from './normalize-decision.ts';
 import { openDecision } from './open-decision.ts';
 import { openReactionJob } from './open-reaction-job.ts';
 import { receiptRow } from './receipt-row.ts';
+import { receiptWindowMs } from './receipt-window-ms.ts';
 import { refuseGeneratedWrite } from './refuse-generated-write.ts';
 import { replayReceipt } from './replay-receipt.ts';
 import type { RunCommandInput } from './run-command-input.ts';
@@ -83,7 +84,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     request: run.request,
     ...(run.client === undefined ? {} : { client: run.client }),
     now,
-    ...(action.idempotencyWindowMs === undefined ? {} : { windowMs: action.idempotencyWindowMs }),
+    windowMs: receiptWindowMs(action, job),
   });
   const pending = await insertPendingReceipt(unit, receipt, { takeOver: job !== undefined });
   if (pending.kind === 'inserted' && run.replayOnly === true) {
@@ -96,7 +97,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   }
   if (pending.kind === 'replay') {
     const replayed = await replayReceipt(unit, registry, action, authority, pending.receipt);
-    if (job !== undefined) await completeJob(unit, job, { kind: 'succeeded' });
+    if (job !== undefined) await completeJobHere(unit, job, action.scope, { kind: 'succeeded' });
     return replayed;
   }
 
@@ -316,7 +317,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
         now,
       });
     }
-    await completeJob(unit, job, { kind: 'succeeded' });
+    await completeJobHere(unit, job, action.scope, { kind: 'succeeded' });
   }
   return { output, ...(effects.length > 0 ? { effects } : {}) };
 }

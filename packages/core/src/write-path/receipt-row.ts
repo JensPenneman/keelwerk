@@ -1,9 +1,7 @@
 import type { RequestInfo } from '../invoker/request-info.ts';
 import type { Principal } from '../principals/principal.ts';
 import type { Receipt } from '../storage/receipt.ts';
-
-/** How long a receipt answers a retry, unless the action says otherwise (section 7.5). */
-const defaultWindowMs = 24 * 60 * 60 * 1000;
+import { defaultReceiptWindowMs } from './default-receipt-window-ms.ts';
 
 /** What a pending receipt is built from. */
 export interface ReceiptRowInput {
@@ -16,7 +14,7 @@ export interface ReceiptRowInput {
   readonly client?: { readonly id: string; readonly seq: number };
   readonly now: Temporal.Instant;
   /** The action's idempotency window in milliseconds; default 24 hours. */
-  readonly windowMs?: number;
+  readonly windowMs?: number | undefined;
 }
 
 /**
@@ -42,6 +40,6 @@ export function receiptRow(input: ReceiptRowInput): Receipt {
     },
     clientId: input.client?.id ?? null,
     clientSeq: input.client?.seq ?? null,
-    expiresAt: input.now.add({ milliseconds: input.windowMs ?? defaultWindowMs }),
+    expiresAt: input.now.add({ milliseconds: input.windowMs ?? defaultReceiptWindowMs }),
   };
 }

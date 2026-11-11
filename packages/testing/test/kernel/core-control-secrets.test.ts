@@ -116,7 +116,7 @@ describe('a create with a secret config (S-111)', () => {
                   return found;
                 },
               };
-              return fn(Object.create(unit, { receipts: { value: receipts } }));
+              return fn({ ...unit, receipts });
             },
             options,
           );

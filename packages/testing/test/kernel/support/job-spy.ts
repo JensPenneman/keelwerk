@@ -19,6 +19,7 @@ function spied(unit: Unit, spy: JobSpy, pending: StoredJobSpec[]): Unit {
     jobs: {
       ...unit.jobs,
       enqueue: async (job) => {
+        await spy.beforeEnqueue?.(job);
         const id = await unit.jobs.enqueue(job);
         pending.push(job);
         return id;
@@ -119,6 +120,8 @@ export interface JobSpy {
   beforeReceiptClaim?: ((commandId: string) => void) | undefined;
   /** True: the take of this worker on this queue answers no job, without asking the store. */
   refuseTake?: ((queue: string, worker: string) => boolean) | undefined;
+  /** Runs in a unit that is about to enqueue a job, before the store sees it; the unit waits for a promise. */
+  beforeEnqueue?: ((job: StoredJobSpec) => void | Promise<void>) | undefined;
   /** A read-only unit waits for this gate before it opens (after the first `after` ones): the principal resolution of a job. */
   hold?: Gate;
   /** What the adapter of the app's placement reports at connect, merged over the in-memory capabilities. */

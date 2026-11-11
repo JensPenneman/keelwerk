@@ -1,15 +1,10 @@
 import { trace } from '@opentelemetry/api';
 import { errors } from '../errors/errors.ts';
-import type { JobQueue } from '../jobs/job-queue.ts';
 import type { RuntimeService } from '../runtime/runtime-service.ts';
 import type { StartPhaseInput } from '../runtime/start-phase-input.ts';
 import { workRole } from '../runtime/work-role.ts';
-import type { KernelQueue } from './kernel-queue.ts';
+import { isKernelQueue } from './is-kernel-queue.ts';
 import { runJob } from './run-job.ts';
-
-function isKernelQueue(queue: JobQueue): queue is KernelQueue {
-  return 'sourceOf' in queue && typeof queue.sourceOf === 'function' && 'probe' in queue;
-}
 
 /**
  * The kernel's workers (`core.workers`, S-154): in a process with the `work` role, `start` runs

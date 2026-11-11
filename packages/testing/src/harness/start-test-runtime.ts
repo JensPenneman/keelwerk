@@ -158,6 +158,7 @@ export async function startTestRuntime<
         ? {}
         : {
             work: {
+              ...(options.drainSeconds === undefined ? {} : { drainSeconds: options.drainSeconds }),
               slots:
                 options.workers === true
                   ? { '*': 4 }

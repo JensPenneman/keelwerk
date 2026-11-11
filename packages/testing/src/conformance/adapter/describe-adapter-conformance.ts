@@ -22,6 +22,7 @@ import { paginationCases } from './pagination-cases.ts';
 import { processStreamCases } from './process-stream-cases.ts';
 import { rowCases } from './row-cases.ts';
 import { rowIsolationCases } from './row-isolation-cases.ts';
+import { scheduleCases } from './schedule-cases.ts';
 import { serialCases } from './serial-cases.ts';
 import { storeCases } from './store-cases.ts';
 import { storeIsolationCases } from './store-isolation-cases.ts';
@@ -103,6 +104,7 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     processStreamCases(subject);
     describe('job store', () => jobStoreCases(subject));
     describe('consumers', () => consumerCases(subject));
+    describe('schedules', () => scheduleCases(subject));
     describe('serials', () => serialCases(subject));
     describe('stream records', () => streamRecordCases(subject));
     describe('migrations', () => migrationCases(subject));

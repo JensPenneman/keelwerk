@@ -32,29 +32,38 @@ export async function runSliceThree(kit: ReactionsKit): Promise<void> {
   // A's ten retries become due at t0 + 11 s. B's three events are written at that instant, so B's jobs
   // are due while A's are, and the worker's take has to share between the tenants: the first take that
   // claims anything holds a job of B (an unfair take would claim A's ten first), and all of B's
-  // reactions are answered at that instant, whatever A retries.
+  // reactions are answered at that instant, whatever A retries. No take is let through until B's
+  // three reaction jobs are queued, so what the first take claims never depends on how fast the
+  // adapter commits against the workers' polling.
   const later = t0.add({ seconds: 11 });
   kit.pin(later);
   const spy = kit.spy;
   if (spy === undefined) throw new Error('the slice needs a kit booted with the job store watched');
   spy.takes.length = 0;
   spy.enqueued.length = 0;
-  for (const text of ['b1', 'b2', 'b3']) {
-    const sent = await kit.send('globex', { channel: 'up', text });
-    expect(sent.ok).toBe(true);
+  spy.refuseTake = () => true;
+  try {
+    for (const text of ['b1', 'b2', 'b3']) {
+      const sent = await kit.send('globex', { channel: 'up', text });
+      expect(sent.ok).toBe(true);
+    }
+    while ((await kit.dispatcher.settled()) > 0) {
+      // The dispatcher enqueues the reaction jobs of the events written so far.
+    }
+  } finally {
+    spy.refuseTake = undefined;
   }
-  await kit.settle();
-  for (const event of downEvents) expect(relayControl.attempts.get(event.eventId)).toBe(2);
-  // The first take that starts after B's first reaction job committed claims a job of B.
   const isGlobex = (job: StoredJobSpec) =>
     job.scope.level === 'tenant' && job.scope.tenantId === kit.runtime.tenants.globex.id;
-  const arrived = spy.enqueued.find(
+  const queued = spy.enqueued.filter(
     (entry) => entry.job.queue === 'reactions' && isGlobex(entry.job),
   );
-  if (arrived === undefined) throw new Error('no reaction job of B was enqueued');
-  const firstTake = spy.takes
-    .slice(arrived.takesStarted)
-    .find((take) => take.queue === 'reactions' && take.jobs.length > 0);
+  expect(queued.length).toBeGreaterThanOrEqual(3);
+  expect(spy.takes.filter((take) => take.jobs.length > 0)).toEqual([]);
+  await kit.settle();
+  for (const event of downEvents) expect(relayControl.attempts.get(event.eventId)).toBe(2);
+  // The first take that claims anything holds a job of B.
+  const firstTake = spy.takes.find((take) => take.queue === 'reactions' && take.jobs.length > 0);
   expect(firstTake?.jobs.some(isGlobex)).toBe(true);
   const globex = await kit.rows('globex', 'relay.echo');
   expect(globex.map((row) => row.reaction).filter((name) => name === 'relay.flaky')).toHaveLength(

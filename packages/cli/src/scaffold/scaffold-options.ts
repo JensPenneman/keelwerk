@@ -12,6 +12,7 @@ export interface ScaffoldOptions {
   readonly effect: string | undefined;
   readonly on: string | undefined;
   readonly every: string | undefined;
+  readonly ticks: string | undefined;
   readonly modules: readonly string[];
   readonly scope: string | undefined;
   readonly dir: string | undefined;
