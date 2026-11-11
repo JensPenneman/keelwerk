@@ -1,5 +1,7 @@
 import type { Call } from './call.ts';
+import type { EventStreamReader } from './event-stream-reader.ts';
 import type { Sent } from './sent.ts';
+import type { SubscribeCall } from './subscribe-call.ts';
 import type { TransportTarget } from './transport-target.ts';
 
 /**
@@ -28,6 +30,12 @@ export interface TransportCodec {
   readonly reportsChosenCommandId: boolean;
   /** The path of the server-sent event stream (`GET`, `action` and `input` in the query), or undefined when the transport has none. */
   readonly subscribePath?: string;
+  /**
+   * Opens a subscription through the target and answers its event stream: the invocation protocol
+   * sends `GET` (or `POST`) `/_keelwerk/v1/subscribe`. Absent for a transport that has no stream
+   * endpoint; the scenarios that need one are skipped for it.
+   */
+  subscribe?(target: TransportTarget, call: SubscribeCall): Promise<EventStreamReader>;
   /** Whether the answer marks an idempotent replay (only meaningful when `marksReplays`). */
   isReplay(sent: Sent): boolean;
   /** Whether this transport marks replays at all (REST: `Idempotent-Replayed`). */

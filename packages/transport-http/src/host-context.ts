@@ -2,6 +2,9 @@ import type { Meter } from '@keelwerk/core';
 import type { HttpHostDeps } from './http-host-deps.ts';
 import type { Lifecycle } from './lifecycle.ts';
 import type { MountTable } from './mount-table.ts';
+import type { OpenSseStream } from './open-sse-stream.ts';
+import type { SseHostOptions } from './sse-host-options.ts';
+import type { StreamLimits } from './stream-limits.ts';
 import type { TrustedProxies } from './trusted-proxies.ts';
 
 /** What every part of one host shares; built once by `createHttpHost`. */
@@ -15,4 +18,9 @@ export interface HostContext {
   readonly connectionIds: WeakMap<object, string>;
   readonly lifecycle: Lifecycle;
   readonly errorCounter: ReturnType<Meter['createCounter']>;
+  /** The open server-sent event streams: `stop` says goodbye to each. */
+  readonly streams: Set<OpenSseStream>;
+  readonly limits: StreamLimits;
+  /** The bounds of a stream with their defaults filled in. */
+  readonly live: Required<SseHostOptions>;
 }

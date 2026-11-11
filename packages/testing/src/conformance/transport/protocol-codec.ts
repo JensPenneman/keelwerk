@@ -1,5 +1,6 @@
 import { decodeAnswer } from './decode-answer.ts';
 import { originOf } from './origin-of.ts';
+import { readEventStream } from './read-event-stream.ts';
 import { requestHeaders } from './request-headers.ts';
 import { responseRecord } from './response-record.ts';
 import type { TransportCodec } from './transport-codec.ts';
@@ -28,6 +29,33 @@ export const protocolCodec: TransportCodec = {
       }),
     );
     return decodeAnswer(response, true);
+  },
+  async subscribe(target, call) {
+    const caller = call.caller ?? {};
+    const headers = requestHeaders(caller);
+    headers.set('accept', 'text/event-stream');
+    if (call.lastEventId !== undefined) headers.set('last-event-id', call.lastEventId);
+    const base = `${originOf(target, caller)}${caller.pathPrefix ?? ''}/_keelwerk/v1/subscribe`;
+    if (call.method === 'POST') {
+      headers.set('content-type', 'application/json');
+      const response = await target.fetch(
+        new Request(base, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            action: call.action,
+            ...(call.input === undefined ? {} : { input: call.input }),
+            ...(call.after === undefined ? {} : { after: call.after }),
+          }),
+        }),
+      );
+      return readEventStream(response);
+    }
+    const query = new URLSearchParams({ action: call.action });
+    if (call.input !== undefined) query.set('input', JSON.stringify(call.input));
+    if (call.after !== undefined) query.set('after', call.after);
+    if (call.ticket !== undefined) query.set('ticket', call.ticket);
+    return readEventStream(await target.fetch(new Request(`${base}?${query}`, { headers })));
   },
   receiptLocationOf: () => null,
   expectedReceiptLocation: () => null,

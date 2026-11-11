@@ -59,10 +59,10 @@ describe('the live module', () => {
     const without = defineApp({ id: 'loans-plain', modules: [library, loans] });
     expect(withLive.registry.actions.has('loans.loanEvents')).toBe(true);
     expect(without.registry.actions.has('loans.loanEvents')).toBe(false);
-    // The action is there and reaches the gate: the conformance modules carry no rule for it yet.
-    expect(await firstOf(withLive, 'loans.loanEvents')).toMatchObject({
-      kind: 'forbidden',
-      code: 'core.forbidden',
+    // The action is there and reaches the gate: a signed-in user may follow, nobody else.
+    expect(await firstOf(withLive, 'loans.loanEvents')).toBeUndefined();
+    expect(await firstOf(withLive, 'loans.loanEvents', testPrincipal(null))).toMatchObject({
+      kind: 'unauthenticated',
     });
   });
 

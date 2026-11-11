@@ -14,6 +14,7 @@ import type { LiveHubOptions } from './live-hub-options.ts';
 import type { LiveHubService } from './live-hub-service.ts';
 import type { LiveSubscription } from './live-subscription.ts';
 import { resolveHubLimits } from './resolve-hub-limits.ts';
+import { revalidateSessions } from './revalidate-sessions.ts';
 import { createStartLimiter } from './start-limiter.ts';
 
 function unavailable(code: string, message: string): AsyncIterable<LiveFrame<never>> {
@@ -46,6 +47,14 @@ export function createLiveHub(
   const readers = createScopeReaders(limits, services);
   const startUnits = createStartLimiter(limits.maxStartUnitsPerScope, limits.maxStartUnits);
   const members = new Set<HubMember>();
+  // The timer lives in this closure and runs while subscriptions are attached; close stops it.
+  const revalidator = revalidateSessions({
+    clock: services.clock,
+    log: services.log,
+    intervalMs: limits.revalidateMs,
+    tickMs: limits.revalidateTickMs,
+    subscriptions: () => [...members].map((member) => member.subscription),
+  });
   const pokes = options.sources?.pokes?.(readers);
   const stream = options.sources?.stream?.(readers);
   const topic = options.sources?.topic?.(readers);
@@ -68,12 +77,15 @@ export function createLiveHub(
             readers,
             limits,
             startUnits,
+            revalidate: (subscription) => revalidator.revalidate(subscription),
             register: (member) => {
               // A stream made before the hub closed and first read after it is a new subscription.
               if (isClosed()) throw errors.unavailable('The live hub has stopped.');
               members.add(member);
+              revalidator.attached(members.size);
               return () => {
                 members.delete(member);
+                revalidator.attached(members.size);
               };
             },
           }) as AsyncIterable<LiveFrame<EntityChange<Row>>>),
@@ -91,6 +103,7 @@ export function createLiveHub(
       [...members].map((member) => member.subscription),
     close: (deadline) => {
       closing ??= (async () => {
+        revalidator.close();
         const ending = [...members].map((member) => member.close());
         const finished = Promise.all([...ending, readers.close(deadline)]).then(() => undefined);
         const expired = new Promise<void>((resolve) => {

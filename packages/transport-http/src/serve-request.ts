@@ -3,6 +3,7 @@ import { asKeelwerkError, coreError } from '@keelwerk/core/http';
 import { batchEndpoint } from './batch-endpoint.ts';
 import { bodyLimit } from './body-limit.ts';
 import { capabilitiesEndpoint } from './capabilities-endpoint.ts';
+import { carriesTicket } from './carries-ticket.ts';
 import type { EndpointCall } from './endpoint-call.ts';
 import { errorResponse } from './error-response.ts';
 import { fillCarrier } from './fill-carrier.ts';
@@ -10,10 +11,14 @@ import type { HostBindings } from './host-bindings.ts';
 import type { HostContext } from './host-context.ts';
 import { invokeEndpoint } from './invoke-endpoint.ts';
 import { isAllowedOrigin } from './is-allowed-origin.ts';
+import { isStreamRequest } from './is-stream-request.ts';
 import { jsonResponse } from './json-response.ts';
 import { originCheck } from './origin-check.ts';
 import { socketFacts } from './socket-facts.ts';
+import { spendRefusedTickets } from './spend-refused-tickets.ts';
+import { subscribeEndpoint } from './subscribe-endpoint.ts';
 import { surfaceEndpoint } from './surface-endpoint.ts';
+import { ticketRefusal } from './ticket-refusal.ts';
 import { wireErrorOf } from './wire-error-of.ts';
 
 const reservedPrefix = '/_keelwerk';
@@ -39,6 +44,11 @@ async function protocolEndpoint(call: EndpointCall, path: string): Promise<Respo
     case '/batch':
       call.state.route = `${protocolBase}/batch`;
       return method === 'POST' ? batchEndpoint(call) : methodNotAllowed(call, 'POST');
+    case '/subscribe':
+      call.state.route = `${protocolBase}/subscribe`;
+      return method === 'GET' || method === 'POST'
+        ? subscribeEndpoint(call)
+        : methodNotAllowed(call, 'GET, POST');
     case '/surface':
       call.state.route = `${protocolBase}/surface`;
       return safe ? surfaceEndpoint(call) : methodNotAllowed(call, 'GET');
@@ -136,6 +146,21 @@ export async function serveRequest(
       break;
     }
   }
+  // A ticket is a credential in a URL: under `/_keelwerk/` it is refused before anything is read
+  // wherever it may not be one, and never reaches another endpoint. A well-formed one on any request
+  // but the one that carries it is spent at once, so a ticket that a wrong request left in a log is
+  // dead; on a mounted path the request then goes on as if the member were not a ticket.
+  const requestUrl = new URL(request.url);
+  const refusedTicket = ticketRefusal(request, requestUrl);
+  if (refusedTicket !== null || !carriesTicket(request, requestUrl)) {
+    await spendRefusedTickets(
+      request,
+      requestUrl,
+      socketFacts(host, request, bindings),
+      (carrier) => open(host, carrier, request.signal),
+    );
+  }
+  if (refusedTicket !== null) return errorResponse(host, state, refusedTicket);
   let bytes: Uint8Array<ArrayBuffer> = new Uint8Array();
   try {
     if (!bodyless.has(request.method)) {
@@ -174,11 +199,25 @@ export async function serveRequest(
   if (request.method === 'OPTIONS' && headers['access-control-request-method'] !== undefined) {
     return new Response(null, { status: 204 });
   }
-  const csrf = originCheck(request.method, carrier, allowed, plain);
+  const csrf = originCheck(
+    request.method,
+    carrier,
+    allowed,
+    plain,
+    isStreamRequest(request, pathname),
+  );
   if (csrf !== null) {
     return errorResponse(host, state, csrf);
   }
-  const call: EndpointCall = { host, state, session, carrier, request, bytes };
+  const call: EndpointCall = {
+    host,
+    state,
+    session,
+    carrier,
+    request,
+    bytes,
+    ...(bindings.incoming !== undefined && { incoming: bindings.incoming }),
+  };
   try {
     if (pathname === protocolBase || pathname.startsWith(`${protocolBase}/`)) {
       return await protocolEndpoint(call, pathname);

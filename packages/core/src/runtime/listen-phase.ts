@@ -4,6 +4,7 @@ import type { ControlStore } from '../control/control-store.ts';
 import { errors } from '../errors/errors.ts';
 import type { Invoker } from '../invoker/invoker.ts';
 import type { Clock } from '../kernel/clock.ts';
+import type { LiveTimers } from '../live/live-timers.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { ApiSurface } from '../surface/api-surface.ts';
 import type { MountHandle } from '../transport/mount-handle.ts';
@@ -12,6 +13,7 @@ import { backendConfigs } from './backend-configs.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
 import type { HostEntry, HostInstance } from './host-entry.ts';
 import type { Listening } from './listening.ts';
+import { liveCarrierOf } from './live-carrier-of.ts';
 import type { ServedApp } from './served-app.ts';
 
 function corsOf(config: unknown): readonly string[] {
@@ -40,6 +42,7 @@ export async function listenPhase(input: {
   /** The control store the transports' backend configuration is read from (S-70). */
   readonly control: ControlStore;
   readonly clock: Clock;
+  readonly timers: LiveTimers;
   readonly surface: (appId: string, version?: string) => ApiSurface;
   /** The app's surface at each declared version: the one the runtime's `surface` serves, so a mount and the host answer the same document. */
   readonly surfaces: (app: ServedApp) => VersionProjection<ApiSurface>;
@@ -72,8 +75,13 @@ export async function listenPhase(input: {
       return [...cors, ...domains];
     },
     ready: () => input.control.read(async () => true).catch(() => false),
+    liveCarrier: (appId, name) => {
+      const own = input.served.find((app) => app.id === appId);
+      return own === undefined ? undefined : liveCarrierOf(own.registry, name);
+    },
     ...(input.development ? { development: true } : {}),
     clock: input.clock,
+    timers: input.timers,
   });
   const host = instance ?? input.host;
   if (host === undefined) {

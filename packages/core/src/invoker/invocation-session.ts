@@ -20,6 +20,8 @@ export interface InvocationSession {
   readonly resolvedBy: TenantResolver['kind'] | 'local';
   /** When the presented credentials stop being valid. */
   readonly expiresAt?: Temporal.Instant;
+  /** The rows whose change revalidates the session at once (S-151): the rows of the resolution's `cache`. */
+  readonly dependsOn?: readonly { readonly entity: string; readonly id: string }[];
   /** Runs `resolvePrincipal` again from the retained carrier; used by long-lived connections. */
   revalidate(): Promise<Outcome<InvocationSession>>;
 }

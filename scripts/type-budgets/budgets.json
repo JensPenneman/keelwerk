@@ -37,6 +37,11 @@
         "manifestBytes": 11776,
         "packageBytes": 56064,
         "reason": "auth with accounts: contribution, conditional parts, reset flow and four more actions (10,188 B manifest and 48,749 B package measured plus 15 %, rounded up to 256 B)"
+      },
+      "packages/testing/src/fixtures/modules/loans": {
+        "manifestBytes": 7680,
+        "packageBytes": 16384,
+        "reason": "the loans fixture with the rule that lets a signed-in user follow loans.loanEvents once live is selected (6,640 B manifest measured plus 15 %, rounded up to 256 B); the stream cases of WP-94 need it (lead approval)"
       }
     }
   },

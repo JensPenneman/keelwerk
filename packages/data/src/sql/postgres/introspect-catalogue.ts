@@ -5,6 +5,7 @@ import type {
   IndexSpec,
   TableSpec,
 } from '@keelwerk/core';
+import { isInvocationTable } from '../../migrations/is-invocation-table.ts';
 import type { LiveCatalogue } from '../../migrations/live-catalogue.ts';
 import type { SchemaSession } from './schema-session.ts';
 
@@ -155,14 +156,20 @@ export async function introspectCatalogue(
           references: { table: String(row.referenced), columns: listOf(row.referenced_columns) },
         }),
       );
+    const primaryKey = primary === undefined ? [] : listOf(primary.columns);
     const has = (column: string): boolean => own.some((candidate) => candidate.name === column);
     return {
       name,
       columns: own,
-      primaryKey: primary === undefined ? [] : listOf(primary.columns),
+      primaryKey,
       indexes: ownIndexes,
       foreignKeys: ownKeys,
-      scoped: has('tenant_id') ? 'tenant' : has('backend_id') ? 'backend' : 'deployment',
+      scoped:
+        has('tenant_id') || isInvocationTable({ primaryKey })
+          ? 'tenant'
+          : has('backend_id')
+            ? 'backend'
+            : 'deployment',
     };
   });
   const byTable: Record<string, string[]> = {};

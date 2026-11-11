@@ -8,6 +8,7 @@ export function transportTargetOf(
   runtime: TransportRuntime,
   codec: TransportCodec,
   cors: readonly string[],
+  live = false,
 ): TransportTarget {
   return {
     name: codec.name,
@@ -22,5 +23,6 @@ export function transportTargetOf(
     cors,
     backendConfig: runtime.backendConfig,
     operatorFetch: unixSocketFetch(runtime.socket),
+    ...(live && { live }),
   };
 }

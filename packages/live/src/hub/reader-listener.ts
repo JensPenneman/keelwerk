@@ -19,6 +19,12 @@ export interface ReaderListener {
    * union of these, whatever the number of listeners behind it.
    */
   undecided?(batch: ReaderBatch): readonly string[];
+  /**
+   * The stream types beyond the listener's own entity whose events the reader reads in the same pass:
+   * the entities the session's principal depends on (S-151), so a change of the pass or the session
+   * that authenticated the stream reaches the listener at once.
+   */
+  extraStreamTypes?(): readonly string[];
   /** After the unit closed: synchronous, never awaited, never throws. */
   deliver(batch: ReaderBatch): void;
   /** The reader gave up: the stream ends with the error. */

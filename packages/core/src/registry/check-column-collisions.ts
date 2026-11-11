@@ -19,7 +19,7 @@ const scopeColumns: Readonly<Record<string, readonly string[]>> = {
   tenant: ['tenant_id'],
   backend: ['backend_id'],
   deployment: [],
-  invocation: ['tenant_id', 'backend_id'],
+  invocation: ['scope_id', 'tenant_id', 'backend_id'],
 };
 
 /** `columnCollisions`: a field whose column is a system or framework column, or another field's (section 14.4.2). */

@@ -24,6 +24,8 @@ export interface ResolvedHubLimits {
   readonly maxEarlierStreams: number;
   readonly maxStartUnitsPerScope: number;
   readonly maxStartUnits: number;
+  readonly revalidateMs: number;
+  readonly revalidateTickMs: number;
 }
 
 /** The options with their defaults; a number that is not an integer of at least 1 is `validation`. */
@@ -42,5 +44,7 @@ export function resolveHubLimits(options: LiveHubOptions): ResolvedHubLimits {
     maxEarlierStreams: limit('maxEarlierStreams', options.maxEarlierStreams, 1000),
     maxStartUnitsPerScope: limit('maxStartUnitsPerScope', options.maxStartUnitsPerScope, 4),
     maxStartUnits: limit('maxStartUnits', options.maxStartUnits, 32),
+    revalidateMs: limit('revalidateMs', options.revalidateMs, 60_000),
+    revalidateTickMs: limit('revalidateTickMs', options.revalidateTickMs, 1000),
   };
 }

@@ -7,22 +7,30 @@ import { openDesk } from './actions/open-desk.ts';
 import { loansBase } from './base.ts';
 import { countLoans } from './conditional/when-library/reactions/count-loans.ts';
 import { loanEvents } from './conditional/when-live/actions/loan-events.ts';
+import { signedIn as liveLoanEventsSignedIn } from './conditional/when-live/policies/loan-events/signed-in.ts';
 import { reserve } from './contributions/to-library/actions/book/reserve.ts';
 import { reservers } from './contributions/to-library/policies/book/reservers.ts';
 import { staff } from './policies/close-all/staff.ts';
-import { signedIn } from './policies/lend/signed-in.ts';
+import { signedIn as lendSignedIn } from './policies/lend/signed-in.ts';
 import { auditors } from './policies/loan/auditors.ts';
 import { borrowers } from './policies/loan/borrowers.ts';
 
 const loansDef = defineModule(loansBase, {
   actions: { about, closeAll, lend, openDesk },
-  policies: { closeAll: { staff }, lend: { signedIn }, loan: { auditors, borrowers } },
+  policies: {
+    closeAll: { staff },
+    lend: { signedIn: lendSignedIn },
+    loan: { auditors, borrowers },
+  },
   contributes: {
     toLibrary: { entityActions: { book: { reserve } }, policies: { book: { reservers } } },
   },
   conditional: {
     whenLibrary: { reactions: { countLoans } },
-    whenLive: { actions: { loanEvents } },
+    whenLive: {
+      actions: { loanEvents },
+      policies: { loanEvents: { signedIn: liveLoanEventsSignedIn } },
+    },
   },
   migrations: new URL('../migrations/', import.meta.url),
 });

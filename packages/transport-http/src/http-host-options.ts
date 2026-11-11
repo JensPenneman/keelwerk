@@ -1,3 +1,5 @@
+import type { SseHostOptions } from './sse-host-options.ts';
+
 /** What `httpHost({ ... })` takes in the deployment's infrastructure list (section 16.3.3). */
 export interface HttpHostOptions {
   /** The TCP listener; absent means the host serves `fetch` and the operator socket only. */
@@ -11,4 +13,6 @@ export interface HttpHostOptions {
   readonly trustedProxies?: readonly string[];
   /** Request body limit in bytes; default 1 MiB (section 16.4.11). */
   readonly maxBodyBytes?: number;
+  /** The bounds of server-sent event streams: the ping, the longest life, the queue of a connection and the open streams (15.4.5, 15.4.10). */
+  readonly live?: SseHostOptions;
 }

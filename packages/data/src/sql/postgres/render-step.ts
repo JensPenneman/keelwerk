@@ -1,5 +1,6 @@
 import type { MigrationStep } from '@keelwerk/core';
 import { errors, physicalColumnName } from '@keelwerk/core';
+import { isInvocationTable } from '../../migrations/is-invocation-table.ts';
 import { alterColumnStatements } from './alter-column-statements.ts';
 import { assertNamespaceRoot } from './assert-namespace-root.ts';
 import { columnChecks } from './column-checks.ts';
@@ -7,6 +8,7 @@ import { columnDataType } from './column-data-type.ts';
 import { createIndexStatement } from './create-index-statement.ts';
 import { createTableStatements } from './create-table-statements.ts';
 import { defineColumn } from './define-column.ts';
+import { invocationTableDdl } from './invocation-table-ddl.ts';
 import { quoteIdentifier } from './quote-identifier.ts';
 import { schemaBuilder } from './schema-builder.ts';
 import { tableOfEntity } from './table-of-entity.ts';
@@ -24,7 +26,7 @@ export interface RenderContext {
  * row-level security, grants and the backfill are written out, since the builder has no such
  * statements. A `dropColumn` drops the columns it names: a field's own column by the
  * field's name, a derived column (a tag column, a CRDT value column) by its physical name in `columns`. A new
- * table also gets its indexes, its forced row-level security with the `scoped` and `maintenance` policies, and a grant to the context's role. `rebuild` is a comment:
+ * table also gets its indexes, its forced row-level security with the `scoped` and `maintenance` policies, and a grant to the context's role. An invocation table (its key leads with `scope_id`) is scoped on that column, and its maintenance policy admits every command of a namespace unit, as the receipt table's: a planner step that changes rows (a copy, a backfill) runs in a namespace unit, and under a select-and-delete form its update would match no row. `rebuild` is a comment:
  * the kernel re-projects from the log, the database has nothing to run. An `sql` step without
  * PostgreSQL statements and a step of a later milestone fail closed.
  */
@@ -40,8 +42,12 @@ export function renderStep(
   switch (step.op) {
     case 'createTable':
       return [
-        ...createTableStatements(schema, step.table),
-        ...tablePolicyDdl(schema, step.table.name, step.table.scoped),
+        ...(isInvocationTable(step.table)
+          ? invocationTableDdl(schema, step.table)
+          : [
+              ...createTableStatements(schema, step.table),
+              ...tablePolicyDdl(schema, step.table.name, step.table.scoped),
+            ]),
         ...(context.role === undefined
           ? []
           : [

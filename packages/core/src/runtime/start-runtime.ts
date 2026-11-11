@@ -12,9 +12,8 @@ import { createFlagChain } from '../flags/create-flag-chain.ts';
 import { startFlagProviders } from '../flags/start-flag-providers.ts';
 import { createTargetingCache } from '../flags/targeting-cache.ts';
 import { createInvoker } from '../invoker/create-invoker.ts';
-import type { InvokerApp } from '../invoker/invoker-app.ts';
 import type { InvokerOptions } from '../invoker/invoker-options.ts';
-import { moduleConfigShapes } from '../invoker/module-config-shapes.ts';
+import { liveTimersOf } from '../live/live-timers-of.ts';
 import type { RuntimeLiveHub } from '../live/runtime-live-hub.ts';
 import { createOperatorTokenResolver } from '../principals/operator-token-resolver.ts';
 import type { ApiSurface } from '../surface/api-surface.ts';
@@ -31,9 +30,9 @@ import { createRuntimeControl } from './create-runtime-control.ts';
 import { defaultLogger } from './default-logger.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
 import { drainingInvoker } from './draining-invoker.ts';
+import { invokerAppsOf } from './invoker-apps-of.ts';
 import { listenPhase } from './listen-phase.ts';
 import type { Listening } from './listening.ts';
-import { liveHubFillerOf } from './live-hub-filler-of.ts';
 import { migratePhase } from './migrate-phase.ts';
 import { refuseUnknownApiVersion } from './refuse-unknown-api-version.ts';
 import { registerTelemetry } from './register-telemetry.ts';
@@ -97,27 +96,7 @@ export async function startRuntime(
     }
 
     // Each runtime opens its own hub for each app it serves, so two runtimes of one app share nothing.
-    const apps = new Map<string, InvokerApp>(
-      served.map((app) => {
-        const hub = liveHubFillerOf(app.registry)?.open({
-          clock,
-          log: log.child({ app: app.id }),
-        });
-        if (hub !== undefined) hubs.push(hub);
-        return [
-          app.id,
-          {
-            registry: app.registry,
-            head: app.head,
-            ...(app.source.api === null || app.source.api === undefined
-              ? {}
-              : { api: app.source.api }),
-            configShapes: moduleConfigShapes(app.source.modules),
-            ...(hub === undefined ? {} : { liveHub: hub }),
-          },
-        ];
-      }),
-    );
+    const apps = invokerAppsOf(served, { clock, log, hubs });
     const sole = served.length === 1 ? served[0] : undefined;
     apps.set('core', {
       registry: sole?.registry ?? connected.control.registry,
@@ -275,6 +254,7 @@ export async function startRuntime(
           deploymentId: connected.deploymentId,
           control: connected.control,
           clock,
+          timers: options.timers ?? liveTimersOf(clock),
           surface,
           surfaces: (app) => projectionOf(app.id, app.source, datesOf(app)),
         })

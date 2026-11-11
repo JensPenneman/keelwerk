@@ -7,8 +7,9 @@ import type {
   TableSpec,
   TrackSnapshot,
 } from '@keelwerk/core';
-import { errors, unicodeVersion } from '@keelwerk/core';
+import { conditionFields, errors, unicodeVersion } from '@keelwerk/core';
 import { sha256 } from '@keelwerk/core/crypto';
+import { invocationTableSpec } from '../sql/postgres/invocation-table-spec.ts';
 import { entityForeignKeys } from './entity-foreign-keys.ts';
 import { entityIndexes } from './entity-indexes.ts';
 import { fieldColumns } from './field-columns.ts';
@@ -35,6 +36,44 @@ function sortedByName<T extends { readonly name: string }>(items: readonly T[]):
 
 function eventsOf(entry: EntityEntry): Readonly<Record<string, number>> {
   return Object.fromEntries(Object.keys(entry.events).map((event) => [event, 1]));
+}
+
+/**
+ * The indexes of an invocation entity of a module (not the core's): the unique and plain indexes of
+ * its fields and the declared ones, without the archived predicate. What its table cannot hold is
+ * refused by name: a history other than 'state', a merge state, generated archive and restore
+ * actions, personal fields (no erased-at column), derived and search indexes, an index whose
+ * condition names archivedAt, hard references and fields of another track.
+ */
+function invocationIndexes(
+  entry: EntityEntry,
+  trackOf: (entry: EntityEntry, field: string) => string,
+  ownTrack: string,
+): ReturnType<typeof entityIndexes> {
+  const { descriptor } = entry;
+  const refuse = (what: string): never => {
+    throw errors.unsupported(`${descriptor.ref} has invocation tenancy and cannot have ${what}`);
+  };
+  if (descriptor.history !== 'state') refuse(`the history '${descriptor.history}'`);
+  if (descriptor.mergeState) refuse('a merge state');
+  for (const kind of ['archive', 'restore'] as const) {
+    if (entry.generated.includes(kind)) refuse(`a generated ${kind} action`);
+  }
+  for (const [name, field] of Object.entries(descriptor.fields)) {
+    if (field.personal !== false) refuse(`the personal field ${name}`);
+  }
+  for (const index of descriptor.indexes) {
+    if (index.where !== null && conditionFields(index.where).fields.includes('archivedAt')) {
+      refuse(`the index ${index.name} on archivedAt`);
+    }
+  }
+  if (Object.keys(descriptor.derivedIndexes).length > 0) refuse('a derived index');
+  if (descriptor.searchIndexes.length > 0) refuse('a search index');
+  if (entityForeignKeys(descriptor, 'scope_id').length > 0) refuse('a hard reference');
+  for (const name of Object.keys(descriptor.fields)) {
+    if (trackOf(entry, name) !== ownTrack) refuse(`the field ${name} of another track`);
+  }
+  return entityIndexes(descriptor, 'scope_id', { archivable: false });
 }
 
 interface Piece {
@@ -70,11 +109,46 @@ export function buildTrackSnapshot(
   const trackOf = options.trackOfField ?? defaultTrackOfField;
   const tables = new Map<string, Map<string, TableSpec>>();
   const entities = new Map<string, Record<string, EntityOfSnapshot>>();
+  const place = (
+    entry: EntityEntry,
+    track: string,
+    table: TableSpec,
+    fields: Record<string, FieldDescriptor>,
+  ): void => {
+    const descriptor = entry.descriptor;
+    const trackTables = tables.get(track) ?? new Map<string, TableSpec>();
+    trackTables.set(table.name, table);
+    tables.set(track, trackTables);
+    const trackEntities = entities.get(track) ?? {};
+    trackEntities[descriptor.ref] = {
+      history: descriptor.history,
+      mergeState: descriptor.mergeState,
+      fields,
+      renames: options.previous?.get(track)?.entities[descriptor.ref]?.renames ?? [],
+      events: options.eventVersions?.(descriptor.ref) ?? eventsOf(entry),
+      evolveHash: options.evolveHash?.(descriptor.ref) ?? sha256(''),
+    };
+    entities.set(track, trackEntities);
+  };
   for (const entry of entries) {
     const descriptor = entry.descriptor;
     const tenancy = descriptor.tenancy;
-    if (tenancy === 'invocation' || descriptor.history === 'external') continue;
+    if (descriptor.history === 'external') continue;
     const ownTrack = entry.tracks[0]?.track ?? entry.module;
+    if (tenancy === 'invocation') {
+      // The core provisions its own invocation tables (receipts, effect records) outside every track.
+      if (entry.module === 'core') continue;
+      place(
+        entry,
+        ownTrack,
+        invocationTableSpec(
+          descriptor,
+          invocationIndexes(entry, trackOf, ownTrack).map((index) => index.spec),
+        ),
+        descriptor.fields,
+      );
+      continue;
+    }
     const scopeColumn = scopeColumnName(tenancy);
     const pieces = new Map<string, Piece>();
     const pieceOf = (track: string): Piece => {
@@ -142,19 +216,7 @@ export function buildTrackSnapshot(
         scoped: tenancy,
       };
       if (!owns && table.columns.length === 0 && piece.indexes.length === 0) continue;
-      const trackTables = tables.get(track) ?? new Map<string, TableSpec>();
-      trackTables.set(table.name, table);
-      tables.set(track, trackTables);
-      const trackEntities = entities.get(track) ?? {};
-      trackEntities[descriptor.ref] = {
-        history: descriptor.history,
-        mergeState: descriptor.mergeState,
-        fields: piece.fields,
-        renames: options.previous?.get(track)?.entities[descriptor.ref]?.renames ?? [],
-        events: options.eventVersions?.(descriptor.ref) ?? eventsOf(entry),
-        evolveHash: options.evolveHash?.(descriptor.ref) ?? sha256(''),
-      };
-      entities.set(track, trackEntities);
+      place(entry, track, table, piece.fields);
     }
   }
   const snapshots = new Map<string, TrackSnapshot>();

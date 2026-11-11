@@ -24,7 +24,7 @@ export interface ActionSpecView {
   readonly errors?: readonly AnyErrorDefinition[];
   readonly auth?: 'policy' | { readonly public: true };
   readonly principal?: PrincipalKind | readonly PrincipalKind[];
-  readonly scope?: 'tenant' | 'backend' | 'deployment';
+  readonly scope?: 'tenant' | 'backend' | 'deployment' | 'invocation';
   readonly idempotent?: boolean;
   readonly gate?: string;
   readonly timeoutMs?: number;

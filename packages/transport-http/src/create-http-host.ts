@@ -6,15 +6,18 @@ import { createDispatcher } from './create-dispatcher.ts';
 import { createLifecycle } from './create-lifecycle.ts';
 import { createMountTable } from './create-mount-table.ts';
 import { createRequestTelemetry } from './create-request-telemetry.ts';
+import { createStreamLimits } from './create-stream-limits.ts';
 import { defaultMaxBodyBytes } from './default-max-body-bytes.ts';
 import type { HostContext } from './host-context.ts';
 import { hostFetch } from './host-fetch.ts';
 import type { HttpHostDeps } from './http-host-deps.ts';
 import type { HttpHostInstance } from './http-host-instance.ts';
 import type { HttpHostOptions } from './http-host-options.ts';
+import type { OpenSseStream } from './open-sse-stream.ts';
 import { operatorSocket } from './operator-socket.ts';
 import { operatorSocketPath } from './operator-socket-path.ts';
 import { secureOperatorSocket } from './secure-operator-socket.ts';
+import type { SseHostOptions } from './sse-host-options.ts';
 import { trustedProxies } from './trusted-proxies.ts';
 
 function listening(server: Server, start: (done: () => void) => void): Promise<void> {
@@ -43,11 +46,26 @@ function closing(server: Server, deadlineMs: number): Promise<void> {
   });
 }
 
+/** The bounds of a stream with their defaults (15.4.5, 15.4.10). */
+function liveBounds(given: SseHostOptions = {}): Required<SseHostOptions> {
+  return {
+    heartbeatMs: given.heartbeatMs ?? 15_000,
+    maxDurationMs: given.maxDurationMs ?? 86_400_000,
+    maxBufferedBytes: given.maxBufferedBytes ?? 1_048_576,
+    stallMs: given.stallMs ?? 30_000,
+    maxStreamsPerPrincipal: given.maxStreamsPerPrincipal ?? 20,
+    maxStreamsPerTenant: given.maxStreamsPerTenant ?? 1000,
+    maxAnonymousStreamsPerTenant: given.maxAnonymousStreamsPerTenant ?? 200,
+    maxStreams: given.maxStreams ?? 10_000,
+  };
+}
+
 /** Builds the host: mount tables, dispatcher, the TCP listener and the operator socket. */
 export function createHttpHost(options: HttpHostOptions, deps: HttpHostDeps): HttpHostInstance {
   const errorCounter = deps.telemetry.meter.createCounter('keelwerk.transport.errors', {
     description: 'Errors answered by a transport, by kind and code.',
   });
+  const live = liveBounds(options.live);
   const host: HostContext = {
     deps,
     maxBodyBytes: options.maxBodyBytes ?? defaultMaxBodyBytes,
@@ -56,6 +74,14 @@ export function createHttpHost(options: HttpHostOptions, deps: HttpHostDeps): Ht
     connectionIds: new WeakMap(),
     lifecycle: createLifecycle(),
     errorCounter,
+    streams: new Set<OpenSseStream>(),
+    limits: createStreamLimits({
+      perPrincipal: live.maxStreamsPerPrincipal,
+      perTenant: live.maxStreamsPerTenant,
+      perTenantAnonymous: live.maxAnonymousStreamsPerTenant,
+      total: live.maxStreams,
+    }),
+    live,
   };
   const dispatcher = createDispatcher(host, createRequestTelemetry(deps.telemetry, errorCounter));
   const servers: Server[] = [];
@@ -110,9 +136,12 @@ export function createHttpHost(options: HttpHostOptions, deps: HttpHostDeps): Ht
       };
     },
     async stop(deadlineMs) {
+      // First, synchronously, so no stream outlives the stop silently: each ends `going_away` and its
+      // subscription is aborted, before the hubs close and before the listeners wait for connections.
+      const goodbyes = [...host.streams].map((stream) => stream.goAway().catch(() => undefined));
       const stopped = servers.splice(0).map((server) => closing(server, deadlineMs));
       await host.lifecycle.drain(deadlineMs);
-      await Promise.all(stopped);
+      await Promise.all([...goodbyes, ...stopped]);
     },
   };
 }

@@ -31,12 +31,16 @@ export interface OwnedIndex {
 /**
  * Every index of an entity table (sections 14.5.1 and 14.7.9.6): uniqueness among non-archived
  * rows, plain indexes of `indexed` fields, the declared indexes, the GIN indexes of prefix and
- * trigram tags and of token search indexes. Row indexes lead with the scope column.
+ * trigram tags and of token search indexes. Row indexes lead with the scope column. A table
+ * without `archived_at` (an invocation table) passes `archivable: false`: its unique indexes
+ * hold no predicate, since no row is ever archived.
  */
 export function entityIndexes(
   descriptor: EntityDescriptor,
   scopeColumn: string | null,
+  options: { readonly archivable?: boolean } = {},
 ): readonly OwnedIndex[] {
+  const unique = options.archivable === false ? null : notArchived;
   const lead = scopeColumn === null ? [] : [scopeColumn];
   const named = (suffix: string): string =>
     physicalTableName(descriptor.module, descriptor.name, { suffix });
@@ -56,7 +60,7 @@ export function entityIndexes(
             columns: [...lead, eq.column],
             unique: field.unique,
             method: 'btree',
-            where: field.unique ? notArchived : null,
+            where: field.unique ? unique : null,
           },
           fields: [name],
         });
@@ -70,7 +74,7 @@ export function entityIndexes(
           columns: [...lead, field.column],
           unique: field.unique,
           method: 'btree',
-          where: field.unique ? notArchived : null,
+          where: field.unique ? unique : null,
         },
         fields: [name],
       });

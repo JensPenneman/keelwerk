@@ -23,6 +23,14 @@ describe('coreErrorCodes', () => {
     expect(coreErrorCodes['core.request_not_allowed'].kind).toBe('internal');
   });
 
+  it('registers core.ticket_invalid as unauthenticated', () => {
+    expect(coreErrorCodes).toHaveProperty(['core.ticket_invalid']);
+    expect(coreErrorCodes['core.ticket_invalid']).toMatchObject({
+      kind: 'unauthenticated',
+      message: 'The stream ticket is not valid.',
+    });
+  });
+
   it('keeps the kinds of sections 10 and 18.8', () => {
     expect(coreErrorCodes['core.timeout']).toMatchObject({ kind: 'unavailable' });
     expect(coreErrorCodes['core.version_mismatch'].kind).toBe('conflict');

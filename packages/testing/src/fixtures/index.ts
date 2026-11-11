@@ -14,6 +14,8 @@ export type { Library } from './modules/library/src/module.generated.ts';
 export { library } from './modules/library/src/module.generated.ts';
 export type { Loans } from './modules/loans/src/module.generated.ts';
 export { loans } from './modules/loans/src/module.generated.ts';
+export type { Passes } from './modules/passes/src/module.generated.ts';
+export { passes } from './modules/passes/src/module.generated.ts';
 export type { Roster } from './modules/roster/src/module.generated.ts';
 export { roster } from './modules/roster/src/module.generated.ts';
 export type { Vault } from './modules/vault/src/module.generated.ts';

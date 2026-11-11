@@ -14,6 +14,7 @@ import { disclosureReplay } from './disclosure-replay.ts';
 import type { HubMember } from './hub-member.ts';
 import { limitedRead } from './limited-read.ts';
 import type { LiveSubscription } from './live-subscription.ts';
+import { readSnapshot } from './read-snapshot.ts';
 import type { ReaderBatch } from './reader-batch.ts';
 import type { ReaderListener } from './reader-listener.ts';
 import type { ResolvedHubLimits } from './resolve-hub-limits.ts';
@@ -22,8 +23,7 @@ import type { StartLimiter } from './start-limiter.ts';
 import { createSubscriptionBuffer } from './subscription-buffer.ts';
 import { createVisibilitySet } from './visibility-set.ts';
 
-/** Rows of a snapshot per read, and streams judged per replay read (D3, D7). */
-const snapshotPage = 100;
+/** Streams judged per replay read (D3, D7). */
 const replayChunk = 500;
 
 type Phase = 'new' | 'joining' | 'starting' | 'live' | 'ended';
@@ -38,6 +38,11 @@ export interface EntitySubscriberInput {
   readonly limits: ResolvedHubLimits;
   /** The units the start reads of all subscriptions of the hub share. */
   readonly startUnits: StartLimiter;
+  /**
+   * Revalidates the subscription's session now (16.3.4): resolves once it is renewed or the stream is
+   * ended (the hub's revalidator never rejects).
+   */
+  readonly revalidate: (subscription: LiveSubscription) => Promise<void>;
   /** Lists the member with the hub, the moment the subscription starts; answers how to remove it. */
   readonly register: (member: HubMember) => () => void;
 }
@@ -51,6 +56,9 @@ export interface EntitySubscriberInput {
  * unit or a reader fails with ends the stream: `next()` throws. The hub closes it through its
  * member: the stream ends without a frame or an error and a pending `next()` is done. The start
  * reads wait for a slot of the hub's start limiter; the batches the reader delivers meanwhile are held.
+ * A batch with an event on a row the session depends on (the pass or session that authenticated it,
+ * S-151) is held, the session is revalidated, and the held batches are applied in order once it is
+ * renewed; when it is not, the stream has ended and nothing held is sent (D1).
  */
 export function createEntitySubscriber(
   input: EntitySubscriberInput,
@@ -75,6 +83,10 @@ export function createEntitySubscriber(
       let setup: Promise<void> | undefined;
       let joinAt: ((at: Position) => void) | undefined;
       let failed = false;
+      /** True while a revalidation is in flight: batches are held until it is done. */
+      let revalidating = false;
+      /** Batches whose dependency events a revalidation has cleared. */
+      const cleared = new WeakSet<ReaderBatch>();
       /** The units of the start that have not settled: closing waits for them. */
       const pending = new Set<Promise<void>>();
 
@@ -111,6 +123,15 @@ export function createEntitySubscriber(
         return false;
       };
 
+      /** Whether the batch holds an event on a row that the session depends on. */
+      const touchesDependency = (batch: ReaderBatch): boolean => {
+        const deps = session.dependsOn;
+        if (deps === undefined || deps.length === 0) return false;
+        return batch.events.some((event) =>
+          deps.some((dep) => dep.entity === event.stream.type && dep.id === event.stream.id),
+        );
+      };
+
       const apply = (batch: ReaderBatch): void => {
         if (view === undefined || batch.to <= floor) return;
         const changes = changesOfBatch({ view, batch, set, floor });
@@ -124,45 +145,17 @@ export function createEntitySubscriber(
         for (const id of changes.gone) set.delete(id);
       };
 
-      const snapshot = async (current: LiveKernel, now: LiveView): Promise<boolean> => {
-        const read = limitedRead({ kernel: current, startUnits: input.startUnits, abort, pending });
-        let after: string | undefined;
-        for (;;) {
-          await buffer.whenBelowHalf();
-          if (ended()) return false;
-          const page = await read(
-            async (unit) => {
-              const found = await unit.rows.find(current.descriptor, {
-                where: now.selection,
-                sort: [{ field: 'id', direction: 'asc' }],
-                page: { first: snapshotPage, ...(after === undefined ? {} : { after }) },
-                ...(now.includeArchived ? { includeArchived: true } : {}),
-              });
-              const rows = found.rows.filter((row) => now.inFilter(row));
-              return { found, rows, shown: await now.present(unit, rows) };
-            },
-            { timeoutMs: limits.passTimeoutMs },
-          );
-          for (const [index, row] of page.rows.entries()) {
-            const shown = page.shown[index];
-            if (shown === undefined) continue;
-            const id = String(row.id);
-            const archived = row.archivedAt !== undefined && row.archivedAt !== null;
-            const event = {
-              type: archived ? 'archived' : 'changed',
-              id,
-              version: Number(row.version),
-              row: now.project(shown),
-            } as EntityChange<unknown>;
-            if (!emit({ event })) return false;
-            set.add(id);
-          }
-          if (!page.found.pageInfo.hasNextPage || page.found.pageInfo.endCursor === null) {
-            return true;
-          }
-          after = page.found.pageInfo.endCursor;
-        }
-      };
+      const snapshot = (current: LiveKernel, now: LiveView): Promise<boolean> =>
+        readSnapshot({
+          read: limitedRead({ kernel: current, startUnits: input.startUnits, abort, pending }),
+          kernel: current,
+          view: now,
+          buffer,
+          set,
+          emit,
+          ended,
+          timeoutMs: limits.passTimeoutMs,
+        });
 
       const resumeFrom = async (
         current: LiveKernel,
@@ -200,6 +193,27 @@ export function createEntitySubscriber(
         return !ended();
       };
 
+      /** Applies the held batches in order; a batch that touches a dependency waits for a revalidation first. */
+      const flush = (): void => {
+        while (phase === 'live' && !revalidating && held.length > 0) {
+          const batch = held[0];
+          if (batch === undefined) return;
+          if (!cleared.has(batch) && touchesDependency(batch)) {
+            revalidating = true;
+            void input.revalidate(subscription).then(() => {
+              revalidating = false;
+              if (ended()) return;
+              cleared.add(batch);
+              flush();
+            });
+            return;
+          }
+          held.shift();
+          apply(batch);
+          if (ended()) return;
+        }
+      };
+
       const begin = async (at: Position): Promise<void> => {
         const current = kernel;
         const now = view;
@@ -220,12 +234,7 @@ export function createEntitySubscriber(
           }
           if (!emit({ control: 'head', state: now.token(at) })) return;
           phase = 'live';
-          const batches = held;
-          held = [];
-          for (const batch of batches) {
-            apply(batch);
-            if (ended()) return;
-          }
+          flush();
         } catch (error) {
           if (!ended()) failWith(error);
         }
@@ -245,10 +254,13 @@ export function createEntitySubscriber(
         },
         deliver: (batch) => {
           if (ended()) return;
-          if (phase === 'live') apply(batch);
-          else if (held.length >= limits.maxHeldBatches) reset('overflow');
-          else held.push(batch);
+          if (held.length >= limits.maxHeldBatches) reset('overflow');
+          else {
+            held.push(batch);
+            flush();
+          }
         },
+        extraStreamTypes: () => [...new Set((session.dependsOn ?? []).map((dep) => dep.entity))],
         fail,
         end: () => {
           buffer.close();

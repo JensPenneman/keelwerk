@@ -127,6 +127,7 @@ export function createScopeReader(input: ScopeReaderInput): ScopeReader {
     }
     const kernels = new Map<string, LiveKernel>();
     const views = new Map<ReaderEntry, LiveView>();
+    const dependencies = new Set<string>();
     let viewless = false;
     for (const entry of [...carried, ...joining]) {
       const { view } = entry.listener;
@@ -135,6 +136,7 @@ export function createScopeReader(input: ScopeReaderInput): ScopeReader {
         kernels.set(entry.kernel.entity, entry.kernel);
         views.set(entry, view);
       }
+      for (const type of entry.listener.extraStreamTypes?.() ?? []) dependencies.add(type);
     }
     const page = await readPassEvents({
       unit,
@@ -142,7 +144,7 @@ export function createScopeReader(input: ScopeReaderInput): ScopeReader {
       from,
       head,
       batchSize: limits.batchSize,
-      streamTypes: viewless ? undefined : [...kernels.keys()],
+      streamTypes: viewless ? undefined : [...new Set([...kernels.keys(), ...dependencies])],
     });
     const { to } = page;
     // The state streams of processes are the processes' own record: no subscriber is told of them.

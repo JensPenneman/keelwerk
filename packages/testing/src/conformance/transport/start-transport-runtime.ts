@@ -6,6 +6,8 @@ import type {
   DataAdapterFactory,
   EntityDescriptor,
   InfrastructureEntry,
+  LiveTimers,
+  Logger,
 } from '@keelwerk/core';
 import { secret, startRuntime } from '@keelwerk/core';
 import { memoryAdapter, schemaPlanner } from '@keelwerk/data';
@@ -31,6 +33,10 @@ export interface TransportRuntimeOptions {
   readonly tenants?: readonly string[];
   /** The runtime's clock; default: the system clock. */
   readonly clock?: Clock;
+  /** The waits of a live carrier (see `pinnedLiveTimers`); default: timers on the runtime's clock. */
+  readonly timers?: LiveTimers;
+  /** Where the runtime logs; default: the core's no-op logger. A test passes a capturing logger to read what was logged. */
+  readonly logger?: Logger;
 }
 
 /**
@@ -69,6 +75,8 @@ export async function startTransportRuntime(
       listen: true,
       environment: 'test',
       ...(options.clock === undefined ? {} : { clock: options.clock }),
+      ...(options.timers === undefined ? {} : { timers: options.timers }),
+      ...(options.logger === undefined ? {} : { logger: options.logger }),
     },
   );
   const host = runtime.host;

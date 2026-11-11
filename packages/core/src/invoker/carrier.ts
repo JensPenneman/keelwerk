@@ -28,4 +28,20 @@ export interface Carrier {
   readonly local?: { readonly socket: string } | { readonly inProcess: true };
   /** A worker's invocation of a job's action: its scope and principal reference stand in for credentials (S-122). Set by the worker only, like `local`. */
   readonly job?: JobCarrier;
+  /**
+   * A stream ticket presented in the query of `GET /_keelwerk/v1/subscribe`; set by the HTTP host on
+   * that endpoint only, which then drops the cookie and authorization headers, so a request holds one credential.
+   */
+  readonly ticket?: {
+    readonly value: string;
+    readonly endpoint: 'subscribe';
+    /** The subscription the request asks for; the ticket is bound to it when it names one. */
+    readonly action: string | null;
+    /**
+     * The host spends a ticket that was presented where it may not be and refuses the request: the
+     * ticket's binding to an endpoint and a subscription is not checked. The kernel spends such a
+     * ticket and always refuses the request with core.ticket_invalid; it never yields a session.
+     */
+    readonly spendOnly?: true;
+  };
 }

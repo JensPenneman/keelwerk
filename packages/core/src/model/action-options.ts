@@ -13,7 +13,7 @@ export interface ActionOptions<
   readonly errors?: Er;
   readonly auth?: 'policy' | { readonly public: true };
   readonly principal?: Pk | readonly Pk[];
-  readonly scope?: 'tenant' | 'backend' | 'deployment';
+  readonly scope?: 'tenant' | 'backend' | 'deployment' | 'invocation';
   readonly idempotent?: boolean;
   readonly timeoutMs?: number;
   readonly hints?: { readonly [transport: string]: object };

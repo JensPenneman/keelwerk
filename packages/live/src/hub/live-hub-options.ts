@@ -24,6 +24,8 @@ export interface LiveHubOptions {
   readonly maxEarlierStreams?: number;
   readonly maxStartUnitsPerScope?: number;
   readonly maxStartUnits?: number;
+  readonly revalidateMs?: number;
+  readonly revalidateTickMs?: number;
   /** The sources the live module adds to the hub beyond the changes of an entity. */
   readonly sources?: LiveSources;
 }

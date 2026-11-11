@@ -15,4 +15,6 @@ export interface TransportTarget {
   readonly backendConfig: Readonly<Record<string, unknown>>;
   /** A `fetch` over the operator socket (the client's `unixSocketFetch`). */
   readonly operatorFetch: (request: Request) => Promise<Response>;
+  /** Whether the deployment runs the live module (its stream endpoint answers); the subscription scenarios run only then. */
+  readonly live?: boolean;
 }

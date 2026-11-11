@@ -3,9 +3,9 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderModuleManifest, scanModuleDirectory } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
-import { library, loans } from './index.ts';
+import { library, loans, passes } from './index.ts';
 
-describe.each(['library', 'loans'])('the %s fixture module', (id) => {
+describe.each(['library', 'loans', 'passes'])('the %s fixture module', (id) => {
   test('its committed manifest is what the directories generate', () => {
     const source = new URL(`modules/${id}/src/`, import.meta.url);
     const files = readdirSync(source, { recursive: true, withFileTypes: true })
@@ -41,5 +41,14 @@ describe('the loans fixture module', () => {
     expect(loans.actions.lend.ref).toBe('loans.lend');
     expect(loans.contributes.map((part) => part.to.id)).toEqual(['library']);
     expect(loans.conditional.map((part) => part.key)).toEqual(['whenLibrary', 'whenLive']);
+  });
+});
+
+describe('the passes fixture module', () => {
+  test("mounts its commands and fills the core's principal resolvers", () => {
+    expect(passes.id).toBe('passes');
+    expect(passes.actions.issue.ref).toBe('passes.issue');
+    expect(passes.actions.revoke.ref).toBe('passes.revoke');
+    expect(Object.keys(passes.entities)).toEqual(['pass']);
   });
 });

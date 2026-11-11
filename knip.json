@@ -49,7 +49,7 @@
     "packages/testing": {
       "entry": ["src/**/*.test-d.ts", "src/fixtures/modules/*/migrations/**/*.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@keelwerk/live", "@keelwerk/transport-http"]
+      "ignoreDependencies": ["@keelwerk/transport-http"]
     },
     "packages/cli": {
       "entry": ["src/**/*.test-d.ts"],
@@ -63,7 +63,7 @@
     "packages/transport-http": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@keelwerk/live", "@types/ws", "ws"]
+      "ignoreDependencies": ["@types/ws", "ws"]
     },
     "packages/transport-rest": {
       "entry": ["src/**/*.test-d.ts"],

@@ -16143,6 +16143,12 @@
       "retryable": false
     },
     {
+      "code": "core.ticket_invalid",
+      "kind": "unauthenticated",
+      "message": "The stream ticket is not valid.",
+      "retryable": false
+    },
+    {
       "code": "core.timeout",
       "kind": "unavailable",
       "message": "The command exceeded its timeout and was rolled back.",
@@ -16525,7 +16531,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-GQVLV4CuLRCQP3qP5f7kqdvMjAUApYj8lztdVkNZwBo",
+  "hash": "sha256-nwJOJajfDo3Gcb9WqK0qUZoWhqTei3cdgCb55vYA3SE",
   "modules": [
     {
       "id": "accounts",

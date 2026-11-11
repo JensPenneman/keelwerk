@@ -4,4 +4,5 @@ export type { HttpHostEntry } from './http-host-entry.ts';
 export type { HttpHostInstance } from './http-host-instance.ts';
 export type { HttpHostListening } from './http-host-listening.ts';
 export type { HttpHostOptions } from './http-host-options.ts';
+export type { SseHostOptions } from './sse-host-options.ts';
 export { version } from './version.ts';

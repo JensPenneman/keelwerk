@@ -1,0 +1,324 @@
+{
+  "entities": {
+    "live.streamTicket": {
+      "events": {},
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "action": {
+          "codec": null,
+          "column": "action",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 6,
+          "unique": false
+        },
+        "endpoint": {
+          "codec": null,
+          "column": "endpoint",
+          "constraints": {
+            "values": ["subscribe"]
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "enum",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 7,
+          "unique": false
+        },
+        "expiresAt": {
+          "codec": null,
+          "column": "expires_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": true,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 8,
+          "unique": false
+        },
+        "principal": {
+          "codec": null,
+          "column": "principal",
+          "constraints": {},
+          "hidden": {
+            "history": false
+          },
+          "indexed": false,
+          "inner": null,
+          "kind": "json",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 3,
+          "unique": false
+        },
+        "principalId": {
+          "codec": null,
+          "column": "principal_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 5,
+          "unique": false
+        },
+        "principalResolver": {
+          "codec": null,
+          "column": "principal_resolver",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 4,
+          "unique": false
+        },
+        "publicId": {
+          "codec": null,
+          "column": "public_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "exclusive",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": true
+        },
+        "usedAt": {
+          "codec": null,
+          "column": "used_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 9,
+          "unique": false
+        },
+        "verifier": {
+          "codec": null,
+          "column": "verifier",
+          "constraints": {},
+          "hidden": {
+            "history": false
+          },
+          "indexed": false,
+          "inner": null,
+          "kind": "verifier",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": true,
+          "stateOnly": false,
+          "tag": 2,
+          "unique": false
+        }
+      },
+      "history": "state",
+      "mergeState": false,
+      "renames": []
+    }
+  },
+  "format": "keelwerk.snapshot/1",
+  "tables": [
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "scope_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "created_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "updated_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": 1,
+          "field": null,
+          "kind": "integer",
+          "name": "version",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "publicId",
+          "kind": "string",
+          "name": "public_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "verifier",
+          "kind": "verifier",
+          "name": "verifier",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "principal",
+          "kind": "json",
+          "name": "principal",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "principalResolver",
+          "kind": "string",
+          "name": "principal_resolver",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "principalId",
+          "kind": "string",
+          "name": "principal_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "action",
+          "kind": "string",
+          "name": "action",
+          "nullable": true
+        },
+        {
+          "constraints": {
+            "values": ["subscribe"]
+          },
+          "default": null,
+          "field": "endpoint",
+          "kind": "enum",
+          "name": "endpoint",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "expiresAt",
+          "kind": "instant",
+          "name": "expires_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "usedAt",
+          "kind": "instant",
+          "name": "used_at",
+          "nullable": true
+        }
+      ],
+      "foreignKeys": [],
+      "indexes": [
+        {
+          "columns": ["scope_id", "public_id"],
+          "method": "btree",
+          "name": "live__stream_ticket__public_id_uq",
+          "unique": true,
+          "where": null
+        },
+        {
+          "columns": ["scope_id", "expires_at"],
+          "method": "btree",
+          "name": "live__stream_ticket__expires_at_ix",
+          "unique": false,
+          "where": null
+        }
+      ],
+      "name": "live__stream_ticket",
+      "primaryKey": ["scope_id", "id"],
+      "scoped": "tenant"
+    }
+  ],
+  "track": "live",
+  "version": 1
+}

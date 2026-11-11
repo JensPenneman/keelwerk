@@ -4,6 +4,8 @@ import type {
   Clock,
   InvocationSession,
   Invoker,
+  LiveCarrier,
+  LiveTimers,
   Logger,
   Telemetry,
 } from '@keelwerk/core';
@@ -34,4 +36,8 @@ export interface HttpHostDeps {
   readonly development?: boolean;
   /** The runtime's clock: the time of cookie lifetimes; absent: the system clock (change note, followups). */
   readonly clock?: Clock;
+  /** The waits of a live stream on that clock; absent: timers on `clock` (change note, WP-94). */
+  readonly timers?: LiveTimers;
+  /** The fill of `core.liveCarriers` named `name` of a served app; undefined without one. */
+  liveCarrier?(appId: string, name: string): LiveCarrier | undefined;
 }

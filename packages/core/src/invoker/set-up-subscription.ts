@@ -14,6 +14,7 @@ import { planLiveSource } from '../live/plan-live-source.ts';
 import { runLiveSource } from '../live/run-live-source.ts';
 import type { WatchInput } from '../live/watch-input.ts';
 import type { Logger } from '../observability/logger.ts';
+import { bindSubscriptionSession } from './bind-subscription-session.ts';
 import { createLiveKernel } from './create-live-kernel.ts';
 import type { Invocation } from './invocation.ts';
 import type { InvocationSession } from './invocation-session.ts';
@@ -99,13 +100,16 @@ export async function setUpSubscription(
     if (scope.level === 'deployment') {
       throw errors.unsupported('A subscription at the deployment level is not available yet.');
     }
+    // The two facts of the carrier the stream keeps, read once: the regate below must not hold the carrier itself for the life of the stream.
+    const clientId = flagClientIdOf(inv.carrier);
+    const { transport } = inv.carrier;
     state.stage = 'admit';
     const flags = await buildSnapshot({
       registry,
       action,
       scope,
       principal: session.principal,
-      clientId: flagClientIdOf(inv.carrier),
+      clientId,
       providers: env.options.flagProviders ?? [],
       log,
       targeting: env.options.targeting,
@@ -127,15 +131,39 @@ export async function setUpSubscription(
       value: input,
       flags,
     });
+    // The hub revalidates the stream with this session: it reopens the session and decides the
+    // subscription's own gate again (flag gates, rules, the action's principal list) over the same input.
+    const bound = bindSubscriptionSession(env, session, async (fresh) => {
+      const regated = await buildSnapshot({
+        registry,
+        action,
+        scope: fresh.scope,
+        principal: fresh.principal,
+        clientId,
+        providers: env.options.flagProviders ?? [],
+        log,
+        targeting: env.options.targeting,
+        telemetry: env.flagTelemetry,
+      });
+      authorize({
+        registry,
+        rules,
+        action,
+        session: fresh,
+        transport,
+        value: input,
+        flags: regated,
+      });
+    });
     state.stage = 'execute';
     const hub = app.liveHub;
     if (hub === undefined) throw liveUnavailable();
-    if (!liveKernelFactories.has(session)) {
+    if (!liveKernelFactories.has(bound)) {
       const kernels = new Map<string, LiveKernel>();
-      liveKernelFactories.set(session, (entity) => {
+      liveKernelFactories.set(bound, (entity) => {
         let kernel = kernels.get(entity);
         if (kernel === undefined) {
-          kernel = createLiveKernel(env, session, details, entity, span);
+          kernel = createLiveKernel(env, bound, details, entity, span);
           kernels.set(entity, kernel);
         }
         return kernel;
@@ -176,8 +204,8 @@ export async function setUpSubscription(
     }
     // The view is built, and the token's form and scope checked, before the decision is reported: a
     // refusal of the input is a refusal of the setup, never a failure of the stream.
-    await liveKernelOf(session, plan.entity).prepare(plan.input, plan.after);
-    const frames = runLiveSource(hub, session, plan);
+    await liveKernelOf(bound, plan.entity).prepare(plan.input, plan.after);
+    const frames = runLiveSource(hub, bound, plan);
     return {
       frames,
       itemOf: async (frame) => {

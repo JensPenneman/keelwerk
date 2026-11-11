@@ -145,7 +145,7 @@ export async function startTestRuntime<
           ...(external === undefined ? {} : { url: external.url }),
         },
       },
-      tenantResolution: [{ kind: 'header', header: 'x-tenant' }],
+      tenantResolution: [{ kind: 'header', header: 'x-tenant', backendHeader: 'x-backend' }],
       keys: { masterKey: secret(testMasterKeyName) },
     },
     {
