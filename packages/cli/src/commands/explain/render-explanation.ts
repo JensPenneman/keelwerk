@@ -11,13 +11,16 @@ interface Rule {
 }
 
 function decisionLines(value: Readonly<Record<string, unknown>>): string[] {
-  const principal = value.principal as { kind: string; id?: string };
+  const principal = value.principal as { kind: string; id?: string; roles?: readonly string[] };
   const who = principal.id === undefined ? principal.kind : `${principal.kind} ${principal.id}`;
   const lines = [
     `${String(value.action)} (${String(value.kind)}) for ${who} in ${String(value.scope)}: ${
       value.allowed === true ? 'allowed' : 'denied'
     }`,
   ];
+  if (Array.isArray(principal.roles)) {
+    lines.push(`  roles: ${principal.roles.length === 0 ? 'none' : principal.roles.join(', ')}`);
+  }
   if (typeof value.reason === 'string') lines.push(`  reason: ${value.reason}`);
   for (const rule of value.rules as readonly Rule[]) {
     lines.push(`  ${rule.effect} ${rule.id}  [${rule.module}] ${rule.file}`);

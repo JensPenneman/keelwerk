@@ -485,6 +485,7 @@ export type { CommandReceipt } from './invoker/command-receipt.ts';
 export type { CommandResult, CommandRun, CommandRunner } from './invoker/command-runner.ts';
 export type { Connection } from './invoker/connection.ts';
 export { createInvoker } from './invoker/create-invoker.ts';
+export type { DecisionHook, InvocationDecision, InvokerStage } from './invoker/decision-hook.ts';
 export type { Invocation } from './invoker/invocation.ts';
 export type { InvocationSession } from './invoker/invocation-session.ts';
 export type { InvokeRequest } from './invoker/invoke-request.ts';

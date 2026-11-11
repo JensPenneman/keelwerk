@@ -273,8 +273,12 @@ describe('KEELWERK_EXPLAIN=1', () => {
     await invoke('library.addBook', { title: 'Dune', isbn: 'i-1' }, asAda);
     const written = lines.filter((line) => line.includes(' -> '));
     expect(written).toHaveLength(2);
-    expect(written[0]).toMatch(/^test -> library\.addBook ok \d+ ms$/);
-    expect(written[1]).toMatch(/^test -> library\.addBook library\.isbn_taken \d+ ms$/);
+    expect(written[0]).toMatch(
+      /^test -> library\.addBook ok \d+ ms rules=library\.addBook\.signedIn$/,
+    );
+    expect(written[1]).toMatch(
+      /^test -> library\.addBook library\.isbn_taken \d+ ms rules=library\.addBook\.signedIn stage=execute$/,
+    );
   });
 
   test('is off in production, whatever the variable says', async () => {

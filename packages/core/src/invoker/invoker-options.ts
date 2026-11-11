@@ -10,6 +10,7 @@ import type { Tracer } from '../observability/tracer.ts';
 import type { OperatorPrincipal } from '../principals/operator-principal.ts';
 import type { Scope } from '../storage/scope.ts';
 import type { CommandRunner } from './command-runner.ts';
+import type { DecisionHook } from './decision-hook.ts';
 import type { InvokerApp } from './invoker-app.ts';
 import type { PlacementHandle } from './placement-handle.ts';
 import type { ScopeLookup } from './scope-lookup.ts';
@@ -56,4 +57,8 @@ export interface InvokerOptions {
   readonly flagProviders?: readonly FlagProvider[];
   /** The command write path (WP-38); without it a command is `not_implemented`. */
   readonly commands?: CommandRunner;
+  /**
+   * Development instrumentation (section 11): called once per invocation, after `complete`, with the stage it stopped at and the rules `authorize` matched. A hook that throws is logged at `warn` and changes no outcome.
+   */
+  readonly onDecision?: DecisionHook;
 }

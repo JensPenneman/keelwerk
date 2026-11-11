@@ -90,7 +90,11 @@ export function explainDecision(input: ExplainDecisionInput): DecisionExplanatio
   return {
     action: action.ref,
     kind: action.kind,
-    principal: { kind: context.principal.kind, ...(id === undefined ? {} : { id }) },
+    principal: {
+      kind: context.principal.kind,
+      ...(id === undefined ? {} : { id }),
+      roles: [...context.principal.roles],
+    },
     scope: scopeText(context),
     allowed: gate.allowed && plan?.kind !== 'never',
     ...(gate.reason === undefined

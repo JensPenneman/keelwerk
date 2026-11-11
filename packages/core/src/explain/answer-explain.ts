@@ -17,29 +17,17 @@ import { prepare } from '../invoker/stages/prepare.ts';
 import { translate } from '../invoker/stages/translate.ts';
 import { validate } from '../invoker/stages/validate.ts';
 import { withDeadline } from '../invoker/stages/with-deadline.ts';
-import type { Principal } from '../principals/principal.ts';
 import type { Registry } from '../registry/registry.ts';
-import { principalOfActor } from '../replay/principal-of-actor.ts';
-import type { Scope } from '../storage/scope.ts';
 import { registryBehaviours } from '../write-path/registry-behaviours.ts';
 import { dryRun } from './dry-run.ts';
 import { explainAction } from './explain-action.ts';
 import { explainDecision } from './explain-decision.ts';
 import type { ExplainEnvironment } from './explain-environment.ts';
-import type { ExplainAs, ExplainRequest } from './explain-request.ts';
+import { explainPrincipal } from './explain-principal.ts';
+import type { ExplainRequest } from './explain-request.ts';
 import { explainTarget } from './explain-target.ts';
 import { parseExplainRequest } from './parse-explain-request.ts';
 import { traceCommand } from './trace-command.ts';
-
-function principalOf(
-  session: InvocationSession,
-  scope: Scope,
-  as: ExplainAs | undefined,
-): Principal {
-  if (as === undefined) return session.principal;
-  const stand = principalOfActor({ kind: as.kind, id: as.id ?? null, via: 'explain' }, scope);
-  return { ...stand, roles: as.roles };
-}
 
 /**
  * Wraps the invoker so `core.explain` is answered for operators (section 16.9.7): the
@@ -71,7 +59,8 @@ export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker 
     request: ExplainRequest,
     state: { declared: readonly string[] },
   ): Promise<unknown> {
-    const { scope, app: appId, target, backend } = await explainTarget(env, request);
+    const explained = await explainTarget(env, request);
+    const { scope, app: appId, target, backend } = explained;
     const app = options.apps.get(appId);
     if (app === undefined)
       throw errors.unavailable(`App "${appId}" is not served by this process.`);
@@ -87,8 +76,6 @@ export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker 
     }
     const action = locate(registry, request.ref, scope);
     state.declared = action.errors;
-    const principal = principalOf(session, scope, request.as);
-    const rules = rulesOf(registry);
     const dry = request.mode === 'dry-run';
     if (dry) {
       if (action.kind !== 'command') {
@@ -99,6 +86,18 @@ export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker 
           '--as runs the command as another principal, which only a development process does.',
         );
       }
+    }
+    const principal = await explainPrincipal({
+      env: admissionEnv(),
+      app,
+      target: explained,
+      session,
+      as: request.as,
+      transport: inv.carrier.transport,
+      requestId: inv.requestId,
+    });
+    const rules = rulesOf(registry);
+    if (dry) {
       // Admission runs as for a real call, but its charges are taken in a unit that rolls back:
       // a dry run reports a refusal or `rate_limited` without using up tokens.
       const resolvedBackend = scope.level === 'tenant' ? (backend ?? null) : null;

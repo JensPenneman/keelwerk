@@ -2,11 +2,13 @@ import { context, propagation } from '@opentelemetry/api';
 import { chargeFailureBuckets } from '../admission/charge-failure-buckets.ts';
 import type { Admitted } from '../admission/run-admission.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import type { RuleMatch } from '../errors/rule-match.ts';
 import { buildSnapshot } from '../flags/build-snapshot.ts';
 import { flagClientIdOf } from '../flags/flag-client-id-of.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Span } from '../observability/span.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
+import type { InvokerStage } from './decision-hook.ts';
 import type { Invocation } from './invocation.ts';
 import type { InvocationSession } from './invocation-session.ts';
 import type { Invoker } from './invoker.ts';
@@ -48,12 +50,22 @@ async function sessionOf(
   return { ok: true, value: inv.session };
 }
 
+/** What one invocation leaves behind for the decision hook. */
+interface RunState {
+  action?: ActionEntry;
+  log: Logger;
+  admitted?: Admitted;
+  stage: InvokerStage;
+  rules?: readonly RuleMatch[];
+}
+
 async function run(
   env: InvokerEnv,
   inv: Invocation<unknown>,
-  state: { action?: ActionEntry; log: Logger; admitted?: Admitted },
+  state: RunState,
   span: Span,
 ): Promise<Outcome<unknown>> {
+  state.stage = 'open';
   const opened = await sessionOf(env, inv);
   if (!opened.ok) return opened;
   const session = opened.value;
@@ -79,6 +91,7 @@ async function run(
     ...(scope.level === 'deployment' ? {} : { 'keelwerk.backend': scope.backendId }),
     ...(scope.level === 'tenant' ? { 'keelwerk.tenant': scope.tenantId } : {}),
   });
+  state.stage = 'locate';
   const action = locate(registry, inv.action, scope);
   state.action = action;
   span.setAttributes({
@@ -87,6 +100,7 @@ async function run(
     'keelwerk.execution': action.execution,
     ...(action.entity === undefined ? {} : { 'keelwerk.entity': action.entity }),
   });
+  state.stage = 'admit';
   const flags = await buildSnapshot({
     registry,
     action,
@@ -97,8 +111,11 @@ async function run(
     log,
   });
   state.admitted = await admit(env, { action, session, details, invocation: inv, span, flags });
+  state.stage = 'validate';
   const validated = await validate(action, inv.input);
+  state.stage = 'translate';
   const input = translate('input', validated);
+  state.stage = 'authorize';
   const matched = authorize({
     registry,
     rules,
@@ -108,11 +125,14 @@ async function run(
     value: input,
     flags,
   });
+  state.rules = matched;
   span.setAttribute(
     'keelwerk.rules',
     matched.map((rule) => rule.id),
   );
+  state.stage = 'prepare';
   prepare(action);
+  state.stage = 'execute';
   const answered = await execute(env, {
     action,
     value: input,
@@ -124,6 +144,7 @@ async function run(
     flags,
   });
   // An accepted command has no output yet: its receipt is the answer and nothing is shaped.
+  state.stage = 'shape';
   const output =
     answered.receipt?.status === 'accepted'
       ? answered.output
@@ -177,7 +198,8 @@ export function createInvoker(options: InvokerOptions): Invoker {
         { attributes: { 'keelwerk.action': inv.action, 'keelwerk.request': inv.requestId } },
         parent,
       );
-      const state: { action?: ActionEntry; log: Logger; admitted?: Admitted } = {
+      const state: RunState = {
+        stage: 'open',
         log: options.log.child({ requestId: inv.requestId, action: inv.action }),
       };
       let outcome: Outcome<unknown>;
@@ -198,12 +220,28 @@ export function createInvoker(options: InvokerOptions): Invoker {
           outcome,
         });
       }
-      return complete({
+      const completed = complete({
         span,
         log: state.log,
         action: inv.action,
         outcome,
       }) as Outcome<O>;
+      if (options.onDecision !== undefined) {
+        try {
+          options.onDecision({
+            kind: 'invoke',
+            requestId: inv.requestId,
+            action: inv.action,
+            transport: inv.carrier.transport,
+            stage: completed.ok ? 'complete' : state.stage,
+            rules: state.rules ?? (completed.ok ? [] : (completed.error.rules ?? [])),
+            ...(completed.ok ? {} : { error: completed.error }),
+          });
+        } catch (error) {
+          state.log.warn('the decision hook failed', { error: String(error) });
+        }
+      }
+      return completed;
     },
     subscribe: <I, E>(_inv: Invocation<I>): AsyncIterable<LiveFrame<E>> => ({
       // biome-ignore lint/correctness/useYield: live updates are not available in this release

@@ -30,7 +30,12 @@ export interface ExplainedPlan {
 export interface DecisionExplanation {
   readonly action: string;
   readonly kind: string;
-  readonly principal: { readonly kind: string; readonly id?: string };
+  /** `roles`: the roles the decision used, after the enrichers and `--roles`. */
+  readonly principal: {
+    readonly kind: string;
+    readonly id?: string;
+    readonly roles: readonly string[];
+  };
   readonly scope: string;
   readonly allowed: boolean;
   /** The deciding deny rule's reason, or the gate check that refused. */

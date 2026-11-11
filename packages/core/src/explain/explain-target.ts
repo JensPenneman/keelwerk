@@ -11,6 +11,8 @@ export interface ExplainTarget {
   readonly target: ScopeTarget;
   /** The backend's own data, for a backend read from a tenant scope. */
   readonly backend: ScopeTarget | undefined;
+  /** The backend's validated configuration by module id (5.7), for the enrichers of `--as`; absent at deployment scope. */
+  readonly backendConfig?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -56,10 +58,17 @@ export async function explainTarget(
   }
   const backend = backendId === undefined ? undefined : await options.directory.backend(backendId);
   if (backend === undefined) throw errors.not_found(`The backend ${backendId} does not exist.`);
+  const config = backend.config === undefined ? {} : { backendConfig: backend.config };
   const backendScope: Scope = { level: 'backend', backendId: backend.id };
   const backendTarget = open(backend.placementId, backend.namespace, backendScope);
   if (tenant === undefined) {
-    return { scope: backendScope, app: backend.app, target: backendTarget, backend: backendTarget };
+    return {
+      scope: backendScope,
+      app: backend.app,
+      target: backendTarget,
+      backend: backendTarget,
+      ...config,
+    };
   }
   const scope: Scope = { level: 'tenant', backendId: backend.id, tenantId: tenant.id };
   return {
@@ -67,5 +76,6 @@ export async function explainTarget(
     app: backend.app,
     target: open(tenant.placementId, tenant.namespace, scope),
     backend: backendTarget,
+    ...config,
   };
 }

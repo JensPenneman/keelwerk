@@ -5,6 +5,7 @@ import { setProcessState } from '../control/set-process-state.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
 import { defineApp } from '../dsl/define-app.ts';
 import { answerExplain } from '../explain/answer-explain.ts';
+import { explainDecisions } from '../explain/explain-decisions.ts';
 import { explainStream } from '../explain/explain-stream.ts';
 import { createFlagChain } from '../flags/create-flag-chain.ts';
 import { createInvoker } from '../invoker/create-invoker.ts';
@@ -107,6 +108,13 @@ export async function startRuntime(
       api: coreApiVersions,
     });
     const controlPath = createControlPath({ deployment, served, connected, migrated });
+    const streamOptions = {
+      env: options.env ?? {},
+      development,
+      write: (line: string) => log.info(line),
+      clock,
+    };
+    const decisions = explainDecisions(streamOptions);
     const invokerOptions: InvokerOptions = {
       apps,
       directory: migrated.directory.lookup,
@@ -127,6 +135,7 @@ export async function startRuntime(
       operatorTokens: createOperatorTokenResolver(connected.control),
       tenantEntry: (tenantId, actor) => latestTenantEntry(connected.control, tenantId, actor),
       operatorHosts: deployment.operator?.hosts ?? [],
+      ...(decisions === undefined ? {} : { onDecision: decisions.onDecision }),
       keys: connected.keys,
       compute: connected.compute,
       log,
@@ -158,12 +167,7 @@ export async function startRuntime(
     // `core.explain` (section 16.9.7) and the explain stream of development (section 11).
     const explaining = explainStream(
       answerExplain(answering, { options: invokerOptions, hybridClock: connected.hybridClock }),
-      {
-        env: options.env ?? {},
-        development,
-        write: (line) => log.info(line),
-        clock,
-      },
+      { ...streamOptions, ...(decisions === undefined ? {} : { decisions }) },
     );
     const draining = drainingInvoker(explaining);
 
