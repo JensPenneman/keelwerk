@@ -61,7 +61,7 @@ describe('the bounds of a socket', () => {
     expect(client.socket.readyState).toBe(client.socket.OPEN);
     await made.at(10_000);
     expect(await client.closed).toMatchObject({ code: 4000 });
-    expect(made.timers.pending()).toBe(0);
+    await vi.waitFor(() => expect(made.timers.pending()).toBe(0));
   });
 
   test('a second hello, a binary frame, invalid JSON or an unknown type closes 4000; neither reason nor log holds the text sent', async () => {
