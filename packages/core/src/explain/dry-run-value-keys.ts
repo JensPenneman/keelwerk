@@ -1,4 +1,5 @@
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
+import { decoySubject } from '../keys/decoy-subject.ts';
 import { defaultRandomSource } from '../keys/default-random-source.ts';
 import { encodeAad } from '../keys/encode-aad.ts';
 import { openAesGcm } from '../keys/open-aes-gcm.ts';
@@ -9,12 +10,16 @@ import type { SubjectKeyStore } from '../storage/subject-key-store.ts';
  * The value keys of a dry run: a value sealed during the run gets a key held in memory, so no
  * adapter wraps it under a scope key and no scope key is created for it. Values sealed before the
  * run open through the real store. Returns the function that wraps the key store of each unit the
- * run opens; they all share the one set of keys.
+ * run opens; they all share the one set of keys. The decoy data key of a scope (`decoySubject`) is
+ * never created by a dry run.
  */
 export function dryRunValueKeys(): (inner: SubjectKeyStore) => SubjectKeyStore {
   const held = new Map<string, { readonly material: Uint8Array; readonly aad: Uint8Array }>();
   return (inner) => ({
     ...inner,
+    // The decoy key of the scope is a stored key: a dry run reads it and never creates it.
+    dataKey: (subjectId, options) =>
+      inner.dataKey(subjectId, subjectId === decoySubject ? { create: false } : options),
     sealValue: async (binding, plain) => {
       const keyId = newUuidV7();
       const material = defaultRandomSource(32);

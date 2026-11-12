@@ -1,7 +1,10 @@
 import type { SecretRef } from '../ids/secret-ref.ts';
 import type { AnswerContext } from '../kernel/answer-context.ts';
 import type { IssuedSecret } from '../kernel/issued-secret.ts';
+import { absentVerifier } from '../keys/absent-verifier.ts';
 import { configSecrets } from '../keys/config-secrets.ts';
+import { decoySubject } from '../keys/decoy-subject.ts';
+import { openAesGcm } from '../keys/open-aes-gcm.ts';
 import { parseSealedValueText } from '../keys/parse-sealed-value-text.ts';
 import { secretRefOwner } from '../keys/secret-ref-owner.ts';
 import type { SecretRequest } from '../protocol/secret-request.ts';
@@ -46,6 +49,8 @@ async function issue(request: SecretRequest, context: AnswerContext): Promise<Is
     prefix,
     ...(bytes === undefined ? {} : { bytes }),
   });
+  // The decoy key of the scope, for the lookups that find no row (see `verify`).
+  await context.unit.keys.dataKey(decoySubject, { create: true });
   // The decision record keeps the public id and the verifier, never the token.
   context.record.answer({
     kind: 'secret',
@@ -70,10 +75,27 @@ async function reveal(request: SecretRequest, context: AnswerContext): Promise<s
   return context.keys.reveal(context.unit, { ref: text } as unknown as SecretRef, reason);
 }
 
+/** A sealed text that opens to nothing under any key: the decoy the absent case decrypts. */
+const decoyNonce = new Uint8Array(12);
+const decoyCiphertext = new Uint8Array(32);
+const decoyAad = new Uint8Array(0);
+
 async function verify(request: SecretRequest, context: AnswerContext): Promise<boolean> {
   const [token, verifier] = request.args;
   if (typeof token !== 'string' || typeof verifier !== 'string') {
     throw refuseRequest(requestName(request), 'it takes a token and a verifier');
+  }
+  if (verifier === absentVerifier) {
+    // No row holds the key. A found row takes two reads of key material (the data key of its
+    // personal label, then the key of its sealed verifier) and one decryption: take the same from
+    // the decoy data key, then compare, so the work does not tell whether a row exists. A scope
+    // that never issued a secret has no decoy key and holds no key to find either.
+    const { keys } = context.unit;
+    await keys.dataKey(decoySubject, { create: false });
+    const decoy = await keys.dataKey(decoySubject, { create: false });
+    if (decoy !== undefined) openAesGcm(decoy.material, decoyNonce, decoyCiphertext, decoyAad);
+    await context.keys.verify(context.scope, token, absentVerifier);
+    return false;
   }
   // A verifier read from a row is its sealed text; the comparison needs the value itself.
   const sealed = parseSealedValueText(verifier);

@@ -15,7 +15,9 @@ import type { RelationsOf } from '../model/relations-of.ts';
 import type { TargetName } from '../model/target-name.ts';
 import type { Where } from '../model/where.ts';
 import type { PrincipalKind } from '../principals/principal-kind.ts';
+import { isRuleSelector } from './is-rule-selector.ts';
 import { mountName } from './mount-name.ts';
+import type { RuleSelector } from './rule-selector.ts';
 
 type ReadAction = 'read' | 'get' | 'query' | 'changes' | 'queryChanges' | 'watch' | 'history';
 type IsReadRule<A extends readonly string[]> = [Extract<A[number], ReadAction>] extends [never]
@@ -147,10 +149,13 @@ export interface ActionRuleSpec<Pk extends PrincipalKind> {
   readonly reason?: string;
 }
 
-/** What a rule may target: an own entity, a contribution target's entity by name, or an own action. */
-export type RuleTargetOf<S> = EntityTargetOf<S> | AnyActionPart;
+/** What a rule may target: an own entity, a contribution target's entity by name, an own action, or a selector across modules. */
+export type RuleTargetOf<S> = EntityTargetOf<S> | AnyActionPart | RuleSelector;
 
-/** The literal of a rule, by target. */
+/**
+ * The literal of a rule, by target. A rule over a selector (action kinds and/or transports across
+ * modules) is a deny rule only: one module never grants access to the actions of every other module.
+ */
 export type RuleSpec<
   S,
   T,
@@ -160,11 +165,13 @@ export type RuleSpec<
   Ck,
 > = T extends AnyActionPart
   ? ActionRuleSpec<Pk>
-  : EntityRuleSpec<S, T, A, Pk, Cw, Ck> &
-      Check<
-        UnknownKeys<Cw | Ck, ConditionKeys<S, T>, RuleRelations<S, T>, BaseOf<S>>,
-        'unknownConditionFields'
-      >;
+  : T extends RuleSelector
+    ? Omit<ActionRuleSpec<Pk>, 'effect'> & { readonly effect: 'deny' }
+    : EntityRuleSpec<S, T, A, Pk, Cw, Ck> &
+        Check<
+          UnknownKeys<Cw | Ck, ConditionKeys<S, T>, RuleRelations<S, T>, BaseOf<S>>,
+          'unknownConditionFields'
+        >;
 
 /**
  * A rule part: its base, its target and the action names it lists; the id comes from where the
@@ -190,15 +197,15 @@ export function defineRule<
   source: S,
   target: T,
   spec: RuleSpec<S, T, A, Pk, Cw, Ck>,
-): RulePart<S, T extends AnyActionPart ? T : TargetName<S, T>, A> {
+): RulePart<S, T extends AnyActionPart | RuleSelector ? T : TargetName<S, T>, A> {
   const named =
-    typeof target === 'object' && target !== null && 'spec' in target
+    isRuleSelector(target) || (typeof target === 'object' && target !== null && 'spec' in target)
       ? target
       : mountName(source, target);
   const actions = (spec as { readonly actions?: readonly string[] }).actions ?? [];
   return { kind: 'rule', source, target: named, actions, spec } as RulePart<
     S,
-    T extends AnyActionPart ? T : TargetName<S, T>,
+    T extends AnyActionPart | RuleSelector ? T : TargetName<S, T>,
     A
   >;
 }

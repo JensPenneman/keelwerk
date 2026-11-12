@@ -1,3 +1,5 @@
+import { retiredPinTarget } from '../../api-versions/retired-pin-target.ts';
+import { utcDayOf } from '../../api-versions/utc-day-of.ts';
 import { errors } from '../../errors/errors.ts';
 import { isKeelwerkError } from '../../errors/is-keelwerk-error.ts';
 import { coreError } from '../../http/core-error.ts';
@@ -48,11 +50,13 @@ export async function resolvePrincipal(
 ): Promise<ResolvedPrincipal> {
   if (standsFor !== undefined) {
     // A session a credential opened that no longer resolves says so about the session, not about a job.
-    return resolvePrincipalRef(env, standsFor, resolved, context).catch((error: unknown) => {
-      throw isKeelwerkError(error) && error.kind === 'unauthenticated'
-        ? errors.unauthenticated('The principal of this session no longer resolves.')
-        : error;
-    });
+    return resolvePrincipalRef(env, standsFor, resolved, context, carrier.transport).catch(
+      (error: unknown) => {
+        throw isKeelwerkError(error) && error.kind === 'unauthenticated'
+          ? errors.unauthenticated('The principal of this session no longer resolves.')
+          : error;
+      },
+    );
   }
   if (carrier.job !== undefined) return reresolvePrincipal(env, carrier.job, resolved, context);
   const operator = operatorResolver(carrier);
@@ -86,7 +90,8 @@ export async function resolvePrincipal(
       authenticated: false,
     };
   }
-  const { registry, configShapes } = env.appOf(resolved.app);
+  const { registry, configShapes, api } = env.appOf(resolved.app);
+  const today = (): string => utcDayOf(env.options.clock.now());
   const result = await withResolverKit(
     {
       env,
@@ -99,7 +104,13 @@ export async function resolvePrincipal(
       span: context.span,
     },
     async (kit) => {
-      const found = await runPrincipalResolvers(kit, carrier, resolved.scope, env.options.clock);
+      const found = await runPrincipalResolvers(
+        kit,
+        carrier,
+        resolved.scope,
+        env.options.clock,
+        api === undefined ? undefined : (pin) => retiredPinTarget(api, pin, today()),
+      );
       // A redeemed credential stands for the principal its reference names, which is enriched after it is resolved.
       if (found.redeem !== undefined) return found;
       return { ...found, principal: await runPrincipalEnrichers(kit, found.principal) };
@@ -120,11 +131,15 @@ export async function resolvePrincipal(
     // A ticket whose principal no longer resolves (any error but an internal or unavailable one, or a
     // reference that answers nothing) answers what a spent, expired or unknown ticket answers; an
     // internal or unavailable error, or a failure that is no keelwerk error, stays what it is.
-    const standing = await resolvePrincipalRef(env, result.redeem.ref, resolved, context).catch(
-      (error: unknown) => {
-        throw keepsTicketError(error) ? error : coreError('core.ticket_invalid');
-      },
-    );
+    const standing = await resolvePrincipalRef(
+      env,
+      result.redeem.ref,
+      resolved,
+      context,
+      carrier.transport,
+    ).catch((error: unknown) => {
+      throw keepsTicketError(error) ? error : coreError('core.ticket_invalid');
+    });
     return {
       ...standing,
       clearCookies: result.clearCookies,

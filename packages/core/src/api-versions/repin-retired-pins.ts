@@ -7,7 +7,7 @@ import type { ApiVersions } from '../dsl/define-api-versions.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import { acceptsVersion } from './accepts-version.ts';
-import { servedTargetOf } from './served-target-of.ts';
+import { retiredPinTarget } from './retired-pin-target.ts';
 
 /** Rows read at a time. */
 const defaultPageSize = 500;
@@ -16,14 +16,9 @@ type Entity = 'backend' | 'tenant';
 
 /** Where the pin of `row` moves: its target when `resolveVersion` refuses the pin as retired; undefined for a pin that is served, absent or not a declared date. */
 function targetOf(row: StorageRow, api: ApiVersions, today: string): string | undefined {
-  const pinned = row.apiVersion;
-  if (typeof pinned !== 'string') return undefined;
-  try {
-    return acceptsVersion(api, pinned, today) ? undefined : servedTargetOf(api, pinned, today);
-  } catch (error) {
-    if (error instanceof KeelwerkError) return undefined;
-    throw error;
-  }
+  return typeof row.apiVersion === 'string'
+    ? retiredPinTarget(api, row.apiVersion, today)
+    : undefined;
 }
 
 /** The rows whose `apiVersion` can be retired: a declared date that is retired today, or any text below the oldest declared date. */

@@ -1,0 +1,427 @@
+{
+  "entities": {
+    "api-keys.key": {
+      "events": {},
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "apiVersion": {
+          "codec": null,
+          "column": "api_version",
+          "constraints": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 8,
+          "unique": false
+        },
+        "expiresAt": {
+          "codec": null,
+          "column": "expires_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 7,
+          "unique": false
+        },
+        "label": {
+          "codec": null,
+          "column": "label",
+          "constraints": {
+            "maxLength": 120,
+            "minLength": 1
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": {
+            "keys": "tenant",
+            "normalize": {
+              "id": "nfc",
+              "version": 1
+            },
+            "params": {
+              "contains": {
+                "bits": 12
+              },
+              "eq": {
+                "bits": 128
+              },
+              "order": {
+                "bytes": 16
+              },
+              "prefix": {
+                "max": 32,
+                "min": 3
+              }
+            },
+            "queries": [],
+            "subject": "subject"
+          },
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 5,
+          "unique": false
+        },
+        "lastUsedAt": {
+          "codec": null,
+          "column": "last_used_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 9,
+          "unique": false
+        },
+        "publicId": {
+          "codec": null,
+          "column": "public_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "exclusive",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 3,
+          "unique": true
+        },
+        "revokedAt": {
+          "codec": null,
+          "column": "revoked_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 10,
+          "unique": false
+        },
+        "scopes": {
+          "codec": null,
+          "column": "scopes",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": {
+            "codec": null,
+            "column": "",
+            "constraints": {
+              "pattern": "^(read|write|transport:[a-z][a-z0-9-]{0,62})$"
+            },
+            "hidden": false,
+            "indexed": false,
+            "inner": null,
+            "kind": "string",
+            "maskable": false,
+            "merge": "lww",
+            "optional": false,
+            "personal": false,
+            "ref": null,
+            "sealed": false,
+            "stateOnly": false,
+            "tag": 6,
+            "unique": false
+          },
+          "kind": "list",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 6,
+          "unique": false
+        },
+        "subject": {
+          "codec": null,
+          "column": "subject",
+          "constraints": {},
+          "hidden": false,
+          "indexed": true,
+          "inner": null,
+          "kind": "subject",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": false
+        },
+        "subjectRef": {
+          "codec": null,
+          "column": "subject_ref",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 2,
+          "unique": false
+        },
+        "verifier": {
+          "codec": null,
+          "column": "verifier",
+          "constraints": {},
+          "hidden": {
+            "history": false
+          },
+          "indexed": false,
+          "inner": null,
+          "kind": "verifier",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": true,
+          "stateOnly": false,
+          "tag": 4,
+          "unique": false
+        }
+      },
+      "history": "state",
+      "mergeState": false,
+      "renames": []
+    }
+  },
+  "format": "keelwerk.snapshot/1",
+  "tables": [
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "tenant_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "created_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "updated_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "archived_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": 1,
+          "field": null,
+          "kind": "integer",
+          "name": "version",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hlc",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hash",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "kw_erased_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "subject",
+          "kind": "subject",
+          "name": "subject",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "subjectRef",
+          "kind": "string",
+          "name": "subject_ref",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "publicId",
+          "kind": "string",
+          "name": "public_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "verifier",
+          "kind": "verifier",
+          "name": "verifier",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "label",
+          "kind": "sealed",
+          "name": "label",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "scopes",
+          "kind": "list",
+          "name": "scopes",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "expiresAt",
+          "kind": "instant",
+          "name": "expires_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "apiVersion",
+          "kind": "string",
+          "name": "api_version",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "lastUsedAt",
+          "kind": "instant",
+          "name": "last_used_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "revokedAt",
+          "kind": "instant",
+          "name": "revoked_at",
+          "nullable": true
+        }
+      ],
+      "foreignKeys": [],
+      "indexes": [
+        {
+          "columns": ["tenant_id", "subject"],
+          "method": "btree",
+          "name": "api_keys__key__subject_ix",
+          "unique": false,
+          "where": null
+        },
+        {
+          "columns": ["tenant_id", "public_id"],
+          "method": "btree",
+          "name": "api_keys__key__public_id_uq",
+          "unique": true,
+          "where": {
+            "field": "archivedAt",
+            "op": "isNull",
+            "value": true
+          }
+        }
+      ],
+      "name": "api_keys__key",
+      "primaryKey": ["tenant_id", "id"],
+      "scoped": "tenant"
+    }
+  ],
+  "track": "api-keys",
+  "version": 1
+}

@@ -50,6 +50,7 @@ export function worldOf(
   const rows = new Map<string, StorageRow>([['tk1', { id: 'tk1', version: 1 }]]);
   const revoked = new Set<string>();
   const loaded: string[] = [];
+  const transports: (string | null)[] = [];
   const redeeming: PrincipalResolver = {
     id: 'test.ticket',
     describe: () => ({ scheme: 'apiKey' }),
@@ -70,8 +71,9 @@ export function worldOf(
       return null;
     },
     // biome-ignore lint/correctness/useYield: the test resolver loads nothing
-    *fromRef(found) {
+    *fromRef(found, context) {
       loaded.push(found.principalId);
+      transports.push(context.transport);
       const thrown = refused(found.principalId);
       if (thrown !== undefined) throw thrown;
       if (revoked.has(found.principalId)) return null;
@@ -127,7 +129,7 @@ export function worldOf(
     log: silentLog,
     environment: 'test',
   } as unknown as InvokerOptions);
-  return { invoker, rows, revoked, loaded };
+  return { invoker, rows, revoked, loaded, transports };
 }
 
 export const ticketCarrier: Carrier = {

@@ -84,6 +84,7 @@ export async function runPrincipalResolvers(
   carrier: Carrier,
   scope: Scope,
   clock: Clock,
+  retiredPinTarget?: (pin: string) => string | undefined,
 ): Promise<ResolvedPrincipal> {
   const placeholder = placeholderPrincipal(scope);
   const cookies = new Set<string>();
@@ -99,7 +100,11 @@ export async function runPrincipalResolvers(
     let resolution: PrincipalResolution | null;
     try {
       resolution = await kit.drive<PrincipalResolution | null>(
-        value.resolve(carrier, { scope, clock }),
+        value.resolve(carrier, {
+          scope,
+          clock,
+          ...(retiredPinTarget === undefined ? {} : { retiredPinTarget }),
+        }),
         module,
         placeholder,
       );
@@ -147,6 +152,26 @@ export async function runPrincipalResolvers(
         kind: 'internal',
         code: 'core.internal',
         message: `A fill of core.principalResolvers by "${module}" answered ${forged}.`,
+      });
+    }
+    // An operator skips the backend and tenant checks of the gate: only the kernel's own fill (the
+    // core's, which the test harness fills as well) may answer one.
+    if (resolution.principal.kind === 'operator' && module !== 'core') {
+      throw new KeelwerkError({
+        kind: 'internal',
+        code: 'core.internal',
+        message: `A fill of core.principalResolvers by "${module}" answered an operator.`,
+      });
+    }
+    // The reference an answer carries names the resolver that answered: a job re-resolves it by that
+    // name, and a rule that exempts a resolver's principals tests it. Resolver ids are not yet bound to
+    // their module or unique, so a module that copies another's id is not caught here.
+    const named = resolution.principal.ref?.resolver;
+    if (named !== undefined && named !== value.id) {
+      throw new KeelwerkError({
+        kind: 'internal',
+        code: 'core.internal',
+        message: `A fill of core.principalResolvers by "${module}" answered a principal whose reference names the resolver "${named}", not its own "${value.id}".`,
       });
     }
     return {

@@ -20,7 +20,16 @@ export interface PrincipalResolver {
   };
   resolve(
     carrier: Carrier,
-    ctx: { readonly scope: Scope; readonly clock: { now(): Temporal.Instant } },
+    ctx: {
+      readonly scope: Scope;
+      readonly clock: { now(): Temporal.Instant };
+      /**
+       * Where a credential's retired API-version pin moves today, by the check of
+       * `repinRetiredPins`; undefined while the pin is served. Absent where the app declares no
+       * API versions: the resolver then answers the stored pin and the kernel's version check judges it.
+       */
+      readonly retiredPinTarget?: (pin: string) => string | undefined;
+    },
   ): Gen<PrincipalResolution | null>;
   /** Re-resolves a stored principal reference when a job runs (section 7.4, S-122). */
   readonly fromRef?: PrincipalFromRef['fromRef'];

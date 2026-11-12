@@ -39,9 +39,8 @@ function isResolver(value: unknown): value is PrincipalResolver {
  * Whether the principal a resolver answered is the one the reference names: never an anonymous or
  * a system principal (the kernel's own references carry those), and its reference is the stored
  * resolver and principal id, so a session row that was reused or now points at another subject
- * never runs the job as someone else. An operator is allowed because a resolver may already answer
- * one at request time (the harness's `operators` option does); what the job runs as is still the
- * principal the reference names.
+ * never runs the job as someone else. An operator is judged by `resolvePrincipalRef`, which accepts
+ * one only from the core's own fill (the harness's `operators` option fills as the core).
  */
 function isReferred(principal: Principal, ref: PrincipalRef): boolean {
   if (principal.kind === 'anonymous' || principal.kind === 'system') return false;
@@ -85,7 +84,7 @@ function operatorOf(ref: PrincipalRef, placeholder: Principal): OperatorPrincipa
  * `core.operator` and `core.runtime` the operator the reference names, and `core.invoker` the
  * anonymous placeholder. Any other reference goes to the app's principal resolver of that id: its
  * `fromRef` is driven in the read-only unit of the scope and the principal enrichers run on what it
- * returns; the rows of the resolution's `cache` are answered as `dependsOn` (S-151). No such resolver, no `fromRef` (also logged as a warning: the compose check only sees
+ * returns, with the `transport` the reference is redeemed on (the carrier's for a ticket and a revalidation, the transport its receipt records for a job, null when the job has none); the rows of the resolution's `cache` are answered as `dependsOn` (S-151). No such resolver, no `fromRef` (also logged as a warning: the compose check only sees
  * resolvers that are not built per request), an answer of null, an anonymous or a system
  * principal, or one whose reference is not the stored one is `unauthenticated`. The effects a
  * resolution asks for are dropped: a job's resolution has no session to extend.
@@ -95,6 +94,7 @@ export async function resolvePrincipalRef(
   ref: PrincipalRef,
   resolvedScope: ResolvedScope,
   context: { readonly requestId: string; readonly span: Span },
+  transport: string | null,
 ): Promise<ResolvedPrincipal> {
   const { scope } = resolvedScope;
   const placeholder = placeholderPrincipal(scope);
@@ -146,11 +146,12 @@ export async function resolvePrincipalRef(
           continue;
         }
         const resolution = await kit.drive<PrincipalResolution | null>(
-          value.fromRef(ref, { scope, clock: env.options.clock }),
+          value.fromRef(ref, { scope, clock: env.options.clock, transport }),
           module,
           placeholder,
         );
         if (resolution === null || !isReferred(resolution.principal, ref)) throw unresolved();
+        if (resolution.principal.kind === 'operator' && module !== 'core') throw unresolved();
         return {
           principal: await runPrincipalEnrichers(kit, {
             ...resolution.principal,

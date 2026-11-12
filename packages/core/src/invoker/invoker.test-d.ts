@@ -148,6 +148,7 @@ test('PrincipalResolver.resolve receives the scope and a clock', () => {
   expectTypeOf<Parameters<PrincipalResolver['resolve']>[1]>().toEqualTypeOf<{
     readonly scope: Scope;
     readonly clock: { now(): Temporal.Instant };
+    readonly retiredPinTarget?: (pin: string) => string | undefined;
   }>();
 });
 

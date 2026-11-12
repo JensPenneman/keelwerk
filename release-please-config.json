@@ -214,10 +214,6 @@
         },
         {
           "type": "generic",
-          "path": "packages/module-api-keys/src/version.ts"
-        },
-        {
-          "type": "generic",
           "path": "packages/module-audit/src/version.ts"
         },
         {

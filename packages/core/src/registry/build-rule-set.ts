@@ -1,5 +1,6 @@
 import { applyPolicyOverrides } from '../authorization/apply-policy-overrides.ts';
 import type { ConditionInput } from '../conditions/condition-input.ts';
+import { isRuleSelector } from '../dsl/is-rule-selector.ts';
 import type { PrincipalKind } from '../principals/principal-kind.ts';
 import type { AppliedPart } from './applied-part.ts';
 import type { ComposableApp } from './composable-app.ts';
@@ -31,6 +32,13 @@ interface RuleSite {
 }
 
 function subjectOf(rule: RuleView, targetModule: string): RuleEntry['subject'] & object {
+  if (isRuleSelector(rule.target)) {
+    const { kinds, transports } = rule.target;
+    return {
+      ...(kinds === undefined ? {} : { kinds }),
+      ...(transports === undefined ? {} : { transports }),
+    };
+  }
   if (typeof rule.target === 'string') {
     const dot = rule.target.indexOf('.');
     return dot < 0
@@ -165,6 +173,19 @@ export function buildRuleSet(
     },
     registry,
   );
+  // Whatever built it (a module's definition, an app's `policies.add`), an allow over a selector
+  // would let one module grant access to the actions of every other module.
+  for (const rule of overridden.rules) {
+    if (rule.effect === 'allow' && !rule.disabled && !('module' in rule.subject)) {
+      problems.push(
+        compositionError(
+          'selectorRuleAllows',
+          `The rule "${rule.id}" allows over a selector (action kinds or transports across modules); only a deny rule may.`,
+          { module: rule.module, ref: rule.id },
+        ),
+      );
+    }
+  }
   return {
     rules: new Map(overridden.rules.map((rule) => [rule.id, rule])),
     problems: [...problems, ...overridden.problems],

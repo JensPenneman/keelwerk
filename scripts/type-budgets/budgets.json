@@ -37,10 +37,15 @@
     "packageBytes": 16384,
     "exempt": ["packages/core/test/fixtures"],
     "overrides": {
+      "packages/module-api-keys": {
+        "manifestBytes": 6144,
+        "packageBytes": 19456,
+        "reason": "api-keys with its key entity, create, revoke, revokeSubject, the key resolver, the read-only and operator rules, and the deactivation reaction under the accounts condition (2,497 B manifest and 16,776 B package measured on 2026-11-12 plus 15 %, rounded up to 256 B)"
+      },
       "packages/module-auth": {
         "manifestBytes": 11776,
-        "packageBytes": 56064,
-        "reason": "auth with accounts: contribution, conditional parts, reset flow and four more actions (10,188 B manifest and 48,749 B package measured plus 15 %, rounded up to 256 B)"
+        "packageBytes": 66816,
+        "reason": "auth with accounts: contribution, conditional parts, reset flow, four more actions, and the six session-only deny rules with their three lib files (11,655 B manifest and 57,956 B package measured on 2026-11-12 plus 15 %, rounded up to 256 B)"
       },
       "packages/testing/src/fixtures/modules/loans": {
         "manifestBytes": 8448,

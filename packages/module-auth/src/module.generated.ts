@@ -25,6 +25,7 @@ import { identityProvidersFill } from './contributions/to-accounts/fills/identit
 import { self as accountsProfileSelf } from './contributions/to-accounts/policies/profile/self.ts';
 import { selfEdit } from './contributions/to-accounts/policies/profile/self-edit.ts';
 import { selfPassword } from './contributions/to-accounts/policies/profile/self-password.ts';
+import { sessionOnly as accountsProfileSessionOnly } from './contributions/to-accounts/policies/profile/session-only.ts';
 import { sharedCredential } from './contributions/to-accounts/policies/profile/shared-credential.ts';
 import { invocationMiddlewareFill } from './contributions/to-core/fills/invocation-middleware.ts';
 import { principalResolversFill } from './contributions/to-core/fills/principal-resolvers.ts';
@@ -32,14 +33,19 @@ import { onTenantCreated } from './lifecycle/on-tenant-created.ts';
 import { alreadyRevoked } from './policies/credential/already-revoked.ts';
 import { self as credentialSelf } from './policies/credential/self.ts';
 import { selfRevoke } from './policies/credential/self-revoke.ts';
+import { sessionOnly as credentialSessionOnly } from './policies/credential/session-only.ts';
+import { sessionOnly as extendSessionSessionOnly } from './policies/extend-session/session-only.ts';
 import { signedIn as extendSessionSignedIn } from './policies/extend-session/signed-in.ts';
 import { operator } from './policies/issue-reset-link/operator.ts';
 import { open as loginOpen } from './policies/login/open.ts';
+import { sessionOnly as logoutSessionOnly } from './policies/logout/session-only.ts';
 import { signedIn as logoutSignedIn } from './policies/logout/signed-in.ts';
+import { sessionOnly as reauthenticateSessionOnly } from './policies/reauthenticate/session-only.ts';
 import { signedIn as reauthenticateSignedIn } from './policies/reauthenticate/signed-in.ts';
 import { open as requestPasswordResetOpen } from './policies/request-password-reset/open.ts';
 import { open as resetPasswordOpen } from './policies/reset-password/open.ts';
 import { selfSessions } from './policies/session/self-sessions.ts';
+import { sessionOnly as sessionSessionOnly } from './policies/session/session-only.ts';
 import { open as signUpOpen } from './policies/sign-up/open.ts';
 import { signedIn as whoamiSignedIn } from './policies/whoami/signed-in.ts';
 import { hashPassword } from './services/hash-password.ts';
@@ -60,15 +66,20 @@ const authDef = defineModule(authBase, {
   },
   entityActions: { credential: { revoke: credentialRevoke }, session: { revoke: sessionRevoke } },
   policies: {
-    credential: { alreadyRevoked, self: credentialSelf, selfRevoke },
-    extendSession: { signedIn: extendSessionSignedIn },
+    credential: {
+      alreadyRevoked,
+      self: credentialSelf,
+      selfRevoke,
+      sessionOnly: credentialSessionOnly,
+    },
+    extendSession: { sessionOnly: extendSessionSessionOnly, signedIn: extendSessionSignedIn },
     issueResetLink: { operator },
     login: { open: loginOpen },
-    logout: { signedIn: logoutSignedIn },
-    reauthenticate: { signedIn: reauthenticateSignedIn },
+    logout: { sessionOnly: logoutSessionOnly, signedIn: logoutSignedIn },
+    reauthenticate: { sessionOnly: reauthenticateSessionOnly, signedIn: reauthenticateSignedIn },
     requestPasswordReset: { open: requestPasswordResetOpen },
     resetPassword: { open: resetPasswordOpen },
-    session: { selfSessions },
+    session: { selfSessions, sessionOnly: sessionSessionOnly },
     signUp: { open: signUpOpen },
     whoami: { signedIn: whoamiSignedIn },
   },
@@ -77,7 +88,13 @@ const authDef = defineModule(authBase, {
     toAccounts: {
       entityActions: { profile: { changePassword } },
       policies: {
-        profile: { self: accountsProfileSelf, selfEdit, selfPassword, sharedCredential },
+        profile: {
+          self: accountsProfileSelf,
+          selfEdit,
+          selfPassword,
+          sessionOnly: accountsProfileSessionOnly,
+          sharedCredential,
+        },
       },
       extensionPoints: { identityProviders: identityProvidersFill },
     },

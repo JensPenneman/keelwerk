@@ -14,9 +14,9 @@ import { parseSessionToken } from '../../../lib/parse-session-token.ts';
 import { presentedToken } from '../../../lib/presented-token.ts';
 import { sessionCacheKey } from '../../../lib/session-cache-key.ts';
 import { sessionCookieName } from '../../../lib/session-cookie-name.ts';
+import { sessionResolverId } from '../../../lib/session-resolver-id.ts';
 import { toCore } from '../contribution.ts';
 
-const resolverId = 'auth.session';
 const profileSubjectRef = 'accounts.profile';
 
 const sessionScheme = { scheme: 'cookie', name: sessionCookieName } as const;
@@ -24,7 +24,7 @@ const sessionScheme = { scheme: 'cookie', name: sessionCookieName } as const;
 /** The session resolver of 17.2.4: a cookie or a bearer token to a user principal, or to nothing. */
 const sessionResolverFill = defineFill(within(authBase, toCore), 'principalResolvers', (own) => [
   {
-    id: resolverId,
+    id: sessionResolverId,
     describe: () => sessionScheme,
     *resolve(carrier, { scope, clock }) {
       const presented = presentedToken(carrier);
@@ -46,7 +46,7 @@ const sessionResolverFill = defineFill(within(authBase, toCore), 'principalResol
           claims: {},
           roles: [],
           memberships: [],
-          via: resolverId,
+          via: sessionResolverId,
           ref: null,
         };
         return { principal: anonymous, clearCookies: [sessionCookieName] };
@@ -71,7 +71,7 @@ const sessionResolverFill = defineFill(within(authBase, toCore), 'principalResol
       // With accounts selected the credential holds the profile it belongs to, and the subject is its id (17.2.1).
       const profileId: string | undefined = Reflect.get(credential, 'profileId');
       const ref = {
-        resolver: resolverId,
+        resolver: sessionResolverId,
         principalId: row.id,
         credentialId: row.credentialId,
         sessionId: row.id,
@@ -86,7 +86,7 @@ const sessionResolverFill = defineFill(within(authBase, toCore), 'principalResol
         claims: {},
         roles: [],
         memberships: [],
-        via: resolverId,
+        via: sessionResolverId,
         ref,
         expiresAt:
           Temporal.Instant.compare(row.idleExpiresAt, row.absoluteExpiresAt) < 0
@@ -122,6 +122,6 @@ const sessionResolverFill = defineFill(within(authBase, toCore), 'principalResol
 export const principalResolversFill: typeof sessionResolverFill = {
   ...sessionResolverFill,
   factory: Object.assign(sessionResolverFill.factory, {
-    describe: () => [{ id: resolverId, ...sessionScheme }],
+    describe: () => [{ id: sessionResolverId, ...sessionScheme }],
   }),
 };

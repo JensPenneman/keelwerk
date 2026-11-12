@@ -11,16 +11,16 @@
   "type": "module",
   "exports": {
     ".": {
-      "@keelwerk/source": "./src/version.ts",
-      "types": "./dist/src/version.d.ts",
-      "default": "./dist/src/version.js"
+      "@keelwerk/source": "./src/module.generated.ts",
+      "types": "./dist/src/module.generated.d.ts",
+      "default": "./dist/src/module.generated.js"
     }
   },
   "publishConfig": {
     "exports": {
       ".": {
-        "types": "./dist/src/version.d.ts",
-        "default": "./dist/src/version.js"
+        "types": "./dist/src/module.generated.d.ts",
+        "default": "./dist/src/module.generated.js"
       }
     }
   },
@@ -33,7 +33,10 @@
   },
   "devDependencies": {
     "@keelwerk/adapter-postgres": "workspace:*",
+    "@keelwerk/live": "workspace:*",
+    "@keelwerk/module-auth": "workspace:*",
     "@keelwerk/testing": "workspace:*",
+    "@keelwerk/transport-http": "workspace:*",
     "vitest": "5.0.5"
   }
 }

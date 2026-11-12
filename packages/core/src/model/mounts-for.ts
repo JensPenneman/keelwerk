@@ -10,6 +10,7 @@ interface Mounted<S, M> {
 }
 type PartsAt<S, M> = { readonly [name: string]: Mounted<S, M> };
 type SourcedBy<S> = { readonly [name: string]: { readonly source: S } };
+type SourcedRule<S> = { readonly kind: 'rule'; readonly source: S };
 type ContributionTargetEntities<B, K> = K extends keyof ContributionsOf<B>
   ? ContributionsOf<B>[K] extends { readonly to: infer To }
     ? EntityNames<To>
@@ -20,7 +21,7 @@ type ContributionTargetEntities<B, K> = K extends keyof ContributionsOf<B>
 export interface BehaviourMounts<S, Es extends string> {
   readonly actions?: PartsAt<S, null>;
   readonly entityActions?: { readonly [E in Es]?: PartsAt<S, E> };
-  readonly policies?: { readonly [target: string]: SourcedBy<S> };
+  readonly policies?: { readonly [target: string]: SourcedBy<S> | SourcedRule<S> };
   readonly reactions?: SourcedBy<S>;
   /** A point is filled by a part typed against the source, or by a list of values (a `set` point). */
   readonly extensionPoints?: {
