@@ -21,6 +21,8 @@ export type OperatorTokenResolver = (token: string) => Promise<OperatorPrincipal
  * use is logged with the token's id and label (the audit of use).
  */
 export function createOperatorTokenResolver(store: ControlStore): OperatorTokenResolver {
+  // A destroyed deployment key is logged once per token, never answered differently from a wrong secret.
+  const loggedDestroyed = new Set<string>();
   const refused = () => errors.unauthenticated('The operator token was not accepted.');
   return async (token) => {
     const parsed = parseToken(token);
@@ -31,11 +33,19 @@ export function createOperatorTokenResolver(store: ControlStore): OperatorTokenR
     const opened =
       sealed === undefined ? undefined : await store.read((unit) => unit.keys.openValue(sealed));
     if (opened === undefined) throw refused();
-    const verified = await store.keys.verify(
+    const outcome = await store.keys.verifyOutcome(
       { level: 'deployment' },
       token,
       new TextDecoder().decode(opened),
     );
+    if (outcome === 'destroyed' && !loggedDestroyed.has(parsed.publicId)) {
+      loggedDestroyed.add(parsed.publicId);
+      store.log.warn('operator token key destroyed', {
+        code: 'core.key_destroyed',
+        tokenId: String(row.id),
+      });
+    }
+    const verified = outcome === 'match';
     const now = store.clock.now();
     const expiresAt = instantOf(row.expiresAt);
     if (

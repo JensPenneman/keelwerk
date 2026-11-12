@@ -15,6 +15,8 @@ export interface RuntimeControl {
     readonly config?: Readonly<Record<string, unknown>>;
   }>;
   createTenant(input: TenantInput): Promise<{ readonly id: string }>;
+  /** Writes the request counts the process still buffers into `kw_api_usage` now, instead of at its next flush or at stop; answers the rows written. A runtime always provides it. */
+  readonly apiUsage?: { flush(): Promise<number> };
   /** Per ledger sink: the appends it refused and the last failure of the anchor writer; the control reader of `doctor` reads it. */
   anchorSinks?(): readonly AnchorSinkStatus[];
   /**

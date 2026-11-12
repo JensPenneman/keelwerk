@@ -175,6 +175,29 @@ export function rowCases(subject: ConformanceSubject): void {
     });
   });
 
+  describe('erased tombstones (14.7.2)', () => {
+    test('includeArchived never returns an erased row; the kernel can ask for it with its mark', async () => {
+      await subject.run(tenantA, (unit) =>
+        unit.rows.insert(owner, [
+          rowAt(1, { name: 'live' }),
+          rowAt(2, { name: 'archived', archivedAt: stamp }),
+          rowAt(3, { name: 'erased', archivedAt: stamp, kwErasedAt: stamp }),
+        ]),
+      );
+      const ids = (rows: readonly { readonly id?: unknown }[]) => rows.map((row) => row.id).sort();
+      const [plain, archived, erased] = await subject.read(tenantA, async (unit) => [
+        ids((await unit.rows.find(owner, {})).rows),
+        ids((await unit.rows.find(owner, { includeArchived: true })).rows),
+        (await unit.rows.find(owner, { includeArchived: true, includeErased: true })).rows,
+      ]);
+      expect(plain).toEqual([conformanceId(1)]);
+      expect(archived).toEqual([conformanceId(1), conformanceId(2)]);
+      expect(ids(erased as never)).toEqual([conformanceId(1), conformanceId(2), conformanceId(3)]);
+      expect(erased.find((row) => row.id === conformanceId(3))?.kwErasedAt).toBeDefined();
+      expect(await subject.read(tenantA, (unit) => unit.rows.count(owner))).toBe(1);
+    });
+  });
+
   describe('references: a missing target is core.reference_missing on every adapter', () => {
     test('a hard reference to a row that does not exist is refused, on insert and on update', async () => {
       const insert = subject.run(tenantA, (unit) =>

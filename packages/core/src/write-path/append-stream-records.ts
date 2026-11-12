@@ -1,6 +1,7 @@
 import { personalSealerOf } from '../encryption/personal-sealer-of.ts';
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { validateForWrite } from '../fields/validate-for-write.ts';
 import { validateValue } from '../fields/validate-value.ts';
 import { issuesOf } from '../invoker/stages/issues-of.ts';
 import { jsonHoldsLoneSurrogate } from '../json/json-holds-lone-surrogate.ts';
@@ -52,7 +53,7 @@ export async function appendStreamRecords(input: AppendStreamRecordsInput): Prom
     if (draft.records.length === 0) continue;
     const encoded: unknown[] = [];
     for (const record of draft.records) {
-      const checked = await entry.record['~standard'].validate(record);
+      const checked = await validateForWrite(entry.record, record);
       if (checked.issues !== undefined) {
         throw errors.validation(`A record of ${entry.ref} is not valid.`, {
           issues: issuesOf(checked.issues),

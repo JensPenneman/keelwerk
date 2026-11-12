@@ -72,7 +72,7 @@ export async function enqueueContinuation(
     queue: commandQueue,
     run: commandJobRun(
       action.ref,
-      await sealJobInput(unit, commandId, action, { ...extra, outcome: input.outcome }),
+      await sealJobInput(unit, registry, commandId, action, { ...extra, outcome: input.outcome }),
       commandId,
     ),
     key: { value: `continuation:${effectId}`, onConflict: 'keep' },

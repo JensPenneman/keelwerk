@@ -66,7 +66,7 @@ export async function runScheduleTick(input: {
           .schedules()
           .claimTick(entry.ref, target.scopeId, row.nextTick, nextTick(entry.every, now));
         if (!claimed) return 'taken' as const;
-        const sealedInput = await sealJobInput(unit, commandId, action, validated);
+        const sealedInput = await sealJobInput(unit, source.registry, commandId, action, validated);
         await unit.jobs.enqueue(
           scheduleTickJob({
             entry,

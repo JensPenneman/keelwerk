@@ -6,19 +6,22 @@ import type { MemoryUnitContext } from './memory-unit-context.ts';
 
 /**
  * The entity's rows in the unit's scope that satisfy `where`, unordered. Archived rows are left out
- * unless asked for (the default of 14.3.2).
+ * unless asked for (the default of 14.3.2); erased tombstones are left out unless the kernel asks for them.
  */
 export function memoryCandidates(
   ctx: MemoryUnitContext,
   entity: EntityDescriptor,
   where: Condition | undefined,
   includeArchived: boolean,
+  includeErased = false,
 ): StorageRow[] {
   if (where !== undefined) memoryCheckCondition(entity, where, ctx.entity, ctx.reach);
   const source = memorySource(ctx);
   const found: StorageRow[] = [];
   for (const row of ctx.rows(entity).values()) {
     if (!includeArchived && row.archivedAt !== undefined && row.archivedAt !== null) continue;
+    // An erased tombstone is invisible, `includeArchived` included (14.7.2).
+    if (!includeErased && row.kwErasedAt !== undefined && row.kwErasedAt !== null) continue;
     if (where !== undefined && !memoryEvaluate(source, entity, where, row)) continue;
     found.push(row);
   }

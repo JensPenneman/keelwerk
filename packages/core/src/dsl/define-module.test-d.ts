@@ -15,6 +15,7 @@ import { hooksBase } from '../../test/fixtures/modules/hooks/src/base.ts';
 import { post } from '../../test/fixtures/modules/hooks/src/effects/post.ts';
 import { post as postExecutor } from '../../test/fixtures/modules/hooks/src/executors/post.ts';
 import { type Hooks, hooks } from '../../test/fixtures/modules/hooks/src/module.generated.ts';
+import { core } from '../core-module/module.ts';
 import { defineError } from '../errors/define-error.ts';
 import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
@@ -22,6 +23,7 @@ import type { AnyModule } from '../model/any-module.ts';
 import type { ModuleBaseType } from '../model/module-base-type.ts';
 import type { ModuleType } from '../model/module-type.ts';
 import { defineCommand } from './define-command.ts';
+import { defineContribution } from './define-contribution.ts';
 import { defineEntity } from './define-entity.ts';
 import { defineModule } from './define-module.ts';
 import { defineModuleBase } from './define-module-base.ts';
@@ -125,6 +127,27 @@ describe('the module checks of defineModule (decision 105)', () => {
     defineModule(authBase, {
       contributes: { toAccounts: { policies: { session: { onProfile } } } },
     });
+  });
+});
+
+describe('a rule on a core action in a contribution to the core (section 8.7)', () => {
+  const toCore = defineContribution(core, {});
+  const base = defineModuleBase({ id: 'tools', version: '0.1.0', contributions: { toCore } });
+  const inCore = within(base, toCore);
+  const onErase = defineRule(inCore, core.actions.eraseSubject, { effect: 'allow' });
+  const onIntrospect = defineRule(inCore, core.actions.introspect, { effect: 'allow' });
+
+  test('core.eraseSubject takes a contributed rule under its own key', () => {
+    defineModule(base, { contributes: { toCore: { policies: { eraseSubject: { onErase } } } } });
+  });
+
+  test('another core action, another key and the top level stay unknownPolicyTargets', () => {
+    // @ts-expect-error unknownPolicyTargets: core.introspect is not contributable
+    defineModule(base, { contributes: { toCore: { policies: { introspect: { onIntrospect } } } } });
+    // @ts-expect-error unknownPolicyTargets: the rule covers core.eraseSubject, not a key of its own
+    defineModule(base, { contributes: { toCore: { policies: { erase: { onErase } } } } });
+    // @ts-expect-error unknownPolicyTargets: a module's own policies cannot name a core action
+    defineModule(base, { policies: { eraseSubject: { onErase } } });
   });
 });
 

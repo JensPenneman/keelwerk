@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import { m2Parts } from '../../test/fixtures/modules/m2-parts/src/module.generated.ts';
 import { appOf, makeModule } from '../../test/registry-kit.ts';
+import { defineCommand } from '../dsl/define-command.ts';
 import { defineEffect } from '../dsl/define-effect.ts';
 import { defineEffectExecutor } from '../dsl/define-effect-executor.ts';
 import { defineFlag } from '../dsl/define-flag.ts';
 import { defineReaction } from '../dsl/define-reaction.ts';
+import { defineSchedule } from '../dsl/define-schedule.ts';
 import { defineStream } from '../dsl/define-stream.ts';
 import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
@@ -76,6 +78,44 @@ describe('the M2 compose checks', () => {
         ref: 'quiet.audit',
       }),
     ]);
+  });
+
+  test('refuses a personal member in the input of a backend command that runs asynchronously, and in a schedule', () => {
+    const base = { id: 'jobs', version: '0.1.0' } as never;
+    const input = shape({
+      userId: field.subject(),
+      address: field.string().personal({ subject: 'userId' }),
+    });
+    const notify = defineCommand(base, {
+      execution: 'async',
+      scope: 'backend',
+      input,
+      principal: 'operator',
+      decide: () => ({}),
+    } as never);
+    const nightly = defineSchedule(base, {
+      every: '1d',
+      invoke: notify,
+      scope: 'backend',
+    } as never);
+    const app = appOf([makeModule(base, { actions: { notify }, schedules: { nightly } })]);
+    const problems = m2ComposeChecks.flatMap((check) => check(app, buildRegistry(app)));
+    expect(problems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'personalOutsideTenant',
+          severity: 'error',
+          module: 'jobs',
+          ref: 'jobs.notify',
+        }),
+        expect.objectContaining({
+          code: 'personalScheduleInput',
+          severity: 'error',
+          module: 'jobs',
+          ref: 'jobs.nightly',
+        }),
+      ]),
+    );
   });
 
   test('accepts the m2-parts fixture', () => {

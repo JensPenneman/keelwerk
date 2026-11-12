@@ -2,6 +2,7 @@ import { errors } from '../errors/errors.ts';
 import { defaultRandomSource } from '../keys/default-random-source.ts';
 import type { DataKey } from '../storage/data-key.ts';
 import type { Unit } from '../storage/unit.ts';
+import { canonicalSubject } from '../subjects/canonical-subject.ts';
 import { createIndexKeys } from './index-keys.ts';
 import { normalizerRegistry } from './normalizer-registry.ts';
 import type { SealingContext } from './sealing-context.ts';
@@ -19,7 +20,8 @@ export function createSealingContext(unit: Unit, options: SealingOptions): Seali
     random: options.random ?? defaultRandomSource,
     maxScan: options.maxScan,
     dataKey: (subjectId) => {
-      let key = current.get(subjectId);
+      const canonical = canonicalSubject(subjectId);
+      let key = current.get(canonical);
       if (key === undefined) {
         key = unit.keys.dataKey(subjectId, { create: true }).then((found) => {
           if (found === undefined) {
@@ -29,9 +31,9 @@ export function createSealingContext(unit: Unit, options: SealingOptions): Seali
           }
           return found;
         });
-        current.set(subjectId, key);
+        current.set(canonical, key);
         // A failed lookup is not remembered.
-        key.catch(() => current.delete(subjectId));
+        key.catch(() => current.delete(canonical));
       }
       return key;
     },

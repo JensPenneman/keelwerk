@@ -1,7 +1,8 @@
 // biome-ignore-all lint/style/useNamingConvention: the keys are the column names of the framework tables
 import type { DataKey, StreamRef, SubjectKeyStore } from '@keelwerk/core';
-import { encodeAad, errors, newUuidV7 } from '@keelwerk/core';
+import { canonicalSubject, compareCodePoints, encodeAad, errors, newUuidV7 } from '@keelwerk/core';
 import { CompiledQuery, sql } from 'kysely';
+import { decodeInstant } from './decode-instant.ts';
 import { encodeInstant } from './encode-instant.ts';
 import { decodeBytes } from './sql-bytes.ts';
 import { sqlGuard } from './sql-guard.ts';
@@ -41,34 +42,41 @@ export function sqlSubjectKeyStore(ctx: SqlUnitContext): SubjectKeyStore {
     );
     return { id, material };
   };
-  const records = async (subjectId: string) =>
-    sqlGuard(async () =>
-      ctx
+  // The lock the creating path takes; a shred takes it too, so no key is created beside a shred.
+  // It is keyed by the canonical subject: the uuid columns read every spelling as one subject.
+  const lockSubject = async (subjectId: string): Promise<void> => {
+    await sqlGuard(async () => {
+      await ctx.db.executeQuery(
+        CompiledQuery.raw('select pg_advisory_xact_lock(hashtextextended($1, 0))', [
+          `${ctx.scopeId()}:${canonicalSubject(subjectId)}`,
+        ]),
+      );
+    });
+  };
+  // A writing unit reads the key `for share`: a shred of the subject waits for the unit to finish,
+  // so a value sealed under the key is committed, with its reference, before the shred is (D7).
+  const records = async (subjectId: string, lock = false) =>
+    sqlGuard(async () => {
+      const query = ctx
         .scopedDb()
         .selectFrom(keys)
         .select(['key_id', 'wrapped'])
         .where('subject_id', '=', subjectId)
         .where('purpose', '=', 'data')
         .orderBy('created_at', 'desc')
-        .orderBy('key_id', 'desc')
-        .execute(),
-    );
+        .orderBy('key_id', 'desc');
+      return (lock && !ctx.readOnly ? query.forShare() : query).execute();
+    });
   const dataKey = async (
     subjectId: string,
     options: { readonly create: boolean },
   ): Promise<DataKey | undefined> => {
-    let found = await records(subjectId);
+    let found = await records(subjectId, true);
     if (found.length === 0 && options.create) {
       ctx.writable();
       // Two first uses of one subject must not each create a key: serialise on the subject.
-      await sqlGuard(async () => {
-        await ctx.db.executeQuery(
-          CompiledQuery.raw('select pg_advisory_xact_lock(hashtextextended($1, 0))', [
-            `${ctx.scopeId()}:${subjectId}`,
-          ]),
-        );
-      });
-      found = await records(subjectId);
+      await lockSubject(subjectId);
+      found = await records(subjectId, true);
       if (found.length === 0) {
         const id = newUuidV7();
         const material = crypto.getRandomValues(new Uint8Array(32));
@@ -111,6 +119,7 @@ export function sqlSubjectKeyStore(ctx: SqlUnitContext): SubjectKeyStore {
     },
     shred: async (subjectId) => {
       ctx.writable();
+      await lockSubject(subjectId);
       const shredded = await sqlGuard(async () =>
         ctx
           .scopedDb()
@@ -123,6 +132,24 @@ export function sqlSubjectKeyStore(ctx: SqlUnitContext): SubjectKeyStore {
           .execute(),
       );
       return { keyIds: shredded.map((row) => String(row.key_id)).sort() };
+    },
+    shreddedKeys: async (subjectId) => {
+      const rows = await sqlGuard(async () =>
+        ctx
+          .scopedDb()
+          .selectFrom(keys)
+          .select(['key_id', 'shredded_at'])
+          .where('subject_id', '=', subjectId)
+          .where('purpose', '=', 'data')
+          .where('wrapped', 'is', null)
+          .execute(),
+      );
+      return rows
+        .map((row) => ({
+          keyId: String(row.key_id),
+          shreddedAt: decodeInstant(row.shredded_at),
+        }))
+        .sort((a, b) => compareCodePoints(a.keyId, b.keyId));
     },
     addRefs: async (subjectId, streams) => {
       ctx.writable();

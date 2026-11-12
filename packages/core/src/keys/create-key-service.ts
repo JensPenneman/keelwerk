@@ -1,11 +1,13 @@
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import type { VerifyOutcome } from '../kernel/verify-outcome.ts';
 import { RetryableUnitError } from '../storage/retryable-unit-error.ts';
 import type { StorageScope } from '../storage/storage-scope.ts';
 import { configSecrets } from './config-secrets.ts';
 import { defaultRandomSource } from './default-random-source.ts';
 import { deriveHkdf } from './derive-hkdf.ts';
 import type { DeriveScopeKey } from './derive-scope-key.ts';
+import { destroyedOrWrong } from './destroyed-or-wrong.ts';
 import type { ForkableKeyService } from './forkable-key-service.ts';
 import { issueSecret } from './issue-secret.ts';
 import { createKeyCache } from './key-cache.ts';
@@ -14,7 +16,6 @@ import { overlayScopeKeys } from './overlay-scope-keys.ts';
 import { parseSealedValueRef } from './parse-sealed-value-ref.ts';
 import { scopeKeyTarget } from './scope-key-target.ts';
 import { unwrapKey } from './unwrap-key.ts';
-import { verifySecret } from './verify-secret.ts';
 import { wrapKey } from './wrap-key.ts';
 
 /**
@@ -133,6 +134,12 @@ function keyServiceOver(
     return deriveHkdf(key, '', info, length);
   };
 
+  const verifyOutcomeOf = async (
+    scope: StorageScope,
+    token: string,
+    verifier: string,
+  ): Promise<VerifyOutcome> => destroyedOrWrong(await scopeKey(scope, false), token, verifier);
+
   return {
     // The fork overlays the store this view reaches, so a view bound to a unit stays bound to it.
     fork: () => createKeyService({ ...options, withScopeKeys: overlayScopeKeys(withScopeKeys) }),
@@ -143,9 +150,9 @@ function keyServiceOver(
       return issueSecret(key, issueOptions, random);
     },
     async verify(scope, token, verifier) {
-      const key = await scopeKey(scope, false);
-      return key !== undefined && verifySecret(key, token, verifier);
+      return (await verifyOutcomeOf(scope, token, verifier)) === 'match';
     },
+    verifyOutcome: verifyOutcomeOf,
     async reveal(unit, ref, reason, expected) {
       if (configSecrets.isText(ref.ref)) {
         options.log?.info('secret revealed', { reason });

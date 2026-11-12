@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
+import type { Registry } from '../registry/registry.ts';
 import type { SealedValue } from '../storage/sealed-value.ts';
 import type { Unit } from '../storage/unit.ts';
 import { openSecretMembers } from '../write-path/open-secret-members.ts';
@@ -58,7 +59,7 @@ const opening = (id: string) => ({
 
 describe('the sealed input of a job (golden, final)', () => {
   test('a fixed scope key, command id, member and nonce give this exact stored input', async () => {
-    const stored = await sealJobInput(unit, commandId, action, {
+    const stored = await sealJobInput(unit, {} as Registry, commandId, action, {
       to: 'ada@example.org',
       token: 'hunter2',
     });
@@ -70,7 +71,7 @@ describe('the sealed input of a job (golden, final)', () => {
   });
 
   test('the same binding opens it, another command id does not', async () => {
-    const stored = await sealJobInput(unit, commandId, action, {
+    const stored = await sealJobInput(unit, {} as Registry, commandId, action, {
       to: 'ada@example.org',
       token: 'hunter2',
     });

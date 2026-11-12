@@ -5,6 +5,7 @@ import { memoryConsumerStore } from './memory-consumer-store.ts';
 import { memoryEventStore } from './memory-event-store.ts';
 import { memoryJobStore } from './memory-job-store.ts';
 import { memoryKeyStore } from './memory-key-store.ts';
+import { memoryLedgerStore } from './memory-ledger-store.ts';
 import { memoryNestedContext } from './memory-nested-context.ts';
 import { memoryReceiptStore } from './memory-receipt-store.ts';
 import { memoryRowStore } from './memory-row-store.ts';
@@ -35,8 +36,13 @@ export function memoryBuildUnit(ctx: MemoryUnitContext, hooks: (() => void)[]): 
     keys: memoryKeyStore(ctx),
     serials: memorySerialStore(ctx),
     streams: memoryStreamRecordStore(ctx),
-    ...(ctx.scope.level === 'deployment' ? { scopeKeys: memoryScopeKeyStore(ctx) } : {}),
-    ...(ctx.scope.level === 'deployment' ? { apiUsage: memoryApiUsageStore(ctx) } : {}),
+    ...(ctx.scope.level === 'deployment'
+      ? {
+          scopeKeys: memoryScopeKeyStore(ctx),
+          apiUsage: memoryApiUsageStore(ctx),
+          ledger: memoryLedgerStore(ctx),
+        }
+      : {}),
     nested: async (fn, options) => {
       const view = memoryNestedContext(ctx, options);
       const rollback = ctx.tx.savepoint();

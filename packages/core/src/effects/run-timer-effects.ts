@@ -17,9 +17,12 @@ import { validateEffectInput } from './validate-effect-input.ts';
 /**
  * `setTimer({ key, at or after, invoke, input })`: a keyed job in the `timers` queue, committed
  * with the unit, that invokes the command under the service principal of the module whose decision
- * set it, under the kernel command id of the timer's effect (`kernel:timer:<effect id>`), with the
- * secret members of the input sealed. The command is one of the unit's own scope: a timer does not
- * cross scopes (`checkTimerScope`, judged for the principal of the decision). A timer with the same key is replaced.
+ * set it, under the kernel command id of the timer's effect (`kernel:timer:<effect id>`). The command is one of the unit's own scope: a timer does not
+ * cross scopes (`checkTimerScope`, judged for the principal of the decision). A timer with the same
+ * key is replaced. The secret members of the input are sealed under value keys and the personal
+ * ones under the data key of the subject they name, which is resolved in the setting unit
+ * (`sealJobInput`); a subject that was erased fails the setting command, and one erased later ends
+ * the timer without running it (`endJobAfterErasure`).
  */
 async function setTimer(scene: EffectScene, effect: SetTimerEffect, id: string): Promise<void> {
   const { run, unit } = scene;
@@ -48,7 +51,11 @@ async function setTimer(scene: EffectScene, effect: SetTimerEffect, id: string):
     }),
     kind: 'action',
     queue: timerQueue,
-    run: commandJobRun(action.ref, await sealJobInput(unit, commandId, action, input), commandId),
+    run: commandJobRun(
+      action.ref,
+      await sealJobInput(unit, run.registry, commandId, action, input),
+      commandId,
+    ),
     runAt,
     key: { value: effect.key, onConflict: 'replace' },
   });

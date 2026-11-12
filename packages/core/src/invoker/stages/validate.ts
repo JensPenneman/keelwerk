@@ -2,6 +2,7 @@ import { checkVersionInput } from '../../api-versions/check-version-input.ts';
 import type { VersionTranslation } from '../../api-versions/version-translation.ts';
 import { KeelwerkError } from '../../errors/keelwerk-error.ts';
 import { isEmptyShape } from '../../fields/is-empty-shape.ts';
+import { validateForWrite } from '../../fields/validate-for-write.ts';
 import type { ActionEntry } from '../../registry/action-entry.ts';
 import { issuesOf } from './issues-of.ts';
 
@@ -22,7 +23,8 @@ export async function validate(
     await checkVersionInput(translation, action, input);
     return input;
   }
-  const result = await action.input['~standard'].validate(
+  const result = await validateForWrite(
+    action.input,
     input === undefined && isEmptyShape(action.input) ? {} : input,
   );
   if (result.issues === undefined) return result.value;

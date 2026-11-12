@@ -1,5 +1,6 @@
 import { durationMs } from '../effects/duration-ms.ts';
 import { acceptedScopeLevels } from '../invoker/stages/accepted-scope-levels.ts';
+import { erasureAction } from '../subjects/erasure-action.ts';
 import type { ActionEntry } from './action-entry.ts';
 import { compositionError } from './composition-error.ts';
 import type { CompositionProblem } from './composition-problem.ts';
@@ -37,7 +38,7 @@ export interface ScheduleTable {
 
 /**
  * The schedules of the modules by reference. What a schedule invokes must be an own command the
- * app mounts: an unmounted part (`unresolvedPartReferences`) or a missing, non-command or foreign
+ * app mounts, and never `core.eraseSubject`: an unmounted part (`unresolvedPartReferences`) or a missing, non-command or foreign
  * reference (`unknownScheduleActions`) is refused. The command must also be reachable at the level
  * the schedule ticks at (`mismatchedScheduleScopes`: a backend schedule needs a backend or invocation
  * command, an each-tenant one a tenant or invocation command: a backend command would run once per
@@ -78,6 +79,16 @@ export function buildScheduleEntries(
               module: module.id,
               ref,
             },
+          ),
+        );
+        continue;
+      }
+      if (invoke === erasureAction) {
+        problems.push(
+          compositionError(
+            'unknownScheduleActions',
+            `The schedule '${ref}' invokes '${invoke}': an erasure starts only from a request a rule allowed, never from a schedule.`,
+            { module: module.id, ref },
           ),
         );
         continue;

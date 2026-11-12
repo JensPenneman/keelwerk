@@ -1,6 +1,7 @@
 import { flushUsage } from '../api-versions/flush-usage.ts';
 import { createScheduleTicker } from '../schedules/schedule-ticker.ts';
 import { createWorker } from '../worker/create-worker.ts';
+import { erasureKeys } from './erasure-keys.ts';
 import type { RuntimeService } from './runtime-service.ts';
 import type { StartPhaseInput } from './start-phase-input.ts';
 
@@ -10,6 +11,7 @@ import type { StartPhaseInput } from './start-phase-input.ts';
  * packages append theirs here (the schedule ticker, the mark recorder).
  */
 export const kernelServices: readonly ((input: StartPhaseInput) => RuntimeService)[] = [
+  erasureKeys,
   createWorker,
   () => createScheduleTicker(),
   flushUsage,

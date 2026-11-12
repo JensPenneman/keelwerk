@@ -1,7 +1,7 @@
 import { commandReceiptDdl } from '../../src/sql/postgres/command-receipt-ddl.ts';
 
 const stamped = `created_at timestamptz(3) not null default now(), updated_at timestamptz(3) not null default now(),
-  archived_at timestamptz(3), version bigint not null default 1`;
+  archived_at timestamptz(3), version bigint not null default 1, kw_erased_at timestamptz(3)`;
 
 const tenantPolicy = `tenant_id = nullif(current_setting('keelwerk.tenant_id', true), '')::uuid`;
 const backendPolicy = `backend_id = nullif(current_setting('keelwerk.backend_id', true), '')::uuid`;

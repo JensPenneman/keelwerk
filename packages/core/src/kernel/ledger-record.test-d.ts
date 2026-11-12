@@ -1,10 +1,14 @@
 import { expectTypeOf, test } from 'vitest';
+import type { ErasureCompletedRecord } from '../ledger/erasure-completed-record.ts';
 import type { ErasureRecord } from '../ledger/erasure-record.ts';
 import type { KeyTombstoneRecord } from '../ledger/key-tombstone-record.ts';
 import type { LedgerRecord } from './ledger-record.ts';
 
 test('LedgerRecord narrows by type', () => {
   expectTypeOf<Extract<LedgerRecord, { type: 'erasure' }>>().toEqualTypeOf<ErasureRecord>();
+  expectTypeOf<
+    Extract<LedgerRecord, { type: 'erasureCompleted' }>
+  >().toEqualTypeOf<ErasureCompletedRecord>();
   expectTypeOf<
     Extract<LedgerRecord, { type: 'keyTombstone' }>
   >().toEqualTypeOf<KeyTombstoneRecord>();
@@ -13,6 +17,7 @@ test('LedgerRecord narrows by type', () => {
     switch (record.type) {
       case 'anchor':
       case 'erasure':
+      case 'erasureCompleted':
       case 'keyTombstone':
         return record.type;
       default: {
@@ -27,6 +32,9 @@ test('LedgerRecord narrows by type', () => {
 test('the stored erasure and tombstone records keep their member names and forms', () => {
   expectTypeOf<keyof ErasureRecord>().toEqualTypeOf<
     'type' | 'tenantId' | 'subjectId' | 'recordedAt' | 'requester' | 'reason' | 'commandId'
+  >();
+  expectTypeOf<keyof ErasureCompletedRecord>().toEqualTypeOf<
+    'type' | 'tenantId' | 'commandId' | 'subjectId' | 'epoch' | 'recordedAt'
   >();
   expectTypeOf<keyof KeyTombstoneRecord>().toEqualTypeOf<
     'type' | 'scopeId' | 'keyId' | 'recordedAt' | 'reason'

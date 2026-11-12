@@ -36,6 +36,7 @@ export function sealingUnit(unit: Unit, options: SealingOptions): Unit {
     sealEvent: (input) => encryptPersonalValues(context, input),
     openEvents: (events) => openAll(context, events, 'keep'),
     readEvents: (events) => openAll(context, events, 'drop'),
+    historyEvents: (events) => openAll(context, events, 'redact'),
     sealRecords: (input) => sealStreamRecords(context, input),
     openRecords: (input) => openStreamRecords(context, input),
     sealProcessEvent: (input) => sealProcessEvent(context, input),

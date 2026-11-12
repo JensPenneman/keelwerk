@@ -1,4 +1,5 @@
 import type { ApiVersions } from '../dsl/define-api-versions.ts';
+import { validateForWrite } from '../fields/validate-for-write.ts';
 import { canonicalizeJson } from '../json/canonicalize-json.ts';
 import type { Registry } from '../registry/registry.ts';
 import { actionsAt } from './actions-at-point.ts';
@@ -78,7 +79,7 @@ export async function runChangeFixtures(
         fail(`The later changes threw: ${error instanceof Error ? error.message : String(error)}`);
         continue;
       }
-      const result = await action.input['~standard'].validate(atHead);
+      const result = await validateForWrite(action.input, atHead);
       if (result.issues !== undefined) {
         fail(
           `The translated input does not fit the input of "${action.ref}": ${result.issues

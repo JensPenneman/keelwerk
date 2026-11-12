@@ -16,6 +16,8 @@ export interface MemoryPageRequest {
   readonly page?: RowQuery['page'];
   readonly select?: RowQuery['select'];
   readonly total?: boolean;
+  /** The kernel reads erased rows: the erasure mark is returned (`RowQuery.includeErased`). */
+  readonly includeErased?: boolean;
   readonly where?: Condition;
   readonly maxOffset: number;
 }
@@ -42,6 +44,9 @@ export function memoryPage(
     if (!names.includes(name)) names.push(name);
   }
   for (const key of sort.keys) if (!names.includes(key.field)) names.push(key.field);
+  if (request.includeErased === true && table.archivable && !names.includes('kwErasedAt')) {
+    names.push('kwErasedAt');
+  }
   for (const name of names) {
     if (table.column(name) === undefined)
       throw malformedQuery(`${entity.ref} has no field ${name}`);

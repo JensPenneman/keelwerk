@@ -60,7 +60,11 @@ export async function runEnqueueEffect(
     }),
     kind: 'action',
     queue: commandQueue,
-    run: commandJobRun(action.ref, await sealJobInput(unit, commandId, action, input), commandId),
+    run: commandJobRun(
+      action.ref,
+      await sealJobInput(unit, run.registry, commandId, action, input),
+      commandId,
+    ),
     ...(effect.runAt === undefined ? {} : { runAt: effect.runAt }),
     ...(effect.key === undefined ? {} : { key: { value: effect.key, onConflict: 'keep' } }),
     ...(placement === 'backend' && run.scope.level === 'tenant'

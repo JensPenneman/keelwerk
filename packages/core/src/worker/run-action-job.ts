@@ -7,10 +7,15 @@ import type { Job } from '../jobs/job.ts';
 import { reactionJobError } from '../reactions/reaction-job-error.ts';
 import { reactionQueue } from '../reactions/reaction-queue.ts';
 import { scheduleQueue } from '../schedules/schedule-queue.ts';
+import { erasureAction } from '../subjects/erasure-action.ts';
+import { startErasure } from '../subjects/start-erasure.ts';
+import { PersonalKeyDestroyed } from '../write-path/personal-key-destroyed.ts';
+import { commandJobError } from './command-job-error.ts';
+import { endJobAfterErasure } from './end-job-after-erasure.ts';
 import { isCrossScopeJob } from './is-cross-scope-job.ts';
 import { jobOutcomeOfError } from './job-outcome-of-error.ts';
 import { kernelJobError } from './kernel-job-error.ts';
-import { prepareActionJob } from './prepare-action-job.ts';
+import { type PreparedJob, prepareActionJob } from './prepare-action-job.ts';
 import type { RunJobContext } from './run-job.ts';
 import { settleJobAttempt } from './settle-job-attempt.ts';
 
@@ -19,7 +24,8 @@ import { settleJobAttempt } from './settle-job-attempt.ts';
  * principal reference, so scope and principal are resolved again and the gate and the item checks
  * run against the current state. The input's secret members are opened first, and the gate judges
  * the transport of the job's own receipt, or an unknown transport when it has none
- * (`prepareActionJob`). A command that succeeds completes the attempt in its own unit; only the
+ * (`prepareActionJob`); a job whose personal member names an erased subject ends there
+ * (`endJobAfterErasure`). A command that succeeds completes the attempt in its own unit; only the
  * command of a tenant's job that runs in that tenant's backend unit (`isCrossScopeJob`) cannot, and
  * the attempt is then settled `succeeded` here, in a unit of the job's own scope
  * (`settleJobAttempt`). A failure is
@@ -31,6 +37,12 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
   const { stored } = job;
   if (!('action' in stored.run)) return;
   const { action, commandId } = stored.run;
+  if (action === erasureAction) {
+    // The erasure command never runs `decide`: its job writes the ledger record (14.7.5 step 1).
+    const erase = stored.run.input as { readonly subjectId: string; readonly reason: string };
+    await startErasure(context, stored, erase);
+    return;
+  }
   // A reaction job's input is the event reference the dispatcher stored: it holds no secret member and no receipt of
   // its own, so there is nothing to prepare, and the gate judges an unknown transport.
   const reaction = stored.queue === reactionQueue;
@@ -48,9 +60,18 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
     if (next !== undefined) await settleJobAttempt(context, stored, next);
     return;
   }
-  const { input, transport } = reaction
-    ? { input: stored.run.input, transport: null }
-    : await prepareActionJob(context.source, stored, stored.run);
+  let prepared: PreparedJob;
+  try {
+    prepared = reaction
+      ? { input: stored.run.input, transport: null }
+      : await prepareActionJob(context.source, stored, stored.run);
+  } catch (error) {
+    // The key of a personal member is destroyed: nothing will ever open the input again.
+    if (!(error instanceof PersonalKeyDestroyed)) throw error;
+    await endJobAfterErasure(context, stored, error);
+    return;
+  }
+  const { input, transport } = prepared;
   const carrier: Carrier = {
     transport: 'job',
     job: {
@@ -85,7 +106,9 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
     return;
   }
   // The history error of a job the kernel made is the closed projection, never the command's own
-  // text (the module of the action declares the codes it may keep).
+  // text (the module of the action declares the codes it may keep): a reaction's, a timer's and a
+  // schedule's by their own subject, any other command's by `commandJobError` (D9), so its receipt,
+  // its change record, its history and a dead job never hold a declared error's data.
   const failure = reaction
     ? reactionJobError(
         outcome.error,
@@ -103,7 +126,13 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
           ),
           stored.queue === timerQueue ? 'timer' : 'schedule',
         )
-      : outcome.error;
+      : commandJobError(
+          outcome.error,
+          declaredErrorCodesOf(
+            context.source.registry,
+            context.source.registry.actions.get(action)?.module,
+          ),
+        );
   const next = jobOutcomeOfError(failure, stored, context.clock.now(), context.random);
   if (next === undefined) return;
   await settleJobAttempt(context, stored, next);

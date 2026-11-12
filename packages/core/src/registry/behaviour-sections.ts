@@ -6,6 +6,8 @@ const none: ActionMap = {};
 export interface BehaviourSection {
   /** For messages: the module id, 'auth->accounts' or 'auth[whenAccounts]'. */
   readonly label: string;
+  /** The module id a contribution adds to; null for the top level and for a conditional part. */
+  readonly to: string | null;
   readonly policies: PolicyMap;
   readonly actions: ActionMap;
   readonly entityActions: (entity: string) => ActionMap;
@@ -16,18 +18,21 @@ export function behaviourSections(module: RuntimeModule): readonly BehaviourSect
   return [
     {
       label: module.id,
+      to: null,
       policies: module.policies,
       actions: module.actions,
       entityActions: (entity) => module.entities[entity]?.actions ?? none,
     },
     ...module.contributes.map((contribution) => ({
       label: `${module.id}->${contribution.to.id}`,
+      to: contribution.to.id,
       policies: contribution.policies,
       actions: contribution.actions,
       entityActions: (entity: string) => contribution.entities[entity]?.actions ?? none,
     })),
     ...module.conditional.map((conditional) => ({
       label: `${module.id}[${conditional.key}]`,
+      to: null,
       policies: conditional.policies,
       actions: conditional.actions,
       entityActions: (entity: string) => conditional.entities[entity]?.actions ?? none,

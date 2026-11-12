@@ -3,6 +3,7 @@ import { translateOutput } from '../../api-versions/translate-output.ts';
 import { versionChangeFailure } from '../../api-versions/version-change-failure.ts';
 import type { VersionTranslation } from '../../api-versions/version-translation.ts';
 import { isEmptyShape } from '../../fields/is-empty-shape.ts';
+import { validateForWrite } from '../../fields/validate-for-write.ts';
 import type { ActionEntry } from '../../registry/action-entry.ts';
 import { issuesOf } from './issues-of.ts';
 
@@ -27,7 +28,7 @@ export async function translate(
     action,
     value === undefined && isEmptyShape(action.input) ? {} : value,
   );
-  const result = await action.input['~standard'].validate(translated);
+  const result = await validateForWrite(action.input, translated);
   if (result.issues === undefined) return result.value;
   throw versionChangeFailure({
     change: undefined,

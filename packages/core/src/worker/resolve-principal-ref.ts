@@ -18,6 +18,7 @@ import type { Principal } from '../principals/principal.ts';
 import type { PrincipalRef } from '../principals/principal-ref.ts';
 import { moduleResolver } from '../reactions/module-resolver.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
+import { subjectNeedsLowerCase } from '../subjects/subject-needs-lower-case.ts';
 
 const moduleSuffix = '.system';
 
@@ -152,6 +153,14 @@ export async function resolvePrincipalRef(
         );
         if (resolution === null || !isReferred(resolution.principal, ref)) throw unresolved();
         if (resolution.principal.kind === 'operator' && module !== 'core') throw unresolved();
+        if (
+          resolution.principal.kind === 'user' &&
+          subjectNeedsLowerCase(resolution.principal.subject)
+        ) {
+          throw errors.internal(
+            `The principal resolver '${value.id}' of '${module}' answered a user whose subject id is not in lower case.`,
+          );
+        }
         return {
           principal: await runPrincipalEnrichers(kit, {
             ...resolution.principal,

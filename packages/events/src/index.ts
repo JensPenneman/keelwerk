@@ -5,4 +5,7 @@ export type { UnparkStreamInput } from './consumers/unpark-stream.ts';
 export { unparkStream } from './consumers/unpark-stream.ts';
 export { reactionDispatcher } from './dispatcher/reaction-dispatcher.ts';
 export type { ReactionDispatcherOptions } from './dispatcher/reaction-dispatcher-options.ts';
+export { erasure } from './erasure/erasure.ts';
+export type { ErasureOptions } from './erasure/erasure-options.ts';
+export type { ErasureWorker } from './erasure/erasure-worker.ts';
 export { version } from './version.ts';

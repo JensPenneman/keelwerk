@@ -16,6 +16,7 @@ import { sqlJobGroup } from './sql-job-group.ts';
 import { sqlJobHeartbeat } from './sql-job-heartbeat.ts';
 import { sqlJobLane } from './sql-job-lane.ts';
 import { sqlJobPromote } from './sql-job-promote.ts';
+import { sqlJobPurge } from './sql-job-purge.ts';
 import { sqlJobRelease } from './sql-job-release.ts';
 import { sqlJobStats } from './sql-job-stats.ts';
 import { sqlJobTake } from './sql-job-take.ts';
@@ -43,7 +44,15 @@ const pending = `('scheduled', 'available', 'waiting')`;
 export interface SqlJobStore
   extends Pick<
     JobStore,
-    'cancel' | 'complete' | 'enqueue' | 'heartbeat' | 'promote' | 'schedules' | 'stats' | 'take'
+    | 'cancel'
+    | 'complete'
+    | 'enqueue'
+    | 'heartbeat'
+    | 'promote'
+    | 'purgeForPrincipals'
+    | 'schedules'
+    | 'stats'
+    | 'take'
   > {
   /**
    * Creates or re-limits a job group that spans the namespace's scopes; only a namespace-scope unit
@@ -204,6 +213,12 @@ returning id::text as id`,
     },
     stats: async (queue) => sqlGuard(async () => sqlJobStats(ctx, queue)),
     schedules: () => sqlScheduleStore(ctx),
+    purgeForPrincipals: async (principalIds, queues) => {
+      ctx.writable();
+      if (principalIds.length === 0 || queues.length === 0) return [];
+      const purged = await sqlGuard(async () => sqlJobPurge(ctx, buffer, principalIds, queues));
+      return purged.map(({ queue, run }) => ({ queue, run }));
+    },
 
     cancel: async (queue, key) => {
       ctx.writable();

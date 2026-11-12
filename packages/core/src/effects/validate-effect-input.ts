@@ -1,5 +1,6 @@
 import { errors } from '../errors/errors.ts';
 import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
+import { validateForWrite } from '../fields/validate-for-write.ts';
 import { issuesOf } from '../invoker/stages/issues-of.ts';
 
 /**
@@ -12,7 +13,7 @@ export function validateEffectInput(
   input: unknown,
   what: string,
 ): unknown {
-  const result = schema['~standard'].validate(input);
+  const result = validateForWrite(schema, input);
   if (result instanceof Promise) {
     throw errors.internal(`the input of ${what} has an asynchronous schema`);
   }

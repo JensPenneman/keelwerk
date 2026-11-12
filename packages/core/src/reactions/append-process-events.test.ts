@@ -7,6 +7,8 @@ import type { SealingContext } from '../encryption/sealing-context.ts';
 import { chainHash } from '../events/chain-hash.ts';
 import type { EventMeta } from '../events/event-meta.ts';
 import type { NewEvent } from '../events/new-event.ts';
+import { field } from '../fields/field.ts';
+import { shape } from '../fields/shape.ts';
 import type { EventDraft } from '../protocol/event-draft.ts';
 import type { DataKey } from '../storage/data-key.ts';
 import type { Unit } from '../storage/unit.ts';
@@ -211,6 +213,32 @@ describe('appending the events of a process', () => {
     await expect(run(unit, [draft('noted', { note: 'x', n: 'one' })])).rejects.toMatchObject({
       kind: 'validation',
     });
+  });
+
+  test('a subject member is refused in upper case, because an event of a process is a write', async () => {
+    const mentioned = reactionOf(
+      reactionRegistry({
+        process: { events: { mentioned: shape({ author: field.subject() }) } },
+      }),
+      'tally',
+    );
+    const upper = '0F1F2F3F-4F5F-6F7F-8F9F-AFBFCFDFEFFF';
+    const runMention = (unit: Unit, author: string) =>
+      appendProcessEvents({
+        unit,
+        reaction: mentioned,
+        folded: fresh,
+        drafts: [draft('mentioned', { author })],
+        meta,
+        hybridClock: hybridClock('n'),
+        now,
+      });
+    const accepted = recordingUnit();
+    await runMention(accepted.unit, upper.toLowerCase());
+    expect(accepted.batches).toHaveLength(1);
+    const { unit, batches } = recordingUnit();
+    await expect(runMention(unit, upper)).rejects.toMatchObject({ kind: 'validation' });
+    expect(batches).toEqual([]);
   });
 
   test('a stream that moved since it was folded is a conflict', async () => {

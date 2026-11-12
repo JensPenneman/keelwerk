@@ -143,3 +143,32 @@ test('an enqueue in its own scope carries a kernel command id and no group', asy
     run !== undefined && 'commandId' in run && run.commandId?.startsWith('kernel:effect:'),
   ).toBe(true);
 });
+
+test('a resolver effect never names core.eraseSubject, enqueue or timer, and writes nothing', async () => {
+  const { jobs, env, target, principal } = setup();
+  const erase = (kind: 'enqueue' | 'setTimer'): AnyEffect =>
+    ({
+      kind,
+      type: kind,
+      action: 'core.eraseSubject',
+      key: 'idle:1',
+      after: '45s',
+      input: {},
+    }) as unknown as AnyEffect;
+  const withErase = {
+    ...env,
+    appOf: () => ({
+      registry: {
+        actions: new Map([
+          ['core.eraseSubject', { kind: 'command', ref: 'core.eraseSubject', module: 'core' }],
+        ]),
+      },
+    }),
+  } as unknown as InvokerEnv;
+  for (const kind of ['enqueue', 'setTimer'] as const) {
+    await expect(
+      performResolverEffects(withErase, target, principal, [erase(kind)], 'auth'),
+    ).rejects.toMatchObject({ code: 'core.request_not_allowed' });
+  }
+  expect(jobs).toHaveLength(0);
+});

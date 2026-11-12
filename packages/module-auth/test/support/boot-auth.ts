@@ -1,4 +1,4 @@
-import { defineApp, type Logger, type Unit } from '@keelwerk/core';
+import { defineApp, type Logger, selfErase, type Unit } from '@keelwerk/core';
 import {
   clientAddresses,
   createLocalClient,
@@ -11,6 +11,13 @@ import { auth } from '../../src/module.generated.ts';
 
 /** The auth module alone, as an app. */
 const authApp = defineApp({ id: 'auth', modules: [auth] as const });
+
+/** The auth module alone, with the platform's rule that lets a user erase their own subject. */
+export const authErasingApp: typeof authApp = defineApp({
+  id: 'auth',
+  modules: [auth] as const,
+  policies: { add: [selfErase] },
+});
 
 /** A clock a test moves by hand. */
 export interface HandClock {
@@ -61,9 +68,10 @@ export async function bootAuth(
   config: Readonly<Record<string, unknown>> = {},
   logger?: Logger,
   external?: TestRuntimeOptions['external'],
+  app: typeof authApp = authApp,
 ): Promise<BootedAuth> {
   const clock = handClock();
-  const runtime = await startTestRuntime(authApp, {
+  const runtime = await startTestRuntime(app, {
     adapter: kind,
     operators: true,
     tenants: ['acme', 'globex'],

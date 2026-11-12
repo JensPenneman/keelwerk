@@ -1,6 +1,7 @@
 import { expectTypeOf, test } from 'vitest';
 import type { Condition } from '../conditions/condition.ts';
 import type { ConditionOp } from '../conditions/condition-op.ts';
+import type { ControlLedger } from '../control/control-ledger.ts';
 import type { ApiUsageStore } from './api-usage-store.ts';
 import type { EntityDescriptor } from './entity-descriptor.ts';
 import type { JobOutcome } from './job-outcome.ts';
@@ -31,16 +32,18 @@ test('Unit has exactly the members of S-03', () => {
     | 'streams'
     | 'scopeKeys'
     | 'apiUsage'
+    | 'ledger'
     | 'nested'
     | 'afterCommit'
   >();
   expectTypeOf<Unit['scopeKeys']>().toEqualTypeOf<ScopeKeyStore | undefined>();
   expectTypeOf<Unit['apiUsage']>().toEqualTypeOf<ApiUsageStore | undefined>();
+  expectTypeOf<Unit['ledger']>().toEqualTypeOf<ControlLedger | undefined>();
   expectTypeOf<Unit['jobs']>().toEqualTypeOf<JobStore>();
   expectTypeOf<Unit['streams']>().toEqualTypeOf<StreamRecordStore>();
 });
 
-test('JobStore has schedules (M2)', () => {
+test('JobStore has the members of S-03, the schedules (M2) and the erasure purge', () => {
   expectTypeOf<keyof JobStore>().toEqualTypeOf<
     | 'provisionGroup'
     | 'enqueue'
@@ -51,6 +54,7 @@ test('JobStore has schedules (M2)', () => {
     | 'complete'
     | 'stats'
     | 'schedules'
+    | 'purgeForPrincipals'
   >();
 });
 

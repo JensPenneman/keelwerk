@@ -43,7 +43,9 @@ test('RequestAnswerer has one answerer per AnyRequest kind', () => {
 });
 
 test('LedgerRecord is a union on type with anchor', () => {
-  expectTypeOf<LedgerRecord['type']>().toEqualTypeOf<'anchor' | 'erasure' | 'keyTombstone'>();
+  expectTypeOf<LedgerRecord['type']>().toEqualTypeOf<
+    'anchor' | 'erasure' | 'erasureCompleted' | 'keyTombstone'
+  >();
   expectTypeOf<Extract<LedgerRecord, { type: 'anchor' }>['position']>().toEqualTypeOf<string>();
   expectTypeOf<Extract<LedgerRecord, { type: 'anchor' }>>().toHaveProperty('hash');
 });

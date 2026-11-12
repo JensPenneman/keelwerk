@@ -173,4 +173,86 @@ describe('the generic evolve', () => {
     expect(next.count).toBe(5);
     expect(next.version).toBe(2);
   });
+
+  describe('the erased event (14.7.5)', () => {
+    const at = Temporal.Instant.from('2026-01-01T00:00:00Z');
+    const later = Temporal.Instant.from('2026-02-01T00:00:00Z');
+    const start = (): StorageRow =>
+      genericEvolve(entry, undefined, {
+        id: 'i',
+        name: 'created',
+        data: { values: { title: 't', count: 2, done: false, note: 'n' } },
+        recordedAt: at,
+        hlc: nextHlc(at, 1, defaultNodeId),
+        hash: null,
+      });
+    const erase = (row: StorageRow, owned: boolean): StorageRow =>
+      genericEvolve(entry, row, {
+        id: 'i',
+        name: 'erased',
+        data: { subjectId: 's', fields: ['note'], owned },
+        recordedAt: later,
+        hlc: nextHlc(later, 1, defaultNodeId),
+        hash: null,
+      });
+
+    test('clears the listed fields and keeps the row for another subject', () => {
+      const next = erase(start(), false);
+      expect(next.note).toBeUndefined();
+      expect(next.title).toBe('t');
+      expect(next.kwErasedAt).toBeUndefined();
+      expect(next.archivedAt).toBeUndefined();
+      expect(next.version).toBe(2);
+    });
+
+    test('an owned row becomes an erased tombstone: kwErasedAt and archivedAt are set', () => {
+      const next = erase(start(), true);
+      expect(next.note).toBeUndefined();
+      expect(next.kwErasedAt).toEqual(later);
+      expect(next.archivedAt).toEqual(later);
+      expect(next.version).toBe(2);
+    });
+
+    test('an archive that came first keeps its time', () => {
+      const archived = genericEvolve(entry, start(), {
+        id: 'i',
+        name: 'archived',
+        data: {},
+        recordedAt: at,
+        hlc: nextHlc(at, 5, defaultNodeId),
+        hash: null,
+      });
+      expect(erase(archived, true).archivedAt).toEqual(at);
+    });
+
+    test('a rebuild from the log gives the same row as the inline evolve', () => {
+      const first = start();
+      const inline = erase(first, true);
+      const stored = JSON.parse(
+        JSON.stringify({ subjectId: 's', fields: ['note'], owned: true }),
+      ) as unknown;
+      const rebuilt = genericEvolve(entry, first, {
+        id: 'i',
+        name: 'erased',
+        data: stored,
+        recordedAt: later,
+        hlc: nextHlc(later, 1, defaultNodeId),
+        hash: null,
+      });
+      expect(rebuilt).toEqual(inline);
+    });
+
+    test('an erased event needs the row', () => {
+      expect(() =>
+        genericEvolve(entry, undefined, {
+          id: 'i',
+          name: 'erased',
+          data: { subjectId: 's', fields: [], owned: false },
+          recordedAt: later,
+          hlc: nextHlc(later, 1, defaultNodeId),
+          hash: null,
+        }),
+      ).toThrow();
+    });
+  });
 });

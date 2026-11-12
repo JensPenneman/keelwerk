@@ -4070,6 +4070,69 @@
     {
       "auth": "policy",
       "changedIn": [],
+      "errors": [],
+      "execution": "async",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "reason": {
+            "access": "read-write",
+            "kind": "enum",
+            "optional": false,
+            "tag": 2,
+            "values": [
+              "subjectRequest",
+              "consentWithdrawn",
+              "retention",
+              "legalObligation",
+              "operator"
+            ]
+          },
+          "subjectId": {
+            "access": "read-write",
+            "kind": "string",
+            "maxLength": 36,
+            "minLength": 32,
+            "optional": false,
+            "pattern": "^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})$",
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-bhBBiId5PujAT1pAcGYLLtQ0fJ4fuOsbBH0bRYS9_hs",
+      "instance": false,
+      "kind": "command",
+      "module": "core",
+      "mount": "module",
+      "name": "eraseSubject",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "streams": {
+            "access": "read-write",
+            "kind": "integer",
+            "optional": false,
+            "tag": 1,
+            "wide": false
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-UOeX3EuT5TMug5mR2wls6xyRycVUZHQv5CLZX0N_VEs",
+      "ref": "core.eraseSubject",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
       "entity": "core.flag",
       "errors": [],
       "execution": "sync",
@@ -14101,6 +14164,12 @@
       "retryable": true
     },
     {
+      "code": "core.key_destroyed",
+      "kind": "not_found",
+      "message": "The key this value was sealed under is destroyed.",
+      "retryable": false
+    },
+    {
       "code": "core.live_unavailable",
       "kind": "unavailable",
       "message": "Live updates are not available in this release.",
@@ -14604,7 +14673,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-cpa2kNu2onw-wlrzc5nBcVmtRT4Gq5eb6yVVZztkB7g",
+  "hash": "sha256-Xo2lRt62_0PGfS9L0IbHR6B6D_TUH66shsGb7HN5meQ",
   "modules": [
     {
       "id": "core",

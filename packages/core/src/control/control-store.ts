@@ -12,6 +12,7 @@ import type { Scope } from '../storage/scope.ts';
 import type { Unit } from '../storage/unit.ts';
 import type { ControlApiUsage } from './control-api-usage.ts';
 import type { ControlFlags } from './control-flags.ts';
+import type { ControlLedger } from './control-ledger.ts';
 
 /**
  * The control store (section 14.2): the deployment namespace of the core module in the control
@@ -47,6 +48,8 @@ export interface ControlStore {
   readonly flags: ControlFlags;
   /** The request counts of this process and the kw_api_usage accessors (S-144). */
   readonly apiUsage: ControlApiUsage;
+  /** The deployment's ledger in the control root: erasure and key tombstone records (WP-100, S-125). */
+  readonly ledger: ControlLedger;
   /** Runs `fn` in a read-only deployment-scope unit. */
   read<T>(fn: (unit: Unit) => Promise<T>): Promise<T>;
 }

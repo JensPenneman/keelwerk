@@ -35,6 +35,20 @@ describe('keys', () => {
     expect(keys[0]?.id).toBe(keys[1]?.id);
   });
 
+  test('two first uses in two spellings of one subject take one lock, create one key, and the shred answers that key', async () => {
+    const hyphenated = id(9);
+    const spellings = [hyphenated, hyphenated.replaceAll('-', '').toUpperCase()];
+    const keys = await Promise.all(
+      spellings.map((spelling) =>
+        run<{ id: string } | undefined>(scopeA, (u) => u.keys.dataKey(spelling, { create: true })),
+      ),
+    );
+    expect(keys[0]?.id).toBeDefined();
+    expect(keys[0]?.id).toBe(keys[1]?.id);
+    const shredded = await run(scopeA, (u) => u.keys.shred(hyphenated));
+    expect(shredded.keyIds).toEqual([keys[0]?.id]);
+  });
+
   test('scope keys live in the control root and only a deployment unit has the store', async () => {
     const key = {
       scopeId: tenantA,

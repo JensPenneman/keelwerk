@@ -1,5 +1,6 @@
 import { secretMembersAsRefs } from '../effects/secret-members-as-refs.ts';
 import type { StoredJob } from '../storage/stored-job.ts';
+import { openPersonalMembers } from '../write-path/open-personal-members.ts';
 import { openSecretMembers } from '../write-path/open-secret-members.ts';
 import type { QueueSource } from './queue-source.ts';
 import { receiptOfJob } from './receipt-of-job.ts';
@@ -51,8 +52,12 @@ export interface PreparedJob {
 
 /**
  * Reads a job's receipt and opens the secret members of its input in one read-only unit of its
- * scope (S-127, S-122). A continuation's output secrets become references of the effect's module. A job with no command id has neither. A key that is gone is `conflict`,
- * which fails the job.
+ * scope (S-127, S-122). A continuation's output secrets become references of the effect's module. A
+ * job with no command id has neither. A destroyed personal key throws `PersonalKeyDestroyed`
+ * (`core.key_destroyed`): `runActionJob` ends the job without a retry through
+ * `endJobAfterErasure` (a timer succeeds, a command job fails). Only a gone value key of a secret
+ * member, or an envelope sealed for another job, is `conflict`, which is not retryable: the job
+ * gives up at once (`failed`, or `dead` with a dead letter).
  */
 export async function prepareActionJob(
   source: QueueSource,
@@ -74,6 +79,8 @@ export async function prepareActionJob(
             : withOutcomeReferences(
                 source,
                 entry.outcomeEffect,
+                // The reverse of the sealing order (`sealJobInput`): the personal members were
+                // sealed over the secret ones, so they open first.
                 await openSecretMembers(
                   unit,
                   {
@@ -83,7 +90,12 @@ export async function prepareActionJob(
                     lost: 'The stored input of this job can no longer be read.',
                   },
                   entry.input,
-                  input,
+                  await openPersonalMembers(
+                    unit,
+                    { id: commandId, lost: 'The stored input of this job can no longer be read.' },
+                    entry.input,
+                    input,
+                  ),
                 ),
               ),
         transport: receipt?.request.transport ?? null,

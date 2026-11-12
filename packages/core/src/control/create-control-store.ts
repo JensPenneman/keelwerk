@@ -11,6 +11,7 @@ import type { NamespaceRef } from '../storage/namespace-ref.ts';
 import type { ControlStore } from './control-store.ts';
 import { createControlApiUsage } from './create-control-api-usage.ts';
 import { createControlFlags } from './create-control-flags.ts';
+import { createControlLedger } from './create-control-ledger.ts';
 
 /** What the control store is built from. */
 export interface ControlStoreOptions {
@@ -48,6 +49,7 @@ export function createControlStore(options: ControlStoreOptions): ControlStore {
       clock: options.clock,
       deploymentId: options.deploymentId,
     }),
+    ledger: createControlLedger(adapter, namespace),
     epochOf: () => 0,
     entity: (ref) => {
       const entry = registry.entities.get(ref);

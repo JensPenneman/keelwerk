@@ -208,6 +208,13 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
           break;
         case 'event':
           name = draft.type;
+          if (name === 'erased') {
+            // The kernel's own event (14.7.5): its payload holds names only and the generic evolve
+            // applies it, whatever evolve the entity declares.
+            stored = draft.values;
+            next = genericEvolve(entry, previous, { ...base, name, data: stored });
+            break;
+          }
           stored = encodeEventValue(draft.values);
           next = applyDomainEvolve(
             entry,
@@ -219,10 +226,13 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
           break;
       }
     }
-    checkInvariant(entry, behaviour, next);
+    // An erased row cannot satisfy an invariant over the values it lost, and its before-image would
+    // seal the very values under the key just destroyed: the event carries neither.
+    const erased = name === 'erased';
+    if (!erased) checkInvariant(entry, behaviour, next);
     const eventId = newUuidV7();
     const plainBefore =
-      previous === undefined || transient ? null : beforeImage(entry, previous, next);
+      previous === undefined || transient || erased ? null : beforeImage(entry, previous, next);
     // The chain covers the sealed form: personal values are sealed before the hash (14.7.4).
     const sealer = input.sealEvents === false ? undefined : personalSealerOf(input.unit);
     const sealedPayload =

@@ -5,6 +5,7 @@ import { capabilities } from './actions/capabilities.ts';
 import { composition } from './actions/composition.ts';
 import { effectStatus } from './actions/effect-status.ts';
 import { effectStatusWatch } from './actions/effect-status-watch.ts';
+import { eraseSubject } from './actions/erase-subject.ts';
 import { evaluate as evaluateFlag } from './actions/flag/evaluate.ts';
 import { restoreRules } from './actions/flag/restore-rules.ts';
 import { set as setFlag } from './actions/flag/set.ts';
@@ -25,6 +26,7 @@ import { operators } from './policies/composition/operators.ts';
 import { operators as domainOperators } from './policies/domain/operators.ts';
 import { signedIn as effectStatusSignedIn } from './policies/effect-status/signed-in.ts';
 import { signedIn as effectStatusWatchSignedIn } from './policies/effect-status-watch/signed-in.ts';
+import { operators as subjectOperators } from './policies/erase-subject/operators.ts';
 import { operators as flagOperators } from './policies/flag/operators.ts';
 import { signedIn } from './policies/introspect/signed-in.ts';
 import { operators as operatorTokenOperators } from './policies/operator-token/operators.ts';
@@ -44,6 +46,7 @@ export const core: Core = defineModule(coreBase, {
     retireApiVersion,
     effectStatus,
     effectStatusWatch,
+    eraseSubject,
   },
   entityActions: {
     backend: { create: createBackend },
@@ -64,6 +67,7 @@ export const core: Core = defineModule(coreBase, {
     commandReceipt: { submitter },
     effectStatus: { signedIn: effectStatusSignedIn },
     effectStatusWatch: { signedIn: effectStatusWatchSignedIn },
+    eraseSubject: { operators: subjectOperators },
   },
   reactions: { syncDomains, syncDomainsOnChange },
 });

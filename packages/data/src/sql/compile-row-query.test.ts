@@ -64,11 +64,17 @@ describe('statements', () => {
     expect(text).toContain('"t"."scope_id" = $1');
   });
 
-  test('includeArchived drops the archived filter', () => {
+  test('includeArchived drops the archived filter but still leaves out an erased row', () => {
     const { compiled } = compile({ select: mask, includeArchived: true });
     expect(compiled.sql).toBe(
-      `select ${columns} ${from} where "t"."tenant_id" = $1 order by "t"."id" asc nulls last`,
+      `select ${columns} ${from} where ("t"."kw_erased_at" is null) and "t"."tenant_id" = $1 order by "t"."id" asc nulls last`,
     );
+  });
+
+  test('includeErased lets the kernel read an erased row, with its erasure mark', () => {
+    const { compiled } = compile({ select: mask, includeArchived: true, includeErased: true });
+    expect(compiled.sql).not.toContain('"kw_erased_at" is null');
+    expect(compiled.sql).toContain('"t"."kw_erased_at" as "kwErasedAt"');
   });
 
   test('columns that are 64-bit, decimal or date are selected as text', () => {

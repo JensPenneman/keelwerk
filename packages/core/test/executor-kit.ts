@@ -1,5 +1,6 @@
 import { trace } from '@opentelemetry/api';
 import type { Logger } from '../src/observability/logger.ts';
+import type { Meter } from '../src/observability/meter.ts';
 import type { Span } from '../src/observability/span.ts';
 
 // Core's tests may not import @keelwerk/testing (testing depends on core), so core keeps this
@@ -34,4 +35,22 @@ export function recordingLogger(
 /** A span that records nothing (the API's non-recording span). */
 export function inertSpan(): Span {
   return trace.getTracer('test').startSpan('test');
+}
+
+/** One count a recording meter saw: the counter, the amount and the attributes. */
+export interface CountedValue {
+  readonly name: string;
+  readonly value: number;
+  readonly attributes: unknown;
+}
+
+/** A meter whose counters keep every `add` into `counted`. */
+export function recordingMeter(counted: CountedValue[] = []): Meter {
+  return {
+    createCounter: (name: string) => ({
+      add: (value: number, attributes?: unknown) => {
+        counted.push({ name, value, attributes });
+      },
+    }),
+  } as unknown as Meter;
 }

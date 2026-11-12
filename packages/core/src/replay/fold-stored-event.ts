@@ -7,7 +7,14 @@ import type { EntityBehaviours } from '../write-path/entity-behaviours.ts';
 import type { EvolvingEvent } from '../write-path/evolving-event.ts';
 import { genericEvolve } from '../write-path/generic-evolve.ts';
 
-const generatedEvents = new Set(['created', 'imported', 'changed', 'archived', 'restored']);
+const generatedEvents = new Set([
+  'created',
+  'imported',
+  'changed',
+  'archived',
+  'restored',
+  'erased',
+]);
 
 /**
  * The row after one stored event, by the generic evolve and the author's, the way a rebuild folds

@@ -22,6 +22,24 @@ const codes = (spec: Record<string, unknown>): string[] =>
   buildScheduleEntries(modulesWith(spec), actions).problems.map((problem) => problem.code);
 
 describe('the schedules of the modules at compose', () => {
+  test('a schedule never invokes core.eraseSubject, not even the core own', () => {
+    const erase = new Map(actions).set(
+      'core.eraseSubject',
+      action('core.eraseSubject', 'core', 'tenant'),
+    );
+    const core = [
+      {
+        id: 'core',
+        schedules: {
+          run: { spec: { every: '1d', invoke: 'core.eraseSubject', scope: 'each-tenant' } },
+        },
+      },
+    ] as unknown as readonly RuntimeModule[];
+    expect(buildScheduleEntries(core, erase).problems.map((problem) => problem.code)).toEqual([
+      'unknownScheduleActions',
+    ]);
+  });
+
   test("another module's command is unknownScheduleActions", () => {
     expect(codes({ every: '5m', invoke: 'other.recordTick', scope: 'each-tenant' })).toEqual([
       'unknownScheduleActions',

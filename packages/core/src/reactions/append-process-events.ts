@@ -5,6 +5,7 @@ import { chainHash } from '../events/chain-hash.ts';
 import type { EventMeta } from '../events/event-meta.ts';
 import type { NewEvent } from '../events/new-event.ts';
 import { personalFlagOf } from '../fields/personal-flag-of.ts';
+import { validateForWrite } from '../fields/validate-for-write.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import type { EventDraft } from '../protocol/event-draft.ts';
 import type { ReactionEntry } from '../registry/reaction-entry.ts';
@@ -53,7 +54,7 @@ export async function appendProcessEvents(
         `The process "${reaction.id}" does not declare the event "${draft.type}".`,
       );
     }
-    const checked = await declared['~standard'].validate(draft.values);
+    const checked = await validateForWrite(declared, draft.values);
     if (checked.issues !== undefined) {
       throw errors.validation(
         `The event "${draft.type}" of the process "${reaction.id}" does not match its shape.`,

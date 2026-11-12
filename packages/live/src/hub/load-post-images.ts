@@ -3,7 +3,7 @@ import type { EntityDescriptor, StorageRow, Unit } from '@keelwerk/core';
 const chunk = 100;
 
 /**
- * The current rows of the ids, archived ones included, with no plan: the kernel's own read, whose
+ * The current rows of the ids, archived and erased ones included (an erased row carries `kwErasedAt`), with no plan: the kernel's own read, whose
  * rows are judged by each subscriber's plan afterwards. An id with no row (purged) is absent.
  */
 export async function loadPostImages(
@@ -18,6 +18,7 @@ export async function loadPostImages(
       where: { op: 'in', field: 'id', value: part },
       page: { first: part.length },
       includeArchived: true,
+      includeErased: true,
     });
     for (const row of found.rows) rows.set(String(row.id), row);
   }

@@ -10,9 +10,10 @@ export interface StreamAppend {
   readonly events: readonly NewEvent[];
   /**
    * Set only by the kernel, for a stream that belongs to no entity (a process's state stream,
-   * S-124). The store consults no entity descriptor and checks this tenancy against the unit's
-   * scope. Absent, the store finds the entity of the stream's type and answers `internal` for an
-   * unknown one.
+   * S-124) or to an invocation entity the adapter may not have seen (the change records of a
+   * receipt, which an adapter that is not given the registry cannot look up). The store consults
+   * no entity descriptor and checks this tenancy against the unit's scope. Absent, the store finds
+   * the entity of the stream's type and answers `internal` for an unknown one.
    */
-  readonly tenancy?: 'tenant';
+  readonly tenancy?: 'tenant' | 'invocation';
 }

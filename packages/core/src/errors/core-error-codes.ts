@@ -141,6 +141,10 @@ export const coreErrorCodes: Readonly<Record<CoreErrorCode, ErrorSpec>> = Object
     message: 'A key the decision used was destroyed, so it cannot be re-decided.',
   },
   'core.ticket_invalid': { kind: 'unauthenticated', message: 'The stream ticket is not valid.' },
+  'core.key_destroyed': {
+    kind: 'not_found',
+    message: 'The key this value was sealed under is destroyed.',
+  },
   'core.validation': { kind: 'validation', message: 'The input does not match its schema.' },
   'core.unauthenticated': { kind: 'unauthenticated', message: 'A principal is required.' },
   'core.not_found': { kind: 'not_found', message: 'The target does not exist.' },

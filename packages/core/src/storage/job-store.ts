@@ -2,6 +2,7 @@ import type { JobGroup } from '../jobs/job-group.ts';
 import type { JobAttempt } from './job-attempt.ts';
 import type { JobId } from './job-id.ts';
 import type { JobOutcome } from './job-outcome.ts';
+import type { PurgedJob } from './purged-job.ts';
 import type { ScheduleStore } from './schedule-store.ts';
 import type { StoredJob } from './stored-job.ts';
 import type { StoredJobSpec } from './stored-job-spec.ts';
@@ -52,6 +53,18 @@ export interface JobStore {
   ): Promise<readonly JobAttempt[]>;
   /** Conditional on (worker, attempt): succeeded (history written), retry at a time, or dead letter; false when the lease was lost. */
   complete(attempt: JobAttempt, worker: string, outcome: JobOutcome): Promise<boolean>;
+  /**
+   * Erasure (14.7.5, step 5a): deletes the unit's scope's jobs in every state but `running` that are
+   * action jobs of one of `queues` (the command and timer queues) and whose stored principal
+   * reference names one of `principalIds`, writing a `cancelled` history row for each (no input, no
+   * error; a dead job keeps its `dead` row). A job another principal runs is kept, whoever caused
+   * it, and so is every job of another queue. A key's next waiting job is released. Answers the
+   * jobs deleted, with what they ran.
+   */
+  purgeForPrincipals(
+    principalIds: readonly string[],
+    queues: readonly string[],
+  ): Promise<readonly PurgedJob[]>;
   /** Per queue and capability set, from the lane tables (section 21.4). */
   stats(queue?: string): Promise<readonly WorkClassStats[]>;
   /** One row per schedule and scope: last tick, next tick (S-118). */

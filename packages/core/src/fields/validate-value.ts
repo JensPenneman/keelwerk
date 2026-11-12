@@ -1,7 +1,9 @@
 import { parseTypeId } from '../ids/parse-type-id.ts';
+import { subjectNeedsLowerCase } from '../subjects/subject-needs-lower-case.ts';
 import { decodeBase64Url } from './decode-base64-url.ts';
 import type { AbsoluteRef, AnyField, OwnRef } from './field-def.ts';
 import type { StandardIssue, StandardResult } from './standard-schema-v1.ts';
+import { validateJson } from './validate-json.ts';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const rfc3339Instant = /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/;
@@ -209,16 +211,6 @@ function withPath(issues: readonly StandardIssue[], key: PropertyKey): StandardI
   return issues.map((issue) => ({ ...issue, path: [key, ...(issue.path ?? [])] }));
 }
 
-function validateJson(schema: unknown, value: unknown): Outcome {
-  const standard = isObject(schema) ? Reflect.get(schema, '~standard') : undefined;
-  const validate: unknown = isObject(standard) ? Reflect.get(standard, 'validate') : undefined;
-  if (typeof validate !== 'function') {
-    return fail('the field has no schema');
-  }
-  const result = validate.call(standard, value) as Outcome | Promise<Outcome>;
-  return result instanceof Promise ? fail('asynchronous schemas are not supported') : result;
-}
-
 function validateMany(field: AnyField, value: unknown, options: ValidateOptions): Outcome {
   const items = field.kind === 'set' && value instanceof Set ? [...value] : value;
   if (!Array.isArray(items) || field.inner === null) {
@@ -267,10 +259,14 @@ function validateKind(field: AnyField, value: unknown, options: ValidateOptions)
         `expected one of ${JSON.stringify(field.options)}`,
       );
     case 'json':
-      return validateJson(field.options, value);
+      return validateJson(field.options, value, options.write === true);
     case 'ref':
       return validateId(field.ref, value, options.prefixOf);
     case 'subject':
+      if (options.write === true && typeof value === 'string' && subjectNeedsLowerCase(value)) {
+        return fail('a subject id is written in lower case');
+      }
+      return text(typeof value === 'string' && value !== '', 'expected a non-empty string');
     case 'verifier':
       return text(typeof value === 'string' && value !== '', 'expected a non-empty string');
     case 'serial':
@@ -303,6 +299,12 @@ function validateKind(field: AnyField, value: unknown, options: ValidateOptions)
 interface ValidateOptions {
   /** The TypeID prefix of the entity a reference points at; without it, references are read as UUIDs. */
   readonly prefixOf?: ((ref: AbsoluteRef | OwnRef) => string | undefined) | undefined;
+  /**
+   * The value is an input or a draft that is about to be written: a subject id is then refused
+   * unless it is in lower case. A value that was stored earlier is never refused (a read never
+   * fails on what is stored), so a read leaves this off.
+   */
+  readonly write?: boolean | undefined;
 }
 
 /**

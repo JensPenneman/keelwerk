@@ -40,6 +40,7 @@ export function recordingUnit(
     serials: unit.serials,
     streams: unit.streams,
     ...(unit.scopeKeys === undefined ? {} : { scopeKeys: unit.scopeKeys }),
+    ...(unit.ledger === undefined ? {} : { ledger: unit.ledger }),
     nested: (fn, options) =>
       unit.nested((inner) => fn(recordingUnit(inner, record, keysOf)), options),
     afterCommit: (fn) => {

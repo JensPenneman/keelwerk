@@ -16,6 +16,7 @@ const generatedEvents: ReadonlySet<string> = new Set([
   'changed',
   'archived',
   'restored',
+  'erased',
 ]);
 
 /** A stream folded up to a point. */

@@ -134,13 +134,24 @@ describe('failed commands', () => {
     const { receipt } = await snapshot(adapter, undefined, 'b');
     expect(receipt).toMatchObject({
       status: 'failed',
-      outcome: { ok: false, error: { kind: first.kind, code: 'library.isbn_taken' } },
+      outcome: {
+        ok: false,
+        error: {
+          kind: first.kind,
+          code: 'library.isbn_taken',
+          message: 'The command failed with library.isbn_taken.',
+        },
+      },
     });
+    expect(JSON.stringify(receipt?.outcome)).not.toContain('details');
     const again = failure(
       await invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'b' })),
     );
     expect(again).toMatchObject({ kind: first.kind, code: 'library.isbn_taken' });
-    expect(again.message).toBe(first.message);
+    // What reaches storage is the closed projection (D9): the live answer keeps its text and data,
+    // the replay answers the same code with the fixed message.
+    expect(again.message).toBe('The command failed with library.isbn_taken.');
+    expect(again.details).toBeUndefined();
     expect((await snapshot(adapter)).books).toHaveLength(1);
   });
 

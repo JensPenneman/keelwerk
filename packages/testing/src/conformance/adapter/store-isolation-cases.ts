@@ -108,6 +108,15 @@ export function storeIsolationCases(subject: ConformanceSubject): void {
       );
       expect(own?.id).not.toBe(created?.id);
       await subject.run(tenantB, (unit) => unit.keys.shred(conformanceId(7002)));
+      // The shredded key of tenant B is not listed for tenant A, nor is the live key of A listed for B.
+      expect(
+        await subject.run(tenantA, (unit) => unit.keys.shreddedKeys(conformanceId(7002))),
+      ).toEqual([]);
+      expect(
+        (await subject.run(tenantB, (unit) => unit.keys.shreddedKeys(conformanceId(7002)))).map(
+          (key) => key.keyId,
+        ),
+      ).toEqual([own?.id]);
       expect(
         (
           await subject.run(tenantA, (unit) =>

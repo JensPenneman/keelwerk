@@ -12,8 +12,11 @@ const decoder = new TextDecoder();
  * The stored input of an effect opened for its executor (7.9.5, S-127), inside a unit: each personal
  * `$kwe` member opened with `unit.keys.keyById(k)` and the binding of its sealing, then
  * `JSON.parse` (a member of any other field passes through unchanged); secret members as references (`secretMembersAsRefs(entry.input, entry.module, ...)`). The answer is in
- * event form (`beginEffectAttempt` decodes it for the executor). A member whose key is shredded or whose binding differs is
- * left out and named in `erased` (14.7.9.8: a shredded or moved value reads as absent).
+ * event form (`beginEffectAttempt` decodes it for the executor). A member whose key is shredded is left out and named in
+ * `erased`: its subject was erased (14.7.9.8, a shredded value reads as absent). A member whose key
+ * still exists but whose envelope does not open, because it was sealed for another effect (a moved
+ * or tampered value), is left out and named in `mismatched`: that is an integrity failure, never an
+ * erasure.
  */
 export async function openEffectInput(
   unit: Unit,
@@ -23,10 +26,12 @@ export async function openEffectInput(
 ): Promise<{
   readonly input: Readonly<Record<string, unknown>>;
   readonly erased: readonly string[];
+  readonly mismatched: readonly string[];
 }> {
   const { fields } = entry.input as { readonly fields?: Readonly<Record<string, AnyField>> };
   const opened: Record<string, unknown> = {};
   const erased: string[] = [];
+  const mismatched: string[] = [];
   for (const [name, value] of Object.entries(stored)) {
     const field = fields !== undefined && Object.hasOwn(fields, name) ? fields[name] : undefined;
     const sealed = field !== undefined && effectDataSubject(entry, field) !== undefined;
@@ -41,8 +46,8 @@ export async function openEffectInput(
       eventId: effectId,
       field: `input.${name}`,
     });
-    if (plain === undefined) erased.push(name);
+    if (plain === undefined) (key === undefined ? erased : mismatched).push(name);
     else opened[name] = JSON.parse(decoder.decode(plain));
   }
-  return { input: secretMembersAsRefs(entry.input, entry.module, opened), erased };
+  return { input: secretMembersAsRefs(entry.input, entry.module, opened), erased, mismatched };
 }

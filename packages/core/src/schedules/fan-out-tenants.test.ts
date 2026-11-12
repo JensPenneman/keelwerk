@@ -3,7 +3,13 @@ import { makePassWorld } from '../../test/support/make-pass-world.ts';
 import { fanOutTenants } from './fan-out-tenants.ts';
 
 vi.mock('../effects/seal-job-input.ts', () => ({
-  sealJobInput: async (_unit: unknown, _id: string, _action: unknown, input: unknown) => input,
+  sealJobInput: async (
+    _unit: unknown,
+    _registry: unknown,
+    _id: string,
+    _action: unknown,
+    input: unknown,
+  ) => input,
 }));
 
 async function scopesOf(w: ReturnType<typeof makePassWorld>, pageSize: number) {

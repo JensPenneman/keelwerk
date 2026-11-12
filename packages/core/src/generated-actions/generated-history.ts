@@ -75,12 +75,15 @@ export const generatedHistory: GeneratedRead = async (input) => {
     where: allOf([{ op: 'eq', field: 'id', value: id }, session.view.plan.where]),
     page: { first: 1 },
     includeArchived: true,
+    // The history of an erased row stays readable: its values whose key is gone read `{ redacted: true }` (14.7.5).
+    includeErased: true,
   });
   if (found.rows.length === 0) throw errors.not_found(`${entry.ref} ${id} does not exist`);
   const at = args.asOf === undefined || args.asOf === null ? undefined : asOfInstant(args.asOf);
   const events: readonly StoredEvent[] = await openStoredEvents(
     unit,
     await unit.events.readStream({ type: entry.ref, id }),
+    'history',
   );
   const shown = (name: string): boolean => {
     const field = entry.descriptor.fields[name];

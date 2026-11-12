@@ -1,5 +1,7 @@
 import type { ActionEntry } from '../registry/action-entry.ts';
+import type { Registry } from '../registry/registry.ts';
 import type { Unit } from '../storage/unit.ts';
+import { sealPersonalMembers } from './seal-personal-members.ts';
 import { sealSecretMembers } from './seal-secret-members.ts';
 
 /**
@@ -8,18 +10,22 @@ import { sealSecretMembers } from './seal-secret-members.ts';
  * member (`sealSecretMembers` with `refs: 'keep'`), so the job row, a dead letter and the history
  * hold no plaintext secret. The worker opens them again with `openSecretMembers` before it invokes the
  * action. The fingerprint of the command stays over the plaintext input.
+ * Personal members are sealed under the data key of the subject they name (`sealPersonalMembers`),
+ * so the subject's erasure reaches them whoever started the job.
  * The binding is the command id and the member path; the stored form is final (golden vector in `seal-job-input.test.ts`).
  */
-export function sealJobInput(
+export async function sealJobInput(
   unit: Unit,
+  registry: Registry,
   commandId: string,
   action: ActionEntry,
   input: unknown,
 ): Promise<unknown> {
-  return sealSecretMembers(
+  const secretsSealed = await sealSecretMembers(
     unit,
     { entity: 'core.job', id: commandId, prefix: '', refs: 'keep' },
     action.input,
     input,
   );
+  return sealPersonalMembers({ unit, registry, action, commandId, input: secretsSealed });
 }

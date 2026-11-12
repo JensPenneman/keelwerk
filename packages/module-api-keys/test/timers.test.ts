@@ -6,6 +6,7 @@ import {
   bootedAt,
   type KeysStorage,
 } from './support/boot-api-keys.ts';
+import { watchStore } from './support/watch-store.ts';
 
 describe.each(['memory', 'pglite'] as const)('api-keys timers on %s', (kind: KeysStorage) => {
   const timeout = kind === 'pglite' ? 60_000 : 10_000;
@@ -74,6 +75,10 @@ describe.each(['memory', 'pglite'] as const)('api-keys timers on %s', (kind: Key
   }, async () => {
     const app = await boot();
     const { key, id } = await createKey(app, { scopes: ['write'] });
+    // Every call below resolves the key, and the resolver sets the `recordUse` timer at once: no
+    // worker takes while the calls are made, so a write of the timer commands can only come from them.
+    const watch = watchStore(app.runtime.adapter);
+    watch.paused = 'none';
     const calls: readonly (readonly [string, unknown])[] = [
       ['api-keys.recordUse', { keyId: id }],
       ['api-keys.repinKey', { keyId: id, apiVersion: '2026-11-11' }],
@@ -87,5 +92,9 @@ describe.each(['memory', 'pglite'] as const)('api-keys timers on %s', (kind: Key
       expect(byKey.ok ? undefined : byKey.error.kind, action).toBe('forbidden');
     }
     expect((await app.row(id))?.lastUsedAt).toBeUndefined();
+    // The control: the timer the resolver set is queued, and a worker that runs it writes the use.
+    watch.paused = undefined;
+    await app.runtime.drainJobs();
+    expect((await app.row(id))?.lastUsedAt?.toString()).toBe(bootedAt.toString());
   });
 });

@@ -14,6 +14,8 @@ Sign-in is for a session: `auth.credential.revoke`, `auth.session.revoke`, `auth
 
 Configuration: `sessionIdleMinutes` (720), `sessionAbsoluteDays` (30), `reauthenticateWithinMinutes` (10) and the three limits above.
 
+Erasing one's own subject is off until the platform switches it on. The module ships no rule for it. The core exports the rule `selfErase` (`import { selfErase } from '@keelwerk/core'`, id `core.eraseSubject.selfErase`), which speaks only of the principal's subject and the input of the core's action: a platform adds it with `policies.add: [selfErase]`; the rule is off whenever it is not in `policies.add`. With it a user may send `core.eraseSubject` for their own subject only, and the session alone is enough: no recent re-authentication is asked, because a rule on a core action cannot ask for one yet. The erasure cannot be undone: the subject's personal values are destroyed in the tenant. In a business tenant the tenant decides what has to be kept, so enable it only where a user may remove their own data. A subject id is never used again after its erasure (the kernel refuses new rows for an erased subject), so a person who comes back signs up again and gets a new subject id.
+
 Not here yet: the profile link of sign-up and the conditional parts for accounts (WP-62), re-authentication, password reset and passkeys.
 
 `src/module.generated.ts` is produced by `pnpm manifests` and the files under `migrations/own/` by the CLI migrations producer; neither is edited by hand.

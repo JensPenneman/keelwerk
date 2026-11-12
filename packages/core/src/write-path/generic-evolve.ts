@@ -1,4 +1,5 @@
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import type { ErasedEventData } from '../events/erased-event-data.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { ChangedOps } from './changed-ops.ts';
@@ -51,7 +52,8 @@ function applyOps(entry: EntityEntry, row: Record<string, unknown>, ops: Changed
 
 /**
  * The generic evolve of section 15.1.5: `created` and `imported` make the row, `changed` applies
- * its field operations in order, `archived` sets and `restored` clears `archivedAt`. It is a
+ * its field operations in order, `archived` sets and `restored` clears `archivedAt`, `erased` clears the listed fields and, for an
+ * owned row, sets `kwErasedAt` and archives it (section 14.7.5). It is a
  * function of the event alone, so the inline projection and a rebuild from the log agree. The
  * version, `updatedAt` and the framework columns follow the event.
  */
@@ -85,6 +87,18 @@ export function genericEvolve(
       if (state === undefined) throw internal(`a restored event needs the row of ${event.id}`);
       delete row.archivedAt;
       break;
+    case 'erased': {
+      if (state === undefined) throw internal(`an erased event needs the row of ${event.id}`);
+      const { fields, owned } = event.data as ErasedEventData;
+      for (const name of fields) delete row[name];
+      if (owned) {
+        row.kwErasedAt = event.recordedAt;
+        if (row.archivedAt === undefined || row.archivedAt === null) {
+          row.archivedAt = event.recordedAt;
+        }
+      }
+      break;
+    }
     default:
       throw internal(`"${event.name}" is not a generated event`);
   }

@@ -33,6 +33,8 @@ export async function resolveDataSubjectHops(
       (await hops.unit.rows.findOne(descriptor, {
         where: { op: 'eq', field: 'id', value: rowId },
         includeArchived: true,
+        // A subject path through an erased row still resolves: its subject field is not personal.
+        includeErased: true,
       }));
     if (row === undefined) return undefined;
     const field = segment === 'id' ? undefined : descriptor.fields[segment];

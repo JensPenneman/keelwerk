@@ -369,6 +369,9 @@ importers:
       '@keelwerk/adapter-postgres':
         specifier: workspace:*
         version: link:../adapter-postgres
+      '@keelwerk/events':
+        specifier: workspace:*
+        version: link:../events
       '@keelwerk/live':
         specifier: workspace:*
         version: link:../live

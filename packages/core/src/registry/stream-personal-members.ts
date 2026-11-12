@@ -1,11 +1,5 @@
-import type { AnyField } from '../fields/field-def.ts';
+import { personalFlagOf } from '../fields/personal-flag-of.ts';
 import type { StreamEntry } from './stream-entry.ts';
-
-/** The personal flag of `field`, or of the personal element a list or set holds. */
-function personalOf(field: AnyField): AnyField['flags']['personal'] {
-  if (field.flags.personal !== false) return field.flags.personal;
-  return field.inner === null ? false : personalOf(field.inner);
-}
 
 /** A record member that holds personal data and the path of its data subject on the keyed entity. */
 export interface StreamPersonalMember {
@@ -24,7 +18,7 @@ export function streamPersonalMembers(
 ): readonly StreamPersonalMember[] {
   const members: StreamPersonalMember[] = [];
   for (const [member, def] of Object.entries(stream.record.fields)) {
-    const flag = personalOf(def);
+    const flag = personalFlagOf(def);
     if (flag === false) continue;
     members.push({ member, path: flag.subject ?? keyedDataSubject ?? 'id' });
   }

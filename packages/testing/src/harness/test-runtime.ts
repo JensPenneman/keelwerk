@@ -7,6 +7,7 @@ import type {
   KeyService,
   Logger,
   NamespaceRef,
+  RuntimeControl,
 } from '@keelwerk/core';
 import type { TestTenant } from './test-tenant.ts';
 
@@ -24,7 +25,12 @@ export interface TestRuntime<App, Name extends string = string> {
   /** The namespace the runtime provisioned for the app on its placement; every tenant's scope opens it. */
   readonly namespace: NamespaceRef;
   /** The control store the runtime runs on, to read the rows and events of the `core.*` entities as stored. */
-  readonly control: { readonly adapter: DataAdapter; readonly namespace: NamespaceRef };
+  readonly control: {
+    readonly adapter: DataAdapter;
+    readonly namespace: NamespaceRef;
+    /** Writes the buffered API usage counts to `kw_api_usage` now. */
+    readonly apiUsage: NonNullable<RuntimeControl['apiUsage']>;
+  };
   /** The key service over the runtime's control store and master key: the one a re-decide verifies and reveals with. */
   readonly keys: KeyService;
   /** The time source the runtime runs on: the options' clock or the system clock, until `advanceTo` pins it. */

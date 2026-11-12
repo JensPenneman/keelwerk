@@ -7155,6 +7155,46 @@
         ],
         "type": "object"
       },
+      "CoreEraseSubjectInput": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "enum": [
+              "subjectRequest",
+              "consentWithdrawn",
+              "retention",
+              "legalObligation",
+              "operator"
+            ],
+            "type": "string"
+          },
+          "subjectId": {
+            "maxLength": 36,
+            "minLength": 32,
+            "pattern": "^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subjectId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "CoreEraseSubjectOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "streams": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "streams"
+        ],
+        "type": "object"
+      },
       "CoreFlag": {
         "additionalProperties": false,
         "properties": {
@@ -16809,7 +16849,7 @@
   },
   "info": {
     "title": "versioned",
-    "version": "sha256-JQuBWBo5ErsRrvRRw6jU6SbxV4eH4cn5Mng09CPe38g"
+    "version": "sha256-N4Kk11jc8zphTUPFRHuH1S47lmzNw2hNx_e5uoIS__Y"
   },
   "openapi": "3.1.1",
   "paths": {
@@ -19740,6 +19780,85 @@
         "x-keelwerk-action": "core.effect.get",
         "x-keelwerk-execution": "sync",
         "x-keelwerk-scope": "invocation"
+      }
+    },
+    "/core/erase-subject": {
+      "post": {
+        "operationId": "coreEraseSubject",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoreEraseSubjectInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandReceipt"
+                }
+              }
+            },
+            "description": "The command was accepted; follow `Location` for its receipt.",
+            "headers": {
+              "Keelwerk-Command-Id": {
+                "$ref": "#/components/headers/keelwerkCommandId"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "Location": {
+                "$ref": "#/components/headers/location"
+              },
+              "Preference-Applied": {
+                "$ref": "#/components/headers/preferenceApplied"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "core"
+        ],
+        "x-keelwerk-action": "core.eraseSubject",
+        "x-keelwerk-execution": "async",
+        "x-keelwerk-scope": "tenant"
       }
     },
     "/core/flags": {
@@ -25431,6 +25550,6 @@
     "apiVersion": "2026-11-04",
     "format": "keelwerk.openapi/1",
     "producer": "@keelwerk/transport-rest",
-    "surface": "sha256-JQuBWBo5ErsRrvRRw6jU6SbxV4eH4cn5Mng09CPe38g"
+    "surface": "sha256-N4Kk11jc8zphTUPFRHuH1S47lmzNw2hNx_e5uoIS__Y"
   }
 }

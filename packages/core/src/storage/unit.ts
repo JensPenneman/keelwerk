@@ -1,3 +1,4 @@
+import type { ControlLedger } from '../control/control-ledger.ts';
 import type { EventStore } from '../events/event-store.ts';
 import type { ApiUsageStore } from './api-usage-store.ts';
 import type { BucketStore } from './bucket-store.ts';
@@ -45,6 +46,8 @@ export interface Unit {
   readonly scopeKeys?: ScopeKeyStore;
   /** kw_api_usage; deployment-scope units only, S-144. */
   readonly apiUsage?: ApiUsageStore;
+  /** The deployment's ledger in the control root (S-125); present on deployment-scope units only, like `scopeKeys`. */
+  readonly ledger?: ControlLedger;
   /**
    * A savepoint: rolls back to it when `fn` throws, then rethrows. A tenant unit may pass
    * `{ as: <backend scope>, readOnly: true }` to read backend data; no other `as` is allowed.

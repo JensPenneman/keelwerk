@@ -5,6 +5,7 @@ import { defineApiVersions } from '../dsl/define-api-versions.ts';
 import { defineCommand } from '../dsl/define-command.ts';
 import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
+import { translate } from '../invoker/stages/translate.ts';
 import { buildRegistry } from '../registry/build-registry.ts';
 import { checkVersionChanges } from '../registry/check-version-changes.ts';
 import { applyVersionChanges } from './apply-version-changes.ts';
@@ -59,6 +60,22 @@ describe('a change chained over three versions (section 18.2)', () => {
       id: 'i',
       [name]: 'a',
     });
+  });
+});
+
+describe('a generated update of an older caller', () => {
+  const { at, action } = chain({
+    first: change({ entity: shelfItem, field: 'title', renamedFrom: 'name' }),
+    second: change({ entity: shelfItem, field: 'label', renamedFrom: 'title' }),
+  });
+
+  test("an older caller's generated update gets no default in its patch", async () => {
+    const update = action('shelf.item.update');
+    const translated = await translate(at('2026-01-01'), 'input', update, {
+      id: 'i1',
+      patch: { name: 'x' },
+    });
+    expect(translated).toEqual({ id: 'i1', patch: { label: 'x' } });
   });
 });
 

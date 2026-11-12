@@ -46,12 +46,19 @@ export function memoryRowStore(ctx: MemoryUnitContext): RowStore {
         'a locked load reads its position with the event store, not with the row statement',
       );
     }
-    const candidates = memoryCandidates(ctx, entity, query.where, query.includeArchived === true);
+    const candidates = memoryCandidates(
+      ctx,
+      entity,
+      query.where,
+      query.includeArchived === true,
+      query.includeErased === true,
+    );
     const page = memoryPage(entity, candidates, {
       ...(query.sort === undefined ? {} : { sort: query.sort }),
       ...(query.page === undefined ? {} : { page: query.page }),
       ...(query.select === undefined ? {} : { select: query.select }),
       ...(query.total === undefined ? {} : { total: query.total }),
+      ...(query.includeErased === true ? { includeErased: true } : {}),
       ...(query.where === undefined ? {} : { where: query.where }),
       maxOffset,
     });
@@ -127,9 +134,13 @@ export function memoryRowStore(ctx: MemoryUnitContext): RowStore {
     const anchor = ctx.rows(entity).get(id);
     if (anchor === undefined) throw errors.not_found(`${entity.ref} has no row ${id}`);
     const sort = compileSort(entityTable(entity, null, 'e'), query.sort, memoryCodecs);
-    return memoryCandidates(ctx, entity, query.where, query.includeArchived === true).filter(
-      (row) => memoryCompareRows(sort.keys, row, anchor) < 0,
-    ).length;
+    return memoryCandidates(
+      ctx,
+      entity,
+      query.where,
+      query.includeArchived === true,
+      query.includeErased === true,
+    ).filter((row) => memoryCompareRows(sort.keys, row, anchor) < 0).length;
   };
   return {
     find,

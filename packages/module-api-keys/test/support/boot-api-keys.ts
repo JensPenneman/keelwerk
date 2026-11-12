@@ -1,4 +1,5 @@
 import type { Logger, Scope } from '@keelwerk/core';
+import { erasure } from '@keelwerk/events';
 import {
   clientAddresses,
   createLocalClient,
@@ -6,6 +7,7 @@ import {
   type TestPrincipal,
   type TestRuntime,
   type TestRuntimeOptions,
+  testOperator,
 } from '@keelwerk/testing';
 import { keysApp } from './keys-app.ts';
 
@@ -46,6 +48,8 @@ export interface BootedApiKeys {
   open(token: string, tenant?: Tenant): ReturnType<TestRuntime<typeof keysApp>['invoker']['open']>;
   /** The stored row of a key of acme, personal values opened. */
   row(id: string): Promise<Record<string, unknown> | undefined>;
+  /** Erases a data subject of acme as an operator and lets the jobs and the erasure worker run to the end. Only when booted with `erasing`. */
+  erase(subjectId: string): Promise<void>;
   /** The receipt of a command of acme, or undefined. */
   receipt(
     commandId: string,
@@ -55,13 +59,15 @@ export interface BootedApiKeys {
 /** Boots the app with one backend and two tenants, acme and globex, on a clock the test moves. */
 export async function bootApiKeys(
   kind: KeysStorage,
-  options: Pick<TestRuntimeOptions, 'logger' | 'external'> = {},
+  options: Pick<TestRuntimeOptions, 'logger' | 'external'> & { readonly erasing?: boolean } = {},
 ): Promise<BootedApiKeys> {
+  const worker = erasure({ pollMs: 3_600_000 });
   const runtime = await startTestRuntime(keysApp, {
     adapter: kind,
     tenants: ['acme', 'globex'],
     clock: { now: () => bootedAt },
     workers: true,
+    ...(options.erasing === true ? { operators: true, eventWorkers: [worker] } : {}),
     ...(options.logger === undefined ? {} : { logger: options.logger as Logger }),
     ...(options.external === undefined ? {} : { external: options.external }),
   });
@@ -105,6 +111,17 @@ export async function bootApiKeys(
           select: Object.keys(descriptor.fields),
         });
       }),
+    erase: async (subjectId) => {
+      if (options.erasing !== true) throw new Error('boot the app with `erasing` to erase');
+      await createLocalClient(runtime, { principal: testOperator(), tenant: 'acme' }).invoke(
+        'core.eraseSubject',
+        { subjectId: subjectId as never, reason: 'subjectRequest' },
+        { prefer: 'async' },
+      );
+      await runtime.drainJobs();
+      await worker.pass();
+      await runtime.drainJobs();
+    },
     receipt: (commandId) =>
       runtime.adapter.unit(runtime.namespace, scope, (unit) => unit.receipts.get(commandId)),
   };

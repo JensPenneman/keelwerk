@@ -6,6 +6,7 @@ import { parseSealedValueText } from '../keys/parse-sealed-value-text.ts';
 import { sealedValueText } from '../keys/sealed-value-text.ts';
 import { secretRefOwner } from '../keys/secret-ref-owner.ts';
 import type { Unit } from '../storage/unit.ts';
+import { sealMembers } from './seal-members.ts';
 
 const encoder = new TextEncoder();
 
@@ -112,20 +113,14 @@ export interface SecretMemberBinding {
  * `kwv1` text; a `{ ref }` follows `binding.refs` and `binding.owner` (an owner's sealed value is sealed again for the binding); other members pass unchanged. Answers `value`
  * itself when the schema has no fields or `value` is no object.
  */
-export async function sealSecretMembers(
+export function sealSecretMembers(
   unit: Unit,
   binding: SecretMemberBinding,
   schema: StandardSchemaV1,
   value: unknown,
 ): Promise<unknown> {
-  const { fields } = schema as { readonly fields?: Readonly<Record<string, AnyField>> };
-  if (fields === undefined || typeof value !== 'object' || value === null) return value;
-  const secrets = Object.entries(fields).filter(([, field]) => holdsSecret(field));
-  if (secrets.length === 0) return value;
-  const sealed: Record<string, unknown> = { ...value };
-  for (const [name, field] of secrets) {
-    if (!Object.hasOwn(sealed, name)) continue;
-    sealed[name] = await sealMember(unit, binding, name, field, sealed[name]);
-  }
-  return sealed;
+  return sealMembers(schema, value, {
+    select: (_name, field) => (holdsSecret(field) ? true : undefined),
+    seal: (name, field, member) => sealMember(unit, binding, name, field, member),
+  });
 }

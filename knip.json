@@ -20,9 +20,6 @@
       "ignoreDependencies": [
         "@keelwerk/cli",
         "@keelwerk/data",
-        "@keelwerk/events",
-        "@keelwerk/live",
-        "@keelwerk/module-api-keys",
         "@keelwerk/module-audit",
         "@keelwerk/module-members",
         "@keelwerk/transport-graphql",

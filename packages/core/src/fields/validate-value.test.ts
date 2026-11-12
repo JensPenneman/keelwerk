@@ -3,6 +3,7 @@ import { renderTypeId } from '../ids/render-type-id.ts';
 import { field } from './field.ts';
 import type { AnyField } from './field-def.ts';
 import { shape } from './shape.ts';
+import { validateForWrite } from './validate-for-write.ts';
 import { validateValue } from './validate-value.ts';
 
 function accepts(candidate: AnyField, value: unknown): unknown {
@@ -148,6 +149,45 @@ describe('other kinds', () => {
     expect(accepts(field.serial(), 7)).toBe(7);
     rejects(field.serial(), -1);
     rejects(field.verifier(), '');
+  });
+
+  test('a subject id is written in lower case: refused in a write, never in a read', () => {
+    const hyphenated = '0f1f2f3f-4f5f-6f7f-8f9f-afbfcfdfefff';
+    const compact = hyphenated.replaceAll('-', '');
+    const write = { write: true } as const;
+    const refused = (text: string) =>
+      expect(validateValue(field.subject(), text, write).issues).toBeDefined();
+    const written = (text: string) => {
+      const result = validateValue(field.subject(), text, write);
+      expect(result.issues).toBeUndefined();
+      return 'value' in result ? result.value : undefined;
+    };
+    expect(written(hyphenated)).toBe(hyphenated);
+    expect(written(compact)).toBe(compact);
+    expect(written('Ada')).toBe('Ada');
+    refused(hyphenated.toUpperCase());
+    refused(compact.toUpperCase());
+    refused(`0F1F2F3F${hyphenated.slice(8)}`);
+    const issue = validateValue(field.subject(), compact.toUpperCase(), write).issues?.[0];
+    expect(issue?.message).toContain('a subject id is written in lower case');
+    // A value that was stored earlier in upper case is read as it is.
+    expect(accepts(field.subject(), hyphenated.toUpperCase())).toBe(hyphenated.toUpperCase());
+    expect(accepts(field.subject(), compact.toUpperCase())).toBe(compact.toUpperCase());
+  });
+
+  test('a shape refuses an upper-case subject only where it validates a write', () => {
+    const upper = '0F1F2F3F-4F5F-6F7F-8F9F-AFBFCFDFEFFF';
+    const owned = shape({
+      ownerId: field.subject(),
+      tags: field.list(field.subject()),
+      meta: field.json(shape({ ownerId: field.subject() })),
+    });
+    const draft = { ownerId: upper, tags: [upper], meta: { ownerId: upper } };
+    expect(owned['~standard'].validate(draft)).toEqual({ value: draft });
+    const outcome = validateForWrite(owned, draft);
+    expect(outcome).toMatchObject({
+      issues: [{ path: ['ownerId'] }, { path: ['tags', 0] }, { path: ['meta', 'ownerId'] }],
+    });
   });
 
   test('binary takes bytes or base64url', () => {

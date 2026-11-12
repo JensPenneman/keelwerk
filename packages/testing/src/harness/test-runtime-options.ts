@@ -6,6 +6,7 @@ import type {
   EventWorker,
   FlagProvider,
   InfrastructureEntry,
+  LedgerSink,
   LiveTimers,
   Logger,
 } from '@keelwerk/core';
@@ -63,6 +64,11 @@ export interface TestRuntimeOptions<Name extends string = 'acme' | 'globex'> {
    * `@keelwerk/events`; the runtime then runs role 'all', so they and the kernel workers start.
    */
   readonly eventWorkers?: readonly EventWorker[];
+  /**
+   * Ledger sinks added to the deployment's infrastructure (14.7.6): append-only logs outside the
+   * placement that receive the erasure records and the key tombstones.
+   */
+  readonly ledgers?: readonly LedgerSink[];
   /**
    * The process environment the runtime reads flags from: `KEELWERK_FLAG_<MODULE>_<FLAG>` (20.3).
    * Read when a flag is resolved, so a test that changes the object it passed changes the flag.

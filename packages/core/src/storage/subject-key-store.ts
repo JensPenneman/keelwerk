@@ -10,6 +10,13 @@ export interface SubjectKeyStore {
   keyById(keyId: string): Promise<DataKey | undefined>;
   /** Destroys every key version of the subject, keeping rows with `shredded_at` and no key material. */
   shred(subjectId: string): Promise<{ readonly keyIds: readonly string[] }>;
+  /**
+   * The subject's data keys whose material is destroyed, by key id, with the instant each was
+   * destroyed (the keys a shred destroyed now or before). A read: it works in a read-only unit.
+   */
+  shreddedKeys(
+    subjectId: string,
+  ): Promise<readonly { readonly keyId: string; readonly shreddedAt: Temporal.Instant }[]>;
   addRefs(subjectId: string, streams: readonly StreamRef[]): Promise<void>;
   refs(subjectId: string, after: StreamRef | null, limit: number): Promise<readonly StreamRef[]>;
   /** Wraps other keys (per-blob keys) under the subject's data key. */

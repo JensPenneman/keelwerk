@@ -18,6 +18,7 @@ export function dryRunKeys(keys: KeyService): KeyService {
     issue: () => Promise.reject(refused('issue a secret')),
     derive: () => Promise.reject(refused('derive a key')),
     verify: (scope, token, verifier) => keys.verify(scope, token, verifier),
+    verifyOutcome: (scope, token, verifier) => keys.verifyOutcome(scope, token, verifier),
     reveal: (unit, ref, reason, expected) => keys.reveal(unit, ref, reason, expected),
     invalidate: (scope) => {
       keys.invalidate(scope);

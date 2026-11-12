@@ -33,4 +33,15 @@ describe('a patch shape', () => {
       expect(member.flags.optional).toBe(true);
     }
   });
+
+  test('no member of fields has a default', () => {
+    for (const member of Object.values(patch.fields)) {
+      expect(member.flags.defaulted).toBe(false);
+      expect(member.defaultValue).toBeUndefined();
+    }
+  });
+
+  test('a name that is no member, given as undefined, is dropped as on main', async () => {
+    expect(await validate({ title: 'B', nope: undefined })).toEqual({ value: { title: 'B' } });
+  });
 });

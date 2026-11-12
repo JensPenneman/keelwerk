@@ -5,6 +5,7 @@ import type { ClientFlagDocument } from '../flags/client-flag-document.ts';
 import type { FlagTargeting } from '../flags/flag-targeting.ts';
 import type { Id } from '../ids/id.ts';
 import type { CapabilitiesDocument } from '../invoker/capabilities-document.ts';
+import type { ErasureReason } from '../ledger/erasure-reasons.ts';
 import type { ActionPart, PartTypes, RowOutput } from '../model/action-part.ts';
 import type { InstanceInput } from '../model/instance-input.ts';
 import type { ModuleOf } from '../model/module-of.ts';
@@ -35,6 +36,13 @@ type TenantCommand<In> = ActionPart<
     never,
     never
   >
+>;
+type AsyncCommand<In, Out> = ActionPart<
+  'command',
+  CoreBase,
+  null,
+  'async',
+  PartTypes<Prettify<In & {}>, Out, never, never>
 >;
 type BackendCreate<In, Out> = ActionPart<
   'command',
@@ -137,6 +145,10 @@ export interface CoreLiteral {
     >;
     readonly effectStatus: CoreInputQuery<EffectStatusInput, EffectStatus>;
     readonly effectStatusWatch: CoreSubscription<EffectStatusWatchInput, EffectStatus>;
+    readonly eraseSubject: AsyncCommand<
+      { readonly subjectId: string; readonly reason: ErasureReason },
+      { readonly streams: number }
+    >;
   };
   readonly policies: {
     readonly introspect: {
@@ -180,6 +192,16 @@ export interface CoreLiteral {
       readonly signedIn: RulePart<
         CoreBase,
         CoreSubscription<EffectStatusWatchInput, EffectStatus>,
+        readonly []
+      >;
+    };
+    readonly eraseSubject: {
+      readonly operators: RulePart<
+        CoreBase,
+        AsyncCommand<
+          { readonly subjectId: string; readonly reason: ErasureReason },
+          { readonly streams: number }
+        >,
         readonly []
       >;
     };

@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "@keelwerk/adapter-postgres": "workspace:*",
+    "@keelwerk/events": "workspace:*",
     "@keelwerk/live": "workspace:*",
     "@keelwerk/module-auth": "workspace:*",
     "@keelwerk/testing": "workspace:*",

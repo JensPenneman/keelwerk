@@ -34,15 +34,16 @@ function principalOf(held: TestPrincipal, scope: Scope, operators: boolean): Pri
     subjectRef: null,
     subjectAs: () => null,
     ...base,
-    ref: { resolver: 'test.principal', principalId: held.subject },
+    ref: { resolver: 'test.principal', principalId: held.principalId ?? held.subject },
   };
   return user;
 }
 
 /**
  * Reads the principal a test carrier holds; a carrier without one is left to the next resolver.
- * The book keeps the principal last seen for each subject, so `fromRef` can rebuild it when a job
- * runs, and answers null for a subject the test revoked.
+ * The book keeps the principal last seen under its principal id (its subject when it names none), so
+ * `fromRef` can rebuild it when a job runs; `fromRef` answers null for a principal id the test
+ * revoked, for a held principal whose subject the test revoked, and for one never seen.
  */
 export function testPrincipalResolver(
   operators = false,
@@ -57,13 +58,14 @@ export function testPrincipalResolver(
       if (text === undefined) return null;
       const held: unknown = JSON.parse(text);
       if (!isTestPrincipal(held)) return null;
-      if (held.subject !== null) book.seen.set(held.subject, held);
+      if (held.subject !== null) book.seen.set(held.principalId ?? held.subject, held);
       return { principal: principalOf(held, ctx.scope, operators) };
     },
     // biome-ignore lint/correctness/useYield: a resolver is a generator by contract; this one asks for nothing
     *fromRef(ref, ctx) {
       const held = book.seen.get(ref.principalId);
       if (held === undefined || book.revoked.has(ref.principalId)) return null;
+      if (held.subject !== null && book.revoked.has(held.subject)) return null;
       return { principal: principalOf(held, ctx.scope, operators) };
     },
   };

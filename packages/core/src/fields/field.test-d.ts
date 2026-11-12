@@ -11,6 +11,7 @@ import { field } from './field.ts';
 import type { AbsoluteRef, OwnRef, ValueOfField } from './field-def.ts';
 import type { PersonalFlags } from './personal-flags.ts';
 import { relation } from './relation.ts';
+import type { Shape } from './shape.ts';
 import { shape } from './shape.ts';
 import type { ShapeValue } from './shape-value.ts';
 
@@ -247,5 +248,11 @@ describe('shape output', () => {
       readonly locale: string;
       readonly n?: string | undefined;
     }>();
+  });
+});
+
+describe('the shape interface', () => {
+  test('has exactly the members of the frozen interface', () => {
+    expectTypeOf<keyof Shape>().toEqualTypeOf<'kind' | 'fields' | '~standard'>();
   });
 });

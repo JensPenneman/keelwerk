@@ -14,6 +14,7 @@ import { capabilities } from './actions/capabilities.ts';
 import { composition } from './actions/composition.ts';
 import { effectStatus } from './actions/effect-status.ts';
 import { effectStatusWatch } from './actions/effect-status-watch.ts';
+import { eraseSubject } from './actions/erase-subject.ts';
 import { evaluate as evaluateFlag } from './actions/flag/evaluate.ts';
 import { restoreRules } from './actions/flag/restore-rules.ts';
 import { set as setFlag } from './actions/flag/set.ts';
@@ -36,6 +37,7 @@ import { operators as compositionOperators } from './policies/composition/operat
 import { operators as domainOperators } from './policies/domain/operators.ts';
 import { signedIn as effectStatusSignedIn } from './policies/effect-status/signed-in.ts';
 import { signedIn as effectStatusWatchSignedIn } from './policies/effect-status-watch/signed-in.ts';
+import { operators as subjectOperators } from './policies/erase-subject/operators.ts';
 import { operators as flagOperators } from './policies/flag/operators.ts';
 import { signedIn as introspectSignedIn } from './policies/introspect/signed-in.ts';
 import { operators as operatorTokenOperators } from './policies/operator-token/operators.ts';
@@ -55,6 +57,7 @@ const derivedCore = defineModule(coreBase, {
     retireApiVersion,
     effectStatus,
     effectStatusWatch,
+    eraseSubject,
   },
   entityActions: {
     backend: { create: createBackend },
@@ -75,6 +78,7 @@ const derivedCore = defineModule(coreBase, {
     commandReceipt: { submitter },
     effectStatus: { signedIn: effectStatusSignedIn },
     effectStatusWatch: { signedIn: effectStatusWatchSignedIn },
+    eraseSubject: { operators: subjectOperators },
   },
   reactions: { syncDomains, syncDomainsOnChange },
 });
@@ -158,6 +162,7 @@ describe('the hand-written core module types (decision 104, S-11, S-26)', () => 
       | 'core.flag.get'
       | 'core.flag.query'
       | 'core.flag.history'
+      | 'core.eraseSubject'
     >().toExtend<ActionRef<OnlyCore>>();
     expectTypeOf<
       | 'core.domain.create'

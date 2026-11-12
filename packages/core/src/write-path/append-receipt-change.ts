@@ -78,6 +78,7 @@ export async function appendReceiptChange(unit: Unit, change: ReceiptChange): Pr
       stream,
       expectedVersion: version,
       partition: null,
+      tenancy: 'invocation',
       events: [
         {
           eventId: newUuidV7(),

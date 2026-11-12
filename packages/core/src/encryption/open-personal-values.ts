@@ -1,5 +1,6 @@
 import type { StoredEvent } from '../events/stored-event.ts';
 import { openKwe } from '../keys/open-kwe.ts';
+import type { Redacted } from '../model/redacted.ts';
 import { isKweEnvelope } from './is-kwe-envelope.ts';
 import type { SealedMembers } from './sealed-members.ts';
 import type { SealingContext } from './sealing-context.ts';
@@ -8,6 +9,9 @@ const decoder = new TextDecoder();
 
 /** What a value that cannot be opened becomes while members are dropped. */
 const absent: unique symbol = Symbol('keelwerk.absent');
+
+/** What a history read shows for a value whose key is gone (14.7.5). */
+const redacted: Redacted = { redacted: true };
 
 async function openIn(
   context: SealingContext,
@@ -26,6 +30,7 @@ async function openIn(
     });
     // A shredded key, or a value moved to another event or field, stays sealed.
     if (plain !== undefined) return JSON.parse(decoder.decode(plain)) as unknown;
+    if (sealed === 'redact') return redacted;
     return sealed === 'drop' ? absent : value;
   }
   if (Array.isArray(value)) {
@@ -48,7 +53,8 @@ async function openIn(
 /**
  * An event with the personal values of `data` and `before` opened (14.7.4). A value whose key is
  * shredded, or that was moved to another event or field, stays its sealed envelope under `keep`
- * (a replay compares it so) and is left out under `drop`, where it reads as absent (14.7.9.8). The hash of the stored event covers the
+ * (a replay compares it so), is left out under `drop`, where it reads as absent (14.7.9.8), and
+ * reads as `{ redacted: true }` under `redact`, which history reads use (14.7.5). The hash of the stored event covers the
  * sealed form, so chain verification takes events as stored, never through this.
  */
 export async function openPersonalValues(

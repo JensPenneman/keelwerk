@@ -3,6 +3,7 @@ import type {
   BucketStore,
   Clock,
   ConsumerStore,
+  ControlLedger,
   EventStore,
   NamespaceRef,
   NestedUnitOptions,
@@ -32,6 +33,7 @@ import { sqlEventStore } from './sql-event-store.ts';
 import type { SqlJobStore } from './sql-job-store.ts';
 import { sqlJobStore } from './sql-job-store.ts';
 import type { SqlKeyWrapper } from './sql-key-wrapper.ts';
+import { sqlLedgerStore } from './sql-ledger-store.ts';
 import { sqlReceiptStore } from './sql-receipt-store.ts';
 import { sqlRowStore } from './sql-row-store.ts';
 import { sqlScopeKeyStore } from './sql-scope-key-store.ts';
@@ -83,6 +85,7 @@ export interface SqlUnit {
   readonly scopeKeys?: ScopeKeyStore;
   /** `kw_api_usage`; deployment-scope units only (S-144). */
   readonly apiUsage?: ApiUsageStore;
+  readonly ledger?: ControlLedger;
   nested<T>(fn: (u: SqlUnit) => Promise<T>, options?: NestedUnitOptions): Promise<T>;
   afterCommit(fn: () => void): void;
   /**
@@ -147,6 +150,7 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
       streams: sqlStreamRecordStore(ctx),
       ...(scopeKeys === undefined ? {} : { scopeKeys }),
       ...(apiUsage === undefined ? {} : { apiUsage }),
+      ...(current.scope.level === 'deployment' ? { ledger: sqlLedgerStore(ctx) } : {}),
       nested: async <T>(fn: (u: SqlUnit) => Promise<T>, options?: NestedUnitOptions) => {
         const target = options?.as ?? current.scope;
         if (

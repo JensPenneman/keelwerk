@@ -35,6 +35,7 @@ function stubUnit(options: { readonly erased?: boolean } = {}): Stub {
   const bindings: Stub['bindings'][number][] = [];
   const unit = {
     namespace: { id: 'main' },
+    scope: { level: 'tenant', backendId: 'backend-1', tenantId: 'tenant-1' },
     keys: {
       dataKey: () => Promise.resolve(options.erased === true || shredded ? undefined : key),
       keyById: (id: string) => Promise.resolve(shredded || id !== key.id ? undefined : key),
@@ -147,8 +148,14 @@ describe('sealed effect input', () => {
       effectId,
       input: { owner, to: 'ada@example.org', cc: ['bob@example.org'], signingKey: 'k-1' },
     })) as Record<string, unknown>;
-    const { input, erased } = await openEffectInput(stub.unit, deliver, effectId, sealed);
+    const { input, erased, mismatched } = await openEffectInput(
+      stub.unit,
+      deliver,
+      effectId,
+      sealed,
+    );
     expect(erased).toEqual([]);
+    expect(mismatched).toEqual([]);
     expect(input.to).toBe('ada@example.org');
     expect(input.cc).toEqual(['bob@example.org']);
     expect(input.owner).toBe(owner);
@@ -158,7 +165,7 @@ describe('sealed effect input', () => {
     expect(Object.keys(ref)).toEqual(['ref']);
   });
 
-  test('a shredded key or another effect id leaves the member out and names it in erased', async () => {
+  test('a shredded key is named in erased, a member sealed for another effect in mismatched, never in erased', async () => {
     const stub = stubUnit();
     const sealed = (await sealEffectInput({
       unit: stub.unit,
@@ -167,12 +174,14 @@ describe('sealed effect input', () => {
       effectId,
       input: { owner, to: 'ada@example.org' },
     })) as Record<string, unknown>;
+    // The key of the envelope still exists: the value was moved to another effect's row.
     const moved = await openEffectInput(stub.unit, deliver, 'another-effect', sealed);
-    expect(moved.erased).toEqual(['to']);
+    expect([moved.mismatched, moved.erased]).toEqual([['to'], []]);
     expect(moved.input).not.toHaveProperty('to');
     stub.shred();
     const gone = await openEffectInput(stub.unit, deliver, effectId, sealed);
-    expect(gone.erased).toEqual(['to']);
+    expect([gone.erased, gone.mismatched]).toEqual([['to'], []]);
+    expect(gone.input).not.toHaveProperty('to');
     expect(gone.input.owner).toBe(owner);
   });
 

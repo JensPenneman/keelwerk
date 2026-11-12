@@ -42,6 +42,8 @@ export function createWorker(input: StartPhaseInput): RuntimeService {
                 apps: input.apps,
                 egress: input.options.work?.egress,
                 tracer: trace.getTracer('keelwerk'),
+                control: connected.control,
+                ledgers: input.composed.infrastructure.ledgers,
               }),
             { slots, capabilitySets: role.capabilitySets, revision: role.revision },
           ),

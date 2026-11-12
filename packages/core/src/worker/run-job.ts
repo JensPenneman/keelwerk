@@ -8,7 +8,9 @@ import type { ScopeLookup } from '../invoker/scope-lookup.ts';
 import type { Job } from '../jobs/job.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { KeyService } from '../kernel/key-service.ts';
+import type { LedgerSink } from '../kernel/ledger-sink.ts';
 import type { Logger } from '../observability/logger.ts';
+import type { Meter } from '../observability/meter.ts';
 import type { Tracer } from '../observability/tracer.ts';
 import type { ServedApp } from '../runtime/served-app.ts';
 import type { QueueSource } from './queue-source.ts';
@@ -34,6 +36,12 @@ export interface RunJobContext {
   /** The outbound policy of this process (`RuntimeOptions.work.egress`, 12.3). */
   readonly egress: EgressPolicy | undefined;
   readonly tracer: Tracer;
+  /** Where the job counters are added; default: the process's meter (tests give their own). */
+  readonly meter?: Meter;
+  /** The control store: its ledger takes an erasure record first (14.7.5). */
+  readonly control: ControlStore;
+  /** The deployment's ledger sinks (`RuntimeInfrastructure.ledgers`). */
+  readonly ledgers: readonly LedgerSink[];
 }
 
 /**

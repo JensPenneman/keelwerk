@@ -1,4 +1,4 @@
-import type { DataAdapter, JobOutcome, Unit } from '@keelwerk/core';
+import type { DataAdapter, JobOutcome, StoredJobSpec, Unit } from '@keelwerk/core';
 
 function watchedUnit(unit: Unit, watch: StoreWatch, readOnly: boolean): Unit {
   return {
@@ -26,9 +26,13 @@ function watchedUnit(unit: Unit, watch: StoreWatch, readOnly: boolean): Unit {
       ...unit.jobs,
       enqueue: async (spec) => {
         const jobId = await unit.jobs.enqueue(spec);
-        watch.enqueued.push({ jobId, principalId: spec.principal.principalId });
+        watch.enqueued.push({ jobId, principalId: spec.principal.principalId, spec });
         return jobId;
       },
+      take: async (queue, worker, request) =>
+        watch.paused !== undefined && worker !== watch.paused
+          ? { jobs: [], skippedLanes: 0 }
+          : unit.jobs.take(queue, worker, request),
       complete: async (attempt, worker, outcome) => {
         watch.outcomes.push(outcome);
         watch.attempts.push({ jobId: attempt.jobId, outcome });
@@ -61,8 +65,14 @@ export interface StoreWatch {
   readonly outcomes: JobOutcome[];
   /** The same attempts with the job each belongs to. */
   readonly attempts: WatchedAttempt[];
-  /** Every job enqueued, with the id of the principal it was enqueued under (a key's id for a key's work). */
-  readonly enqueued: { readonly jobId: string; readonly principalId: string }[];
+  /** Every job enqueued, with the id of the principal it was enqueued under (a key's id for a key's work) and what was stored. */
+  readonly enqueued: {
+    readonly jobId: string;
+    readonly principalId: string;
+    readonly spec: StoredJobSpec;
+  }[];
+  /** The only worker whose takes are answered while the takes are paused, else undefined. */
+  paused: string | undefined;
   /** Zeroes the counts. */
   startCounting(): void;
 }
@@ -78,6 +88,7 @@ export function watchStore(adapter: DataAdapter): StoreWatch {
     outcomes: [],
     attempts: [],
     enqueued: [],
+    paused: undefined,
     startCounting: () => {
       watch.calls.keyById = 0;
       watch.calls.openValue = 0;
@@ -100,6 +111,11 @@ export function watchStore(adapter: DataAdapter): StoreWatch {
 /** The ids of the jobs enqueued under the principal of one key. */
 export function jobsOfKey(watch: StoreWatch, keyId: string): string[] {
   return watch.enqueued.filter((job) => job.principalId === keyId).map((job) => job.jobId);
+}
+
+/** What was enqueued under the principal of one key, in order. */
+export function specsOfKey(watch: StoreWatch, keyId: string): StoredJobSpec[] {
+  return watch.enqueued.filter((job) => job.principalId === keyId).map((job) => job.spec);
 }
 
 /** The attempts that did not succeed (a retry, a dead or a failed one): the job and the error's code and kind. */

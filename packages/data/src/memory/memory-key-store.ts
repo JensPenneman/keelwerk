@@ -1,5 +1,11 @@
 import type { DataKey, StreamRef, SubjectKeyStore } from '@keelwerk/core';
-import { compareCodePoints, errors, newUuidV7 } from '@keelwerk/core';
+import {
+  canonicalSubject,
+  compareCodePoints,
+  errors,
+  newUuidV7,
+  sameSubject,
+} from '@keelwerk/core';
 import { memoryOpen } from './memory-open.ts';
 import { memorySeal } from './memory-seal.ts';
 import type { MemoryUnitContext } from './memory-unit-context.ts';
@@ -40,7 +46,7 @@ export function memoryKeyStore(ctx: MemoryUnitContext): SubjectKeyStore {
   const refsName = (): string => `subjectrefs/${ctx.scopeId()}`;
   const recordsOf = (subjectId: string): SubjectKey[] =>
     [...ctx.tx.read<SubjectKey>(subjects()).values()]
-      .filter((record) => record.subjectId === subjectId)
+      .filter((record) => sameSubject(record.subjectId, subjectId))
       .sort((a, b) => compareCodePoints(a.keyId, b.keyId));
   const dataKey = async (
     subjectId: string,
@@ -77,13 +83,23 @@ export function memoryKeyStore(ctx: MemoryUnitContext): SubjectKeyStore {
         table.set(record.keyId, { ...record, material: null, shreddedAt: at });
       return { keyIds: live.map((record) => record.keyId) };
     },
+    shreddedKeys: async (subjectId) =>
+      recordsOf(subjectId)
+        .filter((record) => record.material === null)
+        .map((record) => ({
+          keyId: record.keyId,
+          shreddedAt: record.shreddedAt ?? record.createdAt,
+        })),
     addRefs: async (subjectId, streams) => {
       ctx.writable();
       const table = ctx.tx.write<{ readonly subjectId: string; readonly stream: StreamRef }>(
         refsName(),
       );
       for (const stream of streams) {
-        table.set(`${subjectId}\u0000${stream.type}\u0000${stream.id}`, { subjectId, stream });
+        table.set(`${canonicalSubject(subjectId)}\u0000${stream.type}\u0000${stream.id}`, {
+          subjectId,
+          stream,
+        });
       }
     },
     refs: async (subjectId, after, limit) =>
@@ -92,7 +108,7 @@ export function memoryKeyStore(ctx: MemoryUnitContext): SubjectKeyStore {
           .read<{ readonly subjectId: string; readonly stream: StreamRef }>(refsName())
           .values(),
       ]
-        .filter((ref) => ref.subjectId === subjectId)
+        .filter((ref) => sameSubject(ref.subjectId, subjectId))
         .map((ref) => ref.stream)
         .sort((a, b) => compareCodePoints(a.type, b.type) || compareCodePoints(a.id, b.id))
         .filter(
@@ -121,7 +137,11 @@ export function memoryKeyStore(ctx: MemoryUnitContext): SubjectKeyStore {
       const idLength = wrapped[0] ?? 0;
       const keyId = new TextDecoder().decode(wrapped.subarray(1, 1 + idLength));
       const record = ctx.tx.read<SubjectKey>(subjects()).get(keyId);
-      if (record === undefined || record.subjectId !== subjectId || record.material === null) {
+      if (
+        record === undefined ||
+        !sameSubject(record.subjectId, subjectId) ||
+        record.material === null
+      ) {
         return undefined;
       }
       const nonce = wrapped.subarray(1 + idLength, 13 + idLength);

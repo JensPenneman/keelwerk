@@ -1,10 +1,11 @@
-import type { JobAttempt, JobGroup, JobStore } from '@keelwerk/core';
+import type { JobAttempt, JobGroup, JobStore, PurgedJob } from '@keelwerk/core';
 import { errors, timerQueue } from '@keelwerk/core';
 import { memoryAdjustLane } from './memory-adjust-lane.ts';
 import { memoryJobComplete } from './memory-job-complete.ts';
 import { memoryJobEnqueue } from './memory-job-enqueue.ts';
 import { memoryJobFinish } from './memory-job-finish.ts';
 import { memoryJobGroups } from './memory-job-groups.ts';
+import { memoryJobRelease } from './memory-job-release.ts';
 import { memoryJobScopes } from './memory-job-scopes.ts';
 import { memoryJobStats } from './memory-job-stats.ts';
 import { memoryJobTake } from './memory-job-take.ts';
@@ -111,6 +112,28 @@ export function memoryJobStore(ctx: MemoryUnitContext): MemoryJobStore {
       return held;
     },
     complete: async (attempt, worker, outcome) => memoryJobComplete(ctx, attempt, worker, outcome),
+    purgeForPrincipals: async (principalIds, queues) => {
+      ctx.writable();
+      const ids = new Set(principalIds);
+      const purged: PurgedJob[] = [];
+      for (const tables of memoryJobScopes(ctx)) {
+        const doomed = [...tables.jobs().values()].filter(
+          (job) =>
+            job.state !== 'running' &&
+            job.spec.kind === 'action' &&
+            queues.includes(job.spec.queue) &&
+            ids.has(job.spec.principal.principalId),
+        );
+        for (const job of doomed) {
+          // A dead job keeps the `dead` history row it already has.
+          if (job.state === 'dead') tables.deleteJob(job.id);
+          else memoryJobFinish(ctx, tables, job, 'cancelled', null);
+          if (job.state !== 'waiting') memoryJobRelease(ctx, tables, job);
+          purged.push({ queue: job.spec.queue, run: job.spec.run });
+        }
+      }
+      return purged;
+    },
     stats: async (queue) => memoryJobStats(ctx, queue),
     schedules: () => memoryScheduleStore(ctx),
   };

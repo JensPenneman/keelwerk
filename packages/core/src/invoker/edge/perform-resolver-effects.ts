@@ -154,7 +154,13 @@ export async function performResolverEffects(
         await unit.jobs.enqueue(job);
         continue;
       }
-      const sealed = await sealJobInput(unit, job.run.commandId, command.action, job.run.input);
+      const sealed = await sealJobInput(
+        unit,
+        env.appOf(target.namespace.appId).registry,
+        job.run.commandId,
+        command.action,
+        job.run.input,
+      );
       await unit.jobs.enqueue({
         ...job,
         run: commandJobRun(job.run.action, sealed, job.run.commandId),

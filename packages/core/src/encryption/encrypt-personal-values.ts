@@ -6,6 +6,7 @@ import type { DataSubjectHops } from '../write-path/resolve-data-subject-hops.ts
 import { addSubjectRef } from './add-subject-ref.ts';
 import type { EventSlot } from './event-slots.ts';
 import { eventSlots } from './event-slots.ts';
+import { fenceDataSubject } from './fence-data-subject.ts';
 import type { SealingContext } from './sealing-context.ts';
 import { subjectIdOf } from './subject-id-of.ts';
 
@@ -51,12 +52,15 @@ export interface EncryptedPersonalValues {
  * Seals the personal values of an event payload and its before-image (14.7.4): each under its
  * subject's data key as `{ "$kwe": 1, "k", "n", "c" }` with `namespace ‖ stream id ‖ event id ‖
  * field` as associated data, and records the subject's reference to the stream so erasure finds it.
+ * It fences the entity's data subject first (`fenceDataSubject`), whether the event carries a
+ * personal value or not.
  * The result is what the chain hashes and the store keeps.
  */
 export async function encryptPersonalValues(
   context: SealingContext,
   input: EncryptPersonalValuesInput,
 ): Promise<EncryptedPersonalValues> {
+  await fenceDataSubject(context, input);
   const slots = eventSlots(input.entry, input.name, input.data, input.before);
   if (slots.length === 0) return { data: input.data, before: input.before };
   let data = input.data;

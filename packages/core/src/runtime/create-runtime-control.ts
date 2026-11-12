@@ -28,6 +28,7 @@ export function createRuntimeControl(input: {
   ): ((module: string) => unknown) =>
     moduleConfigOf(moduleConfigShapes(app.source.modules), stored);
   return {
+    apiUsage: { flush: () => control.apiUsage.flush() },
     anchorSinks: () => input.anchoring?.sinkStatus?.() ?? [],
     createBackend: async (backend) => {
       const { id } = await path.createBackend(backend, { principal: runtimeOperator });

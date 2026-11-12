@@ -66,6 +66,33 @@ describe('runPrincipalResolvers: what a resolver may not answer', () => {
       message: expect.stringContaining("kernel's module resolver"),
     });
   });
+
+  test('a user whose subject id is in upper case is an internal error, a lower-case one is taken', async () => {
+    const subject = '0f1f2f3f-4f5f-6f7f-8f9f-afbfcfdfefff';
+    for (const text of [subject.toUpperCase(), subject.replaceAll('-', '').toUpperCase()]) {
+      await expect(
+        runPrincipalResolvers(
+          answering({ ...user, subject: text } as Principal),
+          carrier,
+          scope,
+          clock,
+        ),
+      ).rejects.toMatchObject({
+        kind: 'internal',
+        message: expect.stringContaining('not in lower case'),
+      });
+    }
+    for (const text of [subject, subject.replaceAll('-', ''), 'ada']) {
+      await expect(
+        runPrincipalResolvers(
+          answering({ ...user, subject: text } as Principal),
+          carrier,
+          scope,
+          clock,
+        ),
+      ).resolves.toMatchObject({ authenticated: true });
+    }
+  });
 });
 
 const operator = {

@@ -1,0 +1,5 @@
+{
+  "person": { "subjectId": "<subject>", "fields": ["email", "notes", "vip"], "owned": true },
+  "ownedThread": { "subjectId": "<subject>", "fields": ["topic"], "owned": true },
+  "livingThread": { "subjectId": "<subject>", "fields": ["reply"], "owned": false }
+}

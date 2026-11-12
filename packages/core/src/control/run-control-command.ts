@@ -42,14 +42,16 @@ export interface ControlProvenance {
  * generated action takes (events with the hash chain, state rows, inline reactions such as
  * `core.syncDomains`), without the pipeline in front. The command is named `core.<name>` in the
  * events' provenance. `provenance` names the operator command it runs for: its actor, request id
- * and command id are then the events' principal, correlation id and causation id. A failure is
- * thrown as the write path throws it.
+ * and command id are then the events' principal, correlation id and causation id. With
+ * `options.commandId` the command has a receipt of that id, so a repeat answers the first run
+ * instead of writing twice. A failure is thrown as the write path throws it.
  */
 export async function runControlCommand(
   store: ControlStore,
   name: string,
   decide: ControlDecide,
   provenance?: ControlProvenance,
+  options: { readonly commandId?: string } = {},
 ): Promise<void> {
   const action: ActionEntry = {
     ref: `core.${name}`,
@@ -83,6 +85,7 @@ export async function runControlCommand(
       action,
       input: {},
       principal: provenance?.actor ?? system,
+      ...(options.commandId === undefined ? {} : { commandId: options.commandId }),
       request: {
         transport: 'runtime',
         requestId: provenance?.requestId ?? globalThis.crypto.randomUUID(),

@@ -82,7 +82,11 @@ export async function runInvokeEffect(
       }),
       kind: 'action',
       queue: commandQueue,
-      run: commandJobRun(action.ref, await sealJobInput(unit, commandId, action, input), commandId),
+      run: commandJobRun(
+        action.ref,
+        await sealJobInput(unit, run.registry, commandId, action, input),
+        commandId,
+      ),
       ...(placement === 'backend' && run.scope.level === 'tenant'
         ? { group: crossScopeGroup(run.scope.backendId) }
         : {}),

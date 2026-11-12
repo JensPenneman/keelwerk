@@ -1,6 +1,7 @@
 import type { ErrorIssue } from '../errors/error-issue.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { isEmptyShape } from '../fields/is-empty-shape.ts';
+import { validateForWrite } from '../fields/validate-for-write.ts';
 import { issuesOf } from '../invoker/stages/issues-of.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import { entityPositions } from './entity-positions.ts';
@@ -60,7 +61,7 @@ export async function checkVersionInput(
       translation.lacking.slice(index + 1),
     );
   });
-  const result = await action.input['~standard'].validate(translated);
+  const result = await validateForWrite(action.input, translated);
   if (result.issues !== undefined) {
     for (const issue of issuesOf(result.issues)) {
       if (supplied.has(JSON.stringify(issue.path))) continue;

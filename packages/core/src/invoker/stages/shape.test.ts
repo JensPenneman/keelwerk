@@ -27,7 +27,8 @@ const pageAction = actionOf('doc.list', {
   entityOutput: { entity: 'doc.post', shape: 'page' },
 });
 const customAction = actionOf('doc.custom', { output: shape({ n: field.integer() }) });
-const registry = registryOf([rowAction, pageAction, customAction]);
+const ownerAction = actionOf('doc.owner', { output: shape({ owner: field.subject() }) });
+const registry = registryOf([rowAction, pageAction, customAction, ownerAction]);
 const own = ruleEntry({
   id: 'doc.post.own',
   effect: 'allow',
@@ -138,6 +139,17 @@ describe('shape', () => {
         inputOf({ action: customAction, environment: 'development', output: { n: 1 } }),
       ),
     ).toEqual({ n: 1 });
+  });
+});
+
+describe('a stored subject in an output', () => {
+  test('a subject stored in upper case is shaped as it is: a read never fails on a stored value', async () => {
+    const stored = { owner: '0F1F2F3F-4F5F-6F7F-8F9F-AFBFCFDFEFFF' };
+    expect(
+      await shapeStage(
+        inputOf({ action: ownerAction, environment: 'development', output: stored }),
+      ),
+    ).toEqual(stored);
   });
 });
 

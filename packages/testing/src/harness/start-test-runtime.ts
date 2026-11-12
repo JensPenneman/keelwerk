@@ -133,6 +133,7 @@ export async function startTestRuntime<
         ...(kind === 'pglite' || external !== undefined ? [fallbackReporter()] : []),
         testSecrets,
         ...(options.flagProviders ?? []),
+        ...(options.ledgers ?? []),
         ...(options.eventWorkers ?? []),
         ...(options.host === undefined ? [] : [options.host]),
       ],
@@ -181,6 +182,13 @@ export async function startTestRuntime<
       ...(options.env === undefined ? {} : { env: options.env }),
     },
   );
+  const { apiUsage } = runtime.control;
+  if (apiUsage === undefined) {
+    await runtime.stop(0);
+    throw new Error(
+      'The runtime gives no `control.apiUsage`: the test runtime cannot flush its request counts.',
+    );
+  }
   const { host } = runtime;
   if (options.host !== undefined && host === undefined) {
     throw new Error('The runtime has no HTTP host: pass the `httpHost()` entry as `host`.');
@@ -247,7 +255,11 @@ export async function startTestRuntime<
     clock,
     config: moduleConfigOf(moduleConfigShapes(app.modules), backend.config),
     namespace,
-    control: { adapter: controlAdapter, namespace: controlNamespace },
+    control: {
+      adapter: controlAdapter,
+      namespace: controlNamespace,
+      apiUsage,
+    },
     log: environment.log,
     tracer: environment.tracer,
     tenants: Object.fromEntries(tenants.map((tenant) => [tenant.name, tenant])) as Record<

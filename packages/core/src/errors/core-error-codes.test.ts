@@ -19,6 +19,13 @@ describe('coreErrorCodes', () => {
     }
   });
 
+  it('registers core.key_destroyed as not_found, a code no module or client sees (open point 467)', () => {
+    expect(coreErrorCodes['core.key_destroyed']).toEqual({
+      kind: 'not_found',
+      message: 'The key this value was sealed under is destroyed.',
+    });
+  });
+
   it('registers core.request_not_allowed as internal (S-06)', () => {
     expect(coreErrorCodes['core.request_not_allowed'].kind).toBe('internal');
   });

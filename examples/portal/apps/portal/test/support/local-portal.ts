@@ -4,6 +4,7 @@ import {
   startTestRuntime,
   type TestPrincipal,
   type TestRuntime,
+  type TestRuntimeOptions,
 } from '@keelwerk/testing';
 import { localApp } from './local-app.ts';
 import { localConfig } from './portal-config.ts';
@@ -40,11 +41,15 @@ export interface LocalPortal {
 }
 
 /** Boots the portal with the backend configuration of the REST scenario and the tenants acme and globex. */
-export async function startLocalPortal(storage: PortalStorage): Promise<LocalPortal> {
+export async function startLocalPortal(
+  storage: PortalStorage,
+  extra: Pick<TestRuntimeOptions, 'workers' | 'eventWorkers' | 'clock'> = {},
+): Promise<LocalPortal> {
   const runtime = await startTestRuntime(localApp, {
     ...(typeof storage === 'string' ? { adapter: storage } : { external: storage }),
     operators: true,
     config: localConfig,
+    ...extra,
   });
   return {
     runtime,

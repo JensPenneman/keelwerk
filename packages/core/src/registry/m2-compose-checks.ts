@@ -1,3 +1,4 @@
+import { checkDataSubjectIndexes } from './check-data-subject-indexes.ts';
 import { checkDeploymentGroups } from './check-deployment-groups.ts';
 import { checkEffectSubjects } from './check-effect-subjects.ts';
 import { checkEntitySubjects } from './check-entity-subjects.ts';
@@ -6,6 +7,9 @@ import { checkExecutorQueues } from './check-executor-queues.ts';
 import { checkJsonFlagDefaults } from './check-json-flag-defaults.ts';
 import { checkObservesAll } from './check-observes-all.ts';
 import { checkPendingEffectsWhere } from './check-pending-effects-where.ts';
+import { checkPersonalInputOutsideTenant } from './check-personal-input-outside-tenant.ts';
+import { checkPersonalOutsideTenant } from './check-personal-outside-tenant.ts';
+import { checkPersonalScheduleInput } from './check-personal-schedule-input.ts';
 import { checkPrincipalFromRef } from './check-principal-from-ref.ts';
 import { checkProcessEvents } from './check-process-events.ts';
 import { checkStreamDeclarations } from './check-stream-declarations.ts';
@@ -28,10 +32,15 @@ export const m2ComposeChecks: readonly ((
   checkJsonFlagDefaults,
   checkStreamOffload,
   checkVersionChanges,
+  (_app, registry) => checkDataSubjectIndexes(registry.entities),
   (_app, registry) => checkEffectSubjects(registry.effects, registry.entities),
   (_app, registry) => checkEntitySubjects(registry.entities),
   (_app, registry) => checkExecutorInputReads(registry.effects, registry.executors),
   (_app, registry) => checkExecutorQueues(registry.executors),
+  (_app, registry) => checkPersonalOutsideTenant(registry.entities),
+  (_app, registry) =>
+    checkPersonalInputOutsideTenant(registry.actions, registry.streams, registry.entities),
+  (_app, registry) => checkPersonalScheduleInput(registry.schedules, registry.actions),
   checkPrincipalFromRef,
   checkStreamDeclarations,
   checkProcessEvents,

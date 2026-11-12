@@ -878,6 +878,27 @@
       "flags": [
         {
           "kind": "string",
+          "name": "subject-id",
+          "required": true
+        },
+        {
+          "kind": "enum",
+          "name": "reason",
+          "required": true
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "core.eraseSubject",
+      "route": "call core.eraseSubject",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
           "name": "since",
           "required": true
         },
@@ -2509,5 +2530,5 @@
     "wait-effects"
   ],
   "format": "keelwerk.cli/1",
-  "surface": "sha256-uBEc9JEy8_F-dOtRydkbiMHUUP7GXe_wOvT7oAOJNNU"
+  "surface": "sha256-qOUDRyBcutR_tJSFhugAZ3VwomSHslpQ3bZ3sDNISHA"
 }

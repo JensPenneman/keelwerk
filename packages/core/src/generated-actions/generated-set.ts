@@ -10,6 +10,7 @@ import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { chainSelect } from '../events/chain-select.ts';
 import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
+import { validateForWrite } from '../fields/validate-for-write.ts';
 import { principalContextOf } from '../interpreter/principal-context-of.ts';
 import type { AnyDraft } from '../protocol/any-draft.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
@@ -80,7 +81,7 @@ async function validated(
   path: string,
 ): Promise<Readonly<Record<string, unknown>>> {
   if (schema === undefined) throw errors.unsupported(`${path} is switched off for this entity.`);
-  const result = await schema['~standard'].validate(value);
+  const result = await validateForWrite(schema, value);
   if (result.issues !== undefined) {
     throw errors.validation('The item is not valid.', {
       issues: result.issues.map((issue) => ({

@@ -5,6 +5,8 @@ import { buildEventMeta } from '../events/build-event-meta.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import { refuseReservedCommandId } from '../ids/refuse-reserved-command-id.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
+import { checkErasureGrant } from '../subjects/check-erasure-grant.ts';
+import { erasureAction } from '../subjects/erasure-action.ts';
 import { appendReceiptChange } from '../write-path/append-receipt-change.ts';
 import { assertSameRequest } from '../write-path/assert-same-request.ts';
 import { commandFingerprint } from '../write-path/command-fingerprint.ts';
@@ -28,7 +30,8 @@ import { sealJobInput } from './seal-job-input.ts';
  * receipt's. The input is stored with its secret members sealed (`sealJobInput`), while the
  * receipt's fingerprint is over the plaintext. A retry with the same id and input answers
  * `accepted` again and enqueues nothing; a receipt a worker finished replays its outcome; another
- * input is `core.idempotency_mismatch`.
+ * input is `core.idempotency_mismatch`. A fresh `core.eraseSubject` is also checked for ownership
+ * (`checkErasureGrant`) before its job is written; a replayed receipt skips that.
  */
 export async function acceptAsyncCommand(input: RunCommandInput): Promise<CommandResult> {
   const { action } = input;
@@ -84,6 +87,7 @@ export async function acceptAsyncCommand(input: RunCommandInput): Promise<Comman
               existing,
             );
           }
+          if (action.ref === erasureAction) await checkErasureGrant(unit, input);
           await unit.jobs.enqueue({
             ...jobInput({
               scope: input.scope,
@@ -99,7 +103,7 @@ export async function acceptAsyncCommand(input: RunCommandInput): Promise<Comman
             queue: commandQueue,
             run: commandJobRun(
               action.ref,
-              await sealJobInput(unit, commandId, action, input.input),
+              await sealJobInput(unit, input.registry, commandId, action, input.input),
               commandId,
             ),
           });

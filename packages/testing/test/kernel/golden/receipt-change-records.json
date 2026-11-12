@@ -155,7 +155,7 @@
             "error": {
               "kind": "unauthenticated",
               "code": "core.unauthenticated",
-              "message": "The principal of this job no longer resolves.",
+              "message": "The command failed with core.unauthenticated.",
               "retryable": false,
               "requestId": ""
             }

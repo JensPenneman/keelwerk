@@ -832,6 +832,32 @@ enum CoreEffectWatchItemType {
   RESTORED
 }
 
+input CoreEraseSubjectInput {
+  """The idempotency key of the command."""
+  commandId: String
+  reason: CoreEraseSubjectReason!
+  subjectId: String!
+}
+
+type CoreEraseSubjectOutput {
+  streams: SafeInt
+}
+
+enum CoreEraseSubjectReason {
+  CONSENT_WITHDRAWN
+  LEGAL_OBLIGATION
+  OPERATOR
+  RETENTION
+  SUBJECT_REQUEST
+}
+
+union CoreEraseSubjectResult = CommandAccepted | CoreEraseSubjectSuccess
+
+type CoreEraseSubjectSuccess {
+  commandId: String!
+  result: CoreEraseSubjectOutput
+}
+
 type CoreFlag implements Node {
   """The fields a rule hides from the caller on this row."""
   _masked: [String!]!
@@ -2641,6 +2667,7 @@ type Mutation {
   coreBackendRestore(input: CoreBackendRestoreInput!): CoreBackendRestoreResult
   coreBackendSet(input: CoreBackendSetInput): CoreBackendSetResult
   coreBackendUpdate(input: CoreBackendUpdateInput!): CoreBackendUpdateResult
+  coreEraseSubject(input: CoreEraseSubjectInput!): CoreEraseSubjectResult
   coreFlagRestoreRules(input: CoreFlagRestoreRulesInput!): CoreFlagRestoreRulesResult
   coreFlagSet(input: CoreFlagSetInput!): CoreFlagSetResult
   coreOperatorTokenIssue(input: CoreOperatorTokenIssueInput!): CoreOperatorTokenIssueResult

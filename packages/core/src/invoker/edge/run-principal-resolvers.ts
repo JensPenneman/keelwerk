@@ -8,6 +8,7 @@ import type { Principal } from '../../principals/principal.ts';
 import type { AnyEffect } from '../../protocol/any-effect.ts';
 import { moduleResolver } from '../../reactions/module-resolver.ts';
 import type { Scope } from '../../storage/scope.ts';
+import { subjectNeedsLowerCase } from '../../subjects/subject-needs-lower-case.ts';
 import type { Carrier } from '../carrier.ts';
 import { keepsTicketError } from './keeps-ticket-error.ts';
 import { placeholderPrincipal } from './placeholder-principal.ts';
@@ -172,6 +173,16 @@ export async function runPrincipalResolvers(
         kind: 'internal',
         code: 'core.internal',
         message: `A fill of core.principalResolvers by "${module}" answered a principal whose reference names the resolver "${named}", not its own "${value.id}".`,
+      });
+    }
+    if (
+      resolution.principal.kind === 'user' &&
+      subjectNeedsLowerCase(resolution.principal.subject)
+    ) {
+      throw new KeelwerkError({
+        kind: 'internal',
+        code: 'core.internal',
+        message: `A fill of core.principalResolvers by "${module}" answered a user whose subject id is not in lower case.`,
       });
     }
     return {

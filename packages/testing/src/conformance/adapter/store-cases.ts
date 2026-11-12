@@ -3,13 +3,17 @@ import { describe, expect, test } from 'vitest';
 import type { ConformanceSubject } from './conformance-subject.ts';
 import { failureOf } from './failure-of.ts';
 import { receiptStoreCases } from './receipt-store-cases.ts';
+import { shreddedKeyCases } from './shredded-key-cases.ts';
 import { storedJob } from './stored-job.ts';
+import { subjectReferenceCases } from './subject-reference-cases.ts';
 
 const { tenantA } = conformanceScopes;
 const namespaceScope = { level: 'namespace', reason: 'conformance' } as const;
 
 export function storeCases(subject: ConformanceSubject): void {
   receiptStoreCases(subject);
+  subjectReferenceCases(subject);
+  shreddedKeyCases(subject);
 
   describe('jobs (14.3.9)', () => {
     const take = (subject2: ConformanceSubject, worker = 'w1', queue = 'commands') =>

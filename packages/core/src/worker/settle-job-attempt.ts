@@ -1,9 +1,57 @@
+import { timerQueue } from '../effects/timer-queue.ts';
+import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { declaredErrorCodesOf } from '../executors/declared-error-codes-of.ts';
+import { reactionQueue } from '../reactions/reaction-queue.ts';
+import { scheduleQueue } from '../schedules/schedule-queue.ts';
 import type { JobOutcome } from '../storage/job-outcome.ts';
 import type { StoredJob } from '../storage/stored-job.ts';
 import { appendReceiptChange } from '../write-path/append-receipt-change.ts';
+import { commandJobError } from './command-job-error.ts';
 import { completeJob } from './complete-job.ts';
+import { kernelJobError } from './kernel-job-error.ts';
 import { receiptOfJob } from './receipt-of-job.ts';
 import type { RunJobContext } from './run-job.ts';
+
+/**
+ * What a command job stores of a failure, whichever way the attempt ended (D9): `commandJobError`'s
+ * projection, so the receipt, its change record, the job's history and a dead job never hold the
+ * data of a declared error. A timer's and a schedule's failure is the closed projection of
+ * `kernelJobError` (its message names the timer or the schedule); a reaction's failure is projected
+ * by its own worker.
+ */
+function projected(
+  registry: RunJobContext['source']['registry'],
+  stored: StoredJob,
+  outcome: JobOutcome,
+): JobOutcome {
+  if (outcome.kind === 'succeeded' || stored.queue === reactionQueue) return outcome;
+  const { run } = stored;
+  if (!('action' in run) || run.commandId === undefined) return outcome;
+  const { error } = outcome;
+  const failure = new KeelwerkError({
+    kind: error.kind,
+    code: error.code,
+    message: error.message,
+    retryable: error.retryable,
+    ...(error.retryAfter === undefined ? {} : { retryAfter: error.retryAfter }),
+  });
+  const declared = declaredErrorCodesOf(registry, registry.actions.get(run.action)?.module);
+  const stable =
+    stored.queue === timerQueue
+      ? kernelJobError(failure, declared, 'timer')
+      : stored.queue === scheduleQueue
+        ? kernelJobError(failure, declared, 'schedule')
+        : commandJobError(failure, declared);
+  const wire = {
+    kind: stable.kind,
+    code: stable.code,
+    message: stable.message,
+    retryable: stable.retryable,
+    ...(stable.retryAfter === undefined ? {} : { retryAfter: stable.retryAfter }),
+    requestId: error.requestId,
+  };
+  return { ...outcome, error: wire };
+}
 
 /**
  * Completes an attempt in one unit of the job's scope (D5): one that did not succeed, and the
@@ -17,10 +65,11 @@ import type { RunJobContext } from './run-job.ts';
 export async function settleJobAttempt(
   context: Pick<RunJobContext, 'source' | 'worker' | 'writer' | 'clock'>,
   stored: StoredJob,
-  outcome: JobOutcome,
+  attempted: JobOutcome,
 ): Promise<void> {
   const { source, writer } = context;
   const { run } = stored;
+  const outcome = projected(context.source.registry, stored, attempted);
   await source.handle.adapter.unit(source.namespace, stored.scope, async (unit) => {
     if (
       (outcome.kind === 'failed' || outcome.kind === 'dead') &&

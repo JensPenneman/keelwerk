@@ -115,6 +115,32 @@ describe('appending stream records', () => {
     expect(calls).toEqual([]);
   });
 
+  test('a subject member of a record is refused in upper case, because a record is a write', async () => {
+    const note = defineEntity({ prefix: 'nte', fields: { text: field.string() } });
+    const mentions = defineStream({
+      key: field.ref.own('note'),
+      record: shape({ author: field.subject() }),
+      readAs: 'note',
+    });
+    const mentionRegistry = buildRegistry(
+      appOf([makeModule({ id: 'meters', entities: { note }, streams: { mentions } })]),
+    );
+    const upper = '0F1F2F3F-4F5F-6F7F-8F9F-AFBFCFDFEFFF';
+    const append = (author: string, calls: Call[]) =>
+      appendStreamRecords({
+        registry: mentionRegistry,
+        unit: fakeUnit(calls),
+        authority: 'meters',
+        appends: [draft([{ author }], 'meters.mentions')],
+      });
+    const accepted: Call[] = [];
+    await append(upper.toLowerCase(), accepted);
+    expect(accepted).toHaveLength(1);
+    const calls: Call[] = [];
+    await expect(append(upper, calls)).rejects.toMatchObject({ kind: 'validation' });
+    expect(calls).toEqual([]);
+  });
+
   test('core.effectAttempt keeps the code and status of an error and refuses its message', async () => {
     const attempt = { process: 'mail', build: 'b1', attempt: 1, startedAt: '2026-11-11T10:00:00Z' };
     const error = {

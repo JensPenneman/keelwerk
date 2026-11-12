@@ -62,7 +62,8 @@ export function memoryPrepareRow(
     throw malformedQuery(`${entity.ref}.id must be a UUID`);
   }
   for (const [name, field] of Object.entries(entity.fields)) {
-    if (!field.optional && row[name] === undefined) {
+    // A personal column is nullable: erasure clears it (14.5.1).
+    if (!field.optional && field.personal === false && row[name] === undefined) {
       throw malformedQuery(`${entity.ref}.${name} is required`);
     }
   }

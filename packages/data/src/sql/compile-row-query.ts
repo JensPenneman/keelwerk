@@ -39,6 +39,7 @@ function selectedFields(
   };
   for (const name of query.select ?? Object.keys(table.entity.fields)) add(name);
   for (const key of sort.keys) add(key.field);
+  if (query.includeErased === true && table.archivable) add('kwErasedAt');
   return names;
 }
 
@@ -46,6 +47,9 @@ function whereOf(request: RowQueryRequest, filter: Condition | undefined): Expre
   const parts: Expression<boolean>[] = [];
   if (request.table.archivable && request.query.includeArchived !== true) {
     parts.push(sql<boolean>`${sql.ref(request.table.reference('archived_at'))} is null`);
+  } else if (request.table.archivable && request.query.includeErased !== true) {
+    // An erased tombstone is invisible, `includeArchived` included (14.7.2).
+    parts.push(sql<boolean>`${sql.ref(request.table.reference('kw_erased_at'))} is null`);
   }
   if (filter !== undefined) parts.push(compileCondition(request, filter));
   return parts;

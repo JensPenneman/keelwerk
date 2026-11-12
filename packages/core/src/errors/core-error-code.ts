@@ -43,6 +43,7 @@ export type CoreErrorCode =
   | 'core.replay_outside_horizon'
   | 'core.replay_key_destroyed'
   | 'core.ticket_invalid'
+  | 'core.key_destroyed'
   | 'core.validation'
   | 'core.unauthenticated'
   | 'core.not_found'

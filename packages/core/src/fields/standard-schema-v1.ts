@@ -14,3 +14,6 @@ export type StandardSchemaV1<Input = unknown, Output = Input> = Spec<Input, Outp
 
 /** The output type of a Standard Schema. */
 export type StandardOutput<S extends StandardSchemaV1> = Spec.InferOutput<S>;
+
+/** The second argument of `~standard.validate`: the options a caller passes to a schema. */
+export type StandardValidateOptions = Spec.Options;

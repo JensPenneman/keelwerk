@@ -2,6 +2,7 @@ import type { SecretRef } from '../ids/secret-ref.ts';
 import type { StorageScope } from '../storage/storage-scope.ts';
 import type { Unit } from '../storage/unit.ts';
 import type { IssuedSecret } from './issued-secret.ts';
+import type { VerifyOutcome } from './verify-outcome.ts';
 
 /**
  * The key service of section 14.7.4: one component in the core. It issues and verifies tokens,
@@ -16,6 +17,8 @@ export interface KeyService {
   ): Promise<IssuedSecret>;
   /** `ctx.secrets.verify(token, verifier)` under the scope's key, in constant time. */
   verify(scope: StorageScope, token: string, verifier: string): Promise<boolean>;
+  /** Kernel only: 'destroyed' when the scope key a verifier was made under is gone, never thrown. */
+  verifyOutcome(scope: StorageScope, token: string, verifier: string): Promise<VerifyOutcome>;
   /**
    * `ctx.secrets.reveal(ref, reason)`; the value key comes from `unit.keys.openValue`, `reason` is
    * logged. With `expected`, a sealed value opens only for the binding (entity, row id and member)

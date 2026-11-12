@@ -5,7 +5,13 @@ import { nextTick } from './next-tick.ts';
 import { scheduleCommandId } from './schedule-command-id.ts';
 
 vi.mock('../effects/seal-job-input.ts', () => ({
-  sealJobInput: async (_unit: unknown, _id: string, _action: unknown, input: unknown) => input,
+  sealJobInput: async (
+    _unit: unknown,
+    _registry: unknown,
+    _id: string,
+    _action: unknown,
+    input: unknown,
+  ) => input,
 }));
 
 const T0 = Temporal.Instant.from('2026-01-01T00:05:00Z');

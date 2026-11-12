@@ -77,6 +77,36 @@ const bare: typeof conformanceApp = {
             module: 'core',
             bound: false,
             fill: {
+              id: 'upper.keys',
+              describe: () => ({ scheme: 'apiKey' }),
+              // biome-ignore lint/correctness/useYield: a resolver is a generator by contract; this one asks for nothing
+              *resolve() {
+                return null;
+              },
+              // A resolver that answers a user whose subject id is a 128-bit value in upper case.
+              *fromRef() {
+                return {
+                  principal: {
+                    kind: 'user',
+                    subject: '0F1F2F3F-4F5F-6F7F-8F9F-AFBFCFDFEFFF',
+                    subjectRef: null,
+                    subjectAs: () => null,
+                    scope: { backend: null, tenant: null },
+                    claims: {},
+                    roles: [],
+                    memberships: [],
+                    via: 'upper.keys',
+                    ref: { resolver: 'upper.keys', principalId: 'key-1' },
+                  },
+                };
+              },
+            },
+          },
+          {
+            point: 'core.principalResolvers',
+            module: 'core',
+            bound: false,
+            fill: {
               id: 'bare.keys',
               describe: () => ({ scheme: 'apiKey' }),
               // biome-ignore lint/correctness/useYield: a resolver is a generator by contract; this one asks for nothing
@@ -131,6 +161,20 @@ describe('the principal of a job is re-resolved when it runs (S-122)', () => {
     });
     expect(spy.completions[0]?.attempt.attempt).toBe(1);
     expect(log.warnings).toContainEqual(expect.stringContaining("'bare.keys'"));
+  });
+
+  test('a resolver that answers a user whose subject id is in upper case is an internal error', async () => {
+    spy.completions.length = 0;
+    await enqueue({
+      queue: 'commands',
+      run: { action: 'loans.openDesk', input: { desk: 'north' }, commandId: 'p-upper' },
+      principal: { resolver: 'upper.keys', principalId: 'key-1' },
+    });
+    await runtime.drainJobs();
+    expect(spy.completions[0]?.outcome).toMatchObject({
+      kind: 'failed',
+      error: { kind: 'internal' },
+    });
   });
 
   test('a stored reference cannot re-resolve to the system principal through a resolver', async () => {
