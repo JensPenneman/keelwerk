@@ -1364,7 +1364,6 @@
             "type": "string"
           },
           "status": {
-            "default": "active",
             "enum": ["active", "suspended"],
             "type": "string"
           }
@@ -1768,7 +1767,6 @@
                       "type": "string"
                     },
                     "status": {
-                      "default": "active",
                       "enum": ["active", "suspended"],
                       "type": "string"
                     }
@@ -1877,7 +1875,6 @@
                 "type": "string"
               },
               "status": {
-                "default": "active",
                 "enum": ["active", "suspended"],
                 "type": "string"
               }
@@ -6254,7 +6251,6 @@
         "additionalProperties": false,
         "properties": {
           "attempts": {
-            "default": 0,
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
@@ -13540,7 +13536,6 @@
             "type": "string"
           },
           "status": {
-            "default": "active",
             "enum": ["active", "suspended"],
             "type": "string"
           }
@@ -14036,7 +14031,6 @@
                       "type": "string"
                     },
                     "status": {
-                      "default": "active",
                       "enum": ["active", "suspended"],
                       "type": "string"
                     }
@@ -14149,7 +14143,6 @@
                 "type": "string"
               },
               "status": {
-                "default": "active",
                 "enum": ["active", "suspended"],
                 "type": "string"
               }
@@ -15511,7 +15504,7 @@
   },
   "info": {
     "title": "versioned",
-    "version": "sha256-jHV1oa1hCAuxAbSv7p-DtpS4pmZIOYbhlnwkAAoX1o0"
+    "version": "sha256-DxY5BxIWHyTvOOMgSxN8cQgGtGAjgx-psYdtW9C97VE"
   },
   "openapi": "3.1.1",
   "paths": {
@@ -23807,6 +23800,6 @@
     "apiVersion": "2026-11-11",
     "format": "keelwerk.openapi/1",
     "producer": "@keelwerk/transport-rest",
-    "surface": "sha256-jHV1oa1hCAuxAbSv7p-DtpS4pmZIOYbhlnwkAAoX1o0"
+    "surface": "sha256-DxY5BxIWHyTvOOMgSxN8cQgGtGAjgx-psYdtW9C97VE"
   }
 }

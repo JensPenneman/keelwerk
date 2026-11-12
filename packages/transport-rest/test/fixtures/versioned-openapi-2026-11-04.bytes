@@ -1418,7 +1418,6 @@
             "type": "string"
           },
           "status": {
-            "default": "active",
             "enum": [
               "active",
               "suspended"
@@ -1876,7 +1875,6 @@
                       "type": "string"
                     },
                     "status": {
-                      "default": "active",
                       "enum": [
                         "active",
                         "suspended"
@@ -1995,7 +1993,6 @@
                 "type": "string"
               },
               "status": {
-                "default": "active",
                 "enum": [
                   "active",
                   "suspended"
@@ -6634,7 +6631,6 @@
         "additionalProperties": false,
         "properties": {
           "attempts": {
-            "default": 0,
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
@@ -14487,7 +14483,6 @@
             "type": "string"
           },
           "status": {
-            "default": "active",
             "enum": [
               "active",
               "suspended"
@@ -15042,7 +15037,6 @@
                       "type": "string"
                     },
                     "status": {
-                      "default": "active",
                       "enum": [
                         "active",
                         "suspended"
@@ -15165,7 +15159,6 @@
                 "type": "string"
               },
               "status": {
-                "default": "active",
                 "enum": [
                   "active",
                   "suspended"
@@ -16667,7 +16660,7 @@
   },
   "info": {
     "title": "versioned",
-    "version": "sha256-JhlQU5dncPeJS_K8RFwaAHQkolY504DD3gzZXtRhuhk"
+    "version": "sha256-P_MNdLGDLffiQJRF7e_J95mov8OFM-HEsIpO8zz-O6E"
   },
   "openapi": "3.1.1",
   "paths": {
@@ -25155,6 +25148,6 @@
     "apiVersion": "2026-11-04",
     "format": "keelwerk.openapi/1",
     "producer": "@keelwerk/transport-rest",
-    "surface": "sha256-JhlQU5dncPeJS_K8RFwaAHQkolY504DD3gzZXtRhuhk"
+    "surface": "sha256-P_MNdLGDLffiQJRF7e_J95mov8OFM-HEsIpO8zz-O6E"
   }
 }

@@ -1,5 +1,5 @@
 import { entityPositions } from '../api-versions/entity-positions.ts';
-import { isMemberRecord } from '../api-versions/is-member-record.ts';
+import { inputNamesRequired } from '../api-versions/input-names-required.ts';
 import { newerSideRef } from '../api-versions/newer-side-ref.ts';
 import { coreErrorCodes } from '../errors/core-error-codes.ts';
 import type { ActionEntry } from './action-entry.ts';
@@ -32,14 +32,13 @@ function invalid(change: VersionChangeEntry, message: string): CompositionProble
   });
 }
 
-/** Whether `action` creates rows of `entity` that carry `field` (its head name): a generated create or set, or a declared action whose input names it. */
+/** Whether `action` creates rows of `entity` that carry `field` (its head name): a generated create or set, or a declared action whose input names it as a required member. */
 function createsWith(action: ActionEntry, entity: string, field: string): boolean {
   const positions = entityPositions(action);
   if (positions?.entity !== entity || positions.inputRows.length === 0) return false;
   if (action.generated === 'create' || action.generated === 'set') return true;
   if (action.generated !== undefined) return false;
-  const members: unknown = Reflect.get(action.input, 'fields');
-  return isMemberRecord(members) && Object.hasOwn(members, field);
+  return inputNamesRequired(action, field);
 }
 
 /**

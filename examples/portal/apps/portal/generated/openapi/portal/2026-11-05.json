@@ -1662,7 +1662,6 @@
             "type": "string"
           },
           "locale": {
-            "default": "nl-BE",
             "type": "string"
           }
         },
@@ -2253,7 +2252,6 @@
                       "type": "string"
                     },
                     "locale": {
-                      "default": "nl-BE",
                       "type": "string"
                     }
                   },
@@ -2373,7 +2371,6 @@
                 "type": "string"
               },
               "locale": {
-                "default": "nl-BE",
                 "type": "string"
               }
             },
@@ -8305,7 +8302,6 @@
             "type": "string"
           },
           "status": {
-            "default": "active",
             "enum": [
               "active",
               "suspended"
@@ -8763,7 +8759,6 @@
                       "type": "string"
                     },
                     "status": {
-                      "default": "active",
                       "enum": [
                         "active",
                         "suspended"
@@ -8882,7 +8877,6 @@
                 "type": "string"
               },
               "status": {
-                "default": "active",
                 "enum": [
                   "active",
                   "suspended"
@@ -13521,7 +13515,6 @@
         "additionalProperties": false,
         "properties": {
           "attempts": {
-            "default": 0,
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
             "type": "integer"
@@ -21374,7 +21367,6 @@
             "type": "string"
           },
           "status": {
-            "default": "active",
             "enum": [
               "active",
               "suspended"
@@ -21929,7 +21921,6 @@
                       "type": "string"
                     },
                     "status": {
-                      "default": "active",
                       "enum": [
                         "active",
                         "suspended"
@@ -22052,7 +22043,6 @@
                 "type": "string"
               },
               "status": {
-                "default": "active",
                 "enum": [
                   "active",
                   "suspended"
@@ -22287,7 +22277,7 @@
   },
   "info": {
     "title": "portal",
-    "version": "sha256-XOq3jNuqg6nLAC9zrAr6-FbKwxm4VrktUTiopo_8lkM"
+    "version": "sha256-cOBPch-Ox-0jMBT6do4-nK2bALKs-sq5DY6rHzqemgA"
   },
   "openapi": "3.1.1",
   "paths": {
@@ -34836,6 +34826,6 @@
     "apiVersion": "2026-11-05",
     "format": "keelwerk.openapi/1",
     "producer": "@keelwerk/transport-rest",
-    "surface": "sha256-XOq3jNuqg6nLAC9zrAr6-FbKwxm4VrktUTiopo_8lkM"
+    "surface": "sha256-cOBPch-Ox-0jMBT6do4-nK2bALKs-sq5DY6rHzqemgA"
   }
 }

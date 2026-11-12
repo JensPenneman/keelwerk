@@ -1648,7 +1648,6 @@
                     },
                     "locale": {
                       "access": "read-write",
-                      "default": "nl-BE",
                       "kind": "string",
                       "optional": true,
                       "tag": 3
@@ -1668,7 +1667,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-eyBrcTQrhLGoJlJw704NPio5ws5jBmMNrP4k1MX0gPQ",
+      "inputHash": "sha256-JC4lFbkz2W07UXBm6EneK2bbbHXQotbZXYN3UKadI-c",
       "instance": false,
       "kind": "command",
       "module": "accounts",
@@ -1846,7 +1845,6 @@
               },
               "locale": {
                 "access": "read-write",
-                "default": "nl-BE",
                 "kind": "string",
                 "optional": true,
                 "tag": 3
@@ -1859,7 +1857,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-Ag9B8gGk0z0-NNzTpz6Llhsg3pBw0HLT4uVo30ueH4A",
+      "inputHash": "sha256-iXPQH_jH5E4zBdG5ciruMw-WHUAylFgCc_TN0LshKoI",
       "instance": true,
       "kind": "command",
       "module": "accounts",
@@ -5997,7 +5995,6 @@
                     },
                     "status": {
                       "access": "read-write",
-                      "default": "active",
                       "kind": "enum",
                       "optional": true,
                       "tag": 6,
@@ -6021,7 +6018,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-3naz4VEOPodrwmKB_Qf7kVb71RQ4MMy6i_8wS_XcKTc",
+      "inputHash": "sha256-QDoddB1DxLbjaDOwpmZisA_grWSdEMl6ww7aR6NSIxg",
       "instance": false,
       "kind": "command",
       "module": "core",
@@ -6202,7 +6199,6 @@
               },
               "status": {
                 "access": "read-write",
-                "default": "active",
                 "kind": "enum",
                 "optional": true,
                 "tag": 6,
@@ -6219,7 +6215,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-lP4RkKFNUBJU9FnCgG4loXf24mM2nVo3O6yye686zwk",
+      "inputHash": "sha256-B1XSarLnL3Z9_rBf5Ne2bwrOeQTamVvj7TRuRJlVwNM",
       "instance": true,
       "kind": "command",
       "module": "core",
@@ -13831,7 +13827,6 @@
                     },
                     "status": {
                       "access": "read-write",
-                      "default": "active",
                       "kind": "enum",
                       "optional": true,
                       "tag": 6,
@@ -13855,7 +13850,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-N4IqwqY27T8eGd-w1Kpr5_qAXhVXcOrBhX8gYSJRHis",
+      "inputHash": "sha256-jvHEOe4J3EaSrUiyi69TAakYE-j12uc-xQGiQntR-ys",
       "instance": false,
       "kind": "command",
       "module": "core",
@@ -14163,7 +14158,6 @@
               },
               "status": {
                 "access": "read-write",
-                "default": "active",
                 "kind": "enum",
                 "optional": true,
                 "tag": 6,
@@ -14180,7 +14174,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-Mc62fTXh1bv8lXJNwQrXN1SWClRhzEdPkdKNQrYd1BE",
+      "inputHash": "sha256-rmqmuadOGblyIfLay1EGYqyU-fGFod96CQ207nhWHjs",
       "instance": true,
       "kind": "command",
       "module": "core",
@@ -16649,7 +16643,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-XOq3jNuqg6nLAC9zrAr6-FbKwxm4VrktUTiopo_8lkM",
+  "hash": "sha256-cOBPch-Ox-0jMBT6do4-nK2bALKs-sq5DY6rHzqemgA",
   "modules": [
     {
       "id": "accounts",

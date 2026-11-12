@@ -3,6 +3,7 @@ import type { Registry } from '../registry/registry.ts';
 import type { VersionChangeEntry } from '../registry/version-change-entry.ts';
 import { entityPositions } from './entity-positions.ts';
 import { fieldChangesOf } from './field-changes-of.ts';
+import { inputNamesRequired } from './input-names-required.ts';
 import { isMemberRecord } from './is-member-record.ts';
 import { reachAt } from './reach-at.ts';
 import { renameCondition } from './rename-condition.ts';
@@ -41,7 +42,9 @@ function rowIn(
 /**
  * The defaults an added required field takes in the rows that create: a generated `create` and the
  * `create` items of `set` take every default of the entity; a declared action only those its own
- * input schema names, since a plain action shape changes through custom transforms.
+ * input schema names as required members (a member it marks optional is left out by a head caller
+ * too, and an action that edits a row must not write a default over the stored value), since a plain
+ * action shape changes through custom transforms.
  */
 function creatingDefaults(
   registry: Registry,
@@ -53,10 +56,8 @@ function creatingDefaults(
     return defaults;
   }
   if (action.generated !== undefined) return undefined;
-  const members: unknown = Reflect.get(action.input, 'fields');
-  if (!isMemberRecord(members)) return undefined;
   return Object.fromEntries(
-    Object.entries(defaults).filter(([name]) => Object.hasOwn(members, name)),
+    Object.entries(defaults).filter(([name]) => inputNamesRequired(action, name)),
   );
 }
 

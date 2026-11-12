@@ -957,6 +957,7 @@ export { filterOperatorsOf } from './surface/filter-operators-of.ts';
 export { hasProjectableInput } from './surface/has-projectable-input.ts';
 export type { JsonSchema } from './surface/json-schema.ts';
 export type { PageSpec } from './surface/page-spec.ts';
+export { patchMemberOf } from './surface/patch-member-of.ts';
 export type { AppGeneratedSource } from './surface/render-app-generated-file.ts';
 export { renderAppGeneratedFile } from './surface/render-app-generated-file.ts';
 export { renderSurfaceArtefact } from './surface/render-surface-artefact.ts';

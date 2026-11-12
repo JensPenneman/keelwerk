@@ -1,5 +1,6 @@
 import type { GeneratedActionKind } from '../registry/generated-action-kind.ts';
 import type { FieldNode } from './field-node.ts';
+import { patchMemberOf } from './patch-member-of.ts';
 import type { SurfaceEntity } from './surface-entity.ts';
 
 function scalar(kind: 'string' | 'boolean' | 'instant' | 'integer', optional = false): FieldNode {
@@ -58,7 +59,7 @@ function writable(entity: SurfaceEntity, optional: boolean): Record<string, Fiel
   return Object.fromEntries(
     Object.entries(entity.fields)
       .filter(([, node]) => node.access !== 'read')
-      .map(([name, node]) => [name, optional ? { ...node, optional: true } : node]),
+      .map(([name, node]) => [name, optional ? patchMemberOf(node) : node]),
   );
 }
 

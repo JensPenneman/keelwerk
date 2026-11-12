@@ -2,6 +2,9 @@ import { describe, expect, test } from 'vitest';
 import { appOf, makeModule } from '../../test/registry-kit.ts';
 import { place, shelfItem } from '../../test/version-change-kit.ts';
 import { defineApiVersions } from '../dsl/define-api-versions.ts';
+import { defineCommand } from '../dsl/define-command.ts';
+import { field } from '../fields/field.ts';
+import { shape } from '../fields/shape.ts';
 import { buildRegistry } from '../registry/build-registry.ts';
 import { checkVersionChanges } from '../registry/check-version-changes.ts';
 import { applyVersionChanges } from './apply-version-changes.ts';
@@ -13,10 +16,10 @@ const base = { id: 'shelf', version: '2.0.0' } as const;
 const change = (surface: object) =>
   defineVersionChange(base as never, { since: '2.0.0', surface: [surface] } as never);
 
-function chain(changes: Readonly<Record<string, object>>) {
+function chain(changes: Readonly<Record<string, object>>, entityActions: object = {}) {
   const module = makeModule(
     { ...base, entities: { item: shelfItem } },
-    { actions: { place }, changes },
+    { actions: { place }, entityActions, changes },
   );
   const api = defineApiVersions({
     '2026-01-01': {},
@@ -76,5 +79,81 @@ describe('an added required field that is renamed later', () => {
     ).toEqual({
       id: 'i',
     });
+  });
+});
+
+describe('an added required field and a declared action that edits a row', () => {
+  const edit = defineCommand(
+    base as never,
+    {
+      input: shape({ label: field.string().optional(), size: field.integer().optional() }),
+      decide: () => ({ events: [] }),
+    } as never,
+  );
+  const required = defineCommand(
+    base as never,
+    {
+      input: shape({ size: field.integer() }),
+      decide: () => ({ events: [] }),
+    } as never,
+  );
+  const defaulted = defineCommand(
+    base as never,
+    {
+      input: shape({ size: field.integer().default(5) }),
+      decide: () => ({ events: [] }),
+    } as never,
+  );
+  const { at, action } = chain(
+    {
+      first: change({ entity: shelfItem, field: 'size', addedRequired: true }),
+      second: change({}),
+    },
+    { item: { edit, required, defaulted } },
+  );
+
+  test('an older caller leaves out a member the action marks optional, and nothing is filled in', () => {
+    const input = { id: 'itm_1', label: 'a' };
+    expect(translateInput(at('2026-01-01'), action('shelf.item.edit'), input)).toEqual(input);
+  });
+
+  test('a member the action gives its own default is left out too, as a head caller leaves it out', () => {
+    const input = { id: 'itm_1' };
+    expect(translateInput(at('2026-01-01'), action('shelf.item.defaulted'), input)).toEqual(input);
+  });
+
+  test('a member the action requires takes the default of the entity', () => {
+    expect(
+      translateInput(at('2026-01-01'), action('shelf.item.required'), { id: 'itm_1' }),
+    ).toEqual({ id: 'itm_1', size: 1 });
+  });
+});
+
+describe('an added required field without a default and an editing action', () => {
+  const edit = defineCommand(
+    base as never,
+    {
+      input: shape({ label: field.string().optional() }),
+      decide: () => ({ events: [] }),
+    } as never,
+  );
+  const keep = (value: unknown): unknown => value;
+  const { app, registry } = chain(
+    {
+      first: defineVersionChange(
+        base as never,
+        {
+          since: '2.0.0',
+          surface: [{ entity: shelfItem, field: 'label', addedRequired: true }],
+          input: { 'shelf.item.create': keep, 'shelf.item.set': keep },
+        } as never,
+      ),
+      second: change({}),
+    },
+    { item: { edit } },
+  );
+
+  test('the actions that create need an input transform, an action that edits with an optional member does not', () => {
+    expect(checkVersionChanges(app, registry)).toEqual([]);
   });
 });
