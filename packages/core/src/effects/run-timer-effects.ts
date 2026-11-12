@@ -3,6 +3,7 @@ import { refuseRequest } from '../interpreter/refuse-request.ts';
 import type { CancelTimerEffect } from '../protocol/cancel-timer-effect.ts';
 import type { SetTimerEffect } from '../protocol/set-timer-effect.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
+import { checkTimerKey } from './check-timer-key.ts';
 import { checkTimerScope } from './check-timer-scope.ts';
 import { commandActionOf } from './command-action-of.ts';
 import { commandJobRun } from './command-job-run.ts';
@@ -58,12 +59,16 @@ async function cancelTimer(scene: EffectScene, effect: CancelTimerEffect): Promi
   await scene.unit.jobs.cancel(timerQueue, effect.key);
 }
 
-/** Performs `setTimer` and `cancelTimer` effects. */
+/**
+ * Performs `setTimer` and `cancelTimer` effects. A key that starts with `core:` is the kernel's (the
+ * deadline timers of external effects) and no decision may set or cancel it (`checkTimerKey`).
+ */
 export async function runTimerEffects(
   scene: EffectScene,
   effect: SetTimerEffect | CancelTimerEffect,
   id: string,
 ): Promise<void> {
+  checkTimerKey(effect.key);
   if (effect.kind === 'setTimer') await setTimer(scene, effect, id);
   else await cancelTimer(scene, effect);
 }

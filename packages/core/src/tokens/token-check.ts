@@ -57,6 +57,7 @@ export function tokenCheck(input: TokenCheckInput): string {
               ids: input.live.ids === undefined ? null : sorted(input.live.ids),
               fields: input.live.fields === undefined ? null : sorted(input.live.fields),
               includeArchived: input.live.includeArchived === true,
+              ...(input.live.where === undefined ? {} : { where: input.live.where }),
             },
           }),
       ...(input.flags === undefined || input.flags.length === 0

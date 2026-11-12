@@ -6,6 +6,7 @@ import { completeJob } from '../worker/complete-job.ts';
 import { defaultHeartbeatSeconds } from '../worker/default-heartbeat-seconds.ts';
 import { jobLeaseLost } from '../worker/job-lease-lost.ts';
 import type { RunJobContext } from '../worker/run-job.ts';
+import { decodeShapeValue } from '../write-path/decode-shape-value.ts';
 import { abandonOnLostLease } from './abandon-on-lost-lease.ts';
 import { attemptErrorOf } from './attempt-error-of.ts';
 import { declaredErrorCodesOf } from './declared-error-codes-of.ts';
@@ -129,6 +130,18 @@ export function beginEffectAttempt(
         started,
       );
     }
+    let input: Readonly<Record<string, unknown>>;
+    try {
+      input = decodeShapeValue(entry.input, entry.module, opened.input) as Readonly<
+        Record<string, unknown>
+      >;
+    } catch {
+      return finish(
+        'failed',
+        errors.internal('The stored input of the effect does not fit its fields.'),
+        started,
+      );
+    }
     const heartbeatMs = (stored.heartbeatSeconds ?? defaultHeartbeatSeconds) * 1000;
     const live = await unit.jobs.heartbeat([stored.attempt], worker, 3 * heartbeatMs);
     if (live.length === 0) throw jobLeaseLost();
@@ -139,6 +152,6 @@ export function beginEffectAttempt(
       attempt,
       startedAt,
     });
-    return { kind: 'run', input: opened.input, startedAt, started: started + 1 };
+    return { kind: 'run', input, startedAt, started: started + 1 };
   });
 }

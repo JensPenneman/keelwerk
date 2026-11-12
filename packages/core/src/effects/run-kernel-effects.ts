@@ -1,3 +1,4 @@
+import { serviceModuleOf } from '../principals/service-module-of.ts';
 import { dispatchInlineReactions } from '../reactions/dispatch-inline-reactions.ts';
 import type { EffectScene } from './effect-scene.ts';
 import type { KernelEffectsInput } from './kernel-effects-input.ts';
@@ -19,6 +20,9 @@ export async function runKernelEffects(input: KernelEffectsInput): Promise<reado
     clock: input.clock,
     module: run.action.contributedBy ?? run.action.module,
     causeActor: input.cause?.actor ?? input.meta.actor,
+    ...(serviceModuleOf(run.principal) === undefined && run.principal.ref != null
+      ? { submitter: run.principal.ref }
+      : {}),
     commandId: input.commandId,
     cause: input.commandId,
     ...(input.cause === undefined ? {} : { causeEventId: input.cause.eventId }),

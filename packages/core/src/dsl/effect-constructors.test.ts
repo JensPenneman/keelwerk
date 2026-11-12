@@ -10,6 +10,7 @@ import { recordOutcome } from '../../test/fixtures/modules/hooks/src/actions/del
 import { post } from '../../test/fixtures/modules/hooks/src/effects/post.ts';
 import { hooks } from '../../test/fixtures/modules/hooks/src/module.generated.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import type { Id } from '../ids/id.ts';
 import { cancelTimer } from './cancel-timer.ts';
 import { contracts } from './contracts.ts';
 import { defineCommand } from './define-command.ts';
@@ -119,7 +120,7 @@ describe('each constructor returns its F-07 payload', () => {
   });
 
   test('settle', () => {
-    expect(settle('eff_1', { ok: true, value: { status: 204 } })).toEqual({
+    expect(settle('eff_1' as Id<'core.effect'>, { ok: true, value: { status: 204 } })).toEqual({
       kind: 'settle',
       type: 'settle',
       effect: 'eff_1',

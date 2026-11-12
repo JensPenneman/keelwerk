@@ -5,6 +5,7 @@ import { checkExecutorInputReads } from './check-executor-input-reads.ts';
 import { checkExecutorQueues } from './check-executor-queues.ts';
 import { checkJsonFlagDefaults } from './check-json-flag-defaults.ts';
 import { checkObservesAll } from './check-observes-all.ts';
+import { checkPendingEffectsWhere } from './check-pending-effects-where.ts';
 import { checkPrincipalFromRef } from './check-principal-from-ref.ts';
 import { checkProcessEvents } from './check-process-events.ts';
 import { checkStreamDeclarations } from './check-stream-declarations.ts';
@@ -34,4 +35,5 @@ export const m2ComposeChecks: readonly ((
   checkPrincipalFromRef,
   checkStreamDeclarations,
   checkProcessEvents,
+  checkPendingEffectsWhere,
 ];

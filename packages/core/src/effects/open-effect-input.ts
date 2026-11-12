@@ -12,7 +12,7 @@ const decoder = new TextDecoder();
  * The stored input of an effect opened for its executor (7.9.5, S-127), inside a unit: each personal
  * `$kwe` member opened with `unit.keys.keyById(k)` and the binding of its sealing, then
  * `JSON.parse` (a member of any other field passes through unchanged); secret members as references (`secretMembersAsRefs(entry.input, entry.module, ...)`). The answer is in
- * event form (decoding is the caller's). A member whose key is shredded or whose binding differs is
+ * event form (`beginEffectAttempt` decodes it for the executor). A member whose key is shredded or whose binding differs is
  * left out and named in `erased` (14.7.9.8: a shredded or moved value reads as absent).
  */
 export async function openEffectInput(

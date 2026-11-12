@@ -1,10 +1,15 @@
+import type { PrincipalRef } from '../principals/principal-ref.ts';
 import type { CreateDraft } from '../protocol/create-draft.ts';
 import type { ExternalEffect } from '../protocol/external-effect.ts';
 import type { EffectEntry } from '../registry/effect-entry.ts';
 
 /** The `requested` row of a `core.effect` stream (section 7.9.6). */
 export function requestedEffectDraft(
-  scene: { readonly commandId: string; readonly eventIds: readonly string[] },
+  scene: {
+    readonly commandId: string;
+    readonly eventIds: readonly string[];
+    readonly submitter?: PrincipalRef;
+  },
   effect: ExternalEffect,
   entry: EffectEntry,
   id: string,
@@ -30,6 +35,12 @@ export function requestedEffectDraft(
       ...(effect.key === undefined ? {} : { key: effect.key }),
       ...(effect.runAt === undefined ? {} : { runAt: effect.runAt }),
       ...(effect.deadline === undefined ? {} : { deadline: effect.deadline }),
+      ...(scene.submitter === undefined
+        ? {}
+        : {
+            principalResolver: scene.submitter.resolver,
+            principalId: scene.submitter.principalId,
+          }),
     },
   });
 }

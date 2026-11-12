@@ -1,4 +1,5 @@
 import { checkEffectScope } from '../../effects/check-effect-scope.ts';
+import { checkTimerKey } from '../../effects/check-timer-key.ts';
 import { checkTimerScope } from '../../effects/check-timer-scope.ts';
 import { commandActionOf } from '../../effects/command-action-of.ts';
 import { commandJobRun } from '../../effects/command-job-run.ts';
@@ -77,6 +78,7 @@ function jobOf(
       ? (effect.at ?? (effect.after === undefined ? undefined : afterNow(env, effect.after)))
       : undefined;
   if (effect.kind === 'setTimer' && runAt !== undefined) {
+    checkTimerKey(effect.key);
     if (module === undefined) {
       throw refuseRequest(
         `the timer "${effect.key}"`,

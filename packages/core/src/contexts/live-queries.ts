@@ -1,3 +1,6 @@
+import type { EffectPart } from '../dsl/define-effect.ts';
+import type { PendingEffect } from '../effects/pending-effect.ts';
+import type { PlainEffectInputOf } from '../effects/plain-effect-input-of.ts';
 import type { StateToken } from '../events/state-token.ts';
 import type { AnyModule } from '../model/any-module.ts';
 import type { AnyModuleBase } from '../model/any-module-base.ts';
@@ -18,6 +21,9 @@ type LiveEntityNames<B extends AnyModuleBase, W, I> = I extends B['id']
   ? EntityNames<B>
   : EntityNames<ModuleById<PresentModules<B, W>, I>>;
 
+/** An effect part declared by the module `B`. */
+type OwnEffect<B> = EffectPart<B, never, unknown, unknown>;
+
 /** Source descriptions over the module's own and present dependencies' entities. */
 export interface LiveQueries<B extends AnyModuleBase, W> {
   entity<const I extends B['id'] | PresentIds<B, W>, const E extends LiveEntityNames<B, W, I>>(
@@ -32,4 +38,15 @@ export interface LiveQueries<B extends AnyModuleBase, W> {
       readonly after?: StateToken | undefined;
     },
   ): LiveSource<EntityChange<LiveRow<B, W, I, E>>>;
+  /**
+   * The pending effects of an own `performer: 'external'` effect, for its performer; resumable
+   * (15.4.11). Filters and yields the plain members of the input only (S-166).
+   */
+  effects<const E extends OwnEffect<B>>(
+    effect: E,
+    options?: {
+      readonly where?: Where<PlainEffectInputOf<E>>;
+      readonly after?: StateToken | undefined;
+    },
+  ): LiveSource<PendingEffect<E>>;
 }

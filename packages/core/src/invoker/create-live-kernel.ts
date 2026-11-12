@@ -1,7 +1,6 @@
 import { allOf } from '../authorization/all-of.ts';
 import { createRowMatcher } from '../authorization/create-row-matcher.ts';
 import type { Condition } from '../conditions/condition.ts';
-import { sha256 } from '../crypto/sha256.ts';
 import { errors } from '../errors/errors.ts';
 import type { StateToken } from '../events/state-token.ts';
 import { collectChangedStreams } from '../generated-actions/collect-changed-streams.ts';
@@ -14,7 +13,6 @@ import { readSession } from '../generated-actions/read-session.ts';
 import { readSort } from '../generated-actions/read-sort.ts';
 import { readableBefore } from '../generated-actions/readable-before.ts';
 import { principalContextOf } from '../interpreter/principal-context-of.ts';
-import { canonicalizeJson } from '../json/canonicalize-json.ts';
 import type { LiveKernel } from '../live/live-kernel.ts';
 import type { LiveView } from '../live/live-view.ts';
 import type { WatchInput } from '../live/watch-input.ts';
@@ -35,7 +33,10 @@ import { encodeEventValue } from '../write-path/encode-event-value.ts';
 import type { InvocationSession } from './invocation-session.ts';
 import type { InvokerEnv } from './invoker-env.ts';
 import { liveFilterGuard } from './live-filter-guard.ts';
+import type { LiveKernelAuthority } from './live-kernel-authority.ts';
+import { livePlanKeyOf } from './live-plan-key-of.ts';
 import { liveTokenContextOf } from './live-token-context-of.ts';
+import { membersOf } from './members-of.ts';
 import { parseWatchInput } from './parse-watch-input.ts';
 import { sameSession } from './same-session.ts';
 import type { SessionDetails } from './session-details.ts';
@@ -47,7 +48,9 @@ import { watchActionOf } from './watch-action-of.ts';
  * units with the kernel's authority, and the views of a subscriber over it. A view holds what is
  * built once per subscriber: the plan compiled for the principal, the selection, the token check
  * and the quantifier answers of a unit. An `invocation` entity (command receipts, effects) is
- * followed in the session's own scope. `internal` for an entity the app lacks; `unsupported` for a
+ * followed in the session's own scope; the app's rules decide what a view reads unless the caller
+ * hands the kernel its own `authority` (the pending effects of an effect), which also lets the view
+ * enumerate an `invocation` entity instead of following ids. `internal` for an entity the app lacks; `unsupported` for a
  * deployment-level scope, which has no id the change feed names.
  */
 export function createLiveKernel(
@@ -56,6 +59,7 @@ export function createLiveKernel(
   details: SessionDetails,
   entity: string,
   span?: Pick<Span, 'setAttribute'>,
+  authority?: LiveKernelAuthority,
 ): LiveKernel {
   const app = env.appOf(details.resolved.app);
   const { registry } = app;
@@ -72,7 +76,7 @@ export function createLiveKernel(
     backend: scope.backendId,
     ...(scope.level === 'tenant' ? { tenant: scope.tenantId } : {}),
   });
-  const rules = env.rulesOf(registry);
+  const rules = authority?.rules ?? env.rulesOf(registry);
   const epoch = env.options.epochOf === undefined ? 0 : env.options.epochOf(scope);
 
   const guard = liveFilterGuard(registry, entry);
@@ -86,7 +90,11 @@ export function createLiveKernel(
     }
     const parsed = parseWatchInput(entry, input);
     // A rule that grants `watch` on such an entity grants the follow of rows by their id only (as it grants `get`), never their enumeration.
-    if (entry.descriptor.tenancy === 'invocation' && parsed.ids === undefined) {
+    if (
+      authority === undefined &&
+      entry.descriptor.tenancy === 'invocation' &&
+      parsed.ids === undefined
+    ) {
       throw invalidArgument('ids', `"${entity}" is followed by the ids of its rows: name them.`);
     }
     if (parsed.filter !== undefined) await guard.check(parsed.filter);
@@ -115,25 +123,7 @@ export function createLiveKernel(
       (condition): condition is Condition => condition !== undefined,
     );
     const selection = caller.select(wanted.length === 0 ? undefined : allOf(wanted), []);
-    const planKey = sha256(
-      canonicalizeJson(
-        encodeEventValue({
-          kind: plan.kind,
-          where: plan.where,
-          maskable: [...plan.maskable].sort(),
-          allows: plan.allows.map((clause) => ({
-            rule: clause.rule,
-            where: clause.where,
-            fields: clause.fields === null ? null : [...clause.fields].sort(),
-          })),
-          fieldDenies: plan.fieldDenies.map((clause) => ({
-            rule: clause.rule,
-            where: clause.where,
-            fields: clause.fields === null ? null : [...clause.fields].sort(),
-          })),
-        }),
-      ),
-    );
+    const planKey = livePlanKeyOf(plan, authority?.members);
     const readInput = (unit: Unit): GeneratedReadInput => ({
       unit,
       registry,
@@ -163,6 +153,7 @@ export function createLiveKernel(
         ...(parsed.ids === undefined ? {} : { ids: [...parsed.ids] }),
         ...(parsed.fields === undefined ? {} : { fields: [...parsed.fields] }),
         includeArchived: parsed.includeArchived,
+        ...(authority?.where === undefined ? {} : { where: encodeEventValue(authority.where) }),
       },
     };
     const checks = {
@@ -216,7 +207,11 @@ export function createLiveKernel(
         return { rows: found.rows, uncertain: found.uncertain };
       },
       present: (unit: Unit, rows: readonly StorageRow[]) =>
-        rows.length === 0 ? Promise.resolve([]) : readSession(readInput(unit)).present(rows),
+        rows.length === 0
+          ? Promise.resolve([])
+          : authority === undefined
+            ? readSession(readInput(unit)).present(rows)
+            : Promise.resolve(membersOf(rows, authority.members)),
       project: (row: StorageRow) => projectRow(row, parsed.fields),
       token: (position: Position) =>
         encodeStateToken(

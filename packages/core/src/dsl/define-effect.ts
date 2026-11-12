@@ -1,3 +1,4 @@
+import type { PlainShapeValue } from '../fields/plain-shape-value.ts';
 import type { Shape, ShapeFields } from '../fields/shape.ts';
 import { shape } from '../fields/shape.ts';
 import type { ShapeValue } from '../fields/shape-value.ts';
@@ -19,7 +20,7 @@ export interface EffectOptions {
 }
 
 /** An external effect, constructed by value in a decision (section 7.9.5). */
-export interface EffectPart<S, Din, Sin, O> {
+export interface EffectPart<S, Din, Sin, O, P = Sin> {
   (input: Din, options?: EffectOptions): ExternalEffect<O>;
   readonly kind: 'effect';
   readonly source: S;
@@ -32,7 +33,8 @@ export interface EffectPart<S, Din, Sin, O> {
   readonly dataSubject?: string;
   /** The reference (`hooks.post`) `defineModule` records; it is the `type` of the effect payload. */
   readonly ref?: string;
-  readonly '~types'?: { readonly input: Sin; readonly output: O };
+  /** `plain`: the members of the stored input a record keeps in plaintext (S-166), what a pending effect carries. */
+  readonly '~types'?: { readonly input: Sin; readonly output: O; readonly plain: P };
 }
 
 /** Any effect. */
@@ -56,7 +58,8 @@ export function defineEffect<
   S,
   ShapeValue<InFields, OwnerOf<S>, 'draft'>,
   ShapeValue<InFields, OwnerOf<S>, 'stored'>,
-  ShapeValue<OutFields, OwnerOf<S>, 'stored'>
+  ShapeValue<OutFields, OwnerOf<S>, 'stored'>,
+  PlainShapeValue<InFields, OwnerOf<S>>
 > {
   const construct = (
     input: ShapeValue<InFields, OwnerOf<S>, 'draft'>,

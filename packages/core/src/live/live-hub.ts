@@ -11,6 +11,8 @@ import type { WatchInput } from './watch-input.ts';
  * of a module and a topic.
  */
 export interface LiveHub {
+  /** What a subscriber's queue holds at most; the pending effects a stream holds until its `head` are bounded by `maxBufferedItems`. */
+  readonly limits?: { readonly maxBufferedItems: number };
   entity<Row>(
     session: InvocationSession,
     entity: string,

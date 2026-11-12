@@ -136,7 +136,7 @@ describe('invoke', () => {
     }
   });
 
-  test('settle is refused in this release', async () => {
+  test('settle of an effect the module does not hold is not found', async () => {
     const registry = registryWith({
       actions: [
         command('settles', () => ({
@@ -146,7 +146,7 @@ describe('invoke', () => {
     });
     const { invoke: run } = effectsKit(registry);
     const outcome = await run('library.settles', {});
-    expect(!outcome.ok && outcome.error.code).toBe('core.request_not_allowed');
+    expect(!outcome.ok && outcome.error.code).toBe('core.not_found');
   });
 
   test('an invoke with an input the command rejects is a validation error', async () => {

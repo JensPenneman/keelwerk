@@ -5,6 +5,7 @@ import { moduleServicePrincipal } from '../reactions/module-service-principal.ts
 import type { EffectEntry } from '../registry/effect-entry.ts';
 import type { ExecutorEntry } from '../registry/executor-entry.ts';
 import { commandActionOf } from './command-action-of.ts';
+import { enqueueDeadlineTimer } from './deadline-timer.ts';
 import { durationMs } from './duration-ms.ts';
 import type { EffectScene } from './effect-scene.ts';
 import { executorOptionInput } from './executor-option-input.ts';
@@ -62,7 +63,9 @@ async function enqueueEffectJob(
  * as references, personal values sealed under their data subject's key), the command and events
  * it accompanies, its continuation, key and deadline; and, for an effect with an executor, the
  * effect job a worker takes after commit. An effect with an outside performer has the record
- * only; the performer finds it through the live subscription. The record and the job commit or
+ * and, when it has a deadline, the deadline timer (`enqueueDeadlineTimer`); the performer finds it
+ * through the live subscription. An outside performer's effect with `runAt` is a validation error
+ * until it is designed: nothing would withhold the pending effect until then. The record and the job commit or
  * roll back with the unit, and a repeated decision requests the same id.
  */
 export async function recordExternalEffect(
@@ -74,6 +77,12 @@ export async function recordExternalEffect(
   const entry = registry.effects.get(effect.type);
   if (entry === undefined) {
     throw refuseRequest(`the effect "${effect.type}"`, 'no module of this app declares it');
+  }
+  if (entry.performer === 'external' && effect.runAt !== undefined) {
+    throw errors.validation(
+      `The effect "${entry.ref}" has an outside performer, which runAt does not serve yet.`,
+      { issues: [{ path: ['runAt'], message: 'Not available for an outside performer.' }] },
+    );
   }
   const input = await sealEffectInput({
     unit: scene.unit,
@@ -111,7 +120,12 @@ export async function recordExternalEffect(
     }
   }
   await writeEffectRecord(scene, requestedEffectDraft(scene, requested, entry, id, input));
-  if (entry.performer === 'external') return;
+  if (entry.performer === 'external') {
+    if (requested.deadline !== undefined) {
+      await enqueueDeadlineTimer(scene, entry, id, requested.deadline);
+    }
+    return;
+  }
   const executor = entry.executor === null ? undefined : registry.executors.get(entry.executor);
   if (executor === undefined) {
     throw errors.internal(`the effect "${entry.ref}" has no executor to perform it`);

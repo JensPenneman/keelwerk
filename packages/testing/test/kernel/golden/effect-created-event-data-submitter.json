@@ -1,0 +1,21 @@
+{
+  "values": {
+    "attempts": 0,
+    "type": "library.notify",
+    "commandId": "c1",
+    "status": "requested",
+    "performer": "executor",
+    "input": {
+      "to": "ada@example.org"
+    },
+    "eventIds": ["<book event id>"],
+    "continuation": "library.after",
+    "continuationWith": {
+      "id": "x"
+    },
+    "key": "k-1",
+    "deadline": "2026-02-01T00:00:00Z",
+    "principalResolver": "test.principal",
+    "principalId": "ada"
+  }
+}

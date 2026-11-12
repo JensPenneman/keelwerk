@@ -5,8 +5,10 @@ import type { CoreBase } from '../src/core-module/core-base-type.ts';
 import { defineEffect } from '../src/dsl/define-effect.ts';
 import type { FlagPurpose } from '../src/dsl/define-flag.ts';
 import { type ExtensionPoint, extensionPoint } from '../src/dsl/extension-point.ts';
+import { settle } from '../src/dsl/settle.ts';
 import type { EffectAttemptRecord } from '../src/effects/effect-attempt-record.ts';
 import type { EffectInputOf, PendingEffect } from '../src/effects/pending-effect.ts';
+import type { PlainEffectInputOf } from '../src/effects/plain-effect-input-of.ts';
 import type { WireError } from '../src/errors/wire-error.ts';
 import type { FlagRead } from '../src/events/flag-read.ts';
 import type { StateToken } from '../src/events/state-token.ts';
@@ -26,6 +28,7 @@ import type { LiveHub } from '../src/live/live-hub.ts';
 import type { WatchInput } from '../src/live/watch-input.ts';
 import type { EntityChange } from '../src/model/entity-change.ts';
 import type { IdOf } from '../src/model/id-of.ts';
+import type { SettleEffect } from '../src/protocol/settle-effect.ts';
 import type { ModuleEntry } from '../src/registry/module-entry.ts';
 import type { Artifact } from '../src/transport/artifact.ts';
 import type { AuthBase } from './fixtures/modules/auth/src/base.ts';
@@ -195,12 +198,49 @@ describe('F-24 effects', () => {
     expectTypeOf<EffectInputOf<typeof upload>>().toEqualTypeOf<{ readonly nodeId: string }>();
     expectTypeOf<EffectInputOf<string>>().toBeNever();
     expectTypeOf<PendingEffect<typeof upload>['input']>().toEqualTypeOf<
-      EffectInputOf<typeof upload>
+      PlainEffectInputOf<typeof upload>
     >();
-    expectTypeOf<PendingEffect<typeof upload>['state']>().toEqualTypeOf<StateToken>();
+    expectTypeOf<PendingEffect<typeof upload>['state']>().toEqualTypeOf<StateToken | undefined>();
+    expectTypeOf<PendingEffect<typeof upload>['id']>().toEqualTypeOf<Id<'core.effect'>>();
     expectTypeOf<Pick<PendingEffect<typeof upload>, 'deadline'>>().toEqualTypeOf<{
       readonly deadline?: Temporal.Instant;
     }>();
+  });
+
+  test('settle takes the id of a core.effect', () => {
+    // @ts-expect-error a plain string is no effect id
+    settle('x', { ok: true, value: {} });
+    const id = 'x' as Id<'core.effect'>;
+    expectTypeOf(settle(id, { ok: true, value: {} })).toEqualTypeOf<SettleEffect>();
+  });
+
+  test('PlainEffectInputOf keeps the plain members only', () => {
+    const parcel = defineEffect(hooksBase, {
+      input: shape({
+        parcel: field.string(),
+        depot: field.string(),
+        recipient: field.string().personal(),
+        token: field.secret(),
+        tokens: field.list(field.secret()),
+        tags: field.list(field.string()),
+        lastSeen: field.instant().optional(),
+      }),
+      performer: 'external',
+    });
+    expectTypeOf<PlainEffectInputOf<typeof parcel>>().toEqualTypeOf<{
+      readonly parcel: string;
+      readonly depot: string;
+      readonly tags?: readonly string[] | undefined;
+      readonly lastSeen?: Temporal.Instant | undefined;
+    }>();
+    expectTypeOf<PlainEffectInputOf<string>>().toBeNever();
+    const pending = {} as PendingEffect<typeof parcel>;
+    // @ts-expect-error a personal member is not in the plain input
+    pending.input.recipient;
+    const hooksLive = {} as LiveQueries<typeof hooksBase, readonly []>;
+    hooksLive.effects(parcel, { where: { depot: 'north' } });
+    // @ts-expect-error a where over a personal member does not type-check
+    hooksLive.effects(parcel, { where: { recipient: 'x' } });
   });
 
   test('EffectAttemptRecord.error is an optional projection of a WireError: code and status only', () => {

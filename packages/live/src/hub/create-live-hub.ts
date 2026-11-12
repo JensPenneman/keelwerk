@@ -76,6 +76,7 @@ export function createLiveHub(
   const stream = options.sources?.stream?.(readers);
   const topic = options.sources?.topic?.(readers);
   return {
+    limits: { maxBufferedItems: limits.maxBufferedItems },
     entity: <Row>(
       session: InvocationSession,
       entity: string,

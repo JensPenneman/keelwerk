@@ -1,0 +1,23 @@
+{
+  "id": "a0ce80a8-a21c-8721-9c60-4e526c7b19f1",
+  "createdAt": "2026-01-01T00:00:00Z",
+  "updatedAt": "2026-01-01T00:00:00Z",
+  "version": 1,
+  "type": "library.notify",
+  "commandId": "c1",
+  "status": "requested",
+  "attempts": 0,
+  "performer": "executor",
+  "input": {
+    "to": "ada@example.org"
+  },
+  "eventIds": ["<book event id>"],
+  "continuation": "library.after",
+  "continuationWith": {
+    "id": "x"
+  },
+  "key": "k-1",
+  "deadline": "2026-02-01T00:00:00Z",
+  "principalResolver": "test.principal",
+  "principalId": "ada"
+}

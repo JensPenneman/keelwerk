@@ -2,10 +2,10 @@ import type { AnyEffect } from '../protocol/any-effect.ts';
 import { deriveEffectId } from './derive-effect-id.ts';
 import type { EffectScene } from './effect-scene.ts';
 import { recordExternalEffect } from './record-external-effect.ts';
-import { refuseSettle } from './refuse-settle.ts';
 import { runEnqueueEffect } from './run-enqueue-effect.ts';
 import { runInvokeEffect } from './run-invoke-effect.ts';
 import { runTimerEffects } from './run-timer-effects.ts';
+import { settleExternal } from './settle-external.ts';
 
 /**
  * Performs one decision's effects in order, in the unit (section 7.9.4, phase 6), and answers the
@@ -31,7 +31,7 @@ export async function performEffects(
         await runTimerEffects(scene, effect, id);
         break;
       case 'settle':
-        refuseSettle(effect);
+        await settleExternal(scene, effect);
         break;
       case 'external':
         await recordExternalEffect(scene, effect, id);

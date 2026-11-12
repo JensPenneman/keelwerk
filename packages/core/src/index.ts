@@ -343,6 +343,7 @@ export type { EffectAttemptError } from './effects/effect-attempt-error.ts';
 export type { EffectAttemptRecord } from './effects/effect-attempt-record.ts';
 export { openEffectInput } from './effects/open-effect-input.ts';
 export type { EffectInputOf, PendingEffect } from './effects/pending-effect.ts';
+export type { PlainEffectInputOf } from './effects/plain-effect-input-of.ts';
 export { sealEffectOutput } from './effects/seal-effect-output.ts';
 export { secretMembersAsRefs } from './effects/secret-members-as-refs.ts';
 export { timerQueue } from './effects/timer-queue.ts';

@@ -44,6 +44,19 @@ describe('tokenCheck over a live selector', () => {
     expect(tokenCheck({ ...base, live })).toBe('9834e8ad');
   });
 
+  test('a kernel source condition is part of the check; without one the check is unchanged', () => {
+    const open = { apiVersion: '2026-11-04' };
+    const north = { op: 'eq', field: 'depot', value: 'north' };
+    const south = { op: 'eq', field: 'depot', value: 'south' };
+    expect(tokenCheck({ ...base, live: { ...open, where: north } })).not.toBe(
+      tokenCheck({ ...base, live: { ...open, where: south } }),
+    );
+    expect(tokenCheck({ ...base, live: { ...open, where: north } })).not.toBe(
+      tokenCheck({ ...base, live: open }),
+    );
+    expect(tokenCheck({ ...base, live: open })).toBe('2cc0e6a4');
+  });
+
   test('goldens: a live member without ids is 2cc0e6a4, with ids [] is fde6b953, with fields [title] is 92721a7e', () => {
     const open = { apiVersion: '2026-11-04', includeArchived: false };
     expect(tokenCheck({ ...base, live: open })).toBe('2cc0e6a4');

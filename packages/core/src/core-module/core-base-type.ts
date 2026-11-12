@@ -36,6 +36,12 @@ type HiddenOptionalDocument = FieldDef<
   null,
   'json'
 >;
+type HiddenOptionalText = FieldDef<
+  string,
+  WithFlag<WithFlag<NoFlags, 'optional', true>, 'hidden', true>,
+  null,
+  'string'
+>;
 type DefaultedCount = FieldDef<number, WithFlag<NoFlags, 'defaulted', true>, null, 'integer'>;
 type Moment = FieldDef<Temporal.Instant, NoFlags, null, 'instant'>;
 type OptionalMoment = FieldDef<
@@ -219,6 +225,8 @@ export interface CoreBase {
         readonly error: OptionalDocument;
         readonly outputDigest: OptionalText;
         readonly settledAt: OptionalMoment;
+        readonly principalResolver: HiddenOptionalText;
+        readonly principalId: HiddenOptionalText;
       },
       Empty,
       'chain',

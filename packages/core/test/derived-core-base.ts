@@ -155,6 +155,8 @@ export const derivedCoreBase = defineModuleBase({
         error: field.json(document).optional(),
         outputDigest: field.string().optional(),
         settledAt: field.instant().optional(),
+        principalResolver: field.string().optional().hidden(),
+        principalId: field.string().optional().hidden(),
       },
       tenancy: 'invocation',
       generated: { set: false },
