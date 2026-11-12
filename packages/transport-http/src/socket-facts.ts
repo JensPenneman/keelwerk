@@ -1,7 +1,8 @@
 import type { TLSSocket } from 'node:tls';
-import { type Connection, newUuidV7 } from '@keelwerk/core';
+import { type Connection, newUuidV7, unknownClientAddress } from '@keelwerk/core';
 import type { HostBindings } from './host-bindings.ts';
 import type { HostContext } from './host-context.ts';
+import { noteConnection } from './note-connection.ts';
 
 const loopback: Readonly<{ address: string; port: number }> = Object.freeze({
   address: '127.0.0.1',
@@ -20,16 +21,6 @@ function tlsOf(socket: object): SocketFacts['tls'] {
   };
 }
 
-function connectionId(host: HostContext, socket: object): string {
-  const known = host.connectionIds.get(socket);
-  if (known !== undefined) {
-    return known;
-  }
-  const id = newUuidV7();
-  host.connectionIds.set(socket, id);
-  return id;
-}
-
 /** What the socket knows of a request, taken from the Node server or defaulted for `host.fetch`. */
 export interface SocketFacts {
   readonly connectionId: string;
@@ -42,7 +33,10 @@ export interface SocketFacts {
 
 /**
  * What the socket knows: the remote address follows the trusted-proxy rules (S-38), the operator
- * socket has no network address, and `host.fetch` (no socket) reports the loopback.
+ * socket has no network address, and `host.fetch` (no socket) reports the address its caller
+ * names, else the loopback. Forwarding headers are read only from a socket peer the deployment
+ * trusts, never on `host.fetch`. A socket whose peer address is not known (the client reset the
+ * connection before it was read) is the shared `unknownClientAddress`, never the loopback.
  */
 export function socketFacts(
   host: HostContext,
@@ -51,7 +45,8 @@ export function socketFacts(
 ): SocketFacts {
   const { incoming, operatorSocket } = bindings;
   if (operatorSocket !== undefined) {
-    const id = incoming === undefined ? newUuidV7() : connectionId(host, incoming.socket);
+    const id =
+      incoming === undefined ? newUuidV7() : noteConnection(host.connectionIds, incoming.socket).id;
     return {
       connectionId: id,
       remote: { address: 'unix', port: 0 },
@@ -61,14 +56,19 @@ export function socketFacts(
   }
   const socket = incoming?.socket;
   if (socket === undefined) {
-    return { connectionId: newUuidV7(), remote: loopback, local: loopback };
+    return {
+      connectionId: newUuidV7(),
+      remote: { address: bindings.remoteAddress ?? loopback.address, port: 0 },
+      local: loopback,
+    };
   }
   const tls = tlsOf(socket);
+  const connection = noteConnection(host.connectionIds, socket);
   return {
-    connectionId: connectionId(host, socket),
+    connectionId: connection.id,
     remote: {
       address: host.proxies.clientAddress(
-        socket.remoteAddress ?? loopback.address,
+        connection.peer ?? socket.remoteAddress ?? unknownClientAddress,
         request.headers.get('x-forwarded-for'),
       ),
       port: socket.remotePort ?? 0,

@@ -27,4 +27,23 @@ describe('trustedProxies', () => {
       expect(() => trustedProxies([bad])).toThrow(TypeError);
     }
   });
+
+  it('stores one client in one form: lower case, compressed, a mapped address as IPv4', () => {
+    const proxies = trustedProxies(['10.0.0.0/8']);
+    expect(proxies.clientAddress('10.0.0.1', '2001:DB8::5')).toBe('2001:db8::5');
+    expect(proxies.clientAddress('10.0.0.1', '2001:0db8:0:0:0:0:0:5')).toBe('2001:db8::5');
+    expect(proxies.clientAddress('10.0.0.1', '::FFFF:203.0.113.7')).toBe('203.0.113.7');
+    expect(proxies.clientAddress('2001:DB8::5', null)).toBe('2001:db8::5');
+  });
+
+  it('takes a forwarded entry with a zone suffix as no address: the socket counts', () => {
+    const proxies = trustedProxies(['10.0.0.0/8']);
+    expect(proxies.clientAddress('10.0.0.1', 'fe80::1%x')).toBe('10.0.0.1');
+    expect(proxies.clientAddress('10.0.0.1', '1.2.3.4, fe80::1%x')).toBe('10.0.0.1');
+  });
+
+  it('stores a socket peer without its zone suffix', () => {
+    expect(trustedProxies([]).clientAddress('fe80::1%en0', null)).toBe('fe80::1');
+    expect(trustedProxies([]).clientAddress('FE80::1%en0', 'fe80::2')).toBe('fe80::1');
+  });
 });

@@ -36,6 +36,7 @@ export const protocolCodec: TransportCodec = {
     headers.set('accept', 'text/event-stream');
     if (call.lastEventId !== undefined) headers.set('last-event-id', call.lastEventId);
     const base = `${originOf(target, caller)}${caller.pathPrefix ?? ''}/_keelwerk/v1/subscribe`;
+    const options = call.remoteAddress === undefined ? {} : { remoteAddress: call.remoteAddress };
     if (call.method === 'POST') {
       headers.set('content-type', 'application/json');
       const response = await target.fetch(
@@ -48,6 +49,7 @@ export const protocolCodec: TransportCodec = {
             ...(call.after === undefined ? {} : { after: call.after }),
           }),
         }),
+        options,
       );
       return readEventStream(response);
     }
@@ -55,7 +57,9 @@ export const protocolCodec: TransportCodec = {
     if (call.input !== undefined) query.set('input', JSON.stringify(call.input));
     if (call.after !== undefined) query.set('after', call.after);
     if (call.ticket !== undefined) query.set('ticket', call.ticket);
-    return readEventStream(await target.fetch(new Request(`${base}?${query}`, { headers })));
+    return readEventStream(
+      await target.fetch(new Request(`${base}?${query}`, { headers }), options),
+    );
   },
   receiptLocationOf: () => null,
   expectedReceiptLocation: () => null,

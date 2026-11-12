@@ -2,6 +2,7 @@ import type {
   AdapterEnvironment,
   Clock,
   DataAdapter,
+  HostFetchOptions,
   Invoker,
   KeyService,
   Logger,
@@ -35,6 +36,12 @@ export interface TestRuntime<App, Name extends string = string> {
   readonly tracer: AdapterEnvironment['tracer'];
   readonly tenants: Readonly<Record<Name, TestTenant>>;
   readonly invoker: Invoker;
+  /**
+   * Sends a request through the HTTP host of `host` (`runtime.host.fetch`, no port). Each request comes
+   * from its own client address unless `options.remoteAddress` names one. Rejects with a TypeError when
+   * the runtime was started without `host`.
+   */
+  fetch(request: Request, options?: HostFetchOptions): Promise<Response>;
   /** The API version the runtime serves. */
   readonly head: string;
   /**

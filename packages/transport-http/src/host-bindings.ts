@@ -10,4 +10,6 @@ export interface HostBindings {
   /** Set on a WebSocket upgrade: the handshake the host may accept. */
   readonly upgrade?: PendingUpgrade;
   readonly state: RequestState;
+  /** Set by `host.fetch` only: the client address its caller names; no request on a socket has it. */
+  readonly remoteAddress?: string;
 }

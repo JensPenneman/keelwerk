@@ -18,6 +18,7 @@ import type { Scope } from '../storage/scope.ts';
 import type { FieldNode } from '../surface/field-node.ts';
 import type { ResponseHint } from '../surface/response-hint.ts';
 import type { Artifact } from '../transport/artifact.ts';
+import type { HostFetchOptions } from '../transport/host-fetch-options.ts';
 import type { HttpContext } from '../transport/http-context.ts';
 import type { HttpHandler } from '../transport/http-handler.ts';
 import type { TransportHost } from '../transport/transport-host.ts';
@@ -220,7 +221,9 @@ test('the contract carries the resolved-by, input, cookie and upgrade members', 
   expectTypeOf<PrincipalResolution['clearCookies']>().toEqualTypeOf<
     readonly string[] | undefined
   >();
-  expectTypeOf<TransportHost['fetch']>().toEqualTypeOf<(request: Request) => Promise<Response>>();
+  expectTypeOf<TransportHost['fetch']>().toEqualTypeOf<
+    (request: Request, options?: HostFetchOptions) => Promise<Response>
+  >();
   expectTypeOf<Parameters<TransportHost['upgrade']>[1]>().toEqualTypeOf<WebSocketHandler>();
   expectTypeOf<CapabilitiesDocument['apiVersions'][number]['status']>().toEqualTypeOf<
     'current' | 'deprecated' | 'retired'

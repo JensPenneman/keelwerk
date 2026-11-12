@@ -18,6 +18,7 @@ import {
 } from '@keelwerk/core';
 import { fallbackReporter, memoryAdapter, schemaPlanner } from '@keelwerk/data';
 import { advanceTo } from './advance-to.ts';
+import { clientFetchOf } from './client-fetch-of.ts';
 import { drainJobs } from './drain-jobs.ts';
 import type { DrainState } from './drain-state.ts';
 import type { TestApp } from './test-app.ts';
@@ -133,6 +134,7 @@ export async function startTestRuntime<
         testSecrets,
         ...(options.flagProviders ?? []),
         ...(options.eventWorkers ?? []),
+        ...(options.host === undefined ? [] : [options.host]),
       ],
       control:
         external === undefined
@@ -150,9 +152,10 @@ export async function startTestRuntime<
     },
     {
       role: options.workers === undefined && options.eventWorkers === undefined ? 'serve' : 'all',
-      listen: false,
+      listen: options.host !== undefined,
       environment: 'test',
       clock,
+      ...(options.timers === undefined ? {} : { timers: options.timers }),
       ...(options.logger === undefined ? {} : { logger: options.logger }),
       ...(options.workers === undefined
         ? {}
@@ -178,6 +181,10 @@ export async function startTestRuntime<
       ...(options.env === undefined ? {} : { env: options.env }),
     },
   );
+  const { host } = runtime;
+  if (options.host !== undefined && host === undefined) {
+    throw new Error('The runtime has no HTTP host: pass the `httpHost()` entry as `host`.');
+  }
   const { join } = options;
   const backend =
     join === undefined
@@ -248,6 +255,13 @@ export async function startTestRuntime<
       TestTenant
     >,
     invoker: runtime.invoker,
+    fetch:
+      host === undefined
+        ? () =>
+            Promise.reject(
+              new TypeError('The test runtime has no HTTP host: start it with `host`.'),
+            )
+        : clientFetchOf(host),
     head: app.api?.dates.at(-1) ?? coreApiVersions.dates.at(-1) ?? '',
     drainJobs: () => drainJobs(workers),
     advanceTo: (at) =>

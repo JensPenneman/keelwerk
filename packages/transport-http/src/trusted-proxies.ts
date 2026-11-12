@@ -1,9 +1,5 @@
 import { BlockList, isIP } from 'node:net';
-
-function normalize(address: string): string {
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
-  return mapped?.[1] ?? address;
-}
+import { normalizeAddress } from './normalize-address.ts';
 
 function familyOf(address: string): 'ipv4' | 'ipv6' | undefined {
   const kind = isIP(address);
@@ -12,7 +8,11 @@ function familyOf(address: string): 'ipv4' | 'ipv6' | undefined {
 
 /** Decides which remote addresses may speak for a client through forwarding headers (S-38). */
 export interface TrustedProxies {
-  /** The client address: the socket's own unless the socket is a trusted proxy. */
+  /**
+   * The client address, in the one standard form (lower case, compressed, a mapped one as IPv4):
+   * the socket's own (its zone dropped) unless the socket is a trusted proxy. A forwarded entry that
+   * is no address, one with a zone suffix included, gives the socket's address.
+   */
   clientAddress(socketAddress: string, forwardedFor: string | null): string;
 }
 
@@ -39,11 +39,12 @@ export function trustedProxies(ranges: readonly string[]): TrustedProxies {
   };
   return {
     clientAddress(socketAddress, forwardedFor) {
-      const socket = normalize(socketAddress);
+      const socket =
+        normalizeAddress(socketAddress.split('%')[0] ?? socketAddress) ?? socketAddress;
       if (forwardedFor === null || !trusted(socket)) {
         return socket;
       }
-      const chain = forwardedFor.split(',').map((entry) => normalize(entry.trim()));
+      const chain = forwardedFor.split(',').map((entry) => normalizeAddress(entry.trim()) ?? '');
       for (let index = chain.length - 1; index >= 0; index -= 1) {
         const entry = chain[index] ?? '';
         if (familyOf(entry) === undefined) {

@@ -164,4 +164,29 @@ export function subscriptionCases(target: TransportTarget): void {
       expect(socket.status).toBe(403);
     },
   );
+
+  test.skipIf(skip)(
+    'anonymous streams are capped per client address: one address runs out, another does not',
+    async () => {
+      const stream = (remoteAddress: string) =>
+        open({ action: 'loans.loanTicker', input: {}, remoteAddress });
+      const held: Awaited<ReturnType<typeof stream>>[] = [];
+      try {
+        // The default cap is 20 streams of one anonymous client address.
+        let refused: Awaited<ReturnType<typeof stream>> | undefined;
+        for (let index = 0; index < 40 && refused === undefined; index += 1) {
+          const next = await stream('203.0.113.50');
+          if (next.response.status === 200) held.push(next);
+          else refused = next;
+        }
+        expect(refused?.response.status).toBe(429);
+        await refused?.close();
+        const other = await stream('203.0.113.51');
+        held.push(other);
+        expect(other.response.status).toBe(200);
+      } finally {
+        await Promise.all(held.map((entry) => entry.close()));
+      }
+    },
+  );
 }

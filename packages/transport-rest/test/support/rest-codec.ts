@@ -2,6 +2,7 @@ import {
   type Call,
   decodeAnswer,
   originOf,
+  protocolCodec,
   requestHeaders,
   type TransportCodec,
 } from '@keelwerk/testing';
@@ -26,6 +27,13 @@ function compactSort(value: unknown): string {
 export const restCodec: TransportCodec = {
   name: 'REST',
   endpoint: '/api/loans/lend',
+  subscribePath: '/_keelwerk/v1/subscribe',
+  /** REST's own stream routes answer core.live_unavailable; a REST client subscribes on the protocol's endpoint of the same host. */
+  subscribe(target, call) {
+    const open = protocolCodec.subscribe;
+    if (open === undefined) throw new Error('The protocol codec has no stream endpoint.');
+    return open(target, call);
+  },
   async send(target, call) {
     const route = restRoutes[call.action];
     if (route === undefined) {

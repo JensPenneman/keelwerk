@@ -5,6 +5,8 @@ import type {
   EgressPolicy,
   EventWorker,
   FlagProvider,
+  InfrastructureEntry,
+  LiveTimers,
   Logger,
 } from '@keelwerk/core';
 
@@ -68,4 +70,13 @@ export interface TestRuntimeOptions<Name extends string = 'acme' | 'globex'> {
   readonly env?: Readonly<Record<string, string | undefined>>;
   /** Flag providers added to the deployment, after the targeting provider and before `env` (20.3). */
   readonly flagProviders?: readonly FlagProvider[];
+  /**
+   * The deployment's HTTP host entry (`httpHost()` of `@keelwerk/transport-http`). With it the runtime
+   * listens as a deployment does: it builds the host, mounts every transport module the app composes
+   * and the invocation protocol on it, and `TestRuntime.fetch` dispatches through it. Absent: no host,
+   * and the app's transports are not mounted.
+   */
+  readonly host?: InfrastructureEntry;
+  /** The waits of a live carrier (see `pinnedLiveTimers`); default: timers on the runtime's clock. */
+  readonly timers?: LiveTimers;
 }

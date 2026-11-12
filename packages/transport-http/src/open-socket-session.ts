@@ -1,4 +1,9 @@
-import type { Carrier, KeelwerkError, LiveClientMessage } from '@keelwerk/core';
+import {
+  type Carrier,
+  type KeelwerkError,
+  type LiveClientMessage,
+  unknownClientAddress,
+} from '@keelwerk/core';
 import { asKeelwerkError, coreError } from '@keelwerk/core/http';
 import { enrichCarrier } from './enrich-carrier.ts';
 import type { LiveSocketState } from './live-socket-state.ts';
@@ -67,7 +72,7 @@ export async function openSocketSession(
     );
     if (refused !== null) return { ok: false, error: refused };
     // The upgrade's slot goes first, so one socket never counts twice against a bound.
-    const address = carrier.connection?.remote.address ?? 'unknown';
+    const address = carrier.connection?.remote.address ?? unknownClientAddress;
     state.release();
     state.release = () => undefined;
     state.release = host.limits.take(session, address);

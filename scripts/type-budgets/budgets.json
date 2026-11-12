@@ -39,9 +39,9 @@
         "reason": "auth with accounts: contribution, conditional parts, reset flow and four more actions (10,188 B manifest and 48,749 B package measured plus 15 %, rounded up to 256 B)"
       },
       "packages/testing/src/fixtures/modules/loans": {
-        "manifestBytes": 7680,
-        "packageBytes": 16384,
-        "reason": "the loans fixture with the rule that lets a signed-in user follow loans.loanEvents once live is selected (6,640 B manifest measured plus 15 %, rounded up to 256 B); the stream cases of WP-94 need it (lead approval)"
+        "manifestBytes": 8448,
+        "packageBytes": 19968,
+        "reason": "the loans fixture with the rule that lets a signed-in user follow loans.loanEvents once live is selected, and the public stream loans.loanTicker that the conformance case about anonymous streams per address holds open (7,125 B manifest and 17,180 B package measured plus 15 %, rounded up to 256 B); the stream cases of WP-94 need the first (lead approval)"
       }
     }
   },

@@ -58,6 +58,24 @@ describe.each(['memory', 'pglite'] as const)('auth abuse limits on %s', (kind: S
     expect(codeOf(await signUp('three'))).toBe('core.rate_limited');
   });
 
+  test('a carrier without a connection shares one address bucket: logins across many identifiers hit the limit', {
+    timeout,
+  }, async () => {
+    const auth = await boot({ addressAttemptsPerMinute: 3 });
+    const attemptWithout = (name: string) =>
+      auth.request(
+        'auth.login',
+        { identifier: `${name}@example.org`, password: 'nothing' },
+        { address: null },
+      );
+    for (const name of ['a', 'b', 'c']) {
+      expect(codeOf(await attemptWithout(name))).toBe('auth.invalid_credentials');
+    }
+    expect(codeOf(await attemptWithout('d'))).toBe('core.rate_limited');
+    // A carrier that has an address is not in that bucket.
+    expect(codeOf(await attempt(auth, 'e', '203.0.113.7'))).toBe('auth.invalid_credentials');
+  });
+
   test('five failed attempts per fifteen minutes per identifier: the sixth is refused, even with the right password', {
     timeout,
   }, async () => {

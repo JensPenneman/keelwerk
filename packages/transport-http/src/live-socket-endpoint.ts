@@ -1,4 +1,4 @@
-import { liveTimersOf } from '@keelwerk/core';
+import { liveTimersOf, unknownClientAddress } from '@keelwerk/core';
 import { asKeelwerkError, coreError } from '@keelwerk/core/http';
 import { errorResponse } from './error-response.ts';
 import type { LiveSocketState } from './live-socket-state.ts';
@@ -27,7 +27,7 @@ export const liveSocketEndpoint: UpgradeEntry['serve'] = async (call, upgrade) =
   }
   let release: () => void;
   try {
-    release = host.limits.take(session, carrier.connection?.remote.address ?? 'unknown');
+    release = host.limits.take(session, carrier.connection?.remote.address ?? unknownClientAddress);
   } catch (failure) {
     return errorResponse(host, state, asKeelwerkError(failure));
   }

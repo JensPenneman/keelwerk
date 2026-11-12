@@ -8,6 +8,7 @@ import type {
 } from '@keelwerk/client';
 import type { ApiSurface, KeelwerkError } from '@keelwerk/core';
 import { deriveSurface, errors } from '@keelwerk/core';
+import { clientAddresses } from './client-addresses.ts';
 import type { ClientRuntime } from './client-runtime.ts';
 import { liveUnavailable } from './live-unavailable.ts';
 import type { LocalClientOptions } from './local-client-options.ts';
@@ -20,6 +21,8 @@ interface Bound {
   readonly runtime: ClientRuntime<TestApp>;
   readonly tenant: TestTenant;
   readonly principal: TestPrincipal;
+  /** The next client address of this client's calls: each call comes from its own. */
+  readonly nextAddress: () => string;
 }
 
 type Answer =
@@ -41,7 +44,7 @@ async function run(
   const outcome = await runtime.invoker.invoke({
     action: ref,
     input,
-    carrier: testCarrier(bound.tenant, bound.principal),
+    carrier: testCarrier(bound.tenant, bound.principal, bound.nextAddress()),
     requestId: crypto.randomUUID(),
     signal: options.signal ?? new AbortController().signal,
     ...(commandId === undefined ? {} : { commandId }),
@@ -122,5 +125,10 @@ export function createLocalClient<App extends TestApp, Name extends string = str
   if (tenant === undefined) {
     throw errors.not_found(`The test runtime has no tenant ${options.tenant ?? '(any)'}.`);
   }
-  return clientOver<App>({ runtime, tenant, principal: options.principal });
+  return clientOver<App>({
+    runtime,
+    tenant,
+    principal: options.principal,
+    nextAddress: clientAddresses(),
+  });
 }

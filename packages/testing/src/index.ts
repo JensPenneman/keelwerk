@@ -52,6 +52,8 @@ export type { RunInMemoryOptions } from './drive/run-in-memory-options.ts';
 export type { DumpQuery } from './dump/dump-database.ts';
 export { dumpDatabase } from './dump/dump-database.ts';
 export { findPlaintext } from './dump/find-plaintext.ts';
+export { clientAddresses } from './harness/client-addresses.ts';
+export { clientFetchOf } from './harness/client-fetch-of.ts';
 export type { ClientRuntime } from './harness/client-runtime.ts';
 export { createLocalClient } from './harness/create-local-client.ts';
 export type { LocalClientOptions } from './harness/local-client-options.ts';

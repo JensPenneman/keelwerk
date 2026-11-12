@@ -11,6 +11,7 @@ import type {
 } from '@keelwerk/core';
 import { secret, startRuntime } from '@keelwerk/core';
 import { memoryAdapter, schemaPlanner } from '@keelwerk/data';
+import { clientFetchOf } from '../../harness/client-fetch-of.ts';
 import type { TestApp } from '../../harness/test-app.ts';
 import { testMasterKeyName } from '../../harness/test-master-key-name.ts';
 import { testSecrets } from '../../harness/test-secrets.ts';
@@ -104,7 +105,7 @@ export async function startTransportRuntime(
   }
   return {
     runtime,
-    fetch: (request) => host.fetch(request),
+    fetch: clientFetchOf(host),
     backendId: backend.id,
     backendConfig,
     tenants,

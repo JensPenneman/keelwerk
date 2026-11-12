@@ -18,8 +18,14 @@ export interface HostContext {
   readonly proxies: TrustedProxies;
   /** The mount table of each app. */
   readonly mounts: Map<string, MountTable>;
-  /** One id per socket, so the requests of a keep-alive connection share a connection id. */
-  readonly connectionIds: WeakMap<object, string>;
+  /**
+   * One record per socket, made when the connection opens: its id, so the requests of a keep-alive
+   * connection share a connection id, and its peer address, which Node forgets once the client resets.
+   */
+  readonly connectionIds: WeakMap<
+    object,
+    { readonly id: string; readonly peer: string | undefined }
+  >;
   readonly lifecycle: Lifecycle;
   readonly errorCounter: ReturnType<Meter['createCounter']>;
   /** The open server-sent event streams: `stop` says goodbye to each. */

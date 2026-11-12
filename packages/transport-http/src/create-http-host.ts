@@ -14,6 +14,7 @@ import type { HttpHostDeps } from './http-host-deps.ts';
 import type { HttpHostInstance } from './http-host-instance.ts';
 import type { HttpHostOptions } from './http-host-options.ts';
 import type { LiveSocketHostOptions } from './live-socket-host-options.ts';
+import { noteConnection } from './note-connection.ts';
 import type { OpenLiveSocket } from './open-live-socket.ts';
 import type { OpenSseStream } from './open-sse-stream.ts';
 import { operatorSocket } from './operator-socket.ts';
@@ -139,6 +140,8 @@ export function createHttpHost(options: HttpHostOptions, deps: HttpHostDeps): Ht
         });
       }),
     );
+    // The peer address is read now: Node forgets it once the client resets the connection.
+    server.on('connection', (socket) => noteConnection(host.connectionIds, socket));
     server.on('upgrade', upgradeListener(dispatcher, host, socketPath));
     return server;
   };

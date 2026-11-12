@@ -1,4 +1,4 @@
-import { type Carrier, liveTimersOf, type StateToken } from '@keelwerk/core';
+import { type Carrier, liveTimersOf, type StateToken, unknownClientAddress } from '@keelwerk/core';
 import { asKeelwerkError, coreError, decodeActionInput } from '@keelwerk/core/http';
 import { encodeFrames } from './encode-frames.ts';
 import type { EndpointCall } from './endpoint-call.ts';
@@ -49,7 +49,10 @@ export async function subscribeEndpoint(call: EndpointCall): Promise<Response> {
     );
   }
   const input = decodeActionInput(surface, action, asked.input);
-  const release = host.limits.take(session, carrier.connection?.remote.address ?? 'unknown');
+  const release = host.limits.take(
+    session,
+    carrier.connection?.remote.address ?? unknownClientAddress,
+  );
   const abort = new AbortController();
   const clock = host.deps.clock ?? { now: () => Temporal.Now.instant() };
   const timers = host.deps.timers ?? liveTimersOf(clock);

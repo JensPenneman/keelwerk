@@ -84,3 +84,44 @@ describe('the stream limits of a host', () => {
     expect(() => limits.take(fakeSession(), '203.0.113.7')).toThrow();
   });
 });
+
+describe('the subscriptions of a socket', () => {
+  test('count against the tenant and the process, not against a principal', () => {
+    const limits = createStreamLimits({ ...bounds, perPrincipal: 1, perTenant: 3 });
+    const ada = asUser('ada');
+    limits.take(ada, '10.0.0.1');
+    limits.takeSubscription(ada, '10.0.0.1');
+    limits.takeSubscription(ada, '10.0.0.1');
+    expect(() => limits.takeSubscription(ada, '10.0.0.1')).toThrow(
+      expect.objectContaining({ code: 'core.quota_exceeded' }),
+    );
+    expect(() => limits.take(asUser('bob'), '10.0.0.1')).toThrow(
+      expect.objectContaining({ code: 'core.quota_exceeded' }),
+    );
+  });
+
+  test('of an anonymous session count against the anonymous bound, and give the count back once', () => {
+    const limits = createStreamLimits({ ...bounds, perTenantAnonymous: 2 });
+    const anonymous = fakeSession();
+    const release = limits.takeSubscription(anonymous, '10.0.0.1');
+    limits.takeSubscription(anonymous, '10.0.0.1');
+    expect(() => limits.takeSubscription(anonymous, '10.0.0.1')).toThrow();
+    release();
+    release();
+    limits.takeSubscription(anonymous, '10.0.0.1');
+    expect(() => limits.takeSubscription(anonymous, '10.0.0.1')).toThrow();
+    expect(() => limits.takeSubscription(asUser('ada'), '10.0.0.1')).not.toThrow();
+  });
+
+  test('of an anonymous session count against its address, shared with its streams', () => {
+    const limits = createStreamLimits({ ...bounds, perPrincipal: 3, perTenantAnonymous: 50 });
+    limits.take(fakeSession(), '203.0.113.7');
+    limits.takeSubscription(fakeSession(), '203.0.113.7');
+    limits.takeSubscription(fakeSession(), '203.0.113.7');
+    expect(() => limits.takeSubscription(fakeSession(), '203.0.113.7')).toThrow(
+      expect.objectContaining({ code: 'core.quota_exceeded' }),
+    );
+    expect(() => limits.take(fakeSession(), '203.0.113.7')).toThrow();
+    expect(() => limits.takeSubscription(fakeSession(), '203.0.113.8')).not.toThrow();
+  });
+});

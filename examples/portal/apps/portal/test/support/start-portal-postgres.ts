@@ -6,6 +6,7 @@ import type { DataAdapterFactory, Runtime } from '@keelwerk/core';
 import { secret, startRuntime } from '@keelwerk/core';
 import { fallbackReporter, schemaPlanner } from '@keelwerk/data';
 import type { TransportRuntime } from '@keelwerk/testing';
+import { clientFetchOf } from '@keelwerk/testing';
 import { httpHost } from '@keelwerk/transport-http';
 import { portal } from '../../src/app.ts';
 import { portalConfig } from './portal-config.ts';
@@ -75,7 +76,7 @@ export async function startPortalPostgres(options: PostgresPortalOptions): Promi
   }
   return {
     runtime,
-    fetch: (request) => host.fetch(request),
+    fetch: clientFetchOf(host),
     backendId: backend.id,
     backendConfig: portalConfig,
     tenants,

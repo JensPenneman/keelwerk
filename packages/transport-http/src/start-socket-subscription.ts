@@ -1,4 +1,9 @@
-import type { LiveClientMessage, LiveFrame, StateToken } from '@keelwerk/core';
+import {
+  type LiveClientMessage,
+  type LiveFrame,
+  type StateToken,
+  unknownClientAddress,
+} from '@keelwerk/core';
 import { asKeelwerkError, coreError, decodeActionInput } from '@keelwerk/core/http';
 import { encodeFrames } from './encode-frames.ts';
 import type { LiveSocketState } from './live-socket-state.ts';
@@ -104,8 +109,23 @@ export function startSocketSubscription(
     void sendLiveMessage(state, { type: 'error', id, error: socketWireError(state, refused) });
     return;
   }
+  let release: () => void;
+  try {
+    release = state.upgrade.host.limits.takeSubscription(
+      state.session,
+      state.upgrade.carrier.connection?.remote.address ?? unknownClientAddress,
+    );
+  } catch (failure) {
+    void sendLiveMessage(state, {
+      type: 'error',
+      id,
+      error: socketWireError(state, asKeelwerkError(failure)),
+    });
+    return;
+  }
   const abort = new AbortController();
   const done = run(state, message, abort).finally(() => {
+    release();
     abort.abort();
     if (state.subscriptions.get(id)?.abort === abort) state.subscriptions.delete(id);
   });

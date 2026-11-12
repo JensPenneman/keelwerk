@@ -8,6 +8,7 @@ import { openDesk } from './actions/open-desk.ts';
 import { loansBase } from './base.ts';
 import { countLoans } from './conditional/when-library/reactions/count-loans.ts';
 import { loanEvents } from './conditional/when-live/actions/loan-events.ts';
+import { loanTicker } from './conditional/when-live/actions/loan-ticker.ts';
 import { signedIn as loanEventsSignedIn } from './conditional/when-live/policies/loan-events/signed-in.ts';
 import { reserve } from './contributions/to-library/actions/book/reserve.ts';
 import { reservers } from './contributions/to-library/policies/book/reservers.ts';
@@ -27,7 +28,7 @@ describe('the loans fixture manifest', () => {
       conditional: {
         whenLibrary: { reactions: { countLoans } },
         whenLive: {
-          actions: { loanEvents },
+          actions: { loanEvents, loanTicker },
           policies: { loanEvents: { signedIn: loanEventsSignedIn } },
         },
       },

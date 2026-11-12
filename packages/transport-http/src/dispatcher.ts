@@ -4,6 +4,6 @@ import type { HostBindings } from './host-bindings.ts';
 export interface Dispatcher {
   handle(
     request: Request,
-    extras: Pick<HostBindings, 'incoming' | 'operatorSocket' | 'upgrade'>,
+    extras: Pick<HostBindings, 'incoming' | 'operatorSocket' | 'upgrade' | 'remoteAddress'>,
   ): Promise<Response>;
 }

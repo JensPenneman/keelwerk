@@ -1,5 +1,6 @@
 import { defineApp, type Logger, type Unit } from '@keelwerk/core';
 import {
+  clientAddresses,
   createLocalClient,
   startTestRuntime,
   type TestPrincipal,
@@ -41,13 +42,13 @@ export interface BootedAuth {
   ): ReturnType<typeof createLocalClient<typeof authApp>>;
   /** Runs `fn` in a unit of the tenant over the raw store (sealed values stay sealed) or, with `sealed`, over the placement the kernel sees. */
   inUnit<T>(fn: (unit: Unit) => Promise<T>, options?: { readonly sealed?: boolean }): Promise<T>;
-  /** Invokes an action as a request that carries these headers (a cookie or a bearer token) and, optionally, a remote address. */
+  /** Invokes an action as a request that carries these headers (a cookie or a bearer token) and, a remote address (by default a fresh one for each request; `null` sends a carrier without a connection). */
   request(
     action: string,
     input: unknown,
     carrier?: {
       readonly headers?: Readonly<Record<string, string>>;
-      readonly address?: string;
+      readonly address?: string | null;
       readonly commandId?: string;
       readonly tenant?: 'acme' | 'globex';
     },
@@ -71,6 +72,7 @@ export async function bootAuth(
     ...(logger === undefined ? {} : { logger }),
     ...(external === undefined ? {} : { external }),
   });
+  const nextAddress = clientAddresses();
   return {
     runtime,
     clock,
@@ -89,13 +91,13 @@ export async function bootAuth(
         carrier: {
           transport: 'test',
           headers: { 'x-tenant': tenant.id, ...carrier.headers },
-          ...(carrier.address === undefined
+          ...(carrier.address === null
             ? {}
             : {
                 connection: {
                   id: 'c1',
                   listener: 'http',
-                  remote: { address: carrier.address, port: 40000 },
+                  remote: { address: carrier.address ?? nextAddress(), port: 40000 },
                   local: { address: '127.0.0.1', port: 8080 },
                 },
               }),

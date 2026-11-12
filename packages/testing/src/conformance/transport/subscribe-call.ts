@@ -12,6 +12,8 @@ export interface SubscribeCall {
   readonly lastEventId?: string;
   /** A stream ticket in the query (GET only). */
   readonly ticket?: string;
+  /** The client address the request comes from; absent, the target gives it a fresh one. A case about a per-address limit must name it. */
+  readonly remoteAddress?: string;
   /** Default GET: what an `EventSource` sends. */
   readonly method?: 'GET' | 'POST';
 }

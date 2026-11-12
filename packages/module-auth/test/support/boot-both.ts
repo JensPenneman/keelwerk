@@ -1,6 +1,7 @@
 import { defineApp, type Unit } from '@keelwerk/core';
 import { accounts } from '@keelwerk/module-accounts';
 import {
+  clientAddresses,
   createLocalClient,
   startTestRuntime,
   type TestPrincipal,
@@ -57,6 +58,7 @@ export async function bootBoth(
     },
   });
   const tenant = runtime.tenants.acme;
+  const nextAddress = clientAddresses();
   return {
     runtime,
     clock,
@@ -82,7 +84,16 @@ export async function bootBoth(
       runtime.invoker.invoke({
         action,
         input,
-        carrier: { transport: 'test', headers: { 'x-tenant': tenant.id, ...carrier.headers } },
+        carrier: {
+          transport: 'test',
+          headers: { 'x-tenant': tenant.id, ...carrier.headers },
+          connection: {
+            id: 'c1',
+            listener: 'http',
+            remote: { address: nextAddress(), port: 40000 },
+            local: { address: '127.0.0.1', port: 8080 },
+          },
+        },
         requestId: crypto.randomUUID(),
         signal: new AbortController().signal,
         ...(carrier.commandId === undefined ? {} : { commandId: carrier.commandId }),

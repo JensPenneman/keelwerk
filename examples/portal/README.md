@@ -35,6 +35,8 @@ curl -X POST "$URL/api/auth/sign-up" -H 'content-type: application/json' \
   -d '{"identifier":"ada@example.org","password":"a long password","displayName":"ada"}'
 ```
 
+The `addressAttemptsPerMinute` setting is a development setting: every request of this walkthrough comes from the loopback, one client address, so repeated sign-ups and logins would soon meet the default of ten per minute; a production deployment leaves it out.
+
 The tenant resolves by the `x-keelwerk-tenant` header or by host name; this request carries no header, so the loopback address is its domain. Point a profile at the
 app (`~/.config/keelwerk/profiles.json`, with the printed address written out: `{"current":"portal","profiles":{"portal":{"url":"$URL"}}}`;
 plain `http://` is accepted for loopback hosts only), then:
