@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.2.0](https://github.com/JensPenneman/keelwerk/compare/v0.1.0...v0.2.0) (2026-11-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* **core:** an effect of an external performer takes no runAt.
+* **module-api-keys:** a module's principal resolver may not answer an operator, and the reference of its answer names the resolver itself.
+* **core:** an action's deprecated.at and sunset must be a calendar date or an instant with an offset; other texts are refused when the action is defined.
+
+### Features
+
+* **cli:** render transport type fragments into app generated files ([c7371b4](https://github.com/JensPenneman/keelwerk/commit/c7371b4767fbfe03642126eb9a7664a9aad509bf))
+* **core:** add streams, topics, processes, version changes and quotas ([14bb27c](https://github.com/JensPenneman/keelwerk/commit/14bb27cd1d3b25607d110f59ed0359dcf0b486ae))
+* **core:** append-only streams with a record store on every adapter ([ec4e6af](https://github.com/JensPenneman/keelwerk/commit/ec4e6af81dc73d89fd50d336e163e2d65560ba18))
+* **core:** count API usage and retire sunset API versions ([301fdd8](https://github.com/JensPenneman/keelwerk/commit/301fdd82860e20a40391a0cb2dc6fc862282dac4))
+* **core:** evaluate feature flags once per invocation ([21429a9](https://github.com/JensPenneman/keelwerk/commit/21429a9348c45f483778156a7ce3723048a1d158))
+* **core:** let outside performers settle effects, with deadlines ([f1c3554](https://github.com/JensPenneman/keelwerk/commit/f1c3554a5ad1d0d7f0d7396c5cc870b25693900b))
+* **core:** run effect executors from the worker with recorded attempts ([8b635fe](https://github.com/JensPenneman/keelwerk/commit/8b635fe899456ef8e67f02f6caafdec8e5d7e7d1))
+* **core:** run queued jobs and async commands with real workers ([c984cd1](https://github.com/JensPenneman/keelwerk/commit/c984cd19690bd07680e72efcb574ffd312bea66f))
+* **core:** seal personal and secret values in effects and receipts ([8b993d7](https://github.com/JensPenneman/keelwerk/commit/8b993d7f4f42f1787a6458998518b49505c012ac))
+* **core:** show matched rule ids and failed stage in explain stream ([e8cf04d](https://github.com/JensPenneman/keelwerk/commit/e8cf04db8663fdd8ed3c47e92b1119ccc64b00d5))
+* **core:** target feature flags with rules and percentage splits ([1b16575](https://github.com/JensPenneman/keelwerk/commit/1b16575431faadb30202804b3ecd2cccb2eac4d9))
+* **core:** tick schedules and fire timers with sealed job inputs ([f1457c3](https://github.com/JensPenneman/keelwerk/commit/f1457c308cb618f08156bedb1db16d6b5fa4941b))
+* **core:** translate requests and answers between API versions ([ba20987](https://github.com/JensPenneman/keelwerk/commit/ba209870967045d9cdac0655d5663f7c4386f6f8))
+* **events:** run async reactions and process managers from events ([779038c](https://github.com/JensPenneman/keelwerk/commit/779038cbe4e586a09f6255ecf728ea5a69a4669c))
+* **events:** run consumers with leases, parking and replay ([651cdd7](https://github.com/JensPenneman/keelwerk/commit/651cdd7f6fa809f6345fc69e4c8c8ae3b54eb204))
+* **live:** generate watch actions and a pokes stream for entities ([267407b](https://github.com/JensPenneman/keelwerk/commit/267407b4ebe0d0f43dbd936da2bd39c2d4bb7b26))
+* **live:** serve subscriptions through a live hub for each runtime ([a5506e0](https://github.com/JensPenneman/keelwerk/commit/a5506e0a36c523415bfe8189d6de1940e6d829b1))
+* **live:** stream tickets and an SSE carrier for live subscriptions ([6772679](https://github.com/JensPenneman/keelwerk/commit/67726790e07009e57e46d4f8fa45deed0428235a))
+* **module-api-keys:** add personal API keys that sign in as their owner ([772c4b7](https://github.com/JensPenneman/keelwerk/commit/772c4b7d89a994b232c52b1a226385da823343af))
+* **testing:** drive live socket cases through a connect hook ([72e85ac](https://github.com/JensPenneman/keelwerk/commit/72e85ac75804c6ed3f9cb09a8793338f69485541))
+* **testing:** host transports in the test runtime, one address per call ([9ac1125](https://github.com/JensPenneman/keelwerk/commit/9ac11254bdb05b625234b587e273c0e0bebc4894))
+* **transport-graphql:** serve the surface over GraphQL ([2e9e5f5](https://github.com/JensPenneman/keelwerk/commit/2e9e5f5e4b02220d38544406414271bdeab8b793))
+* **transport-http:** serve live subscriptions over a websocket ([d910289](https://github.com/JensPenneman/keelwerk/commit/d910289d9e14abe0ca862aaf1de6291c4dd41208))
+
+
+### Bug Fixes
+
+* **core:** decode public ids inside filters ([8a9d484](https://github.com/JensPenneman/keelwerk/commit/8a9d4848c215cfcc6d58cc0e06a65cf1673be1a1))
+* **core:** leave an omitted field untouched in a generated update ([f4e8c10](https://github.com/JensPenneman/keelwerk/commit/f4e8c10cb3c8be3eddd7f7e285ba3de53fea2495))
+* **core:** trim the OTLP endpoint without a regular expression ([ed90776](https://github.com/JensPenneman/keelwerk/commit/ed90776484a7c3aa9c481548c50c8b6af8d1d33d))
+* **data:** refuse statements on a unit that has ended ([16a5846](https://github.com/JensPenneman/keelwerk/commit/16a5846867a3e0fad7813d7b72f1d5dc52a2d384))
+
 ## 0.1.0 (2026-11-11)
 
 
