@@ -46,4 +46,62 @@ describe('trustedProxies', () => {
     expect(trustedProxies([]).clientAddress('fe80::1%en0', null)).toBe('fe80::1');
     expect(trustedProxies([]).clientAddress('FE80::1%en0', 'fe80::2')).toBe('fe80::1');
   });
+
+  it('reads a forwarded IPv4 entry with a port as its address', () => {
+    const proxies = trustedProxies(['10.0.0.0/8']);
+    expect(proxies.clientAddress('10.0.0.1', '203.0.113.7:51234')).toBe('203.0.113.7');
+    expect(proxies.clientAddress('10.0.0.1', '203.0.113.7:51234, 10.0.0.5:443')).toBe(
+      '203.0.113.7',
+    );
+  });
+
+  it('reads a bracketed IPv6 entry, with or without a port, as its address', () => {
+    const proxies = trustedProxies(['10.0.0.0/8']);
+    expect(proxies.clientAddress('10.0.0.1', '[2001:db8::1]:443')).toBe('2001:db8::1');
+    expect(proxies.clientAddress('10.0.0.1', '[2001:DB8::1]')).toBe('2001:db8::1');
+    expect(proxies.clientAddress('10.0.0.1', '[::ffff:203.0.113.7]:80')).toBe('203.0.113.7');
+  });
+
+  it('never reads a bare IPv6 address as an address with a port', () => {
+    const proxies = trustedProxies(['10.0.0.0/8']);
+    expect(proxies.clientAddress('10.0.0.1', '2001:db8::1:443')).toBe('2001:db8::1:443');
+    expect(proxies.clientAddress('10.0.0.1', '::1:80')).toBe('::0.1.0.128');
+  });
+
+  it('reads an IPv6 entry that ends in a dotted quad and a port as its address', () => {
+    const proxies = trustedProxies(['10.0.0.0/8']);
+    expect(proxies.clientAddress('10.0.0.1', '::ffff:203.0.113.7:51234')).toBe('203.0.113.7');
+    expect(proxies.clientAddress('10.0.0.1', '64:ff9b::203.0.113.7:443')).toBe(
+      '64:ff9b::cb00:7107',
+    );
+  });
+
+  it('takes a malformed entry with a port or brackets as no address: the socket counts', () => {
+    const proxies = trustedProxies(['10.0.0.0/8']);
+    const malformed = [
+      '203.0.113.7:',
+      '203.0.113.7:65536',
+      '203.0.113.7:x',
+      '[2001:db8::1',
+      '2001:db8::1]',
+      '[2001:db8::1]:',
+      '[2001:db8::1]:70000',
+      '[2001:db8::1]443',
+      '[203.0.113.7]:80',
+      '[fe80::1%eth0]:443',
+      '::ffff:203.0.113.7:',
+      '::ffff:203.0.113.7:65536',
+      '::ffff:203.0.113.7:x',
+      '[]',
+    ];
+    for (const entry of malformed) {
+      expect(proxies.clientAddress('10.0.0.1', entry), entry).toBe('10.0.0.1');
+      expect(proxies.clientAddress('10.0.0.1', `1.2.3.4, ${entry}`), entry).toBe('10.0.0.1');
+    }
+  });
+
+  it('checks a trusted proxy written with a port against the ranges', () => {
+    const proxies = trustedProxies(['10.0.0.0/8']);
+    expect(proxies.clientAddress('10.0.0.1', '198.51.100.9, 10.0.0.5:443')).toBe('198.51.100.9');
+  });
 });

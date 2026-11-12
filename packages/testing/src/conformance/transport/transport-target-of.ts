@@ -23,6 +23,7 @@ export function transportTargetOf(
     cors,
     backendConfig: runtime.backendConfig,
     operatorFetch: unixSocketFetch(runtime.socket),
+    ...(runtime.connect !== undefined && { connect: runtime.connect }),
     ...(live && { live }),
   };
 }

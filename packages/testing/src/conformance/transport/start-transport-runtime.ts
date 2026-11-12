@@ -11,11 +11,13 @@ import type {
 } from '@keelwerk/core';
 import { secret, startRuntime } from '@keelwerk/core';
 import { memoryAdapter, schemaPlanner } from '@keelwerk/data';
+import { clientAddresses } from '../../harness/client-addresses.ts';
 import { clientFetchOf } from '../../harness/client-fetch-of.ts';
 import type { TestApp } from '../../harness/test-app.ts';
 import { testMasterKeyName } from '../../harness/test-master-key-name.ts';
 import { testSecrets } from '../../harness/test-secrets.ts';
 import { withTestResolver } from '../../harness/with-test-resolver.ts';
+import { clientConnectOf } from './client-connect-of.ts';
 import { transportPglite } from './transport-pglite.ts';
 import type { TransportRuntime } from './transport-runtime.ts';
 import { withCookieResolver } from './with-cookie-resolver.ts';
@@ -24,7 +26,12 @@ import { withCookieResolver } from './with-cookie-resolver.ts';
 export interface TransportRuntimeOptions {
   /** The app to serve, with the transport modules the caller composed into it. */
   readonly app: TestApp;
-  /** The deployment's HTTP host entry (`httpHost()` of `@keelwerk/transport-http`). */
+  /**
+   * The deployment's HTTP host entry (`httpHost()` of `@keelwerk/transport-http`). For the socket
+   * cases pass a listening host that trusts the loopback:
+   * `httpHost({ listen: { port: 0 }, trustedProxies: ['127.0.0.1'] })`; the hook sends its address
+   * as the forwarded entry of the upgrade.
+   */
   readonly host: InfrastructureEntry;
   /** The data adapter of the control store and the placement; default `'memory'`. */
   readonly adapter?: 'memory' | 'pglite';
@@ -107,9 +114,11 @@ export async function startTransportRuntime(
     tenants[name] = tenant.id;
     domains[name] = domain;
   }
+  const addresses = clientAddresses();
   return {
     runtime,
-    fetch: clientFetchOf(host),
+    fetch: clientFetchOf(host, addresses),
+    ...(runtime.port !== undefined && { connect: clientConnectOf(runtime.port, addresses) }),
     backendId: backend.id,
     backendConfig,
     tenants,

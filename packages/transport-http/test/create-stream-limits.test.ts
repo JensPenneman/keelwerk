@@ -101,7 +101,7 @@ describe('the subscriptions of a socket', () => {
   });
 
   test('of an anonymous session count against the anonymous bound, and give the count back once', () => {
-    const limits = createStreamLimits({ ...bounds, perTenantAnonymous: 2 });
+    const limits = createStreamLimits({ ...bounds, perPrincipal: 100, perTenantAnonymous: 2 });
     const anonymous = fakeSession();
     const release = limits.takeSubscription(anonymous, '10.0.0.1');
     limits.takeSubscription(anonymous, '10.0.0.1');

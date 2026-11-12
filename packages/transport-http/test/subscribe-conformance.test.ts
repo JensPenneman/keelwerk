@@ -15,7 +15,7 @@ vi.setConfig({ testTimeout: 30_000 });
 const origins = ['https://app.example.test'];
 // The fixture app with the live module: `loans.loanEvents` exists once live is composed.
 const app = defineApp({ id: 'streams', modules: [live, library, loans] });
-const options = { app, host: httpHost() };
+const options = { app, host: httpHost({ listen: { port: 0 }, trustedProxies: ['127.0.0.1'] }) };
 
 const memory = await startTransportRuntime(options);
 const pglite = await startTransportRuntime({ ...options, adapter: 'pglite' });

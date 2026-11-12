@@ -1,4 +1,6 @@
 import type { HostFetchOptions, Runtime } from '@keelwerk/core';
+import type { ConnectOptions } from './connect-options.ts';
+import type { SocketUpgrade } from './socket-upgrade.ts';
 
 /** A running deployment of the transport fixture app with its HTTP host listening in process. */
 export interface TransportRuntime {
@@ -11,6 +13,15 @@ export interface TransportRuntime {
    * would pass even when the protection is broken.
    */
   fetch(request: Request, options?: HostFetchOptions): Promise<Response>;
+  /**
+   * Opens a WebSocket through the host's real upgrade path (`clientConnectOf`): the named address,
+   * else a fresh one of the source `fetch` uses, is the forwarded entry of the upgrade. Absent when
+   * the deployment does not listen; the socket cases are skipped then. Protocol-neutral: the path and
+   * `Sec-WebSocket-Protocol` of the request pick the endpoint, so a GraphQL, tRPC or oRPC case uses it as is.
+   * `options.answerPings: false` leaves the server's pings unanswered; aborting the request's signal
+   * before the answer ends the handshake.
+   */
+  readonly connect?: (request: Request, options?: ConnectOptions) => Promise<SocketUpgrade>;
   readonly backendId: string;
   /** The configuration the backend was created with, by module id. */
   readonly backendConfig: Readonly<Record<string, unknown>>;

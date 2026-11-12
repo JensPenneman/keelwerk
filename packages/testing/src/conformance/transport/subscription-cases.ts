@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { freshName } from './fresh-name.ts';
 import { lendCall } from './lend-call.ts';
+import { liveSocketCases } from './live-socket-cases.ts';
 import { originOf } from './origin-of.ts';
 import { requestHeaders } from './request-headers.ts';
 import { sendCall } from './send-call.ts';
@@ -134,36 +135,22 @@ export function subscriptionCases(target: TransportTarget): void {
     },
   );
 
-  test.skipIf(skip)(
-    'a cross-site page cannot open the stream or the live socket with the user’s cookie',
-    async () => {
-      const ada = freshName('ada');
-      const caller = { subject: ada, cookie: `user:${ada}`, origin: 'https://evil.example' };
-      const stream = await target.fetch(
-        new Request(
-          `${originOf(target, caller)}${codec.subscribePath ?? ''}?action=loans.loanEvents`,
-          {
-            headers: {
-              ...Object.fromEntries(requestHeaders(caller)),
-              'sec-fetch-site': 'cross-site',
-            },
-          },
-        ),
-      );
-      expect(stream.status).toBe(403);
-      const socket = await target.fetch(
-        new Request(`${originOf(target, caller)}/_keelwerk/v1/live`, {
+  test.skipIf(skip)('a cross-site page cannot open the stream with the user’s cookie', async () => {
+    const ada = freshName('ada');
+    const caller = { subject: ada, cookie: `user:${ada}`, origin: 'https://evil.example' };
+    const stream = await target.fetch(
+      new Request(
+        `${originOf(target, caller)}${codec.subscribePath ?? ''}?action=loans.loanEvents`,
+        {
           headers: {
             ...Object.fromEntries(requestHeaders(caller)),
-            upgrade: 'websocket',
-            'sec-websocket-protocol': 'keelwerk.live.v1',
             'sec-fetch-site': 'cross-site',
           },
-        }),
-      );
-      expect(socket.status).toBe(403);
-    },
-  );
+        },
+      ),
+    );
+    expect(stream.status).toBe(403);
+  });
 
   test.skipIf(skip)(
     'anonymous streams are capped per client address: one address runs out, another does not',
@@ -189,4 +176,6 @@ export function subscriptionCases(target: TransportTarget): void {
       }
     },
   );
+
+  liveSocketCases(target);
 }
