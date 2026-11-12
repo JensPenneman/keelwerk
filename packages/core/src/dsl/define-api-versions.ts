@@ -1,19 +1,6 @@
+import { isCalendarDate } from '../api-versions/is-calendar-date.ts';
 import type { Check } from '../model/check.ts';
 import { compositionRefusal } from './composition-refusal.ts';
-
-const dateFormat = /^\d{4}-\d{2}-\d{2}$/;
-
-function isCalendarDate(text: string): boolean {
-  if (!dateFormat.test(text)) {
-    return false;
-  }
-  try {
-    return Temporal.PlainDate.from(text, { overflow: 'reject' }).toString() === text;
-  } catch (error) {
-    if (error instanceof RangeError) return false;
-    throw error;
-  }
-}
 
 function refuse(message: string, ref: string): never {
   throw compositionRefusal({ code: 'invalidApiVersions', severity: 'error', message, ref });

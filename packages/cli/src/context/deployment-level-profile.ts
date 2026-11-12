@@ -3,12 +3,14 @@ import type { ResolvedProfile } from './resolved-profile.ts';
 import { usageFailure } from './usage-failure.ts';
 
 /** The command groups that act on the deployment itself, never inside a tenant (section 16.9.7). */
-function isDeploymentLevelGroup(command: string): boolean {
+function isDeploymentLevelGroup(command: string, subcommand: string | undefined): boolean {
   switch (command) {
     case 'backend':
     case 'tenant':
     case 'operator':
       return true;
+    case 'surface':
+      return subcommand === 'usage' || subcommand === 'retire';
     default:
       return false;
   }
@@ -23,8 +25,9 @@ export function deploymentLevelProfile(
   command: string | undefined,
   options: GlobalOptions,
   profile: ResolvedProfile,
+  subcommand?: string,
 ): ResolvedProfile {
-  if (command === undefined || !isDeploymentLevelGroup(command)) return profile;
+  if (command === undefined || !isDeploymentLevelGroup(command, subcommand)) return profile;
   if (options.tenant !== undefined) {
     throw usageFailure(
       `--tenant does not apply to "${command}": it works on the deployment. Use "call <action> --tenant <id>" to act inside a tenant.`,

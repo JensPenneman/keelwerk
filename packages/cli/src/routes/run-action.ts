@@ -3,6 +3,7 @@ import type { CliContext } from '../context/cli-context.ts';
 import { CliFailure } from '../context/cli-failure.ts';
 import { localFailure } from '../context/local-failure.ts';
 import { assembleInput } from './assemble-input.ts';
+import { deprecationWarning } from './deprecation-warning.ts';
 import type { FlagEntry } from './flag-entry.ts';
 import type { PositionalSlot } from './positional-slot.ts';
 import { resendOf } from './resend-of.ts';
@@ -60,6 +61,7 @@ export async function runAction(
     ...(typeof flags['command-id'] === 'string' && { commandId: flags['command-id'] }),
     ...(prefer !== undefined && { prefer }),
     ...(trace !== undefined && { traceparent: trace.traceparent }),
+    onDeprecation: (notice) => output.note(deprecationWarning(notice)),
   });
   if (!first.ok) {
     throw new CliFailure(first.error, first.error.message);

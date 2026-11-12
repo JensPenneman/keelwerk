@@ -1,4 +1,5 @@
 export type { AdapterConformanceOptions } from './conformance/adapter/adapter-conformance-options.ts';
+export { apiUsageCases } from './conformance/adapter/api-usage-cases.ts';
 export type { ConformanceClock } from './conformance/adapter/conformance-clock.ts';
 export type { ConformanceTarget } from './conformance/adapter/conformance-target.ts';
 export { consumerCases } from './conformance/adapter/consumer-cases.ts';

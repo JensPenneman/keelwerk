@@ -32,6 +32,8 @@ export interface TransportRuntimeOptions {
   readonly config?: Readonly<Record<string, unknown>>;
   /** The tenants to create, by name; each gets the domain `<name>.example.test`. */
   readonly tenants?: readonly string[];
+  /** The API version each named tenant is pinned to; a tenant not named follows the backend's default and the head. */
+  readonly tenantApiVersions?: Readonly<Record<string, string>>;
   /** The runtime's clock; default: the system clock. */
   readonly clock?: Clock;
   /** The waits of a live carrier (see `pinnedLiveTimers`); default: timers on the runtime's clock. */
@@ -95,10 +97,12 @@ export async function startTransportRuntime(
   const domains: Record<string, string> = {};
   for (const name of names) {
     const domain = `${name}.example.test`;
+    const pin = options.tenantApiVersions?.[name];
     const tenant = await runtime.control.createTenant({
       backendId: backend.id,
       name,
       domains: [domain],
+      ...(pin === undefined ? {} : { apiVersion: pin }),
     });
     tenants[name] = tenant.id;
     domains[name] = domain;

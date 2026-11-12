@@ -1,6 +1,7 @@
 import { expectTypeOf, test } from 'vitest';
 import type { Condition } from '../conditions/condition.ts';
 import type { ConditionOp } from '../conditions/condition-op.ts';
+import type { ApiUsageStore } from './api-usage-store.ts';
 import type { EntityDescriptor } from './entity-descriptor.ts';
 import type { JobOutcome } from './job-outcome.ts';
 import type { JobStore } from './job-store.ts';
@@ -29,10 +30,12 @@ test('Unit has exactly the members of S-03', () => {
     | 'serials'
     | 'streams'
     | 'scopeKeys'
+    | 'apiUsage'
     | 'nested'
     | 'afterCommit'
   >();
   expectTypeOf<Unit['scopeKeys']>().toEqualTypeOf<ScopeKeyStore | undefined>();
+  expectTypeOf<Unit['apiUsage']>().toEqualTypeOf<ApiUsageStore | undefined>();
   expectTypeOf<Unit['jobs']>().toEqualTypeOf<JobStore>();
   expectTypeOf<Unit['streams']>().toEqualTypeOf<StreamRecordStore>();
 });

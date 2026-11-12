@@ -19,12 +19,12 @@ import { createOperatorTokenResolver } from '../principals/operator-token-resolv
 import type { ApiSurface } from '../surface/api-surface.ts';
 import { deriveSurface } from '../surface/derive-surface.ts';
 import type { SurfaceSource } from '../surface/surface-source.ts';
-import { createCommandRunner } from '../write-path/create-command-runner.ts';
 import { anchorScopes } from './anchor-scopes.ts';
 import { answerRuntimeQueries } from './answer-runtime-queries.ts';
 import { AppNotServedError } from './app-not-served-error.ts';
 import { composePhase } from './compose-phase.ts';
 import { connectPhase } from './connect-phase.ts';
+import { controlCommandsOf } from './control-commands-of.ts';
 import { createControlPath } from './create-control-path.ts';
 import { createRuntimeControl } from './create-runtime-control.ts';
 import { defaultLogger } from './default-logger.ts';
@@ -36,11 +36,11 @@ import type { Listening } from './listening.ts';
 import { migratePhase } from './migrate-phase.ts';
 import { refuseUnknownApiVersion } from './refuse-unknown-api-version.ts';
 import { registerTelemetry } from './register-telemetry.ts';
-import { routeControlCommands } from './route-control-commands.ts';
 import type { Runtime } from './runtime.ts';
 import { runtimeEnvironment } from './runtime-environment.ts';
 import type { RuntimeOptions } from './runtime-options.ts';
 import type { ServedApp } from './served-app.ts';
+import { servedRegistry } from './served-registry.ts';
 import { setupPhase } from './setup-phase.ts';
 import type { Started } from './start-phase.ts';
 import { startPhase } from './start-phase.ts';
@@ -99,7 +99,7 @@ export async function startRuntime(
     const apps = invokerAppsOf(served, { clock, log, hubs });
     const sole = served.length === 1 ? served[0] : undefined;
     apps.set('core', {
-      registry: sole?.registry ?? connected.control.registry,
+      registry: sole?.registry ?? servedRegistry(connected.control.registry),
       head: coreApiVersions.dates.at(-1) ?? '',
       api: coreApiVersions,
     });
@@ -148,18 +148,12 @@ export async function startRuntime(
       keys: connected.keys,
       compute: connected.compute,
       log,
+      apiUsage: connected.control.apiUsage,
       environment,
       flagProviders,
       targeting,
       build: connected.build,
-      commands: routeControlCommands(
-        createCommandRunner({
-          deploymentId: connected.control.deploymentId,
-          nodeId: connected.nodeId,
-          hybridClock: connected.hybridClock,
-        }),
-        controlPath,
-      ),
+      commands: controlCommandsOf({ connected, controlPath, served, clock }),
     };
     const inner = createInvoker(invokerOptions);
     const servedById = new Map(served.map((app) => [app.id, app]));

@@ -1,9 +1,11 @@
 import {
+  deprecatedFrom,
   type InvokeRequest,
   type InvokeResponse,
   type KeelwerkError,
   newUuidV7,
   type Outcome,
+  utcDayOf,
 } from '@keelwerk/core';
 import {
   applyCookieHint,
@@ -39,9 +41,14 @@ export async function invokeOne(
   const commandId = item.commandId ?? (action?.kind === 'command' ? newUuidV7() : undefined);
   if (single) {
     state.action = item.action;
-    if (action?.deprecated?.at !== undefined) {
+    // From its `at` day on (at once without `at`), as `deprecationsOf` decides for a notice: a date still ahead announces nothing.
+    const today = utcDayOf((host.deps.clock ?? { now: () => Temporal.Now.instant() }).now());
+    if (action?.deprecated !== undefined && deprecatedFrom(action.deprecated.at, today)) {
       const { at, sunset } = action.deprecated;
-      state.deprecatedAction = { at, ...(sunset !== undefined && { sunset }) };
+      state.deprecatedAction = {
+        ...(at !== undefined && { at }),
+        ...(sunset !== undefined && { sunset }),
+      };
     }
     if (item.commandId === undefined && commandId !== undefined) {
       state.generatedCommandId = commandId;

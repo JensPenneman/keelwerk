@@ -10,6 +10,7 @@ import type { EntityDescriptor } from '../storage/entity-descriptor.ts';
 import type { NamespaceRef } from '../storage/namespace-ref.ts';
 import type { Scope } from '../storage/scope.ts';
 import type { Unit } from '../storage/unit.ts';
+import type { ControlApiUsage } from './control-api-usage.ts';
 import type { ControlFlags } from './control-flags.ts';
 
 /**
@@ -44,6 +45,8 @@ export interface ControlStore {
   entity(ref: string): EntityDescriptor;
   /** The targeting rows of core.flag and their change subscription (WP-98). */
   readonly flags: ControlFlags;
+  /** The request counts of this process and the kw_api_usage accessors (S-144). */
+  readonly apiUsage: ControlApiUsage;
   /** Runs `fn` in a read-only deployment-scope unit. */
   read<T>(fn: (unit: Unit) => Promise<T>): Promise<T>;
 }

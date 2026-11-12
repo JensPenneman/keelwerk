@@ -8,7 +8,7 @@ import type {
   LiveTimers,
   WireError,
 } from '@keelwerk/core';
-import { errors, liveTimersOf, sseEventOf, toWire } from '@keelwerk/core';
+import { endReasonOfError, errors, liveTimersOf, sseEventOf, toWire } from '@keelwerk/core';
 import { asKeelwerkError } from '@keelwerk/core/http';
 import { sseFrameOf } from './sse-frame-of.ts';
 
@@ -81,7 +81,7 @@ async function serveSse(
   };
   try {
     await connection.write(
-      `retry: ${retryMs}\n\n${options.welcome === undefined ? '' : sseEventOf('welcome', options.welcome)}`,
+      `retry: ${retryMs}\n\n${options.welcome === undefined ? '' : sseEventOf('welcome', options.welcome)}${(options.notices ?? []).map((notice) => sseEventOf('notice', notice)).join('')}`,
     );
     for (;;) {
       pending ??= iterator.next().then(
@@ -108,7 +108,13 @@ async function serveSse(
       }
       pending = undefined;
       if (step.kind === 'failed') {
-        await closeWith(() => connection.fail(errorFrame(step.error, options)));
+        // A stream the floor passed ends as a finished one with its reason, never as an error (15.4.6).
+        const reason = endReasonOfError(step.error);
+        await closeWith(() =>
+          reason === undefined
+            ? connection.fail(errorFrame(step.error, options))
+            : connection.end(reason),
+        );
         return;
       }
       if (step.result.done === true) {

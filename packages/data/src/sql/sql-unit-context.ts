@@ -141,7 +141,10 @@ export function sqlUnitContext(parts: SqlUnitContextParts): SqlUnitContext {
         new ScopingPlugin({
           scope,
           scoped: [],
-          unscoped: [{ schema: root, name: 'kw_scope_keys' }],
+          unscoped: [
+            { schema: root, name: 'kw_scope_keys' },
+            { schema: root, name: 'kw_api_usage' },
+          ],
           deploymentId: parts.deploymentId,
         }),
       );

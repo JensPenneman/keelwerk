@@ -1,4 +1,5 @@
 import type {
+  ApiUsageStore,
   BucketStore,
   Clock,
   ConsumerStore,
@@ -19,6 +20,7 @@ import { CompiledQuery } from 'kysely';
 import { scopeSettingsStatement } from './postgres/scope-settings-statement.ts';
 import { runSql } from './run-sql.ts';
 import { scopeForbidden } from './scope-forbidden.ts';
+import { sqlApiUsageStore } from './sql-api-usage-store.ts';
 import { sqlBucketStore } from './sql-bucket-store.ts';
 import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
 import { sqlCommitBuffer } from './sql-commit-buffer.ts';
@@ -79,6 +81,8 @@ export interface SqlUnit {
   readonly serials: SerialStore;
   readonly streams: StreamRecordStore;
   readonly scopeKeys?: ScopeKeyStore;
+  /** `kw_api_usage`; deployment-scope units only (S-144). */
+  readonly apiUsage?: ApiUsageStore;
   nested<T>(fn: (u: SqlUnit) => Promise<T>, options?: NestedUnitOptions): Promise<T>;
   afterCommit(fn: () => void): void;
   /**
@@ -119,6 +123,7 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
       db: current.db,
     });
     const scopeKeys = current.scope.level === 'deployment' ? sqlScopeKeyStore(ctx) : undefined;
+    const apiUsage = current.scope.level === 'deployment' ? sqlApiUsageStore(ctx) : undefined;
     // Keys wrapped inside a deployment-scope unit read the scope keys through that unit, so an
     // adapter that runs one unit at a time never waits for a second one.
     const keyCtx: SqlUnitContext =
@@ -141,6 +146,7 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
       serials: sqlSerialStore(ctx),
       streams: sqlStreamRecordStore(ctx),
       ...(scopeKeys === undefined ? {} : { scopeKeys }),
+      ...(apiUsage === undefined ? {} : { apiUsage }),
       nested: async <T>(fn: (u: SqlUnit) => Promise<T>, options?: NestedUnitOptions) => {
         const target = options?.as ?? current.scope;
         if (

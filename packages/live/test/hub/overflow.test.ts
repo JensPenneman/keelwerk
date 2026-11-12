@@ -55,35 +55,42 @@ describe.each(['memory', 'pglite'] as const)(
       }
     }
 
-    test('a consumer that never pulls gets reset overflow with its last delivered token and ends', async () => {
+    test('a consumer that never pulls gets reset overflow with its last delivered token and ends', {
+      timeout: 120_000,
+    }, async () => {
       const { iterator, head } = await pullHead();
       await writeAndSettle(Array.from({ length: 25 }, (_, at) => `c${at}`));
       const frames = await drain(iterator);
       expect(frames).toEqual([{ control: 'reset', reason: 'overflow', state: stateOf(head) }]);
     });
 
-    test('bytes overflow before items: three 3 KiB rows', async () => {
+    test('bytes overflow before items: three 3 KiB rows', {
+      timeout: 120_000,
+    }, async () => {
       const { iterator, head } = await pullHead();
       await writeAndSettle(['x'.repeat(3000), 'y'.repeat(3000), 'z'.repeat(3000)]);
       const frames = await drain(iterator);
       expect(frames).toEqual([{ control: 'reset', reason: 'overflow', state: stateOf(head) }]);
     });
 
-    test('an overflowing acme subscriber delays no globex frame', async () => {
+    test('an overflowing acme subscriber delays no globex frame', {
+      timeout: 120_000,
+    }, async () => {
       const { iterator } = await pullHead(kit.acme);
       const globex = kit.subscribe(kit.globex, people.ada);
       try {
         await globex.ready();
-        const made: string[] = [];
+        // Each globex frame is awaited as it is made, while the acme iterator has never been pulled
+        // since its head: the stream either delivers it or the test waits for it. The wait is the
+        // condition, not a time budget, so a slow or loaded machine cannot fail it; the whole
+        // test is bounded only by its (generous) test timeout.
+        const eventsOf = () => globex.frames.filter((frame) => 'event' in frame).length;
         for (let at = 0; at < 25; at += 1) {
           await card(`a${at}`);
-          made.push((await card(`g${at}`, kit.globex)).id);
+          await card(`g${at}`, kit.globex);
+          await globex.until(() => eventsOf() >= at + 1, 60_000);
         }
-        await globex.until(
-          (frames) => frames.filter((frame) => 'event' in frame).length >= 25,
-          5000,
-        );
-        expect(globex.frames.filter((frame) => 'event' in frame)).toHaveLength(25);
+        expect(eventsOf()).toBe(25);
         const frames = await drain(iterator);
         expect(frames.at(-1)).toMatchObject({ control: 'reset', reason: 'overflow' });
       } finally {

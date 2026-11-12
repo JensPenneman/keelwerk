@@ -22,6 +22,7 @@ export function createUntypedClient(
         ...(options.signal !== undefined && { signal: options.signal }),
         ...(options.traceparent !== undefined && { traceparent: options.traceparent }),
         ...(apiVersion !== undefined && { apiVersion }),
+        ...(options.onDeprecation !== undefined && { onDeprecation: options.onDeprecation }),
       };
       const target = await link();
       return await retryUnreachable(host, options.signal, () => target.invoke(request, settings));

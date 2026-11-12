@@ -1,4 +1,6 @@
+import { declaredInstantOf } from '../api-versions/declared-instant-of.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
+import { compositionRefusal } from '../dsl/composition-refusal.ts';
 import { durationMs } from '../effects/duration-ms.ts';
 import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
@@ -19,6 +21,25 @@ function sinceOf(module: string, app: ComposableApp): string {
   const dates =
     module === 'core' ? coreApiVersions.dates : (app.api?.dates ?? coreApiVersions.dates);
   return dates[0] ?? coreApiVersions.head;
+}
+
+/**
+ * A deprecated action's `at` and `sunset` are a calendar date (that UTC day) or an instant with an
+ * offset (18.5): the same check as the dates of an API version. Any other text, a date-time
+ * without an offset or 'Dec 1, 2026', is refused here, so no reader meets one.
+ */
+function checkDeprecationDates(ref: string, deprecated: ActionEntry['deprecated']): void {
+  for (const key of ['at', 'sunset'] as const) {
+    const text = deprecated?.[key];
+    if (text !== undefined && declaredInstantOf(text) === undefined) {
+      throw compositionRefusal({
+        code: 'invalidDeprecationDate',
+        severity: 'error',
+        message: `The deprecation of '${ref}' declares ${key} '${text}': use a YYYY-MM-DD calendar date or an instant with an offset (2026-12-01T10:00:00Z).`,
+        ref,
+      });
+    }
+  }
 }
 
 /** Entity commands target a row, unless they declare that they create rows (F-11b change note). */
@@ -177,6 +198,7 @@ export function actionEntryOf(
   context: ActionEntryContext,
 ): ActionEntry {
   const spec = specOf(part);
+  checkDeprecationDates(mount.ref, spec.deprecated);
   const model =
     mount.entity === undefined
       ? undefined

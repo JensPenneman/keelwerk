@@ -27,6 +27,8 @@ export interface LiveSocketState {
     string,
     { readonly abort: AbortController; readonly done: Promise<void> }
   >;
+  /** The head refs of deprecated actions this socket was told of. */
+  readonly noticedActions: Set<string>;
   pendingInvokes: number;
   /** The bytes of the texts of the invokes queued or running. */
   pendingInvokeBytes: number;

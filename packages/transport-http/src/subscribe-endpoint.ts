@@ -1,4 +1,11 @@
-import { type Carrier, liveTimersOf, type StateToken, unknownClientAddress } from '@keelwerk/core';
+import {
+  type Carrier,
+  deprecationsOf,
+  liveTimersOf,
+  type StateToken,
+  unknownClientAddress,
+  utcDayOf,
+} from '@keelwerk/core';
 import { asKeelwerkError, coreError, decodeActionInput, encodeFrames } from '@keelwerk/core/http';
 import type { EndpointCall } from './endpoint-call.ts';
 import { errorResponse } from './error-response.ts';
@@ -96,6 +103,7 @@ export async function subscribeEndpoint(call: EndpointCall): Promise<Response> {
         maxDurationMs: host.live.maxDurationMs,
         clock,
         timers,
+        notices: deprecationsOf(session, action, utcDayOf(clock.now())),
         welcome: {
           apiVersion: session.apiVersion,
           surfaceHash: surface.hash,

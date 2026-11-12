@@ -1,4 +1,5 @@
 import type { EventStore } from '../events/event-store.ts';
+import type { ApiUsageStore } from './api-usage-store.ts';
 import type { BucketStore } from './bucket-store.ts';
 import type { ConsumerStore } from './consumer-store.ts';
 import type { JobStore } from './job-store.ts';
@@ -42,6 +43,8 @@ export interface Unit {
   readonly streams: StreamRecordStore;
   /** Wrapped deployment, backend and tenant keys; present on deployment-scope units only (S-55). */
   readonly scopeKeys?: ScopeKeyStore;
+  /** kw_api_usage; deployment-scope units only, S-144. */
+  readonly apiUsage?: ApiUsageStore;
   /**
    * A savepoint: rolls back to it when `fn` throws, then rethrows. A tenant unit may pass
    * `{ as: <backend scope>, readOnly: true }` to read backend data; no other `as` is allowed.

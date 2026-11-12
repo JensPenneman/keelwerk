@@ -19,7 +19,7 @@ export interface RequestState {
   /** The action of a single invocation, for the span. */
   action?: string;
   /** The deprecation of the action of a single invocation. */
-  deprecatedAction?: { readonly at: string; readonly sunset?: string };
+  deprecatedAction?: { readonly at?: string; readonly sunset?: string };
   /** The id of a command whose id the host generated. */
   generatedCommandId?: string;
   /** Set once a WebSocket upgrade was accepted: the response is never sent, the request counts as 101. */

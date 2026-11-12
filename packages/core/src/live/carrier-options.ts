@@ -1,3 +1,4 @@
+import type { DeprecationNotice } from '../api-versions/deprecation-notice.ts';
 import type { WireError } from '../errors/wire-error.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { LiveTimers } from './live-timers.ts';
@@ -20,6 +21,8 @@ export interface CarrierOptions {
     readonly surfaceHash: string;
     readonly protocol: number;
   };
+  /** Written once after the opening frame: SSE after `welcome`, a socket subscription before its first frame. */
+  readonly notices?: readonly DeprecationNotice[];
   /** The error that ends a stream as the host renders it (audience, request id); absent: public audience, empty request id. */
   wireError?(error: unknown): WireError;
 }

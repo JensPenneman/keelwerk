@@ -23,6 +23,7 @@ function toUnit(base: SqlUnit): Unit {
     serials: base.serials,
     streams: base.streams,
     ...(base.scopeKeys === undefined ? {} : { scopeKeys: base.scopeKeys }),
+    ...(base.apiUsage === undefined ? {} : { apiUsage: base.apiUsage }),
     nested: async (fn, options) => base.nested(async (inner) => fn(toUnit(inner)), options),
     afterCommit: (fn) => {
       base.afterCommit(fn);

@@ -1,4 +1,9 @@
-import type { CapabilitiesDocument, InvokeRequest, InvokeResponse } from '@keelwerk/core';
+import type {
+  CapabilitiesDocument,
+  DeprecationNotice,
+  InvokeRequest,
+  InvokeResponse,
+} from '@keelwerk/core';
 import type { SurfaceLookup } from './surface-lookup.ts';
 
 /** What one request may carry besides its body. */
@@ -8,6 +13,8 @@ export interface LinkOptions {
   readonly traceparent?: string;
   /** Sent as `Keelwerk-Version` on `/invoke`: the API version of the surface the flags came from. */
   readonly apiVersion?: string;
+  /** Called once when an `/invoke` answer carries `Deprecation`. */
+  readonly onDeprecation?: (notice: DeprecationNotice) => void;
 }
 
 /**

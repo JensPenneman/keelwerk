@@ -1,4 +1,5 @@
 import type { Unit } from '@keelwerk/core';
+import { memoryApiUsageStore } from './memory-api-usage-store.ts';
 import { memoryBucketStore } from './memory-bucket-store.ts';
 import { memoryConsumerStore } from './memory-consumer-store.ts';
 import { memoryEventStore } from './memory-event-store.ts';
@@ -35,6 +36,7 @@ export function memoryBuildUnit(ctx: MemoryUnitContext, hooks: (() => void)[]): 
     serials: memorySerialStore(ctx),
     streams: memoryStreamRecordStore(ctx),
     ...(ctx.scope.level === 'deployment' ? { scopeKeys: memoryScopeKeyStore(ctx) } : {}),
+    ...(ctx.scope.level === 'deployment' ? { apiUsage: memoryApiUsageStore(ctx) } : {}),
     nested: async (fn, options) => {
       const view = memoryNestedContext(ctx, options);
       const rollback = ctx.tx.savepoint();

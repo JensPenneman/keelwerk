@@ -3,6 +3,74 @@
     {
       "auth": "policy",
       "changedIn": [],
+      "errors": [],
+      "execution": "sync",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "apiVersion": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 4
+          },
+          "backendId": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 3
+          },
+          "item": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 5
+          },
+          "since": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 1
+          },
+          "until": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": true,
+            "tag": 2
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-0ESK42LIIbWLW3aASGMGcf6MUavTdHqbYqJ2B-y2S2o",
+      "instance": false,
+      "kind": "query",
+      "module": "core",
+      "mount": "module",
+      "name": "apiUsage",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "input": {
+          "type": "object"
+        },
+        "kind": "foreign",
+        "optional": false,
+        "output": {
+          "type": "object"
+        }
+      },
+      "outputHash": "sha256-txLfO2J6Z7iplmLeb0kdcS9Do9iNwcH3de-SruvQjIc",
+      "ref": "core.apiUsage",
+      "resumable": false,
+      "scope": "deployment",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
       "entity": "core.backend",
       "errors": [],
       "execution": "sync",
@@ -7473,6 +7541,56 @@
     {
       "auth": "policy",
       "changedIn": [],
+      "errors": [],
+      "execution": "sync",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "app": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 1
+          },
+          "version": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 2
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-ZMGINoLNSPXFjgV7g1ICV-LoRuE-hXUyy99QfqSx_sk",
+      "instance": false,
+      "kind": "command",
+      "module": "core",
+      "mount": "module",
+      "name": "retireApiVersion",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "input": {
+          "type": "object"
+        },
+        "kind": "foreign",
+        "optional": false,
+        "output": {
+          "type": "object"
+        }
+      },
+      "outputHash": "sha256-txLfO2J6Z7iplmLeb0kdcS9Do9iNwcH3de-SruvQjIc",
+      "ref": "core.retireApiVersion",
+      "resumable": false,
+      "scope": "deployment",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
       "entity": "core.tenant",
       "errors": [],
       "execution": "sync",
@@ -12350,7 +12468,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-DHkEglere8Cm00WvW5RTzR_aw9OGqvzdy9zaJUXSSzE",
+  "hash": "sha256-ypfTvdFG84gOP0fmEUrihgbEOuIuBEv6aeID16Nj__U",
   "modules": [
     {
       "id": "core",

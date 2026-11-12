@@ -52,11 +52,13 @@ export async function booted(clock = testClock().clock): Promise<Runtime> {
 /** A memory adapter that remembers where the deployment scope lives, so a test can read a raw stream. */
 export function spiedMemory() {
   const real = memoryAdapter();
+  let deploymentId = '';
   let found: { adapter: DataAdapter; namespace: NamespaceRef; scope: StorageScope } | undefined;
   const factory: DataAdapterFactory = {
     ...real,
     create: (placement, env) => {
       const adapter = real.create(placement, env);
+      deploymentId = env.deploymentId;
       const open = adapter.unit.bind(adapter);
       adapter.unit = (namespace, scope, fn, options) => {
         if (scope.level === 'deployment') found = { adapter, namespace, scope };
@@ -67,6 +69,8 @@ export function spiedMemory() {
   };
   return {
     factory,
+    /** The deployment id, which scopes the receipts of deployment-scope commands. */
+    deployment: () => deploymentId,
     stream: (type: string, id: string) => {
       if (found === undefined) throw new Error('the control store was not opened');
       const { adapter, namespace, scope } = found;

@@ -31,11 +31,40 @@ describe('the API version of an invocation', () => {
     });
   });
 
-  test('the same carrier without the reaction mark is answered by the choice: the header, here a retired version', () => {
+  test('the same carrier without the reaction mark is answered by the choice: the header', () => {
     const carrier = carrierOf({ headers: { 'keelwerk-version': '2026-06-01' }, job: otherJob });
     expect(resolveVersion(env, resolved, carrier, principal).apiVersion).toBe('2026-06-01');
+  });
+
+  test('another job keeps a retired version it was accepted under, with no deprecation', () => {
+    expect(resolveVersion(env, resolved, carrierOf({ job: otherJob }), principal)).toEqual({
+      apiVersion: '2026-03-01',
+      deprecation: null,
+    });
+    const headed = carrierOf({ headers: { 'keelwerk-version': '2026-03-01' }, job: otherJob });
+    expect(resolveVersion(env, resolved, headed, principal)).toEqual({
+      apiVersion: '2026-03-01',
+      deprecation: null,
+    });
+  });
+
+  test("a request without a version, whose pin is retired, is served under the pin's target", () => {
+    // The credential's pin, the tenant's pin and the backend's default are all pins.
+    expect(resolveVersion(env, resolved, carrierOf({}), principal)).toEqual({
+      apiVersion: '2026-06-01',
+      deprecation: null,
+    });
+    const tenantOnly = {} as unknown as Principal;
+    expect(resolveVersion(env, resolved, carrierOf({}), tenantOnly).apiVersion).toBe('2026-06-01');
+  });
+
+  test('a retired version that the request names is refused whatever the pin is', () => {
+    const headed = carrierOf({ headers: { 'keelwerk-version': '2026-03-01' } });
+    expect(() => resolveVersion(env, resolved, headed, principal)).toThrowError(
+      expect.objectContaining({ code: 'core.api_version_retired' }),
+    );
     expect(() =>
-      resolveVersion(env, resolved, carrierOf({ job: otherJob }), principal),
+      resolveVersion(env, { app: 'a' } as unknown as ResolvedScope, headed, {} as Principal),
     ).toThrowError(expect.objectContaining({ code: 'core.api_version_retired' }));
   });
 });

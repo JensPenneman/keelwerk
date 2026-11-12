@@ -23,6 +23,8 @@ export interface StoreHarness {
   readonly clock: { readonly now: () => Temporal.Instant };
   readonly adapter: () => PostgresAdapterInstance;
   readonly run: <T>(scope: StorageScope, fn: (u: Unit) => Promise<T>) => Promise<T>;
+  /** A read-only unit. */
+  readonly read: <T>(scope: StorageScope, fn: (u: Unit) => Promise<T>) => Promise<T>;
   /** A unit with the raw handle, for statements that skip the stores. */
   readonly runSql: <T>(scope: StorageScope, fn: (u: SqlUnit) => Promise<T>) => Promise<T>;
   readonly failure: (work: Promise<unknown>) => Promise<{ kind: string; code: string }>;
@@ -86,6 +88,10 @@ export function storeHarness(databaseName: string): StoreHarness {
     adapter,
     run: async (scope, fn) =>
       adapter().unit(scope.level === 'deployment' ? controlNamespace : testNamespace, scope, fn),
+    read: async (scope, fn) =>
+      adapter().unit(scope.level === 'deployment' ? controlNamespace : testNamespace, scope, fn, {
+        readOnly: true,
+      }),
     runSql: async (scope, fn) =>
       adapter().session(
         scope.level === 'deployment' ? controlNamespace : testNamespace,

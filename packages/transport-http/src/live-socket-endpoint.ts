@@ -72,6 +72,7 @@ export const liveSocketEndpoint: UpgradeEntry['serve'] = async (call, upgrade) =
     socketCarrier: carrier,
     release,
     subscriptions: new Map(),
+    noticedActions: new Set(),
     pendingInvokes: 0,
     pendingInvokeBytes: 0,
     everything: new AbortController(),

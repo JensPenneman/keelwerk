@@ -14,6 +14,10 @@ export { checkLedger } from './api-versions/check-ledger.ts';
 export { classifySurfaceChange } from './api-versions/classify-surface-change.ts';
 export type { VersionChangePart } from './api-versions/define-version-change.ts';
 export { defineVersionChange } from './api-versions/define-version-change.ts';
+export { deprecatedFrom } from './api-versions/deprecated-from.ts';
+export { deprecationHeaderOf } from './api-versions/deprecation-header-of.ts';
+export type { DeprecationNotice } from './api-versions/deprecation-notice.ts';
+export { deprecationsOf } from './api-versions/deprecations-of.ts';
 export { diffSurfaces } from './api-versions/diff-surfaces.ts';
 export { emptyApiVersionLedger } from './api-versions/empty-api-version-ledger.ts';
 export type {
@@ -28,6 +32,8 @@ export type { ChosenVersion, VersionChoice } from './api-versions/resolve-versio
 export { resolveVersion } from './api-versions/resolve-version.ts';
 export type { ChangeFixtureFailure } from './api-versions/run-change-fixtures.ts';
 export { runChangeFixtures } from './api-versions/run-change-fixtures.ts';
+export { sunsetDayOfHeader } from './api-versions/sunset-day-of-header.ts';
+export { sunsetHeaderOf } from './api-versions/sunset-header-of.ts';
 export type {
   SurfaceChange,
   SurfaceChangeClass,
@@ -35,6 +41,7 @@ export type {
 } from './api-versions/surface-change.ts';
 export type { SurfaceChangeSpec } from './api-versions/surface-change-spec.ts';
 export type { Translator } from './api-versions/translator.ts';
+export { utcDayOf } from './api-versions/utc-day-of.ts';
 export type {
   VersionChange,
   VersionChangeFixture,
@@ -578,6 +585,7 @@ export type { CarrierConnection, CarrierEndReason } from './live/carrier-connect
 export type { CarrierOptions } from './live/carrier-options.ts';
 export { createLiveEarlierShare } from './live/create-live-earlier-share.ts';
 export { defineLiveHub } from './live/define-live-hub.ts';
+export { endReasonOfError } from './live/end-reason-of-error.ts';
 export type { LiveCarrier } from './live/live-carrier.ts';
 export type { LiveClientMessage } from './live/live-client-message.ts';
 export type { LiveEarlier } from './live/live-earlier.ts';
@@ -850,6 +858,12 @@ export { scheduleQueue } from './schedules/schedule-queue.ts';
 export { createScheduleTicker } from './schedules/schedule-ticker.ts';
 export type { AdapterCapabilities } from './storage/adapter-capabilities.ts';
 export type { AdapterEnvironment } from './storage/adapter-environment.ts';
+export type {
+  ApiUsageCount,
+  ApiUsageQuery,
+  ApiUsageStore,
+  ApiUsageTotal,
+} from './storage/api-usage-store.ts';
 export type { AppliedMigration } from './storage/applied-migration.ts';
 export type { BucketStore } from './storage/bucket-store.ts';
 export type { BucketTake } from './storage/bucket-take.ts';

@@ -30,6 +30,7 @@ const profileCommands = new Set([
 /** The subcommands of a group that do the same: `db apply|status|verify` (WP-59). */
 const profileSubcommands: Readonly<Record<string, ReadonlySet<string>>> = {
   db: new Set(['apply', 'status', 'verify']),
+  surface: new Set(['usage', 'retire']),
 };
 /** The profile without its credential. */
 function withoutToken(profile: CliContext['profile']): CliContext['profile'] {
@@ -62,7 +63,12 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<number
       (profileCommands.has(command) ||
         (subcommand !== undefined && profileSubcommands[command]?.has(subcommand) === true));
     if (profiled && !completing) {
-      profile = deploymentLevelProfile(command, options, await resolveProfile(io.host, options));
+      profile = deploymentLevelProfile(
+        command,
+        options,
+        await resolveProfile(io.host, options),
+        subcommand,
+      );
     }
     const needsSurface =
       command === 'call' ||

@@ -33,6 +33,8 @@ export async function startStreamRuntime(
     readonly pglite?: boolean;
     readonly clock?: Clock;
     readonly timers?: LiveTimers;
+    /** The API version each named tenant is pinned to (`acme` is the first tenant). */
+    readonly tenantApiVersions?: Readonly<Record<string, string>>;
   } = {},
 ): Promise<StreamRuntime> {
   const lines: LoggedLine[] = [];
@@ -43,6 +45,7 @@ export async function startStreamRuntime(
     ...(over.pglite === true ? { adapter: 'pglite' as const } : {}),
     ...(over.clock === undefined ? {} : { clock: over.clock }),
     ...(over.timers === undefined ? {} : { timers: over.timers }),
+    ...(over.tenantApiVersions === undefined ? {} : { tenantApiVersions: over.tenantApiVersions }),
   });
   const target = transportTargetOf(runtime, protocolCodec, ['https://app.example.test'], true);
   const name = Object.keys(runtime.domains)[0] ?? 'acme';

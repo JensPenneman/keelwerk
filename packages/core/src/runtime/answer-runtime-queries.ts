@@ -1,4 +1,5 @@
 import { metrics } from '@opentelemetry/api';
+import { utcDayOf } from '../api-versions/utc-day-of.ts';
 import type { ControlStore } from '../control/control-store.ts';
 import { findControlRows } from '../control/find-control-rows.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
@@ -14,6 +15,7 @@ import type { Outcome } from '../invoker/outcome.ts';
 import type { Clock } from '../kernel/clock.ts';
 import { compositionReport } from '../surface/composition-report.ts';
 import { deriveSurface } from '../surface/derive-surface.ts';
+import { answerApiUsage } from './answer-api-usage.ts';
 import { answerCapabilities } from './answer-capabilities.ts';
 import { answerMe } from './answer-me.ts';
 import { relationReach } from './relation-reach.ts';
@@ -62,6 +64,21 @@ export function answerRuntimeQueries(
           : ({ ok: true, value: inv.session } as const);
       if (!opened.ok) return opened;
       const session = opened.value;
+      if (inv.action === 'core.apiUsage') {
+        const outcome = await inner.invoke<I, O>({ ...inv, session });
+        if (!outcome.ok) return outcome;
+        const today = utcDayOf(clock.now());
+        try {
+          // Reads the raw `inv.input`, not the input after validation and version translation: a
+          // later API version that renames a member of this action's input needs the translated
+          // input here, or the older name is silently ignored.
+          const value = await answerApiUsage(store, inv.input, today);
+          return { ...outcome, value: value as O };
+        } catch (error) {
+          if (error instanceof KeelwerkError) return { ok: false, error };
+          throw error;
+        }
+      }
       const sole =
         served.size === 1 && session.app === 'core' ? [...served.values()][0] : undefined;
       const app = served.get(session.app) ?? sole;

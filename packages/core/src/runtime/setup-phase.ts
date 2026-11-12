@@ -1,12 +1,11 @@
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
-import type { ActionEntry } from '../registry/action-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import { deriveSurface } from '../surface/derive-surface.ts';
 import type { TransportAdapter } from '../transport/transport-adapter.ts';
 import type { DeployedApp } from './deployed-app.ts';
-import { runtimeAnswered } from './runtime-answered.ts';
 import type { ServedApp } from './served-app.ts';
+import { servedRegistry } from './served-registry.ts';
 
 function transportsOf(registry: Registry): readonly TransportAdapter[] {
   return (registry.fills.get('core.transports') ?? []).flatMap((fill) =>
@@ -14,18 +13,6 @@ function transportsOf(registry: Registry): readonly TransportAdapter[] {
       ? []
       : [fill.fill as TransportAdapter],
   );
-}
-
-/** The registry with a placeholder handler on the actions the runtime answers, so the pipeline authorises and shapes them like any query. */
-function servedRegistry(registry: Registry): Registry {
-  const actions = new Map(registry.actions);
-  for (const ref of runtimeAnswered) {
-    const action = actions.get(ref);
-    if (action === undefined) continue;
-    const answered: ActionEntry = { ...action, handler: () => ({}) };
-    actions.set(ref, answered);
-  }
-  return { ...registry, actions };
 }
 
 /**

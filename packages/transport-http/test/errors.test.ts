@@ -160,10 +160,8 @@ describe('statuses and the error envelope', () => {
     });
     const { host } = setup({}, invoker);
     const response = await host.fetch(postJson('/_keelwerk/v1/invoke', { action: 'library.echo' }));
-    expect(response.headers.get('deprecation')).toBe(
-      `@${Date.parse('2026-11-01T00:00:00Z') / 1000}`,
-    );
-    expect(response.headers.get('sunset')).toBe('Mon, 01 Nov 2027 00:00:00 GMT');
+    expect(response.headers.get('deprecation')).toBe('@1793491200');
+    expect(response.headers.get('sunset')).toBe('Tue, 02 Nov 2027 00:00:00 GMT');
     expect(response.headers.get('link')).toContain('rel="deprecation"');
   });
 });
@@ -181,11 +179,10 @@ describe('deprecated action and reserved prefix', () => {
     });
     const { host } = setup({}, invoker, { surface: () => surface });
     const response = await host.fetch(postJson('/_keelwerk/v1/invoke', { action: 'library.old' }));
-    expect(response.headers.get('deprecation')).toBe(
-      `@${Date.parse('2026-11-01T00:00:00Z') / 1000}`,
-    );
-    expect(response.headers.get('sunset')).toBe('Mon, 01 Nov 2027 00:00:00 GMT');
-    expect(response.headers.get('link')).toContain('rel="deprecation"');
+    expect(response.headers.get('deprecation')).toBe('@1793491200');
+    expect(response.headers.get('sunset')).toBe('Tue, 02 Nov 2027 00:00:00 GMT');
+    // The capabilities link belongs to a deprecated API version (18.5): an action links to the surface.
+    expect(response.headers.get('link')).toBe('</_keelwerk/v1/surface>; rel="deprecation"');
   });
 
   it('answers not_found for any other /_keelwerk path, even with a / mount', async () => {

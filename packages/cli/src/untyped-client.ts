@@ -1,4 +1,4 @@
-import type { InvokeResponse } from '@keelwerk/core';
+import type { DeprecationNotice, InvokeResponse } from '@keelwerk/core';
 
 /** What one call may set (section 16.9.4). */
 export interface CallOptions {
@@ -7,6 +7,8 @@ export interface CallOptions {
   readonly prefer?: 'sync' | 'async';
   readonly signal?: AbortSignal;
   readonly traceparent?: string;
+  /** Called once when the answer announces a deprecation (18.5). */
+  readonly onDeprecation?: (notice: DeprecationNotice) => void;
 }
 
 /** The app's client keyed by runtime strings: the CLI knows no action at compile time. */

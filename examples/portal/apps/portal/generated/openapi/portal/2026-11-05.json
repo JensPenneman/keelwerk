@@ -7189,6 +7189,30 @@
         ],
         "type": "object"
       },
+      "CoreApiUsageInput": {
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "backendId": {
+            "type": "string"
+          },
+          "item": {
+            "type": "string"
+          },
+          "since": {
+            "type": "string"
+          },
+          "until": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CoreApiUsageOutput": {
+        "type": "object"
+      },
       "CoreBackend": {
         "additionalProperties": false,
         "properties": {
@@ -20042,6 +20066,25 @@
         ],
         "type": "object"
       },
+      "CoreRetireApiVersionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "app",
+          "version"
+        ],
+        "type": "object"
+      },
+      "CoreRetireApiVersionOutput": {
+        "type": "object"
+      },
       "CoreTenant": {
         "additionalProperties": false,
         "properties": {
@@ -22244,7 +22287,7 @@
   },
   "info": {
     "title": "portal",
-    "version": "sha256-nwJOJajfDo3Gcb9WqK0qUZoWhqTei3cdgCb55vYA3SE"
+    "version": "sha256-XOq3jNuqg6nLAC9zrAr6-FbKwxm4VrktUTiopo_8lkM"
   },
   "openapi": "3.1.1",
   "paths": {
@@ -26866,6 +26909,105 @@
         "x-keelwerk-action": "auth.whoami",
         "x-keelwerk-execution": "sync",
         "x-keelwerk-scope": "tenant"
+      }
+    },
+    "/core/api-usage": {
+      "get": {
+        "operationId": "coreApiUsage",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "backendId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "apiVersion",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "item",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreApiUsageOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "security": [
+          {
+            "auth.session": []
+          }
+        ],
+        "tags": [
+          "core"
+        ],
+        "x-keelwerk-action": "core.apiUsage",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "deployment"
       }
     },
     "/core/backends": {
@@ -33235,6 +33377,90 @@
         "x-keelwerk-scope": "deployment"
       }
     },
+    "/core/retire-api-version": {
+      "post": {
+        "operationId": "coreRetireApiVersion",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/idempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoreRetireApiVersionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreRetireApiVersionOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/idempotentReplayed"
+              },
+              "Keelwerk-Command-Id": {
+                "$ref": "#/components/headers/keelwerkCommandId"
+              },
+              "Keelwerk-Effects": {
+                "$ref": "#/components/headers/keelwerkEffects"
+              },
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "413": {
+            "$ref": "#/components/responses/problem413"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "security": [
+          {
+            "auth.session": []
+          }
+        ],
+        "tags": [
+          "core"
+        ],
+        "x-keelwerk-action": "core.retireApiVersion",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "deployment"
+      }
+    },
     "/core/tenants": {
       "get": {
         "operationId": "coreTenantQuery",
@@ -34610,6 +34836,6 @@
     "apiVersion": "2026-11-05",
     "format": "keelwerk.openapi/1",
     "producer": "@keelwerk/transport-rest",
-    "surface": "sha256-nwJOJajfDo3Gcb9WqK0qUZoWhqTei3cdgCb55vYA3SE"
+    "surface": "sha256-XOq3jNuqg6nLAC9zrAr6-FbKwxm4VrktUTiopo_8lkM"
   }
 }

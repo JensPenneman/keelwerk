@@ -1,9 +1,16 @@
-import type { InvokeRequest, InvokeResponse, LiveServerMessage } from '@keelwerk/core';
+import {
+  deprecationsOf,
+  type InvokeRequest,
+  type InvokeResponse,
+  type LiveServerMessage,
+  utcDayOf,
+} from '@keelwerk/core';
 import { asKeelwerkError, coreError, signalOf } from '@keelwerk/core/http';
 import { invokeOne } from './invoke-one.ts';
 import type { LiveSocketState } from './live-socket-state.ts';
 import { requestId } from './request-id.ts';
 import type { RequestState } from './request-state.ts';
+import { sendLiveMessage } from './send-live-message.ts';
 import { servedSurfaceOf } from './served-surface-of.ts';
 import { wireErrorOf } from './wire-error-of.ts';
 
@@ -58,6 +65,13 @@ export async function invokeOverSocket(
           message: 'This action sets a cookie and is not available over a socket.',
         }),
       );
+    }
+    if (action !== undefined && !state.noticedActions.has(action.ref)) {
+      const notices = deprecationsOf(undefined, action, utcDayOf(state.clock.now()));
+      if (notices.length > 0) {
+        state.noticedActions.add(action.ref);
+        for (const notice of notices) await sendLiveMessage(state, { type: 'notice', notice });
+      }
     }
     const signal =
       action === undefined

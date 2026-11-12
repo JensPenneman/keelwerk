@@ -3,6 +3,7 @@ import { version } from '../version.ts';
 import { CliFailure } from './cli-failure.ts';
 import type { CliHost, HostRequest } from './cli-host.ts';
 import type { DeploymentLink, LinkOptions } from './deployment-link.ts';
+import { deprecationOfHeaders } from './deprecation-of-headers.ts';
 import { localFailure } from './local-failure.ts';
 import type { ResolvedProfile } from './resolved-profile.ts';
 
@@ -77,6 +78,8 @@ export function createHttpLink(host: CliHost, profile: ResolvedProfile): Deploym
         body: JSON.stringify(request),
         ...signalOf(options),
       });
+      const notice = deprecationOfHeaders(response.headers, request.action);
+      if (notice !== undefined) options?.onDeprecation?.(notice);
       return (await readJson(response)) as InvokeResponse;
     },
     async surface(hash, options) {

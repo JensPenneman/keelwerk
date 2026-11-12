@@ -25,7 +25,7 @@ export interface RuntimeOptions {
   readonly env?: Readonly<Record<string, string | undefined>>;
   /** Tests: a fixed or stepped clock. */
   readonly clock?: { now(): Temporal.Instant };
-  /** The waits of a live carrier (heartbeat, maximum duration); default: timers on the runtime's clock (change note, WP-94). */
+  /** The waits of live carriers and of the usage flusher (heartbeat, maximum duration, the minute between flushes); default: timers on the runtime's clock (change note, WP-94). */
   readonly timers?: LiveTimers;
   /** What a process with the `work` role works: slots, capabilities and the drain (section 21.1). */
   readonly work?: WorkOptions;

@@ -8,6 +8,7 @@ import type {
 import { conformanceEntities } from '@keelwerk/data/conformance';
 import { afterAll, beforeAll, beforeEach, describe } from 'vitest';
 import type { AdapterConformanceOptions } from './adapter-conformance-options.ts';
+import { apiUsageCases } from './api-usage-cases.ts';
 import { capabilityHonestyCases } from './capability-honesty-cases.ts';
 import { codecCases } from './codec-cases.ts';
 import { conditionCases } from './condition-cases.ts';
@@ -106,6 +107,7 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('consumers', () => consumerCases(subject));
     describe('schedules', () => scheduleCases(subject));
     describe('serials', () => serialCases(subject));
+    describe('api usage', () => apiUsageCases(subject, { table: subject.name === 'memory' }));
     describe('stream records', () => streamRecordCases(subject));
     describe('migrations', () => migrationCases(subject));
     describe('toggle then rebuild', () => toggleRebuildCases(subject));

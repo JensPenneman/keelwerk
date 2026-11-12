@@ -1110,6 +1110,42 @@
     {
       "aliases": [],
       "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "since",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "until",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "backend-id",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "api-version",
+          "required": false
+        },
+        {
+          "kind": "string",
+          "name": "item",
+          "required": false
+        }
+      ],
+      "kind": "query",
+      "positionals": [],
+      "ref": "core.apiUsage",
+      "route": "call core.apiUsage",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
       "flags": [],
       "kind": "command",
       "positionals": [
@@ -2864,6 +2900,22 @@
     {
       "aliases": [],
       "auth": "policy",
+      "flags": [
+        {
+          "kind": "string",
+          "name": "app",
+          "required": true
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "core.retireApiVersion",
+      "route": "call core.retireApiVersion",
+      "scope": "deployment"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
       "flags": [],
       "kind": "command",
       "positionals": [
@@ -3265,5 +3317,5 @@
     "wait-effects"
   ],
   "format": "keelwerk.cli/1",
-  "surface": "sha256-nwJOJajfDo3Gcb9WqK0qUZoWhqTei3cdgCb55vYA3SE"
+  "surface": "sha256-XOq3jNuqg6nLAC9zrAr6-FbKwxm4VrktUTiopo_8lkM"
 }

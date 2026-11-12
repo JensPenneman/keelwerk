@@ -8,6 +8,7 @@ import type { AnyModule } from '../model/any-module.ts';
 import type { AnyModuleBase } from '../model/any-module-base.ts';
 import type { Insert } from '../model/insert.ts';
 import type { Row } from '../model/row.ts';
+import { apiUsage } from './actions/api-usage.ts';
 import { create as createBackend } from './actions/backend/create.ts';
 import { capabilities } from './actions/capabilities.ts';
 import { composition } from './actions/composition.ts';
@@ -18,6 +19,7 @@ import { introspect } from './actions/introspect.ts';
 import { me } from './actions/me.ts';
 import { issue } from './actions/operator-token/issue.ts';
 import { revoke } from './actions/operator-token/revoke.ts';
+import { retireApiVersion } from './actions/retire-api-version.ts';
 import { create as createTenant } from './actions/tenant/create.ts';
 import { enter } from './actions/tenant/enter.ts';
 import { setApiVersion } from './actions/tenant/set-api-version.ts';
@@ -25,6 +27,7 @@ import { coreBase } from './base.ts';
 import type { CoreBase } from './core-base-type.ts';
 import type { Core } from './core-type.ts';
 import { core } from './module.ts';
+import { operators as apiUsageOperators } from './policies/api-usage/operators.ts';
 import { operators as backendOperators } from './policies/backend/operators.ts';
 import { submitter } from './policies/command-receipt/submitter.ts';
 import { operators as compositionOperators } from './policies/composition/operators.ts';
@@ -32,13 +35,14 @@ import { operators as domainOperators } from './policies/domain/operators.ts';
 import { operators as flagOperators } from './policies/flag/operators.ts';
 import { signedIn as introspectSignedIn } from './policies/introspect/signed-in.ts';
 import { operators as operatorTokenOperators } from './policies/operator-token/operators.ts';
+import { operators as retireOperators } from './policies/retire-api-version/operators.ts';
 import { operators as tenantOperators } from './policies/tenant/operators.ts';
 import { syncDomains } from './reactions/sync-domains.ts';
 import { syncDomainsOnChange } from './reactions/sync-domains-on-change.ts';
 
 // What `defineModule` derives from the same base and the same parts.
 const derivedCore = defineModule(coreBase, {
-  actions: { introspect, composition, me, capabilities },
+  actions: { introspect, composition, me, capabilities, apiUsage, retireApiVersion },
   entityActions: {
     backend: { create: createBackend },
     tenant: { create: createTenant, enter, setApiVersion },
@@ -48,6 +52,8 @@ const derivedCore = defineModule(coreBase, {
   policies: {
     introspect: { signedIn: introspectSignedIn },
     composition: { operators: compositionOperators },
+    apiUsage: { operators: apiUsageOperators },
+    retireApiVersion: { operators: retireOperators },
     operatorToken: { operators: operatorTokenOperators },
     backend: { operators: backendOperators },
     tenant: { operators: tenantOperators },
@@ -125,6 +131,8 @@ describe('the hand-written core module types (decision 104, S-11, S-26)', () => 
       | 'core.composition'
       | 'core.me'
       | 'core.capabilities'
+      | 'core.apiUsage'
+      | 'core.retireApiVersion'
       | 'core.commandReceipt.get'
       | 'core.effect.get'
       | 'core.flag.set'

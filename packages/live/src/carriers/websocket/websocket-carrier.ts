@@ -7,7 +7,7 @@ import type {
   LiveServerMessage,
   WireError,
 } from '@keelwerk/core';
-import { errors, liveTimersOf, toWire } from '@keelwerk/core';
+import { endReasonOfError, errors, liveTimersOf, toWire } from '@keelwerk/core';
 import { asKeelwerkError } from '@keelwerk/core/http';
 import { websocketMessageOf } from './websocket-message-of.ts';
 
@@ -60,6 +60,9 @@ async function serveSocket(
     .then((reached): Step => ({ kind: reached ? 'deadline' : 'aborted' }));
   let lastToken: string | undefined;
   try {
+    for (const notice of options.notices ?? []) {
+      await connection.send(text({ type: 'notice', notice }));
+    }
     for (;;) {
       const pending: Promise<Step> = iterator.next().then(
         (result): Step => ({ kind: 'next', result }),
@@ -72,7 +75,14 @@ async function serveSocket(
         return;
       }
       if (step.kind === 'failed') {
-        await connection.send(text({ type: 'error', id, error: errorOf(step.error, options) }));
+        const reason = endReasonOfError(step.error);
+        await connection.send(
+          text(
+            reason === undefined
+              ? { type: 'error', id, error: errorOf(step.error, options) }
+              : { type: 'end', id, reason },
+          ),
+        );
         return;
       }
       if (step.result.done === true) {

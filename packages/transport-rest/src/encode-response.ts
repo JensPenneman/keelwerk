@@ -1,5 +1,5 @@
 import type { Clock, InvocationSession, Outcome, ResponseHint } from '@keelwerk/core';
-import { commandReceiptId, errors, receiptScopeId } from '@keelwerk/core';
+import { commandReceiptId, errors, receiptScopeId, utcDayOf } from '@keelwerk/core';
 import { applyCookieHint } from '@keelwerk/core/http';
 import { toWire } from '@keelwerk/core/wire';
 import { deprecationHeaders } from './deprecation-headers.ts';
@@ -206,7 +206,12 @@ export function encodeResponse(outcome: Success, context: ResponseContext): Resp
   if (outcome.replayed === true) {
     headers.set('idempotent-replayed', 'true');
   }
-  deprecationHeaders(headers, action.deprecated, `${context.mountPath}/docs`);
+  deprecationHeaders(
+    headers,
+    action.deprecated,
+    `${context.mountPath}/docs`,
+    utcDayOf((context.clock ?? { now: () => Temporal.Now.instant() }).now()),
+  );
   if (outcome.receipt !== undefined) {
     // The receipt lives in the scope the command ran in, and `core.commandReceipt.get` reads in the
     // session's own scope (S-102): the link is written only when the receipt's scope is the

@@ -1,4 +1,5 @@
 import type { RowEnvironment } from '../authorization/row-environment.ts';
+import type { ControlApiUsage } from '../control/control-api-usage.ts';
 import type { CarrierEnricher } from '../edge/carrier-enricher.ts';
 import type { TenantResolver } from '../edge/tenant-resolver.ts';
 import type { FlagProvider } from '../flags/flag-provider.ts';
@@ -61,6 +62,8 @@ export interface InvokerOptions {
   readonly targeting?: Pick<TargetingCache, 'fresh'>;
   /** The meter of the flag counter; default the global meter. */
   readonly meter?: Meter;
+  /** Counts requests (S-144); without it nothing is counted. */
+  readonly apiUsage?: Pick<ControlApiUsage, 'record'>;
   /** The command write path (WP-38); without it a command is `not_implemented`. */
   readonly commands?: CommandRunner;
   /**

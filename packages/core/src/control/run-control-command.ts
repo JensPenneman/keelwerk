@@ -4,6 +4,7 @@ import type { DecideContext } from '../contexts/decide-context.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
 import type { CoreBase } from '../core-module/core-base-type.ts';
 import { shape } from '../fields/shape.ts';
+import type { Principal } from '../principals/principal.ts';
 import type { SystemPrincipal } from '../principals/system-principal.ts';
 import type { Decision } from '../protocol/decision.ts';
 import type { Gen } from '../protocol/gen.ts';
@@ -26,16 +27,29 @@ const system: SystemPrincipal = {
 /** What a control command decides: drafts for the core's entities, in the control store's deployment scope. */
 export type ControlDecide = (ctx: DecideContext<CoreBase>) => Decision | Gen<Decision>;
 
+/** Who a control command is run for: the events name this actor and the request and command that caused them. */
+export interface ControlProvenance {
+  /** The principal of the events (default: the runtime's system principal). */
+  readonly actor: Principal;
+  /** The correlation id of the events (default: a fresh id). */
+  readonly requestId: string;
+  /** The id of the command that caused this one, as the events' causation id (default: none). */
+  readonly causationId?: string;
+}
+
 /**
  * Runs a decision of the core module in the control store as the kernel: the same write path a
  * generated action takes (events with the hash chain, state rows, inline reactions such as
  * `core.syncDomains`), without the pipeline in front. The command is named `core.<name>` in the
- * events' provenance. A failure is thrown as the write path throws it.
+ * events' provenance. `provenance` names the operator command it runs for: its actor, request id
+ * and command id are then the events' principal, correlation id and causation id. A failure is
+ * thrown as the write path throws it.
  */
 export async function runControlCommand(
   store: ControlStore,
   name: string,
   decide: ControlDecide,
+  provenance?: ControlProvenance,
 ): Promise<void> {
   const action: ActionEntry = {
     ref: `core.${name}`,
@@ -68,8 +82,12 @@ export async function runControlCommand(
       scope: { level: 'deployment' },
       action,
       input: {},
-      principal: system,
-      request: { transport: 'runtime', requestId: globalThis.crypto.randomUUID() },
+      principal: provenance?.actor ?? system,
+      request: {
+        transport: 'runtime',
+        requestId: provenance?.requestId ?? globalThis.crypto.randomUUID(),
+      },
+      ...(provenance?.causationId === undefined ? {} : { causationId: provenance.causationId }),
       clock: store.clock,
       keys: store.keys,
       compute: store.compute,

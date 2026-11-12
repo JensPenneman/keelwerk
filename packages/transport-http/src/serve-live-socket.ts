@@ -1,8 +1,10 @@
 import {
   type ApiSurface,
+  deprecationsOf,
   type InvocationSession,
   type LiveClientMessage,
   renderTypeId,
+  utcDayOf,
 } from '@keelwerk/core';
 import { asKeelwerkError, closeCodeOfError, coreError } from '@keelwerk/core/http';
 import { invokeOverSocket } from './invoke-over-socket.ts';
@@ -127,16 +129,8 @@ async function welcome(state: LiveSocketState): Promise<boolean> {
     surfaceHash: surface.hash,
     protocol: protocolVersion,
   });
-  if (session.deprecation !== null) {
-    await sendLiveMessage(state, {
-      type: 'notice',
-      notice: {
-        kind: 'deprecation',
-        apiVersion: session.apiVersion,
-        at: session.deprecation.at,
-        ...(session.deprecation.sunset !== undefined && { sunset: session.deprecation.sunset }),
-      },
-    });
+  for (const notice of deprecationsOf(session, undefined, utcDayOf(state.clock.now()))) {
+    await sendLiveMessage(state, { type: 'notice', notice });
   }
   return true;
 }

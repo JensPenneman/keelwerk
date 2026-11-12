@@ -1,8 +1,10 @@
 import {
+  deprecationsOf,
   type LiveClientMessage,
   type LiveFrame,
   type StateToken,
   unknownClientAddress,
+  utcDayOf,
 } from '@keelwerk/core';
 import { asKeelwerkError, coreError, decodeActionInput, encodeFrames } from '@keelwerk/core/http';
 import type { LiveSocketState } from './live-socket-state.ts';
@@ -66,6 +68,7 @@ async function run(
       clock: state.clock,
       timers: state.timers,
       subscriptionId: id,
+      notices: deprecationsOf(undefined, action, utcDayOf(state.clock.now())),
       wireError: (error) => {
         const failure = asKeelwerkError(error);
         if (failure.kind === 'internal') state.log.error('stream failed', { code: failure.code });

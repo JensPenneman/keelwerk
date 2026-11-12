@@ -11,6 +11,8 @@ import type { Prettify } from '../model/prettify.ts';
 import type { ApiSurface } from '../surface/api-surface.ts';
 import type { CompositionReportDocument } from '../surface/composition-report-document.ts';
 import type { Empty } from '../types/empty.ts';
+import type { ApiUsageDocument } from './api-usage-document.ts';
+import type { ApiVersionRetirement } from './api-version-retirement.ts';
 import type { CoreBase } from './core-base-type.ts';
 import type { MeDocument } from './me-document.ts';
 
@@ -88,6 +90,28 @@ type TokenCommand<In, Out> = ActionPart<
   PartTypes<Prettify<Prettify<In & {}> & InstanceInput<'core.operatorToken'>>, Out, never, never>
 >;
 
+type CoreInputQuery<In, Out> = ActionPart<
+  'query',
+  CoreBase,
+  null,
+  'sync',
+  PartTypes<Prettify<In & {}>, Out, never, never>
+>;
+type CoreCommand<In, Out> = ActionPart<
+  'command',
+  CoreBase,
+  null,
+  'sync',
+  PartTypes<Prettify<In & {}>, Out, never, never>
+>;
+type ApiUsageInput = {
+  readonly since?: string | undefined;
+  readonly until?: string | undefined;
+  readonly backendId?: string | undefined;
+  readonly apiVersion?: string | undefined;
+  readonly item?: string | undefined;
+};
+
 /** The module literal of the core: the parts the core mounts (S-26, section 3.1). */
 export interface CoreLiteral {
   readonly actions: {
@@ -95,6 +119,11 @@ export interface CoreLiteral {
     readonly composition: CoreQuery<CompositionReportDocument>;
     readonly me: CoreQuery<MeDocument>;
     readonly capabilities: CoreQuery<CapabilitiesDocument>;
+    readonly apiUsage: CoreInputQuery<ApiUsageInput, ApiUsageDocument>;
+    readonly retireApiVersion: CoreCommand<
+      { readonly app: string; readonly version: string },
+      ApiVersionRetirement
+    >;
   };
   readonly policies: {
     readonly introspect: {
@@ -102,6 +131,20 @@ export interface CoreLiteral {
     };
     readonly composition: {
       readonly operators: RulePart<CoreBase, CoreQuery<CompositionReportDocument>, readonly []>;
+    };
+    readonly apiUsage: {
+      readonly operators: RulePart<
+        CoreBase,
+        CoreInputQuery<ApiUsageInput, ApiUsageDocument>,
+        readonly []
+      >;
+    };
+    readonly retireApiVersion: {
+      readonly operators: RulePart<
+        CoreBase,
+        CoreCommand<{ readonly app: string; readonly version: string }, ApiVersionRetirement>,
+        readonly []
+      >;
     };
     readonly operatorToken: {
       readonly operators: RulePart<CoreBase, 'operatorToken', readonly ['*']>;

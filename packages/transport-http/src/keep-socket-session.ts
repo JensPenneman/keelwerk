@@ -1,4 +1,5 @@
 import type { InvocationSession, Outcome } from '@keelwerk/core';
+import { endReasonOfError } from '@keelwerk/core';
 import { asKeelwerkError, closeCodeOfError } from '@keelwerk/core/http';
 import type { LiveSocketState } from './live-socket-state.ts';
 import { sendLiveMessage } from './send-live-message.ts';
@@ -32,6 +33,15 @@ export function keepSocketSession(state: LiveSocketState): { check(): Promise<bo
       return true;
     }
     const { error } = outcome;
+    if (endReasonOfError(error) === 'version_retired') {
+      // The floor passed the socket's version: every subscription ends as a finished one, then the socket closes (15.4.6).
+      for (const [id, entry] of state.subscriptions) {
+        await sendLiveMessage(state, { type: 'end', id, reason: 'version_retired' });
+        entry.abort.abort();
+      }
+      state.open.closeWith(1000, 'version_retired');
+      return false;
+    }
     await sendLiveMessage(state, { type: 'error', error: socketWireError(state, error) });
     state.open.closeWith(closeCodeOfError(error.kind), error.code);
     return false;
