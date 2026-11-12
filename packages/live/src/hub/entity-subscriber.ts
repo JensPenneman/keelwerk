@@ -11,6 +11,7 @@ import type {
 import { errors, KeelwerkError, liveKernelOf } from '@keelwerk/core';
 import { changesOfBatch } from './changes-of-batch.ts';
 import { disclosureReplay } from './disclosure-replay.ts';
+import { createHeldBatches } from './held-batches.ts';
 import type { HubMember } from './hub-member.ts';
 import { limitedRead } from './limited-read.ts';
 import type { LiveSubscription } from './live-subscription.ts';
@@ -21,6 +22,7 @@ import type { ResolvedHubLimits } from './resolve-hub-limits.ts';
 import type { ScopeReaders } from './scope-readers.ts';
 import type { StartLimiter } from './start-limiter.ts';
 import { createSubscriptionBuffer } from './subscription-buffer.ts';
+import type { VisibilitySet } from './visibility-set.ts';
 import { createVisibilitySet } from './visibility-set.ts';
 
 /** Streams judged per replay read (D3, D7). */
@@ -51,11 +53,18 @@ export interface EntitySubscriberInput {
  * One subscription's state machine (15.4.3 to 15.4.5, D3, D6, D8). Iteration starts it: it builds its
  * view and attaches to the reader of its scope; once the reader's first pass has joined it, it reads
  * its start (the rows of `from: 'beginning'`, or the replay of a resume) in units of its own, sends
- * `head`, then follows the batches the reader delivers, which it held in the meantime. Items go
- * through a bounded buffer; a buffer that overflows is replaced by `reset` `overflow`. Whatever a
- * unit or a reader fails with ends the stream: `next()` throws. The hub closes it through its
+ * `head`, then follows the batches the reader delivers. Items go through a bounded buffer; a buffer
+ * that overflows is replaced by `reset` `overflow`. Whatever a unit or a reader fails with ends the
+ * stream: `next()` throws. The hub closes it through its
  * member: the stream ends without a frame or an error and a pending `next()` is done. The start
- * reads wait for a slot of the hub's start limiter; the batches the reader delivers meanwhile are held.
+ * reads wait for a slot of the hub's start limiter. The batches the reader delivers meanwhile are not
+ * held: the subscriber keeps the end of their range and whether one touched a row the session depends
+ * on, and before `head` it reads that range from the log as a resume does, revalidating first when the
+ * flag is set, until nothing newer has arrived. Whatever phase it is in, it names to the reader the
+ * streams of a batch it cannot place (`undecided`), so that the reader reads their earlier image; until
+ * it is live, and while a batch is held, its visibility set counts as unknown, because the batch is
+ * delivered after the reader's unit has closed and the set may change in between. A stream may thus
+ * read earlier images that nothing uses.
  * A batch with an event on a row the session depends on (the pass or session that authenticated it,
  * S-151) is held, the session is revalidated, and the held batches are applied in order once it is
  * renewed; when it is not, the stream has ended and nothing held is sent (D1).
@@ -77,16 +86,11 @@ export function createEntitySubscriber(
       let view: LiveView | undefined;
       let phase: Phase = 'new';
       let floor: Position = 0n;
-      let held: ReaderBatch[] = [];
       let detach: (() => void) | undefined;
       let unregister: (() => void) | undefined;
       let setup: Promise<void> | undefined;
       let joinAt: ((at: Position) => void) | undefined;
       let failed = false;
-      /** True while a revalidation is in flight: batches are held until it is done. */
-      let revalidating = false;
-      /** Batches whose dependency events a revalidation has cleared. */
-      const cleared = new WeakSet<ReaderBatch>();
       /** The units of the start that have not settled: closing waits for them. */
       const pending = new Set<Promise<void>>();
 
@@ -97,7 +101,7 @@ export function createEntitySubscriber(
         detach?.();
         unregister?.();
         abort.abort();
-        held = [];
+        held.clear();
       };
       const fail = (error: KeelwerkError): void => {
         buffer.fail(error);
@@ -123,14 +127,18 @@ export function createEntitySubscriber(
         return false;
       };
 
-      /** Whether the batch holds an event on a row that the session depends on. */
-      const touchesDependency = (batch: ReaderBatch): boolean => {
-        const deps = session.dependsOn;
-        if (deps === undefined || deps.length === 0) return false;
-        return batch.events.some((event) =>
-          deps.some((dep) => dep.entity === event.stream.type && dep.id === event.stream.id),
-        );
-      };
+      const held = createHeldBatches({
+        session: () => session,
+        revalidate: () => input.revalidate(subscription),
+        apply: (batch) => apply(batch),
+        isLive: () => phase === 'live',
+        ended,
+        overflow: () => reset('overflow'),
+        maxHeldBatches: limits.maxHeldBatches,
+      });
+
+      /** The end of the batches the reader delivered while the start was read, and whether one touched a row the session depends on. */
+      const arrived = { to: 0n as Position, dependency: false };
 
       const apply = (batch: ReaderBatch): void => {
         if (view === undefined || batch.to <= floor) return;
@@ -193,27 +201,6 @@ export function createEntitySubscriber(
         return !ended();
       };
 
-      /** Applies the held batches in order; a batch that touches a dependency waits for a revalidation first. */
-      const flush = (): void => {
-        while (phase === 'live' && !revalidating && held.length > 0) {
-          const batch = held[0];
-          if (batch === undefined) return;
-          if (!cleared.has(batch) && touchesDependency(batch)) {
-            revalidating = true;
-            void input.revalidate(subscription).then(() => {
-              revalidating = false;
-              if (ended()) return;
-              cleared.add(batch);
-              flush();
-            });
-            return;
-          }
-          held.shift();
-          apply(batch);
-          if (ended()) return;
-        }
-      };
-
       const begin = async (at: Position): Promise<void> => {
         const current = kernel;
         const now = view;
@@ -232,9 +219,28 @@ export function createEntitySubscriber(
           } else if (now.from === 'beginning' && !(await snapshot(current, now))) {
             return;
           }
-          if (!emit({ control: 'head', state: now.token(at) })) return;
+          // What the reader delivered while the start was read is not held batch by batch (a long
+          // snapshot would overflow the bound, and the client could only start again): the stream
+          // reads the range it covers from the log as a resume does, until it has caught up.
+          let covered = at;
+          for (;;) {
+            // The range and the flag are read together: every batch up to `target` was delivered
+            // before this revalidation starts, and a batch that arrives while it waits gets its own.
+            const target = arrived.to;
+            const dependency = arrived.dependency;
+            arrived.dependency = false;
+            if (dependency) {
+              await input.revalidate(subscription);
+              if (ended()) return;
+            }
+            if (target <= covered) break;
+            if (!(await resumeFrom(current, view ?? now, covered, target))) return;
+            covered = target;
+          }
+          floor = covered;
+          if (!emit({ control: 'head', state: (view ?? now).token(covered) })) return;
           phase = 'live';
-          flush();
+          held.flush();
         } catch (error) {
           if (!ended()) failWith(error);
         }
@@ -249,18 +255,24 @@ export function createEntitySubscriber(
           joinAt = undefined;
         },
         undecided: (batch) => {
-          if (ended() || view === undefined || set.exact) return [];
-          return changesOfBatch({ view, batch, set, floor }).unknown;
+          if (ended() || view === undefined) return [];
+          // The reader asks inside the pass's unit and delivers after the unit has closed, so what the
+          // set holds when the batch is applied may differ from what it holds now: the start's replay
+          // and a batch held for a revalidation both change it. Until the stream is live and nothing
+          // is held, no member counts as known and every stream that is not visible and not created
+          // is named.
+          const known: VisibilitySet =
+            phase === 'live' && held.idle() ? set : { ...set, exact: false, has: () => false };
+          return changesOfBatch({ view, batch, set: known, floor }).unknown;
         },
         deliver: (batch) => {
-          if (ended()) return;
-          if (held.length >= limits.maxHeldBatches) reset('overflow');
-          else {
-            held.push(batch);
-            flush();
+          if (phase !== 'starting') held.deliver(batch);
+          else if (!ended()) {
+            arrived.to = batch.to;
+            arrived.dependency ||= held.touchesDependency(batch);
           }
         },
-        extraStreamTypes: () => [...new Set((session.dependsOn ?? []).map((dep) => dep.entity))],
+        extraStreamTypes: held.extraStreamTypes,
         fail,
         end: () => {
           buffer.close();

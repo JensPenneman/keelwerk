@@ -172,3 +172,38 @@ describe('the live kernel and its views', () => {
     );
   });
 });
+
+describe('the live kernel of an invocation entity and of a deployment scope', () => {
+  test("an invocation entity is followed in the session's own scope", () => {
+    const { open, kernelOf } = setup();
+    const session = open(user('ada'));
+    const kernel = kernelOf(session, 'core.commandReceipt');
+    expect(kernel.descriptor.tenancy).toBe('invocation');
+    expect(kernel.scopeId).toBe('t1');
+    expect(kernel.target.scope).toEqual(tenant);
+  });
+
+  test('an invocation entity is watched by ids only, never listed', async () => {
+    const { open, kernelOf } = setup();
+    const session = open(user('ada'));
+    const kernel = kernelOf(session, 'core.commandReceipt');
+    await expect(kernel.view(session, {})).rejects.toMatchObject({
+      kind: 'validation',
+      issues: [expect.objectContaining({ path: ['ids'] })],
+    });
+    await expect(kernel.view(session, { from: 'beginning' })).rejects.toMatchObject({
+      kind: 'validation',
+    });
+    await expect(kernel.view(session, { ids: ['receipt-1'] })).resolves.toMatchObject({
+      entity: 'core.commandReceipt',
+    });
+  });
+
+  test('a deployment scope stays unsupported', () => {
+    const { open, kernelOf } = setup();
+    const session = open(user('ada'), '2026-11-04', { level: 'deployment' } as never);
+    expect(() => kernelOf(session, 'core.commandReceipt')).toThrow(
+      expect.objectContaining({ kind: 'unsupported' }),
+    );
+  });
+});

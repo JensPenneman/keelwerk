@@ -1,6 +1,7 @@
 export { createLiveHub } from './hub/create-live-hub.ts';
 export type { LiveHubOptions } from './hub/live-hub-options.ts';
 export type { LiveHubService } from './hub/live-hub-service.ts';
+export type { LiveSourceHub } from './hub/live-source-hub.ts';
 export type { LiveSources } from './hub/live-sources.ts';
 export type { LiveSubscription } from './hub/live-subscription.ts';
 export type { ReaderBatch } from './hub/reader-batch.ts';

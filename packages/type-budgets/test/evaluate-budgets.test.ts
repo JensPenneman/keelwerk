@@ -114,3 +114,42 @@ test('a package override replaces the default limit of that package alone', () =
     'packages/other: declarations total 25000 B, over 16384 B',
   ]);
 });
+
+test('a live row is judged by its 25+live budget', () => {
+  const withLive: Budgets = {
+    ...budgets,
+    synthetic: { ...budgets.synthetic, '25+live': { fold: 300000, wholeProgram: 1700000 } },
+  };
+  const [row] = within.synthetic;
+  if (row === undefined) throw new Error('fixture');
+  const measured: Measurements = {
+    ...within,
+    synthetic: [...within.synthetic, { ...row, live: true, fold: 290000, wholeProgram: 1650000 }],
+  };
+  const held = evaluateBudgets(measured, withLive);
+  expect(held.failures).toEqual([]);
+  expect(held.report.join('\n')).toContain('synthetic 25 modules with live: fold 290,000');
+  const over: Measurements = {
+    ...within,
+    synthetic: [...within.synthetic, { ...row, live: true, fold: 300001, wholeProgram: 1700001 }],
+  };
+  expect(evaluateBudgets(over, withLive).failures).toEqual([
+    'synthetic 25 modules with live: fold 300,001 instantiations, over 300,000',
+    'synthetic 25 modules with live: whole program 1,700,001 instantiations, over 1,700,000',
+  ]);
+  // The plain 25-module row keeps the plain budget: the live budget never judges it.
+  expect(
+    evaluateBudgets(within, { ...withLive, synthetic: { '25': { fold: 1, wholeProgram: 1 } } })
+      .failures,
+  ).toHaveLength(2);
+});
+
+test('a missing 25+live measurement fails', () => {
+  const withLive: Budgets = {
+    ...budgets,
+    synthetic: { ...budgets.synthetic, '25+live': { fold: 300000, wholeProgram: 1700000 } },
+  };
+  expect(evaluateBudgets(within, withLive).failures).toEqual([
+    'synthetic 25 modules with live: no measurement',
+  ]);
+});

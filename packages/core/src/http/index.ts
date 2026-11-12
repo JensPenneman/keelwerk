@@ -6,6 +6,8 @@ export { closeCodeOfError } from './close-code-of-error.ts';
 export { type CoreErrorOverrides, coreError } from './core-error.ts';
 export { decodeActionInput } from './decode-action-input.ts';
 export { decodeInput } from './decode-input.ts';
+export { encodeFrame } from './encode-frame.ts';
+export { encodeFrames } from './encode-frames.ts';
 export { isCommandId } from './is-command-id.ts';
 export { keepMasked } from './keep-masked.ts';
 export { problemTitles } from './problem-titles.ts';

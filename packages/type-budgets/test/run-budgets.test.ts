@@ -26,6 +26,14 @@ const clean = {
   synthetic: [
     { modules: 25, fold: 200000, wholeProgram: 1000000, sizes: [size], portability: [] },
     { modules: 40, fold: 300000, wholeProgram: 1800000, sizes: [size], portability: [] },
+    {
+      modules: 25,
+      live: true,
+      fold: 200000,
+      wholeProgram: 1000000,
+      sizes: [size],
+      portability: [],
+    },
   ],
   // one measurement of one instantiation for each recorded app, so the gate has nothing missing
   apps: Object.fromEntries(Object.keys(recorded.apps).map((name) => [name, 1])),
@@ -56,7 +64,7 @@ test('exits 0 when every count is within its budget', () => {
 test('exits 1 for an injected over-budget count', () => {
   const run = gate({
     ...clean,
-    synthetic: [{ ...clean.synthetic[0], fold: 226201 }, clean.synthetic[1]],
+    synthetic: [{ ...clean.synthetic[0], fold: 226201 }, ...clean.synthetic.slice(1)],
   });
   expect(run.status).toBe(1);
   expect(run.stderr).toContain('fold 226,201 instantiations, over 226,200');

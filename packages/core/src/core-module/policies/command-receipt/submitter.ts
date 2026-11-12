@@ -13,7 +13,7 @@ export const submitter: CoreLiteral['policies']['commandReceipt']['submitter'] =
   commandReceipt,
   {
     effect: 'allow',
-    actions: ['get'],
+    actions: ['get', 'watch'],
     where: (ctx) => ({
       principalResolver: ctx.principal.ref?.resolver,
       principalId: ctx.principal.ref?.principalId,

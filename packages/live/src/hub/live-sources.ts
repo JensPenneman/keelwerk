@@ -1,4 +1,5 @@
 import type { LiveHub } from '@keelwerk/core';
+import type { LiveSourceHub } from './live-source-hub.ts';
 import type { ScopeReaders } from './scope-readers.ts';
 
 /**
@@ -7,7 +8,7 @@ import type { ScopeReaders } from './scope-readers.ts';
  * `next()`.
  */
 export interface LiveSources {
-  readonly pokes?: (readers: ScopeReaders) => LiveHub['pokes'];
+  readonly pokes?: (readers: ScopeReaders, hub: LiveSourceHub) => LiveHub['pokes'];
   readonly stream?: (readers: ScopeReaders) => LiveHub['stream'];
   readonly topic?: (readers: ScopeReaders) => LiveHub['topic'];
 }

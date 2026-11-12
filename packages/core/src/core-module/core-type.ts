@@ -111,7 +111,7 @@ export interface CoreLiteral {
     readonly domain: { readonly operators: RulePart<CoreBase, 'domain', readonly ['*']> };
     readonly flag: { readonly operators: RulePart<CoreBase, 'flag', readonly ['*']> };
     readonly commandReceipt: {
-      readonly submitter: RulePart<CoreBase, 'commandReceipt', readonly ['get']>;
+      readonly submitter: RulePart<CoreBase, 'commandReceipt', readonly ['get', 'watch']>;
     };
   };
   readonly reactions: {

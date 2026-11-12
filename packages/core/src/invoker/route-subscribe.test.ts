@@ -186,24 +186,6 @@ describe('invoker.subscribe', () => {
     expect(calls).toHaveLength(0);
   });
 
-  test('a generator map is not_implemented', async () => {
-    const mapped = actionOf('doc.feed', {
-      ...feed,
-      handler: () => ({
-        kind: 'liveSource',
-        source: leaf(),
-        map: function* () {
-          yield 1;
-        },
-      }),
-    });
-    const { hub } = fakeHub([itemFrame(1)]);
-    const error = await streamFailure(
-      withHub(hub, [mapped]).subscribe(callOf('doc.feed', {}, { carrier })),
-    );
-    expect(error).toMatchObject({ kind: 'not_implemented', code: 'core.not_implemented' });
-  });
-
   test('maps are applied innermost first and a dropped item goes with its state', async () => {
     const mapped = actionOf('doc.feed', {
       ...feed,

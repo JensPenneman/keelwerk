@@ -1,5 +1,6 @@
 import type { HistoryEntry } from '../contexts/history-entry.ts';
 import type { Id } from '../ids/id.ts';
+import type { WatchInput } from '../live/watch-input.ts';
 import type { Empty } from '../types/empty.ts';
 import type { PageOutput, PartTypes, RowOutput } from './action-part.ts';
 import type { AllKeys } from './all-keys.ts';
@@ -144,10 +145,7 @@ type GeneratedDef<
                   ? Generated<
                       'subscription',
                       PartTypes<
-                        {
-                          readonly filter?: Where<ReadableRowAt<Ms, I, E>>;
-                          readonly after?: string;
-                        },
+                        WatchInput<Where<ReadableRowAt<Ms, I, E>>>,
                         EntityChange<ReadableRowAt<Ms, I, E>>,
                         never,
                         EntityChange<ReadableRowAt<Ms, I, E>>

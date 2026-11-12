@@ -66,6 +66,13 @@ function instance(entity: SurfaceEntity): Record<string, FieldNode> {
   return { id: idOf(entity), ifVersion: scalar('integer', true) };
 }
 
+/** The row node of a watch item: fields may be selected away or masked, so each member is optional. */
+function everyFieldOptional(entity: SurfaceEntity): Record<string, FieldNode> {
+  return Object.fromEntries(
+    Object.entries(entity.fields).map(([name, node]) => [name, { ...node, optional: true }]),
+  );
+}
+
 /** The input and output nodes of one generated action. */
 export interface GeneratedNodes {
   readonly input: FieldNode;
@@ -183,8 +190,38 @@ export function generatedNodes(kind: GeneratedActionKind, entity: SurfaceEntity)
       };
     case 'watch':
       return {
-        input: shapeOf({ filter: filter(), since: scalar('string', true) }),
-        output: row,
+        input: shapeOf({
+          ids: list(idOf(entity), true),
+          filter: filter(),
+          fields: selection,
+          includeArchived: scalar('boolean', true),
+          from: {
+            optional: true,
+            access: 'read-write',
+            kind: 'enum',
+            values: ['now', 'beginning'],
+          },
+          after: scalar('string', true),
+          partition: scalar('string', true),
+        }),
+        output: shapeOf({
+          type: {
+            optional: false,
+            access: 'read-write',
+            kind: 'enum',
+            values: ['created', 'changed', 'restored', 'archived', 'removed'],
+          },
+          id: idOf(entity),
+          version: scalar('integer', true),
+          cause: scalar('string', true),
+          reason: {
+            optional: true,
+            access: 'read-write',
+            kind: 'enum',
+            values: ['left-view', 'purged', 'erased'],
+          },
+          row: shapeOf(everyFieldOptional(entity), true),
+        }),
       };
     case 'history':
       return {

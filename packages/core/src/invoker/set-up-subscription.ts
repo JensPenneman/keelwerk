@@ -5,24 +5,31 @@ import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { StateToken } from '../events/state-token.ts';
 import { buildSnapshot } from '../flags/build-snapshot.ts';
 import { flagClientIdOf } from '../flags/flag-client-id-of.ts';
+import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import type { RequestAuthorities } from '../interpreter/request-authorities.ts';
 import type { LiveKernel } from '../live/live-kernel.ts';
 import { liveKernelFactories } from '../live/live-kernel-factories.ts';
 import { liveKernelOf } from '../live/live-kernel-of.ts';
+import type { LivePokesPlan } from '../live/live-pokes-plan.ts';
 import type { LiveSourcePlan } from '../live/live-source-plan.ts';
 import { planLiveSource } from '../live/plan-live-source.ts';
 import { runLiveSource } from '../live/run-live-source.ts';
 import type { WatchInput } from '../live/watch-input.ts';
 import type { Logger } from '../observability/logger.ts';
+import type { Principal } from '../principals/principal.ts';
+import { assertTokenScope } from '../tokens/assert-token-scope.ts';
+import { decodeStateToken } from '../tokens/decode-state-token.ts';
 import { bindSubscriptionSession } from './bind-subscription-session.ts';
 import { createLiveKernel } from './create-live-kernel.ts';
 import type { Invocation } from './invocation.ts';
 import type { InvocationSession } from './invocation-session.ts';
 import type { InvokerEnv } from './invoker-env.ts';
+import { liveMapDriverOf } from './live-map-driver-of.ts';
 import { mapUnknownError } from './map-unknown-error.ts';
 import { moduleConfigOf } from './module-config-of.ts';
 import type { OpenedSubscription } from './opened-subscription.ts';
 import type { Outcome } from './outcome.ts';
+import { registerPokesView } from './register-pokes-view.ts';
 import { requestInfoOf } from './request-info-of.ts';
 import { sessionOf } from './session-of.ts';
 import { sourceContextOf } from './source-context-of.ts';
@@ -30,6 +37,7 @@ import { admit } from './stages/admit.ts';
 import { authorize } from './stages/authorize.ts';
 import { complete } from './stages/complete.ts';
 import { locate } from './stages/locate.ts';
+import { targetOf } from './stages/target-of.ts';
 import { translate } from './stages/translate.ts';
 import { validate } from './stages/validate.ts';
 import type { SubscriptionSetupState } from './subscription-setup-state.ts';
@@ -131,6 +139,11 @@ export async function setUpSubscription(
       value: input,
       flags,
     });
+    // Who the generator maps load for: the hub's renewal replaces it (below), so every item's loads run with the principal and flags of the last renewal.
+    let subject: { readonly principal: Principal; readonly flags: FlagSnapshot } = {
+      principal: session.principal,
+      flags,
+    };
     // The hub revalidates the stream with this session: it reopens the session and decides the
     // subscription's own gate again (flag gates, rules, the action's principal list) over the same input.
     const bound = bindSubscriptionSession(env, session, async (fresh) => {
@@ -154,6 +167,7 @@ export async function setUpSubscription(
         value: input,
         flags: regated,
       });
+      subject = { principal: fresh.principal, flags: regated };
     });
     state.stage = 'execute';
     const hub = app.liveHub;
@@ -169,7 +183,30 @@ export async function setUpSubscription(
         return kernel;
       });
     }
-    let plan: LiveSourcePlan;
+    const authorities: RequestAuthorities = new WeakMap();
+    const config = moduleConfigOf(app.configShapes, details.resolved.backendConfig);
+    const target = targetOf(action, details);
+    const drive = liveMapDriverOf(
+      {
+        registry,
+        adapter: target.handle.adapter,
+        namespace: target.namespace,
+        scope: target.scope,
+        action,
+        request: requestInfoOf(inv),
+        config,
+        clock: env.options.clock,
+        keys: env.options.keys,
+        compute: env.options.compute,
+        log,
+        trace: span,
+        rules,
+        authorities,
+      },
+      () => subject,
+      inv.signal,
+    );
+    let plan: LiveSourcePlan | LivePokesPlan;
     if (action.generated === 'watch' && action.entity !== undefined) {
       const watched = input as WatchInput<unknown>;
       plan = {
@@ -179,7 +216,6 @@ export async function setUpSubscription(
         maps: [],
       };
     } else if (action.generated === undefined) {
-      const authorities: RequestAuthorities = new WeakMap();
       const description = action.handler(
         input,
         sourceContextOf({
@@ -189,7 +225,7 @@ export async function setUpSubscription(
           scope,
           clock: env.options.clock,
           request: requestInfoOf(inv),
-          config: moduleConfigOf(app.configShapes, details.resolved.backendConfig),
+          config,
           log,
           trace: span,
           authorities,
@@ -198,14 +234,20 @@ export async function setUpSubscription(
         }),
         resume?.after,
       );
-      plan = planLiveSource(description);
+      const planned = planLiveSource(description);
+      plan = planned.kind === 'pokes' ? { ...planned, after: resume?.after } : planned;
     } else {
       throw errors.unsupported(`"${action.ref}" is not a live source.`);
     }
     // The view is built, and the token's form and scope checked, before the decision is reported: a
     // refusal of the input is a refusal of the setup, never a failure of the stream.
-    await liveKernelOf(bound, plan.entity).prepare(plan.input, plan.after);
-    const frames = runLiveSource(hub, bound, plan);
+    if (plan.kind === 'pokes') {
+      if (plan.after !== undefined) assertTokenScope(decodeStateToken(plan.after), scope);
+      await registerPokesView(env, bound, details, action, span);
+    } else {
+      await liveKernelOf(bound, plan.entity).prepare(plan.input, plan.after);
+    }
+    const frames = runLiveSource(hub, bound, plan, drive);
     return {
       frames,
       itemOf: async (frame) => {

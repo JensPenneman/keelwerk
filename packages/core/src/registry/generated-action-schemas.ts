@@ -23,11 +23,14 @@ export interface GeneratedSchemas {
 /**
  * The schemas of a generated action (section 6.7). Writes are shapes built from the entity's
  * fields; reads take the JMAP parameters loosely and return what the kernel assembles, because the
- * generated handlers and their exact wire forms belong to the write and read paths.
+ * generated handlers and their exact wire forms belong to the write and read paths. The ids of a
+ * watch are checked as the entity's own id is: a text that is no id of the entity is `validation`,
+ * not an empty stream (a carrier has turned a TypeID of the surface into the id by then).
  */
 export function generatedActionSchemas(
   kind: GeneratedActionKind,
   fields: Readonly<Record<string, AnyField>>,
+  entity: string,
 ): GeneratedSchemas {
   const row = rowShape(fields);
   const instance = { id: field.string(), ifVersion: field.integer().optional() };
@@ -60,6 +63,20 @@ export function generatedActionSchemas(
           fromVersion: field.integer().optional(),
           limit: field.integer().optional(),
         }),
+        output: permissiveSchema(),
+      };
+    case 'watch':
+      return {
+        input: shape({
+          ids: field.list(field.ref.own(entity)).optional(),
+          filter: field.json(permissiveSchema()).optional(),
+          fields: field.list(field.string()).optional(),
+          includeArchived: field.boolean().optional(),
+          from: field.enum(['now', 'beginning']).optional(),
+          after: field.string().optional(),
+          partition: field.string().optional(),
+        }),
+        // Items are built by the kernel and never validated (set-up-subscription.ts itemOf).
         output: permissiveSchema(),
       };
     default:

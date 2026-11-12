@@ -27,7 +27,10 @@ function measure(budgets: Budgets, scratch: string): Measurements {
   const modules = emitModuleDeclarations(repo, scratch);
   const workspace = runTsc(repo, ['-b'], repo);
   return {
-    synthetic: measureInstantiations(COUNTS, repo, scratch),
+    synthetic: [
+      ...measureInstantiations(COUNTS, repo, scratch),
+      ...measureInstantiations([25], repo, scratch, { live: true }),
+    ],
     apps: Object.fromEntries(
       Object.entries(budgets.apps).map(([name, app]) => [
         name,

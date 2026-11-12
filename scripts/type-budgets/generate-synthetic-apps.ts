@@ -5,6 +5,8 @@ import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'nod
 import { dirname, join } from 'node:path';
 import { renderModuleManifest } from '../../packages/core/src/manifest/render-module-manifest.ts';
 import { scanModuleDirectory } from '../../packages/core/src/manifest/scan-module-directory.ts';
+import type { SyntheticOptions } from './synthetic-options.ts';
+import { watchConsumption } from './watch-consumption.ts';
 
 const core = '@keelwerk/core';
 const pad = (index: number): string => String(index).padStart(2, '0');
@@ -277,9 +279,14 @@ function json(value: unknown): string {
  * node_modules holding symlinks to its declared dependencies only, project references between
  * them, and an app package composing all of them. Every module has two entities of four fields, two
  * entity actions, a module action, a contribution and a conditional part, a stream, a boolean flag,
- * a quota, a process that invokes an action with an error mapping, an observer with an exception, a topic, a version change and a configuration access level, and requires its two predecessors. `repo` is the keelwerk checkout whose core the modules build against.
+ * a quota, a process that invokes an action with an error mapping, an observer with an exception, a topic, a version change and a configuration access level, and requires its two predecessors. `repo` is the keelwerk checkout whose core the modules build against. With `options.live` the app also composes the checkout's own live module, so every entity of every module has the generated `watch`.
  */
-export function generateSyntheticApps(root: string, count: number, repo: string): void {
+export function generateSyntheticApps(
+  root: string,
+  count: number,
+  repo: string,
+  options: SyntheticOptions = {},
+): void {
   rmSync(root, { recursive: true, force: true });
   const coreDir = join(repo, 'packages', 'core');
   const base = JSON.parse(readFileSync(join(repo, 'tsconfig.base.json'), 'utf8')) as {
@@ -349,6 +356,8 @@ export function generateSyntheticApps(root: string, count: number, repo: string)
       }),
     );
   }
+  const withLive = options.live === true;
+  const liveDir = join(repo, 'packages', 'live');
   const app = join(root, 'app');
   write(join(app, 'package.json'), json({ name: '@synthetic/app', private: true, type: 'module' }));
   write(
@@ -357,16 +366,21 @@ export function generateSyntheticApps(root: string, count: number, repo: string)
       extends: '../tsconfig.base.json',
       compilerOptions: { rootDir: 'src', outDir: 'dist' },
       include: ['src'],
-      references: [{ path: coreDir }, ...ids.map((d) => ({ path: `../packages/m${d}` }))],
+      references: [
+        { path: coreDir },
+        ...(withLive ? [{ path: liveDir }] : []),
+        ...ids.map((d) => ({ path: `../packages/m${d}` })),
+      ],
     }),
   );
   link(join(app, 'node_modules', '@keelwerk', 'core'), coreDir);
+  if (withLive) link(join(app, 'node_modules', '@keelwerk', 'live'), liveDir);
   for (const d of ids) {
     link(join(app, 'node_modules', '@synthetic', `m${d}`), join(root, 'packages', `m${d}`));
   }
   write(
     join(app, 'src', 'modules.ts'),
-    `${ids.map((d) => `import { m${d} } from '@synthetic/m${d}';`).join('\n')}\n\nexport const modules = [${ids.map((d) => `m${d}`).join(', ')}] as const;\n`,
+    `${withLive ? "import { live } from '@keelwerk/live';\n" : ''}${ids.map((d) => `import { m${d} } from '@synthetic/m${d}';`).join('\n')}\n\nexport const modules = [${[...ids.map((d) => `m${d}`), ...(withLive ? ['live'] : [])].join(', ')}] as const;\n`,
   );
   write(
     join(app, 'src', 'app.ts'),
@@ -389,7 +403,7 @@ export const firstRef: ActionRef<SyntheticApp> = '${ids[0] ? `m${ids[0]}.a.get` 
 export type LastRow = Row<SyntheticApp, '${last ? `m${last}.a` : 'core.tenant'}'>;
 export const lastField: keyof LastRow = 'id';
 export const lastKind: AppActionTree<SyntheticApp>['${last ? `m${last}` : 'core'}']['entities']['${last ? 'a' : 'tenant'}']['get']['kind'] = 'query';
-`,
+${withLive && last ? watchConsumption(last) : ''}`,
   );
   write(
     join(root, 'tsconfig.json'),

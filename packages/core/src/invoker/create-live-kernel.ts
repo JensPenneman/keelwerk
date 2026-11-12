@@ -4,12 +4,11 @@ import type { Condition } from '../conditions/condition.ts';
 import { sha256 } from '../crypto/sha256.ts';
 import { errors } from '../errors/errors.ts';
 import type { StateToken } from '../events/state-token.ts';
-import { buildSnapshot } from '../flags/build-snapshot.ts';
-import { flagClientIdOf } from '../flags/flag-client-id-of.ts';
 import { collectChangedStreams } from '../generated-actions/collect-changed-streams.ts';
 import { disclosureRule } from '../generated-actions/disclosure-rule.ts';
 import { earlierImagesOf } from '../generated-actions/earlier-images-of.ts';
 import type { GeneratedReadInput } from '../generated-actions/generated-read-input.ts';
+import { invalidArgument } from '../generated-actions/invalid-argument.ts';
 import { projectRow } from '../generated-actions/project-row.ts';
 import { readSession } from '../generated-actions/read-session.ts';
 import { readSort } from '../generated-actions/read-sort.ts';
@@ -29,8 +28,6 @@ import { assertTokenScope } from '../tokens/assert-token-scope.ts';
 import { currentTokenCheck } from '../tokens/current-token-check.ts';
 import { decodeStateToken } from '../tokens/decode-state-token.ts';
 import { encodeStateToken } from '../tokens/encode-state-token.ts';
-import type { StateTokenContext } from '../tokens/state-token-context.ts';
-import { stateTokenKey } from '../tokens/state-token-key.ts';
 import { tokenCheckHolds } from '../tokens/token-check-holds.ts';
 import { tokenScopePart } from '../tokens/token-scope-part.ts';
 import type { TokenSelector } from '../tokens/token-selector.ts';
@@ -38,21 +35,20 @@ import { encodeEventValue } from '../write-path/encode-event-value.ts';
 import type { InvocationSession } from './invocation-session.ts';
 import type { InvokerEnv } from './invoker-env.ts';
 import { liveFilterGuard } from './live-filter-guard.ts';
+import { liveTokenContextOf } from './live-token-context-of.ts';
 import { parseWatchInput } from './parse-watch-input.ts';
+import { sameSession } from './same-session.ts';
 import type { SessionDetails } from './session-details.ts';
 import { targetOf } from './stages/target-of.ts';
 import { watchActionOf } from './watch-action-of.ts';
-
-function sameSession(a: InvocationSession, b: InvocationSession): boolean {
-  return a.app === b.app && JSON.stringify(a.scope) === JSON.stringify(b.scope);
-}
 
 /**
  * The kernel access of one entity in one session's scope (15.4.3, 15.4.9): the target's read-only
  * units with the kernel's authority, and the views of a subscriber over it. A view holds what is
  * built once per subscriber: the plan compiled for the principal, the selection, the token check
- * and the quantifier answers of a unit. `internal` for an entity the app lacks or a scope that has
- * no id the change feed names.
+ * and the quantifier answers of a unit. An `invocation` entity (command receipts, effects) is
+ * followed in the session's own scope. `internal` for an entity the app lacks; `unsupported` for a
+ * deployment-level scope, which has no id the change feed names.
  */
 export function createLiveKernel(
   env: InvokerEnv,
@@ -68,8 +64,8 @@ export function createLiveKernel(
   const action = watchActionOf(app, entry);
   const target = targetOf(action, details);
   const { scope } = target;
-  if (scope.level === 'deployment' || entry.descriptor.tenancy === 'invocation') {
-    throw errors.unsupported('The changes of a deployment-level entity cannot be followed.');
+  if (scope.level === 'deployment') {
+    throw errors.unsupported('The changes of a deployment-level scope cannot be followed.');
   }
   const scopeId = scope.level === 'tenant' ? scope.tenantId : scope.backendId;
   const log = env.options.log.child({
@@ -89,27 +85,23 @@ export function createLiveKernel(
       throw errors.internal('The session is not one this subscription may use.');
     }
     const parsed = parseWatchInput(entry, input);
+    // A rule that grants `watch` on such an entity grants the follow of rows by their id only (as it grants `get`), never their enumeration.
+    if (entry.descriptor.tenancy === 'invocation' && parsed.ids === undefined) {
+      throw invalidArgument('ids', `"${entity}" is followed by the ids of its rows: name them.`);
+    }
     if (parsed.filter !== undefined) await guard.check(parsed.filter);
-    const flags = await buildSnapshot({
-      registry,
-      action,
-      scope: other.scope,
-      principal: other.principal,
-      clientId: flagClientIdOf(otherDetails.carrier),
-      providers: env.options.flagProviders ?? [],
-      log,
-      targeting: env.options.targeting,
-      telemetry: env.flagTelemetry,
-      span,
-    });
-    const tokens: StateTokenContext = {
+    const { flags, tokens } = await liveTokenContextOf({
+      env,
       registry,
       rules,
-      principal: other.principal,
+      action,
+      other,
+      otherDetails,
+      scope,
       epoch,
-      sealKey: await stateTokenKey(env.options.keys, scope),
-      flags,
-    };
+      log,
+      span,
+    });
     const caller = callerView({
       entry,
       rules,

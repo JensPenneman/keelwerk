@@ -11,7 +11,7 @@ export function generatedActionEntries(
 ): readonly ActionEntry[] {
   return model.entry.generated.map((kind) =>
     generatedActionEntry(model.entry, kind, {
-      schemas: generatedActionSchemas(kind, model.fields),
+      schemas: generatedActionSchemas(kind, model.fields, model.entry.name),
       api: app.api,
       execution: app.execution,
     }),

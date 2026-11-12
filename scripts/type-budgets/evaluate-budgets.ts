@@ -8,9 +8,19 @@ interface CountBudget {
 
 const count = (value: number): string => value.toLocaleString('en-US');
 
+/** The key of a synthetic row in `budgets.json`: the module count, `+live` with the live module. */
+const budgetKeyOf = (row: Pick<SyntheticMeasurement, 'modules' | 'live'>): string =>
+  row.live === true ? `${row.modules}+live` : String(row.modules);
+
+/** How a synthetic row is named in the report and the failures. */
+const labelOf = (row: Pick<SyntheticMeasurement, 'modules' | 'live'>): string =>
+  `synthetic ${row.modules} modules${row.live === true ? ' with live' : ''}`;
+
 /** The counts of one synthetic workspace, the empty workspace's counts already subtracted. */
 export interface SyntheticMeasurement {
   readonly modules: number;
+  /** Measured with the real live module in the app. */
+  readonly live?: true;
   readonly fold: number;
   readonly wholeProgram: number;
   readonly sizes: readonly DeclarationSize[];
@@ -55,38 +65,41 @@ export function evaluateBudgets(measurements: Measurements, budgets: Budgets): E
   const report: string[] = [];
   const failures: string[] = [];
   for (const row of measurements.synthetic) {
-    const budget = budgets.synthetic[String(row.modules)];
-    const spike = budgets.spike[String(row.modules)];
+    const label = labelOf(row);
+    const budget = budgets.synthetic[budgetKeyOf(row)];
+    const spike = row.live === true ? undefined : budgets.spike[String(row.modules)];
     const largest = row.sizes.reduce<DeclarationSize | undefined>(
       (best, size) => (best === undefined || size.totalBytes > best.totalBytes ? size : best),
       undefined,
     );
     report.push(
-      `synthetic ${row.modules} modules: fold ${count(row.fold)}${spike ? ` (spike ${count(spike.fold)})` : ''}${budget ? ` budget ${count(budget.fold)}` : ''}; whole program ${count(row.wholeProgram)}${spike ? ` (spike ${count(spike.wholeProgram)})` : ''}${budget ? ` budget ${count(budget.wholeProgram)}` : ''}; largest package ${largest ? `${largest.totalBytes} B, module.generated.d.ts up to ${Math.max(...row.sizes.map((size) => size.manifestBytes))} B` : '-'}`,
+      `${label}: fold ${count(row.fold)}${spike ? ` (spike ${count(spike.fold)})` : ''}${budget ? ` budget ${count(budget.fold)}` : ''}; whole program ${count(row.wholeProgram)}${spike ? ` (spike ${count(spike.wholeProgram)})` : ''}${budget ? ` budget ${count(budget.wholeProgram)}` : ''}; largest package ${largest ? `${largest.totalBytes} B, module.generated.d.ts up to ${Math.max(...row.sizes.map((size) => size.manifestBytes))} B` : '-'}`,
     );
     if (budget) {
       if (row.fold > budget.fold) {
         failures.push(
-          `synthetic ${row.modules} modules: fold ${count(row.fold)} instantiations, over ${count(budget.fold)}`,
+          `${label}: fold ${count(row.fold)} instantiations, over ${count(budget.fold)}`,
         );
       }
       if (row.wholeProgram > budget.wholeProgram) {
         failures.push(
-          `synthetic ${row.modules} modules: whole program ${count(row.wholeProgram)} instantiations, over ${count(budget.wholeProgram)}`,
+          `${label}: whole program ${count(row.wholeProgram)} instantiations, over ${count(budget.wholeProgram)}`,
         );
       }
     }
     failures.push(
       ...declarationFailures(
-        row.sizes.map((size) => ({ ...size, name: `synthetic ${row.modules}/${size.name}` })),
+        row.sizes.map((size) => ({ ...size, name: `synthetic ${budgetKeyOf(row)}/${size.name}` })),
         budgets.declarations,
       ),
     );
-    for (const line of row.portability) failures.push(`synthetic ${row.modules} modules: ${line}`);
+    for (const line of row.portability) failures.push(`${label}: ${line}`);
   }
   for (const key of Object.keys(budgets.synthetic)) {
-    if (!measurements.synthetic.some((row) => String(row.modules) === key)) {
-      failures.push(`synthetic ${key} modules: no measurement`);
+    if (!measurements.synthetic.some((row) => budgetKeyOf(row) === key)) {
+      failures.push(
+        `synthetic ${key.endsWith('+live') ? `${key.slice(0, -5)} modules with live` : `${key} modules`}: no measurement`,
+      );
     }
   }
   for (const [name, budget] of Object.entries(budgets.apps)) {

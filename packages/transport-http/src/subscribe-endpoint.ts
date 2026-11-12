@@ -1,6 +1,5 @@
 import { type Carrier, liveTimersOf, type StateToken, unknownClientAddress } from '@keelwerk/core';
-import { asKeelwerkError, coreError, decodeActionInput } from '@keelwerk/core/http';
-import { encodeFrames } from './encode-frames.ts';
+import { asKeelwerkError, coreError, decodeActionInput, encodeFrames } from '@keelwerk/core/http';
 import type { EndpointCall } from './endpoint-call.ts';
 import { errorResponse } from './error-response.ts';
 import { parseSubscribeRequest } from './parse-subscribe-request.ts';

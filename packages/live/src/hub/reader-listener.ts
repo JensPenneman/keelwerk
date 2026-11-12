@@ -1,4 +1,4 @@
-import type { KeelwerkError, LiveView, Position } from '@keelwerk/core';
+import type { KeelwerkError, LiveKernel, LiveView, Position } from '@keelwerk/core';
 import type { ReaderBatch } from './reader-batch.ts';
 
 /**
@@ -25,6 +25,11 @@ export interface ReaderListener {
    * that authenticated the stream reaches the listener at once.
    */
   extraStreamTypes?(): readonly string[];
+  /**
+   * For a listener without a view: the kernels of the entities whose changed rows the reader loads
+   * (their post-images, in `ReaderBatch.rows`) although no view asks for them.
+   */
+  rowKernels?(): readonly LiveKernel[];
   /** After the unit closed: synchronous, never awaited, never throws. */
   deliver(batch: ReaderBatch): void;
   /** The reader gave up: the stream ends with the error. */

@@ -8,6 +8,7 @@ import type {
 } from '@keelwerk/client';
 import type { ApiSurface, KeelwerkError } from '@keelwerk/core';
 import { deriveSurface, errors } from '@keelwerk/core';
+import { encodeFrame } from '@keelwerk/core/http';
 import { clientAddresses } from './client-addresses.ts';
 import type { ClientRuntime } from './client-runtime.ts';
 import { liveUnavailable } from './live-unavailable.ts';
@@ -78,12 +79,47 @@ function clientOver<App>(bound: Bound): AppClient<App> {
         ...(answer.commandId === undefined ? {} : { commandId: answer.commandId }),
       };
     },
-    subscribe() {
+    subscribe(ref, input, options = {}) {
+      // Each item is checked against the surface of the head by the encoding a carrier gives it, so an item the surface refuses fails here as it fails over SSE.
+      const action = deriveSurface(bound.runtime.app, bound.runtime.head).surface.actions.find(
+        (candidate) => candidate.ref === ref,
+      );
+      const frames = bound.runtime.invoker.subscribe(
+        {
+          action: ref,
+          input,
+          carrier: testCarrier(bound.tenant, bound.principal, bound.nextAddress()),
+          requestId: crypto.randomUUID(),
+          signal: options.signal ?? new AbortController().signal,
+        },
+        options.after === undefined ? undefined : { after: options.after },
+      );
+      if (action === undefined) return frames as never;
+      // Not an async generator: its `return()` would wait behind a pending `next()`, and a test stops a stream that is waiting.
       return {
-        [Symbol.asyncIterator]: () => ({
-          next: () => Promise.reject(liveUnavailable('Subscribing')),
-        }),
-      };
+        [Symbol.asyncIterator]: () => {
+          const inner = frames[Symbol.asyncIterator]();
+          return {
+            next: async () => {
+              const step = await inner.next();
+              // The item stays in its in-process form; it is encoded only to fail as a carrier does when the surface refuses it.
+              if (step.done !== true) {
+                try {
+                  encodeFrame(step.value, action);
+                } catch (error) {
+                  // A `for await` does not return a stream whose `next()` rejected: the hub's member would stay attached.
+                  // A failure to close it never replaces the refusal the caller is to see.
+                  await inner.return?.().catch(() => undefined);
+                  throw error;
+                }
+              }
+              return step;
+            },
+            return: async (value?: unknown) =>
+              (await inner.return?.(value)) ?? { done: true as const, value: undefined },
+          };
+        },
+      } as never;
     },
     waitForEffects(): Promise<never> {
       return Promise.reject(liveUnavailable('Waiting for effects'));

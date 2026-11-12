@@ -1,8 +1,9 @@
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { InvocationSession } from '../invoker/invocation-session.ts';
 import type { LiveFrame } from '../invoker/live-frame.ts';
-import type { EntityChange } from '../model/entity-change.ts';
 import type { LiveHub } from './live-hub.ts';
+import type { LiveMapDriver } from './live-map-driver.ts';
+import type { LivePokesPlan } from './live-pokes-plan.ts';
 import type { LiveSourcePlan } from './live-source-plan.ts';
 
 function isGenerator(value: unknown): boolean {
@@ -15,21 +16,28 @@ function isGenerator(value: unknown): boolean {
 }
 
 /**
- * Runs a source plan (7.9.2): the hub serves the plan's entity under its input, resumed from its
- * `after`, and the maps are applied to every item in array order; an item a map answers
+ * Runs a source plan (7.9.2): the hub serves the plan's entity under its input (or the pokes of the
+ * session's scope), resumed from its `after`, and the maps are applied to every item in array order; an item a map answers
  * `undefined` for is dropped together with its state. Control frames pass unchanged. A map that
- * answers a generator is `not_implemented`. The work starts when iteration starts.
+ * answers a generator is driven by `drive`, one read-only unit per item, and its result is the
+ * mapped item; without `drive` it is `not_implemented`. The work starts when iteration starts.
  */
 export function runLiveSource(
   hub: LiveHub,
   session: InvocationSession,
-  plan: LiveSourcePlan,
+  plan: LiveSourcePlan | LivePokesPlan,
+  drive?: LiveMapDriver,
 ): AsyncIterable<LiveFrame<unknown>> {
   const applied = plan.maps;
-  const served = hub.entity<unknown>(session, plan.entity, plan.input, plan.after);
+  const served: AsyncIterable<LiveFrame<unknown>> =
+    plan.kind === 'pokes'
+      ? hub.pokes(session, plan.after)
+      : hub.entity<unknown>(session, plan.entity, plan.input, plan.after);
   return {
     [Symbol.asyncIterator]: () => {
       const inner = served[Symbol.asyncIterator]();
+      // Aborted by `return()`: a map unit that is open when the client goes ends with it.
+      const stopped = new AbortController();
       const iterator: AsyncIterator<LiveFrame<unknown>> = {
         next: async () => {
           for (;;) {
@@ -37,15 +45,27 @@ export function runLiveSource(
             if (step.done === true) return { done: true, value: undefined };
             const frame = step.value;
             if ('control' in frame) return { done: false, value: frame };
-            let item: unknown = frame.event as EntityChange<unknown>;
+            let item: unknown = frame.event;
             for (const map of applied) {
               item = map(item);
               if (isGenerator(item)) {
-                throw new KeelwerkError({
-                  kind: 'not_implemented',
-                  code: 'core.not_implemented',
-                  message: 'A generator map of a live source is not available in this release.',
-                });
+                if (drive !== undefined) {
+                  try {
+                    item = await drive(
+                      item as Generator<unknown, unknown, unknown>,
+                      stopped.signal,
+                    );
+                  } catch (error) {
+                    if (stopped.signal.aborted) return { done: true, value: undefined };
+                    throw error;
+                  }
+                } else {
+                  throw new KeelwerkError({
+                    kind: 'not_implemented',
+                    code: 'core.not_implemented',
+                    message: 'A generator map of a live source is not available in this release.',
+                  });
+                }
               }
               if (item === undefined) break;
             }
@@ -57,8 +77,10 @@ export function runLiveSource(
             };
           }
         },
-        return: async (value?: unknown) =>
-          (await inner.return?.(value)) ?? { done: true, value: undefined },
+        return: async (value?: unknown) => {
+          stopped.abort();
+          return (await inner.return?.(value)) ?? { done: true, value: undefined };
+        },
       };
       return iterator;
     },

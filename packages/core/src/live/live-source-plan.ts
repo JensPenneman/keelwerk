@@ -3,6 +3,8 @@ import type { WatchInput } from './watch-input.ts';
 
 /** What a subscription follows: one entity's changes under an input, and what is done to each item. */
 export interface LiveSourcePlan {
+  /** Absent means the changes of an entity. */
+  readonly kind?: 'entity';
   /** 'loans.loan'. */
   readonly entity: string;
   readonly input: WatchInput<unknown>;

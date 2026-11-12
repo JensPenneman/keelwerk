@@ -8,6 +8,7 @@ export async function connectKitSocket(
   kit: StreamRuntime,
   subject: string,
   hello: Record<string, unknown> = {},
+  roles: readonly string[] = [],
 ): Promise<LiveSocketClient> {
   const { port } = kit.runtime.runtime;
   const domain = Object.values(kit.runtime.domains)[0];
@@ -15,7 +16,7 @@ export async function connectKitSocket(
   const client = await connectLiveSocket(
     port,
     domain,
-    Object.fromEntries(requestHeaders({ subject })),
+    Object.fromEntries(requestHeaders({ subject, roles })),
   );
   if (!('socket' in client)) throw new Error(`the upgrade was refused: ${client.status}`);
   client.send({ type: 'hello', ...hello });

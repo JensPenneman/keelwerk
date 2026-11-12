@@ -12,6 +12,7 @@ import { createEntitySubscriber } from './entity-subscriber.ts';
 import type { HubMember } from './hub-member.ts';
 import type { LiveHubOptions } from './live-hub-options.ts';
 import type { LiveHubService } from './live-hub-service.ts';
+import type { LiveSourceHub } from './live-source-hub.ts';
 import type { LiveSubscription } from './live-subscription.ts';
 import { resolveHubLimits } from './resolve-hub-limits.ts';
 import { revalidateSessions } from './revalidate-sessions.ts';
@@ -47,6 +48,8 @@ export function createLiveHub(
   const readers = createScopeReaders(limits, services);
   const startUnits = createStartLimiter(limits.maxStartUnitsPerScope, limits.maxStartUnits);
   const members = new Set<HubMember>();
+  let closing: Promise<void> | undefined;
+  const isClosed = (): boolean => closing !== undefined;
   // The timer lives in this closure and runs while subscriptions are attached; close stops it.
   const revalidator = revalidateSessions({
     clock: services.clock,
@@ -55,11 +58,23 @@ export function createLiveHub(
     tickMs: limits.revalidateTickMs,
     subscriptions: () => [...members].map((member) => member.subscription),
   });
-  const pokes = options.sources?.pokes?.(readers);
+  const sourceHub: LiveSourceHub = {
+    limits,
+    register: (member) => {
+      // A stream made before the hub closed and first read after it is a new subscription.
+      if (isClosed()) throw errors.unavailable('The live hub has stopped.');
+      members.add(member);
+      revalidator.attached(members.size);
+      return () => {
+        members.delete(member);
+        revalidator.attached(members.size);
+      };
+    },
+    revalidate: (subscription) => revalidator.revalidate(subscription),
+  };
+  const pokes = options.sources?.pokes?.(readers, sourceHub);
   const stream = options.sources?.stream?.(readers);
   const topic = options.sources?.topic?.(readers);
-  let closing: Promise<void> | undefined;
-  const isClosed = (): boolean => closing !== undefined;
   return {
     entity: <Row>(
       session: InvocationSession,
@@ -75,19 +90,8 @@ export function createLiveHub(
             input,
             resume,
             readers,
-            limits,
             startUnits,
-            revalidate: (subscription) => revalidator.revalidate(subscription),
-            register: (member) => {
-              // A stream made before the hub closed and first read after it is a new subscription.
-              if (isClosed()) throw errors.unavailable('The live hub has stopped.');
-              members.add(member);
-              revalidator.attached(members.size);
-              return () => {
-                members.delete(member);
-                revalidator.attached(members.size);
-              };
-            },
+            ...sourceHub,
           }) as AsyncIterable<LiveFrame<EntityChange<Row>>>),
     pokes: (session, resume) =>
       isClosed() ? stopped() : pokes === undefined ? notAvailableHere() : pokes(session, resume),

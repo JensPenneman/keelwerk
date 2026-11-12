@@ -137,6 +137,7 @@ export function createScopeReader(input: ScopeReaderInput): ScopeReader {
         views.set(entry, view);
       }
       for (const type of entry.listener.extraStreamTypes?.() ?? []) dependencies.add(type);
+      for (const kernel of entry.listener.rowKernels?.() ?? []) kernels.set(kernel.entity, kernel);
     }
     const page = await readPassEvents({
       unit,

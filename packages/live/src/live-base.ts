@@ -8,6 +8,7 @@ const liveBaseDef = defineModuleBase({
   version,
   provides: [contracts.live],
   entities: { streamTicket },
+  generates: ['watch'],
   contributions: { toCore: liveToCore },
 });
 

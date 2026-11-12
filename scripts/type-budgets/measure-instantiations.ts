@@ -7,6 +7,7 @@ import { generateSyntheticApps } from './generate-synthetic-apps.ts';
 import { parseExtendedDiagnostics } from './parse-extended-diagnostics.ts';
 import { portabilityCodes } from './portability-codes.ts';
 import { runTsc } from './run-tsc.ts';
+import type { SyntheticOptions } from './synthetic-options.ts';
 import { throwOnCompileErrors } from './throw-on-compile-errors.ts';
 
 interface Raw {
@@ -16,9 +17,14 @@ interface Raw {
   readonly portability: readonly string[];
 }
 
-function measureRaw(root: string, modules: number, repo: string): Raw {
-  generateSyntheticApps(root, modules, repo);
-  const label = `synthetic workspace of ${modules} modules`;
+function measureRaw(
+  root: string,
+  modules: number,
+  repo: string,
+  options: SyntheticOptions = {},
+): Raw {
+  generateSyntheticApps(root, modules, repo, options);
+  const label = `synthetic workspace of ${modules} modules${options.live === true ? ' with live' : ''}`;
   const wholeOutput = runTsc(repo, ['-p', 'tsconfig.mono.json', '--extendedDiagnostics'], root);
   throwOnCompileErrors(`${label}, whole program`, wholeOutput, []);
   const whole = parseExtendedDiagnostics(wholeOutput);
@@ -47,18 +53,25 @@ function measureRaw(root: string, modules: number, repo: string): Raw {
 
 /**
  * Measures the synthetic workspaces at each module count, with the empty workspace's counts
- * (the core alone) subtracted, as the spike did, so the figures compare with its budgets.
+ * (the core alone) subtracted, as the spike did, so the figures compare with its budgets. With
+ * `options.live` the app composes the real live module, and the empty workspace it is compared
+ * with is still the core alone, so the figures include the live module's own types and the
+ * generated `watch` of every entity (13.11).
  */
 export function measureInstantiations(
   counts: readonly number[],
   repo: string,
   scratch: string,
+  options: SyntheticOptions = {},
 ): readonly SyntheticMeasurement[] {
+  const suffix = options.live === true ? '-live' : '';
+  // The empty workspace is the core alone in both cases: a live row's figure includes the live module's own types.
   const base = measureRaw(join(scratch, 'synthetic-0'), 0, repo);
   return counts.map((modules) => {
-    const raw = measureRaw(join(scratch, `synthetic-${modules}`), modules, repo);
+    const raw = measureRaw(join(scratch, `synthetic-${modules}${suffix}`), modules, repo, options);
     return {
       modules,
+      ...(options.live === true ? { live: true as const } : {}),
       fold: raw.fold - base.fold,
       wholeProgram: raw.wholeProgram - base.wholeProgram,
       sizes: raw.sizes,

@@ -23,6 +23,16 @@ test('a three-module workspace compiles with no error in the whole program, the 
   }
 }, 300_000);
 
+test('a three-module workspace with the live module compiles and every entity has watch', () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'measure-instantiations-live-test-'));
+  try {
+    const [row] = measureInstantiations([3], repo, scratch, { live: true });
+    expect(row).toMatchObject({ modules: 3, live: true, portability: [] });
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}, 300_000);
+
 test('a compiler error line other than an allowed code throws', () => {
   const output = "a.ts(1,1): error TS2307: Cannot find module 'x'.\nb.ts(1,1): error TS2883: no.";
   expect(() => throwOnCompileErrors('x', output, ['TS2883'])).toThrow('TS2307');

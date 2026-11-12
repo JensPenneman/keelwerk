@@ -3,6 +3,7 @@ import { personalSealerOf } from '../encryption/personal-sealer-of.ts';
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { chainHash } from '../events/chain-hash.ts';
+import { currentEventSchemaVersion } from '../events/current-event-schema-version.ts';
 import type { EventMeta } from '../events/event-meta.ts';
 import type { Hlc } from '../events/hlc.ts';
 import type { NewEvent } from '../events/new-event.ts';
@@ -29,7 +30,7 @@ import { transientRecords } from './transient-records.ts';
 import type { WrittenRow } from './written-row.ts';
 
 /** The event schema version generated and domain events are written with (section 15.1.9). */
-const schemaVersion = 1;
+const schemaVersion = currentEventSchemaVersion;
 
 /** What the drafts of a decision are turned into events with. */
 export interface DraftsToEventsInput {

@@ -2,6 +2,7 @@ import { errors } from '../errors/errors.ts';
 import type { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { StateToken } from '../events/state-token.ts';
 import type { LiveEntitySource } from './live-entity-source.ts';
+import type { LivePokesPlan } from './live-pokes-plan.ts';
 import type { LiveSourcePlan } from './live-source-plan.ts';
 
 interface Description {
@@ -18,15 +19,20 @@ function isEntitySource(value: unknown): value is LiveEntitySource {
   return typeof value === 'object' && value !== null && Reflect.get(value, 'kind') === 'entity';
 }
 
+function isPokesSource(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && Reflect.get(value, 'kind') === 'pokes';
+}
+
 function internalSource(): KeelwerkError {
   return errors.internal('A subscription source is not a description the live hub can run.');
 }
 
 /**
  * The plan of a source description (7.9.2): the maps are unwrapped (innermost applied first) down
- * to the leaf, which must be the changes of an entity. Any other description is `internal`.
+ * to the leaf, which must be the changes of an entity or the pokes of the session's scope. Any other
+ * description is `internal`.
  */
-export function planLiveSource(description: unknown): LiveSourcePlan {
+export function planLiveSource(description: unknown): LiveSourcePlan | LivePokesPlan {
   const maps: ((item: unknown) => unknown)[] = [];
   let leaf: unknown = description;
   while (isDescription(leaf) && leaf.map !== undefined) {
@@ -35,6 +41,7 @@ export function planLiveSource(description: unknown): LiveSourcePlan {
     leaf = leaf.source;
   }
   const entity = isDescription(leaf) ? leaf.source : undefined;
+  if (isPokesSource(entity)) return { kind: 'pokes', after: undefined, maps: maps.reverse() };
   if (!isEntitySource(entity)) throw internalSource();
   const { options } = entity;
   return {
