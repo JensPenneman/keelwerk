@@ -1,3 +1,4 @@
+import type { LiveSocketHostOptions } from './live-socket-host-options.ts';
 import type { SseHostOptions } from './sse-host-options.ts';
 
 /** What `httpHost({ ... })` takes in the deployment's infrastructure list (section 16.3.3). */
@@ -15,4 +16,6 @@ export interface HttpHostOptions {
   readonly maxBodyBytes?: number;
   /** The bounds of server-sent event streams: the ping, the longest life, the queue of a connection and the open streams (15.4.5, 15.4.10). */
   readonly live?: SseHostOptions;
+  /** The bounds of `keelwerk.live.v1` WebSocket sockets (15.4.7, 15.4.10). */
+  readonly liveSocket?: LiveSocketHostOptions;
 }

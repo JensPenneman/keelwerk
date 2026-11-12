@@ -1,4 +1,4 @@
-import { readEventStream } from '@keelwerk/testing';
+import { lendCall, readEventStream } from '@keelwerk/testing';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { createFakeHost } from './support/create-fake-host.ts';
 import { createFakeInvoker } from './support/fake-invoker.ts';
@@ -58,12 +58,6 @@ async function boot(adapter: 'memory' | 'pglite', clock = movingClock()) {
   return { ...made, issue, open, clock };
 }
 
-const lend = (subject: string, title: string) => ({
-  action: 'loans.lend',
-  input: { bookTitle: title, dueAt: '2027-01-01T00:00:00Z' },
-  caller: { subject },
-});
-
 describe.each(['memory', 'pglite'] as const)('stream tickets on %s', (adapter) => {
   test('a ticket opens one stream as its principal', async () => {
     const kit = await boot(adapter);
@@ -73,8 +67,8 @@ describe.each(['memory', 'pglite'] as const)('stream tickets on %s', (adapter) =
     const stream = readEventStream(response);
     closers.push(() => stream.close());
     await stream.until((frame) => frame.event === 'head');
-    await kit.target.codec.send(kit.target, lend('ada', 'Dune'));
-    await kit.target.codec.send(kit.target, lend('bob', 'Emma'));
+    await kit.target.codec.send(kit.target, lendCall('ada', 'Dune'));
+    await kit.target.codec.send(kit.target, lendCall('bob', 'Emma'));
     const item = await stream.next();
     // loans.loanEvents follows the loans of the principal: ada, whom the ticket stands for.
     expect(item).toMatchObject({ event: 'data', data: { kind: 'created' } });
@@ -229,7 +223,7 @@ describe.each(['memory', 'pglite'] as const)('stream tickets on %s', (adapter) =
     const stream = readEventStream(response);
     closers.push(() => stream.close());
     await stream.until((frame) => frame.event === 'head');
-    await kit.target.codec.send(kit.target, lend('ada', 'Hamlet'));
+    await kit.target.codec.send(kit.target, lendCall('ada', 'Hamlet'));
     expect((await stream.next())?.event).toBe('data');
   });
 

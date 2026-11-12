@@ -62,8 +62,7 @@
     },
     "packages/transport-http": {
       "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@types/ws", "ws"]
+      "project": ["src/**/*.ts"]
     },
     "packages/transport-rest": {
       "entry": ["src/**/*.test-d.ts"],

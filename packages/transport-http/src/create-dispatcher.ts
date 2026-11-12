@@ -72,7 +72,7 @@ export function createDispatcher(host: HostContext, telemetry: RequestTelemetry)
           decorateResponse(response, request, state),
           request,
         );
-        finish(decorated.status);
+        finish(state.upgraded === true ? 101 : decorated.status);
         return decorated;
       } finally {
         host.lifecycle.leave();

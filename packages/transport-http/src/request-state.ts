@@ -22,6 +22,8 @@ export interface RequestState {
   deprecatedAction?: { readonly at: string; readonly sunset?: string };
   /** The id of a command whose id the host generated. */
   generatedCommandId?: string;
+  /** Set once a WebSocket upgrade was accepted: the response is never sent, the request counts as 101. */
+  upgraded?: true;
   /** The error kind and code of the response, for the error counter. */
   failure?: { readonly kind: string; readonly code: string };
 }

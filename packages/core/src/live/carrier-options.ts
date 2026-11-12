@@ -12,6 +12,8 @@ export interface CarrierOptions {
   readonly clock?: Clock;
   /** The waits of the carrier (heartbeat, maximum duration) on that clock; absent: `liveTimersOf(clock)`. */
   readonly timers?: LiveTimers;
+  /** The id a multiplexing carrier frames the stream under (15.4.7 `subscribe.id`); the websocket carrier refuses to serve without it. */
+  readonly subscriptionId?: string;
   /** What the opening frame says (15.4.6 `welcome`, 15.4.7 welcome). */
   readonly welcome?: {
     readonly apiVersion: string;

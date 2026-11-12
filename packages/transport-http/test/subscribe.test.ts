@@ -1,5 +1,11 @@
 import type { LiveCarrier } from '@keelwerk/core';
-import { readEventStream, recordingLogger, startTransportRuntime } from '@keelwerk/testing';
+import {
+  freshName,
+  lendCall,
+  readEventStream,
+  recordingLogger,
+  startTransportRuntime,
+} from '@keelwerk/testing';
 import { transportApp } from '@keelwerk/testing/fixtures';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { httpHost } from '../src/index.ts';
@@ -9,9 +15,6 @@ import { fakeSurface } from './support/fake-surface.ts';
 import { type StreamRuntime, startStreamRuntime } from './support/stream-runtime.ts';
 
 vi.setConfig({ testTimeout: 30_000 });
-
-/** A name no earlier test used. */
-const freshNameOf = (label: string): string => `${label}-${crypto.randomUUID().slice(0, 8)}`;
 
 const running: StreamRuntime[] = [];
 const closers: (() => Promise<void>)[] = [];
@@ -27,16 +30,11 @@ async function started(...args: Parameters<typeof startStreamRuntime>): Promise<
 }
 
 const ada = (name = 'ada') => ({ subject: name });
-const lend = (subject: string, title: string) => ({
-  action: 'loans.lend',
-  input: { bookTitle: title, dueAt: '2027-01-01T00:00:00Z' },
-  caller: { subject },
-});
 
 describe('GET and POST subscribe', () => {
   test('GET and POST stream welcome, head and wire-encoded items', async () => {
     const { target } = await started();
-    const subject = freshNameOf('ada');
+    const subject = freshName('ada');
     for (const method of ['GET', 'POST'] as const) {
       const stream = await target.codec.subscribe?.(target, {
         action: 'loans.loanEvents',
@@ -52,7 +50,7 @@ describe('GET and POST subscribe', () => {
       expect(stream.response.headers.get('x-accel-buffering')).toBe('no');
       const frames = await stream.until((frame) => frame.event === 'head');
       expect(frames.map((frame) => frame.event)).toEqual(['welcome', 'head']);
-      await target.codec.send(target, lend(subject, freshNameOf('Dune')));
+      await target.codec.send(target, lendCall(subject, freshName('Dune')));
       const item = await stream.next();
       expect(item?.event).toBe('data');
       // The item is the wire form: a TypeID, not the stored uuid.
@@ -62,7 +60,7 @@ describe('GET and POST subscribe', () => {
 
   test('Last-Event-ID wins over after', async () => {
     const { target } = await started();
-    const subject = freshNameOf('ada');
+    const subject = freshName('ada');
     const first = await target.codec.subscribe?.(target, {
       action: 'loans.loanEvents',
       input: {},
@@ -70,10 +68,10 @@ describe('GET and POST subscribe', () => {
     });
     if (first === undefined) throw new Error('no stream');
     await first.until((frame) => frame.event === 'head');
-    await target.codec.send(target, lend(subject, freshNameOf('Emma')));
+    await target.codec.send(target, lendCall(subject, freshName('Emma')));
     const seen = (await first.next())?.id;
     await first.close();
-    await target.codec.send(target, lend(subject, freshNameOf('Hamlet')));
+    await target.codec.send(target, lendCall(subject, freshName('Hamlet')));
     // `after` names a token of another position than the header: the header decides.
     const resumed = await target.codec.subscribe?.(target, {
       action: 'loans.loanEvents',
@@ -223,7 +221,7 @@ describe('the life of a stream', () => {
     const stream = await target.codec.subscribe?.(target, {
       action: 'loans.loanEvents',
       input: {},
-      caller: ada(freshNameOf('ada')),
+      caller: ada(freshName('ada')),
     });
     if (stream === undefined) throw new Error('no stream');
     await stream.until((frame) => frame.event === 'head');
@@ -238,7 +236,7 @@ describe('the life of a stream', () => {
     const stream = await target.codec.subscribe?.(target, {
       action: 'loans.loanEvents',
       input: {},
-      caller: ada(freshNameOf('ada')),
+      caller: ada(freshName('ada')),
     });
     if (stream === undefined) throw new Error('no stream');
     closers.push(() => stream.close());
@@ -248,7 +246,7 @@ describe('the life of a stream', () => {
 
   test('the 21st stream of a principal is 429 core.quota_exceeded', async () => {
     const { target, origin } = await started();
-    const subject = freshNameOf('ada');
+    const subject = freshName('ada');
     for (let index = 0; index < 20; index += 1) {
       const stream = await target.codec.subscribe?.(target, {
         action: 'loans.loanEvents',
@@ -272,7 +270,7 @@ describe('the life of a stream', () => {
     const other = await target.codec.subscribe?.(target, {
       action: 'loans.loanEvents',
       input: {},
-      caller: ada(freshNameOf('bob')),
+      caller: ada(freshName('bob')),
     });
     expect(other?.response.status).toBe(200);
     await other?.close();
@@ -282,7 +280,7 @@ describe('the life of a stream', () => {
     const { target } = await started({
       live: { maxBufferedBytes: 300, stallMs: 150, maxStreamsPerPrincipal: 1 },
     });
-    const subject = freshNameOf('ada');
+    const subject = freshName('ada');
     const silent = await target.codec.subscribe?.(target, {
       action: 'loans.loanEvents',
       input: {},
@@ -291,7 +289,7 @@ describe('the life of a stream', () => {
     expect(silent?.response.status).toBe(200);
     // Never read: the queue fills, the carrier waits, and after stallMs the connection is closed.
     for (let index = 0; index < 8; index += 1) {
-      await target.codec.send(target, lend(subject, freshNameOf('Book')));
+      await target.codec.send(target, lendCall(subject, freshName('Book')));
     }
     // The principal's one stream is released: it may open another.
     await vi.waitFor(

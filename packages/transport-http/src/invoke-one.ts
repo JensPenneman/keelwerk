@@ -24,14 +24,16 @@ export type InvokeResult =
  * Runs one `InvokeRequest` through the invoker with the request's session, and shapes the outcome:
  * the output goes through `toWire` of the action's output node, an accepted asynchronous command
  * answers 202 with the receipt as the value (section 16.4.7), and the `http.cookie` hint applies
- * under S-48.
+ * under S-48. The invocation's signal is the request's unless the caller passes one (a socket's
+ * messages share no request).
  */
 export async function invokeOne(
   call: EndpointCall,
   item: InvokeRequest,
   single: boolean,
+  signal: AbortSignal = call.request.signal,
 ): Promise<InvokeResult> {
-  const { host, state, session, carrier, request } = call;
+  const { host, state, session, carrier } = call;
   const surface = servedSurfaceOf(call);
   const action = surface?.actions.find((a) => a.ref === item.action);
   const commandId = item.commandId ?? (action?.kind === 'command' ? newUuidV7() : undefined);
@@ -61,7 +63,7 @@ export async function invokeOne(
       ...(commandId !== undefined && { commandId }),
       ...(item.prefer !== undefined && { prefer: item.prefer }),
       ...(state.traceparent !== undefined && { traceparent: state.traceparent }),
-      signal: request.signal,
+      signal,
     });
   } catch (failure) {
     return { ok: false, error: asKeelwerkError(failure) };

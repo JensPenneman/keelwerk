@@ -4,7 +4,9 @@ import { batchEndpoint } from './batch-endpoint.ts';
 import { bodyLimit } from './body-limit.ts';
 import { capabilitiesEndpoint } from './capabilities-endpoint.ts';
 import { carriesTicket } from './carries-ticket.ts';
+import { dispatchUpgrade } from './dispatch-upgrade.ts';
 import type { EndpointCall } from './endpoint-call.ts';
+import { enrichCarrier } from './enrich-carrier.ts';
 import { errorResponse } from './error-response.ts';
 import { fillCarrier } from './fill-carrier.ts';
 import type { HostBindings } from './host-bindings.ts';
@@ -44,6 +46,13 @@ async function protocolEndpoint(call: EndpointCall, path: string): Promise<Respo
     case '/batch':
       call.state.route = `${protocolBase}/batch`;
       return method === 'POST' ? batchEndpoint(call) : methodNotAllowed(call, 'POST');
+    case '/live':
+      call.state.route = `${protocolBase}/live`;
+      return errorResponse(
+        call.host,
+        call.state,
+        coreError('core.unsupported', { message: 'Open this endpoint as a WebSocket.' }),
+      );
     case '/subscribe':
       call.state.route = `${protocolBase}/subscribe`;
       return method === 'GET' || method === 'POST'
@@ -105,23 +114,13 @@ async function open(
   carrier: Carrier,
   signal: AbortSignal,
 ): Promise<{ session: InvocationSession } | { error: KeelwerkError }> {
-  const enriched = enrich(host, carrier);
+  const enriched = enrichCarrier(host, carrier);
   try {
     const opened = await host.deps.invoker.open(enriched, { signal });
     return opened.ok ? { session: opened.value } : { error: opened.error };
   } catch (failure) {
     return { error: asKeelwerkError(failure) };
   }
-}
-
-function enrich(host: HostContext, carrier: Carrier): Carrier {
-  for (const enricher of host.deps.enrichers ?? []) {
-    const scopeKey = enricher.enrich(carrier);
-    if (scopeKey !== null) {
-      return { ...carrier, scopeKey };
-    }
-  }
-  return carrier;
 }
 
 /**
@@ -219,6 +218,9 @@ export async function serveRequest(
     ...(bindings.incoming !== undefined && { incoming: bindings.incoming }),
   };
   try {
+    if (bindings.upgrade !== undefined) {
+      return await dispatchUpgrade(call, pathname, bindings.upgrade);
+    }
     if (pathname === protocolBase || pathname.startsWith(`${protocolBase}/`)) {
       return await protocolEndpoint(call, pathname);
     }

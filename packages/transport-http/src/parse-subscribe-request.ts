@@ -1,12 +1,10 @@
-import { decodeStateToken } from '@keelwerk/core';
 import { coreError } from '@keelwerk/core/http';
 import { parseJsonBody } from './parse-json-body.ts';
+import { streamTokenOf } from './stream-token-of.ts';
 import type { SubscribeRequest } from './subscribe-request.ts';
+import { subscriptionRefOf } from './subscription-ref-of.ts';
 
-const maxActionBytes = 256;
 const maxInputBytes = 8192;
-const maxTokenLength = 128;
-const tokenPattern = /^[0-9a-z.]+$/;
 const encoder = new TextEncoder();
 
 /** The values never reach the message: a hostile token is never echoed or logged. */
@@ -16,31 +14,6 @@ function malformed(path: string, message: string) {
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function tokenOf(value: unknown, name: string): string {
-  if (typeof value !== 'string' || value.length > maxTokenLength || !tokenPattern.test(value)) {
-    throw malformed(name, 'Expected one stream token.');
-  }
-  // The form only (the check is the hub's to verify): a token that cannot be read at all is refused
-  // before the stream starts, so a client does not reconnect for ever with the same one.
-  try {
-    decodeStateToken(value);
-  } catch {
-    throw malformed(name, 'Expected one stream token.');
-  }
-  return value;
-}
-
-function actionOf(value: unknown): string {
-  if (
-    typeof value !== 'string' ||
-    value === '' ||
-    encoder.encode(value).byteLength > maxActionBytes
-  ) {
-    throw malformed('action', 'Expected the reference of a subscription.');
-  }
-  return value;
 }
 
 /** The one value of a query member; none is undefined, several are malformed. */
@@ -63,13 +36,14 @@ export function parseSubscribeRequest(request: Request, bytes: Uint8Array): Subs
   if (request.method === 'POST') {
     const body = parseJsonBody(bytes);
     if (!isRecord(body)) throw malformed('body', 'Expected an object.');
-    const after = header ?? (body.after === undefined ? undefined : tokenOf(body.after, 'after'));
+    const after =
+      header ?? (body.after === undefined ? undefined : streamTokenOf(body.after, 'after'));
     return {
-      action: actionOf(body.action),
+      action: subscriptionRefOf(body.action),
       input: body.input,
       ...(after === undefined
         ? {}
-        : { after: tokenOf(after, header === undefined ? 'after' : 'Last-Event-ID') }),
+        : { after: streamTokenOf(after, header === undefined ? 'after' : 'Last-Event-ID') }),
     };
   }
   const params = new URL(request.url).searchParams;
@@ -89,10 +63,10 @@ export function parseSubscribeRequest(request: Request, bytes: Uint8Array): Subs
   }
   const token = header ?? (query === '' ? undefined : query);
   return {
-    action: actionOf(action),
+    action: subscriptionRefOf(action),
     input,
     ...(token === undefined
       ? {}
-      : { after: tokenOf(token, header === undefined ? 'after' : 'Last-Event-ID') }),
+      : { after: streamTokenOf(token, header === undefined ? 'after' : 'Last-Event-ID') }),
   };
 }

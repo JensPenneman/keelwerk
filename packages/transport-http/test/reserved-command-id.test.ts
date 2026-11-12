@@ -1,5 +1,11 @@
 import { kernelCommandId } from '@keelwerk/core';
-import { protocolCodec, startTransportRuntime, transportTargetOf } from '@keelwerk/testing';
+import {
+  lendCall,
+  protocolCodec,
+  sendCall,
+  startTransportRuntime,
+  transportTargetOf,
+} from '@keelwerk/testing';
 import { transportApp } from '@keelwerk/testing/fixtures';
 import { describe, expect, test } from 'vitest';
 import { httpHost } from '../src/index.ts';
@@ -9,13 +15,7 @@ describe('a command id the client chooses over HTTP', () => {
     const running = await startTransportRuntime({ app: transportApp, host: httpHost() });
     try {
       const target = transportTargetOf(running, protocolCodec, []);
-      const lend = (commandId: string) =>
-        protocolCodec.send(target, {
-          action: 'loans.lend',
-          input: { bookTitle: 'Dune', dueAt: '2026-12-01T00:00:00Z' },
-          caller: { subject: 'ada' },
-          commandId,
-        });
+      const lend = (commandId: string) => sendCall(target, lendCall('ada', 'Dune', { commandId }));
       for (const id of [
         kernelCommandId('reaction', 'relay.echo', 'e1'),
         kernelCommandId('continuation', 'f1'),

@@ -1,6 +1,7 @@
 import type { ModuleType } from '@keelwerk/core';
 import { defineLiveHub, defineModule } from '@keelwerk/core';
 import { sseCarrier } from './carriers/sse/sse-carrier.ts';
+import { websocketCarrier } from './carriers/websocket/websocket-carrier.ts';
 import { createLiveHub } from './hub/create-live-hub.ts';
 import { liveBase } from './live-base.ts';
 import { issueTicket } from './tickets/issue-ticket.ts';
@@ -14,7 +15,7 @@ const liveDef = defineModule(liveBase, {
     toCore: {
       extensionPoints: {
         liveHub: [defineLiveHub((services) => createLiveHub(services))],
-        liveCarriers: [sseCarrier],
+        liveCarriers: [sseCarrier, websocketCarrier],
         principalResolvers: ticketResolverFill,
       },
     },
@@ -22,7 +23,7 @@ const liveDef = defineModule(liveBase, {
   migrations: new URL('../migrations/', import.meta.url),
 });
 
-/** The live module: provides the `live` contract, fills the core's `liveHub` point with the hub filler (15.4.1; each runtime opens its own hub), its `liveCarriers` point with the SSE carrier and its principal resolvers with the stream ticket resolver, and issues tickets (`live.ticket`). */
+/** The live module: provides the `live` contract, fills the core's `liveHub` point with the hub filler (15.4.1; each runtime opens its own hub), its `liveCarriers` point with the SSE and WebSocket carriers and its principal resolvers with the stream ticket resolver, and issues tickets (`live.ticket`). */
 export interface Live extends ModuleType<typeof liveDef> {}
 
 /** The live module. */

@@ -132,7 +132,7 @@ describe('transport handlers on the host', () => {
     expect(response.headers.get('x-request-id')).not.toBeNull();
   });
 
-  it('refuses a conflicting route() and WebSocket upgrades until M2', () => {
+  it('refuses a conflicting route() and a WebSocket upgrade that names no subprotocol', () => {
     const { host } = setup();
     host.route({ app: 'library', transport: 'rest', prefix: '/api' }, noop);
     expect(() => host.route({ app: 'library', transport: 'trpc', prefix: '/api' }, noop)).toThrow(
@@ -143,6 +143,32 @@ describe('transport handlers on the host', () => {
         { app: 'library', transport: 'live', path: '/live', protocols: [] },
         { open() {} },
       ),
-    ).toThrow(expect.objectContaining({ kind: 'unavailable', code: 'core.live_unavailable' }));
+    ).toThrow(TypeError);
+  });
+
+  it('serves a request with Upgrade: h2c as a plain request, not as a WebSocket upgrade', async () => {
+    const { host } = setup({ listen: { port: 0 } });
+    const { port } = await host.listen();
+    const { request } = await import('node:http');
+    const status = await new Promise<number>((resolve, reject) => {
+      const outgoing = request({
+        port,
+        host: '127.0.0.1',
+        path: '/_keelwerk/v1/live',
+        headers: {
+          connection: 'Upgrade, HTTP2-Settings',
+          upgrade: 'h2c',
+          'http2-settings': 'AAMAAABkAAQAoAAAAAIAAAAA',
+        },
+      });
+      outgoing.on('response', (response) => {
+        response.resume();
+        resolve(response.statusCode ?? 0);
+      });
+      outgoing.on('error', reject);
+      outgoing.end();
+    });
+    // Served by the request path (an unsupported plain GET), not refused by the upgrade path.
+    expect(status).toBe(422);
   });
 });

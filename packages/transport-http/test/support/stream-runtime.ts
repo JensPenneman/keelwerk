@@ -1,7 +1,7 @@
 import type { Clock, LiveTimers } from '@keelwerk/core';
 import { defineApp } from '@keelwerk/core';
 import { live } from '@keelwerk/live';
-import type { LoggedLine, TransportRuntime } from '@keelwerk/testing';
+import type { LoggedLine, TestApp, TransportRuntime } from '@keelwerk/testing';
 import {
   protocolCodec,
   recordingLogger,
@@ -28,6 +28,8 @@ export interface StreamRuntime {
 export async function startStreamRuntime(
   host: HttpHostOptions = {},
   over: {
+    /** The app to serve instead of the stream app. */
+    readonly app?: TestApp;
     readonly pglite?: boolean;
     readonly clock?: Clock;
     readonly timers?: LiveTimers;
@@ -35,7 +37,7 @@ export async function startStreamRuntime(
 ): Promise<StreamRuntime> {
   const lines: LoggedLine[] = [];
   const runtime = await startTransportRuntime({
-    app: streamApp,
+    app: over.app ?? streamApp,
     host: httpHost(host),
     logger: recordingLogger(lines),
     ...(over.pglite === true ? { adapter: 'pglite' as const } : {}),
