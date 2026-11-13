@@ -27,7 +27,7 @@
     "dist"
   ],
   "dependencies": {
-    "@hono/node-server": "2.1.5",
+    "@hono/node-server": "2.1.6",
     "@keelwerk/core": "workspace:*",
     "hono": "4.13.14",
     "ws": "8.22.0"
