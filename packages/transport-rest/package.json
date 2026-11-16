@@ -28,14 +28,14 @@
   ],
   "dependencies": {
     "@keelwerk/core": "workspace:*",
-    "@scalar/hono-api-reference": "0.12.14",
-    "hono": "4.13.14"
+    "@scalar/hono-api-reference": "0.12.17",
+    "hono": "4.13.16"
   },
   "devDependencies": {
     "@keelwerk/live": "workspace:*",
     "@keelwerk/testing": "workspace:*",
     "@keelwerk/transport-http": "workspace:*",
-    "@scalar/openapi-parser": "0.29.16",
+    "@scalar/openapi-parser": "0.29.19",
     "vitest": "5.0.5"
   }
 }
