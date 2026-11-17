@@ -9,6 +9,7 @@ import { moduleServicePrincipal } from './module-service-principal.ts';
 import type { ReactionJobInput } from './reaction-job-input.ts';
 import { reactionJobKey } from './reaction-job-key.ts';
 import { reactionKeyValue } from './reaction-key-value.ts';
+import type { ReactionLineage } from './reaction-lineage.ts';
 import { reactionQueue } from './reaction-queue.ts';
 
 /** What the job of one async reaction for one event is built from. */
@@ -27,6 +28,8 @@ export interface ReactionJobOptions {
   readonly processStream?: string;
   /** A process job of a process with a data subject: the sealed subject, `null` when erased (see `ReactionJobInput.subject`). */
   readonly subject?: KweEnvelope | null;
+  /** Where the job stands in a chain of reactions: the event's lineage one deeper (`nextReactionLineage`); stored as `causation.lineage`. */
+  readonly lineage: ReactionLineage;
   /** The enqueuer's build (section 19.2). */
   readonly build: { readonly id: string; readonly revision: number };
   readonly now: Temporal.Instant;
@@ -38,11 +41,13 @@ export interface ReactionJobOptions {
  * event's scope, with the event as its cause and the event's actor as the causing actor. The run is
  * the reaction's id with the event reference as input and `kernel:reaction:<reaction id>:<event id>` (`kernelCommandId`) as command id,
  * which is the idempotency key of (reaction, event); the key, ordering, group, retry and dead
- * letter come from the reaction. A coalescing reaction is `fifo-per-key` too. `validation` when
+ * letter come from the reaction. A coalescing reaction is `fifo-per-key` too. The job's lineage is
+ * stored as `causation.lineage`; the events its command writes and the jobs it enqueues carry it. `validation` when
  * `declaredKey` is the empty string.
  */
 export function reactionJob(options: ReactionJobOptions): JobSpec {
-  const { reaction, event, declaredKey, keyError, processStream, subject, build, now } = options;
+  const { reaction, event, declaredKey, keyError, processStream, subject, lineage, build, now } =
+    options;
   if (declaredKey === '') {
     throw errors.validation(`The key of the reaction "${reaction.id}" is empty for an event.`);
   }
@@ -60,6 +65,7 @@ export function reactionJob(options: ReactionJobOptions): JobSpec {
     causation: {
       eventId: event.eventId,
       ...(event.commandId === null ? {} : { commandId: event.commandId }),
+      lineage,
     },
     caller: reaction.module,
     action: { module: reaction.module, ref: reaction.id },

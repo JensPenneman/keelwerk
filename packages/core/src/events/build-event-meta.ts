@@ -1,4 +1,5 @@
 import type { Principal } from '../principals/principal.ts';
+import type { ReactionLineage } from '../reactions/reaction-lineage.ts';
 import type { DecisionRecord } from './decision-record.ts';
 import type { EventMeta } from './event-meta.ts';
 import type { FlagRead } from './flag-read.ts';
@@ -22,6 +23,8 @@ export interface EventMetaInput {
   readonly build: { readonly id: string; readonly revision: number };
   readonly flags: readonly FlagRead[];
   readonly decision: DecisionRecord | null;
+  /** The lineage of the invocation (a reaction job's, or the command's it runs in); absent at depth 0. */
+  readonly lineage?: ReactionLineage | undefined;
 }
 
 /**
@@ -51,5 +54,6 @@ export function buildEventMeta(input: EventMetaInput): EventMeta {
       }))
       .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)),
     decision: input.decision,
+    ...(input.lineage === undefined ? {} : { lineage: input.lineage }),
   };
 }

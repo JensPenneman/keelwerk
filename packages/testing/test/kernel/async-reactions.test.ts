@@ -135,6 +135,7 @@ describe('async reactions', () => {
       reaction,
       event: created,
       declaredKey: undefined,
+      lineage: { depth: 1, origin: 'origin-event' },
       build: { id: 'test-build', revision: 1 },
       now: kit.now(),
     });
@@ -211,6 +212,7 @@ describe('async reactions', () => {
         reaction,
         event: created,
         declaredKey: 'revive',
+        lineage: { depth: 1, origin: 'origin-event' },
         build: { id: 'test-build', revision: 1 },
         now: kit.now(),
       });

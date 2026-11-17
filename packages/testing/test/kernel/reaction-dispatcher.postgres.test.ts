@@ -69,6 +69,7 @@ describe('the reaction dispatcher over one PostgreSQL database', () => {
       reaction,
       event: created,
       declaredKey: undefined,
+      lineage: { depth: 1, origin: 'origin-event' },
       build: { id: 'test-build', revision: 1 },
       now: first.now(),
     });

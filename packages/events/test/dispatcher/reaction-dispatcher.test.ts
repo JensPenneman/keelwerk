@@ -26,6 +26,35 @@ describe('the reaction dispatcher', () => {
     expect(refusal(() => reactionDispatcher())).toBeUndefined();
   });
 
+  test('maxDepth that is not a whole number of at least 1 is validation', () => {
+    const invalid = { kind: 'validation', code: 'core.validation' };
+    expect(refusal(() => reactionDispatcher({ maxDepth: 0 }))).toEqual(invalid);
+    expect(refusal(() => reactionDispatcher({ maxDepth: -3 }))).toEqual(invalid);
+    expect(refusal(() => reactionDispatcher({ maxDepth: 2.5 }))).toEqual(invalid);
+    expect(refusal(() => reactionDispatcher({ maxDepth: Number.NaN }))).toEqual(invalid);
+    expect(refusal(() => reactionDispatcher({ maxDepth: 1 }))).toBeUndefined();
+    expect(refusal(() => reactionDispatcher({ maxDepth: 64 }))).toBeUndefined();
+  });
+
+  test('a maxDepth above 2,147,483,646 is validation: a job of depth 2^31 would read back as malformed and the chain would start again', () => {
+    const invalid = { kind: 'validation', code: 'core.validation' };
+    expect(refusal(() => reactionDispatcher({ maxDepth: 2_147_483_647 }))).toEqual(invalid);
+    expect(refusal(() => reactionDispatcher({ maxDepth: 2 ** 40 }))).toEqual(invalid);
+    expect(refusal(() => reactionDispatcher({ maxDepth: Number.POSITIVE_INFINITY }))).toEqual(
+      invalid,
+    );
+    expect(refusal(() => reactionDispatcher({ maxDepth: 2_147_483_646 }))).toBeUndefined();
+  });
+
+  test('a queued above 2,386,092,940 is validation: the pause asks the job store for 90 percent of it, which refuses a limit above 2,147,483,646', () => {
+    const invalid = { kind: 'validation', code: 'core.validation' };
+    expect(refusal(() => reactionDispatcher({ queued: 3_000_000_000 }))).toEqual(invalid);
+    expect(refusal(() => reactionDispatcher({ queued: 2_386_092_941 }))).toEqual(invalid);
+    expect(refusal(() => reactionDispatcher({ queued: 2_386_092_940 }))).toBeUndefined();
+    // The line of the largest accepted cap is a limit the store takes.
+    expect(Math.floor((9 * 2_386_092_940) / 10)).toBeLessThanOrEqual(2_147_483_646);
+  });
+
   test("a worker that runs 'asyncReactions' without the dispatcher is refused when it is built", () => {
     expect(refusal(() => consumers({ consumers: [], runs: ['asyncReactions'] }))).toEqual({
       kind: 'validation',

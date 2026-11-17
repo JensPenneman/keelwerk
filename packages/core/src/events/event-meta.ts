@@ -1,4 +1,5 @@
 import type { ActorRef } from '../principals/actor-ref.ts';
+import type { ReactionLineage } from '../reactions/reaction-lineage.ts';
 import type { DecisionRecord } from './decision-record.ts';
 import type { FlagRead } from './flag-read.ts';
 import type { MergeReport } from './merge-report.ts';
@@ -16,4 +17,6 @@ export interface EventMeta {
   readonly writer: { readonly build: string; readonly revision: number };
   readonly flags: readonly FlagRead[];
   readonly decision: DecisionRecord | null;
+  /** The chain of asynchronous reactions the invocation belongs to; absent at depth 0. Not in the chain content. */
+  readonly lineage?: ReactionLineage;
 }

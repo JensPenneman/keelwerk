@@ -1,4 +1,5 @@
 import type { ActorRef } from '../principals/actor-ref.ts';
+import type { ReactionLineage } from '../reactions/reaction-lineage.ts';
 import type { Position } from '../storage/position.ts';
 import type { Scope } from '../storage/scope.ts';
 import type { DecisionRecord } from './decision-record.ts';
@@ -55,4 +56,10 @@ export interface EventEnvelope<Type extends string = string, Data = unknown> {
   readonly prevHash: string | null;
   readonly hash: string | null;
   readonly traceparent: string | null;
+  /**
+   * The chain of asynchronous reactions the event's invocation belongs to (7.7): absent at depth 0
+   * and on every event stored before it. Kept in `meta`, outside the chain content of 15.1.8, and
+   * read through `reactionLineageOf`; only the kernel sets it.
+   */
+  readonly lineage?: ReactionLineage;
 }

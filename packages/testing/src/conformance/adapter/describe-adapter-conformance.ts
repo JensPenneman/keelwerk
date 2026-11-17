@@ -19,6 +19,7 @@ import { encryptedQueryCases } from './encrypted-query-cases.ts';
 import { eventStoreCases } from './event-store-cases.ts';
 import { jobPurgeCases } from './job-purge-cases.ts';
 import { jobStoreCases } from './job-store-cases.ts';
+import { jobStoreQueuedCases } from './job-store-queued-cases.ts';
 import { ledgerCases } from './ledger-cases.ts';
 import { migrationCases } from './migration-cases.ts';
 import { paginationCases } from './pagination-cases.ts';
@@ -107,6 +108,7 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     processStreamCases(subject);
     describe('job store', () => jobStoreCases(subject));
     describe('job purge', () => jobPurgeCases(subject));
+    describe('job store: queued', () => jobStoreQueuedCases(subject));
     describe('consumers', () => consumerCases(subject));
     describe('schedules', () => scheduleCases(subject));
     describe('ledger', () => ledgerCases(subject));

@@ -36,4 +36,12 @@ export interface PersonalSealer {
   openProcessSubject(
     input: ProcessSubjectBinding & { readonly sealed: KweEnvelope },
   ): Promise<string | undefined>;
+  /** The JSON text of a process state sealed under its subject's data key for the cache (S-124); `null` when the subject has no key (erased). */
+  sealProcessState(
+    input: ProcessSubjectBinding & { readonly subject: string; readonly state: string },
+  ): Promise<KweEnvelope | null>;
+  /** The JSON text a cache sealed; `undefined` once the subject's keys are destroyed, or for another stream or event. */
+  openProcessState(
+    input: ProcessSubjectBinding & { readonly sealed: KweEnvelope },
+  ): Promise<string | undefined>;
 }

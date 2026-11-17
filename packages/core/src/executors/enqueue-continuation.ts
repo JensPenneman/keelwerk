@@ -6,6 +6,7 @@ import { errors } from '../errors/errors.ts';
 import { kernelCommandId } from '../ids/kernel-command-id.ts';
 import type { EffectOutcome } from '../model/effect-outcome.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
+import { reactionLineageOf } from '../reactions/reaction-lineage-of.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { StoredJobSpec } from '../storage/stored-job-spec.ts';
@@ -46,6 +47,7 @@ export async function enqueueContinuation(
     );
   }
   const { scope } = cause;
+  const lineage = reactionLineageOf(cause.causation.lineage);
   const commandId = kernelCommandId('continuation', effectId);
   const stored: unknown = row.continuationWith;
   const extra = typeof stored === 'object' && stored !== null ? stored : {};
@@ -62,6 +64,7 @@ export async function enqueueContinuation(
       causation: {
         commandId: String(row.commandId),
         eventId: input.settledEventId,
+        ...(lineage === undefined ? {} : { lineage }),
       },
       caller: action.module,
       action,

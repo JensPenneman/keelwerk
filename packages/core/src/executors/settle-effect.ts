@@ -4,6 +4,7 @@ import { settledEffectDraft } from '../effects/settled-effect-draft.ts';
 import { writeEffectRecord } from '../effects/write-effect-record.ts';
 import { errors } from '../errors/errors.ts';
 import type { Clock } from '../kernel/clock.ts';
+import { reactionLineageOf } from '../reactions/reaction-lineage-of.ts';
 import type { EffectEntry } from '../registry/effect-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
@@ -53,6 +54,7 @@ export async function settleEffect(
   });
   if (row === undefined || row.status !== 'requested') return false;
   const commandId = String(row.commandId);
+  const lineage = reactionLineageOf(target.cause.causation.lineage);
   const now = target.clock.now();
   const outcome =
     settled.status === 'succeeded'
@@ -80,6 +82,7 @@ export async function settleEffect(
         writer: { build: writer.build.id, revision: writer.build.revision },
         flags: [],
         decision: null,
+        ...(lineage === undefined ? {} : { lineage }),
       },
     },
     settledEffectDraft(id, now, outcome, attempts),

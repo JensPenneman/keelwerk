@@ -2,6 +2,7 @@ import type {
   AsyncReactionEvent,
   JobQueue,
   Logger,
+  Meter,
   ReactionEntry,
   Registry,
   StoredEvent,
@@ -9,7 +10,9 @@ import type {
 } from '@keelwerk/core';
 import {
   asyncReactionEventOf,
+  countReactionFault,
   isProcessStream,
+  nextReactionLineage,
   processJobInstance,
   reactionJob,
   reactionKeyError,
@@ -30,6 +33,10 @@ export interface EnqueueReactionJobsInput {
   readonly queue: JobQueue;
   /** Where a reaction whose key failed is logged (its id and the error code only). */
   readonly log: Logger;
+  /** The deepest lineage a reaction job may have (`ReactionDispatcherOptions.maxDepth`). */
+  readonly maxDepth: number;
+  /** Where a reaction not queued at the bound is counted; the process's meter when absent. */
+  readonly meter?: Meter;
   readonly build: { readonly id: string; readonly revision: number };
   readonly now: Temporal.Instant;
 }
@@ -48,6 +55,12 @@ export interface EnqueueReactionJobsInput {
  * so one module's fault never holds an event back from another. Answers the number of jobs
  * enqueued. The unit is the batch's, so the jobs and the checkpoint advance commit together;
  * nothing but `key` runs module code.
+ *
+ * The depth bound (7.7): the job of an event is one reaction job deeper than the event
+ * (`nextReactionLineage`), and a job deeper than `maxDepth` is not queued, for any reaction, before
+ * any key is computed: one warning with the reaction, the chain's start, the event and the depth,
+ * and one `depth_bound` count per refused reaction. The checkpoint advances; the batch's other
+ * events are dispatched as usual.
  */
 export async function enqueueReactionJobs(input: EnqueueReactionJobsInput): Promise<number> {
   const { unit, registry } = input;
@@ -56,12 +69,26 @@ export async function enqueueReactionJobs(input: EnqueueReactionJobsInput): Prom
   let count = 0;
   for (const event of input.events) {
     if (event.transient || isProcessStream(registry, event.stream.type)) continue;
+    const lineage = nextReactionLineage(event);
     const seen = new Map<
       string,
       AsyncReactionEvent<string, unknown, Readonly<Record<string, unknown>>>
     >();
     for (const reaction of reactions) {
       if (!reactionMatches(reaction, event.type)) continue;
+      if (lineage.depth > input.maxDepth) {
+        input.log.warn(
+          'a chain of reactions reached its depth bound and a reaction was not queued',
+          {
+            reaction: reaction.id,
+            origin: lineage.origin,
+            event: event.eventId,
+            depth: lineage.depth,
+          },
+        );
+        countReactionFault('depth_bound', reaction.id, input.meter);
+        continue;
+      }
       let declaredKey: string | undefined;
       let keyError: string | undefined;
       if (usesKey(reaction)) {
@@ -96,6 +123,7 @@ export async function enqueueReactionJobs(input: EnqueueReactionJobsInput): Prom
           event,
           declaredKey,
           ...instance,
+          lineage,
           ...(keyError === undefined ? {} : { keyError }),
           build: input.build,
           now: input.now,

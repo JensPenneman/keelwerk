@@ -32,6 +32,7 @@ test('the envelope carries every member of section 15.1.3', () => {
     | 'client'
     | 'merge'
     | 'writer'
+    | 'lineage'
     | 'flags'
     | 'decision'
     | 'transient'

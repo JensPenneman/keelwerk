@@ -94,6 +94,8 @@ export async function openAsyncReaction(input: {
   readonly input: ReactionJobInput;
   /** Where a purged event is logged, once per job. */
   readonly log?: Logger;
+  /** The build the cache of a process state is bound to (`foldProcessState`); without it no cache is read or written. */
+  readonly build?: string;
 }): Promise<OpenedAsyncReaction> {
   const { unit, registry, reaction } = input;
   const job = input.input;
@@ -138,7 +140,7 @@ export async function openAsyncReaction(input: {
   }
   const process =
     reaction.process && job.processStream !== undefined
-      ? await foldProcessState(unit, reaction, job.processStream, subject, input.log)
+      ? await foldProcessState(unit, reaction, job.processStream, subject, input.log, input.build)
       : undefined;
   return {
     reaction,

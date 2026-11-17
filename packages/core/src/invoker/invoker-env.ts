@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { metrics, trace } from '@opentelemetry/api';
 import { applyVersionChanges } from '../api-versions/apply-version-changes.ts';
 import type { VersionTranslation } from '../api-versions/version-translation.ts';
@@ -38,6 +39,13 @@ export interface InvokerEnv {
   readonly tracer: Tracer;
   readonly flagTelemetry: FlagTelemetry;
   readonly tenantResolution: readonly TenantResolver[];
+  /**
+   * New for every invoker of a development runtime, absent in test and production. In development
+   * the build id does not change when code is edited (it hashes the module versions, the migration
+   * checksums and the API versions) and the database outlives a restart, so the cache of a process
+   * state is bound to this text too and lives for one run.
+   */
+  readonly bootNonce: string | undefined;
   /** The app served under the id; `unavailable` when this process does not hold it. */
   appOf(id: string): InvokerApp;
   /** The registry's enabled rules, normalised once. */
@@ -69,6 +77,7 @@ export function createInvokerEnv(options: InvokerOptions): InvokerEnv {
     tracer: options.tracer ?? trace.getTracer('keelwerk'),
     flagTelemetry: createFlagTelemetry(options.meter ?? metrics.getMeter('keelwerk')),
     tenantResolution,
+    bootNonce: options.environment === 'development' ? randomUUID() : undefined,
     appOf: (id) => {
       const app = options.apps.get(id);
       if (app === undefined) {

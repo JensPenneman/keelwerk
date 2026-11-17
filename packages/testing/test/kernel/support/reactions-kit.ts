@@ -1,5 +1,6 @@
 import type {
   ConsumerSpec,
+  Meter,
   Outcome,
   RuntimeServiceContext,
   Scope,
@@ -66,6 +67,10 @@ export async function bootReactions(
   > & {
     readonly queued?: number;
     readonly holdMs?: number;
+    /** The deepest lineage a reaction job may have; the dispatcher's default when absent. */
+    readonly maxDepth?: number;
+    /** Where the dispatcher counts a reaction refused at the depth bound; the process's meter when absent. */
+    readonly meter?: Meter;
     readonly workers?: NonNullable<TestRuntimeOptions<'acme' | 'globex'>['workers']>;
     /** The dispatcher's own spec, built from the real one (a test wraps its `consume`). */
     readonly wrap?: (spec: ConsumerSpec) => ConsumerSpec;
@@ -82,6 +87,8 @@ export async function bootReactions(
   const real = reactionDispatcher({
     ...(options.queued === undefined ? {} : { queued: options.queued }),
     ...(options.holdMs === undefined ? {} : { holdMs: options.holdMs }),
+    ...(options.maxDepth === undefined ? {} : { maxDepth: options.maxDepth }),
+    ...(options.meter === undefined ? {} : { meter: options.meter }),
   });
   const dispatcher = consumers({
     consumers: [
@@ -117,6 +124,8 @@ export async function bootReactions(
   const {
     queued: _queued,
     holdMs: _holdMs,
+    maxDepth: _maxDepth,
+    meter: _meter,
     workers,
     wrap: _wrap,
     watched: _watched,

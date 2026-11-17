@@ -46,5 +46,6 @@ export function memoryEnvelope(
     prevHash: event.prevHash,
     hash: event.hash,
     traceparent: event.meta.traceparent,
+    ...(event.meta.lineage === undefined ? {} : { lineage: event.meta.lineage }),
   };
 }

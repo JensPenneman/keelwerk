@@ -1,5 +1,6 @@
 import type { JobRetry } from '../jobs/job-retry.ts';
 import type { PrincipalRef } from '../principals/principal-ref.ts';
+import type { ReactionLineage } from '../reactions/reaction-lineage.ts';
 import type { JobAttempt } from '../storage/job-attempt.ts';
 import type { Scope } from '../storage/scope.ts';
 
@@ -19,6 +20,8 @@ export interface JobCarrier {
   readonly retry?: JobRetry;
   /** The event that caused the job (a continuation's settled record, a reaction's event): the `causationId` of the events its command writes. */
   readonly causationId?: string;
+  /** The job's lineage (7.7): the events its command writes and the jobs it enqueues carry it. Absent at depth 0. */
+  readonly lineage?: ReactionLineage;
   /**
    * The key of the job (a reaction job: `<reaction id>:<sha256 of the part>`, never the part). A
    * process computes its instance key again from the event and refuses a job whose key is not the

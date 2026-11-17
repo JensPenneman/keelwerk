@@ -66,6 +66,7 @@ const run = (
     events,
     queue,
     log: over.log ?? recorder().log,
+    maxDepth: 64,
     build,
     now,
   }).then((count) => ({ count, specs }));
@@ -85,6 +86,7 @@ describe('the jobs of one batch', () => {
       expect(spec.causation).toMatchObject({
         commandId: 'cmd-1',
         actor: { kind: 'user', id: 'ada', via: 'auth.session' },
+        lineage: { depth: 1, origin: expect.any(String) },
       });
     }
     expect(specs.every((spec) => spec.deadLetter === spec.key?.value.split(':')[0])).toBe(true);
@@ -140,6 +142,7 @@ describe('the jobs of one batch', () => {
         events: [eventOf('trace.note.created')],
         queue,
         log: recorder().log,
+        maxDepth: 64,
         build,
         now,
       }),
@@ -298,6 +301,7 @@ describe('the jobs of one batch', () => {
         events: [eventOf('trace.note.archived', { stream: { type: 'trace.note', id: 'n1' } })],
         queue,
         log: recorder().log,
+        maxDepth: 64,
         build,
         now,
       });

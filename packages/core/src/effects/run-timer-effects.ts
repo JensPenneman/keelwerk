@@ -48,6 +48,7 @@ async function setTimer(scene: EffectScene, effect: SetTimerEffect, id: string):
       causation: {
         commandId: scene.commandId,
         ...(scene.causeEventId === undefined ? {} : { eventId: scene.causeEventId }),
+        ...(scene.meta.lineage === undefined ? {} : { lineage: scene.meta.lineage }),
       },
       build: run.build,
       now,

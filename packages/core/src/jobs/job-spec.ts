@@ -1,5 +1,6 @@
 import type { ActorRef } from '../principals/actor-ref.ts';
 import type { PrincipalRef } from '../principals/principal-ref.ts';
+import type { ReactionLineage } from '../reactions/reaction-lineage.ts';
 import type { Scope } from '../storage/scope.ts';
 import type { JobGroup } from './job-group.ts';
 import type { JobRetry } from './job-retry.ts';
@@ -17,6 +18,8 @@ export interface JobSpec {
     readonly eventId?: string;
     readonly commandId?: string;
     readonly actor?: ActorRef;
+    /** Where the job stands in a chain of asynchronous reactions (7.7); absent at depth 0. Set by the kernel only. */
+    readonly lineage?: ReactionLineage;
   };
   /** The enqueuer's build (section 19.2). */
   readonly build: { readonly id: string; readonly revision: number };

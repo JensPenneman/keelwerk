@@ -44,6 +44,7 @@ const job = reactionJob({
   reaction: registry.reactions.get('shop.noted') as never,
   event: noteEvent({ scope: scope as never }),
   declaredKey: undefined,
+  lineage: { depth: 1, origin: 'origin-event' },
   build: { id: 'build-1', revision: 1 },
   now: Temporal.Instant.from('2026-03-01T08:00:01Z'),
 });

@@ -122,6 +122,7 @@ export function sqlEventStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): Eve
       prevHash: pending.event.prevHash,
       hash: pending.event.hash,
       traceparent: pending.event.meta.traceparent,
+      ...(pending.event.meta.lineage === undefined ? {} : { lineage: pending.event.meta.lineage }),
     }));
   };
 

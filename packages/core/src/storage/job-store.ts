@@ -67,6 +67,13 @@ export interface JobStore {
   ): Promise<readonly PurgedJob[]>;
   /** Per queue and capability set, from the lane tables (section 21.4). */
   stats(queue?: string): Promise<readonly WorkClassStats[]>;
+  /**
+   * The jobs of `queue` in the unit's reach that wait to run (scheduled, available or waiting; never
+   * running or dead), counted up to `limit + 1` and no further, so the read is bounded: an answer
+   * above `limit` says only "more than `limit`". `validation` (`core.malformed_request`) for a
+   * `limit` that is no integer from 0 to 2,147,483,646.
+   */
+  queued(queue: string, limit: number): Promise<number>;
   /** One row per schedule and scope: last tick, next tick (S-118). */
   schedules(): ScheduleStore;
 }

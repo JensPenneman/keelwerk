@@ -70,5 +70,6 @@ export function storedEventOfRow(
     prevHash: hex(row.prev_hash),
     hash: hex(row.hash),
     traceparent: meta.traceparent,
+    ...(meta.lineage === undefined ? {} : { lineage: meta.lineage }),
   };
 }

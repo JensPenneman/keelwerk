@@ -11,6 +11,7 @@ const registry = reactionRegistry();
 const now = Temporal.Instant.from('2026-03-01T08:00:01Z');
 const build = { id: 'build-1', revision: 3 };
 const event = noteEvent();
+const lineage = { depth: 1, origin: event.eventId };
 
 // sha256 of the event id, of 'chan' and of 'subject-1': a key holds no part in the clear.
 const eventHash = '51f0795c66a2052f73bfd111020b40d6b47ee782384989f08de94c524fad9571';
@@ -20,7 +21,7 @@ const subjectHash = '95efa64dfaf09a0f9bbdf42842b80fc01d96a1c75aaccc53d101a31ccb6
 const inputOf = (job: ReturnType<typeof reactionJob>) => (job.run as { input: unknown }).input;
 
 const jobOf = (name: string, declaredKey?: string) =>
-  reactionJob({ reaction: reactionOf(registry, name), event, declaredKey, build, now });
+  reactionJob({ reaction: reactionOf(registry, name), event, declaredKey, lineage, build, now });
 
 describe('the job of an async reaction for an event', () => {
   test('golden: a plain reaction, a FIFO one, a coalescing one, a retried one and a process', () => {
@@ -32,6 +33,7 @@ describe('the job of an async reaction for an event', () => {
         eventId: event.eventId,
         commandId: 'cmd-1',
         actor: { kind: 'user', id: 'ada', via: 'auth.session' },
+        lineage,
       },
       build,
       deadLetter: expect.any(String),
@@ -91,6 +93,7 @@ describe('the job of an async reaction for an event', () => {
       reaction: reactionOf(registry, 'tally'),
       event,
       declaredKey: 'subject-1',
+      lineage,
       processStream: '0197a1c2-7b3e-8c11-9a55-3f2e8d6b4a20',
       subject,
       build,
@@ -110,6 +113,7 @@ describe('the job of an async reaction for an event', () => {
       reaction: reactionOf(registry, 'tally'),
       event,
       declaredKey: 'subject-1',
+      lineage,
       processStream: 'stream-1',
       subject: null,
       build,
@@ -126,10 +130,11 @@ describe('the job of an async reaction for an event', () => {
       reaction: reactionOf(registry, 'plain'),
       event: noteEvent({ commandId: null }),
       declaredKey: undefined,
+      lineage,
       build,
       now,
     });
-    expect(job.causation).toEqual({ eventId: event.eventId, actor: event.actor });
+    expect(job.causation).toEqual({ eventId: event.eventId, actor: event.actor, lineage });
   });
 
   test('an empty declared key is a validation error', () => {
@@ -158,11 +163,33 @@ describe('the job of an async reaction for an event', () => {
       event,
       declaredKey: undefined,
       keyError: 'core.reaction_key_invalid',
+      lineage,
       build,
       now,
     });
     expect(job.key).toEqual({ value: `logs.ordered:${eventHash}`, onConflict: 'keep' });
     expect(job).not.toHaveProperty('ordering');
     expect(job.run).toMatchObject({ input: { keyError: 'core.reaction_key_invalid' } });
+  });
+
+  test('golden: the causation of a reaction job carries its lineage', () => {
+    const deep = { depth: 3, origin: '0197a1c2-7b3e-7c11-9a55-3f2e8d6b4a01' };
+    const job = reactionJob({
+      reaction: reactionOf(registry, 'plain'),
+      event,
+      declaredKey: undefined,
+      lineage: deep,
+      build,
+      now,
+    });
+    expect(job.causation).toEqual({
+      eventId: event.eventId,
+      commandId: 'cmd-1',
+      actor: event.actor,
+      lineage: deep,
+    });
+    expect(JSON.stringify(job.causation)).toContain(
+      '"lineage":{"depth":3,"origin":"0197a1c2-7b3e-7c11-9a55-3f2e8d6b4a01"}',
+    );
   });
 });

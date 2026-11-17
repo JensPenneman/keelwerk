@@ -66,6 +66,7 @@ export async function dispatchInlineReactions(
           action: reaction.id,
           correlationId: run.correlationId ?? run.request.requestId,
           causationId: event.id,
+          lineage: run.job?.lineage,
           ...(run.client === undefined ? {} : { client: run.client }),
           ...(run.traceparent === undefined ? {} : { traceparent: run.traceparent }),
           build: run.build,

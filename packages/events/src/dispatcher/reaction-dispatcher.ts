@@ -8,10 +8,19 @@ import type { ReactionDispatcherOptions } from './reaction-dispatcher-options.ts
 
 const defaultQueued = 10_000;
 const defaultHoldMs = 1000;
+const defaultMaxDepth = 64;
+// A lineage depth is stored as a 32-bit integer, and a depth at or above 2^31 reads as malformed (depth 0): a chain would start again.
+const greatestMaxDepth = 2_147_483_646;
+// `queued` is asked of the job store as floor(9 * queued / 10), a limit the store refuses above 2,147,483,646.
+const greatestQueued = 2_386_092_940;
 
-function integerOf(name: string, value: number): number {
-  if (!Number.isInteger(value) || value < 1) {
-    throw errors.validation(`${name} is a whole number of at least 1`);
+function integerOf(name: string, value: number, greatest = Number.MAX_SAFE_INTEGER): number {
+  if (!Number.isInteger(value) || value < 1 || value > greatest) {
+    throw errors.validation(
+      greatest === Number.MAX_SAFE_INTEGER
+        ? `${name} is a whole number of at least 1`
+        : `${name} is a whole number from 1 to ${greatest.toLocaleString('en-US')}`,
+    );
   }
   return value;
 }
@@ -28,16 +37,19 @@ function integerOf(name: string, value: number): number {
  *
  * For each batch, in the unit of the batch's scope, it first holds the scope when its `reactions`
  * lane holds more than 90 percent of `queued` jobs (only that scope waits; one batch may overshoot
- * the cap by its own jobs, which are not weighed). It then enqueues the jobs of every matching async
- * reaction, skipping the events of process streams; the runner advances the checkpoint in the same unit. Use it as
+ * the cap by its own jobs, which are not weighed). It then enqueues the jobs of every matching
+ * async reaction, skipping the events of process streams; the runner advances the checkpoint in the
+ * same unit. Use it as
  * `consumers({ consumers: [reactionDispatcher()], runs: ['asyncReactions'] })`. `validation` for an
- * option that is not a whole number of at least 1.
+ * option that is not a whole number of at least 1, for a `queued` above 2,386,092,940 and for a
+ * `maxDepth` above 2,147,483,646.
  */
 export function reactionDispatcher(
   options: ReactionDispatcherOptions = {},
 ): ((context: RuntimeServiceContext) => ConsumerSpec) & { readonly id: 'core.reactions' } {
-  const queued = integerOf('queued', options.queued ?? defaultQueued);
+  const queued = integerOf('queued', options.queued ?? defaultQueued, greatestQueued);
   const holdMs = integerOf('holdMs', options.holdMs ?? defaultHoldMs);
+  const maxDepth = integerOf('maxDepth', options.maxDepth ?? defaultMaxDepth, greatestMaxDepth);
   const build = (context: RuntimeServiceContext): ConsumerSpec => {
     const registries = new Map<string, Registry>(
       context.namespaces.map((source) => [source.namespace.id, source.registry] as const),
@@ -60,6 +72,8 @@ export function reactionDispatcher(
           events,
           queue: context.queue,
           log: context.log,
+          maxDepth,
+          ...(options.meter === undefined ? {} : { meter: options.meter }),
           build: context.build,
           now: context.clock.now(),
         });

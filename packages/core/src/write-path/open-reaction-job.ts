@@ -26,5 +26,6 @@ export async function openReactionJob(
     reaction,
     input: run.input as ReactionJobInput,
     log: run.log,
+    build: run.bootNonce === undefined ? run.build.id : `${run.build.id}:${run.bootNonce}`,
   });
 }

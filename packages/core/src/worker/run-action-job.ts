@@ -5,6 +5,7 @@ import { refuseRequest } from '../interpreter/refuse-request.ts';
 import type { Carrier } from '../invoker/carrier.ts';
 import type { Job } from '../jobs/job.ts';
 import { reactionJobError } from '../reactions/reaction-job-error.ts';
+import { reactionLineageOf } from '../reactions/reaction-lineage-of.ts';
 import { reactionQueue } from '../reactions/reaction-queue.ts';
 import { scheduleQueue } from '../schedules/schedule-queue.ts';
 import { erasureAction } from '../subjects/erasure-action.ts';
@@ -72,6 +73,7 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
     return;
   }
   const { input, transport } = prepared;
+  const lineage = reactionLineageOf(stored.causation.lineage);
   const carrier: Carrier = {
     transport: 'job',
     job: {
@@ -84,6 +86,7 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
       ...(reaction ? { reaction: true as const } : {}),
       ...(reaction && stored.key !== undefined ? { key: stored.key.value } : {}),
       ...(stored.causation.eventId === undefined ? {} : { causationId: stored.causation.eventId }),
+      ...(lineage === undefined ? {} : { lineage }),
       worker: context.worker,
       signal: job.signal,
     },

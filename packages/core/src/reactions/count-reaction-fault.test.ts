@@ -17,4 +17,17 @@ describe('counting a reaction fault', () => {
       ['keelwerk.reactions.faults', 1, { fault: 'long_fold', reaction: 'logs.tally' }],
     ]);
   });
+
+  test('depth_bound is counted with the reaction id', () => {
+    const added: unknown[] = [];
+    const meter = {
+      createCounter: (name: string) => ({
+        add: (value: number, attributes: unknown) => added.push([name, value, attributes]),
+      }),
+    } as unknown as Meter;
+    countReactionFault('depth_bound', 'loop.toPulse', meter);
+    expect(added).toEqual([
+      ['keelwerk.reactions.faults', 1, { fault: 'depth_bound', reaction: 'loop.toPulse' }],
+    ]);
+  });
 });

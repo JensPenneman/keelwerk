@@ -95,6 +95,7 @@ export async function settleExternal(scene: EffectScene, effect: SettleEffect): 
           commandId: scene.commandId,
           actor: scene.causeActor,
           ...(scene.causeEventId === undefined ? {} : { eventId: scene.causeEventId }),
+          ...(scene.meta.lineage === undefined ? {} : { lineage: scene.meta.lineage }),
         },
         build: run.build,
       },

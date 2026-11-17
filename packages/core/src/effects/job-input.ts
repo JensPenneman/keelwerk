@@ -1,5 +1,6 @@
 import type { ActorRef } from '../principals/actor-ref.ts';
 import type { Principal } from '../principals/principal.ts';
+import type { ReactionLineage } from '../reactions/reaction-lineage.ts';
 import type { Scope } from '../storage/scope.ts';
 import type { StoredJobSpec } from '../storage/stored-job-spec.ts';
 import { checkServiceCaller } from './check-service-caller.ts';
@@ -19,6 +20,8 @@ export interface JobInputOptions {
   readonly causation: {
     readonly commandId?: string;
     readonly eventId?: string;
+    /** The lineage of the invocation that causes the job; absent at depth 0. */
+    readonly lineage?: ReactionLineage;
   };
   /** The module whose code builds the job (section 7.7): the service principal of a module is not handed to another module's code for that module's own action. */
   readonly caller: string;

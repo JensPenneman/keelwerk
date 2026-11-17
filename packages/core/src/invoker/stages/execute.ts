@@ -86,6 +86,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
           build: options.build ?? { id: 'development', revision: 1 },
           namespaceOf: (scope) => (scope.level === 'backend' ? backendNamespace : target.namespace),
           epoch: epochOf(options.epochOf, target.scope),
+          ...(env.bootNonce === undefined ? {} : { bootNonce: env.bootNonce }),
           ...(capabilities === undefined
             ? {}
             : { concurrentUnits: capabilities.processes !== 'single' }),

@@ -29,6 +29,7 @@ export async function enqueueDeadlineTimer(
       causation: {
         commandId: scene.commandId,
         ...(scene.causeEventId === undefined ? {} : { eventId: scene.causeEventId }),
+        ...(scene.meta.lineage === undefined ? {} : { lineage: scene.meta.lineage }),
       },
       build: run.build,
       now: scene.clock.now(),

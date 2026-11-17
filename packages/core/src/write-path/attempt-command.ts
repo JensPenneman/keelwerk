@@ -194,6 +194,16 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     action.trace?.input === 'sealed'
       ? await sealDecisionInput(unit, commandId, action.input, run.input)
       : undefined;
+  // What both metas of this run share; the lineage is the running job's (a nested command reads its
+  // outer run's job), so the events written carry it unchanged (7.7).
+  const metaBase = {
+    principal: run.principal,
+    commandId,
+    action: action.ref,
+    correlationId: run.correlationId ?? run.request.requestId,
+    build: run.build,
+    lineage: run.job?.lineage,
+  };
   const written = await draftsToEvents({
     unit,
     registry,
@@ -203,14 +213,10 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     now,
     meta: (recorded) => {
       meta = buildEventMeta({
-        principal: run.principal,
-        commandId,
-        action: action.ref,
-        correlationId: run.correlationId ?? run.request.requestId,
+        ...metaBase,
         ...(causationId === undefined ? {} : { causationId }),
         ...(run.client === undefined ? {} : { client: run.client }),
         ...(run.traceparent === undefined ? {} : { traceparent: run.traceparent }),
-        build: run.build,
         flags,
         decision: buildDecisionRecord({
           part: action.ref,
@@ -304,15 +310,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
         registry,
         scope: run.scope,
         receipt: { ...receipt, status: 'completed', outcome: sealedOutcome },
-        meta: buildEventMeta({
-          principal: run.principal,
-          commandId,
-          action: action.ref,
-          correlationId: run.correlationId ?? run.request.requestId,
-          build: run.build,
-          flags: [],
-          decision: null,
-        }),
+        meta: buildEventMeta({ ...metaBase, flags: [], decision: null }),
         hybridClock: processClock,
         now,
       });

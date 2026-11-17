@@ -73,6 +73,7 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
         : { client: { id: invocation.sync.clientId, seq: invocation.sync.clientSeq } }),
       ...(invocation.traceparent === undefined ? {} : { traceparent: invocation.traceparent }),
       ...(run.epoch === undefined ? {} : { epoch: run.epoch }),
+      ...(run.bootNonce === undefined ? {} : { bootNonce: run.bootNonce }),
       ...(run.concurrentUnits === undefined ? {} : { concurrentUnits: run.concurrentUnits }),
       ...(run.namespaceOf === undefined ? {} : { namespaceOf: run.namespaceOf }),
       hybridClock: processClock,

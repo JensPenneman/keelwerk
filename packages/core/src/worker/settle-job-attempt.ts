@@ -1,6 +1,7 @@
 import { timerQueue } from '../effects/timer-queue.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { declaredErrorCodesOf } from '../executors/declared-error-codes-of.ts';
+import { reactionLineageOf } from '../reactions/reaction-lineage-of.ts';
 import { reactionQueue } from '../reactions/reaction-queue.ts';
 import { scheduleQueue } from '../schedules/schedule-queue.ts';
 import type { JobOutcome } from '../storage/job-outcome.ts';
@@ -78,6 +79,7 @@ export async function settleJobAttempt(
     ) {
       const { action, commandId } = run;
       const receipt = await receiptOfJob(unit, stored, action, commandId);
+      const lineage = reactionLineageOf(stored.causation.lineage);
       if (receipt?.status === 'accepted') {
         const failure = { ok: false, error: outcome.error } as const;
         await unit.receipts.complete(commandId, failure);
@@ -97,6 +99,7 @@ export async function settleJobAttempt(
             writer: { build: writer.build.id, revision: writer.build.revision },
             flags: [],
             decision: null,
+            ...(lineage === undefined ? {} : { lineage }),
           },
           hybridClock: writer.hybridClock,
           now: context.clock.now(),

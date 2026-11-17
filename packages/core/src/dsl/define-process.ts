@@ -51,6 +51,15 @@ export interface ProcessSpec<S, On extends string, Pe extends EventShapes, St> {
   ) => string;
   readonly events: Pe;
   readonly initial: St;
+  /**
+   * Folds one event into the state. An instance with a long history keeps a cache of its state
+   * (7.7), which is tied to the build id and to the source text of this function alone. A change
+   * made outside that text, in a helper it calls, in a function it wraps or in the configuration a
+   * closure holds, keeps the cache of the old code until the module version changes (so the build
+   * id does): bump the version with such a change, or the instances past 32 events go on from the
+   * state the old code folded. Under `keelwerk dev` the cache lives for one run only. A function
+   * with no source of its own (`reducer.bind(null, config)`, a native function) is never cached.
+   */
   readonly evolve: (state: St, event: ProcessEventOf<Pe, OwnerOf<S>>) => St;
   readonly react: (
     event: ReactionEventOf<S, On, 'async'>,

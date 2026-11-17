@@ -5,6 +5,7 @@ import { memoryJobComplete } from './memory-job-complete.ts';
 import { memoryJobEnqueue } from './memory-job-enqueue.ts';
 import { memoryJobFinish } from './memory-job-finish.ts';
 import { memoryJobGroups } from './memory-job-groups.ts';
+import { memoryJobQueued } from './memory-job-queued.ts';
 import { memoryJobRelease } from './memory-job-release.ts';
 import { memoryJobScopes } from './memory-job-scopes.ts';
 import { memoryJobStats } from './memory-job-stats.ts';
@@ -135,6 +136,7 @@ export function memoryJobStore(ctx: MemoryUnitContext): MemoryJobStore {
       return purged;
     },
     stats: async (queue) => memoryJobStats(ctx, queue),
+    queued: async (queue, limit) => memoryJobQueued(ctx, queue, limit),
     schedules: () => memoryScheduleStore(ctx),
   };
 }

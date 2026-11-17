@@ -53,6 +53,7 @@ export async function runEnqueueEffect(
       causation: {
         commandId: scene.commandId,
         ...(scene.causeEventId === undefined ? {} : { eventId: scene.causeEventId }),
+        ...(scene.meta.lineage === undefined ? {} : { lineage: scene.meta.lineage }),
       },
       build: run.build,
       apiVersion: run.apiVersion,
