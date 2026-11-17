@@ -166,7 +166,7 @@ describe('open', () => {
       queue: 'commands',
       run: { action: 'library.addBook', input: {} },
       scope: tenant,
-      key: { value: 'slide', onConflict: 'keep' },
+      key: { value: 'library:slide', onConflict: 'keep' },
     });
   });
 

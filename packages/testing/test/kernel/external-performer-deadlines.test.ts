@@ -106,12 +106,13 @@ describe.each(['memory', 'pglite'] as const)(
       const { call, runtime, rows, sent } = booted;
       const deadline = dispatchSoon(booted);
       const { id } = await sent({ deadline });
-      const key = `core:deadline:${id}`;
-      const cancelled = await call('rogue.cancelIt', { key });
-      const replaced = await call('rogue.replaceIt', { key });
-      for (const outcome of [cancelled, replaced]) {
-        expect(outcome).toMatchObject({ ok: false, error: { kind: 'validation' } });
-        expect(JSON.stringify(outcome)).not.toContain(id);
+      for (const key of [`core.deadline:${id}`, `core:deadline:${id}`]) {
+        const cancelled = await call('rogue.cancelIt', { key });
+        const replaced = await call('rogue.replaceIt', { key });
+        for (const outcome of [cancelled, replaced]) {
+          expect(outcome).toMatchObject({ ok: true });
+          expect(JSON.stringify(outcome)).not.toContain(id);
+        }
       }
       await runtime.advanceTo(deadline.add({ seconds: 1 }));
       await runtime.drainJobs();

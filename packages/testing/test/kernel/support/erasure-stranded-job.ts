@@ -176,7 +176,7 @@ async function expectDeferJobKept(queries: readonly DumpQuery[]): Promise<void> 
 }
 
 /**
- * The deadline job of an outside performer's effect (queue `timers`, key `core:deadline:<effect id>`)
+ * The deadline job of an outside performer's effect (queue `timers`, key `core.deadline:<effect id>`)
  * is there, and its key and its input hold the effect id and nothing else: none of the `forbidden`
  * texts (the subject's id, its session, its rows, the markers) is in either, in any form.
  */
@@ -186,7 +186,7 @@ async function expectDeadlineJobHoldsEffectIdOnly(
   when: string,
 ): Promise<void> {
   const jobs = (await rowsOf(queries, 'kw_jobs')).filter((row) =>
-    String(row.key ?? '').startsWith('core:deadline:'),
+    String(row.key ?? '').startsWith('core.deadline:'),
   );
   expect(jobs.length, `the deadline job of the outside effect is in kw_jobs ${when}`).toBe(1);
   const [job] = jobs;
@@ -195,7 +195,7 @@ async function expectDeadlineJobHoldsEffectIdOnly(
   expect(Object.keys(run), 'its input names the effect and nothing else').toEqual([
     'effectDeadline',
   ]);
-  expect(job.key).toBe(`core:deadline:${String(run.effectDeadline)}`);
+  expect(job.key).toBe(`core.deadline:${String(run.effectDeadline)}`);
   const found = formsFoundIn(JSON.stringify([job.key, job.input]), [
     ...forbidden,
     ...forbidden.flatMap(spellingsOf),

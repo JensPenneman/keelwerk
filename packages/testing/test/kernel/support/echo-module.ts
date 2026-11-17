@@ -6,6 +6,7 @@ import {
   defineModuleBase,
   defineRule,
   type EntityType,
+  enqueue,
   field,
   type ModuleBaseType,
   type ModuleType,
@@ -53,15 +54,32 @@ const disarm = defineCommand(echoBase, {
   decide: () => ({ events: [], effects: [cancelTimer('pulse')] }),
 });
 
+/** Enqueues echo's `fire` for later under the key 'later', the key ticker's `escalateLater` has. */
+const enqueueLater = defineCommand(echoBase, {
+  input: shape({ at: field.string(), runAt: field.string() }),
+  output: shape({}),
+  principal: 'user',
+  decide: (input) => ({
+    events: [],
+    effects: [
+      enqueue(fire, { at: input.at }, { runAt: Temporal.Instant.from(input.runAt), key: 'later' }),
+    ],
+  }),
+});
+
 const user = { effect: 'allow', principal: 'user' } as const;
 const echoDef = defineModule(echoBase, {
-  actions: { fire, armTimer, disarm },
+  actions: { fire, armTimer, disarm, enqueueLater },
   policies: {
     fire: { users: defineRule(echoBase, fire, user) },
     armTimer: { users: defineRule(echoBase, armTimer, user) },
     disarm: { users: defineRule(echoBase, disarm, user) },
+    enqueueLater: { users: defineRule(echoBase, enqueueLater, user) },
   },
 });
 interface Echo extends ModuleType<typeof echoDef> {}
-/** The echo module: a timer under the key 'pulse' beside ticker's, to prove the two are apart. */
+/**
+ * The echo module: a timer under the key 'pulse' beside ticker's, to prove the two are apart, and a
+ * keyed enqueue under 'later' beside ticker's `escalateLater`.
+ */
 export const echo: Echo = echoDef;

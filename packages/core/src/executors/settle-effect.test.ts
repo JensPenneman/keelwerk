@@ -155,8 +155,8 @@ describe('enqueueContinuation, idempotence', () => {
     await request(unit);
     await request(unit);
     expect(jobs.size).toBe(1);
-    const job = jobs.get('continuation:e1');
-    expect(job?.key).toEqual({ value: 'continuation:e1', onConflict: 'keep' });
+    const job = jobs.get('core.continuation:e1');
+    expect(job?.key).toEqual({ value: 'core.continuation:e1', onConflict: 'keep' });
     expect(job?.run).toMatchObject({
       action: 'hooks.recordOutcome',
       commandId: 'kernel:continuation:e1',
@@ -176,7 +176,7 @@ describe('enqueueContinuation, idempotence', () => {
       cause,
       now: Temporal.Instant.from('2026-03-01T08:00:00Z'),
     });
-    const job = jobs.get('continuation:e1');
+    const job = jobs.get('core.continuation:e1');
     expect(job?.principal).toEqual({ resolver: 'core.module', principalId: 'courier.system' });
     expect(job?.causation).toMatchObject({ commandId: 'c1', eventId: 'v9' });
   });

@@ -1,5 +1,6 @@
 import { commandJobRun } from '../effects/command-job-run.ts';
 import { commandQueue } from '../effects/command-queue.ts';
+import { continuationJobKey } from '../effects/continuation-job-key.ts';
 import { jobInput } from '../effects/job-input.ts';
 import { sealJobInput } from '../effects/seal-job-input.ts';
 import { errors } from '../errors/errors.ts';
@@ -16,13 +17,13 @@ import type { Unit } from '../storage/unit.ts';
  * Hands the outcome of a settled effect to its continuation (7.9.5, D9): a command job in the
  * settling unit, so the settled record and the job commit together. No-op for an effect without
  * `continueWith`. The command id is the kernel form of the effect id and the job key is
- * `continuation:<effect id>` (kept on conflict), so the continuation is enqueued once however
- * often the effect is settled; the command runs under `<module>.system` of its own module (a
- * continuation is a command of the module whose decision requested the effect, which
- * `recordExternalEffect` checks) in the scope the effect was requested in. The job is caused by
- * the settled record, as a reaction's job is by its event. Its input is the effect's stored `with` and the `outcome`, sealed
- * as every command job's input is (`sealJobInput`). A continuation that names no command is
- * `internal`.
+ * `continuationJobKey` (`core.continuation:<effect id>`, kept on conflict, a namespace no module's
+ * keyed enqueue can reach), so the continuation is enqueued once however often the effect is
+ * settled; the command runs under `<module>.system` of its own module (a continuation is a command
+ * of the module whose decision requested the effect, which `recordExternalEffect` checks) in the
+ * scope the effect was requested in. The job is caused by the settled record, as a reaction's job
+ * is by its event. Its input is the effect's stored `with` and the `outcome`, sealed as every
+ * command job's input is (`sealJobInput`). A continuation that names no command is `internal`.
  */
 export async function enqueueContinuation(
   unit: Unit,
@@ -78,6 +79,6 @@ export async function enqueueContinuation(
       await sealJobInput(unit, registry, commandId, action, { ...extra, outcome: input.outcome }),
       commandId,
     ),
-    key: { value: `continuation:${effectId}`, onConflict: 'keep' },
+    key: { value: continuationJobKey(effectId), onConflict: 'keep' },
   });
 }

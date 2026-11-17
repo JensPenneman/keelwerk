@@ -193,7 +193,7 @@ describe('enqueue', () => {
       apiVersion: '2026-11-01',
       principal: { principalId: 'ada' },
       causation: { commandId: 'c1', actor: { kind: 'user', id: 'ada' } },
-      key: { value: 'k-1', onConflict: 'keep' },
+      key: { value: 'library:k-1', onConflict: 'keep' },
     });
     expect(jobs[0]?.scope).toEqual(tenant);
     const other = await stored(adapter, ['commands'], otherTenant);

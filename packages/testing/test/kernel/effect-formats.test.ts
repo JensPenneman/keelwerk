@@ -18,28 +18,14 @@ import {
   registryWith,
   stored,
 } from './support/effects-kit.ts';
+import { matchGolden } from './support/match-golden.ts';
+import { plainJsonValue } from './support/plain-json-value.ts';
 import { clock, tenant, userOf } from './support/run-read-kit.ts';
 
 interface Writes {
   readonly write: {
     readonly library: { readonly book: { create(values: Record<string, unknown>): unknown } };
   };
-}
-
-/** A value as JSON text would carry it: instants and bigints as strings, the random ids of events named by `ids`. */
-function plain(value: unknown, ids: ReadonlyMap<string, string> = new Map()): unknown {
-  const text = JSON.stringify(value, (_key, member: unknown) => {
-    if (typeof member === 'bigint') return `${member}n`;
-    if (typeof member === 'string') return ids.get(member) ?? member;
-    return member;
-  });
-  return JSON.parse(text);
-}
-
-/** Compares `value` with the committed file `golden/<name>.json`. */
-function golden(name: string, value: unknown): void {
-  const path = new URL(`./golden/${name}.json`, import.meta.url);
-  expect(value).toEqual(JSON.parse(readFileSync(path, 'utf8')));
 }
 
 const deadline = Temporal.Instant.from('2026-02-01T00:00:00Z');
@@ -105,9 +91,9 @@ describe('the stored formats of effects (F-12)', () => {
     const [bookEvent] = await eventsOf(adapter, 'library.book', String(books[0]?.id));
     const [created] = await eventsOf(adapter, 'core.effect', deriveEffectId(tenant, 'c1', 0));
     const ids = new Map([[String(bookEvent?.eventId), '<book event id>']]);
-    golden('effect-row-submitter', plain(effects[0], ids));
-    golden('effect-created-event-data-submitter', plain(created?.data, ids));
-    golden('effect-job', plain(jobs[0]));
+    matchGolden('effect-row-submitter', plainJsonValue(effects[0], ids));
+    matchGolden('effect-created-event-data-submitter', plainJsonValue(created?.data, ids));
+    matchGolden('effect-job', plainJsonValue(jobs[0]));
   });
 
   test('the job of an enqueue effect', async () => {
@@ -130,7 +116,7 @@ describe('the stored formats of effects (F-12)', () => {
     });
     const { adapter, invoke } = effectsKit(registry);
     await invoke('library.launch', {}, { commandId: 'c1' });
-    golden('command-job', plain((await stored(adapter)).jobs[0]));
+    matchGolden('command-job', plainJsonValue((await stored(adapter)).jobs[0]));
   });
 
   test('the job of a timer', async () => {
@@ -156,7 +142,7 @@ describe('the stored formats of effects (F-12)', () => {
     const ids = new Map([
       [`kernel:timer:${deriveEffectId(tenant, 'c1', 0)}`, 'kernel:timer:<effect id>'],
     ]);
-    golden('timer-job', plain((await stored(adapter)).jobs[0], ids));
+    matchGolden('timer-job', plainJsonValue((await stored(adapter)).jobs[0], ids));
   });
 
   test('the job of an accepted command and its receipt', async () => {
@@ -165,7 +151,7 @@ describe('the stored formats of effects (F-12)', () => {
     });
     const { adapter, invoke } = effectsKit(registry);
     await invoke('library.slow', { n: 1 }, { commandId: 'a1' });
-    golden('accepted-command-job', plain((await stored(adapter)).jobs[0]));
+    matchGolden('accepted-command-job', plainJsonValue((await stored(adapter)).jobs[0]));
   });
 
   test('a job a reaction causes names the actor of the event, not the module principal', async () => {
@@ -236,8 +222,8 @@ describe.each(['memory', 'pglite'] as const)(
         const [created] = await runtime.sealed.unit(address.namespace, address.scope, (unit) =>
           unit.events.readStream({ type: 'core.effect', id: row.id }),
         );
-        golden('effect-created-event-data', plain(created?.data));
-        golden('effect-row', plain(folded));
+        matchGolden('effect-created-event-data', plainJsonValue(created?.data));
+        matchGolden('effect-row', plainJsonValue(folded));
         const get = async (principal: ReturnType<typeof testPrincipal>) =>
           await runtime.invoker.invoke({
             action: 'core.effect.get',

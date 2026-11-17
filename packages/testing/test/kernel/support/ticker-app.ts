@@ -7,7 +7,8 @@ interface TickerAppType extends AppType<typeof tickerAppDef> {}
 
 /**
  * The ticker app: schedules that tick in every tenant and in the backend, timers and cross-scope
- * commands, and a second module, echo, whose timer has the same key as ticker's.
+ * commands, and a second module, echo, whose timer has the same key as ticker's and a keyed
+ * enqueue under ticker's key.
  */
 export const tickerApp: TickerAppType = tickerAppDef;
 export type TickerApp = TickerAppType;

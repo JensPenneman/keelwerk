@@ -33,7 +33,7 @@
     "commandId": "follow-me"
   },
   "key": {
-    "value": "k-1",
+    "value": "library:k-1",
     "onConflict": "keep"
   },
   "id": "1",

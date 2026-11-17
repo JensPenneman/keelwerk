@@ -1,10 +1,10 @@
 import { checkEffectScope } from '../../effects/check-effect-scope.ts';
-import { checkTimerKey } from '../../effects/check-timer-key.ts';
 import { checkTimerScope } from '../../effects/check-timer-scope.ts';
 import { commandActionOf } from '../../effects/command-action-of.ts';
 import { commandJobRun } from '../../effects/command-job-run.ts';
 import { commandQueue } from '../../effects/command-queue.ts';
 import { crossScopeGroup } from '../../effects/cross-scope-group.ts';
+import { enqueueKey } from '../../effects/enqueue-key.ts';
 import { principalRefOf } from '../../effects/principal-ref-of.ts';
 import { sealJobInput } from '../../effects/seal-job-input.ts';
 import { timerKey } from '../../effects/timer-key.ts';
@@ -66,12 +66,20 @@ function jobOf(
     build: env.options.build ?? { id: 'development', revision: 1 },
   } as const;
   if (effect.kind === 'enqueue') {
+    if (effect.key !== undefined && module === undefined) {
+      throw refuseRequest(
+        'a keyed enqueue of a principal resolver',
+        'a keyed enqueue needs the module whose resolver returned it',
+      );
+    }
     return {
       ...common,
       queue: commandQueue,
       run: commandJobRun(effect.action, effect.input, kernelCommandId('effect', newUuidV7())),
       ...(effect.runAt === undefined ? {} : { runAt: effect.runAt }),
-      ...(effect.key === undefined ? {} : { key: { value: effect.key, onConflict: 'keep' } }),
+      ...(effect.key === undefined || module === undefined
+        ? {}
+        : { key: { value: enqueueKey(module, effect.key), onConflict: 'keep' } }),
     };
   }
   const runAt =
@@ -79,7 +87,6 @@ function jobOf(
       ? (effect.at ?? (effect.after === undefined ? undefined : afterNow(env, effect.after)))
       : undefined;
   if (effect.kind === 'setTimer' && runAt !== undefined) {
-    checkTimerKey(effect.key);
     if (module === undefined) {
       throw refuseRequest(
         `the timer "${effect.key}"`,
@@ -131,12 +138,12 @@ function commandOf(
  * read-write unit of the session's scope, right after `open` (S-24). They become keyed job rows; a
  * timer runs under the service principal `core.module` mints for the module whose resolver
  * returned it (section 9.5, decision 335) and is stored under the key of that module
- * (`timerKey`), and an enqueue under the session's principal; each under a kernel command id of
- * its own, with the secret members of its input sealed in the unit, so a job that crosses scopes
- * has the receipt that holds it once. A timer without a module, or naming no command
- * of the app, is refused, and so is a timer or an enqueue naming a command its scope may not reach;
- * a timer never crosses scopes. Every effect is checked before the unit opens, so a refused one
- * writes nothing.
+ * (`timerKey`), and an enqueue under the session's principal, a keyed one stored under the key of
+ * that module (`enqueueKey`); each under a kernel command id of its own, with the secret members
+ * of its input sealed in the unit, so a job that crosses scopes has the receipt that holds it
+ * once. A timer or a keyed enqueue without a module, or naming no command of the app, is refused,
+ * and so is a timer or an enqueue naming a command its scope may not reach; a timer never crosses
+ * scopes. Every effect is checked before the unit opens, so a refused one writes nothing.
  */
 export async function performResolverEffects(
   env: InvokerEnv,

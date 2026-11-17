@@ -178,3 +178,22 @@ test('a resolver effect never names core.eraseSubject, enqueue or timer, and wri
   }
   expect(jobs).toHaveLength(0);
 });
+
+const keyed = (effect: AnyEffect): AnyEffect =>
+  ({ ...effect, key: 'idle:1' }) as unknown as AnyEffect;
+
+test('a keyed enqueue from a module resolver is stored under the key of that module', async () => {
+  const { jobs, env, target, principal, enqueue } = setup();
+  await performResolverEffects(env, target, principal, [keyed(enqueue)], 'auth');
+  expect(jobs[0]?.key).toEqual({ value: 'auth:idle:1', onConflict: 'keep' });
+});
+
+test('a keyed enqueue without the module of its resolver is refused, does not name its key and writes nothing', async () => {
+  const { jobs, env, target, principal, enqueue } = setup();
+  const error = await performResolverEffects(env, target, principal, [keyed(enqueue)]).catch(
+    (caught: unknown) => caught,
+  );
+  expect(error).toMatchObject({ code: 'core.request_not_allowed' });
+  expect(JSON.stringify(error)).not.toContain('idle:1');
+  expect(jobs).toEqual([]);
+});

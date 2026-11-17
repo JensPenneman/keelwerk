@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { deadlineTimerKey } from './deadline-timer-key.ts';
 import { splitTimerKey } from './split-timer-key.ts';
 import { timerKey } from './timer-key.ts';
 
@@ -8,8 +9,14 @@ describe('splitTimerKey', () => {
   it('a stored key splits at its first colon, so the key may hold colons', () => {
     expect(splitTimerKey('ticker:a:b', by('ticker'))).toEqual({ module: 'ticker', key: 'a:b' });
     expect(
-      splitTimerKey('core:deadline:x', { kind: 'effect', principalId: 'orders.system' }),
-    ).toEqual({ module: 'core', key: 'deadline:x' });
+      splitTimerKey(deadlineTimerKey('x'), { kind: 'effect', principalId: 'orders.system' }),
+    ).toEqual({ module: 'core.deadline', key: 'x' });
+  });
+
+  it('a kernel row with any other key is no deadline timer', () => {
+    const job = { kind: 'effect', principalId: 'orders.system' } as const;
+    expect(splitTimerKey('core:deadline:x', job)).toBeUndefined();
+    expect(splitTimerKey('ticker:x', job)).toBeUndefined();
   });
 
   it('splitTimerKey gives back what timerKey joined', () => {
@@ -31,7 +38,7 @@ describe('splitTimerKey', () => {
 
   it('a 0.1.0 key with a colon is not shown as a timer of the module before it', () => {
     expect(splitTimerKey('invoice:42', by('billing'))).toBeUndefined();
-    expect(splitTimerKey('core:deadline:x', by('billing'))).toBeUndefined();
+    expect(splitTimerKey('core.deadline:x', by('billing'))).toBeUndefined();
     expect(
       splitTimerKey('invoice:42', { kind: 'effect', principalId: 'billing.system' }),
     ).toBeUndefined();
