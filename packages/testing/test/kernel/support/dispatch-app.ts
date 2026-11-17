@@ -1,5 +1,4 @@
 import {
-  cancelTimer,
   contracts,
   core,
   defineApp,
@@ -14,11 +13,11 @@ import {
   type Id,
   mapItems,
   outcomeOf,
-  setTimer,
   settle,
   shape,
 } from '@keelwerk/core';
 import { live } from '@keelwerk/live';
+import { rogue } from './rogue.ts';
 
 const delivery = defineEntity({
   prefix: 'dlv',
@@ -157,6 +156,75 @@ const report = defineCommand(dispatchBase, {
   }),
 });
 
+/** A settle tied to its performer: the effect must be a `ship` whose depot is the one named. */
+const reportAt = defineCommand(dispatchBase, {
+  input: shape({
+    effectId: field.ref(core, 'effect'),
+    depot: field.string(),
+    tracking: field.string(),
+  }),
+  principal: 'user',
+  decide: (input) => ({
+    effects: [
+      settle(
+        input.effectId,
+        { ok: true, value: { tracking: input.tracking } },
+        { effect: ship, where: { depot: input.depot } },
+      ),
+    ],
+  }),
+});
+
+/** A settle tied to a `ship` whose where lists the depots it accepts, as built from caller input. */
+const reportIn = defineCommand(dispatchBase, {
+  input: shape({ effectId: field.ref(core, 'effect'), depots: field.list(field.string()) }),
+  principal: 'user',
+  decide: (input) => ({
+    effects: [
+      settle(
+        input.effectId,
+        { ok: true, value: { tracking: 'x' } },
+        { effect: ship, where: { depot: { in: input.depots } } },
+      ),
+    ],
+  }),
+});
+
+/** A settle tied to a `stamp` whose where follows `by`: one where per kind of member. */
+const reportStamp = defineCommand(dispatchBase, {
+  input: shape({
+    effectId: field.ref(core, 'effect'),
+    by: field.enum(['at', 'n', 'raw', 'tags']),
+  }),
+  principal: 'user',
+  decide: (input) => ({
+    effects: [
+      settle(
+        input.effectId,
+        { ok: true, value: {} },
+        { effect: stamp, where: stampWheres[input.by] },
+      ),
+    ],
+  }),
+});
+
+/** A settle whose where names a personal member: the compose probe never reaches it (`deep` is false there), so the settle refuses it. */
+const reportSealed = defineCommand(dispatchBase, {
+  input: shape({ effectId: field.ref(core, 'effect'), deep: field.boolean() }),
+  principal: 'user',
+  decide: (input) => ({
+    effects: [
+      input.deep === true
+        ? settle(
+            input.effectId,
+            { ok: true, value: { tracking: 'x' } },
+            { effect: ship, where: { recipient: 'x' } as never },
+          )
+        : settle(input.effectId, { ok: true, value: { tracking: 'x' } }),
+    ],
+  }),
+});
+
 /** A settle whose id is plain text: a module that took the id as a string can pass any spelling of it on. */
 const reportLoose = defineCommand(dispatchBase, {
   input: shape({ effectId: field.string(), tracking: field.string() }),
@@ -192,14 +260,38 @@ const pending = defineSubscription(dispatchBase, {
     ),
 });
 
-const dispatch = defineModule(dispatchBase, {
-  actions: { send, report, reportLoose, shipped, pending, stampIt, stamped },
+export const dispatch = defineModule(dispatchBase, {
+  actions: {
+    send,
+    report,
+    reportAt,
+    reportStamp,
+    reportIn,
+    reportSealed,
+    reportLoose,
+    shipped,
+    pending,
+    stampIt,
+    stamped,
+  },
   effects: { ship, stamp },
   policies: {
     send: { signedIn: defineRule(dispatchBase, send, { effect: 'allow', principal: 'user' }) },
     report: { signedIn: defineRule(dispatchBase, report, { effect: 'allow', principal: 'user' }) },
     pending: {
       signedIn: defineRule(dispatchBase, pending, { effect: 'allow', principal: 'user' }),
+    },
+    reportAt: {
+      signedIn: defineRule(dispatchBase, reportAt, { effect: 'allow', principal: 'user' }),
+    },
+    reportStamp: {
+      signedIn: defineRule(dispatchBase, reportStamp, { effect: 'allow', principal: 'user' }),
+    },
+    reportIn: {
+      signedIn: defineRule(dispatchBase, reportIn, { effect: 'allow', principal: 'user' }),
+    },
+    reportSealed: {
+      signedIn: defineRule(dispatchBase, reportSealed, { effect: 'allow', principal: 'user' }),
     },
     reportLoose: {
       signedIn: defineRule(dispatchBase, reportLoose, { effect: 'allow', principal: 'user' }),
@@ -209,41 +301,6 @@ const dispatch = defineModule(dispatchBase, {
     },
     stamped: {
       signedIn: defineRule(dispatchBase, stamped, { effect: 'allow', principal: 'user' }),
-    },
-  },
-});
-
-const rogueBase = defineModuleBase({ id: 'rogue', version: '0.1.0' });
-const noop = defineCommand(rogueBase, { principal: 'user', decide: () => ({}) });
-const cancelIt = defineCommand(rogueBase, {
-  input: shape({ key: field.string() }),
-  principal: 'user',
-  decide: (input) => ({ effects: [cancelTimer(input.key)] }),
-});
-const replaceIt = defineCommand(rogueBase, {
-  input: shape({ key: field.string() }),
-  principal: 'user',
-  decide: (input) => ({
-    effects: [setTimer({ key: input.key, after: '1s', invoke: noop, input: {} })],
-  }),
-});
-const settleIt = defineCommand(rogueBase, {
-  input: shape({ effectId: field.ref(core, 'effect') }),
-  principal: 'user',
-  decide: (input) => ({ effects: [settle(input.effectId, { ok: true, value: {} })] }),
-});
-const rogue = defineModule(rogueBase, {
-  actions: { noop, cancelIt, replaceIt, settleIt },
-  policies: {
-    noop: { signedIn: defineRule(rogueBase, noop, { effect: 'allow', principal: 'user' }) },
-    cancelIt: {
-      signedIn: defineRule(rogueBase, cancelIt, { effect: 'allow', principal: 'user' }),
-    },
-    replaceIt: {
-      signedIn: defineRule(rogueBase, replaceIt, { effect: 'allow', principal: 'user' }),
-    },
-    settleIt: {
-      signedIn: defineRule(rogueBase, settleIt, { effect: 'allow', principal: 'user' }),
     },
   },
 });

@@ -1,9 +1,7 @@
-import { evaluateCondition } from '../conditions/evaluate-condition.ts';
-import { holdsSealedValue } from '../effects/holds-sealed-value.ts';
+import { matchingPlainInput } from '../effects/matching-plain-input.ts';
 import type { PendingEffect } from '../effects/pending-effect.ts';
 import type { StateToken } from '../events/state-token.ts';
 import type { LiveFrame } from '../invoker/live-frame.ts';
-import { decodeShapeValue } from '../write-path/decode-shape-value.ts';
 import type { LiveEffectsPlan } from './live-effects-plan.ts';
 
 /** A pending effect before it has its state. */
@@ -21,21 +19,6 @@ interface RowChange {
   readonly row?: Readonly<Record<string, unknown>>;
 }
 
-/** The plain members of a stored input; a value that holds a sealed value is left out, whatever the member's flags were when it was stored. */
-function plainInputOf(
-  stored: unknown,
-  plain: ReadonlySet<string>,
-): Readonly<Record<string, unknown>> {
-  const input: Record<string, unknown> = {};
-  if (typeof stored !== 'object' || stored === null) return input;
-  for (const name of plain) {
-    if (!Object.hasOwn(stored, name)) continue;
-    const value: unknown = Reflect.get(stored, name);
-    if (!holdsSealedValue(value)) input[name] = value;
-  }
-  return input;
-}
-
 /** The pending effect a row is, or undefined when it is not `requested` or its input does not match `where`. */
 function pendingOf(
   change: RowChange,
@@ -44,25 +27,8 @@ function pendingOf(
 ): HeldEffect | undefined {
   const { row } = change;
   if (row === undefined || row.status !== 'requested') return undefined;
-  let input: Readonly<Record<string, unknown>>;
-  try {
-    input = decodeShapeValue(
-      plan.entry.input,
-      plan.entry.module,
-      plainInputOf(row.input, plain),
-    ) as Readonly<Record<string, unknown>>;
-  } catch {
-    // A stored value its field cannot read matches nothing, like a condition the input cannot answer.
-    return undefined;
-  }
-  if (plan.where !== undefined) {
-    try {
-      if (!evaluateCondition(plan.where, input)) return undefined;
-    } catch {
-      // A condition the input cannot answer matches nothing.
-      return undefined;
-    }
-  }
+  const input = matchingPlainInput(plan.entry, plain, plan.where, row.input);
+  if (input === undefined) return undefined;
   return {
     id: String(row.id),
     type: String(row.type),

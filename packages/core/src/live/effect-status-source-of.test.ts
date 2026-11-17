@@ -10,6 +10,11 @@ const ids = (count: number): string[] =>
     (_, index) => `00000000-0000-7000-8000-${String(index).padStart(12, '0')}`,
   );
 
+const coreOwner = {
+  action: { ref: 'core.effectStatusWatch', module: 'core' },
+  registry: { effects: new Map() },
+};
+
 function refusal(run: () => unknown): KeelwerkError {
   try {
     run();
@@ -41,7 +46,7 @@ describe('effectStatusSourceOf', () => {
 
   test('planLiveSource answers a plan whose where is never until the setup sets it', () => {
     const [first = ''] = ids(1);
-    const plan = planLiveSource(effectStatusSourceOf([first]));
+    const plan = planLiveSource(effectStatusSourceOf([first]), coreOwner);
     expect(plan).toEqual({
       kind: 'effectStatus',
       entity: 'core.effect',

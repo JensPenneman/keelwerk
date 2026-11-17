@@ -247,7 +247,7 @@ export async function setUpSubscription(
         }),
         resume?.after,
       );
-      const planned = planLiveSource(description);
+      const planned = planLiveSource(description, { action, registry });
       const completed = completeLivePlan(planned, resume?.after, session.principal);
       ({ plan, authority } = completed);
     } else {

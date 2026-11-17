@@ -321,6 +321,7 @@ export { secret } from './dsl/secret.ts';
 export type { SetTimerRefSpec, SetTimerSpec, TimerWhen } from './dsl/set-timer.ts';
 export { setTimer } from './dsl/set-timer.ts';
 export { settle } from './dsl/settle.ts';
+export type { SettleOptions } from './dsl/settle-options.ts';
 export type { SystemReason } from './dsl/system.ts';
 export { system } from './dsl/system.ts';
 export { typedOutput } from './dsl/typed-output.ts';

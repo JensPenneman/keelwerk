@@ -15,9 +15,13 @@ import { dispatchApp, dispatchUrl } from './dispatch-app.ts';
 const parcelOwner = '0198a2c4-7e10-7a3b-8c5d-3f2a1b9d4e61';
 
 /** A runtime over the dispatch app with workers, the HTTP host and two tenants, and the calls a test makes of it. */
-async function startDispatch(adapter: 'memory' | 'pglite', live?: SseHostOptions) {
+async function startDispatch(
+  adapter: 'memory' | 'pglite',
+  live?: SseHostOptions,
+  app: typeof dispatchApp = dispatchApp,
+) {
   const lines: LoggedLine[] = [];
-  const runtime = await startTestRuntime(dispatchApp, {
+  const runtime = await startTestRuntime(app, {
     adapter,
     host: httpHost(live === undefined ? {} : { live }),
     workers: true,
@@ -164,16 +168,20 @@ export function dispatchSoon(booted: DispatchRuntime, ms = 3_600_000): Temporal.
 
 /**
  * Starts a runtime per test over `adapter`, with the bounds of event streams `live` where a test
- * needs them; it is stopped after the test.
+ * needs them and over `app` where a test needs another app of the same shape; it is stopped after the test.
  */
-export function dispatchRuntime(adapter: 'memory' | 'pglite', live?: SseHostOptions) {
+export function dispatchRuntime(
+  adapter: 'memory' | 'pglite',
+  live?: SseHostOptions,
+  app: typeof dispatchApp = dispatchApp,
+) {
   const stops: (() => Promise<unknown>)[] = [];
   afterEach(async () => {
     for (const stop of stops.splice(0)) await stop();
   });
   return {
     start: async (): Promise<DispatchRuntime> => {
-      const booted = await startDispatch(adapter, live);
+      const booted = await startDispatch(adapter, live, app);
       stops.push(() => booted.runtime.stop());
       return booted;
     },

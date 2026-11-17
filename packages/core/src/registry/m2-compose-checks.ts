@@ -12,6 +12,7 @@ import { checkPersonalOutsideTenant } from './check-personal-outside-tenant.ts';
 import { checkPersonalScheduleInput } from './check-personal-schedule-input.ts';
 import { checkPrincipalFromRef } from './check-principal-from-ref.ts';
 import { checkProcessEvents } from './check-process-events.ts';
+import { checkSettleWhere } from './check-settle-where.ts';
 import { checkStreamDeclarations } from './check-stream-declarations.ts';
 import { checkStreamOffload } from './check-stream-offload.ts';
 import { checkVersionChanges } from './check-version-changes.ts';
@@ -45,4 +46,5 @@ export const m2ComposeChecks: readonly ((
   checkStreamDeclarations,
   checkProcessEvents,
   checkPendingEffectsWhere,
+  checkSettleWhere,
 ];

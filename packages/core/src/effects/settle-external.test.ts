@@ -77,3 +77,57 @@ describe('settleExternal, the lineage of the settled record and its continuation
     expect(await causationOf({})).not.toHaveProperty('lineage');
   });
 });
+
+const ship = { ref: 'dispatch.ship', module: 'dispatch', performer: 'external' } as EffectEntry;
+const stamp = { ref: 'dispatch.stamp', module: 'dispatch', performer: 'external' } as EffectEntry;
+const foreign = { ref: 'other.thing', module: 'other', performer: 'external' } as EffectEntry;
+const id = '0198a2c4-7e10-7a3b-8c5d-3f2a1b9d4e61';
+
+/** A scene over a store that holds one effect row of `type`, and the queries it was asked. */
+function sceneOf(type: string, module: string) {
+  const queries: { readonly forUpdate?: boolean }[] = [];
+  const scene = {
+    module,
+    run: {
+      registry: {
+        entities: new Map([['core.effect', { descriptor: { ref: 'core.effect' } }]]),
+        effects: new Map([ship, stamp, foreign].map((entry) => [entry.ref, entry])),
+      },
+    },
+    unit: {
+      rows: {
+        findOne: async (_descriptor: unknown, query: { readonly forUpdate?: boolean }) => {
+          queries.push(query);
+          return { id, type, status: 'requested', performer: 'external', input: {} };
+        },
+      },
+    },
+  } as unknown as EffectScene;
+  return { scene, queries };
+}
+
+const draft = (over: Partial<SettleEffect> = {}): SettleEffect => ({
+  kind: 'settle',
+  type: 'settle',
+  effect: id,
+  outcome: { ok: true, value: {} },
+  ...over,
+});
+
+describe('settleExternal reads the row of a call it may refuse without a lock', () => {
+  test('a settle tied to another effect type is refused as an unknown id, and locks nothing', async () => {
+    const { scene, queries } = sceneOf('dispatch.stamp', 'dispatch');
+    await expect(
+      settleExternal(scene, draft({ effectType: 'dispatch.ship' })),
+    ).rejects.toMatchObject({ kind: 'not_found' });
+    expect(queries).toHaveLength(1);
+    expect(queries[0]?.forUpdate).not.toBe(true);
+  });
+
+  test("a settle of another module's effect is refused as an unknown id, and locks nothing", async () => {
+    const { scene, queries } = sceneOf('other.thing', 'rogue');
+    await expect(settleExternal(scene, draft())).rejects.toMatchObject({ kind: 'not_found' });
+    expect(queries).toHaveLength(1);
+    expect(queries[0]?.forUpdate).not.toBe(true);
+  });
+});
