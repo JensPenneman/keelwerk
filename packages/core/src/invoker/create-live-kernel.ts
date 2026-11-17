@@ -49,9 +49,10 @@ import { watchActionOf } from './watch-action-of.ts';
  * built once per subscriber: the plan compiled for the principal, the selection, the token check
  * and the quantifier answers of a unit. An `invocation` entity (command receipts, effects) is
  * followed in the session's own scope; the app's rules decide what a view reads unless the caller
- * hands the kernel its own `authority` (the pending effects of an effect), which also lets the view
- * enumerate an `invocation` entity instead of following ids. `internal` for an entity the app lacks; `unsupported` for a
- * deployment-level scope, which has no id the change feed names.
+ * hands the kernel its own `authority` (the pending effects of an effect, or the status view of a
+ * submitter), which also lets the view enumerate an `invocation` entity instead of following ids.
+ * `internal` for an entity the app lacks; `unsupported` for a deployment-level scope, which has no
+ * id the change feed names.
  */
 export function createLiveKernel(
   env: InvokerEnv,

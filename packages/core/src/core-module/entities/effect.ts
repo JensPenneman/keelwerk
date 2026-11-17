@@ -24,11 +24,15 @@ const documentSchema: StandardSchemaV1<Record<string, unknown>, Record<string, u
 /**
  * The `core.effect` entity, the stored format of the effect record (S-26, section 7.9.6). The
  * kernel creates the row when a decision requests an external effect (`status: 'requested'`, the
- * input with personal fields sealed and secrets as references, the command that caused it, the
- * ids of the events it accompanied, the continuation, key and deadline) and the `settled` record
- * of a later release fills `status`, `output`, `error`, `outputDigest`, `attempts` and
- * `settledAt`. Only the kernel writes it; its stream is `core.effect/<id>`. No rule of the core
- * module reads it through the API: an app that wants its effects readable adds a rule of its own.
+ * input with personal fields sealed and secrets as references, the command that caused it, the ids
+ * of the events it accompanied, the continuation, key and deadline, and the submitter reference)
+ * and the `settled` record of a later release fills `status`, `output`, `error`, `outputDigest`,
+ * `attempts` and `settledAt`. Only the kernel writes it; its stream is `core.effect/<id>`. No rule
+ * of the core module reads it through the API: an app that wants its effects readable adds a rule
+ * of its own, and the submitter of a command follows the effects it requested through
+ * `core.effectStatus` and `core.effectStatusWatch`. The effects that the inline reactions of any
+ * module request while the command runs carry the submitter's reference and are shown to it (type
+ * and error code included).
  */
 export const effect: CoreBase['entities']['effect'] = defineEntity({
   prefix: 'eff',
@@ -49,7 +53,14 @@ export const effect: CoreBase['entities']['effect'] = defineEntity({
     error: field.json(documentSchema).optional(),
     outputDigest: field.string().optional(),
     settledAt: field.instant().optional(),
-    /** `principalResolver` and `principalId` are the kernel's copy of the submitter reference (a principal is the pair, section 8.5); both are absent under a minted service principal, hidden from API reads and from rule conditions, and a later status view for the submitter reads them. */
+    /**
+     * `principalResolver` and `principalId` are the kernel's copy of the submitter reference (a
+     * principal is the pair, section 8.5). Both are absent for a decision outside a command (a
+     * continuation, a timer, a queued reaction, each under a minted service principal); an inline
+     * reaction of any module keeps the command's submitter. They are hidden from API reads and from
+     * rule conditions, and the kernel's status view (`core.effectStatus`, `core.effectStatusWatch`)
+     * reads them.
+     */
     principalResolver: field.string().optional().hidden(),
     principalId: field.string().optional().hidden(),
   },

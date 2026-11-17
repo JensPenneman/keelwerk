@@ -1,6 +1,6 @@
 import type { Scope, StorageRow } from '@keelwerk/core';
 import { deriveEffectId } from '@keelwerk/core';
-import { httpHost } from '@keelwerk/transport-http';
+import { httpHost, type SseHostOptions } from '@keelwerk/transport-http';
 import { afterEach } from 'vitest';
 import { readEventStream } from '../../../src/conformance/transport/read-event-stream.ts';
 import type { LoggedLine } from '../../../src/harness/logged-line.ts';
@@ -15,11 +15,11 @@ import { dispatchApp, dispatchUrl } from './dispatch-app.ts';
 const parcelOwner = '0198a2c4-7e10-7a3b-8c5d-3f2a1b9d4e61';
 
 /** A runtime over the dispatch app with workers, the HTTP host and two tenants, and the calls a test makes of it. */
-async function startDispatch(adapter: 'memory' | 'pglite') {
+async function startDispatch(adapter: 'memory' | 'pglite', live?: SseHostOptions) {
   const lines: LoggedLine[] = [];
   const runtime = await startTestRuntime(dispatchApp, {
     adapter,
-    host: httpHost(),
+    host: httpHost(live === undefined ? {} : { live }),
     workers: true,
     operators: true,
     tenants: ['acme', 'globex'],
@@ -162,15 +162,18 @@ export function dispatchSoon(booted: DispatchRuntime, ms = 3_600_000): Temporal.
   return booted.runtime.clock.now().add({ milliseconds: ms });
 }
 
-/** Starts a runtime per test over `adapter`; it is stopped after the test. */
-export function dispatchRuntime(adapter: 'memory' | 'pglite') {
+/**
+ * Starts a runtime per test over `adapter`, with the bounds of event streams `live` where a test
+ * needs them; it is stopped after the test.
+ */
+export function dispatchRuntime(adapter: 'memory' | 'pglite', live?: SseHostOptions) {
   const stops: (() => Promise<unknown>)[] = [];
   afterEach(async () => {
     for (const stop of stops.splice(0)) await stop();
   });
   return {
     start: async (): Promise<DispatchRuntime> => {
-      const booted = await startDispatch(adapter);
+      const booted = await startDispatch(adapter, live);
       stops.push(() => booted.runtime.stop());
       return booted;
     },

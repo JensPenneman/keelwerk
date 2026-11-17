@@ -341,6 +341,7 @@ export { deriveEffectId } from './effects/derive-effect-id.ts';
 export { durationMs } from './effects/duration-ms.ts';
 export type { EffectAttemptError } from './effects/effect-attempt-error.ts';
 export type { EffectAttemptRecord } from './effects/effect-attempt-record.ts';
+export type { EffectStatus, EffectStatusError } from './effects/effect-status.ts';
 export { openEffectInput } from './effects/open-effect-input.ts';
 export type { EffectInputOf, PendingEffect } from './effects/pending-effect.ts';
 export type { PlainEffectInputOf } from './effects/plain-effect-input-of.ts';

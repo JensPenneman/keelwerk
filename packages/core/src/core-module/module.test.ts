@@ -29,6 +29,9 @@ describe('the core module (S-11, S-26)', () => {
     expect(Object.keys(core.actions)).toEqual(
       expect.arrayContaining(['apiUsage', 'retireApiVersion']),
     );
+    expect(Object.keys(core.actions)).toEqual(
+      expect.arrayContaining(['effectStatus', 'effectStatusWatch']),
+    );
     expect(Object.keys(core.entities.backend.actions)).toEqual(['create']);
     expect(Object.keys(core.entities.tenant.actions)).toEqual(['create', 'enter', 'setApiVersion']);
     expect(Object.keys(core.entities.operatorToken.actions)).toEqual(['issue', 'revoke']);

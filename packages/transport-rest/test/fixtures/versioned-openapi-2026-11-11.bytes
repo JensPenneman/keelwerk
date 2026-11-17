@@ -7006,6 +7006,155 @@
         ],
         "type": "object"
       },
+      "CoreEffectStatusInput": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^eff_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "CoreEffectStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "deadline": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "code"
+            ],
+            "type": "object"
+          },
+          "id": {
+            "pattern": "^eff_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "runAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "settledAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "requested",
+              "succeeded",
+              "failed",
+              "abandoned"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "requestedAt"
+        ],
+        "type": "object"
+      },
+      "CoreEffectStatusWatchInput": {
+        "additionalProperties": false,
+        "properties": {
+          "ids": {
+            "items": {
+              "pattern": "^eff_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "type": "object"
+      },
+      "CoreEffectStatusWatchOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "deadline": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "code"
+            ],
+            "type": "object"
+          },
+          "id": {
+            "pattern": "^eff_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "runAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "settledAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "requested",
+              "succeeded",
+              "failed",
+              "abandoned"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "requestedAt"
+        ],
+        "type": "object"
+      },
       "CoreFlag": {
         "additionalProperties": false,
         "properties": {
@@ -16660,7 +16809,7 @@
   },
   "info": {
     "title": "versioned",
-    "version": "sha256-DxY5BxIWHyTvOOMgSxN8cQgGtGAjgx-psYdtW9C97VE"
+    "version": "sha256-uBi6NSK-xliKPUEh-7BFRg9Jwc4K7lBAq-jzH54Sg08"
   },
   "openapi": "3.1.1",
   "paths": {
@@ -18917,6 +19066,140 @@
         "x-keelwerk-action": "core.domain.get",
         "x-keelwerk-execution": "sync",
         "x-keelwerk-scope": "deployment"
+      }
+    },
+    "/core/effect-status": {
+      "get": {
+        "operationId": "coreEffectStatus",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^eff_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreEffectStatusOutput"
+                }
+              }
+            },
+            "description": "Success.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "core"
+        ],
+        "x-keelwerk-action": "core.effectStatus",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "invocation"
+      }
+    },
+    "/core/effect-status-watch": {
+      "get": {
+        "operationId": "coreEffectStatusWatch",
+        "parameters": [
+          {
+            "explode": true,
+            "in": "query",
+            "name": "ids",
+            "required": true,
+            "schema": {
+              "items": {
+                "pattern": "^eff_[0-7][0-9a-hjkmnp-tv-z]{25}$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "x-keelwerk-item-schema": {
+                  "$ref": "#/components/schemas/CoreEffectStatusWatchOutput"
+                }
+              }
+            },
+            "description": "A stream of server-sent events.",
+            "headers": {
+              "Keelwerk-Version": {
+                "$ref": "#/components/headers/keelwerkVersion"
+              },
+              "x-request-id": {
+                "$ref": "#/components/headers/requestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/problem403"
+          },
+          "422": {
+            "$ref": "#/components/responses/problem422"
+          },
+          "429": {
+            "$ref": "#/components/responses/problem429"
+          },
+          "500": {
+            "$ref": "#/components/responses/problem500"
+          },
+          "503": {
+            "$ref": "#/components/responses/problem503"
+          }
+        },
+        "tags": [
+          "core"
+        ],
+        "x-keelwerk-action": "core.effectStatusWatch",
+        "x-keelwerk-execution": "sync",
+        "x-keelwerk-scope": "invocation"
       }
     },
     "/core/effects": {
@@ -25148,6 +25431,6 @@
     "apiVersion": "2026-11-11",
     "format": "keelwerk.openapi/1",
     "producer": "@keelwerk/transport-rest",
-    "surface": "sha256-DxY5BxIWHyTvOOMgSxN8cQgGtGAjgx-psYdtW9C97VE"
+    "surface": "sha256-uBi6NSK-xliKPUEh-7BFRg9Jwc4K7lBAq-jzH54Sg08"
   }
 }

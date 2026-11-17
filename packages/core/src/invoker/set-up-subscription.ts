@@ -7,6 +7,7 @@ import { buildSnapshot } from '../flags/build-snapshot.ts';
 import { flagClientIdOf } from '../flags/flag-client-id-of.ts';
 import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import type { RequestAuthorities } from '../interpreter/request-authorities.ts';
+import type { LiveEffectStatusPlan } from '../live/live-effect-status-plan.ts';
 import type { LiveEffectsPlan } from '../live/live-effects-plan.ts';
 import type { LiveKernel } from '../live/live-kernel.ts';
 import { liveKernelFactories } from '../live/live-kernel-factories.ts';
@@ -21,6 +22,7 @@ import type { Principal } from '../principals/principal.ts';
 import { assertTokenScope } from '../tokens/assert-token-scope.ts';
 import { decodeStateToken } from '../tokens/decode-state-token.ts';
 import { bindSubscriptionSession } from './bind-subscription-session.ts';
+import { completeLivePlan } from './complete-live-plan.ts';
 import { createLiveKernel } from './create-live-kernel.ts';
 import type { Invocation } from './invocation.ts';
 import type { InvocationSession } from './invocation-session.ts';
@@ -31,7 +33,6 @@ import { mapUnknownError } from './map-unknown-error.ts';
 import { moduleConfigOf } from './module-config-of.ts';
 import type { OpenedSubscription } from './opened-subscription.ts';
 import type { Outcome } from './outcome.ts';
-import { pendingEffectsAuthority } from './pending-effects-authority.ts';
 import { registerPokesView } from './register-pokes-view.ts';
 import { requestInfoOf } from './request-info-of.ts';
 import { sessionOf } from './session-of.ts';
@@ -175,7 +176,7 @@ export async function setUpSubscription(
     state.stage = 'execute';
     const hub = app.liveHub;
     if (hub === undefined) throw liveUnavailable();
-    // The rules a pending-effects subscription's view is compiled from; read when the kernel of its entity is first asked for, after planning.
+    // The rules a pending-effects or status subscription's view is compiled from; read when the kernel of its entity is first asked for, after planning.
     let authority: (LiveKernelAuthority & { readonly entity: string }) | undefined;
     if (!liveKernelFactories.has(bound)) {
       const kernels = new Map<string, LiveKernel>();
@@ -218,7 +219,7 @@ export async function setUpSubscription(
       () => subject,
       inv.signal,
     );
-    let plan: LiveSourcePlan | LivePokesPlan | LiveEffectsPlan;
+    let plan: LiveSourcePlan | LivePokesPlan | LiveEffectsPlan | LiveEffectStatusPlan;
     if (action.generated === 'watch' && action.entity !== undefined) {
       const watched = input as WatchInput<unknown>;
       plan = {
@@ -247,10 +248,8 @@ export async function setUpSubscription(
         resume?.after,
       );
       const planned = planLiveSource(description);
-      plan = planned.kind === 'pokes' ? { ...planned, after: resume?.after } : planned;
-      if (plan.kind === 'effects') {
-        authority = pendingEffectsAuthority(plan);
-      }
+      const completed = completeLivePlan(planned, resume?.after, session.principal);
+      ({ plan, authority } = completed);
     } else {
       throw errors.unsupported(`"${action.ref}" is not a live source.`);
     }

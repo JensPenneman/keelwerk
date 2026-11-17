@@ -1,24 +1,11 @@
 import { defineStream } from '../../dsl/define-stream.ts';
 import type { EffectAttemptError } from '../../effects/effect-attempt-error.ts';
-import type { ErrorKind } from '../../errors/error-kind.ts';
 import { isErrorCode } from '../../errors/is-error-code.ts';
+import { isErrorKind } from '../../errors/is-error-kind.ts';
 import { field } from '../../fields/field.ts';
 import { shape } from '../../fields/shape.ts';
 import type { StandardSchemaV1 } from '../../fields/standard-schema-v1.ts';
 import type { CoreBase } from '../core-base-type.ts';
-
-const kinds: ReadonlySet<string> = new Set<ErrorKind>([
-  'validation',
-  'unauthenticated',
-  'forbidden',
-  'not_found',
-  'conflict',
-  'rate_limited',
-  'not_implemented',
-  'unavailable',
-  'unsupported',
-  'internal',
-]);
 
 /** A request id as the invoker mints it: a UUID in its canonical lower-case form. */
 const requestIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -36,7 +23,7 @@ function check(value: unknown): { value: EffectAttemptError } | { issues: { mess
       issues.push({ message: `"${name}" is not kept: an attempt keeps the code and status only.` });
     }
   }
-  if (typeof given.kind !== 'string' || !kinds.has(given.kind)) {
+  if (!isErrorKind(given.kind)) {
     issues.push({ message: '"kind" must be an error kind.' });
   }
   if (typeof given.code !== 'string' || !isErrorCode(given.code)) {

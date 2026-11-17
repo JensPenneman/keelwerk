@@ -8528,6 +8528,303 @@
     {
       "auth": "policy",
       "changedIn": [],
+      "errors": [],
+      "execution": "sync",
+      "hints": {},
+      "idempotent": true,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "eff",
+            "tag": 1,
+            "target": "core.effect"
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-d2E7J21KZItZNGcAj7O5QB7OmxoDDz9u4KjSs-7TEjM",
+      "instance": false,
+      "kind": "query",
+      "module": "core",
+      "mount": "module",
+      "name": "effectStatus",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "deadline": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true,
+            "tag": 6
+          },
+          "error": {
+            "access": "read-write",
+            "input": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "code"
+              ],
+              "type": "object"
+            },
+            "kind": "json",
+            "optional": true,
+            "output": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "code"
+              ],
+              "type": "object"
+            },
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "code"
+              ],
+              "type": "object"
+            },
+            "tag": 8
+          },
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "eff",
+            "tag": 1,
+            "target": "core.effect"
+          },
+          "requestedAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": false,
+            "tag": 4
+          },
+          "runAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true,
+            "tag": 5
+          },
+          "settledAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true,
+            "tag": 7
+          },
+          "status": {
+            "access": "read-write",
+            "kind": "enum",
+            "optional": false,
+            "tag": 3,
+            "values": [
+              "requested",
+              "succeeded",
+              "failed",
+              "abandoned"
+            ]
+          },
+          "type": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 2
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-3XeG904Pe1pF2QJ5SZl4zjFxFJlSvlOtGzTRBxkXGKs",
+      "ref": "core.effectStatus",
+      "resumable": false,
+      "scope": "invocation",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "errors": [],
+      "execution": "sync",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "ids": {
+            "access": "read-write",
+            "item": {
+              "access": "read-write",
+              "kind": "ref",
+              "optional": false,
+              "prefix": "eff",
+              "target": "core.effect"
+            },
+            "kind": "list",
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-oujnrKBIup0x_slHdN0xjUMAmzws0nQvdcMuit25FJE",
+      "instance": false,
+      "kind": "subscription",
+      "module": "core",
+      "mount": "module",
+      "name": "effectStatusWatch",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "fields": {
+          "deadline": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true,
+            "tag": 6
+          },
+          "error": {
+            "access": "read-write",
+            "input": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "code"
+              ],
+              "type": "object"
+            },
+            "kind": "json",
+            "optional": true,
+            "output": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "code"
+              ],
+              "type": "object"
+            },
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "code"
+              ],
+              "type": "object"
+            },
+            "tag": 8
+          },
+          "id": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "eff",
+            "tag": 1,
+            "target": "core.effect"
+          },
+          "requestedAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": false,
+            "tag": 4
+          },
+          "runAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true,
+            "tag": 5
+          },
+          "settledAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true,
+            "tag": 7
+          },
+          "status": {
+            "access": "read-write",
+            "kind": "enum",
+            "optional": false,
+            "tag": 3,
+            "values": [
+              "requested",
+              "succeeded",
+              "failed",
+              "abandoned"
+            ]
+          },
+          "type": {
+            "access": "read-write",
+            "kind": "string",
+            "optional": false,
+            "tag": 2
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "outputHash": "sha256-3XeG904Pe1pF2QJ5SZl4zjFxFJlSvlOtGzTRBxkXGKs",
+      "ref": "core.effectStatusWatch",
+      "resumable": false,
+      "scope": "invocation",
+      "since": "2026-11-04"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
       "entity": "core.flag",
       "errors": [],
       "execution": "sync",
@@ -16643,7 +16940,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-cOBPch-Ox-0jMBT6do4-nK2bALKs-sq5DY6rHzqemgA",
+  "hash": "sha256-iyse92qOWQbIWV0iYqojk66Wyv9d6cZ-LhzvGbwe8Ig",
   "modules": [
     {
       "id": "accounts",

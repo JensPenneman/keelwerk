@@ -113,7 +113,7 @@ describe('the schema of a surface', () => {
     expect(strategy.getValue('shared-tables')).toBeUndefined();
   });
 
-  test('every object, input, enum and union type is reachable from Query or Mutation (the scalars are declared whole)', () => {
+  test('every object, input, enum and union type is reachable from a root type (the scalars are declared whole)', () => {
     const { schema } = buildGraphqlSchema(transportSurface());
     const seen = new Set<string>();
     const visit = (type: GraphQLNamedType): void => {
@@ -131,7 +131,11 @@ describe('the schema of a surface', () => {
         for (const member of type.getTypes()) visit(member);
       }
     };
-    for (const root of [schema.getQueryType(), schema.getMutationType()]) {
+    for (const root of [
+      schema.getQueryType(),
+      schema.getMutationType(),
+      schema.getSubscriptionType(),
+    ]) {
       if (root) visit(root);
     }
     const unreached = Object.keys(schema.getTypeMap()).filter(

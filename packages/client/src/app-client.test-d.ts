@@ -120,7 +120,9 @@ describe('the derived client types', () => {
     expectTypeOf<'loans.loanEvents'>().not.toExtend<InvokableRef<LiveApp>>();
     expectTypeOf<'loans.lend'>().toExtend<InvokableRef<LiveApp>>();
     expectTypeOf<'loans.lend'>().not.toExtend<SubscriptionRef<LiveApp>>();
-    expectTypeOf<SubscriptionRef<ConformanceApp>>().toBeNever();
+    // An app without the live module has no subscription of its own, only the core's.
+    expectTypeOf<Exclude<SubscriptionRef<ConformanceApp>, `core.${string}`>>().toBeNever();
+    expectTypeOf<'core.effectStatusWatch'>().toExtend<SubscriptionRef<ConformanceApp>>();
     expectTypeOf<EventOf<LiveApp, 'loans.loanEvents'>>().toHaveProperty('loanId');
     expectTypeOf(live.subscribe('loans.loanEvents', undefined as never)).toExtend<
       AsyncIterable<LiveFrame<EventOf<LiveApp, 'loans.loanEvents'>>>

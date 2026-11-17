@@ -20,7 +20,13 @@ export interface EffectScene {
   readonly module: string;
   /** Who caused the decision: the command's actor, or the actor of the event a reaction decided on. */
   readonly causeActor: ActorRef;
-  /** The reference of the principal whose command the decision belongs to; inherited by inline reactions; absent under a minted service principal. */
+  /**
+   * The reference of the principal whose command the decision belongs to; absent for a decision
+   * outside a command (a continuation, a timer, a queued reaction, each under a minted service
+   * principal). Inline reactions of any module inherit it, so the effects they request while the
+   * command runs carry the submitter's reference and are shown to it (type and error code included)
+   * by `core.effectStatus` and `core.effectStatusWatch`.
+   */
   readonly submitter?: PrincipalRef;
   /** The command the decision belongs to. */
   readonly commandId: string;

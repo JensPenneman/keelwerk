@@ -1,5 +1,6 @@
 import type { ReactionPart } from '../dsl/define-reaction.ts';
 import type { RulePart } from '../dsl/define-rule.ts';
+import type { EffectStatus } from '../effects/effect-status.ts';
 import type { ClientFlagDocument } from '../flags/client-flag-document.ts';
 import type { FlagTargeting } from '../flags/flag-targeting.ts';
 import type { Id } from '../ids/id.ts';
@@ -112,6 +113,16 @@ type ApiUsageInput = {
   readonly item?: string | undefined;
 };
 
+type EffectStatusInput = { readonly id: Id<'core.effect'> };
+type EffectStatusWatchInput = { readonly ids: readonly Id<'core.effect'>[] };
+type CoreSubscription<In, Ev> = ActionPart<
+  'subscription',
+  CoreBase,
+  null,
+  'sync',
+  PartTypes<Prettify<In & {}>, Ev, never, Ev>
+>;
+
 /** The module literal of the core: the parts the core mounts (S-26, section 3.1). */
 export interface CoreLiteral {
   readonly actions: {
@@ -124,6 +135,8 @@ export interface CoreLiteral {
       { readonly app: string; readonly version: string },
       ApiVersionRetirement
     >;
+    readonly effectStatus: CoreInputQuery<EffectStatusInput, EffectStatus>;
+    readonly effectStatusWatch: CoreSubscription<EffectStatusWatchInput, EffectStatus>;
   };
   readonly policies: {
     readonly introspect: {
@@ -155,6 +168,20 @@ export interface CoreLiteral {
     readonly flag: { readonly operators: RulePart<CoreBase, 'flag', readonly ['*']> };
     readonly commandReceipt: {
       readonly submitter: RulePart<CoreBase, 'commandReceipt', readonly ['get', 'watch']>;
+    };
+    readonly effectStatus: {
+      readonly signedIn: RulePart<
+        CoreBase,
+        CoreInputQuery<EffectStatusInput, EffectStatus>,
+        readonly []
+      >;
+    };
+    readonly effectStatusWatch: {
+      readonly signedIn: RulePart<
+        CoreBase,
+        CoreSubscription<EffectStatusWatchInput, EffectStatus>,
+        readonly []
+      >;
     };
   };
   readonly reactions: {

@@ -3,6 +3,8 @@ import { apiUsage } from './actions/api-usage.ts';
 import { create as createBackend } from './actions/backend/create.ts';
 import { capabilities } from './actions/capabilities.ts';
 import { composition } from './actions/composition.ts';
+import { effectStatus } from './actions/effect-status.ts';
+import { effectStatusWatch } from './actions/effect-status-watch.ts';
 import { evaluate as evaluateFlag } from './actions/flag/evaluate.ts';
 import { restoreRules } from './actions/flag/restore-rules.ts';
 import { set as setFlag } from './actions/flag/set.ts';
@@ -21,6 +23,8 @@ import { operators as backendOperators } from './policies/backend/operators.ts';
 import { submitter } from './policies/command-receipt/submitter.ts';
 import { operators } from './policies/composition/operators.ts';
 import { operators as domainOperators } from './policies/domain/operators.ts';
+import { signedIn as effectStatusSignedIn } from './policies/effect-status/signed-in.ts';
+import { signedIn as effectStatusWatchSignedIn } from './policies/effect-status-watch/signed-in.ts';
 import { operators as flagOperators } from './policies/flag/operators.ts';
 import { signedIn } from './policies/introspect/signed-in.ts';
 import { operators as operatorTokenOperators } from './policies/operator-token/operators.ts';
@@ -31,7 +35,16 @@ import { syncDomainsOnChange } from './reactions/sync-domains-on-change.ts';
 
 /** The implicit core module, always first in a selection (section 4.7). */
 export const core: Core = defineModule(coreBase, {
-  actions: { introspect, composition, me, capabilities, apiUsage, retireApiVersion },
+  actions: {
+    introspect,
+    composition,
+    me,
+    capabilities,
+    apiUsage,
+    retireApiVersion,
+    effectStatus,
+    effectStatusWatch,
+  },
   entityActions: {
     backend: { create: createBackend },
     tenant: { create: createTenant, enter, setApiVersion },
@@ -49,6 +62,8 @@ export const core: Core = defineModule(coreBase, {
     domain: { operators: domainOperators },
     flag: { operators: flagOperators },
     commandReceipt: { submitter },
+    effectStatus: { signedIn: effectStatusSignedIn },
+    effectStatusWatch: { signedIn: effectStatusWatchSignedIn },
   },
   reactions: { syncDomains, syncDomainsOnChange },
 });

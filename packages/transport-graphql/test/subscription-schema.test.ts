@@ -97,7 +97,12 @@ describe('the Subscription root', () => {
   });
 
   test('a schema without subscriptions has no Subscription root and no stream types', () => {
-    const plain = buildGraphqlSchema(transportSurface()).schema;
+    // Every app has the status watch of the core module: without any subscription the root goes.
+    const whole = transportSurface();
+    const plain = buildGraphqlSchema({
+      ...whole,
+      actions: whole.actions.filter((action) => !isSubscribed(action)),
+    }).schema;
     expect(plain.getSubscriptionType()).toBeUndefined();
     for (const name of [
       'Subscription',

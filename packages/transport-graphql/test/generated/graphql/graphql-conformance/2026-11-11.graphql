@@ -722,6 +722,47 @@ input CoreEffectStatusFilter {
   nin: [CoreEffectStatus!]
 }
 
+type CoreEffectStatusOutput {
+  deadline: Instant
+  error: JSON
+  id: ID
+  requestedAt: Instant
+  runAt: Instant
+  settledAt: Instant
+  status: CoreEffectStatusOutputStatus
+  type: String
+}
+
+enum CoreEffectStatusOutputStatus {
+  ABANDONED
+  FAILED
+  REQUESTED
+  SUCCEEDED
+}
+
+union CoreEffectStatusWatchEvent = CoreEffectStatusWatchItem | StreamGap | StreamHead | StreamReset
+
+type CoreEffectStatusWatchItem {
+  deadline: Instant
+  error: JSON
+  id: ID
+  requestedAt: Instant
+  runAt: Instant
+  settledAt: Instant
+
+  """The state of the stream after this item."""
+  state: String
+  status: CoreEffectStatusWatchItemStatus
+  type: String
+}
+
+enum CoreEffectStatusWatchItemStatus {
+  ABANDONED
+  FAILED
+  REQUESTED
+  SUCCEEDED
+}
+
 union CoreEffectWatchEvent = CoreEffectWatchItem | StreamGap | StreamHead | StreamReset
 
 enum CoreEffectWatchFrom {
@@ -2664,6 +2705,7 @@ type Query {
   coreEffectChanges(max: SafeInt, partition: String, since: String!): CoreEffectChangesOutput
   coreEffectGet(asOf: Instant, ids: [ID!]!, includeArchived: Boolean): CoreEffectGetResult!
   coreEffectQueryChanges(filter: CoreEffectFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [CoreEffectSort!]): CoreEffectQueryChangesOutput
+  coreEffectStatus(id: ID!): CoreEffectStatusOutput
   coreEffects(after: String, before: String, filter: CoreEffectFilter, first: Int, includeArchived: Boolean, last: Int, sort: [CoreEffectSort!]): CoreEffectConnection!
   coreFlag(id: ID!): CoreFlag
   coreFlagChanges(max: SafeInt, partition: String, since: String!): CoreFlagChangesOutput
@@ -2817,6 +2859,11 @@ type Subscription {
     includeArchived: Boolean
     partition: String
   ): CoreDomainWatchEvent!
+  coreEffectStatusWatch(
+    """The state of an item or a head to resume after."""
+    after: String
+    ids: [ID!]!
+  ): CoreEffectStatusWatchEvent!
   coreEffectWatch(
     """The state of an item or a head to resume after."""
     after: String
