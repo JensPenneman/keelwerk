@@ -8,6 +8,7 @@ import {
 } from '@keelwerk/core';
 import { asKeelwerkError, closeCodeOfError, coreError } from '@keelwerk/core/http';
 import { invokeOverSocket } from './invoke-over-socket.ts';
+import { keepSocketAlive } from './keep-socket-alive.ts';
 import { keepSocketSession } from './keep-socket-session.ts';
 import type { LiveSocketState } from './live-socket-state.ts';
 import { openSocketSession } from './open-socket-session.ts';
@@ -41,20 +42,6 @@ function principalOf(
     }
   }
   return { kind: principal.kind, id: null };
-}
-
-/** Starts the ping loop: a ping every `heartbeatMs`, and a socket that does not answer within the pong bound is terminated. */
-function keepAlive(state: LiveSocketState): void {
-  const { signal } = state.everything;
-  const every = state.upgrade.host.liveSocket.heartbeatMs;
-  void (async () => {
-    while (await state.timers.sleepUntil(state.clock.now().add({ milliseconds: every }), signal)) {
-      if (!(await state.open.connection.ping())) {
-        state.open.terminate();
-        return;
-      }
-    }
-  })();
 }
 
 /** After the deadline every subscription has ended `max_duration` (their carriers share it), and the socket closes. */
@@ -186,7 +173,7 @@ async function messages(state: LiveSocketState, totals: { subscriptions: number 
           if (traceparent !== undefined) state.traceparent = traceparent;
           if (!(await welcome(state))) return;
           state.keeper = keepSocketSession(state);
-          keepAlive(state);
+          keepSocketAlive(state);
           break;
         }
         case 'subscribe':

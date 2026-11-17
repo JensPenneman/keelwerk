@@ -1,0 +1,2915 @@
+"""Bytes as an unpadded base64url string."""
+scalar Base64URL
+
+"""An integer of any size as a decimal string."""
+scalar BigInt
+
+type CommandAccepted {
+  commandId: String!
+  status: String!
+}
+
+type CoreBackend implements Node {
+  """The fields a rule hides from the caller on this row."""
+  _masked: [String!]!
+  apiVersion: String
+  app: String
+  archivedAt: Instant
+  config: JSON
+  createdAt: Instant
+  id: ID!
+  name: String
+  placement: String
+  status: CoreBackendStatus
+  updatedAt: Instant
+  version: SafeInt!
+}
+
+input CoreBackendArchiveInput {
+  """The idempotency key of the command."""
+  commandId: String
+  id: ID!
+  ifVersion: SafeInt
+}
+
+union CoreBackendArchiveResult = CoreBackendArchiveSuccess
+
+type CoreBackendArchiveSuccess {
+  commandId: String!
+  result: CoreBackend
+}
+
+type CoreBackendChangesOutput {
+  archived: [ID!]
+  changed: [ID!]
+  created: [ID!]
+  hasMoreChanges: Boolean
+  newState: String
+  oldState: String
+}
+
+type CoreBackendConnection {
+  nodes: [CoreBackend!]!
+  pageInfo: PageInfo!
+  queryState: String
+  totalCount: SafeInt
+}
+
+input CoreBackendCreateInput {
+  apiVersion: String
+  app: String!
+
+  """The idempotency key of the command."""
+  commandId: String
+  config: JSON
+  name: String!
+  placement: String!
+}
+
+type CoreBackendCreateOutput {
+  id: ID
+}
+
+union CoreBackendCreateResult = CoreBackendCreateSuccess
+
+type CoreBackendCreateSuccess {
+  commandId: String!
+  result: CoreBackendCreateOutput
+}
+
+input CoreBackendFilter {
+  and: [CoreBackendFilter!]
+  apiVersion: StringFilter
+  app: StringFilter
+  archivedAt: InstantFilter
+  config: PresenceFilter
+  createdAt: InstantFilter
+  id: IdFilter
+  name: StringFilter
+  not: CoreBackendFilter
+  or: [CoreBackendFilter!]
+  placement: StringFilter
+  status: CoreBackendStatusFilter
+  updatedAt: InstantFilter
+  version: SafeIntFilter
+}
+
+type CoreBackendGetResult {
+  list: [CoreBackend!]!
+  notFound: [ID!]!
+  state: String
+}
+
+input CoreBackendPatch {
+  apiVersion: String
+  app: String
+  config: JSON
+  name: String
+  placement: String
+  status: CoreBackendStatus
+}
+
+type CoreBackendQueryChangesOutput {
+  added: [CoreBackendQueryChangesOutputAdded!]
+  newQueryState: String
+  oldQueryState: String
+  removed: [ID!]
+}
+
+type CoreBackendQueryChangesOutputAdded {
+  id: ID
+  index: SafeInt
+}
+
+input CoreBackendRestoreInput {
+  """The idempotency key of the command."""
+  commandId: String
+  id: ID!
+  ifVersion: SafeInt
+}
+
+union CoreBackendRestoreResult = CoreBackendRestoreSuccess
+
+type CoreBackendRestoreSuccess {
+  commandId: String!
+  result: CoreBackend
+}
+
+input CoreBackendSetArchiveInput {
+  id: ID!
+  ifVersion: SafeInt
+}
+
+input CoreBackendSetCreateInput {
+  apiVersion: String
+  app: String!
+  config: JSON
+  name: String!
+  placement: String!
+  status: CoreBackendSetCreateStatus
+}
+
+enum CoreBackendSetCreateStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+input CoreBackendSetInput {
+  archive: [CoreBackendSetArchiveInput!]
+
+  """The idempotency key of the command."""
+  commandId: String
+  create: [CoreBackendSetCreateInput!]
+  ifInState: String
+  restore: [CoreBackendSetRestoreInput!]
+  update: [CoreBackendSetUpdateInput!]
+}
+
+type CoreBackendSetOutput {
+  archived: [ID!]
+  created: [ID!]
+  failed: [CoreBackendSetOutputFailed!]
+  newState: String
+  oldState: String
+  restored: [ID!]
+  updated: [ID!]
+}
+
+type CoreBackendSetOutputFailed {
+  code: String
+  id: String
+  message: String
+  operation: String
+}
+
+input CoreBackendSetRestoreInput {
+  id: ID!
+  ifVersion: SafeInt
+}
+
+union CoreBackendSetResult = CoreBackendSetSuccess
+
+type CoreBackendSetSuccess {
+  commandId: String!
+  result: CoreBackendSetOutput
+}
+
+input CoreBackendSetUpdateInput {
+  id: ID!
+  ifVersion: SafeInt
+  patch: CoreBackendSetUpdatePatchInput!
+}
+
+input CoreBackendSetUpdatePatchInput {
+  apiVersion: String
+  app: String
+  config: JSON
+  name: String
+  placement: String
+  status: CoreBackendSetUpdatePatchStatus
+}
+
+enum CoreBackendSetUpdatePatchStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+input CoreBackendSort {
+  direction: SortDirection
+  field: CoreBackendSortField!
+}
+
+enum CoreBackendSortField {
+  CREATED_AT
+  ID
+  NAME
+  UPDATED_AT
+}
+
+enum CoreBackendStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+input CoreBackendStatusFilter {
+  eq: CoreBackendStatus
+  in: [CoreBackendStatus!]
+  isNull: Boolean
+  ne: CoreBackendStatus
+  nin: [CoreBackendStatus!]
+}
+
+input CoreBackendUpdateInput {
+  """The idempotency key of the command."""
+  commandId: String
+  id: ID!
+  ifVersion: SafeInt
+  patch: CoreBackendPatch!
+}
+
+union CoreBackendUpdateResult = CoreBackendUpdateSuccess
+
+type CoreBackendUpdateSuccess {
+  commandId: String!
+  result: CoreBackend
+}
+
+union CoreBackendWatchEvent = CoreBackendWatchItem | StreamGap | StreamHead | StreamReset
+
+enum CoreBackendWatchFrom {
+  BEGINNING
+  NOW
+}
+
+type CoreBackendWatchItem {
+  cause: String
+  id: ID
+  reason: CoreBackendWatchItemReason
+  row: CoreBackendWatchItemRow
+
+  """The state of the stream after this item."""
+  state: String
+  type: CoreBackendWatchItemType
+  version: SafeInt
+}
+
+enum CoreBackendWatchItemReason {
+  ERASED
+  LEFT_VIEW
+  PURGED
+}
+
+type CoreBackendWatchItemRow {
+  apiVersion: String
+  app: String
+  archivedAt: Instant
+  config: JSON
+  createdAt: Instant
+  id: ID
+  name: String
+  placement: String
+  status: CoreBackendWatchItemRowStatus
+  updatedAt: Instant
+  version: SafeInt
+}
+
+enum CoreBackendWatchItemRowStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum CoreBackendWatchItemType {
+  ARCHIVED
+  CHANGED
+  CREATED
+  REMOVED
+  RESTORED
+}
+
+type CoreCommandReceipt implements Node {
+  """The fields a rule hides from the caller on this row."""
+  _masked: [String!]!
+  acknowledgedAt: Instant
+  action: String
+  apiVersion: String
+  archivedAt: Instant
+  clientId: String
+  clientSeq: SafeInt
+  commandId: String
+  createdAt: Instant
+  expiresAt: Instant
+  fingerprint: String
+  id: ID!
+  outcome: JSON
+  principalId: String
+  principalResolver: String
+  remoteAddress: String
+  status: CoreCommandReceiptStatus
+  transport: String
+  updatedAt: Instant
+  userAgent: String
+  version: SafeInt!
+}
+
+type CoreCommandReceiptChangesOutput {
+  archived: [ID!]
+  changed: [ID!]
+  created: [ID!]
+  hasMoreChanges: Boolean
+  newState: String
+  oldState: String
+}
+
+type CoreCommandReceiptConnection {
+  nodes: [CoreCommandReceipt!]!
+  pageInfo: PageInfo!
+  queryState: String
+  totalCount: SafeInt
+}
+
+input CoreCommandReceiptFilter {
+  acknowledgedAt: InstantFilter
+  action: StringFilter
+  and: [CoreCommandReceiptFilter!]
+  apiVersion: StringFilter
+  archivedAt: InstantFilter
+  clientId: StringFilter
+  clientSeq: SafeIntFilter
+  commandId: StringFilter
+  createdAt: InstantFilter
+  expiresAt: InstantFilter
+  fingerprint: StringFilter
+  id: IdFilter
+  not: CoreCommandReceiptFilter
+  or: [CoreCommandReceiptFilter!]
+  outcome: PresenceFilter
+  principalId: StringFilter
+  principalResolver: StringFilter
+  remoteAddress: StringFilter
+  status: CoreCommandReceiptStatusFilter
+  transport: StringFilter
+  updatedAt: InstantFilter
+  userAgent: StringFilter
+  version: SafeIntFilter
+}
+
+type CoreCommandReceiptGetResult {
+  list: [CoreCommandReceipt!]!
+  notFound: [ID!]!
+  state: String
+}
+
+type CoreCommandReceiptQueryChangesOutput {
+  added: [CoreCommandReceiptQueryChangesOutputAdded!]
+  newQueryState: String
+  oldQueryState: String
+  removed: [ID!]
+}
+
+type CoreCommandReceiptQueryChangesOutputAdded {
+  id: ID
+  index: SafeInt
+}
+
+input CoreCommandReceiptSort {
+  direction: SortDirection
+  field: CoreCommandReceiptSortField!
+}
+
+enum CoreCommandReceiptSortField {
+  COMMAND_ID
+  CREATED_AT
+  ID
+  UPDATED_AT
+}
+
+enum CoreCommandReceiptStatus {
+  ACCEPTED
+  COMPLETED
+  FAILED
+  PENDING
+}
+
+input CoreCommandReceiptStatusFilter {
+  eq: CoreCommandReceiptStatus
+  in: [CoreCommandReceiptStatus!]
+  isNull: Boolean
+  ne: CoreCommandReceiptStatus
+  nin: [CoreCommandReceiptStatus!]
+}
+
+union CoreCommandReceiptWatchEvent = CoreCommandReceiptWatchItem | StreamGap | StreamHead | StreamReset
+
+enum CoreCommandReceiptWatchFrom {
+  BEGINNING
+  NOW
+}
+
+type CoreCommandReceiptWatchItem {
+  cause: String
+  id: ID
+  reason: CoreCommandReceiptWatchItemReason
+  row: CoreCommandReceiptWatchItemRow
+
+  """The state of the stream after this item."""
+  state: String
+  type: CoreCommandReceiptWatchItemType
+  version: SafeInt
+}
+
+enum CoreCommandReceiptWatchItemReason {
+  ERASED
+  LEFT_VIEW
+  PURGED
+}
+
+type CoreCommandReceiptWatchItemRow {
+  acknowledgedAt: Instant
+  action: String
+  apiVersion: String
+  archivedAt: Instant
+  clientId: String
+  clientSeq: SafeInt
+  commandId: String
+  createdAt: Instant
+  expiresAt: Instant
+  fingerprint: String
+  id: ID
+  outcome: JSON
+  principalId: String
+  principalResolver: String
+  remoteAddress: String
+  status: CoreCommandReceiptWatchItemRowStatus
+  transport: String
+  updatedAt: Instant
+  userAgent: String
+  version: SafeInt
+}
+
+enum CoreCommandReceiptWatchItemRowStatus {
+  ACCEPTED
+  COMPLETED
+  FAILED
+  PENDING
+}
+
+enum CoreCommandReceiptWatchItemType {
+  ARCHIVED
+  CHANGED
+  CREATED
+  REMOVED
+  RESTORED
+}
+
+type CoreDomain implements Node {
+  """The fields a rule hides from the caller on this row."""
+  _masked: [String!]!
+  archivedAt: Instant
+  backend: CoreBackend
+  backendId: ID
+  createdAt: Instant
+  hostname: String
+  id: ID!
+  updatedAt: Instant
+  version: SafeInt!
+}
+
+type CoreDomainChangesOutput {
+  archived: [ID!]
+  changed: [ID!]
+  created: [ID!]
+  hasMoreChanges: Boolean
+  newState: String
+  oldState: String
+}
+
+type CoreDomainConnection {
+  nodes: [CoreDomain!]!
+  pageInfo: PageInfo!
+  queryState: String
+  totalCount: SafeInt
+}
+
+input CoreDomainFilter {
+  and: [CoreDomainFilter!]
+  archivedAt: InstantFilter
+  backendId: IdFilter
+  createdAt: InstantFilter
+  hostname: StringFilter
+  id: IdFilter
+  not: CoreDomainFilter
+  or: [CoreDomainFilter!]
+  updatedAt: InstantFilter
+  version: SafeIntFilter
+}
+
+type CoreDomainGetResult {
+  list: [CoreDomain!]!
+  notFound: [ID!]!
+  state: String
+}
+
+type CoreDomainQueryChangesOutput {
+  added: [CoreDomainQueryChangesOutputAdded!]
+  newQueryState: String
+  oldQueryState: String
+  removed: [ID!]
+}
+
+type CoreDomainQueryChangesOutputAdded {
+  id: ID
+  index: SafeInt
+}
+
+input CoreDomainSort {
+  direction: SortDirection
+  field: CoreDomainSortField!
+}
+
+enum CoreDomainSortField {
+  CREATED_AT
+  HOSTNAME
+  ID
+  UPDATED_AT
+}
+
+union CoreDomainWatchEvent = CoreDomainWatchItem | StreamGap | StreamHead | StreamReset
+
+enum CoreDomainWatchFrom {
+  BEGINNING
+  NOW
+}
+
+type CoreDomainWatchItem {
+  cause: String
+  id: ID
+  reason: CoreDomainWatchItemReason
+  row: CoreDomainWatchItemRow
+
+  """The state of the stream after this item."""
+  state: String
+  type: CoreDomainWatchItemType
+  version: SafeInt
+}
+
+enum CoreDomainWatchItemReason {
+  ERASED
+  LEFT_VIEW
+  PURGED
+}
+
+type CoreDomainWatchItemRow {
+  archivedAt: Instant
+  backendId: ID
+  createdAt: Instant
+  hostname: String
+  id: ID
+  updatedAt: Instant
+  version: SafeInt
+}
+
+enum CoreDomainWatchItemType {
+  ARCHIVED
+  CHANGED
+  CREATED
+  REMOVED
+  RESTORED
+}
+
+type CoreEffect implements Node {
+  """The fields a rule hides from the caller on this row."""
+  _masked: [String!]!
+  archivedAt: Instant
+  attempts: SafeInt
+  commandId: String
+  continuation: String
+  continuationWith: JSON
+  createdAt: Instant
+  deadline: Instant
+  error: JSON
+  eventIds: [String!]
+  id: ID!
+  input: JSON
+  key: String
+  output: JSON
+  outputDigest: String
+  performer: CoreEffectPerformer
+  runAt: Instant
+  settledAt: Instant
+  status: CoreEffectStatus
+  type: String
+  updatedAt: Instant
+  version: SafeInt!
+}
+
+type CoreEffectChangesOutput {
+  archived: [ID!]
+  changed: [ID!]
+  created: [ID!]
+  hasMoreChanges: Boolean
+  newState: String
+  oldState: String
+}
+
+type CoreEffectConnection {
+  nodes: [CoreEffect!]!
+  pageInfo: PageInfo!
+  queryState: String
+  totalCount: SafeInt
+}
+
+input CoreEffectFilter {
+  and: [CoreEffectFilter!]
+  archivedAt: InstantFilter
+  attempts: SafeIntFilter
+  commandId: StringFilter
+  continuation: StringFilter
+  continuationWith: PresenceFilter
+  createdAt: InstantFilter
+  deadline: InstantFilter
+  error: PresenceFilter
+  eventIds: StringListFilter
+  id: IdFilter
+  input: PresenceFilter
+  key: StringFilter
+  not: CoreEffectFilter
+  or: [CoreEffectFilter!]
+  output: PresenceFilter
+  outputDigest: StringFilter
+  performer: CoreEffectPerformerFilter
+  runAt: InstantFilter
+  settledAt: InstantFilter
+  status: CoreEffectStatusFilter
+  type: StringFilter
+  updatedAt: InstantFilter
+  version: SafeIntFilter
+}
+
+type CoreEffectGetResult {
+  list: [CoreEffect!]!
+  notFound: [ID!]!
+  state: String
+}
+
+enum CoreEffectPerformer {
+  EXECUTOR
+  EXTERNAL
+}
+
+input CoreEffectPerformerFilter {
+  eq: CoreEffectPerformer
+  in: [CoreEffectPerformer!]
+  isNull: Boolean
+  ne: CoreEffectPerformer
+  nin: [CoreEffectPerformer!]
+}
+
+type CoreEffectQueryChangesOutput {
+  added: [CoreEffectQueryChangesOutputAdded!]
+  newQueryState: String
+  oldQueryState: String
+  removed: [ID!]
+}
+
+type CoreEffectQueryChangesOutputAdded {
+  id: ID
+  index: SafeInt
+}
+
+input CoreEffectSort {
+  direction: SortDirection
+  field: CoreEffectSortField!
+}
+
+enum CoreEffectSortField {
+  CREATED_AT
+  ID
+  UPDATED_AT
+}
+
+enum CoreEffectStatus {
+  ABANDONED
+  FAILED
+  REQUESTED
+  SUCCEEDED
+}
+
+input CoreEffectStatusFilter {
+  eq: CoreEffectStatus
+  in: [CoreEffectStatus!]
+  isNull: Boolean
+  ne: CoreEffectStatus
+  nin: [CoreEffectStatus!]
+}
+
+union CoreEffectWatchEvent = CoreEffectWatchItem | StreamGap | StreamHead | StreamReset
+
+enum CoreEffectWatchFrom {
+  BEGINNING
+  NOW
+}
+
+type CoreEffectWatchItem {
+  cause: String
+  id: ID
+  reason: CoreEffectWatchItemReason
+  row: CoreEffectWatchItemRow
+
+  """The state of the stream after this item."""
+  state: String
+  type: CoreEffectWatchItemType
+  version: SafeInt
+}
+
+enum CoreEffectWatchItemReason {
+  ERASED
+  LEFT_VIEW
+  PURGED
+}
+
+type CoreEffectWatchItemRow {
+  archivedAt: Instant
+  attempts: SafeInt
+  commandId: String
+  continuation: String
+  continuationWith: JSON
+  createdAt: Instant
+  deadline: Instant
+  error: JSON
+  eventIds: [String!]
+  id: ID
+  input: JSON
+  key: String
+  output: JSON
+  outputDigest: String
+  performer: CoreEffectWatchItemRowPerformer
+  runAt: Instant
+  settledAt: Instant
+  status: CoreEffectWatchItemRowStatus
+  type: String
+  updatedAt: Instant
+  version: SafeInt
+}
+
+enum CoreEffectWatchItemRowPerformer {
+  EXECUTOR
+  EXTERNAL
+}
+
+enum CoreEffectWatchItemRowStatus {
+  ABANDONED
+  FAILED
+  REQUESTED
+  SUCCEEDED
+}
+
+enum CoreEffectWatchItemType {
+  ARCHIVED
+  CHANGED
+  CREATED
+  REMOVED
+  RESTORED
+}
+
+type CoreFlag implements Node {
+  """The fields a rule hides from the caller on this row."""
+  _masked: [String!]!
+  archivedAt: Instant
+  backend: CoreBackend
+  backendId: ID
+  createdAt: Instant
+  id: ID!
+  key: String
+  previous: JSON
+  reason: String
+  slot: String
+  targeting: JSON
+  updatedAt: Instant
+  version: SafeInt!
+}
+
+type CoreFlagChangesOutput {
+  archived: [ID!]
+  changed: [ID!]
+  created: [ID!]
+  hasMoreChanges: Boolean
+  newState: String
+  oldState: String
+}
+
+type CoreFlagConnection {
+  nodes: [CoreFlag!]!
+  pageInfo: PageInfo!
+  queryState: String
+  totalCount: SafeInt
+}
+
+input CoreFlagFilter {
+  and: [CoreFlagFilter!]
+  archivedAt: InstantFilter
+  backendId: IdFilter
+  createdAt: InstantFilter
+  id: IdFilter
+  key: StringFilter
+  not: CoreFlagFilter
+  or: [CoreFlagFilter!]
+  previous: PresenceFilter
+  reason: StringFilter
+  slot: StringFilter
+  targeting: PresenceFilter
+  updatedAt: InstantFilter
+  version: SafeIntFilter
+}
+
+type CoreFlagGetResult {
+  list: [CoreFlag!]!
+  notFound: [ID!]!
+  state: String
+}
+
+type CoreFlagHistoryOutput {
+  entries: [CoreFlagHistoryOutputEntries!]
+}
+
+type CoreFlagHistoryOutputEntries {
+  actor: JSON
+  at: Instant
+  changes: JSON
+  event: String
+  version: SafeInt
+}
+
+type CoreFlagQueryChangesOutput {
+  added: [CoreFlagQueryChangesOutputAdded!]
+  newQueryState: String
+  oldQueryState: String
+  removed: [ID!]
+}
+
+type CoreFlagQueryChangesOutputAdded {
+  id: ID
+  index: SafeInt
+}
+
+input CoreFlagRestoreRulesInput {
+  """The idempotency key of the command."""
+  commandId: String
+  id: ID!
+  ifVersion: SafeInt!
+  reason: String!
+}
+
+type CoreFlagRestoreRulesOutput {
+  archivedAt: Instant
+  backendId: ID
+  createdAt: Instant
+  id: ID
+  key: String
+  previous: JSON
+  reason: String
+  slot: String
+  targeting: JSON
+  updatedAt: Instant
+  version: SafeInt
+}
+
+union CoreFlagRestoreRulesResult = CoreFlagRestoreRulesSuccess
+
+type CoreFlagRestoreRulesSuccess {
+  commandId: String!
+  result: CoreFlagRestoreRulesOutput
+}
+
+input CoreFlagSetInput {
+  backendId: ID
+
+  """The idempotency key of the command."""
+  commandId: String
+  key: String!
+  reason: String!
+  targeting: JSON!
+}
+
+type CoreFlagSetOutput {
+  id: ID
+  ruleVersion: SafeInt
+}
+
+union CoreFlagSetResult = CoreFlagSetSuccess
+
+type CoreFlagSetSuccess {
+  commandId: String!
+  result: CoreFlagSetOutput
+}
+
+input CoreFlagSort {
+  direction: SortDirection
+  field: CoreFlagSortField!
+}
+
+enum CoreFlagSortField {
+  CREATED_AT
+  ID
+  SLOT
+  UPDATED_AT
+}
+
+union CoreFlagWatchEvent = CoreFlagWatchItem | StreamGap | StreamHead | StreamReset
+
+enum CoreFlagWatchFrom {
+  BEGINNING
+  NOW
+}
+
+type CoreFlagWatchItem {
+  cause: String
+  id: ID
+  reason: CoreFlagWatchItemReason
+  row: CoreFlagWatchItemRow
+
+  """The state of the stream after this item."""
+  state: String
+  type: CoreFlagWatchItemType
+  version: SafeInt
+}
+
+enum CoreFlagWatchItemReason {
+  ERASED
+  LEFT_VIEW
+  PURGED
+}
+
+type CoreFlagWatchItemRow {
+  archivedAt: Instant
+  backendId: ID
+  createdAt: Instant
+  id: ID
+  key: String
+  previous: JSON
+  reason: String
+  slot: String
+  targeting: JSON
+  updatedAt: Instant
+  version: SafeInt
+}
+
+enum CoreFlagWatchItemType {
+  ARCHIVED
+  CHANGED
+  CREATED
+  REMOVED
+  RESTORED
+}
+
+type CoreNamespace implements Node {
+  """The fields a rule hides from the caller on this row."""
+  _masked: [String!]!
+  appId: String
+  archivedAt: Instant
+  createdAt: Instant
+  id: ID!
+  placement: CorePlacement
+  placementId: ID
+  root: String
+  updatedAt: Instant
+  version: SafeInt!
+}
+
+type CoreNamespaceChangesOutput {
+  archived: [ID!]
+  changed: [ID!]
+  created: [ID!]
+  hasMoreChanges: Boolean
+  newState: String
+  oldState: String
+}
+
+type CoreNamespaceConnection {
+  nodes: [CoreNamespace!]!
+  pageInfo: PageInfo!
+  queryState: String
+  totalCount: SafeInt
+}
+
+input CoreNamespaceFilter {
+  and: [CoreNamespaceFilter!]
+  appId: StringFilter
+  archivedAt: InstantFilter
+  createdAt: InstantFilter
+  id: IdFilter
+  not: CoreNamespaceFilter
+  or: [CoreNamespaceFilter!]
+  placementId: IdFilter
+  root: StringFilter
+  updatedAt: InstantFilter
+  version: SafeIntFilter
+}
+
+type CoreNamespaceGetResult {
+  list: [CoreNamespace!]!
+  notFound: [ID!]!
+  state: String
+}
+
+type CoreNamespaceQueryChangesOutput {
+  added: [CoreNamespaceQueryChangesOutputAdded!]
+  newQueryState: String
+  oldQueryState: String
+  removed: [ID!]
+}
+
+type CoreNamespaceQueryChangesOutputAdded {
+  id: ID
+  index: SafeInt
+}
+
+input CoreNamespaceSort {
+  direction: SortDirection
+  field: CoreNamespaceSortField!
+}
+
+enum CoreNamespaceSortField {
+  CREATED_AT
+  ID
+  UPDATED_AT
+}
+
+union CoreNamespaceWatchEvent = CoreNamespaceWatchItem | StreamGap | StreamHead | StreamReset
+
+enum CoreNamespaceWatchFrom {
+  BEGINNING
+  NOW
+}
+
+type CoreNamespaceWatchItem {
+  cause: String
+  id: ID
+  reason: CoreNamespaceWatchItemReason
+  row: CoreNamespaceWatchItemRow
+
+  """The state of the stream after this item."""
+  state: String
+  type: CoreNamespaceWatchItemType
+  version: SafeInt
+}
+
+enum CoreNamespaceWatchItemReason {
+  ERASED
+  LEFT_VIEW
+  PURGED
+}
+
+type CoreNamespaceWatchItemRow {
+  appId: String
+  archivedAt: Instant
+  createdAt: Instant
+  id: ID
+  placementId: ID
+  root: String
+  updatedAt: Instant
+  version: SafeInt
+}
+
+enum CoreNamespaceWatchItemType {
+  ARCHIVED
+  CHANGED
+  CREATED
+  REMOVED
+  RESTORED
+}
+
+type CoreOperatorToken implements Node {
+  """The fields a rule hides from the caller on this row."""
+  _masked: [String!]!
+  archivedAt: Instant
+  createdAt: Instant
+  expiresAt: Instant
+  id: ID!
+  label: String
+  publicId: String
+  revokedAt: Instant
+  updatedAt: Instant
+  version: SafeInt!
+}
+
+type CoreOperatorTokenChangesOutput {
+  archived: [ID!]
+  changed: [ID!]
+  created: [ID!]
+  hasMoreChanges: Boolean
+  newState: String
+  oldState: String
+}
+
+type CoreOperatorTokenConnection {
+  nodes: [CoreOperatorToken!]!
+  pageInfo: PageInfo!
+  queryState: String
+  totalCount: SafeInt
+}
+
+input CoreOperatorTokenFilter {
+  and: [CoreOperatorTokenFilter!]
+  archivedAt: InstantFilter
+  createdAt: InstantFilter
+  expiresAt: InstantFilter
+  id: IdFilter
+  label: StringFilter
+  not: CoreOperatorTokenFilter
+  or: [CoreOperatorTokenFilter!]
+  publicId: StringFilter
+  revokedAt: InstantFilter
+  updatedAt: InstantFilter
+  version: SafeIntFilter
+}
+
+type CoreOperatorTokenGetResult {
+  list: [CoreOperatorToken!]!
+  notFound: [ID!]!
+  state: String
+}
+
+input CoreOperatorTokenIssueInput {
+  """The idempotency key of the command."""
+  commandId: String
+  label: String!
+  ttl: String
+}
+
+type CoreOperatorTokenIssueOutput {
+  expiresAt: Instant
+  id: ID
+  token: String
+}
+
+union CoreOperatorTokenIssueResult = CoreOperatorTokenIssueSuccess
+
+type CoreOperatorTokenIssueSuccess {
+  commandId: String!
+  result: CoreOperatorTokenIssueOutput
+}
+
+type CoreOperatorTokenQueryChangesOutput {
+  added: [CoreOperatorTokenQueryChangesOutputAdded!]
+  newQueryState: String
+  oldQueryState: String
+  removed: [ID!]
+}
+
+type CoreOperatorTokenQueryChangesOutputAdded {
+  id: ID
+  index: SafeInt
+}
+
+input CoreOperatorTokenRevokeInput {
+  """The idempotency key of the command."""
+  commandId: String
+  id: ID!
+  ifVersion: SafeInt
+}
+
+type CoreOperatorTokenRevokeOutput {
+  archivedAt: Instant
+  createdAt: Instant
+  expiresAt: Instant
+  id: ID
+  label: String
+  publicId: String
+  revokedAt: Instant
+  updatedAt: Instant
+  version: SafeInt
+}
+
+union CoreOperatorTokenRevokeResult = CoreOperatorTokenRevokeSuccess
+
+type CoreOperatorTokenRevokeSuccess {
+  commandId: String!
+  result: CoreOperatorTokenRevokeOutput
+}
+
+input CoreOperatorTokenSort {
+  direction: SortDirection
+  field: CoreOperatorTokenSortField!
+}
+
+enum CoreOperatorTokenSortField {
+  CREATED_AT
+  ID
+  PUBLIC_ID
+  UPDATED_AT
+}
+
+union CoreOperatorTokenWatchEvent = CoreOperatorTokenWatchItem | StreamGap | StreamHead | StreamReset
+
+enum CoreOperatorTokenWatchFrom {
+  BEGINNING
+  NOW
+}
+
+type CoreOperatorTokenWatchItem {
+  cause: String
+  id: ID
+  reason: CoreOperatorTokenWatchItemReason
+  row: CoreOperatorTokenWatchItemRow
+
+  """The state of the stream after this item."""
+  state: String
+  type: CoreOperatorTokenWatchItemType
+  version: SafeInt
+}
+
+enum CoreOperatorTokenWatchItemReason {
+  ERASED
+  LEFT_VIEW
+  PURGED
+}
+
+type CoreOperatorTokenWatchItemRow {
+  archivedAt: Instant
+  createdAt: Instant
+  expiresAt: Instant
+  id: ID
+  label: String
+  publicId: String
+  revokedAt: Instant
+  updatedAt: Instant
+  version: SafeInt
+}
+
+enum CoreOperatorTokenWatchItemType {
+  ARCHIVED
+  CHANGED
+  CREATED
+  REMOVED
+  RESTORED
+}
+
+type CorePlacement implements Node {
+  """The fields a rule hides from the caller on this row."""
+  _masked: [String!]!
+  adapter: String
+  archivedAt: Instant
+  createdAt: Instant
+  id: ID!
+  name: String
+  strategy: CorePlacementStrategy
+  updatedAt: Instant
+  version: SafeInt!
+}
+
+type CorePlacementChangesOutput {
+  archived: [ID!]
+  changed: [ID!]
+  created: [ID!]
+  hasMoreChanges: Boolean
+  newState: String
+  oldState: String
+}
+
+type CorePlacementConnection {
+  nodes: [CorePlacement!]!
+  pageInfo: PageInfo!
+  queryState: String
+  totalCount: SafeInt
+}
+
+input CorePlacementFilter {
+  adapter: StringFilter
+  and: [CorePlacementFilter!]
+  archivedAt: InstantFilter
+  createdAt: InstantFilter
+  id: IdFilter
+  name: StringFilter
+  not: CorePlacementFilter
+  or: [CorePlacementFilter!]
+  strategy: CorePlacementStrategyFilter
+  updatedAt: InstantFilter
+  version: SafeIntFilter
+}
+
+type CorePlacementGetResult {
+  list: [CorePlacement!]!
+  notFound: [ID!]!
+  state: String
+}
+
+type CorePlacementQueryChangesOutput {
+  added: [CorePlacementQueryChangesOutputAdded!]
+  newQueryState: String
+  oldQueryState: String
+  removed: [ID!]
+}
+
+type CorePlacementQueryChangesOutputAdded {
+  id: ID
+  index: SafeInt
+}
+
+input CorePlacementSort {
+  direction: SortDirection
+  field: CorePlacementSortField!
+}
+
+enum CorePlacementSortField {
+  CREATED_AT
+  ID
+  NAME
+  UPDATED_AT
+}
+
+enum CorePlacementStrategy {
+  DATABASE_PER_TENANT
+  SCHEMA_PER_TENANT
+  SHARED_TABLES
+}
+
+input CorePlacementStrategyFilter {
+  eq: CorePlacementStrategy
+  in: [CorePlacementStrategy!]
+  isNull: Boolean
+  ne: CorePlacementStrategy
+  nin: [CorePlacementStrategy!]
+}
+
+union CorePlacementWatchEvent = CorePlacementWatchItem | StreamGap | StreamHead | StreamReset
+
+enum CorePlacementWatchFrom {
+  BEGINNING
+  NOW
+}
+
+type CorePlacementWatchItem {
+  cause: String
+  id: ID
+  reason: CorePlacementWatchItemReason
+  row: CorePlacementWatchItemRow
+
+  """The state of the stream after this item."""
+  state: String
+  type: CorePlacementWatchItemType
+  version: SafeInt
+}
+
+enum CorePlacementWatchItemReason {
+  ERASED
+  LEFT_VIEW
+  PURGED
+}
+
+type CorePlacementWatchItemRow {
+  adapter: String
+  archivedAt: Instant
+  createdAt: Instant
+  id: ID
+  name: String
+  strategy: CorePlacementWatchItemRowStrategy
+  updatedAt: Instant
+  version: SafeInt
+}
+
+enum CorePlacementWatchItemRowStrategy {
+  DATABASE_PER_TENANT
+  SCHEMA_PER_TENANT
+  SHARED_TABLES
+}
+
+enum CorePlacementWatchItemType {
+  ARCHIVED
+  CHANGED
+  CREATED
+  REMOVED
+  RESTORED
+}
+
+type CoreProcess implements Node {
+  """The fields a rule hides from the caller on this row."""
+  _masked: [String!]!
+  archivedAt: Instant
+  buildId: String
+  createdAt: Instant
+  heartbeatAt: Instant
+  id: ID!
+  name: String
+  node: String
+  revision: SafeInt
+  roles: [CoreProcessRoles!]
+  state: CoreProcessState
+  updatedAt: Instant
+  version: SafeInt!
+}
+
+type CoreProcessChangesOutput {
+  archived: [ID!]
+  changed: [ID!]
+  created: [ID!]
+  hasMoreChanges: Boolean
+  newState: String
+  oldState: String
+}
+
+type CoreProcessConnection {
+  nodes: [CoreProcess!]!
+  pageInfo: PageInfo!
+  queryState: String
+  totalCount: SafeInt
+}
+
+input CoreProcessFilter {
+  and: [CoreProcessFilter!]
+  archivedAt: InstantFilter
+  buildId: StringFilter
+  createdAt: InstantFilter
+  heartbeatAt: InstantFilter
+  id: IdFilter
+  name: StringFilter
+  node: StringFilter
+  not: CoreProcessFilter
+  or: [CoreProcessFilter!]
+  revision: SafeIntFilter
+  roles: CoreProcessRolesListFilter
+  state: CoreProcessStateFilter
+  updatedAt: InstantFilter
+  version: SafeIntFilter
+}
+
+type CoreProcessGetResult {
+  list: [CoreProcess!]!
+  notFound: [ID!]!
+  state: String
+}
+
+type CoreProcessQueryChangesOutput {
+  added: [CoreProcessQueryChangesOutputAdded!]
+  newQueryState: String
+  oldQueryState: String
+  removed: [ID!]
+}
+
+type CoreProcessQueryChangesOutputAdded {
+  id: ID
+  index: SafeInt
+}
+
+enum CoreProcessRoles {
+  SERVE
+  WORK
+}
+
+input CoreProcessRolesListFilter {
+  contains: CoreProcessRoles
+  isNull: Boolean
+}
+
+input CoreProcessSort {
+  direction: SortDirection
+  field: CoreProcessSortField!
+}
+
+enum CoreProcessSortField {
+  CREATED_AT
+  ID
+  UPDATED_AT
+}
+
+enum CoreProcessState {
+  DRAINING
+  READY
+  STARTING
+  STOPPED
+}
+
+input CoreProcessStateFilter {
+  eq: CoreProcessState
+  in: [CoreProcessState!]
+  isNull: Boolean
+  ne: CoreProcessState
+  nin: [CoreProcessState!]
+}
+
+union CoreProcessWatchEvent = CoreProcessWatchItem | StreamGap | StreamHead | StreamReset
+
+enum CoreProcessWatchFrom {
+  BEGINNING
+  NOW
+}
+
+type CoreProcessWatchItem {
+  cause: String
+  id: ID
+  reason: CoreProcessWatchItemReason
+  row: CoreProcessWatchItemRow
+
+  """The state of the stream after this item."""
+  state: String
+  type: CoreProcessWatchItemType
+  version: SafeInt
+}
+
+enum CoreProcessWatchItemReason {
+  ERASED
+  LEFT_VIEW
+  PURGED
+}
+
+type CoreProcessWatchItemRow {
+  archivedAt: Instant
+  buildId: String
+  createdAt: Instant
+  heartbeatAt: Instant
+  id: ID
+  name: String
+  node: String
+  revision: SafeInt
+  roles: [CoreProcessWatchItemRowRoles!]
+  state: CoreProcessWatchItemRowState
+  updatedAt: Instant
+  version: SafeInt
+}
+
+enum CoreProcessWatchItemRowRoles {
+  SERVE
+  WORK
+}
+
+enum CoreProcessWatchItemRowState {
+  DRAINING
+  READY
+  STARTING
+  STOPPED
+}
+
+enum CoreProcessWatchItemType {
+  ARCHIVED
+  CHANGED
+  CREATED
+  REMOVED
+  RESTORED
+}
+
+input CoreRetireApiVersionInput {
+  app: String!
+
+  """The idempotency key of the command."""
+  commandId: String
+  version: String!
+}
+
+union CoreRetireApiVersionResult = CoreRetireApiVersionSuccess
+
+type CoreRetireApiVersionSuccess {
+  commandId: String!
+  result: JSON
+}
+
+type CoreTenant implements Node {
+  """The fields a rule hides from the caller on this row."""
+  _masked: [String!]!
+  apiVersion: String
+  archivedAt: Instant
+  backend: CoreBackend
+  backendId: ID
+  createdAt: Instant
+  domains: [String!]
+  id: ID!
+  name: String
+  placement: String
+  status: CoreTenantStatus
+  updatedAt: Instant
+  version: SafeInt!
+}
+
+input CoreTenantArchiveInput {
+  """The idempotency key of the command."""
+  commandId: String
+  id: ID!
+  ifVersion: SafeInt
+}
+
+union CoreTenantArchiveResult = CoreTenantArchiveSuccess
+
+type CoreTenantArchiveSuccess {
+  commandId: String!
+  result: CoreTenant
+}
+
+type CoreTenantChangesOutput {
+  archived: [ID!]
+  changed: [ID!]
+  created: [ID!]
+  hasMoreChanges: Boolean
+  newState: String
+  oldState: String
+}
+
+type CoreTenantConnection {
+  nodes: [CoreTenant!]!
+  pageInfo: PageInfo!
+  queryState: String
+  totalCount: SafeInt
+}
+
+input CoreTenantCreateInput {
+  apiVersion: String
+  backendId: ID!
+
+  """The idempotency key of the command."""
+  commandId: String
+  domains: [String!]
+  name: String!
+  placement: String
+}
+
+type CoreTenantCreateOutput {
+  id: ID
+}
+
+union CoreTenantCreateResult = CoreTenantCreateSuccess
+
+type CoreTenantCreateSuccess {
+  commandId: String!
+  result: CoreTenantCreateOutput
+}
+
+input CoreTenantEnterInput {
+  """The idempotency key of the command."""
+  commandId: String
+  id: ID!
+  ifVersion: SafeInt
+  reason: String!
+}
+
+type CoreTenantEnterOutput {
+  apiVersion: String
+  archivedAt: Instant
+  backendId: ID
+  createdAt: Instant
+  domains: [String!]
+  id: ID
+  name: String
+  placement: String
+  status: CoreTenantEnterOutputStatus
+  updatedAt: Instant
+  version: SafeInt
+}
+
+enum CoreTenantEnterOutputStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+union CoreTenantEnterResult = CoreTenantEnterSuccess
+
+type CoreTenantEnterSuccess {
+  commandId: String!
+  result: CoreTenantEnterOutput
+}
+
+input CoreTenantFilter {
+  and: [CoreTenantFilter!]
+  apiVersion: StringFilter
+  archivedAt: InstantFilter
+  backendId: IdFilter
+  createdAt: InstantFilter
+  domains: StringListFilter
+  id: IdFilter
+  name: StringFilter
+  not: CoreTenantFilter
+  or: [CoreTenantFilter!]
+  placement: StringFilter
+  status: CoreTenantStatusFilter
+  updatedAt: InstantFilter
+  version: SafeIntFilter
+}
+
+type CoreTenantGetResult {
+  list: [CoreTenant!]!
+  notFound: [ID!]!
+  state: String
+}
+
+type CoreTenantHistoryOutput {
+  entries: [CoreTenantHistoryOutputEntries!]
+}
+
+type CoreTenantHistoryOutputEntries {
+  actor: JSON
+  at: Instant
+  changes: JSON
+  event: String
+  version: SafeInt
+}
+
+input CoreTenantPatch {
+  apiVersion: String
+  backendId: ID
+  domains: [String!]
+  name: String
+  placement: String
+  status: CoreTenantStatus
+}
+
+type CoreTenantQueryChangesOutput {
+  added: [CoreTenantQueryChangesOutputAdded!]
+  newQueryState: String
+  oldQueryState: String
+  removed: [ID!]
+}
+
+type CoreTenantQueryChangesOutputAdded {
+  id: ID
+  index: SafeInt
+}
+
+input CoreTenantRestoreInput {
+  """The idempotency key of the command."""
+  commandId: String
+  id: ID!
+  ifVersion: SafeInt
+}
+
+union CoreTenantRestoreResult = CoreTenantRestoreSuccess
+
+type CoreTenantRestoreSuccess {
+  commandId: String!
+  result: CoreTenant
+}
+
+input CoreTenantSetApiVersionInput {
+  apiVersion: String!
+
+  """The idempotency key of the command."""
+  commandId: String
+  id: ID!
+  ifVersion: SafeInt
+}
+
+type CoreTenantSetApiVersionOutput {
+  apiVersion: String
+  archivedAt: Instant
+  backendId: ID
+  createdAt: Instant
+  domains: [String!]
+  id: ID
+  name: String
+  placement: String
+  status: CoreTenantSetApiVersionOutputStatus
+  updatedAt: Instant
+  version: SafeInt
+}
+
+enum CoreTenantSetApiVersionOutputStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+union CoreTenantSetApiVersionResult = CoreTenantSetApiVersionSuccess
+
+type CoreTenantSetApiVersionSuccess {
+  commandId: String!
+  result: CoreTenantSetApiVersionOutput
+}
+
+input CoreTenantSetArchiveInput {
+  id: ID!
+  ifVersion: SafeInt
+}
+
+input CoreTenantSetCreateInput {
+  apiVersion: String
+  backendId: ID!
+  domains: [String!]!
+  name: String!
+  placement: String
+  status: CoreTenantSetCreateStatus
+}
+
+enum CoreTenantSetCreateStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+input CoreTenantSetInput {
+  archive: [CoreTenantSetArchiveInput!]
+
+  """The idempotency key of the command."""
+  commandId: String
+  create: [CoreTenantSetCreateInput!]
+  ifInState: String
+  restore: [CoreTenantSetRestoreInput!]
+  update: [CoreTenantSetUpdateInput!]
+}
+
+type CoreTenantSetOutput {
+  archived: [ID!]
+  created: [ID!]
+  failed: [CoreTenantSetOutputFailed!]
+  newState: String
+  oldState: String
+  restored: [ID!]
+  updated: [ID!]
+}
+
+type CoreTenantSetOutputFailed {
+  code: String
+  id: String
+  message: String
+  operation: String
+}
+
+input CoreTenantSetRestoreInput {
+  id: ID!
+  ifVersion: SafeInt
+}
+
+union CoreTenantSetResult = CoreTenantSetSuccess
+
+type CoreTenantSetSuccess {
+  commandId: String!
+  result: CoreTenantSetOutput
+}
+
+input CoreTenantSetUpdateInput {
+  id: ID!
+  ifVersion: SafeInt
+  patch: CoreTenantSetUpdatePatchInput!
+}
+
+input CoreTenantSetUpdatePatchInput {
+  apiVersion: String
+  backendId: ID
+  domains: [String!]
+  name: String
+  placement: String
+  status: CoreTenantSetUpdatePatchStatus
+}
+
+enum CoreTenantSetUpdatePatchStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+input CoreTenantSort {
+  direction: SortDirection
+  field: CoreTenantSortField!
+}
+
+enum CoreTenantSortField {
+  CREATED_AT
+  ID
+  UPDATED_AT
+}
+
+enum CoreTenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+input CoreTenantStatusFilter {
+  eq: CoreTenantStatus
+  in: [CoreTenantStatus!]
+  isNull: Boolean
+  ne: CoreTenantStatus
+  nin: [CoreTenantStatus!]
+}
+
+input CoreTenantUpdateInput {
+  """The idempotency key of the command."""
+  commandId: String
+  id: ID!
+  ifVersion: SafeInt
+  patch: CoreTenantPatch!
+}
+
+union CoreTenantUpdateResult = CoreTenantUpdateSuccess
+
+type CoreTenantUpdateSuccess {
+  commandId: String!
+  result: CoreTenant
+}
+
+union CoreTenantWatchEvent = CoreTenantWatchItem | StreamGap | StreamHead | StreamReset
+
+enum CoreTenantWatchFrom {
+  BEGINNING
+  NOW
+}
+
+type CoreTenantWatchItem {
+  cause: String
+  id: ID
+  reason: CoreTenantWatchItemReason
+  row: CoreTenantWatchItemRow
+
+  """The state of the stream after this item."""
+  state: String
+  type: CoreTenantWatchItemType
+  version: SafeInt
+}
+
+enum CoreTenantWatchItemReason {
+  ERASED
+  LEFT_VIEW
+  PURGED
+}
+
+type CoreTenantWatchItemRow {
+  apiVersion: String
+  archivedAt: Instant
+  backendId: ID
+  createdAt: Instant
+  domains: [String!]
+  id: ID
+  name: String
+  placement: String
+  status: CoreTenantWatchItemRowStatus
+  updatedAt: Instant
+  version: SafeInt
+}
+
+enum CoreTenantWatchItemRowStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum CoreTenantWatchItemType {
+  ARCHIVED
+  CHANGED
+  CREATED
+  REMOVED
+  RESTORED
+}
+
+"""An exact decimal number as a string."""
+scalar Decimal
+
+interface Error {
+  code: String!
+  message: String!
+}
+
+enum ExecutionPreference {
+  ASYNC
+  SYNC
+}
+
+input IdFilter {
+  eq: ID
+  in: [ID!]
+  isNull: Boolean
+  ne: ID
+  nin: [ID!]
+}
+
+"""An instant as an RFC 3339 string."""
+scalar Instant @specifiedBy(url: "https://www.rfc-editor.org/rfc/rfc3339")
+
+input InstantFilter {
+  eq: Instant
+  gt: Instant
+  gte: Instant
+  in: [Instant!]
+  isNull: Boolean
+  lt: Instant
+  lte: Instant
+  ne: Instant
+  nin: [Instant!]
+}
+
+"""Any JSON value."""
+scalar JSON @specifiedBy(url: "https://www.rfc-editor.org/rfc/rfc8259")
+
+input LibraryAddBookInput {
+  """The idempotency key of the command."""
+  commandId: String
+  isbn: String!
+  title: String!
+}
+
+type LibraryAddBookOutput {
+  bookId: ID
+}
+
+union LibraryAddBookResult = LibraryAddBookSuccess | LibraryIsbnTakenError
+
+type LibraryAddBookSuccess {
+  commandId: String!
+  result: LibraryAddBookOutput
+}
+
+input LibraryAddFeaturedBookInput {
+  """The idempotency key of the command."""
+  commandId: String
+  isbn: String!
+  title: String!
+}
+
+type LibraryAddFeaturedBookOutput {
+  bookId: ID
+  newFlow: Boolean
+}
+
+union LibraryAddFeaturedBookResult = LibraryAddFeaturedBookSuccess | LibraryIsbnTakenError
+
+type LibraryAddFeaturedBookSuccess {
+  commandId: String!
+  result: LibraryAddFeaturedBookOutput
+}
+
+type LibraryBook implements Node {
+  """The fields a rule hides from the caller on this row."""
+  _masked: [String!]!
+  addedBy: String
+  archivedAt: Instant
+  createdAt: Instant
+  id: ID!
+  isbn: String
+  relatedTo: ID
+
+  """
+  Refused by the repeated-entity rule (section 16.4.12) under the default limits: the entity type would appear twice on the path.
+  """
+  relatedToBook: LibraryBook
+  reservedBy: String
+  title: String
+  updatedAt: Instant
+  version: SafeInt!
+}
+
+input LibraryBookArchiveInput {
+  """The idempotency key of the command."""
+  commandId: String
+  id: ID!
+  ifVersion: SafeInt
+}
+
+union LibraryBookArchiveResult = LibraryBookArchiveSuccess
+
+type LibraryBookArchiveSuccess {
+  commandId: String!
+  result: LibraryBook
+}
+
+type LibraryBookChangesOutput {
+  archived: [ID!]
+  changed: [ID!]
+  created: [ID!]
+  hasMoreChanges: Boolean
+  newState: String
+  oldState: String
+}
+
+type LibraryBookConnection {
+  nodes: [LibraryBook!]!
+  pageInfo: PageInfo!
+  queryState: String
+  totalCount: SafeInt
+}
+
+input LibraryBookCreateInput {
+  addedBy: String!
+
+  """The idempotency key of the command."""
+  commandId: String
+  isbn: String!
+  relatedTo: ID
+  reservedBy: String
+  title: String!
+}
+
+union LibraryBookCreateResult = LibraryBookCreateSuccess
+
+type LibraryBookCreateSuccess {
+  commandId: String!
+  result: LibraryBook
+}
+
+input LibraryBookFilter {
+  addedBy: SubjectFilter
+  and: [LibraryBookFilter!]
+  archivedAt: InstantFilter
+  createdAt: InstantFilter
+  id: IdFilter
+  isbn: StringFilter
+  not: LibraryBookFilter
+  or: [LibraryBookFilter!]
+  relatedTo: IdFilter
+  reservedBy: SubjectFilter
+  title: StringFilter
+  updatedAt: InstantFilter
+  version: SafeIntFilter
+}
+
+type LibraryBookGetResult {
+  list: [LibraryBook!]!
+  notFound: [ID!]!
+  state: String
+}
+
+type LibraryBookHistoryOutput {
+  entries: [LibraryBookHistoryOutputEntries!]
+}
+
+type LibraryBookHistoryOutputEntries {
+  actor: JSON
+  at: Instant
+  changes: JSON
+  event: String
+  version: SafeInt
+}
+
+input LibraryBookPatch {
+  addedBy: String
+  isbn: String
+  relatedTo: ID
+  reservedBy: String
+  title: String
+}
+
+type LibraryBookQueryChangesOutput {
+  added: [LibraryBookQueryChangesOutputAdded!]
+  newQueryState: String
+  oldQueryState: String
+  removed: [ID!]
+}
+
+type LibraryBookQueryChangesOutputAdded {
+  id: ID
+  index: SafeInt
+}
+
+input LibraryBookReserveInput {
+  """The idempotency key of the command."""
+  commandId: String
+  id: ID!
+  ifVersion: SafeInt
+}
+
+type LibraryBookReserveOutput {
+  addedBy: String
+  archivedAt: Instant
+  createdAt: Instant
+  id: ID
+  isbn: String
+  relatedTo: ID
+  reservedBy: String
+  title: String
+  updatedAt: Instant
+  version: SafeInt
+}
+
+union LibraryBookReserveResult = LibraryBookReserveSuccess
+
+type LibraryBookReserveSuccess {
+  commandId: String!
+  result: LibraryBookReserveOutput
+}
+
+input LibraryBookRestoreInput {
+  """The idempotency key of the command."""
+  commandId: String
+  id: ID!
+  ifVersion: SafeInt
+}
+
+union LibraryBookRestoreResult = LibraryBookRestoreSuccess
+
+type LibraryBookRestoreSuccess {
+  commandId: String!
+  result: LibraryBook
+}
+
+input LibraryBookSetArchiveInput {
+  id: ID!
+  ifVersion: SafeInt
+}
+
+input LibraryBookSetCreateInput {
+  addedBy: String!
+  isbn: String!
+  relatedTo: ID
+  reservedBy: String
+  title: String!
+}
+
+input LibraryBookSetInput {
+  archive: [LibraryBookSetArchiveInput!]
+
+  """The idempotency key of the command."""
+  commandId: String
+  create: [LibraryBookSetCreateInput!]
+  ifInState: String
+  restore: [LibraryBookSetRestoreInput!]
+  update: [LibraryBookSetUpdateInput!]
+}
+
+type LibraryBookSetOutput {
+  archived: [ID!]
+  created: [ID!]
+  failed: [LibraryBookSetOutputFailed!]
+  newState: String
+  oldState: String
+  restored: [ID!]
+  updated: [ID!]
+}
+
+type LibraryBookSetOutputFailed {
+  code: String
+  id: String
+  message: String
+  operation: String
+}
+
+input LibraryBookSetRestoreInput {
+  id: ID!
+  ifVersion: SafeInt
+}
+
+union LibraryBookSetResult = LibraryBookSetSuccess
+
+type LibraryBookSetSuccess {
+  commandId: String!
+  result: LibraryBookSetOutput
+}
+
+input LibraryBookSetUpdateInput {
+  id: ID!
+  ifVersion: SafeInt
+  patch: LibraryBookSetUpdatePatchInput!
+}
+
+input LibraryBookSetUpdatePatchInput {
+  addedBy: String
+  isbn: String
+  relatedTo: ID
+  reservedBy: String
+  title: String
+}
+
+input LibraryBookSort {
+  direction: SortDirection
+  field: LibraryBookSortField!
+}
+
+enum LibraryBookSortField {
+  ADDED_BY
+  CREATED_AT
+  ID
+  ISBN
+  UPDATED_AT
+}
+
+input LibraryBookUpdateInput {
+  """The idempotency key of the command."""
+  commandId: String
+  id: ID!
+  ifVersion: SafeInt
+  patch: LibraryBookPatch!
+}
+
+union LibraryBookUpdateResult = LibraryBookUpdateSuccess
+
+type LibraryBookUpdateSuccess {
+  commandId: String!
+  result: LibraryBook
+}
+
+type LibraryFindByIsbnOutput {
+  bookId: ID
+  title: String
+}
+
+type LibraryIsbnTakenError implements Error {
+  code: String!
+  isbn: String
+  message: String!
+}
+
+union LivePokesEvent = LivePokesItem | StreamGap | StreamHead | StreamReset
+
+type LivePokesItem {
+  changed: JSON
+  partition: String
+
+  """The state of the stream after this item."""
+  state: String
+  upto: String
+}
+
+type LiveStreamTicket implements Node {
+  """The fields a rule hides from the caller on this row."""
+  _masked: [String!]!
+  action: String
+  archivedAt: Instant
+  createdAt: Instant
+  endpoint: LiveStreamTicketEndpoint
+  expiresAt: Instant
+  id: ID!
+  principalId: String
+  principalResolver: String
+  publicId: String
+  updatedAt: Instant
+  usedAt: Instant
+  version: SafeInt!
+}
+
+enum LiveStreamTicketEndpoint {
+  SUBSCRIBE
+}
+
+input LiveTicketInput {
+  action: String
+
+  """The idempotency key of the command."""
+  commandId: String
+}
+
+type LiveTicketOutput {
+  expiresAt: Instant
+  ticket: String
+}
+
+union LiveTicketResult = LiveTicketSuccess
+
+type LiveTicketSuccess {
+  commandId: String!
+  result: LiveTicketOutput
+}
+
+type LoansAboutOutput {
+  module: String
+}
+
+type LoansAlreadyLentError implements Error {
+  bookTitle: String
+  code: String!
+  message: String!
+}
+
+input LoansCloseAllInput {
+  borrower: String!
+
+  """The idempotency key of the command."""
+  commandId: String
+}
+
+type LoansCloseAllOutput {
+  closed: SafeInt
+}
+
+union LoansCloseAllResult = CommandAccepted | LoansCloseAllSuccess
+
+type LoansCloseAllSuccess {
+  commandId: String!
+  result: LoansCloseAllOutput
+}
+
+input LoansLendInput {
+  bookTitle: String!
+
+  """The idempotency key of the command."""
+  commandId: String
+  dueAt: Instant!
+  note: String
+  prefer: ExecutionPreference
+}
+
+type LoansLendOutput {
+  loanId: ID
+}
+
+union LoansLendResult = CommandAccepted | LoansAlreadyLentError | LoansLendSuccess
+
+type LoansLendSuccess {
+  commandId: String!
+  result: LoansLendOutput
+}
+
+type LoansLoan implements Node {
+  """The fields a rule hides from the caller on this row."""
+  _masked: [String!]!
+  archivedAt: Instant
+  book: LibraryBook
+  bookId: ID
+  bookTitle: String
+  borrower: String
+  createdAt: Instant
+  dueAt: Instant
+  id: ID!
+  note: String
+  state: LoansLoanState
+  updatedAt: Instant
+  version: SafeInt!
+}
+
+type LoansLoanChangesOutput {
+  archived: [ID!]
+  changed: [ID!]
+  created: [ID!]
+  hasMoreChanges: Boolean
+  newState: String
+  oldState: String
+}
+
+type LoansLoanConnection {
+  nodes: [LoansLoan!]!
+  pageInfo: PageInfo!
+  queryState: String
+  totalCount: SafeInt
+}
+
+union LoansLoanEventsEvent = LoansLoanEventsItem | StreamGap | StreamHead | StreamReset
+
+type LoansLoanEventsItem {
+  kind: LoansLoanEventsItemKind
+  loanId: ID
+
+  """The state of the stream after this item."""
+  state: String
+}
+
+enum LoansLoanEventsItemKind {
+  CLOSED
+  CREATED
+}
+
+input LoansLoanFilter {
+  and: [LoansLoanFilter!]
+  archivedAt: InstantFilter
+  bookId: IdFilter
+  bookTitle: StringFilter
+  borrower: SubjectFilter
+  createdAt: InstantFilter
+  dueAt: InstantFilter
+  id: IdFilter
+  not: LoansLoanFilter
+  note: StringFilter
+  or: [LoansLoanFilter!]
+  state: LoansLoanStateFilter
+  updatedAt: InstantFilter
+  version: SafeIntFilter
+}
+
+type LoansLoanGetResult {
+  list: [LoansLoan!]!
+  notFound: [ID!]!
+  state: String
+}
+
+type LoansLoanQueryChangesOutput {
+  added: [LoansLoanQueryChangesOutputAdded!]
+  newQueryState: String
+  oldQueryState: String
+  removed: [ID!]
+}
+
+type LoansLoanQueryChangesOutputAdded {
+  id: ID
+  index: SafeInt
+}
+
+input LoansLoanSort {
+  direction: SortDirection
+  field: LoansLoanSortField!
+}
+
+enum LoansLoanSortField {
+  BORROWER
+  CREATED_AT
+  ID
+  UPDATED_AT
+}
+
+enum LoansLoanState {
+  CLOSED
+  OPEN
+}
+
+input LoansLoanStateFilter {
+  eq: LoansLoanState
+  in: [LoansLoanState!]
+  isNull: Boolean
+  ne: LoansLoanState
+  nin: [LoansLoanState!]
+}
+
+union LoansLoanTickerEvent = LoansLoanTickerItem | StreamGap | StreamHead | StreamReset
+
+type LoansLoanTickerItem {
+  id: String
+
+  """The state of the stream after this item."""
+  state: String
+}
+
+union LoansLoanWatchEvent = LoansLoanWatchItem | StreamGap | StreamHead | StreamReset
+
+enum LoansLoanWatchFrom {
+  BEGINNING
+  NOW
+}
+
+type LoansLoanWatchItem {
+  cause: String
+  id: ID
+  reason: LoansLoanWatchItemReason
+  row: LoansLoanWatchItemRow
+
+  """The state of the stream after this item."""
+  state: String
+  type: LoansLoanWatchItemType
+  version: SafeInt
+}
+
+enum LoansLoanWatchItemReason {
+  ERASED
+  LEFT_VIEW
+  PURGED
+}
+
+type LoansLoanWatchItemRow {
+  archivedAt: Instant
+  bookId: ID
+  bookTitle: String
+  borrower: String
+  createdAt: Instant
+  dueAt: Instant
+  id: ID
+  note: String
+  state: LoansLoanWatchItemRowState
+  updatedAt: Instant
+  version: SafeInt
+}
+
+enum LoansLoanWatchItemRowState {
+  CLOSED
+  OPEN
+}
+
+enum LoansLoanWatchItemType {
+  ARCHIVED
+  CHANGED
+  CREATED
+  REMOVED
+  RESTORED
+}
+
+input LoansOpenDeskInput {
+  """The idempotency key of the command."""
+  commandId: String
+  desk: String!
+}
+
+type LoansOpenDeskOutput {
+  desk: String
+  ticket: String
+}
+
+union LoansOpenDeskResult = LoansOpenDeskSuccess
+
+type LoansOpenDeskSuccess {
+  commandId: String!
+  result: LoansOpenDeskOutput
+}
+
+"""A calendar date as an RFC 3339 full-date string."""
+scalar LocalDate
+
+type Mutation {
+  coreBackendArchive(input: CoreBackendArchiveInput!): CoreBackendArchiveResult
+  coreBackendCreate(input: CoreBackendCreateInput!): CoreBackendCreateResult
+  coreBackendRestore(input: CoreBackendRestoreInput!): CoreBackendRestoreResult
+  coreBackendSet(input: CoreBackendSetInput): CoreBackendSetResult
+  coreBackendUpdate(input: CoreBackendUpdateInput!): CoreBackendUpdateResult
+  coreFlagRestoreRules(input: CoreFlagRestoreRulesInput!): CoreFlagRestoreRulesResult
+  coreFlagSet(input: CoreFlagSetInput!): CoreFlagSetResult
+  coreOperatorTokenIssue(input: CoreOperatorTokenIssueInput!): CoreOperatorTokenIssueResult
+  coreOperatorTokenRevoke(input: CoreOperatorTokenRevokeInput!): CoreOperatorTokenRevokeResult
+  coreRetireApiVersion(input: CoreRetireApiVersionInput!): CoreRetireApiVersionResult
+  coreTenantArchive(input: CoreTenantArchiveInput!): CoreTenantArchiveResult
+  coreTenantCreate(input: CoreTenantCreateInput!): CoreTenantCreateResult
+  coreTenantEnter(input: CoreTenantEnterInput!): CoreTenantEnterResult
+  coreTenantRestore(input: CoreTenantRestoreInput!): CoreTenantRestoreResult
+  coreTenantSet(input: CoreTenantSetInput): CoreTenantSetResult
+  coreTenantSetApiVersion(input: CoreTenantSetApiVersionInput!): CoreTenantSetApiVersionResult
+  coreTenantUpdate(input: CoreTenantUpdateInput!): CoreTenantUpdateResult
+  libraryAddBook(input: LibraryAddBookInput!): LibraryAddBookResult
+  libraryAddFeaturedBook(input: LibraryAddFeaturedBookInput!): LibraryAddFeaturedBookResult
+  libraryBookArchive(input: LibraryBookArchiveInput!): LibraryBookArchiveResult
+  libraryBookCreate(input: LibraryBookCreateInput!): LibraryBookCreateResult
+  libraryBookReserve(input: LibraryBookReserveInput!): LibraryBookReserveResult
+  libraryBookRestore(input: LibraryBookRestoreInput!): LibraryBookRestoreResult
+  libraryBookSet(input: LibraryBookSetInput): LibraryBookSetResult
+  libraryBookUpdate(input: LibraryBookUpdateInput!): LibraryBookUpdateResult
+  liveTicket(input: LiveTicketInput): LiveTicketResult
+  loansCloseAll(input: LoansCloseAllInput!): LoansCloseAllResult
+  loansLend(input: LoansLendInput!): LoansLendResult
+  loansOpenDesk(input: LoansOpenDeskInput!): LoansOpenDeskResult
+}
+
+interface Node {
+  id: ID!
+}
+
+type PageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+}
+
+input PresenceFilter {
+  isNull: Boolean
+}
+
+type Query {
+  coreApiUsage(apiVersion: String, backendId: String, item: String, since: String, until: String): JSON
+  coreBackend(id: ID!): CoreBackend
+  coreBackendChanges(max: SafeInt, partition: String, since: String!): CoreBackendChangesOutput
+  coreBackendGet(asOf: Instant, ids: [ID!]!, includeArchived: Boolean): CoreBackendGetResult!
+  coreBackendQueryChanges(filter: CoreBackendFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [CoreBackendSort!]): CoreBackendQueryChangesOutput
+  coreBackends(after: String, before: String, filter: CoreBackendFilter, first: Int, includeArchived: Boolean, last: Int, sort: [CoreBackendSort!]): CoreBackendConnection!
+  coreCapabilities: JSON
+  coreCommandReceipt(id: ID!): CoreCommandReceipt
+  coreCommandReceiptChanges(max: SafeInt, partition: String, since: String!): CoreCommandReceiptChangesOutput
+  coreCommandReceiptGet(ids: [ID!]!, includeArchived: Boolean): CoreCommandReceiptGetResult!
+  coreCommandReceiptQueryChanges(filter: CoreCommandReceiptFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [CoreCommandReceiptSort!]): CoreCommandReceiptQueryChangesOutput
+  coreCommandReceipts(after: String, before: String, filter: CoreCommandReceiptFilter, first: Int, includeArchived: Boolean, last: Int, sort: [CoreCommandReceiptSort!]): CoreCommandReceiptConnection!
+  coreComposition: JSON
+  coreDomain(id: ID!): CoreDomain
+  coreDomainChanges(max: SafeInt, partition: String, since: String!): CoreDomainChangesOutput
+  coreDomainGet(asOf: Instant, ids: [ID!]!, includeArchived: Boolean): CoreDomainGetResult!
+  coreDomainQueryChanges(filter: CoreDomainFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [CoreDomainSort!]): CoreDomainQueryChangesOutput
+  coreDomains(after: String, before: String, filter: CoreDomainFilter, first: Int, includeArchived: Boolean, last: Int, sort: [CoreDomainSort!]): CoreDomainConnection!
+  coreEffect(id: ID!): CoreEffect
+  coreEffectChanges(max: SafeInt, partition: String, since: String!): CoreEffectChangesOutput
+  coreEffectGet(asOf: Instant, ids: [ID!]!, includeArchived: Boolean): CoreEffectGetResult!
+  coreEffectQueryChanges(filter: CoreEffectFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [CoreEffectSort!]): CoreEffectQueryChangesOutput
+  coreEffects(after: String, before: String, filter: CoreEffectFilter, first: Int, includeArchived: Boolean, last: Int, sort: [CoreEffectSort!]): CoreEffectConnection!
+  coreFlag(id: ID!): CoreFlag
+  coreFlagChanges(max: SafeInt, partition: String, since: String!): CoreFlagChangesOutput
+  coreFlagEvaluate(key: String!): JSON
+  coreFlagGet(asOf: Instant, ids: [ID!]!, includeArchived: Boolean): CoreFlagGetResult!
+  coreFlagHistory(asOf: Instant, fromVersion: SafeInt, id: ID!, limit: SafeInt): CoreFlagHistoryOutput
+  coreFlagQueryChanges(filter: CoreFlagFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [CoreFlagSort!]): CoreFlagQueryChangesOutput
+  coreFlags(after: String, before: String, filter: CoreFlagFilter, first: Int, includeArchived: Boolean, last: Int, sort: [CoreFlagSort!]): CoreFlagConnection!
+  coreIntrospect: JSON
+  coreMe: JSON
+  coreNamespace(id: ID!): CoreNamespace
+  coreNamespaceChanges(max: SafeInt, partition: String, since: String!): CoreNamespaceChangesOutput
+  coreNamespaceGet(asOf: Instant, ids: [ID!]!, includeArchived: Boolean): CoreNamespaceGetResult!
+  coreNamespaceQueryChanges(filter: CoreNamespaceFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [CoreNamespaceSort!]): CoreNamespaceQueryChangesOutput
+  coreNamespaces(after: String, before: String, filter: CoreNamespaceFilter, first: Int, includeArchived: Boolean, last: Int, sort: [CoreNamespaceSort!]): CoreNamespaceConnection!
+  coreOperatorToken(id: ID!): CoreOperatorToken
+  coreOperatorTokenChanges(max: SafeInt, partition: String, since: String!): CoreOperatorTokenChangesOutput
+  coreOperatorTokenGet(asOf: Instant, ids: [ID!]!, includeArchived: Boolean): CoreOperatorTokenGetResult!
+  coreOperatorTokenQueryChanges(filter: CoreOperatorTokenFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [CoreOperatorTokenSort!]): CoreOperatorTokenQueryChangesOutput
+  coreOperatorTokens(after: String, before: String, filter: CoreOperatorTokenFilter, first: Int, includeArchived: Boolean, last: Int, sort: [CoreOperatorTokenSort!]): CoreOperatorTokenConnection!
+  corePlacement(id: ID!): CorePlacement
+  corePlacementChanges(max: SafeInt, partition: String, since: String!): CorePlacementChangesOutput
+  corePlacementGet(asOf: Instant, ids: [ID!]!, includeArchived: Boolean): CorePlacementGetResult!
+  corePlacementQueryChanges(filter: CorePlacementFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [CorePlacementSort!]): CorePlacementQueryChangesOutput
+  corePlacements(after: String, before: String, filter: CorePlacementFilter, first: Int, includeArchived: Boolean, last: Int, sort: [CorePlacementSort!]): CorePlacementConnection!
+  coreProcess(id: ID!): CoreProcess
+  coreProcessChanges(max: SafeInt, partition: String, since: String!): CoreProcessChangesOutput
+  coreProcessGet(ids: [ID!]!, includeArchived: Boolean): CoreProcessGetResult!
+  coreProcessQueryChanges(filter: CoreProcessFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [CoreProcessSort!]): CoreProcessQueryChangesOutput
+  coreProcesses(after: String, before: String, filter: CoreProcessFilter, first: Int, includeArchived: Boolean, last: Int, sort: [CoreProcessSort!]): CoreProcessConnection!
+  coreTenant(id: ID!): CoreTenant
+  coreTenantChanges(max: SafeInt, partition: String, since: String!): CoreTenantChangesOutput
+  coreTenantGet(asOf: Instant, ids: [ID!]!, includeArchived: Boolean): CoreTenantGetResult!
+  coreTenantHistory(asOf: Instant, fromVersion: SafeInt, id: ID!, limit: SafeInt): CoreTenantHistoryOutput
+  coreTenantQueryChanges(filter: CoreTenantFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [CoreTenantSort!]): CoreTenantQueryChangesOutput
+  coreTenants(after: String, before: String, filter: CoreTenantFilter, first: Int, includeArchived: Boolean, last: Int, sort: [CoreTenantSort!]): CoreTenantConnection!
+  libraryBook(id: ID!): LibraryBook
+  libraryBookChanges(max: SafeInt, partition: String, since: String!): LibraryBookChangesOutput
+  libraryBookGet(asOf: Instant, ids: [ID!]!, includeArchived: Boolean): LibraryBookGetResult!
+  libraryBookHistory(asOf: Instant, fromVersion: SafeInt, id: ID!, limit: SafeInt): LibraryBookHistoryOutput
+  libraryBookQueryChanges(filter: LibraryBookFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [LibraryBookSort!]): LibraryBookQueryChangesOutput
+  libraryBooks(after: String, before: String, filter: LibraryBookFilter, first: Int, includeArchived: Boolean, last: Int, sort: [LibraryBookSort!]): LibraryBookConnection!
+  libraryFindByIsbn(isbn: String!): LibraryFindByIsbnOutput
+  loansAbout: LoansAboutOutput
+  loansLoan(id: ID!): LoansLoan
+  loansLoanChanges(max: SafeInt, partition: String, since: String!): LoansLoanChangesOutput
+  loansLoanGet(asOf: Instant, ids: [ID!]!, includeArchived: Boolean): LoansLoanGetResult!
+  loansLoanQueryChanges(filter: LoansLoanFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [LoansLoanSort!]): LoansLoanQueryChangesOutput
+  loansLoans(after: String, before: String, filter: LoansLoanFilter, first: Int, includeArchived: Boolean, last: Int, sort: [LoansLoanSort!]): LoansLoanConnection!
+  node(id: ID!): Node
+  nodes(ids: [ID!]!): [Node]!
+}
+
+"""A rich text value in the wire form of section 14.5.4."""
+scalar RichText
+
+"""An integer up to 2^53 - 1 in absolute value."""
+scalar SafeInt
+
+input SafeIntFilter {
+  eq: SafeInt
+  gt: SafeInt
+  gte: SafeInt
+  in: [SafeInt!]
+  isNull: Boolean
+  lt: SafeInt
+  lte: SafeInt
+  ne: SafeInt
+  nin: [SafeInt!]
+}
+
+enum SortDirection {
+  ASC
+  DESC
+}
+
+type StreamGap {
+  missed: Int
+}
+
+type StreamHead {
+  state: String
+}
+
+type StreamReset {
+  reason: StreamResetReason!
+  state: String
+}
+
+enum StreamResetReason {
+  EXPIRED
+  OVERFLOW
+  RESYNC
+}
+
+input StringFilter {
+  contains: String
+  eq: String
+  gt: String
+  gte: String
+  in: [String!]
+  isNull: Boolean
+  lt: String
+  lte: String
+  ne: String
+  nin: [String!]
+  startsWith: String
+}
+
+input StringListFilter {
+  contains: String
+  isNull: Boolean
+}
+
+input SubjectFilter {
+  eq: String
+  in: [String!]
+  isNull: Boolean
+  ne: String
+  nin: [String!]
+}
+
+type Subscription {
+  coreBackendWatch(
+    """The state of an item or a head to resume after."""
+    after: String
+    fields: [String!]
+    filter: JSON
+    from: CoreBackendWatchFrom
+    ids: [ID!]
+    includeArchived: Boolean
+    partition: String
+  ): CoreBackendWatchEvent!
+  coreCommandReceiptWatch(
+    """The state of an item or a head to resume after."""
+    after: String
+    fields: [String!]
+    filter: JSON
+    from: CoreCommandReceiptWatchFrom
+    ids: [ID!]
+    includeArchived: Boolean
+    partition: String
+  ): CoreCommandReceiptWatchEvent!
+  coreDomainWatch(
+    """The state of an item or a head to resume after."""
+    after: String
+    fields: [String!]
+    filter: JSON
+    from: CoreDomainWatchFrom
+    ids: [ID!]
+    includeArchived: Boolean
+    partition: String
+  ): CoreDomainWatchEvent!
+  coreEffectWatch(
+    """The state of an item or a head to resume after."""
+    after: String
+    fields: [String!]
+    filter: JSON
+    from: CoreEffectWatchFrom
+    ids: [ID!]
+    includeArchived: Boolean
+    partition: String
+  ): CoreEffectWatchEvent!
+  coreFlagWatch(
+    """The state of an item or a head to resume after."""
+    after: String
+    fields: [String!]
+    filter: JSON
+    from: CoreFlagWatchFrom
+    ids: [ID!]
+    includeArchived: Boolean
+    partition: String
+  ): CoreFlagWatchEvent!
+  coreNamespaceWatch(
+    """The state of an item or a head to resume after."""
+    after: String
+    fields: [String!]
+    filter: JSON
+    from: CoreNamespaceWatchFrom
+    ids: [ID!]
+    includeArchived: Boolean
+    partition: String
+  ): CoreNamespaceWatchEvent!
+  coreOperatorTokenWatch(
+    """The state of an item or a head to resume after."""
+    after: String
+    fields: [String!]
+    filter: JSON
+    from: CoreOperatorTokenWatchFrom
+    ids: [ID!]
+    includeArchived: Boolean
+    partition: String
+  ): CoreOperatorTokenWatchEvent!
+  corePlacementWatch(
+    """The state of an item or a head to resume after."""
+    after: String
+    fields: [String!]
+    filter: JSON
+    from: CorePlacementWatchFrom
+    ids: [ID!]
+    includeArchived: Boolean
+    partition: String
+  ): CorePlacementWatchEvent!
+  coreProcessWatch(
+    """The state of an item or a head to resume after."""
+    after: String
+    fields: [String!]
+    filter: JSON
+    from: CoreProcessWatchFrom
+    ids: [ID!]
+    includeArchived: Boolean
+    partition: String
+  ): CoreProcessWatchEvent!
+  coreTenantWatch(
+    """The state of an item or a head to resume after."""
+    after: String
+    fields: [String!]
+    filter: JSON
+    from: CoreTenantWatchFrom
+    ids: [ID!]
+    includeArchived: Boolean
+    partition: String
+  ): CoreTenantWatchEvent!
+  livePokes(
+    """The state of an item or a head to resume after."""
+    after: String
+  ): LivePokesEvent!
+  loansLoanEvents(
+    """The state of an item or a head to resume after."""
+    after: String
+  ): LoansLoanEventsEvent!
+  loansLoanTicker(
+    """The state of an item or a head to resume after."""
+    after: String
+  ): LoansLoanTickerEvent!
+  loansLoanWatch(
+    """The state of an item or a head to resume after."""
+    after: String
+    fields: [String!]
+    filter: JSON
+    from: LoansLoanWatchFrom
+    ids: [ID!]
+    includeArchived: Boolean
+    partition: String
+  ): LoansLoanWatchEvent!
+}
+
+"""An IANA time zone name."""
+scalar TimeZone

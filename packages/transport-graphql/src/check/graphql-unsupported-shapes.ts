@@ -2,6 +2,7 @@ import { type ApiSurface, hasProjectableInput, type TransportProblem } from '@ke
 import { actionTypeName } from '../schema/action-type-name.ts';
 import { isGraphqlName } from '../schema/is-graphql-name.ts';
 import { isProjected } from '../schema/is-projected.ts';
+import { isSubscribed } from '../subscriptions/is-subscribed.ts';
 import { graphqlProblem } from './graphql-problem.ts';
 
 /**
@@ -14,13 +15,24 @@ import { graphqlProblem } from './graphql-problem.ts';
 export function graphqlUnsupportedShapes(surface: ApiSurface): readonly TransportProblem[] {
   const problems: TransportProblem[] = [];
   const entities = new Set(surface.entities.map((entity) => entity.ref));
-  for (const action of surface.actions.filter(isProjected)) {
+  for (const action of surface.actions.filter(
+    (candidate) => isProjected(candidate) || isSubscribed(candidate),
+  )) {
     if (!hasProjectableInput(action)) {
       problems.push(
         graphqlProblem(
           'unsupportedShape',
           action.ref,
           `The input is a ${action.input.kind}; GraphQL takes a shape, a foreign schema or no input. Declare the input as a shape, or hide the action with hints.graphql.expose: false.`,
+        ),
+      );
+    }
+    if (isSubscribed(action) && action.output.kind !== 'shape') {
+      problems.push(
+        graphqlProblem(
+          'unsupportedShape',
+          action.ref,
+          'A subscription event must be a shape to join its event union.',
         ),
       );
     }

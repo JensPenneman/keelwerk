@@ -8,4 +8,11 @@ export interface FixedTypes {
   readonly sortDirection: GraphQLEnumType;
   readonly executionPreference: GraphQLEnumType;
   readonly commandAccepted: GraphQLObjectType;
+  /** The first frame of a stream: its state. */
+  readonly streamHead: GraphQLObjectType;
+  /** The frame that ends a stream the client must start again. */
+  readonly streamReset: GraphQLObjectType;
+  /** The frame that says events were missed. */
+  readonly streamGap: GraphQLObjectType;
+  readonly streamResetReason: GraphQLEnumType;
 }

@@ -9,14 +9,17 @@ import {
 import type { GraphqlConfig } from '../graphql-config.ts';
 import { graphqlConfigOf } from '../graphql-config-of.ts';
 import type { GraphqlStaticOptions } from '../graphql-static-options.ts';
+import { graphqlWsHandler } from '../subscriptions/graphql-ws-handler.ts';
 import { createGraphqlHandler } from './create-graphql-handler.ts';
+import type { GraphqlHandlerDeps } from './graphql-handler-deps.ts';
 import { graphqlVersionMounts } from './graphql-version-mounts.ts';
 import { refusalResponse } from './refusal-response.ts';
 
 /**
  * Mounts the GraphQL transport of one app on the host (section 16.3.2): builds and checks the
  * schema of every declared API version, so a surface the check refuses fails the start, and
- * registers one handler under the path (default `/graphql`). The handler counts the requests in
+ * registers one handler under the path (default `/graphql`) and, on the same path, the
+ * `graphql-transport-ws` endpoint (a backend turns it on with `websocket`). The handler counts the requests in
  * flight: after `close` starts a new request is answered `unavailable`, and `close` resolves when
  * the requests in flight are done or the deadline aborts.
  */
@@ -26,7 +29,7 @@ export async function mountGraphql(
 ): Promise<MountHandle> {
   const development = ctx.development === true;
   const limits = defaultSelectionLimits;
-  const inner = createGraphqlHandler({
+  const deps: GraphqlHandlerDeps = {
     versions: graphqlVersionMounts(ctx, options, limits),
     invoker: ctx.invoker,
     config: (scope: Scope) => graphqlConfigOf(ctx.config(scope)),
@@ -34,7 +37,8 @@ export async function mountGraphql(
     log: ctx.log,
     development,
     ...(ctx.clock === undefined ? {} : { clock: ctx.clock }),
-  });
+  };
+  const inner = createGraphqlHandler(deps);
   const running = new Set<Promise<unknown>>();
   let closing = false;
   const handler: HttpHandler = async (request, httpContext) => {
@@ -54,9 +58,11 @@ export async function mountGraphql(
       running.delete(pending);
     }
   };
-  ctx.host.route(
-    { app: ctx.app, transport: 'graphql', prefix: options.path ?? '/graphql' },
-    handler,
+  const path = options.path ?? '/graphql';
+  ctx.host.route({ app: ctx.app, transport: 'graphql', prefix: path }, handler);
+  ctx.host.upgrade(
+    { app: ctx.app, transport: 'graphql', path, protocols: ['graphql-transport-ws'] },
+    graphqlWsHandler(deps),
   );
   return {
     close: async (deadline) => {

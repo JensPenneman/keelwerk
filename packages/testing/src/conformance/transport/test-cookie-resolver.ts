@@ -1,13 +1,6 @@
 import type { Principal, PrincipalResolver } from '@keelwerk/core';
+import { cookieValueOf } from './cookie-value-of.ts';
 import { testCookieName } from './test-cookie-name.ts';
-
-function cookieOf(header: string | undefined, name: string): string | undefined {
-  for (const part of (header ?? '').split(';')) {
-    const [key, ...value] = part.trim().split('=');
-    if (key === name) return value.join('=');
-  }
-  return undefined;
-}
 
 /**
  * The test session cookie until the auth module's resolver lands: `__Host-kw-test=user:<subject>`
@@ -19,7 +12,7 @@ export function testCookieResolver(): PrincipalResolver {
     id: 'test.cookie',
     describe: () => ({ scheme: 'cookie', name: testCookieName }),
     *resolve(carrier, ctx) {
-      const held = cookieOf(carrier.headers?.cookie, testCookieName);
+      const held = cookieValueOf(carrier.headers?.cookie, testCookieName);
       if (held === undefined) return null;
       const scope = {
         backend: ctx.scope.level === 'deployment' ? null : ctx.scope.backendId,

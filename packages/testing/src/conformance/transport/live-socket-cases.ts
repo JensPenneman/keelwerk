@@ -1,27 +1,44 @@
 import type { LiveServerMessage } from '@keelwerk/core';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import type { Caller } from './call.ts';
 import type { EventStreamReader } from './event-stream-reader.ts';
 import { freshName } from './fresh-name.ts';
-import { liveMessageUntil } from './live-message-until.ts';
+import { liveSocketDialect } from './live-socket-dialect.ts';
 import { originOf } from './origin-of.ts';
 import { requestHeaders } from './request-headers.ts';
+import type { SocketDialect } from './socket-dialect.ts';
 import type { SocketUpgrade } from './socket-upgrade.ts';
 import type { TestSocket } from './test-socket.ts';
 import type { TransportTarget } from './transport-target.ts';
 
-/** The cases of `keelwerk.live.v1` that need a real handshake (15.4.7, 15.4.10, 16.4.10); skipped without `target.connect` or `target.live`. */
+/**
+ * The cases of a WebSocket protocol that need a real handshake (15.4.7, 15.4.10, 16.4.10), spoken
+ * through the codec's socket dialect (`keelwerk.live.v1` when it has none); skipped without
+ * `target.connect` or `target.live`. The deprecated-version case reads raw live frames and always
+ * runs on `keelwerk.live.v1`.
+ */
 export function liveSocketCases(target: TransportTarget): void {
   const skip = target.connect === undefined || target.live !== true;
-  const upgrade = (caller: Caller, remoteAddress?: string): Promise<SocketUpgrade> => {
+  const { bounds } = target;
+  const deprecated = Object.entries(target.tenants).find(
+    ([, tenant]) => tenant.deprecatedApiVersion !== undefined,
+  );
+  const dialect: SocketDialect = target.codec.socket ?? liveSocketDialect;
+  const upgradeWith = (
+    spoken: SocketDialect,
+    caller: Caller,
+    remoteAddress?: string,
+  ): Promise<SocketUpgrade> => {
     if (target.connect === undefined) throw new Error('The target has no connect hook.');
     const headers = requestHeaders(caller);
-    headers.set('sec-websocket-protocol', 'keelwerk.live.v1');
+    headers.set('sec-websocket-protocol', spoken.protocol);
     return target.connect(
-      new Request(`${originOf(target, caller)}/_keelwerk/v1/live`, { headers }),
+      new Request(`${originOf(target, caller)}${spoken.path}`, { headers }),
       remoteAddress === undefined ? undefined : { remoteAddress },
     );
   };
+  const upgrade = (caller: Caller, remoteAddress?: string): Promise<SocketUpgrade> =>
+    upgradeWith(dialect, caller, remoteAddress);
   const opened = (result: SocketUpgrade): TestSocket => {
     if (result.kind !== 'open')
       throw new Error(`The upgrade was refused: ${result.response.status}.`);
@@ -30,8 +47,7 @@ export function liveSocketCases(target: TransportTarget): void {
   const greeted = async (remoteAddress: string, sockets: TestSocket[]): Promise<TestSocket> => {
     const socket = opened(await upgrade({}, remoteAddress));
     sockets.push(socket);
-    socket.send(JSON.stringify({ type: 'hello' }));
-    expect((await liveMessageUntil(socket, (m) => m.type === 'welcome')).type).toBe('welcome');
+    await dialect.open(socket);
     return socket;
   };
 
@@ -58,7 +74,7 @@ export function liveSocketCases(target: TransportTarget): void {
         const result = await upgrade({ ...own, origin: originOf(target, own) });
         if (result.kind === 'open') sockets.push(result.socket);
         expect(result.kind).toBe('open');
-        if (result.kind === 'open') expect(result.protocol).toBe('keelwerk.live.v1');
+        if (result.kind === 'open') expect(result.protocol).toBe(dialect.protocol);
       } finally {
         await Promise.all(sockets.map((socket) => socket.close()));
       }
@@ -70,14 +86,17 @@ export function liveSocketCases(target: TransportTarget): void {
     async () => {
       const held: TestSocket[] = [];
       try {
-        // The default cap is 20 streams of one anonymous client address.
+        // The cap of the host: streams of one anonymous client address.
         let refused: SocketUpgrade | undefined;
-        for (let index = 0; index < 40 && refused === undefined; index += 1) {
+        for (
+          let index = 0;
+          index < 2 * bounds.maxStreamsPerPrincipal && refused === undefined;
+          index += 1
+        ) {
           const next = await upgrade({}, '203.0.113.60');
           if (next.kind === 'open') {
             held.push(next.socket);
-            next.socket.send(JSON.stringify({ type: 'hello' }));
-            await liveMessageUntil(next.socket, (m) => m.type === 'welcome');
+            await dialect.open(next.socket);
           } else {
             refused = next;
           }
@@ -89,7 +108,7 @@ export function liveSocketCases(target: TransportTarget): void {
             error: { code: 'core.quota_exceeded' },
           });
         }
-        expect(held).toHaveLength(20);
+        expect(held).toHaveLength(bounds.maxStreamsPerPrincipal);
         held.push(opened(await upgrade({}, '203.0.113.61')));
       } finally {
         await Promise.all(held.map((socket) => socket.close()));
@@ -97,16 +116,10 @@ export function liveSocketCases(target: TransportTarget): void {
     },
   );
 
-  test.skipIf(skip)(
+  test.skipIf(skip || bounds.maxStreamsPerPrincipal !== 20 || bounds.maxSubscriptionsPerSocket < 6)(
     'the subscriptions of an anonymous socket count against its address: one address runs out, another does not',
     async () => {
       const sockets: TestSocket[] = [];
-      const subscribe = (socket: TestSocket, id: string): void =>
-        socket.send(
-          JSON.stringify({ type: 'subscribe', id, action: 'loans.loanTicker', input: {} }),
-        );
-      const reply = (socket: TestSocket, id: string): Promise<LiveServerMessage> =>
-        liveMessageUntil(socket, (m) => 'id' in m && m.id === id);
       // The 20 slots of the address are four sockets and 16 subscriptions, at most six on one socket:
       // far below the per-socket cap of a default runner. The refused subscription goes to the socket
       // that holds none, so a per-socket cap (which also answers `core.quota_exceeded`) cannot be its cause.
@@ -120,9 +133,8 @@ export function liveSocketCases(target: TransportTarget): void {
           const socket = await greeted('203.0.113.70', sockets);
           for (let index = 0; index < count; index += 1) {
             const id = `s${position}-${index}`;
-            subscribe(socket, id);
-            const answer = await reply(socket, id);
-            if (answer.type !== 'head') {
+            const answer = await dialect.subscribe(socket, id);
+            if (answer.kind !== 'head') {
               throw new Error(
                 `Precondition: the runner must allow ${Math.max(...perSocket)} subscriptions on one socket and ${slotsNeeded} slots (sockets and subscriptions) per anonymous address, but subscription ${index + 1} of socket ${position + 1} of ${perSocket.length} was answered ${JSON.stringify(answer)} while the address held ${sockets.length + subscribed} slots.`,
               );
@@ -130,18 +142,50 @@ export function liveSocketCases(target: TransportTarget): void {
             subscribed += 1;
           }
         }
-        subscribe(empty, 'over');
-        expect(await reply(empty, 'over')).toMatchObject({
-          type: 'error',
-          error: { code: 'core.quota_exceeded' },
+        expect(await dialect.subscribe(empty, 'over')).toEqual({
+          kind: 'refused',
+          code: 'core.quota_exceeded',
         });
         const other = await greeted('203.0.113.71', sockets);
-        subscribe(other, 'first');
-        expect(await reply(other, 'first')).toMatchObject({ type: 'head' });
+        expect(await dialect.subscribe(other, 'first')).toEqual({ kind: 'head' });
       } finally {
         await Promise.all(sockets.map((socket) => socket.close()));
       }
     },
+  );
+
+  test.skipIf(skip || target.revoke === undefined || target.advance === undefined)(
+    'a running subscription whose session was revoked ends with its error and the socket closes 4401',
+    async () => {
+      const sockets: TestSocket[] = [];
+      try {
+        // The runner sets the host's `revalidateMs` far beyond the clock's steps, so only the session
+        // check that the failing subscription asks for can close the socket.
+        const subject = freshName('ada');
+        const socket = opened(await upgrade({ subject }, '203.0.113.95'));
+        sockets.push(socket);
+        await dialect.open(socket);
+        expect(await dialect.subscribe(socket, 'first')).toEqual({ kind: 'head' });
+        target.revoke?.(subject);
+        let closed: { readonly code: number; readonly reason: string } | undefined;
+        void socket.closed.then((result) => {
+          closed = result;
+        });
+        // The hub counts a minute of the runtime's clock from the first of its own ticks that sees
+        // the subscription, so the clock moves again until the socket is seen closed.
+        await vi.waitFor(
+          async () => {
+            await target.advance?.(61_000);
+            expect(closed).toBeDefined();
+          },
+          { timeout: 10_000, interval: 100 },
+        );
+        expect(closed).toMatchObject({ code: 4401 });
+      } finally {
+        await Promise.all(sockets.map((socket) => socket.close()));
+      }
+    },
+    20_000,
   );
 
   test.skipIf(skip || target.codec.subscribe === undefined)(
@@ -160,8 +204,8 @@ export function liveSocketCases(target: TransportTarget): void {
       const sockets: TestSocket[] = [];
       const address = '203.0.113.80';
       try {
-        // Alternating, so neither kind reaches the cap of 20 alone: ten streams and ten sockets fill it.
-        for (let index = 0; index < 20; index += 1) {
+        // Alternating, so neither kind reaches the cap alone: half of each fill it.
+        for (let index = 0; index < bounds.maxStreamsPerPrincipal; index += 1) {
           if (index % 2 === 0) {
             const next = await stream(address);
             streams.push(next);
@@ -189,6 +233,42 @@ export function liveSocketCases(target: TransportTarget): void {
           ...streams.map((entry) => entry.close()),
           ...sockets.map((socket) => socket.close()),
         ]);
+      }
+    },
+  );
+
+  test.skipIf(skip || deprecated === undefined)(
+    'a socket of a tenant pinned to a deprecated API version gets its notice before the head of its first subscription',
+    async () => {
+      if (deprecated === undefined)
+        throw new Error('The target has no tenant on a deprecated version.');
+      const [tenant, pinned] = deprecated;
+      const sockets: TestSocket[] = [];
+      try {
+        const socket = opened(await upgradeWith(liveSocketDialect, { tenant }, '203.0.113.90'));
+        sockets.push(socket);
+        const next = async (): Promise<LiveServerMessage> =>
+          JSON.parse(String(await socket.next())) as LiveServerMessage;
+        socket.send(JSON.stringify({ type: 'hello' }));
+        expect(await next()).toMatchObject({
+          type: 'welcome',
+          apiVersion: pinned.deprecatedApiVersion,
+        });
+        expect(await next()).toMatchObject({
+          type: 'notice',
+          notice: { kind: 'deprecation', apiVersion: pinned.deprecatedApiVersion },
+        });
+        socket.send(
+          JSON.stringify({
+            type: 'subscribe',
+            id: 'ticker',
+            action: 'loans.loanTicker',
+            input: {},
+          }),
+        );
+        expect(await next()).toMatchObject({ type: 'head', id: 'ticker' });
+      } finally {
+        await Promise.all(sockets.map((socket) => socket.close()));
       }
     },
   );

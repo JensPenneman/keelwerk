@@ -15,12 +15,15 @@ import { clientAddresses } from '../../harness/client-addresses.ts';
 import { clientFetchOf } from '../../harness/client-fetch-of.ts';
 import type { TestApp } from '../../harness/test-app.ts';
 import { testMasterKeyName } from '../../harness/test-master-key-name.ts';
+import type { TestPrincipalBook } from '../../harness/test-principal-book.ts';
 import { testSecrets } from '../../harness/test-secrets.ts';
 import { withTestResolver } from '../../harness/with-test-resolver.ts';
 import { clientConnectOf } from './client-connect-of.ts';
+import { transportBoundsOf } from './transport-bounds-of.ts';
 import { transportPglite } from './transport-pglite.ts';
 import type { TransportRuntime } from './transport-runtime.ts';
 import { withCookieResolver } from './with-cookie-resolver.ts';
+import { withRevocation } from './with-revocation.ts';
 
 /** What `startTransportRuntime` takes. */
 export interface TransportRuntimeOptions {
@@ -66,12 +69,13 @@ export async function startTransportRuntime(
   const id = options.adapter ?? 'memory';
   const factory: DataAdapterFactory =
     id === 'pglite' ? transportPglite({ entities: lookup }) : memoryAdapter({ entities: lookup });
+  const book: TestPrincipalBook = { seen: new Map(), revoked: new Set() };
   const names = options.tenants ?? ['acme', 'globex'];
   const directory = await mkdtemp(join(tmpdir(), 'kw-transport-'));
   const socket = join(directory, 'op.sock');
   const runtime = await startRuntime(
     {
-      apps: [withCookieResolver(withTestResolver(app))],
+      apps: [withRevocation(withCookieResolver(withTestResolver(app, false, book)), book)],
       infrastructure: [factory, schemaPlanner(), testSecrets, options.host],
       control: { adapter: id },
       placements: { main: { adapter: id, strategy: 'shared-tables' } },
@@ -101,6 +105,7 @@ export async function startTransportRuntime(
     config: backendConfig,
   });
   const tenants: Record<string, string> = {};
+  const deprecatedPins: Record<string, string> = {};
   const domains: Record<string, string> = {};
   for (const name of names) {
     const domain = `${name}.example.test`;
@@ -112,6 +117,9 @@ export async function startTransportRuntime(
       ...(pin === undefined ? {} : { apiVersion: pin }),
     });
     tenants[name] = tenant.id;
+    if (pin !== undefined && app.api?.versions[pin]?.deprecated !== undefined) {
+      deprecatedPins[name] = pin;
+    }
     domains[name] = domain;
   }
   const addresses = clientAddresses();
@@ -123,6 +131,12 @@ export async function startTransportRuntime(
     backendConfig,
     tenants,
     domains,
+    bounds: transportBoundsOf(options.host),
+    headApiVersion: app.api?.dates.at(-1) ?? '',
+    deprecatedPins,
+    revoke: (subject) => {
+      book.revoked.add(subject);
+    },
     socket,
     stop: async () => {
       await runtime.stop(1000);

@@ -22,11 +22,17 @@ import {
 import { buildGraphqlSchema } from '../../src/schema/build-graphql-schema.ts';
 import { referenceFieldName } from '../../src/schema/reference-field-name.ts';
 import { rootFieldName } from '../../src/schema/root-field-name.ts';
+import { graphqlConformanceApp, graphqlConformanceVersions } from './graphql-conformance-app.ts';
 import { enumNamesIn, enumValuesIn } from './graphql-enum-names.ts';
 import { filterOf } from './graphql-filter.ts';
-import { transportWithGraphql } from './transport-app.ts';
+import { graphqlSocketDialect } from './graphql-socket-dialect.ts';
+import { graphqlSubscribeOver } from './graphql-subscribe-over.ts';
+import { cleaned } from './graphql-wire.ts';
 
-const surface = deriveSurface(transportWithGraphql as never, '2026-11-04').surface;
+const surface = deriveSurface(
+  graphqlConformanceApp as never,
+  graphqlConformanceVersions.head,
+).surface;
 const projection = buildGraphqlSchema(surface);
 const { schema } = projection;
 
@@ -184,21 +190,6 @@ function operationOf(call: Call): Operation {
   };
 }
 
-/** GraphQL nulls are absent (16.4.2) and a non-empty `_masked` is the `$masked` member of the row. */
-function cleaned(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(cleaned);
-  if (!isRecord(value)) return value;
-  const out: Record<string, unknown> = {};
-  for (const [key, member] of Object.entries(value)) {
-    if (key === '_masked') {
-      if (Array.isArray(member) && member.length > 0) out.$masked = member;
-    } else if (member !== null && key !== '__typename') {
-      out[key] = cleaned(member);
-    }
-  }
-  return out;
-}
-
 function connectionOf(value: Record<string, unknown>): unknown {
   const page = isRecord(value.pageInfo) ? cleaned(value.pageInfo) : undefined;
   return {
@@ -330,4 +321,13 @@ export const graphqlCodec: TransportCodec = {
   marksReplays: false,
   configurableCors: true,
   followsRelations: true,
+  socket: graphqlSocketDialect,
+  subscribePath: '/graphql',
+  streamWelcome: false,
+  subscribe: (target, call) =>
+    graphqlSubscribeOver(target, call, {
+      surface,
+      schema,
+      leaves: (type) => leavesOf(type, false),
+    }),
 };

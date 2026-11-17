@@ -1,5 +1,5 @@
 import type { Carrier, InvocationSession, KeelwerkError } from '@keelwerk/core';
-import { asKeelwerkError, coreError } from '@keelwerk/core/http';
+import { asKeelwerkError, asksForEventStream, coreError } from '@keelwerk/core/http';
 import { batchEndpoint } from './batch-endpoint.ts';
 import { bodyLimit } from './body-limit.ts';
 import { capabilitiesEndpoint } from './capabilities-endpoint.ts';
@@ -22,6 +22,7 @@ import { subscribeEndpoint } from './subscribe-endpoint.ts';
 import { surfaceEndpoint } from './surface-endpoint.ts';
 import { ticketRefusal } from './ticket-refusal.ts';
 import { wireErrorOf } from './wire-error-of.ts';
+import { withStreamSlot } from './with-stream-slot.ts';
 
 const reservedPrefix = '/_keelwerk';
 const protocolBase = `${reservedPrefix}/v1`;
@@ -98,15 +99,31 @@ async function mounted(call: EndpointCall, path: string): Promise<Response> {
         });
   // The one rule of path handling: the host strips the mount's prefix, the transport never does.
   const stripped = match.prefix === '/' ? '' : match.prefix;
-  return match.handler(forwarded, {
-    session,
-    carrier,
-    requestId: state.requestId,
-    ...(state.traceparent !== undefined && { traceparent: state.traceparent }),
-    signal: request.signal,
-    path: path.slice(stripped.length) || '/',
-    basePath: stripped,
-  });
+  const run = (): Promise<Response> =>
+    match.handler(forwarded, {
+      session,
+      carrier,
+      requestId: state.requestId,
+      ...(state.traceparent !== undefined && { traceparent: state.traceparent }),
+      signal: request.signal,
+      path: path.slice(stripped.length) || '/',
+      basePath: stripped,
+    });
+  // The stream gate is the host's: a request that asks for an event stream passed the stream origin
+  // check and holds a stream slot until the body ends; a route that streams without it is refused.
+  if (asksForEventStream(request)) return withStreamSlot(call, run);
+  const response = await run();
+  if ((response.headers.get('content-type') ?? '').toLowerCase().startsWith('text/event-stream')) {
+    void response.body?.cancel().catch(() => undefined);
+    return errorResponse(
+      host,
+      state,
+      coreError('core.internal', {
+        message: 'A route answered an event stream to a request that did not ask for one.',
+      }),
+    );
+  }
+  return response;
 }
 
 async function open(
@@ -214,6 +231,7 @@ export async function serveRequest(
     session,
     carrier,
     request,
+    ...(transport !== undefined && { transport }),
     bytes,
     ...(bindings.incoming !== undefined && { incoming: bindings.incoming }),
   };

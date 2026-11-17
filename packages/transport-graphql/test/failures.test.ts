@@ -264,6 +264,7 @@ describe('an error raised before any field ran', () => {
       development: false,
       requestId: '01929b5e-7c3a-7f00-9a51-2f0a0c1b4d11',
       log: recordingLogger(),
+      notices: [],
     };
     const done = (error: GraphQLError): readonly GraphQLError[] => {
       let answered: readonly GraphQLError[] = [];

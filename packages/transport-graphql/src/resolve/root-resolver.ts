@@ -1,4 +1,5 @@
 import {
+  deprecationsOf,
   errors,
   toWire as errorToWire,
   type FieldNode,
@@ -6,6 +7,7 @@ import {
   newUuidV7,
   pascal,
   type SurfaceAction,
+  utcDayOf,
 } from '@keelwerk/core';
 import { audienceOf } from '@keelwerk/core/http';
 import { toWire } from '@keelwerk/core/wire';
@@ -80,6 +82,9 @@ export function rootResolver(
   typeName: string,
 ): GraphQLFieldResolver<unknown, GraphqlContext> {
   return async (_source, args: Members, context, info) => {
+    context.notices.push(
+      ...deprecationsOf(undefined, action, utcDayOf(context.now ?? Temporal.Now.instant())),
+    );
     if (action.kind === 'query') {
       const wire =
         action.generated === 'query'

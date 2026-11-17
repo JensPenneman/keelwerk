@@ -1,4 +1,4 @@
-import type { InvocationSession, Outcome } from '@keelwerk/core';
+import type { InvocationSession, KeelwerkError, Outcome } from '@keelwerk/core';
 import { endReasonOfError } from '@keelwerk/core';
 import { asKeelwerkError, closeCodeOfError } from '@keelwerk/core/http';
 import type { LiveSocketState } from './live-socket-state.ts';
@@ -16,13 +16,33 @@ async function revalidated(session: InvocationSession): Promise<Outcome<Invocati
   }
 }
 
+/** What `keelwerk.live.v1` does when the session no longer holds: `end` frames or an `error` frame, then the close. */
+function closeAfterRefusal(state: LiveSocketState): (error: KeelwerkError) => Promise<void> {
+  return async (error) => {
+    if (endReasonOfError(error) === 'version_retired') {
+      // The floor passed the socket's version: every subscription ends as a finished one, then the socket closes (15.4.6).
+      for (const [id, entry] of state.subscriptions) {
+        await sendLiveMessage(state, { type: 'end', id, reason: 'version_retired' });
+        entry.abort.abort();
+      }
+      state.open.closeWith(1000, 'version_retired');
+      return;
+    }
+    await sendLiveMessage(state, { type: 'error', error: socketWireError(state, error) });
+    state.open.closeWith(closeCodeOfError(error.kind), error.code);
+  };
+}
+
 /**
  * The socket's own session check (16.3.4, D4): `state.session.revalidate()` every `revalidateMs`, at
- * `expiresAt` and when asked. A session that holds replaces the socket's; one that does not sends an
- * `error` without an id and closes the socket with the close code of its kind. At most one check runs;
+ * `expiresAt` and when asked. A session that holds replaces the socket's; one that does not goes to `refuse`
+ * (by default an `error` without an id, then the close with the close code of its kind). At most one check runs;
  * one asked meanwhile runs after it. The timer loop hangs on `state.everything`, so it ends with the socket.
  */
-export function keepSocketSession(state: LiveSocketState): { check(): Promise<boolean> } {
+export function keepSocketSession(
+  state: LiveSocketState,
+  refuse?: (error: KeelwerkError) => Promise<void>,
+): { check(): Promise<boolean> } {
   let current: Promise<boolean> | undefined;
   let queued: Promise<boolean> | undefined;
   const run = async (): Promise<boolean> => {
@@ -32,18 +52,7 @@ export function keepSocketSession(state: LiveSocketState): { check(): Promise<bo
       state.session = outcome.value;
       return true;
     }
-    const { error } = outcome;
-    if (endReasonOfError(error) === 'version_retired') {
-      // The floor passed the socket's version: every subscription ends as a finished one, then the socket closes (15.4.6).
-      for (const [id, entry] of state.subscriptions) {
-        await sendLiveMessage(state, { type: 'end', id, reason: 'version_retired' });
-        entry.abort.abort();
-      }
-      state.open.closeWith(1000, 'version_retired');
-      return false;
-    }
-    await sendLiveMessage(state, { type: 'error', error: socketWireError(state, error) });
-    state.open.closeWith(closeCodeOfError(error.kind), error.code);
+    await (refuse ?? closeAfterRefusal(state))(outcome.error);
     return false;
   };
   const check = (): Promise<boolean> => {

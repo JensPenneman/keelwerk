@@ -1,0 +1,87 @@
+import { liveTimersOf, unknownClientAddress } from '@keelwerk/core';
+import { asKeelwerkError, coreError } from '@keelwerk/core/http';
+import type { EndpointCall } from './endpoint-call.ts';
+import { errorResponse } from './error-response.ts';
+import type { LiveSocketState } from './live-socket-state.ts';
+import type { OpenLiveSocket } from './open-live-socket.ts';
+import type { PendingUpgrade } from './pending-upgrade.ts';
+import { websocketConnection } from './websocket-connection.ts';
+
+/**
+ * The part of a socket's upgrade that every WebSocket protocol of the host shares, after the session,
+ * the origin and the ticket checks: the app has a websocket carrier (else `core.not_found`); the socket
+ * takes one stream slot of the principal, the tenant and the process (429 before the handshake is
+ * accepted); the handshake is accepted with `protocol`; the socket's connection is made and kept in
+ * `host.sockets` for `stop`. A refused handshake gives the slot back. Answers the state of the
+ * socket's life, or the refusal.
+ */
+export async function acceptLiveSocket(
+  call: EndpointCall,
+  upgrade: PendingUpgrade,
+  protocol: string,
+): Promise<LiveSocketState | Response> {
+  const { host, state, session, carrier } = call;
+  const live = host.deps.liveCarrier?.(session.app, 'websocket');
+  if (live === undefined) {
+    return errorResponse(
+      host,
+      state,
+      coreError('core.not_found', { message: 'There is no such endpoint.' }),
+    );
+  }
+  let release: () => void;
+  try {
+    release = host.limits.take(session, carrier.connection?.remote.address ?? unknownClientAddress);
+  } catch (failure) {
+    return errorResponse(host, state, asKeelwerkError(failure));
+  }
+  const clock = host.deps.clock ?? { now: () => Temporal.Now.instant() };
+  const timers = host.deps.timers ?? liveTimersOf(clock);
+  const bounds = host.liveSocket;
+  let open: OpenLiveSocket | undefined;
+  let accepted = false;
+  try {
+    accepted = await upgrade.accept(protocol, (socket) => {
+      open = websocketConnection(socket, {
+        maxBufferedBytes: host.live.maxBufferedBytes,
+        stallMs: host.live.stallMs,
+        pongTimeoutMs: bounds.pongTimeoutMs,
+        maxMessageBytes: bounds.maxMessageBytes,
+        maxMessagesPerWindow: bounds.maxMessagesPerWindow,
+        messageWindowMs: bounds.messageWindowMs,
+        clock,
+        timers,
+      });
+      host.sockets.add(open);
+    });
+  } catch (failure) {
+    release();
+    throw failure;
+  }
+  if (!accepted || open === undefined) {
+    release();
+    return errorResponse(
+      host,
+      state,
+      coreError('core.malformed_request', { message: 'The WebSocket handshake was refused.' }),
+    );
+  }
+  const log = host.deps.log.child({ connectionId: carrier.connection?.id ?? state.requestId });
+  return {
+    upgrade: call,
+    open,
+    carrier: live,
+    session,
+    socketCarrier: carrier,
+    release,
+    subscriptions: new Map(),
+    noticedActions: new Set(),
+    pendingInvokes: 0,
+    pendingInvokeBytes: 0,
+    everything: new AbortController(),
+    clock,
+    timers,
+    deadline: clock.now().add({ milliseconds: host.live.maxDurationMs }),
+    log,
+  };
+}

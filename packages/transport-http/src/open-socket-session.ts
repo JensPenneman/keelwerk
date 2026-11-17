@@ -14,7 +14,7 @@ import { originCheck } from './origin-check.ts';
  * version keeps the upgrade's session. Otherwise a new carrier is the upgrade's with the three
  * selector headers from the hello, and with the token set and the cookie and authorization headers
  * dropped when the hello brings one (one credential per session, as a stream ticket is). The invoker
- * opens it, a cookie session meets the origin rule of the tenant it now belongs to, and the slot of the
+ * opens it, a cookie session meets the origin rule of the tenant it now belongs to and of the route's transport (the rule the upgrade met), and the slot of the
  * upgrade is released before the new session's is taken, so one socket never counts twice; a take past
  * a bound refuses the hello and the socket closes. The open hangs on the connection's signal: a client
  * that leaves while it runs aborts it, and a session that opens after that is dropped.
@@ -66,7 +66,7 @@ export async function openSocketSession(
     const refused = originCheck(
       'GET',
       carrier,
-      host.deps.allowedOrigins?.(session) ?? [],
+      host.deps.allowedOrigins?.(session, state.upgrade.transport) ?? [],
       plain,
       true,
     );

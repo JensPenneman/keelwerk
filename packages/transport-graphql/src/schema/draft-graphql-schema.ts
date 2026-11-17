@@ -20,6 +20,8 @@ import {
 import type { GraphqlContext } from '../resolve/graphql-context.ts';
 import { nodeResolver } from '../resolve/node-resolver.ts';
 import { nodesResolver } from '../resolve/nodes-resolver.ts';
+import { isSubscribed } from '../subscriptions/is-subscribed.ts';
+import { subscriptionFieldOf } from '../subscriptions/subscription-field-of.ts';
 import type { BuildEnv } from './build-env.ts';
 import { entityTypeOf } from './entity-type-of.ts';
 import { fixedTypesOf } from './fixed-types-of.ts';
@@ -111,10 +113,31 @@ export function draftGraphqlSchema(surface: ApiSurface): GraphqlSchemaDraft {
         fields: () => types.members('Mutation', mutationFields),
       })
     : undefined;
+  // A subscription whose event is no shape has no field: the surface check reports it.
+  const subscribed = surface.actions.filter(
+    (action) => isSubscribed(action) && action.output.kind === 'shape',
+  );
+  const subscriptionFields: RootField[] = [];
+  const subscription =
+    subscribed.length > 0
+      ? new GraphQLObjectType({
+          name: 'Subscription',
+          fields: () => types.members('Subscription', subscriptionFields),
+        })
+      : undefined;
   // The fixed types take their names first, so a derived type that wants one is a collision.
   const fixedTypes: readonly GraphQLNamedType[] = [
     query,
     ...(mutation === undefined ? [] : [mutation]),
+    ...(subscription === undefined
+      ? []
+      : [
+          subscription,
+          fixed.streamHead,
+          fixed.streamReset,
+          fixed.streamGap,
+          fixed.streamResetReason,
+        ]),
     fixed.node,
     fixed.error,
     fixed.pageInfo,
@@ -142,9 +165,18 @@ export function draftGraphqlSchema(surface: ApiSurface): GraphqlSchemaDraft {
       });
     }
   }
+  for (const action of subscribed) {
+    subscriptionFields.push({
+      name: rootFieldName(action),
+      subject: action.ref,
+      from: 'root field',
+      config: subscriptionFieldOf(env, action),
+    });
+  }
   const schema = new GraphQLSchema({
     query,
     ...(mutation === undefined ? {} : { mutation }),
+    ...(subscription === undefined ? {} : { subscription }),
     types: types.all(),
   });
   resolveThunks(types);

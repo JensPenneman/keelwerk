@@ -6,13 +6,16 @@ import {
   type Invocation,
   type InvocationSession,
   type Invoker,
+  type LiveFrame,
   type MountContext,
   type Outcome,
   renderTypeId,
   type SelectionLimits,
+  type StateToken,
   type Telemetry,
   type TransportHost,
   type VersionProjection,
+  type WebSocketHandler,
 } from '@keelwerk/core';
 import { type LoggedLine, recordingLogger } from '@keelwerk/testing';
 import { transportApp } from '@keelwerk/testing/fixtures';
@@ -20,6 +23,7 @@ import { createGraphqlAdapter } from '../../src/create-graphql-adapter.ts';
 import type { GraphqlConfig } from '../../src/graphql-config.ts';
 import { createGraphqlHandler } from '../../src/mount/create-graphql-handler.ts';
 import { graphqlVersionMounts } from '../../src/mount/graphql-version-mounts.ts';
+import { graphqlConformanceApp, graphqlConformanceVersions } from './graphql-conformance-app.ts';
 
 export const graphqlRequestId = '01929b5e-7c3a-7f00-9a51-2f0a0c1b4d11';
 
@@ -51,27 +55,46 @@ export function transportSurface(apiVersion = '2026-11-04'): ApiSurface {
   return deriveSurface(transportApp as never, apiVersion).surface;
 }
 
+/** What a fake invoker's `subscribe` yields for an invocation. */
+export type GraphqlSubscribe = (
+  inv: Invocation<unknown>,
+  resume: { readonly after: StateToken } | undefined,
+) => AsyncIterable<LiveFrame<unknown>>;
+
 export interface GraphqlFakeInvoker {
   readonly invoker: Invoker;
   readonly calls: Invocation<unknown>[];
+  /** The invocations `subscribe` was asked for, in order. */
+  readonly subscribed: Invocation<unknown>[];
+}
+
+/** The surface of the conformance app (live, library, loans and GraphQL composed) at an API version. */
+export function conformanceSurface(
+  apiVersion: string = graphqlConformanceVersions.head,
+): ApiSurface {
+  return deriveSurface(graphqlConformanceApp as never, apiVersion).surface;
 }
 
 /** An invoker that answers every invocation with `respond` and records it. */
 export function graphqlInvoker(
   respond: (inv: Invocation<unknown>) => Outcome<unknown> | Promise<Outcome<unknown>>,
+  subscribe?: GraphqlSubscribe,
 ): GraphqlFakeInvoker {
   const calls: Invocation<unknown>[] = [];
+  const subscribed: Invocation<unknown>[] = [];
   const invoker: Invoker = {
     open: async () => ({ ok: true, value: graphqlSession() }),
     invoke: async <I, O>(inv: Invocation<I>) => {
       calls.push(inv);
       return (await respond(inv)) as Outcome<O>;
     },
-    subscribe: () => {
-      throw new Error('this package serves no subscriptions yet');
+    subscribe: <I, E>(inv: Invocation<I>, resume?: { readonly after: StateToken }) => {
+      subscribed.push(inv as Invocation<unknown>);
+      if (subscribe === undefined) throw new Error('this test serves no subscriptions');
+      return subscribe(inv as Invocation<unknown>, resume) as AsyncIterable<LiveFrame<E>>;
     },
   };
-  return { invoker, calls };
+  return { invoker, calls, subscribed };
 }
 
 export interface GraphqlRegistered {
@@ -79,12 +102,25 @@ export interface GraphqlRegistered {
   readonly handler: HttpHandler;
 }
 
-export const graphqlDefaultConfig: GraphqlConfig = { cors: [], maxBodyBytes: 1_048_576 };
+export const graphqlDefaultConfig: GraphqlConfig = {
+  cors: [],
+  maxBodyBytes: 1_048_576,
+  websocket: false,
+};
+
+/** What the adapter registered through `host.upgrade`. */
+export interface GraphqlUpgraded {
+  readonly path: string;
+  readonly protocols: readonly string[];
+  readonly handler: WebSocketHandler;
+}
 
 export interface GraphqlMounted {
   readonly handler: HttpHandler;
   readonly registered: GraphqlRegistered[];
+  readonly upgraded: GraphqlUpgraded[];
   readonly calls: Invocation<unknown>[];
+  readonly subscribed: Invocation<unknown>[];
   readonly lines: LoggedLine[];
   readonly close: (deadline?: AbortSignal) => Promise<void>;
 }
@@ -93,6 +129,8 @@ export interface MountOptions {
   readonly config?: Partial<GraphqlConfig>;
   readonly development?: boolean;
   readonly path?: string;
+  /** What the invoker's `subscribe` yields; absent, a subscription throws. */
+  readonly subscribe?: GraphqlSubscribe;
   /** The surface of each declared API version; absent, `surface` serves every version. */
   readonly surfaces?: VersionProjection<ApiSurface>;
 }
@@ -104,14 +142,17 @@ export async function mountedGraphql(
   over: MountOptions = {},
 ): Promise<GraphqlMounted> {
   const registered: GraphqlRegistered[] = [];
+  const upgraded: GraphqlUpgraded[] = [];
   const host: TransportHost = {
     route: (spec, handler) => {
       registered.push({ prefix: spec.prefix, handler });
     },
-    upgrade: () => undefined,
+    upgrade: (spec, handler) => {
+      upgraded.push({ path: spec.path, protocols: spec.protocols, handler });
+    },
     fetch: async () => new Response(null, { status: 404 }),
   };
-  const { invoker, calls } = graphqlInvoker(respond);
+  const { invoker, calls, subscribed } = graphqlInvoker(respond, over.subscribe);
   const lines: LoggedLine[] = [];
   const log = recordingLogger(lines);
   const context: MountContext<GraphqlConfig> = {
@@ -134,7 +175,9 @@ export async function mountedGraphql(
   return {
     handler: first.handler,
     registered,
+    upgraded,
     calls,
+    subscribed,
     lines,
     close: (deadline = new AbortController().signal) => handle.close(deadline),
   };
@@ -221,8 +264,13 @@ export function handlerWithLimits(
   surface: ApiSurface,
   respond: (inv: Invocation<unknown>) => Outcome<unknown> | Promise<Outcome<unknown>>,
   limits: SelectionLimits,
-): { readonly handler: HttpHandler; readonly calls: Invocation<unknown>[] } {
-  const { invoker, calls } = graphqlInvoker(respond);
+  subscribe?: GraphqlSubscribe,
+): {
+  readonly handler: HttpHandler;
+  readonly calls: Invocation<unknown>[];
+  readonly subscribed: Invocation<unknown>[];
+} {
+  const { invoker, calls, subscribed } = graphqlInvoker(respond, subscribe);
   const log = recordingLogger();
   const host: TransportHost = {
     route: () => undefined,
@@ -247,7 +295,7 @@ export function handlerWithLimits(
     log,
     development: false,
   });
-  return { handler, calls };
+  return { handler, calls, subscribed };
 }
 
 /** The surface with the members of one action replaced (a hint, an input, an output). */

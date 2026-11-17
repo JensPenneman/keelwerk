@@ -1,52 +1,20 @@
 import { errors, type HttpContext, type HttpHandler, type KeelwerkError } from '@keelwerk/core';
-import { asKeelwerkError, coreError } from '@keelwerk/core/http';
-import type DataLoader from 'dataloader';
-import type { DocumentNode } from 'graphql';
+import { asKeelwerkError, asksForEventStream, coreError } from '@keelwerk/core/http';
+import { type DocumentNode, getOperationAST } from 'graphql';
+import type { GraphqlParams } from '../request/graphql-params.ts';
 import { prepareDocuments } from '../request/prepare-documents.ts';
 import { readGraphqlParams } from '../request/read-graphql-params.ts';
 import { selectsIntrospection } from '../request/selects-introspection.ts';
 import type { GraphqlContext } from '../resolve/graphql-context.ts';
+import { graphqlContextOf } from '../resolve/graphql-context-of.ts';
 import { invokeAction } from '../resolve/invoke-action.ts';
-import { referenceLoader } from '../resolve/reference-loader.ts';
+import { acceptForYoga } from './accept-for-yoga.ts';
+import { endWithResponse } from './end-with-response.ts';
 import { endpointHeader } from './endpoint-header.ts';
 import type { GraphqlHandlerDeps } from './graphql-handler-deps.ts';
 import type { GraphqlVersionMount } from './graphql-version-mount.ts';
+import { linkedAbort } from './linked-abort.ts';
 import { refusalResponse } from './refusal-response.ts';
-
-function contextOf(
-  deps: GraphqlHandlerDeps,
-  mount: GraphqlVersionMount,
-  ctx: HttpContext,
-  documents: ReadonlyMap<string, DocumentNode>,
-): GraphqlContext {
-  const loaders = new Map<string, DataLoader<string, unknown>>();
-  const context: GraphqlContext = {
-    session: ctx.session,
-    carrier: ctx.carrier,
-    requestId: ctx.requestId,
-    ...(ctx.traceparent === undefined ? {} : { traceparent: ctx.traceparent }),
-    signal: ctx.signal,
-    surface: mount.surface,
-    invoker: deps.invoker,
-    development: deps.development,
-    log: deps.log,
-    ...(deps.clock === undefined ? {} : { now: deps.clock.now() }),
-    documents,
-    loaderOf: (entity) => {
-      let loader = loaders.get(entity);
-      if (loader === undefined) {
-        loader = referenceLoader(context, entity);
-        loaders.set(entity, loader);
-      }
-      return loader;
-    },
-    clearLoaders: () => {
-      for (const loader of loaders.values()) loader.clearAll();
-    },
-    setCookies: [],
-  };
-  return context;
-}
 
 /** The introspection authority (decision D8): `core.introspect` through the invoker decides, so the backend setting and the core rule decide once. */
 async function introspectionRefusal(context: GraphqlContext): Promise<KeelwerkError | undefined> {
@@ -63,9 +31,11 @@ async function execute(
   request: Request,
   context: GraphqlContext,
   body: string,
+  accept: string | undefined,
 ): Promise<Response> {
   const headers = new Headers(request.headers);
   headers.set('content-type', 'application/json');
+  if (accept !== undefined) headers.set('accept', accept);
   headers.delete('content-length');
   const answer = await mount.yoga.fetch(
     new Request(new URL('/graphql', request.url), { method: 'POST', headers, body }),
@@ -78,6 +48,20 @@ async function execute(
     status: answer.status,
     statusText: answer.statusText,
     headers: merged,
+  });
+}
+
+/** Whether any request of the batch runs a subscription operation (the one its `operationName` names). */
+function runsSubscription(
+  params: readonly GraphqlParams[],
+  documents: ReadonlyMap<string, DocumentNode>,
+): boolean {
+  return params.some(({ query, operationName }) => {
+    const document = documents.get(query);
+    return (
+      document !== undefined &&
+      getOperationAST(document, operationName)?.operation === 'subscription'
+    );
   });
 }
 
@@ -119,7 +103,7 @@ export function createGraphqlHandler(deps: GraphqlHandlerDeps): HttpHandler {
     if (request.method === 'GET' && deps.development) {
       if ((request.headers.get('accept') ?? '').includes('text/html')) {
         return await mount.yoga.fetch(graphiqlRequest(request, ctx), {
-          ...contextOf(deps, mount, ctx, new Map()),
+          ...graphqlContextOf(deps, mount, ctx, new Map()),
         });
       }
     }
@@ -130,19 +114,47 @@ export function createGraphqlHandler(deps: GraphqlHandlerDeps): HttpHandler {
         405,
       );
     }
+    // The work of this request stops with its answer: no iterator outlives its response.
+    const lifetime = linkedAbort(ctx.signal);
     try {
       const { batch, params } = await readGraphqlParams(
         request,
         deps.config(ctx.session.scope).maxBodyBytes,
       );
       const documents = prepareDocuments(params, mount.projection, deps.limits);
-      const context = contextOf(deps, mount, ctx, documents);
+      // The stream gate is the host's: a subscription runs only as the one operation of a request that
+      // asks for `text/event-stream` (the host's own reading of `Accept`), which is then the one
+      // `Accept` Yoga negotiates with. Any other request that runs one is refused before execution.
+      const subscribes = runsSubscription(params, documents);
+      if (subscribes && (batch || !asksForEventStream(request))) {
+        lifetime.abort();
+        return refusalResponse(
+          coreError('core.unsupported', {
+            message:
+              'A subscription is sent alone, with Accept: text/event-stream, and is not part of a batch.',
+          }),
+          base,
+          406,
+        );
+      }
+      const context = graphqlContextOf(deps, mount, { ...ctx, signal: lifetime.signal }, documents);
       if ([...documents.values()].some(selectsIntrospection)) {
         const refusal = await introspectionRefusal(context);
-        if (refusal !== undefined) return refusalResponse(refusal, base);
+        if (refusal !== undefined) {
+          lifetime.abort();
+          return refusalResponse(refusal, base);
+        }
       }
-      return await execute(mount, request, context, JSON.stringify(batch ? params : params[0]));
+      const answer = await execute(
+        mount,
+        request,
+        context,
+        JSON.stringify(batch ? params : params[0]),
+        acceptForYoga(request, subscribes),
+      );
+      return endWithResponse(answer, lifetime);
     } catch (thrown) {
+      lifetime.abort();
       return refusalResponse(asKeelwerkError(thrown), base);
     }
   };

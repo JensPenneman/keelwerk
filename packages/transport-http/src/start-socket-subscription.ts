@@ -3,7 +3,6 @@ import {
   type LiveClientMessage,
   type LiveFrame,
   type StateToken,
-  unknownClientAddress,
   utcDayOf,
 } from '@keelwerk/core';
 import { asKeelwerkError, coreError, decodeActionInput, encodeFrames } from '@keelwerk/core/http';
@@ -11,6 +10,7 @@ import type { LiveSocketState } from './live-socket-state.ts';
 import { sendLiveMessage } from './send-live-message.ts';
 import { servedSurfaceOf } from './served-surface-of.ts';
 import { socketWireError } from './socket-wire-error.ts';
+import { takeSocketSubscription } from './take-socket-subscription.ts';
 
 async function run(
   state: LiveSocketState,
@@ -98,25 +98,9 @@ export function startSocketSubscription(
   message: Extract<LiveClientMessage, { type: 'subscribe' }>,
 ): void {
   const { id } = message;
-  const refused = state.subscriptions.has(id)
-    ? coreError('core.malformed_request', {
-        issues: [{ path: ['id'], message: 'This id is open on this socket.' }],
-      })
-    : state.subscriptions.size >= state.upgrade.host.liveSocket.maxSubscriptionsPerSocket
-      ? coreError('core.quota_exceeded', {
-          message: 'Too many subscriptions are open on this socket.',
-        })
-      : null;
-  if (refused !== null) {
-    void sendLiveMessage(state, { type: 'error', id, error: socketWireError(state, refused) });
-    return;
-  }
   let release: () => void;
   try {
-    release = state.upgrade.host.limits.takeSubscription(
-      state.session,
-      state.upgrade.carrier.connection?.remote.address ?? unknownClientAddress,
-    );
+    release = takeSocketSubscription(state, id);
   } catch (failure) {
     void sendLiveMessage(state, {
       type: 'error',

@@ -1,4 +1,12 @@
-import type { ApiSurface, Carrier, InvocationSession, Invoker, Logger } from '@keelwerk/core';
+import type {
+  ApiSurface,
+  Carrier,
+  DeprecationNotice,
+  InvocationSession,
+  Invoker,
+  Logger,
+  SocketSession,
+} from '@keelwerk/core';
 import type DataLoader from 'dataloader';
 import type { DocumentNode } from 'graphql';
 
@@ -24,6 +32,10 @@ export interface GraphqlContext {
   loaderOf(entity: string): DataLoader<string, unknown>;
   /** Drops every loaded row: a command may have changed what a reference shows, so later fields of the request read afresh. */
   clearLoaders(): void;
+  /** The host's session of the socket the operation runs on (graphql-ws); absent over HTTP. */
+  readonly socket?: SocketSession;
+  /** The action notices (deprecated actions) the next answer must carry; `graphqlAnswerOf` empties it. */
+  readonly notices: DeprecationNotice[];
   /** Set-Cookie values the cookie hint produced, appended to the response. */
   readonly setCookies: string[];
 }

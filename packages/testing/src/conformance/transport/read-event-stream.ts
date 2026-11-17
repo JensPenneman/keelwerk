@@ -18,7 +18,9 @@ function frameOf(block: string): StreamFrame | undefined {
     else if (name === 'data') data.push(value);
   }
   if (event === undefined) return undefined;
-  return { event, id, data: data.length === 0 ? undefined : JSON.parse(data.join('\n')) };
+  // An event whose data lines are all empty (GraphQL over SSE's `complete`) carries no data.
+  const text = data.join('\n');
+  return { event, id, data: text === '' ? undefined : JSON.parse(text) };
 }
 
 /**

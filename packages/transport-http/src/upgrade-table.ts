@@ -1,4 +1,5 @@
 import { liveSocketEndpoint } from './live-socket-endpoint.ts';
+import { registeredSocketEndpoint } from './registered-socket-endpoint.ts';
 import type { UpgradeEntry } from './upgrade-entry.ts';
 
 /**
@@ -6,5 +7,12 @@ import type { UpgradeEntry } from './upgrade-entry.ts';
  * append their entry. `keelwerk.live.v1` is the host's own endpoint.
  */
 export const upgradeTable: readonly UpgradeEntry[] = [
+  {
+    protocol: 'graphql-transport-ws',
+    serve: registeredSocketEndpoint('graphql-transport-ws', {
+      code: 4408,
+      reason: 'Connection initialisation timeout',
+    }),
+  },
   { protocol: 'keelwerk.live.v1', path: '/_keelwerk/v1/live', serve: liveSocketEndpoint },
 ];

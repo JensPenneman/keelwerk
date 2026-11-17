@@ -37,6 +37,8 @@ export function actionArgsOf(env: BuildEnv, action: SurfaceAction): GraphQLField
     if (node.access === 'read' || node.kind === 'void') continue;
     if (action.generated !== undefined && member === 'properties') continue;
     if (action.generated === 'query' && member === 'total') continue;
+    // The resume argument of a subscription field is `after`: it replaces an input member of that name.
+    if (action.kind === 'subscription' && member === 'after') continue;
     let type: GraphQLInputType;
     if (listing && entity !== undefined && member === 'filter') {
       type = filterInputOf(entity, env.surface, types);

@@ -2,6 +2,7 @@ import {
   GraphQLBoolean,
   GraphQLEnumType,
   GraphQLID,
+  GraphQLInt,
   GraphQLInterfaceType,
   GraphQLNonNull,
   GraphQLObjectType,
@@ -26,7 +27,7 @@ function enumOf(name: string, values: readonly string[]): GraphQLEnumType {
   });
 }
 
-/** Builds the fixed types: `Node`, `Error`, `PageInfo`, `SortDirection`, `ExecutionPreference` and `CommandAccepted`. */
+/** Builds the fixed types: `Node`, `Error`, `PageInfo`, `SortDirection`, `ExecutionPreference`, `CommandAccepted` and the stream types of the subscription root (`StreamHead`, `StreamReset`, `StreamGap`, `StreamResetReason`). */
 export function fixedTypesOf(): FixedTypes {
   const node = new GraphQLInterfaceType({
     name: 'Node',
@@ -41,9 +42,27 @@ export function fixedTypesOf(): FixedTypes {
     },
     resolveType: typenameOf,
   });
+  const streamResetReason = enumOf('StreamResetReason', ['overflow', 'expired', 'resync']);
   return {
     node,
     error,
+    streamResetReason,
+    streamHead: new GraphQLObjectType({
+      name: 'StreamHead',
+      // Nullable like the `state` of an item and of a reset: a client selects `state` on several members of the event union, and GraphQL refuses members whose field differs in nullability.
+      fields: { state: { type: GraphQLString } },
+    }),
+    streamReset: new GraphQLObjectType({
+      name: 'StreamReset',
+      fields: {
+        reason: { type: new GraphQLNonNull(streamResetReason) },
+        state: { type: GraphQLString },
+      },
+    }),
+    streamGap: new GraphQLObjectType({
+      name: 'StreamGap',
+      fields: { missed: { type: GraphQLInt } },
+    }),
     pageInfo: new GraphQLObjectType({
       name: 'PageInfo',
       fields: {

@@ -1,5 +1,6 @@
 export { applyCookieHint, type CookieHintResult } from './apply-cookie-hint.ts';
 export { asKeelwerkError } from './as-keelwerk-error.ts';
+export { asksForEventStream } from './asks-for-event-stream.ts';
 export { audienceOf } from './audience-of.ts';
 export { clearedCookie } from './cleared-cookie.ts';
 export { closeCodeOfError } from './close-code-of-error.ts';

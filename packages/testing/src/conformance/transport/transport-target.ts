@@ -1,6 +1,7 @@
 import type { HostFetchOptions } from '@keelwerk/core';
 import type { ConnectOptions } from './connect-options.ts';
 import type { SocketUpgrade } from './socket-upgrade.ts';
+import type { TransportBounds } from './transport-bounds.ts';
 import type { TransportCodec } from './transport-codec.ts';
 
 /** What the suite runs against: a request function, a codec and the deployment's tenants. */
@@ -26,7 +27,25 @@ export interface TransportTarget {
   readonly connect?: (request: Request, options?: ConnectOptions) => Promise<SocketUpgrade>;
   readonly codec: TransportCodec;
   /** The tenants of the backend, by name. */
-  readonly tenants: Readonly<Record<string, { readonly id: string; readonly domain: string }>>;
+  readonly tenants: Readonly<
+    Record<
+      string,
+      {
+        readonly id: string;
+        readonly domain: string;
+        /** The deprecated API version the tenant is pinned to; absent when its version is not deprecated. */
+        readonly deprecatedApiVersion?: string;
+      }
+    >
+  >;
+  /** Revokes a subject (`TransportRuntime.revoke`): its credentials are `unauthenticated` from then on. Absent when the runner cannot; the case of the session check per subscription is skipped then. */
+  readonly revoke?: (subject: string) => void;
+  /** Moves the runtime's clock forward and fires the waits it makes due; absent when the runtime runs on the system clock. The case of the session check of a running subscription is skipped without it. */
+  readonly advance?: (ms: number) => Promise<void>;
+  /** The live bounds of the runner's host; a case that needs other caps than these is skipped by name. */
+  readonly bounds: TransportBounds;
+  /** The newest API version the app serves, the one `keelwerk-version` answers for a tenant on the head. */
+  readonly headApiVersion: string;
   /** The origins the backend's REST `cors` setting allows. */
   readonly cors: readonly string[];
   /** The configuration the target's backend was started with, by module id. */

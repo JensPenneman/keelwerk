@@ -4,4 +4,6 @@ export interface GraphqlConfig {
   readonly cors: readonly string[];
   /** The most bytes of a request body. */
   readonly maxBodyBytes: number;
+  /** Serve `graphql-transport-ws` (subscriptions over a WebSocket) on the endpoint's path; default false. */
+  readonly websocket: boolean;
 }

@@ -10,6 +10,8 @@ export interface EndpointCall {
   readonly session: InvocationSession;
   readonly carrier: Carrier;
   readonly request: Request;
+  /** The transport of the mounted route the request matched (the origin rule of its `cors` applies); absent for the host's own endpoints. */
+  readonly transport?: string;
   /** The body, already read within the limit; empty for requests without one. */
   readonly bytes: Uint8Array<ArrayBuffer>;
   /** The request of a TCP listener, whose socket a stalled stream destroys; absent on the in-process path. */

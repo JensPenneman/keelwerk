@@ -81,6 +81,13 @@ export async function startPortalPostgres(options: PostgresPortalOptions): Promi
     backendConfig: portalConfig,
     tenants,
     domains,
+    // The portal runs the host at its defaults and has no test principal book to revoke from.
+    bounds: { maxStreamsPerPrincipal: 20, maxSubscriptionsPerSocket: 100 },
+    headApiVersion: portal.api?.dates.at(-1) ?? '',
+    deprecatedPins: {},
+    revoke: () => {
+      throw new Error('The portal runtime has no test principal book to revoke a subject from.');
+    },
     socket,
     stop: async () => {
       await runtime.stop(1000);

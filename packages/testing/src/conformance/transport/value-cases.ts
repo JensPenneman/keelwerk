@@ -19,7 +19,7 @@ export function valueCases(target: TransportTarget): void {
       accepted: false,
     });
     expect(sent.response.status).toBe(200);
-    expect(sent.response.headers.get('keelwerk-version')).toBe('2026-11-04');
+    expect(sent.response.headers.get('keelwerk-version')).toBe(target.headApiVersion);
     expect(sent.response.headers.get('keelwerk-command-id')).toMatch(/^[0-9a-f-]{36}$/);
   });
 

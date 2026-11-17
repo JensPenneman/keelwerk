@@ -1,6 +1,7 @@
 import type { HostFetchOptions, Runtime } from '@keelwerk/core';
 import type { ConnectOptions } from './connect-options.ts';
 import type { SocketUpgrade } from './socket-upgrade.ts';
+import type { TransportBounds } from './transport-bounds.ts';
 
 /** A running deployment of the transport fixture app with its HTTP host listening in process. */
 export interface TransportRuntime {
@@ -29,6 +30,14 @@ export interface TransportRuntime {
   readonly tenants: Readonly<Record<string, string>>;
   /** The domain registered for each tenant. */
   readonly domains: Readonly<Record<string, string>>;
+  /** The live bounds of the host's entry, which the socket and stream cases read instead of numbers of their own. */
+  readonly bounds: TransportBounds;
+  /** The newest API version the app serves: the version a tenant not pinned to another one is answered at. */
+  readonly headApiVersion: string;
+  /** Tenant name to the deprecated API version it is pinned to; a tenant on a version that is not deprecated is not listed. */
+  readonly deprecatedPins: Readonly<Record<string, string>>;
+  /** Revokes a subject: its test principal header and cookie are `unauthenticated` from then on (a job re-resolves it to nothing), so the next session check of a session held by it fails. */
+  revoke(subject: string): void;
   /** The operator socket path the host listens on. */
   readonly socket: string;
   stop(): Promise<void>;

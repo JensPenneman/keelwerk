@@ -28,9 +28,11 @@ export function subscriptionCases(target: TransportTarget): void {
     try {
       expect(stream.response.status).toBe(200);
       expect(stream.response.headers.get('content-type')).toContain('text/event-stream');
-      const welcome = await stream.next();
-      expect(welcome?.event).toBe('welcome');
-      expect(welcome?.data).toMatchObject({ protocol: 1 });
+      if (codec.streamWelcome !== false) {
+        const welcome = await stream.next();
+        expect(welcome?.event).toBe('welcome');
+        expect(welcome?.data).toMatchObject({ protocol: 1 });
+      }
       const head = await stream.next();
       expect(head?.event).toBe('head');
       const state = (head?.data as { state?: string } | undefined)?.state;
@@ -145,6 +147,7 @@ export function subscriptionCases(target: TransportTarget): void {
           headers: {
             ...Object.fromEntries(requestHeaders(caller)),
             'sec-fetch-site': 'cross-site',
+            accept: 'text/event-stream',
           },
         },
       ),
@@ -159,13 +162,18 @@ export function subscriptionCases(target: TransportTarget): void {
         open({ action: 'loans.loanTicker', input: {}, remoteAddress });
       const held: Awaited<ReturnType<typeof stream>>[] = [];
       try {
-        // The default cap is 20 streams of one anonymous client address.
+        // The cap of the host: streams of one anonymous client address.
         let refused: Awaited<ReturnType<typeof stream>> | undefined;
-        for (let index = 0; index < 40 && refused === undefined; index += 1) {
+        for (
+          let index = 0;
+          index < 2 * target.bounds.maxStreamsPerPrincipal && refused === undefined;
+          index += 1
+        ) {
           const next = await stream('203.0.113.50');
           if (next.response.status === 200) held.push(next);
           else refused = next;
         }
+        expect(held).toHaveLength(target.bounds.maxStreamsPerPrincipal);
         expect(refused?.response.status).toBe(429);
         await refused?.close();
         const other = await stream('203.0.113.51');
