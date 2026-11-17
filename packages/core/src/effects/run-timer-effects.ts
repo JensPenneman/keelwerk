@@ -11,18 +11,21 @@ import { durationMs } from './duration-ms.ts';
 import type { EffectScene } from './effect-scene.ts';
 import { jobInput } from './job-input.ts';
 import { sealJobInput } from './seal-job-input.ts';
+import { timerKey } from './timer-key.ts';
 import { timerQueue } from './timer-queue.ts';
 import { validateEffectInput } from './validate-effect-input.ts';
 
 /**
  * `setTimer({ key, at or after, invoke, input })`: a keyed job in the `timers` queue, committed
  * with the unit, that invokes the command under the service principal of the module whose decision
- * set it, under the kernel command id of the timer's effect (`kernel:timer:<effect id>`). The command is one of the unit's own scope: a timer does not
- * cross scopes (`checkTimerScope`, judged for the principal of the decision). A timer with the same
- * key is replaced. The secret members of the input are sealed under value keys and the personal
- * ones under the data key of the subject they name, which is resolved in the setting unit
- * (`sealJobInput`); a subject that was erased fails the setting command, and one erased later ends
- * the timer without running it (`endJobAfterErasure`).
+ * set it, under the kernel command id of the timer's effect (`kernel:timer:<effect id>`). The
+ * command is one of the unit's own scope: a timer does not cross scopes (`checkTimerScope`, judged
+ * for the principal of the decision). A timer with the same key is replaced; it is stored under the
+ * key of its module (`timerKey`), so a module reaches only its own timers. The secret members of
+ * the input are sealed under value keys and the personal ones under the data key of the subject
+ * they name, which is resolved in the setting unit (`sealJobInput`); a subject that was erased
+ * fails the setting command, and one erased later ends the timer without running it
+ * (`endJobAfterErasure`).
  */
 async function setTimer(scene: EffectScene, effect: SetTimerEffect, id: string): Promise<void> {
   const { run, unit } = scene;
@@ -57,13 +60,16 @@ async function setTimer(scene: EffectScene, effect: SetTimerEffect, id: string):
       commandId,
     ),
     runAt,
-    key: { value: effect.key, onConflict: 'replace' },
+    key: { value: timerKey(scene.module, effect.key), onConflict: 'replace' },
   });
 }
 
-/** `cancelTimer(key)`: cancels the pending timer job of the key. */
+/**
+ * `cancelTimer(key)`: cancels the timer of the key that this module set: the pending job, or in
+ * `timers` its running attempt (`JobStore.cancel`).
+ */
 async function cancelTimer(scene: EffectScene, effect: CancelTimerEffect): Promise<void> {
-  await scene.unit.jobs.cancel(timerQueue, effect.key);
+  await scene.unit.jobs.cancel(timerQueue, timerKey(scene.module, effect.key));
 }
 
 /**

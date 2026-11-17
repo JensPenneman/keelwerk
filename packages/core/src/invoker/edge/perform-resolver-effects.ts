@@ -7,6 +7,7 @@ import { commandQueue } from '../../effects/command-queue.ts';
 import { crossScopeGroup } from '../../effects/cross-scope-group.ts';
 import { principalRefOf } from '../../effects/principal-ref-of.ts';
 import { sealJobInput } from '../../effects/seal-job-input.ts';
+import { timerKey } from '../../effects/timer-key.ts';
 import { timerQueue } from '../../effects/timer-queue.ts';
 import { kernelCommandId } from '../../ids/kernel-command-id.ts';
 import { newUuidV7 } from '../../ids/new-uuid-v7.ts';
@@ -91,7 +92,7 @@ function jobOf(
       queue: timerQueue,
       run: commandJobRun(effect.action, effect.input, kernelCommandId('timer', newUuidV7())),
       runAt,
-      key: { value: effect.key, onConflict: 'replace' },
+      key: { value: timerKey(module, effect.key), onConflict: 'replace' },
     };
   }
   throw refuseRequest(
@@ -127,11 +128,12 @@ function commandOf(
 
 /**
  * Performs the effects a principal resolver returned (auth's idle extension) in a short
- * read-write unit of the session's scope, right after `open` (S-24). They become keyed job rows; a timer runs
- * under the service principal `core.module` mints for the module whose resolver returned it
- * (section 9.5, decision 335), and an enqueue under the session's principal; each under a kernel
- * command id of its own, with the secret members of its input sealed in the unit, so a job that
- * crosses scopes has the receipt that holds it once. A timer without a module, or naming no command
+ * read-write unit of the session's scope, right after `open` (S-24). They become keyed job rows; a
+ * timer runs under the service principal `core.module` mints for the module whose resolver
+ * returned it (section 9.5, decision 335) and is stored under the key of that module
+ * (`timerKey`), and an enqueue under the session's principal; each under a kernel command id of
+ * its own, with the secret members of its input sealed in the unit, so a job that crosses scopes
+ * has the receipt that holds it once. A timer without a module, or naming no command
  * of the app, is refused, and so is a timer or an enqueue naming a command its scope may not reach;
  * a timer never crosses scopes. Every effect is checked before the unit opens, so a refused one
  * writes nothing.

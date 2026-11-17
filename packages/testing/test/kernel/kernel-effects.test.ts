@@ -239,7 +239,7 @@ describe('timers', () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toMatchObject({
       queue: 'timers',
-      key: { value: 'offline:1', onConflict: 'replace' },
+      key: { value: 'library:offline:1', onConflict: 'replace' },
       principal: { resolver: 'core.module', principalId: 'library.system' },
       build: { id: 'build-42', revision: 7 },
     });

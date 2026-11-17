@@ -348,6 +348,8 @@ export type { EffectInputOf, PendingEffect } from './effects/pending-effect.ts';
 export type { PlainEffectInputOf } from './effects/plain-effect-input-of.ts';
 export { sealEffectOutput } from './effects/seal-effect-output.ts';
 export { secretMembersAsRefs } from './effects/secret-members-as-refs.ts';
+export { splitTimerKey } from './effects/split-timer-key.ts';
+export type { TimerKeyParts } from './effects/timer-key-parts.ts';
 export { timerQueue } from './effects/timer-queue.ts';
 export { createSealingContext } from './encryption/create-sealing-context.ts';
 export { normalizedText } from './encryption/normalized-text.ts';

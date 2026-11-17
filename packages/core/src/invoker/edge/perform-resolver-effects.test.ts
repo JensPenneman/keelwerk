@@ -71,6 +71,12 @@ test('a timer from a module resolver is keyed to the module service principal an
   ).toBe(true);
 });
 
+test('a timer from a module resolver is stored under the key of its module', async () => {
+  const { jobs, env, target, principal, timer } = setup();
+  await performResolverEffects(env, target, principal, [timer], 'auth');
+  expect(jobs[0]?.key).toEqual({ value: 'auth:idle:1', onConflict: 'replace' });
+});
+
 test('a timer without a module is refused and writes nothing', async () => {
   const { jobs, env, target, principal, timer } = setup();
   await expect(performResolverEffects(env, target, principal, [timer])).rejects.toMatchObject({

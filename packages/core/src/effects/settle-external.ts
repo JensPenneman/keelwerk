@@ -5,6 +5,7 @@ import { refuseRequest } from '../interpreter/refuse-request.ts';
 import type { SettleEffect } from '../protocol/settle-effect.ts';
 import type { EffectScene } from './effect-scene.ts';
 import { settledErrorOf } from './settled-error-of.ts';
+import { timerKey } from './timer-key.ts';
 import { timerQueue } from './timer-queue.ts';
 import { validateEffectInput } from './validate-effect-input.ts';
 
@@ -108,6 +109,6 @@ export async function settleExternal(scene: EffectScene, effect: SettleEffect): 
   );
   if (settled === undefined) throw errors.conflict(`The effect ${id} is already settled.`);
   if (row.deadline !== undefined && row.deadline !== null) {
-    await unit.jobs.cancel(timerQueue, `core:deadline:${id}`);
+    await unit.jobs.cancel(timerQueue, timerKey('core', `deadline:${id}`));
   }
 }
