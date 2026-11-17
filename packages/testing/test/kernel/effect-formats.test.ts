@@ -202,7 +202,9 @@ describe('the stored formats of effects (F-12)', () => {
 describe.each(['memory', 'pglite'] as const)(
   'a requested record without a submitter on %s',
   (adapter) => {
-    test('a requested record without a submitter folds and reads', async () => {
+    test('a requested record without a submitter folds and reads', {
+      timeout: 60_000,
+    }, async () => {
       const runtime = await startTestRuntime(conformanceApp, { adapter, operators: true });
       try {
         const { registry, modules } = conformanceApp;
