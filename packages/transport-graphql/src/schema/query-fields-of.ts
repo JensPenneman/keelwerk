@@ -107,7 +107,13 @@ export function queryFieldsOf(
         : connectionTypeOf(env, entity, entityTypeOf(env, entity));
     type = new GraphQLNonNull(connection);
   } else {
-    type = graphqlTypeOf(action.output, `${name}Output`, 'output', types) as GraphQLOutputType;
+    type = graphqlTypeOf(
+      action.output,
+      `${name}Output`,
+      'output',
+      types,
+      action.hints.graphql?.enums,
+    ) as GraphQLOutputType;
   }
   return [
     member(rootFieldName(action), 'root field', {

@@ -1,3 +1,5 @@
+export { errorKinds } from '../errors/error-kinds.ts';
+export { isErrorKind } from '../errors/is-error-kind.ts';
 export { decodeBase64Url } from '../fields/decode-base64-url.ts';
 export { binaryCodec } from './binary-codec.ts';
 export { collectionCodec } from './collection-codec.ts';

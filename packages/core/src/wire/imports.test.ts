@@ -6,11 +6,13 @@ import { describe, expect, test } from 'vitest';
 const wireDirectory = dirname(fileURLToPath(import.meta.url));
 const sourceDirectory = resolve(wireDirectory, '..');
 
-/** Leaf modules outside `src/wire/` the subpath may import by value; each must import nothing itself. */
+/** Leaf modules outside `src/wire/` the subpath may import by value; each imports only other leaves. */
 const leaves = new Set([
   'api-versions/is-member-record.ts',
   'api-versions/is-plain-record.ts',
   'api-versions/relation-target.ts',
+  'errors/error-kinds.ts',
+  'errors/is-error-kind.ts',
   'fields/decode-base64-url.ts',
   'ids/parse-type-id.ts',
   'ids/render-type-id.ts',
@@ -39,9 +41,15 @@ describe('the wire subpath', () => {
     }
   });
 
-  test('the leaves import nothing', () => {
+  test('the leaves import only other leaves', () => {
     for (const leaf of leaves) {
-      expect(importsOf(join(sourceDirectory, leaf))).toEqual([]);
+      for (const specifier of importsOf(join(sourceDirectory, leaf))) {
+        const target = relative(
+          sourceDirectory,
+          resolve(sourceDirectory, dirname(leaf), specifier),
+        );
+        expect(leaves.has(target), `${leaf} imports ${target}`).toBe(true);
+      }
     }
   });
 

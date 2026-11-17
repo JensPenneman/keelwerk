@@ -1,4 +1,4 @@
-import type { FieldNode } from '@keelwerk/core';
+import { type FieldNode, pascal } from '@keelwerk/core';
 import {
   GraphQLBoolean,
   GraphQLEnumType,
@@ -25,12 +25,15 @@ import { outputFieldsOf } from './output-fields-of.ts';
  * (output) or it plus `Input` (input), and its members extend it with their own names (decision
  * D3). Every enum value goes through `types.enumValues`, so the names it makes are checked. Values that have no GraphQL form of their own (free-form JSON, foreign schemas, blobs) are
  * `JSON`; a shape without members is `JSON` too, since GraphQL has no empty object type.
+ * `enumNames` (the `graphql.enums` hint of an action) names the enum types of the top-level members
+ * of an output shape; nested nodes never receive it.
  */
 export function graphqlTypeOf(
   node: FieldNode,
   name: string,
   direction: 'input' | 'output',
   types: GraphqlTypeTable,
+  enumNames?: Readonly<Record<string, string>>,
 ): GraphQLType {
   switch (node.kind) {
     case 'string':
@@ -96,14 +99,31 @@ export function graphqlTypeOf(
             }),
         );
       }
+      // The hint shapes the type, so it belongs to the owner: one name with different enum names collides.
+      // Only the names that take effect count: an entry that spells the default name, or one the check
+      // refuses (no such member, no enum, write-only), changes nothing.
+      const effective = Object.entries(enumNames ?? {})
+        .filter(([member, typeName]) => {
+          const field = node.fields[member];
+          return (
+            field?.kind === 'enum' &&
+            field.access !== 'write' &&
+            typeName !== `${name}${pascal(member)}`
+          );
+        })
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+      const hinted = effective.length === 0 ? '' : ` enums ${JSON.stringify(effective)}`;
       return types.named(
         name,
-        `node ${nodeSignatureOf(node)}`,
+        `node ${nodeSignatureOf(node)}${hinted}`,
         () =>
           new GraphQLObjectType({
             name,
             fields: () =>
-              types.members(name, outputFieldsOf(node.fields, name, types, graphqlTypeOf)),
+              types.members(
+                name,
+                outputFieldsOf(node.fields, name, types, graphqlTypeOf, enumNames),
+              ),
           }),
       );
     }

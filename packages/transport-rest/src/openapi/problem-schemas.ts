@@ -1,23 +1,8 @@
 import type { ApiSurface } from '@keelwerk/core';
-import { toJsonSchema } from '@keelwerk/core';
+import { errorKinds, toJsonSchema } from '@keelwerk/core';
 import type { JsonObject } from './json-object.ts';
 import { schemaName } from './schema-name.ts';
 import { schemaRef } from './schema-ref.ts';
-
-function problemKinds(): string[] {
-  return [
-    'validation',
-    'unauthenticated',
-    'forbidden',
-    'not_found',
-    'conflict',
-    'rate_limited',
-    'not_implemented',
-    'unavailable',
-    'unsupported',
-    'internal',
-  ];
-}
 
 function problemSchema(): JsonObject {
   return {
@@ -29,7 +14,7 @@ function problemSchema(): JsonObject {
       status: { type: 'integer' },
       detail: { type: 'string' },
       instance: { type: 'string' },
-      kind: { type: 'string', enum: problemKinds() },
+      kind: { type: 'string', enum: [...errorKinds] },
       code: { type: 'string' },
       retryable: { type: 'boolean' },
       retryAfter: { type: 'number', minimum: 0 },

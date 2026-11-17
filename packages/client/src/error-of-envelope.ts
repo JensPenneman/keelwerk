@@ -1,22 +1,10 @@
-import type { ErrorKind, WireError } from '@keelwerk/core';
+import type { WireError } from '@keelwerk/core';
+import { isErrorKind } from '@keelwerk/core/wire';
 import { ClientError } from './client-error.ts';
 import { clientFailure } from './client-failure.ts';
 import { decodeWithSurface } from './decode-with-surface.ts';
 import { isRecord } from './is-record.ts';
 import type { LoadedSurface } from './surface-cache.ts';
-
-const kinds: ReadonlySet<string> = new Set<ErrorKind>([
-  'validation',
-  'unauthenticated',
-  'forbidden',
-  'not_found',
-  'conflict',
-  'rate_limited',
-  'not_implemented',
-  'unavailable',
-  'unsupported',
-  'internal',
-]);
 
 /** The error an `{ ok: false, error }` envelope carries, with declared details decoded by the surface when it is at hand. */
 export function errorOfEnvelope(
@@ -27,8 +15,7 @@ export function errorOfEnvelope(
   const wire = isRecord(body) && body.ok === false ? body.error : undefined;
   if (
     !isRecord(wire) ||
-    typeof wire.kind !== 'string' ||
-    !kinds.has(wire.kind) ||
+    !isErrorKind(wire.kind) ||
     typeof wire.code !== 'string' ||
     typeof wire.message !== 'string'
   ) {
@@ -47,7 +34,7 @@ export function errorOfEnvelope(
     }
   }
   return new ClientError({
-    kind: wire.kind as ErrorKind,
+    kind: wire.kind,
     code: wire.code,
     message: wire.message,
     retryable: wire.retryable === true,

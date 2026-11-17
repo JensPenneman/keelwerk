@@ -191,6 +191,22 @@ describe('the remote client', () => {
     expect(server.requests.filter((r) => r.path.endsWith('/invoke'))).toHaveLength(1);
   });
 
+  it('an error envelope whose kind is no error kind is a core.internal failure', async () => {
+    const { client } = setup({
+      'shop.ping': () => ({
+        error: {
+          kind: 'bogus' as unknown as 'internal',
+          code: 'shop.x',
+          message: 'm',
+          retryable: false,
+        },
+        status: 409,
+      }),
+    });
+    const outcome = await client.attempt('shop.ping', undefined);
+    expect(outcome).toMatchObject({ ok: false, error: { code: 'core.internal' } });
+  });
+
   it('fetches the surface once, or takes the committed one', async () => {
     const { server, client } = setup();
     await client.invoke('shop.ping', undefined);

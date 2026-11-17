@@ -1,5 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { errorKinds } from '@keelwerk/core';
 import { scanModuleDirectory } from '@keelwerk/core/manifest';
 import { describe, expect, test } from 'vitest';
 import { useNewWorkspace } from './support/new-workspace.ts';
@@ -199,5 +200,12 @@ describe('app and script', () => {
     expect(run.code).toBe(0);
     expect(await read('scripts/backfill-books.ts')).toContain('backfill-books');
     expect(run.stdout).toContain('"backfill-books": "node scripts/backfill-books.ts"');
+  });
+
+  test('an error of a kind outside the taxonomy is refused with every kind named', async () => {
+    await libraryCopy();
+    const run = await runNew('error', 'library.x', '--kind', 'bogus', '--dir', 'modules/library');
+    expect(run.code).toBe(2);
+    expect(run.stderr).toContain(errorKinds.join(', '));
   });
 });

@@ -17,6 +17,7 @@ import { effectStatusShape } from '../shapes/effect-status-shape.ts';
  */
 export const effectStatus: CoreLiteral['actions']['effectStatus'] = defineQuery(coreBase, {
   scope: 'invocation',
+  hints: { graphql: { enums: { status: 'CoreEffectStatus' } } },
   input: shape({ id: field.ref.own('effect') }),
   output: effectStatusShape,
   *read(input, ctx) {

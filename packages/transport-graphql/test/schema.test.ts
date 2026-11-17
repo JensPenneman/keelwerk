@@ -279,4 +279,16 @@ describe('the schema of a surface', () => {
     expect(projection.entityTypes.get('LoansLoan')).toBe('loans.loan');
     expect(projection.connectionTypes.has('LoansLoanConnection')).toBe(true);
   });
+
+  test("the effect status query and watch answer the enum of core.effect's status", () => {
+    const { schema } = buildGraphqlSchema(conformance);
+    const status = schema.getType('CoreEffectStatus');
+    expect(isEnumType(status)).toBe(true);
+    for (const name of ['CoreEffectStatusOutput', 'CoreEffectStatusWatchItem']) {
+      const type = schema.getType(name) as GraphQLObjectType;
+      expect(getNamedType(type.getFields().status?.type as never)).toBe(status);
+    }
+    expect(schema.getType('CoreEffectStatusOutputStatus')).toBeUndefined();
+    expect(schema.getType('CoreEffectStatusWatchItemStatus')).toBeUndefined();
+  });
 });

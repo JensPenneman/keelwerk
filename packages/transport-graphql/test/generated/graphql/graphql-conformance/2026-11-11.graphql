@@ -729,15 +729,8 @@ type CoreEffectStatusOutput {
   requestedAt: Instant
   runAt: Instant
   settledAt: Instant
-  status: CoreEffectStatusOutputStatus
+  status: CoreEffectStatus
   type: String
-}
-
-enum CoreEffectStatusOutputStatus {
-  ABANDONED
-  FAILED
-  REQUESTED
-  SUCCEEDED
 }
 
 union CoreEffectStatusWatchEvent = CoreEffectStatusWatchItem | StreamGap | StreamHead | StreamReset
@@ -752,15 +745,8 @@ type CoreEffectStatusWatchItem {
 
   """The state of the stream after this item."""
   state: String
-  status: CoreEffectStatusWatchItemStatus
+  status: CoreEffectStatus
   type: String
-}
-
-enum CoreEffectStatusWatchItemStatus {
-  ABANDONED
-  FAILED
-  REQUESTED
-  SUCCEEDED
 }
 
 union CoreEffectWatchEvent = CoreEffectWatchItem | StreamGap | StreamHead | StreamReset

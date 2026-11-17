@@ -25,7 +25,13 @@ function outputTypeOf(
   if (entity !== undefined && action.generated !== undefined && writes.includes(action.generated)) {
     return entityTypeOf(env, entity);
   }
-  return graphqlTypeOf(action.output, `${name}Output`, 'output', types) as GraphQLOutputType;
+  return graphqlTypeOf(
+    action.output,
+    `${name}Output`,
+    'output',
+    types,
+    action.hints.graphql?.enums,
+  ) as GraphQLOutputType;
 }
 
 /**

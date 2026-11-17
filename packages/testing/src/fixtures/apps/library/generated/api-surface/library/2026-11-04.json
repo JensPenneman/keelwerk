@@ -3775,7 +3775,13 @@
       "changedIn": [],
       "errors": [],
       "execution": "sync",
-      "hints": {},
+      "hints": {
+        "graphql": {
+          "enums": {
+            "status": "CoreEffectStatus"
+          }
+        }
+      },
       "idempotent": true,
       "input": {
         "access": "read-write",
@@ -3817,6 +3823,18 @@
                   "type": "string"
                 },
                 "kind": {
+                  "enum": [
+                    "validation",
+                    "unauthenticated",
+                    "forbidden",
+                    "not_found",
+                    "conflict",
+                    "rate_limited",
+                    "not_implemented",
+                    "unavailable",
+                    "unsupported",
+                    "internal"
+                  ],
                   "type": "string"
                 }
               },
@@ -3835,6 +3853,18 @@
                   "type": "string"
                 },
                 "kind": {
+                  "enum": [
+                    "validation",
+                    "unauthenticated",
+                    "forbidden",
+                    "not_found",
+                    "conflict",
+                    "rate_limited",
+                    "not_implemented",
+                    "unavailable",
+                    "unsupported",
+                    "internal"
+                  ],
                   "type": "string"
                 }
               },
@@ -3851,6 +3881,18 @@
                   "type": "string"
                 },
                 "kind": {
+                  "enum": [
+                    "validation",
+                    "unauthenticated",
+                    "forbidden",
+                    "not_found",
+                    "conflict",
+                    "rate_limited",
+                    "not_implemented",
+                    "unavailable",
+                    "unsupported",
+                    "internal"
+                  ],
                   "type": "string"
                 }
               },
@@ -3910,7 +3952,7 @@
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-3XeG904Pe1pF2QJ5SZl4zjFxFJlSvlOtGzTRBxkXGKs",
+      "outputHash": "sha256-S8qb9HnOZjEw6FZk-k2uV3u9RLdwyKcDxgTD94v5BvU",
       "ref": "core.effectStatus",
       "resumable": false,
       "scope": "invocation",
@@ -3921,7 +3963,13 @@
       "changedIn": [],
       "errors": [],
       "execution": "sync",
-      "hints": {},
+      "hints": {
+        "graphql": {
+          "enums": {
+            "status": "CoreEffectStatus"
+          }
+        }
+      },
       "idempotent": false,
       "input": {
         "access": "read-write",
@@ -3968,6 +4016,18 @@
                   "type": "string"
                 },
                 "kind": {
+                  "enum": [
+                    "validation",
+                    "unauthenticated",
+                    "forbidden",
+                    "not_found",
+                    "conflict",
+                    "rate_limited",
+                    "not_implemented",
+                    "unavailable",
+                    "unsupported",
+                    "internal"
+                  ],
                   "type": "string"
                 }
               },
@@ -3986,6 +4046,18 @@
                   "type": "string"
                 },
                 "kind": {
+                  "enum": [
+                    "validation",
+                    "unauthenticated",
+                    "forbidden",
+                    "not_found",
+                    "conflict",
+                    "rate_limited",
+                    "not_implemented",
+                    "unavailable",
+                    "unsupported",
+                    "internal"
+                  ],
                   "type": "string"
                 }
               },
@@ -4002,6 +4074,18 @@
                   "type": "string"
                 },
                 "kind": {
+                  "enum": [
+                    "validation",
+                    "unauthenticated",
+                    "forbidden",
+                    "not_found",
+                    "conflict",
+                    "rate_limited",
+                    "not_implemented",
+                    "unavailable",
+                    "unsupported",
+                    "internal"
+                  ],
                   "type": "string"
                 }
               },
@@ -4061,7 +4145,7 @@
         "kind": "shape",
         "optional": false
       },
-      "outputHash": "sha256-3XeG904Pe1pF2QJ5SZl4zjFxFJlSvlOtGzTRBxkXGKs",
+      "outputHash": "sha256-S8qb9HnOZjEw6FZk-k2uV3u9RLdwyKcDxgTD94v5BvU",
       "ref": "core.effectStatusWatch",
       "resumable": false,
       "scope": "invocation",
@@ -13500,7 +13584,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-LEz8h17L1sVCI70qfDiMbcsH7ut5gdcaQX2pAfGqZw0",
+  "hash": "sha256-9FXKvGTSzS4rLNUKtNr_hbbx4XK5jCS7nnfkN5-_K5s",
   "modules": [
     {
       "id": "core",

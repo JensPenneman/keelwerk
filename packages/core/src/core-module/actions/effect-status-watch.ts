@@ -15,6 +15,7 @@ export const effectStatusWatch: CoreLiteral['actions']['effectStatusWatch'] = de
   coreBase,
   {
     scope: 'invocation',
+    hints: { graphql: { enums: { status: 'CoreEffectStatus' } } },
     input: shape({ ids: field.list(field.ref.own('effect')) }),
     event: effectStatusShape,
     source: (input) => effectStatusSourceOf(input.ids),

@@ -373,10 +373,12 @@ export type { AnyErrorDefinition, ErrorDefinition } from './errors/error-definit
 export type { ErrorFactories } from './errors/error-factories.ts';
 export type { ErrorIssue } from './errors/error-issue.ts';
 export type { ErrorKind } from './errors/error-kind.ts';
+export { errorKinds } from './errors/error-kinds.ts';
 export type { ErrorSpec } from './errors/error-spec.ts';
 export type { ErrorThrowOptions } from './errors/error-throw-options.ts';
 export { errors } from './errors/errors.ts';
 export { isErrorCode } from './errors/is-error-code.ts';
+export { isErrorKind } from './errors/is-error-kind.ts';
 export { isKeelwerkError } from './errors/is-keelwerk-error.ts';
 export { isUniqueConflict } from './errors/is-unique-conflict.ts';
 export { KeelwerkError } from './errors/keelwerk-error.ts';

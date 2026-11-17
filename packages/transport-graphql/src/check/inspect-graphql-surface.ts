@@ -1,5 +1,6 @@
 import type { ApiSurface, TransportProblem } from '@keelwerk/core';
 import { draftGraphqlSchema } from '../schema/draft-graphql-schema.ts';
+import { graphqlEnumHints } from './graphql-enum-hints.ts';
 import type { GraphqlSurfaceInspection } from './graphql-surface-inspection.ts';
 import { graphqlUnsupportedShapes } from './graphql-unsupported-shapes.ts';
 import { reservedNames } from './reserved-names.ts';
@@ -22,6 +23,7 @@ function order(left: string, right: string): number {
 export function inspectGraphqlSurface(surface: ApiSurface): GraphqlSurfaceInspection {
   const cheap = [
     ...graphqlUnsupportedShapes(surface),
+    ...graphqlEnumHints(surface),
     ...unknownErrors(surface),
     ...reservedNames(surface),
   ];

@@ -16,6 +16,12 @@ export interface TransportHints {
     readonly field?: string;
     readonly type?: string;
     readonly expose?: boolean;
+    /**
+     * The GraphQL enum type of a top-level enum member of the output (a subscription's event), by
+     * member name: `{ status: 'CoreEffectStatus' }`. Fields of one enum type name and the same values
+     * share the type; other values under the name are a `nameCollision`.
+     */
+    readonly enums?: Readonly<Record<string, string>>;
   };
   readonly trpc?: { readonly path?: string; readonly expose?: boolean };
   readonly cli?: CliHint;

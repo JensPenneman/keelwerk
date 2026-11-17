@@ -13917,6 +13917,18 @@
                 "type": "string"
               },
               "kind": {
+                "enum": [
+                  "validation",
+                  "unauthenticated",
+                  "forbidden",
+                  "not_found",
+                  "conflict",
+                  "rate_limited",
+                  "not_implemented",
+                  "unavailable",
+                  "unsupported",
+                  "internal"
+                ],
                 "type": "string"
               }
             },
@@ -13993,6 +14005,18 @@
                 "type": "string"
               },
               "kind": {
+                "enum": [
+                  "validation",
+                  "unauthenticated",
+                  "forbidden",
+                  "not_found",
+                  "conflict",
+                  "rate_limited",
+                  "not_implemented",
+                  "unavailable",
+                  "unsupported",
+                  "internal"
+                ],
                 "type": "string"
               }
             },
@@ -22466,7 +22490,7 @@
   },
   "info": {
     "title": "portal",
-    "version": "sha256-vDDAmxnT7z9c63cTBIjPc66-cRM96eDDzeUGz4ZcP0A"
+    "version": "sha256-IuRdmFmoAPKTDuQmuHVjzEGM4axVUrFbpcCQQXFjW-0"
   },
   "openapi": "3.1.1",
   "paths": {
@@ -35243,6 +35267,6 @@
     "apiVersion": "2026-11-05",
     "format": "keelwerk.openapi/1",
     "producer": "@keelwerk/transport-rest",
-    "surface": "sha256-vDDAmxnT7z9c63cTBIjPc66-cRM96eDDzeUGz4ZcP0A"
+    "surface": "sha256-IuRdmFmoAPKTDuQmuHVjzEGM4axVUrFbpcCQQXFjW-0"
   }
 }

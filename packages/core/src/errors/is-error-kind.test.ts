@@ -1,22 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { ErrorKind } from './error-kind.ts';
+import { errorKinds } from './error-kinds.ts';
 import { isErrorKind } from './is-error-kind.ts';
 
-const kinds: readonly ErrorKind[] = [
-  'validation',
-  'unauthenticated',
-  'forbidden',
-  'not_found',
-  'conflict',
-  'rate_limited',
-  'not_implemented',
-  'unavailable',
-  'unsupported',
-  'internal',
-];
-
 describe('isErrorKind', () => {
-  it.each(kinds)('accepts the kind %s', (kind) => {
+  it.each(errorKinds)('accepts the kind %s', (kind) => {
     expect(isErrorKind(kind)).toBe(true);
   });
 

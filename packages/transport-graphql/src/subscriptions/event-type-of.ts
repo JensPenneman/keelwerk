@@ -31,7 +31,13 @@ export function eventTypeOf(env: BuildEnv, action: SurfaceAction): GraphQLUnionT
                 fields: () =>
                   types.members(item, [
                     ...(action.output.kind === 'shape'
-                      ? outputFieldsOf(action.output.fields, item, types, graphqlTypeOf)
+                      ? outputFieldsOf(
+                          action.output.fields,
+                          item,
+                          types,
+                          graphqlTypeOf,
+                          action.hints.graphql?.enums,
+                        )
                       : []),
                     {
                       name: 'state',

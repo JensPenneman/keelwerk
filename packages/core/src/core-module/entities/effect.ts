@@ -1,4 +1,5 @@
 import { defineEntity } from '../../dsl/define-entity.ts';
+import { effectStatuses } from '../../effects/effect-statuses.ts';
 import { field } from '../../fields/field.ts';
 import type { StandardSchemaV1 } from '../../fields/standard-schema-v1.ts';
 import type { CoreBase } from '../core-base-type.ts';
@@ -39,7 +40,7 @@ export const effect: CoreBase['entities']['effect'] = defineEntity({
   fields: {
     type: field.string(),
     commandId: field.string(),
-    status: field.enum(['requested', 'succeeded', 'failed', 'abandoned']),
+    status: field.enum(effectStatuses),
     attempts: field.integer().default(0),
     performer: field.enum(['executor', 'external']),
     input: field.json(documentSchema).optional(),

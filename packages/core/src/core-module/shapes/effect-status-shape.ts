@@ -1,4 +1,6 @@
 import type { EffectStatusError } from '../../effects/effect-status.ts';
+import { effectStatuses } from '../../effects/effect-statuses.ts';
+import { errorKinds } from '../../errors/error-kinds.ts';
 import { isErrorCode } from '../../errors/is-error-code.ts';
 import { isErrorKind } from '../../errors/is-error-kind.ts';
 import { field } from '../../fields/field.ts';
@@ -59,7 +61,7 @@ const errorJsonSchema = {
   type: 'object',
   required: ['kind', 'code'],
   additionalProperties: false,
-  properties: { kind: { type: 'string' }, code: { type: 'string' } },
+  properties: { kind: { type: 'string', enum: [...errorKinds] }, code: { type: 'string' } },
 };
 
 const standard = {
@@ -78,7 +80,7 @@ const errorSchema: StandardSchemaV1<EffectStatusError, EffectStatusError> = {
 export const effectStatusShape: Shape<EffectStatusFields> = shape({
   id: field.ref.own('effect'),
   type: field.string(),
-  status: field.enum(['requested', 'succeeded', 'failed', 'abandoned']),
+  status: field.enum(effectStatuses),
   requestedAt: field.instant(),
   runAt: field.instant().optional(),
   deadline: field.instant().optional(),

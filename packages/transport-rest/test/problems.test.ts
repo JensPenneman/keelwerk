@@ -1,5 +1,6 @@
-import { type ErrorKind, errors, KeelwerkError } from '@keelwerk/core';
+import { type ErrorKind, errorKinds, errors, KeelwerkError } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
+import { problemSchemas } from '../src/openapi/problem-schemas.ts';
 import { portalSurface } from './support/portal-surface.ts';
 import { call, fakeInvoker, mountRest, requestId, session } from './support/rest-kit.ts';
 
@@ -150,5 +151,12 @@ describe('problem details (16.5.4)', () => {
     expect(html).toContain('accounts.name_taken');
     expect(html).toContain('conflict');
     expect((await call(handler, 'GET', '/api/problems/nope.nothing')).status).toBe(404);
+  });
+
+  test("the Problem schema's kind is an enum of every error kind", () => {
+    const problem = problemSchemas(portalSurface()).Problem as {
+      properties: { kind: { enum: unknown } };
+    };
+    expect(problem.properties.kind.enum).toEqual([...errorKinds]);
   });
 });
