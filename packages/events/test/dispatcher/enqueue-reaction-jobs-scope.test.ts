@@ -8,6 +8,7 @@ const now = Temporal.Instant.from('2026-03-01T08:00:01Z');
 const build = { id: 'build-1', revision: 1 };
 const origin = '0197a1c2-7b3e-7c11-9a55-aaaaaaaaaaaa';
 const maxDepth = 4;
+const keySecret = new Uint8Array(32).fill(9);
 
 /** Three async reactions listen to `trace.note.created`: `plain`, `ordered` and `every`. */
 const listening = ['trace.every', 'trace.ordered', 'trace.plain'];
@@ -43,6 +44,7 @@ function run(events: Parameters<typeof enqueueReactionJobs>[0]['events'], bound 
     registry,
     events,
     queue,
+    keySecret,
     log,
     maxDepth: bound,
     meter,
