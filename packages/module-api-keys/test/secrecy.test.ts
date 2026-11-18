@@ -57,7 +57,7 @@ describe.each(['memory', 'pglite'] as const)('api-keys secrecy on %s', (kind: Ke
         bookTitle: 'Ulysses',
         dueAt: Temporal.Instant.from('2027-01-01T00:00:00Z'),
       },
-      { prefer: 'async', commandId: 'lend-secret' },
+      { prefer: 'async', commandId: '00000000-0000-7000-8000-000000000204' },
     );
     expect(queued.ok).toBe(true);
     await app.runtime.advanceTo(bootedAt.add({ hours: 2 }));
@@ -66,7 +66,10 @@ describe.each(['memory', 'pglite'] as const)('api-keys secrecy on %s', (kind: Ke
       app.scope,
       async (unit) => ({
         events: await unit.events.readAll(null, { limit: 1000 }),
-        receipts: [await unit.receipts.get(commandId), await unit.receipts.get('lend-secret')],
+        receipts: [
+          await unit.receipts.get(commandId),
+          await unit.receipts.get('00000000-0000-7000-8000-000000000204'),
+        ],
       }),
     );
     expect(stored.events.events.length).toBeGreaterThan(0);

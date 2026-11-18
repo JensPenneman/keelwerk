@@ -24,8 +24,9 @@ export interface SealProcessEventInput {
 
 /**
  * Seals each present, non-null member of a process event that is personal, or holds a personal
- * list or set element, under the data key of the instance's subject (14.7.4, S-124): `{ "$kwe": 1,
- * "k", "n", "c" }` with `namespace ‖ stream id ‖ event id ‖ member` as associated data, the whole
+ * list or set element, under the data key of the instance's subject (14.7.4, S-124): `{ "$kwe": 2,
+ * "k", "n", "c" }` (version 2 pads the plaintext and binds the version; version 1 is still read)
+ * with `namespace ‖ stream id ‖ event id ‖ member ‖ kwe2` as associated data, the whole
  * member as JSON. Records the subject's reference to the process stream once, so erasure finds it.
  * An event without personal members comes back unchanged. The subject is the instance key: a
  * process that holds personal members declares `dataSubject: 'instanceKey'` (checked at compose),

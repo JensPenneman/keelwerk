@@ -182,7 +182,7 @@ describe.each([
       client.send({
         type: 'invoke',
         id: 'i1',
-        request: { action: call.action, input: call.input, commandId: freshName('cmd') },
+        request: { action: call.action, input: call.input, commandId: crypto.randomUUID() },
       });
       const result = await client.until((m) => m.type === 'result' && m.id === 'i1');
       const over = (await sendCall(kit.target, lendCall(ada, freshName('Hamlet')))).decoded;

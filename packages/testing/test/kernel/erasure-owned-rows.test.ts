@@ -194,7 +194,11 @@ describe('rows a subject owns that hold no personal value (14.7.5)', () => {
       principal: testPrincipal(made.leafId),
       tenant: 'acme',
     });
-    await asLinked(session).invoke('linked.touch', {}, { commandId: 'touch-1' });
+    await asLinked(session).invoke(
+      'linked.touch',
+      {},
+      { commandId: '00000000-0000-7000-8000-000000000001' },
+    );
     const receiptsOf = (id: string) =>
       runtime.adapter.unit(
         runtime.namespace,

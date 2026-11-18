@@ -13,15 +13,30 @@ const build = { id: 'build-1', revision: 3 };
 const event = noteEvent();
 const lineage = { depth: 1, origin: event.eventId };
 
-// sha256 of the event id, of 'chan' and of 'subject-1': a key holds no part in the clear.
-const eventHash = '51f0795c66a2052f73bfd111020b40d6b47ee782384989f08de94c524fad9571';
-const chanHash = '2466fcafe0531db08547f61d39bd340224e92f3410d58837e04cb845d790b970';
-const subjectHash = '95efa64dfaf09a0f9bbdf42842b80fc01d96a1c75aaccc53d101a31ccb6da774';
+const keySecret = new Uint8Array(32).fill(7);
+
+// HMAC-SHA-256 of the reaction id and the event id, 'chan' or 'subject-1' under the key secret of
+// 32 bytes of 7: a key holds no part in the clear. WP-130: regenerated, the digest is keyed and
+// binds its owner (the reaction); computed outside the kernel with node:crypto.
+const plainHash = '3963bae9d4feb352cb904db4c9056e99376943d254ed38e566272fbdf35ab5ac';
+const retriedHash = '5bd78329a4ed53ee9dbb6779336a4ad75699626b266798c8ace3bdee34f44ab4';
+const orderedEventHash = 'c72524a63855b382cbaa7a991be257d063086468546726dbeb52ce243a179505';
+const orderedChanHash = 'c757ee61fc4b04d68fffa88b3a8fc3c516889ca280f09a3e0dac3063637b3992';
+const latestChanHash = '8b1960885da6c6b20a1477271f90105864c0912ade703686722073d855073d08';
+const subjectHash = '5ec3ab543cc78cd84488661c2e13f3cce539e98b7c8f5e4207892f16937d00b3';
 
 const inputOf = (job: ReturnType<typeof reactionJob>) => (job.run as { input: unknown }).input;
 
 const jobOf = (name: string, declaredKey?: string) =>
-  reactionJob({ reaction: reactionOf(registry, name), event, declaredKey, lineage, build, now });
+  reactionJob({
+    reaction: reactionOf(registry, name),
+    event,
+    declaredKey,
+    lineage,
+    build,
+    now,
+    keySecret,
+  });
 
 describe('the job of an async reaction for an event', () => {
   test('golden: a plain reaction, a FIFO one, a coalescing one, a retried one and a process', () => {
@@ -53,27 +68,27 @@ describe('the job of an async reaction for an event', () => {
     expect(jobOf('plain')).toEqual({
       ...common,
       run: run('plain'),
-      key: { value: `logs.plain:${eventHash}`, onConflict: 'keep' },
+      key: { value: `logs.plain:${plainHash}`, onConflict: 'keep' },
       deadLetter: 'logs.plain',
     });
     expect(jobOf('ordered', 'chan')).toEqual({
       ...common,
       run: run('ordered'),
-      key: { value: `logs.ordered:${chanHash}`, onConflict: 'append' },
+      key: { value: `logs.ordered:${orderedChanHash}`, onConflict: 'append' },
       ordering: 'fifo-per-key',
       deadLetter: 'logs.ordered',
     });
     expect(jobOf('latest', 'chan')).toEqual({
       ...common,
       run: run('latest'),
-      key: { value: `logs.latest:${chanHash}`, onConflict: 'replace' },
+      key: { value: `logs.latest:${latestChanHash}`, onConflict: 'replace' },
       ordering: 'fifo-per-key',
       deadLetter: 'logs.latest',
     });
     expect(jobOf('retried')).toEqual({
       ...common,
       run: run('retried'),
-      key: { value: `logs.retried:${eventHash}`, onConflict: 'keep' },
+      key: { value: `logs.retried:${retriedHash}`, onConflict: 'keep' },
       group: { id: 'logs.retried', concurrency: 2 },
       retry: { limit: 5, delays: ['10s', '20s'] },
       deadLetter: 'logs.retried',
@@ -98,6 +113,7 @@ describe('the job of an async reaction for an event', () => {
       subject,
       build,
       now,
+      keySecret,
     });
     expect(inputOf(job)).toEqual({
       event: event.eventId,
@@ -118,6 +134,7 @@ describe('the job of an async reaction for an event', () => {
       subject: null,
       build,
       now,
+      keySecret,
     });
     expect(inputOf(erased)).toMatchObject({ subject: null });
     expect(inputOf(jobOf('plain'))).not.toHaveProperty('processStream');
@@ -133,6 +150,7 @@ describe('the job of an async reaction for an event', () => {
       lineage,
       build,
       now,
+      keySecret,
     });
     expect(job.causation).toEqual({ eventId: event.eventId, actor: event.actor, lineage });
   });
@@ -166,8 +184,9 @@ describe('the job of an async reaction for an event', () => {
       lineage,
       build,
       now,
+      keySecret,
     });
-    expect(job.key).toEqual({ value: `logs.ordered:${eventHash}`, onConflict: 'keep' });
+    expect(job.key).toEqual({ value: `logs.ordered:${orderedEventHash}`, onConflict: 'keep' });
     expect(job).not.toHaveProperty('ordering');
     expect(job.run).toMatchObject({ input: { keyError: 'core.reaction_key_invalid' } });
   });
@@ -181,6 +200,7 @@ describe('the job of an async reaction for an event', () => {
       lineage: deep,
       build,
       now,
+      keySecret,
     });
     expect(job.causation).toEqual({
       eventId: event.eventId,

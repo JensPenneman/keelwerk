@@ -11,6 +11,7 @@ import {
   snapshot,
   withCommand,
 } from './support/command-kit.ts';
+import { deriveOnlyKeys } from './support/derive-only-keys.ts';
 import { findsOf } from './support/finds-of.ts';
 import { openPglite } from './support/pglite-kit.ts';
 import { clock, namespace, open, silent, tenant } from './support/run-read-kit.ts';
@@ -78,7 +79,7 @@ async function redecided(adapter: DataAdapter, registry: Registry, commandId: st
       rules: [...registry.rules.values()]
         .filter((rule) => rule.disabled !== true)
         .map(normalizeRule),
-      keys: {} as never,
+      keys: deriveOnlyKeys,
       compute,
       clock,
       log: silent,

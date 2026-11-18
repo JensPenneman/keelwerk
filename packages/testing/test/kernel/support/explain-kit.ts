@@ -126,7 +126,7 @@ export function dry(registry: ReturnType<typeof registryWith>, ref: string, over
         apiVersion: '2026-11-04',
         build: { id: 'test', revision: 1 },
         behaviours,
-        commandId: 'dry-1',
+        commandId: '00000000-0000-7000-8000-000000000001',
         ...over,
       }),
   };

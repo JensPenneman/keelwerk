@@ -39,6 +39,20 @@ export interface RunCommandInput {
   readonly request: RequestInfo;
   readonly clock: Clock;
   readonly keys: KeyService;
+  /**
+   * The job key secret of the scope (`jobKeyInfo`), derived before the unit opens (`runCommand`
+   * sets it): the timer and enqueue effects take it from here, never from `keys` inside the unit,
+   * where the derivation could open a second unit. Absent outside a write (a dry run), where the
+   * effects derive it.
+   */
+  readonly jobKeySecret?: Uint8Array;
+  /** The key of the keyed fingerprint, derived before the unit opens like `jobKeySecret`. */
+  readonly fingerprintKey?: Uint8Array;
+  /**
+   * The key that seals state tokens (`stateTokenKey`), derived before the unit opens like
+   * `jobKeySecret`. A nested run is always in the same scope and inherits it.
+   */
+  readonly stateSealKey?: Uint8Array;
   readonly compute: ComputePool;
   readonly log: Logger;
   readonly trace: Span;

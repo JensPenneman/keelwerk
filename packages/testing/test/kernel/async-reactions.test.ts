@@ -1,5 +1,5 @@
 import type { StoredJobSpec } from '@keelwerk/core';
-import { kernelCommandId, reactionJob, reactionsInModuleOrder } from '@keelwerk/core';
+import { jobKeyInfo, kernelCommandId, reactionJob, reactionsInModuleOrder } from '@keelwerk/core';
 import { afterAll, describe, expect, test } from 'vitest';
 import {
   bootReactions,
@@ -138,6 +138,7 @@ describe('async reactions', () => {
       lineage: { depth: 1, origin: 'origin-event' },
       build: { id: 'test-build', revision: 1 },
       now: kit.now(),
+      keySecret: await runtime.keys.derive(kit.scopeOf('acme'), jobKeyInfo, 32),
     });
     await runtime.adapter.unit(runtime.namespace, kit.scopeOf('acme'), async (unit) => {
       await unit.jobs.enqueue({
@@ -215,6 +216,7 @@ describe('async reactions', () => {
         lineage: { depth: 1, origin: 'origin-event' },
         build: { id: 'test-build', revision: 1 },
         now: kit.now(),
+        keySecret: await runtime.keys.derive(kit.scopeOf('acme'), jobKeyInfo, 32),
       });
       await runtime.adapter.unit(runtime.namespace, kit.scopeOf('acme'), async (unit) => {
         await unit.jobs.enqueue({

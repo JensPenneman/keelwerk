@@ -47,6 +47,7 @@ const job = reactionJob({
   lineage: { depth: 1, origin: 'origin-event' },
   build: { id: 'build-1', revision: 1 },
   now: Temporal.Instant.from('2026-03-01T08:00:01Z'),
+  keySecret: new Uint8Array(32).fill(7),
 });
 /** The principal the job carries, minted as the worker mints it from the job's reference. */
 const jobPrincipal = moduleServicePrincipal(job.principal.principalId.replace(/\.system$/, ''), {

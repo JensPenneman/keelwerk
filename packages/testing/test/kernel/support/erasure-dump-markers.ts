@@ -22,8 +22,11 @@ const dumpMarker = {
   parkedCause: 'dump marker parked cause',
 };
 
-/** Values a module wrote into a job key: the dump test pins that they are still found (WP-130). */
-const gapMarker = { jobKey: 'dump gap job key address' };
+/**
+ * Values a module wrote into a job key or an effect key: the dump test pins that the key text is
+ * not in the dump.
+ */
+const gapMarker = { jobKey: 'dump gap job key address', effectKey: 'dump gap effect key address' };
 
 /** A consumer that refuses every person for good, with an error that quotes a marker: its stream is parked. */
 const parkingConsumer: ConsumerSpec = {

@@ -75,6 +75,7 @@ export async function unparkStream(input: UnparkStreamInput): Promise<Position |
     // back and clear `progress`, which must not hide that the events were in `consume`.
     let atExpiry: { row: ParkedStream | undefined; consuming: readonly StoredEvent[] } | undefined;
     try {
+      const prepared = await spec.beforeBatch?.(target.scope);
       return await target.handle.adapter.unit(target.namespace, target.scope, (unit) =>
         withinDeadline(
           deadlineMs,
@@ -111,7 +112,7 @@ export async function unparkStream(input: UnparkStreamInput): Promise<Position |
                 // A read that was already on its way when the deadline fired comes back late.
                 expired();
                 progress.consuming = events;
-                await spec.consume(events, unit);
+                await spec.consume(events, unit, prepared);
                 progress.consuming = [];
               }
               last = events.at(-1)?.position;

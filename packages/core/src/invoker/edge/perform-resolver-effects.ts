@@ -5,6 +5,8 @@ import { commandJobRun } from '../../effects/command-job-run.ts';
 import { commandQueue } from '../../effects/command-queue.ts';
 import { crossScopeGroup } from '../../effects/cross-scope-group.ts';
 import { enqueueKey } from '../../effects/enqueue-key.ts';
+import { jobKeyDigest } from '../../effects/job-key-digest.ts';
+import { jobKeyInfo } from '../../effects/job-key-info.ts';
 import { principalRefOf } from '../../effects/principal-ref-of.ts';
 import { sealJobInput } from '../../effects/seal-job-input.ts';
 import { timerKey } from '../../effects/timer-key.ts';
@@ -51,6 +53,7 @@ function jobOf(
   principal: Principal,
   effect: AnyEffect,
   module: string | undefined,
+  keySecret: Uint8Array,
 ): StoredJobSpec {
   const principalRef: PrincipalRef = principal.ref ?? {
     resolver: principal.via,
@@ -79,7 +82,12 @@ function jobOf(
       ...(effect.runAt === undefined ? {} : { runAt: effect.runAt }),
       ...(effect.key === undefined || module === undefined
         ? {}
-        : { key: { value: enqueueKey(module, effect.key), onConflict: 'keep' } }),
+        : {
+            key: {
+              value: enqueueKey(module, jobKeyDigest(keySecret, module, effect.key)),
+              onConflict: 'keep',
+            },
+          }),
     };
   }
   const runAt =
@@ -89,7 +97,7 @@ function jobOf(
   if (effect.kind === 'setTimer' && runAt !== undefined) {
     if (module === undefined) {
       throw refuseRequest(
-        `the timer "${effect.key}"`,
+        `the timer for "${effect.action}"`,
         'a timer needs the module whose resolver set it',
       );
     }
@@ -99,7 +107,10 @@ function jobOf(
       queue: timerQueue,
       run: commandJobRun(effect.action, effect.input, kernelCommandId('timer', newUuidV7())),
       runAt,
-      key: { value: timerKey(module, effect.key), onConflict: 'replace' },
+      key: {
+        value: timerKey(module, jobKeyDigest(keySecret, module, effect.key)),
+        onConflict: 'replace',
+      },
     };
   }
   throw refuseRequest(
@@ -134,16 +145,17 @@ function commandOf(
 }
 
 /**
- * Performs the effects a principal resolver returned (auth's idle extension) in a short
- * read-write unit of the session's scope, right after `open` (S-24). They become keyed job rows; a
- * timer runs under the service principal `core.module` mints for the module whose resolver
- * returned it (section 9.5, decision 335) and is stored under the key of that module
- * (`timerKey`), and an enqueue under the session's principal, a keyed one stored under the key of
- * that module (`enqueueKey`); each under a kernel command id of its own, with the secret members
- * of its input sealed in the unit, so a job that crosses scopes has the receipt that holds it
- * once. A timer or a keyed enqueue without a module, or naming no command of the app, is refused,
- * and so is a timer or an enqueue naming a command its scope may not reach; a timer never crosses
- * scopes. Every effect is checked before the unit opens, so a refused one writes nothing.
+ * Performs the effects a principal resolver returned (auth's idle extension) in a short read-write
+ * unit of the session's scope, right after `open` (S-24). They become keyed job rows; a timer runs
+ * under the service principal `core.module` mints for the module whose resolver returned it
+ * (section 9.5, decision 335) and is stored under the key of that module (`timerKey`), and an
+ * enqueue under the session's principal, a keyed one stored under the key of that module
+ * (`enqueueKey`); the key a resolver chose is stored as its digest under the scope's job key secret
+ * (`jobKeyDigest`); each under a kernel command id of its own, with the secret members of its input
+ * sealed in the unit, so a job that crosses scopes has the receipt that holds it once. A timer or a
+ * keyed enqueue without a module, or naming no command of the app, is refused, and so is a timer or
+ * an enqueue naming a command its scope may not reach; a timer never crosses scopes. Every effect
+ * is checked before the unit opens, so a refused one writes nothing.
  */
 export async function performResolverEffects(
   env: InvokerEnv,
@@ -153,8 +165,9 @@ export async function performResolverEffects(
   module?: string,
 ): Promise<void> {
   if (effects.length === 0) return;
+  const keySecret = await env.options.keys.derive(target.scope, jobKeyInfo, 32);
   const jobs = effects.map((effect) => {
-    const job = jobOf(env, target, principal, effect, module);
+    const job = jobOf(env, target, principal, effect, module, keySecret);
     return { job, command: commandOf(env, target, principal, job) };
   });
   await target.handle.adapter.unit(target.namespace, target.scope, async (unit) => {

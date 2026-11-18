@@ -92,6 +92,7 @@ const seal = (unit: Unit, value: unknown = input, id = commandId) =>
   });
 
 describe('the personal members of a job input (golden, final)', () => {
+  // WP-130: $kwe 2 pads the plaintext (S8); the envelope and every hash over it were regenerated.
   test('a fixed key, command id, member and nonce give this exact stored input', async () => {
     const stored = (await seal(stubUnit().unit)) as Record<string, unknown>;
     expect(stored).toEqual({
@@ -99,18 +100,23 @@ describe('the personal members of a job input (golden, final)', () => {
       threadId: thread,
       title: 'plain',
       address: {
-        $kwe: 1,
+        $kwe: 2,
         k: keyId,
         n: 'CQkJCQkJCQkJCQkJ',
-        c: 'BeTg9f6VuQDNEqddyIXRuPbD--pO6-V8O0YoOJx2tHqu',
+        c: 'BeTg9f6VuQDNEqddyIXRuPYwY_M07vfAb65GptV0AXqO_rltboqpOx4S1IduwZ1p',
       },
       note: {
-        $kwe: 1,
+        $kwe: 2,
         k: keyId,
         n: 'CQkJCQkJCQkJCQkJ',
-        c: 'BfHs5tGFpgmAA-tKg4zGrbHeAJYWoVwxGAH-xzdQ9uE664VJ2A',
+        c: 'BfHs5tGFpgmAA-tKg4zGrbHeAJYWbvfAb65GptV0AXrIyQ1n8QlOXwYuz7BmT4p5',
       },
-      tags: { $kwe: 1, k: keyId, n: 'CQkJCQkJCQkJCQkJ', c: 'fKfltpLSo0P9A-5UbtC3D2faC83NCsnQvg' },
+      tags: {
+        $kwe: 2,
+        k: keyId,
+        n: 'CQkJCQkJCQkJCQkJ',
+        c: 'fKfltpLSo0P94ss45uqj39SwY_M07vfAb65GptV0AXoa_gnf233OiexQ7VvGw81A',
+      },
     });
   });
 

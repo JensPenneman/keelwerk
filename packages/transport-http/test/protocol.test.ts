@@ -27,23 +27,41 @@ describe('the invocation protocol', () => {
   it('keeps a client command id and does not invent one for a query', async () => {
     const { host, invoker } = setup();
     const kept = await host.fetch(
-      postJson('/_keelwerk/v1/invoke', { action: 'library.echo', commandId: 'mine' }),
+      postJson('/_keelwerk/v1/invoke', {
+        action: 'library.echo',
+        commandId: '00000000-0000-7000-8000-000000000401',
+      }),
     );
     expect(kept.headers.get('keelwerk-command-id')).toBeNull();
     const query = await host.fetch(postJson('/_keelwerk/v1/invoke', { action: 'library.lookup' }));
     expect(query.headers.get('keelwerk-command-id')).toBeNull();
-    expect(invoker.invoked.map((i) => i.commandId)).toEqual(['mine', undefined]);
+    expect(invoker.invoked.map((i) => i.commandId)).toEqual([
+      '00000000-0000-7000-8000-000000000401',
+      undefined,
+    ]);
   });
 
-  it('refuses a command id that is no 1 to 255 visible ASCII characters', async () => {
+  it('refuses a command id that is no UUID of version 4 or 7 and no ULID, and says so', async () => {
     const { host, invoker } = setup();
-    for (const commandId of ['bad\nid', 'x'.repeat(256), 'caf\u00e9', '']) {
+    for (const commandId of [
+      'bad\nid',
+      'x'.repeat(256),
+      'caf\u00e9',
+      '',
+      'order-jan@example.com',
+      '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+    ]) {
       const response = await host.fetch(
         postJson('/_keelwerk/v1/invoke', { action: 'library.echo', commandId }),
       );
       expect(response.status, commandId).toBe(400);
-      expect(await response.json()).toMatchObject({
-        error: { code: 'core.malformed_request' },
+      expect(await response.json(), commandId).toMatchObject({
+        error: {
+          code: 'core.malformed_request',
+          issues: [
+            { path: ['commandId'], message: 'Expected a UUID of version 4 or 7, or a ULID.' },
+          ],
+        },
       });
     }
     expect(invoker.invoked).toEqual([]);
@@ -133,7 +151,7 @@ describe('receipts', () => {
         'library.echo': () => ({
           ok: true,
           value: undefined,
-          receipt: { commandId: 'c1', status: 'accepted' },
+          receipt: { commandId: '00000000-0000-7000-8000-000000000402', status: 'accepted' },
           receiptId: 'rcpt_01j0000000000000000000000a',
           effects: ['e1'],
         }),
@@ -143,7 +161,7 @@ describe('receipts', () => {
     const response = await host.fetch(
       postJson('/_keelwerk/v1/invoke', {
         action: 'library.echo',
-        commandId: 'c1',
+        commandId: '00000000-0000-7000-8000-000000000402',
         prefer: 'async',
       }),
     );
@@ -151,8 +169,8 @@ describe('receipts', () => {
     expect(response.headers.get('preference-applied')).toBe('respond-async');
     expect(await response.json()).toEqual({
       ok: true,
-      value: { commandId: 'c1', status: 'accepted' },
-      receipt: { commandId: 'c1', status: 'accepted' },
+      value: { commandId: '00000000-0000-7000-8000-000000000402', status: 'accepted' },
+      receipt: { commandId: '00000000-0000-7000-8000-000000000402', status: 'accepted' },
       receiptId: 'rcpt_01j0000000000000000000000a',
       effects: ['e1'],
     });
@@ -185,7 +203,7 @@ describe('batches', () => {
         invocations: [
           { action: 'library.echo', input: 1 },
           { action: 'library.lookup' },
-          { action: 'library.echo', input: 2, commandId: 'mine' },
+          { action: 'library.echo', input: 2, commandId: '00000000-0000-7000-8000-000000000401' },
         ],
       }),
     );

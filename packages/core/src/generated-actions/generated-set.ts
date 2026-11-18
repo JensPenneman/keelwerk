@@ -22,10 +22,10 @@ import { currentTokenCheck } from '../tokens/current-token-check.ts';
 import { decodeStateToken } from '../tokens/decode-state-token.ts';
 import { issueStateToken } from '../tokens/issue-state-token.ts';
 import type { StateTokenContext } from '../tokens/state-token-context.ts';
-import { stateTokenKey } from '../tokens/state-token-key.ts';
 import { tokenCheckHolds } from '../tokens/token-check-holds.ts';
 import type { OpenedDecision } from '../write-path/open-decision.ts';
 import type { RunCommandInput } from '../write-path/run-command-input.ts';
+import { stateSealKeyOf } from '../write-path/state-seal-key-of.ts';
 import { argumentsOf } from './arguments-of.ts';
 import { createDraftOf } from './create-draft-of.ts';
 import { instanceDraftOf } from './instance-draft-of.ts';
@@ -147,7 +147,7 @@ export async function generatedSet(input: GeneratedSetInput): Promise<unknown> {
     principal: run.principal,
     epoch: run.epoch ?? 0,
     epochOf: run.epochOf,
-    sealKey: await stateTokenKey(run.keys, run.scope),
+    sealKey: await stateSealKeyOf(run),
     flags: run.flags,
   };
   if (token !== undefined) await assertState(input, tokens, token);

@@ -44,6 +44,7 @@ export async function runScopeBatch(input: ScopeBatchInput): Promise<ScopeBatchR
     | { consuming: readonly StoredEvent[]; read: number; readTo: Position | null }
     | undefined;
   try {
+    const prepared = await spec.beforeBatch?.(target.scope);
     return await target.handle.adapter.unit(target.namespace, target.scope, (unit) =>
       withinDeadline(
         deadlineMs,
@@ -98,7 +99,7 @@ export async function runScopeBatch(input: ScopeBatchInput): Promise<ScopeBatchR
             expired();
             progress.consuming = deliver;
             try {
-              await spec.consume(deliver, unit);
+              await spec.consume(deliver, unit, prepared);
             } catch (error) {
               progress.failure = { error };
               throw error;

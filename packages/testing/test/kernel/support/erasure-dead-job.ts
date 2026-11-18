@@ -6,6 +6,7 @@ import { formsFoundIn } from './erasure-forms.ts';
 import type { KeyLeft } from './erasure-keys-left.ts';
 
 interface SealedSubject {
+  readonly $kwe?: 1 | 2;
   readonly k?: string;
   readonly n?: string;
   readonly c?: string;
@@ -29,6 +30,7 @@ function sealedSubjectOf(row: Record<string, unknown>): FoundEnvelope | undefine
   return {
     table: 'kw_jobs',
     kind: 'kwe',
+    ...(sealed.$kwe === undefined ? {} : { version: sealed.$kwe }),
     keyId: sealed.k,
     nonce: Buffer.from(sealed.n, 'base64url'),
     sealed: Buffer.from(sealed.c, 'base64url'),

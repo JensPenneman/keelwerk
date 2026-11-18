@@ -28,7 +28,7 @@ describe('a command id the client chooses over HTTP', () => {
           code: 'core.command_id_reserved',
         });
       }
-      const other = await lend('my-own-id');
+      const other = await lend('00000000-0000-7000-8000-000000000601');
       expect(other.decoded).not.toMatchObject({ code: 'core.command_id_reserved' });
     } finally {
       await running.stop();

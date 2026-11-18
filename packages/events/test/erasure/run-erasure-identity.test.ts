@@ -45,7 +45,7 @@ describe('an erasure is identified by its tenant, its command id and its subject
     const bea = await person(acme, 'Bea');
     const carol = await person(globex, 'Carol');
     const flagId = await targetFlag(probe, [ada, bea, carol], 'people');
-    const commandId = 'erase-shared-command-id';
+    const commandId = '00000000-0000-7000-8000-000000000201';
     const tenantIds = {
       acme: probe.runtime.tenants.acme.id,
       globex: probe.runtime.tenants.globex.id,
@@ -119,7 +119,7 @@ describe('an erasure is identified by its tenant, its command id and its subject
     const acme = probe.as('acme');
     const ada = await person(acme, 'Ada');
     await person(acme, 'Bea');
-    const commandId = 'erase-spelling-command-id';
+    const commandId = '00000000-0000-7000-8000-000000000202';
     await acme.eraseAsOperator(ada, { commandId });
     await probe.runtime.drainJobs();
     await probe.worker.pass();

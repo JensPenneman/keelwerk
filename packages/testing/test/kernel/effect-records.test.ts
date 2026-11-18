@@ -1,5 +1,7 @@
-import { deriveEffectId, field, shape } from '@keelwerk/core';
+import { createHmac } from 'node:crypto';
+import { deriveEffectId, encodeAad, field, jobKeyInfo, shape } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
+import { deriveOnlyKeys } from './support/derive-only-keys.ts';
 import {
   command,
   effectsKit,
@@ -32,6 +34,17 @@ const parts = (over: Parameters<typeof externalEffect>[2] = {}) => {
   };
 };
 
+/**
+ * HMAC-SHA-256 of the module and the key under the scope's job key secret, computed outside the
+ * kernel.
+ */
+async function keyDigest(module: string, key: string): Promise<string> {
+  const secret = await deriveOnlyKeys.derive(tenant, jobKeyInfo, 32);
+  return createHmac('sha256', secret)
+    .update(encodeAad([module, key]))
+    .digest('hex');
+}
+
 describe('external effect records', () => {
   test('a decision leaves a requested record, its stream and an effect job', async () => {
     const deadline = Temporal.Instant.from('2026-02-01T00:00:00Z');
@@ -53,22 +66,26 @@ describe('external effect records', () => {
       ],
     });
     const { adapter, invoke } = effectsKit(registry);
-    const outcome = await invoke('library.send', {}, { commandId: 'c1' });
-    const id = deriveEffectId(tenant, 'c1', 0);
+    const outcome = await invoke(
+      'library.send',
+      {},
+      { commandId: '00000000-0000-7000-8000-000000000001' },
+    );
+    const id = deriveEffectId(tenant, '00000000-0000-7000-8000-000000000001', 0);
     expect(outcome).toMatchObject({ ok: true, effects: [id] });
     const { effects, jobs, books } = await stored(adapter, ['mail']);
     expect(effects).toHaveLength(1);
     expect(effects[0]).toMatchObject({
       id,
       type: 'library.notify',
-      commandId: 'c1',
+      commandId: '00000000-0000-7000-8000-000000000001',
       status: 'requested',
       attempts: 0,
       performer: 'executor',
       input: { to: 'ada@example.org' },
       continuation: 'library.after',
       continuationWith: { id: 'x' },
-      key: 'k-1',
+      key: await keyDigest('library', 'k-1'),
     });
     expect(effects[0]?.eventIds).toHaveLength(1);
     expect(jobs).toHaveLength(1);
@@ -84,12 +101,41 @@ describe('external effect records', () => {
     });
     const stream = await eventsOf(adapter, 'core.effect', id);
     expect(stream).toHaveLength(1);
-    expect(stream[0]).toMatchObject({ type: 'core.effect.created', commandId: 'c1' });
+    expect(stream[0]).toMatchObject({
+      type: 'core.effect.created',
+      commandId: '00000000-0000-7000-8000-000000000001',
+    });
     const [bookEvent] = await eventsOf(adapter, 'library.book', String(books[0]?.id));
     expect(bookEvent?.decision?.effects).toEqual([id]);
     expect(effects[0]?.eventIds).toEqual([bookEvent?.eventId]);
     const other = await stored(adapter, ['mail'], otherTenant);
     expect([other.effects.length, other.jobs.length, other.books.length]).toEqual([0, 0, 0]);
+  });
+
+  test('the key of an external effect is stored as its digest under the module', async () => {
+    const key = 'order-ada@example.com';
+    const registry = registryWith({
+      ...parts(),
+      actions: [
+        command('send', (_i: unknown, ctx: Writes) => ({
+          events: [ctx.write.library.book.create({ title: 'T', isbn: 't-1', addedBy: 'ada' })],
+          effects: [notify({ key })],
+        })),
+      ],
+    });
+    const { adapter, invoke } = effectsKit(registry);
+    await invoke('library.send', {}, { commandId: '00000000-0000-7000-8000-000000000001' });
+    const id = deriveEffectId(tenant, '00000000-0000-7000-8000-000000000001', 0);
+    const { effects } = await stored(adapter, ['effects']);
+    const digest = await keyDigest('library', key);
+    expect(digest).toMatch(/^[0-9a-f]{64}$/);
+    expect(effects[0]?.key).toBe(digest);
+    const [requested] = await eventsOf(adapter, 'core.effect', id);
+    expect(requested?.data).toMatchObject({ values: { key: digest } });
+    const everything = JSON.stringify([effects, requested], (_name, value: unknown) =>
+      typeof value === 'bigint' ? String(value) : value,
+    );
+    expect(everything).not.toContain('ada@example.com');
   });
 
   test('an effect with an outside performer leaves the record and no job', async () => {
@@ -107,7 +153,7 @@ describe('external effect records', () => {
       actions: [command('send', () => ({ effects: [notify()] }))],
     });
     const { adapter, invoke } = effectsKit(registry);
-    await invoke('library.send', {}, { commandId: 'c1' });
+    await invoke('library.send', {}, { commandId: '00000000-0000-7000-8000-000000000001' });
     const { effects, jobs } = await stored(adapter);
     expect(effects[0]).toMatchObject({ status: 'requested', performer: 'external' });
     expect(jobs).toHaveLength(0);
@@ -136,7 +182,11 @@ describe('external effect records', () => {
       ],
     });
     const { adapter, invoke } = effectsKit(registry);
-    const outcome = await invoke('library.add', {}, { commandId: 'c1' });
+    const outcome = await invoke(
+      'library.add',
+      {},
+      { commandId: '00000000-0000-7000-8000-000000000001' },
+    );
     const { effects, books } = await stored(adapter);
     const [created] = await eventsOf(adapter, 'library.book', String(books[0]?.id));
     const id = deriveEffectId(tenant, `library.notifies:${created?.eventId}`, 0);

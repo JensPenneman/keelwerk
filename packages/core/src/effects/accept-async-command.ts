@@ -2,9 +2,10 @@ import { hybridClock } from '../clock/hybrid-clock.ts';
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { buildEventMeta } from '../events/build-event-meta.ts';
+import { checkCallerCommandId } from '../ids/check-caller-command-id.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
-import { refuseReservedCommandId } from '../ids/refuse-reserved-command-id.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
+import { deriveScopeSecrets } from '../keys/derive-scope-secrets.ts';
 import { checkErasureGrant } from '../subjects/check-erasure-grant.ts';
 import { erasureAction } from '../subjects/erasure-action.ts';
 import { appendReceiptChange } from '../write-path/append-receipt-change.ts';
@@ -15,6 +16,7 @@ import { receiptRow } from '../write-path/receipt-row.ts';
 import { replayReceipt } from '../write-path/replay-receipt.ts';
 import { retryUnit } from '../write-path/retry-unit.ts';
 import type { RunCommandInput } from '../write-path/run-command-input.ts';
+import { runInUnitKeys } from '../write-path/run-in-unit-keys.ts';
 import { commandJobRun } from './command-job-run.ts';
 import { commandQueue } from './command-queue.ts';
 import { jobInput } from './job-input.ts';
@@ -36,24 +38,12 @@ import { sealJobInput } from './seal-job-input.ts';
 export async function acceptAsyncCommand(input: RunCommandInput): Promise<CommandResult> {
   const { action } = input;
   input.signal?.throwIfAborted();
-  refuseReservedCommandId(input.commandId);
+  checkCallerCommandId(input.commandId);
   const commandId = input.commandId ?? newUuidV7();
   const now = input.clock.now();
-  const fingerprint = await commandFingerprint(input);
-  const receipt = {
-    ...receiptRow({
-      commandId,
-      action: action.ref,
-      fingerprint,
-      principal: input.principal,
-      apiVersion: input.apiVersion,
-      request: input.request,
-      ...(input.client === undefined ? {} : { client: input.client }),
-      now,
-      ...(action.idempotencyWindowMs === undefined ? {} : { windowMs: action.idempotencyWindowMs }),
-    }),
-    status: 'accepted' as const,
-  };
+  // Before the unit opens: a derivation inside it would open a second unit once the cache expired.
+  const { fingerprintKey } = await deriveScopeSecrets(input.keys, input.scope);
+  const run: RunCommandInput = { ...input, fingerprintKey };
   const accepted: CommandResult = {
     output: {},
     receipt: { commandId, status: 'accepted' },
@@ -64,6 +54,26 @@ export async function acceptAsyncCommand(input: RunCommandInput): Promise<Comman
         input.namespace,
         input.scope,
         async (unit) => {
+          // Inside the unit: the data key of a personal member's subject lives there.
+          const receipt = {
+            ...receiptRow({
+              commandId,
+              action: action.ref,
+              fingerprint: await commandFingerprint(runInUnitKeys(run, unit), {
+                unit,
+                create: true,
+              }),
+              principal: input.principal,
+              apiVersion: input.apiVersion,
+              request: input.request,
+              ...(input.client === undefined ? {} : { client: input.client }),
+              now,
+              ...(action.idempotencyWindowMs === undefined
+                ? {}
+                : { windowMs: action.idempotencyWindowMs }),
+            }),
+            status: 'accepted' as const,
+          };
           if ((await unit.receipts.claim(receipt)) === 'exists') {
             const existing = await unit.receipts.get(commandId);
             if (existing === undefined) {

@@ -43,12 +43,12 @@ describe('the receipt, the command and the job complete in one unit', () => {
       return false;
     };
     const t0 = runtime.clock.now();
-    await askCloseAll(runtime, 'u-1');
+    await askCloseAll(runtime, '00000000-0000-7000-8000-000000000001');
     expect(await runtime.drainJobs()).toBe(1);
     expect(spy.completions.map((entry) => entry.granted)).toEqual([false]);
     expect(await openLoans()).toBe(1);
-    expect(await receiptStatus('u-1')).toBe('accepted');
-    expect(await closedBy('u-1')).toBe(0);
+    expect(await receiptStatus('00000000-0000-7000-8000-000000000001')).toBe('accepted');
+    expect(await closedBy('00000000-0000-7000-8000-000000000001')).toBe(0);
     // The store never finished the attempt: it stays running until the lease runs out.
     expect((await statsOf(runtime, 'commands'))?.running).toBe(1);
     expect(await runtime.advanceTo(t0.add({ seconds: lease }))).toBe(1);
@@ -57,8 +57,8 @@ describe('the receipt, the command and the job complete in one unit', () => {
       [2, true],
     ]);
     expect(await openLoans()).toBe(0);
-    expect(await receiptStatus('u-1')).toBe('completed');
-    expect(await closedBy('u-1')).toBe(1);
+    expect(await receiptStatus('00000000-0000-7000-8000-000000000001')).toBe('completed');
+    expect(await closedBy('00000000-0000-7000-8000-000000000001')).toBe(1);
     spy.complete = undefined;
   });
 
@@ -72,16 +72,16 @@ describe('the receipt, the command and the job complete in one unit', () => {
       throw errors.unavailable('the process went down between the receipt and the commit');
     };
     const t0 = runtime.clock.now();
-    await askCloseAll(runtime, 'u-2');
+    await askCloseAll(runtime, '00000000-0000-7000-8000-000000000002');
     expect(await runtime.drainJobs()).toBe(1);
-    expect(await receiptStatus('u-2')).toBe('accepted');
+    expect(await receiptStatus('00000000-0000-7000-8000-000000000002')).toBe('accepted');
     expect(await openLoans()).toBe(1);
-    expect(await closedBy('u-2')).toBe(0);
+    expect(await closedBy('00000000-0000-7000-8000-000000000002')).toBe(0);
     expect(spy.completions.filter((entry) => entry.outcome.kind === 'succeeded')).toEqual([]);
     // The retry is scheduled within one second; it then runs once and commits everything together.
     expect(await runtime.advanceTo(t0.add({ seconds: 2 }))).toBe(1);
-    expect(await receiptStatus('u-2')).toBe('completed');
-    expect(await closedBy('u-2')).toBe(1);
+    expect(await receiptStatus('00000000-0000-7000-8000-000000000002')).toBe('completed');
+    expect(await closedBy('00000000-0000-7000-8000-000000000002')).toBe(1);
     spy.afterReceiptComplete = undefined;
   });
 });

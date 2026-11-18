@@ -47,7 +47,9 @@ describe('inline reactions', () => {
       ],
     });
     const { adapter, invoke } = effectsKit(registry);
-    expect(await invoke('library.add', {}, { commandId: 'c1' })).toMatchObject({ ok: true });
+    expect(
+      await invoke('library.add', {}, { commandId: '00000000-0000-7000-8000-000000000001' }),
+    ).toMatchObject({ ok: true });
     const { books } = await stored(adapter);
     expect(books.map((book) => book.title).sort()).toEqual(['First', 'Noted']);
     const noted = books.find((book) => book.title === 'Noted');
@@ -75,7 +77,7 @@ describe('inline reactions', () => {
       ],
     });
     const { adapter, invoke } = effectsKit(registry);
-    await invoke('library.add', {}, { commandId: 'c1' });
+    await invoke('library.add', {}, { commandId: '00000000-0000-7000-8000-000000000001' });
     const [book] = (await stored(adapter)).books;
     expect(book?.title).toBe('FIRST');
     expect(book?.version).toBe(2);
@@ -85,7 +87,7 @@ describe('inline reactions', () => {
       stream: { type: 'library.book', id: book?.id },
       version: 1,
       position: null,
-      commandId: 'c1',
+      commandId: '00000000-0000-7000-8000-000000000001',
       actor: { kind: 'user', id: 'ada' },
       state: { title: 'First' },
     });
@@ -96,7 +98,7 @@ describe('inline reactions', () => {
     ]);
     expect(events[1]).toMatchObject({
       actor: { kind: 'service', id: 'library.system', via: 'core.module' },
-      commandId: 'c1',
+      commandId: '00000000-0000-7000-8000-000000000001',
       action: 'library.shout',
       causationId: events[0]?.eventId,
     });
@@ -144,14 +146,18 @@ describe('inline reactions', () => {
       ],
     });
     const { adapter, invoke } = effectsKit(registry);
-    const outcome = await invoke('library.add', {}, { commandId: 'c1' });
+    const outcome = await invoke(
+      'library.add',
+      {},
+      { commandId: '00000000-0000-7000-8000-000000000001' },
+    );
     if (passes) {
       expect(outcome).toMatchObject({ ok: true });
       expect((await stored(adapter)).books).toHaveLength(limit);
     } else {
       expect(!outcome.ok && outcome.error.code).toBe('core.reaction_depth');
       expect((await stored(adapter)).books).toHaveLength(0);
-      expect(await receiptOf(adapter, 'c1')).toBeUndefined();
+      expect(await receiptOf(adapter, '00000000-0000-7000-8000-000000000001')).toBeUndefined();
     }
   });
 
@@ -165,7 +171,9 @@ describe('inline reactions', () => {
       ],
     });
     const { adapter, invoke } = effectsKit(registry);
-    expect((await invoke('library.add', {}, { commandId: 'c1' })).ok).toBe(false);
+    expect(
+      (await invoke('library.add', {}, { commandId: '00000000-0000-7000-8000-000000000001' })).ok,
+    ).toBe(false);
     expect((await stored(adapter)).books).toHaveLength(0);
   });
 
@@ -186,7 +194,11 @@ describe('inline reactions', () => {
       ],
     });
     const { adapter, invoke } = effectsKit(registry);
-    const outcome = await invoke('library.add', {}, { commandId: 'c1' });
+    const outcome = await invoke(
+      'library.add',
+      {},
+      { commandId: '00000000-0000-7000-8000-000000000001' },
+    );
     expect(!outcome.ok && outcome.error.kind).toBe('forbidden');
     expect((await stored(adapter)).books).toHaveLength(0);
   });
@@ -227,7 +239,9 @@ describe('inline reactions', () => {
       ],
     });
     const { invoke } = effectsKit(registry);
-    expect(await invoke('library.addTwo', {}, { commandId: 'c1' })).toMatchObject({ ok: true });
+    expect(
+      await invoke('library.addTwo', {}, { commandId: '00000000-0000-7000-8000-000000000001' }),
+    ).toMatchObject({ ok: true });
     expect(order).toEqual(['a:one', 'b:one', 'a:two', 'b:two']);
   });
 
@@ -252,7 +266,13 @@ describe('inline reactions', () => {
       ],
     });
     const { invoke } = effectsKit(registry);
-    expect(await invoke('library.addAndRename', {}, { commandId: 'c1' })).toMatchObject({
+    expect(
+      await invoke(
+        'library.addAndRename',
+        {},
+        { commandId: '00000000-0000-7000-8000-000000000001' },
+      ),
+    ).toMatchObject({
       ok: true,
     });
     expect(seen).toEqual(['Before']);

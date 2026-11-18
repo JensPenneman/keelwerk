@@ -32,11 +32,25 @@ const noticeExecutor = defineEffectExecutor(probeBase, notice, {
   },
 });
 
-/** Requests a notice: the executor settles it with an output or an error. */
+/**
+ * Requests a notice: the executor settles it with an output or an error. A `key` is the text a
+ * module chose for the effect: the effect record stores it as a digest, never as the text.
+ */
 const notify = defineCommand(probeBase, {
-  input: shape({ threadId: field.ref.own('thread'), to: field.string() }),
+  input: shape({
+    threadId: field.ref.own('thread'),
+    to: field.string(),
+    key: field.string().optional(),
+  }),
   principal: 'operator',
-  decide: (input) => ({ effects: [notice({ threadId: input.threadId, to: input.to })] }),
+  decide: (input) => ({
+    effects: [
+      notice(
+        { threadId: input.threadId, to: input.to },
+        input.key === undefined ? {} : { key: input.key },
+      ),
+    ],
+  }),
 });
 
 /**

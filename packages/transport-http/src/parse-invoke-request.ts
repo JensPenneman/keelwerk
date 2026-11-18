@@ -1,4 +1,5 @@
 import type { InvokeRequest } from '@keelwerk/core';
+import { refuseReservedCommandId } from '@keelwerk/core';
 import { coreError, isCommandId } from '@keelwerk/core/http';
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -21,8 +22,10 @@ export function parseInvokeRequest(
   if (typeof action !== 'string' || action === '') {
     throw issue('action', 'Expected the reference of an action.');
   }
+  // The kernel's own form is refused as reserved, before the grammar of a caller's id applies.
+  if (typeof commandId === 'string') refuseReservedCommandId(commandId);
   if (commandId !== undefined && (typeof commandId !== 'string' || !isCommandId(commandId))) {
-    throw issue('commandId', 'Expected 1 to 255 visible ASCII characters.');
+    throw issue('commandId', 'Expected a UUID of version 4 or 7, or a ULID.');
   }
   if (prefer !== undefined && prefer !== 'sync' && prefer !== 'async') {
     throw issue('prefer', "Expected 'sync' or 'async'.");

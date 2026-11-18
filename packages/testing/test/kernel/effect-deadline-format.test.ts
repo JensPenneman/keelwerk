@@ -35,12 +35,15 @@ describe('the stored deadline of an effect with an outside performer', () => {
       ],
     });
     const { adapter, invoke } = effectsKit(registry);
-    await invoke('library.send', {}, { commandId: 'c1' });
-    const effectId = deriveEffectId(tenant, 'c1', 0);
+    const commandId = '00000000-0000-7000-8000-000000000001';
+    await invoke('library.send', {}, { commandId });
+    const effectId = deriveEffectId(tenant, commandId, 0);
     const ids = new Map([
       [effectId, '<derived effect id>'],
       [`core.deadline:${effectId}`, 'core.deadline:<derived effect id>'],
     ]);
+    // WP-130: the command id of the test is a UUID now (a caller's command id is an opaque id); the
+    // golden holds that id and the stored format is unchanged.
     matchGolden(
       'deadline-timer-job',
       plainJsonValue((await stored(adapter, ['timers'])).jobs[0], ids),

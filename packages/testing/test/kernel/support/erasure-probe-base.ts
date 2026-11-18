@@ -55,6 +55,23 @@ const sessionDef = defineEntity({
 interface Session extends EntityType<typeof sessionDef> {}
 const session: Session = sessionDef;
 
+/**
+ * An entity whose two counters are partitioned by a plain field and by a reference, for the test
+ * that plants a counter in a unit (no command allocates a serial yet). The values of both
+ * partitions are kept in plain text in `kw_serials` and in the marks of the control store.
+ */
+const countedDef = defineEntity({
+  prefix: 'pct',
+  fields: {
+    bucket: field.string({ maxLength: 60 }),
+    thread: field.ref.own('thread'),
+    inBucket: field.serial({ per: 'bucket' }),
+    inThread: field.serial({ per: 'thread' }),
+  },
+});
+interface Counted extends EntityType<typeof countedDef> {}
+const counted: Counted = countedDef;
+
 /** Records of a thread: a personal element of a list, sealed under the thread owner's key. */
 const notesDef = defineStream({
   key: field.ref.own('thread'),
@@ -69,7 +86,7 @@ const probeBaseDef = defineModuleBase({
   id: 'probe',
   version: '0.1.0',
   contributions: { toCore },
-  entities: { person, thread, session },
+  entities: { person, thread, session, counted },
   streams: { notes: notesDef },
   flags: {
     beta: defineFlag({
@@ -86,6 +103,7 @@ const probeBase: ProbeBase = probeBaseDef;
 
 /** The entities, the contribution and the base of the probe module, which the commands of the module build on. */
 export {
+  counted as probeCounted,
   person as probePerson,
   probeBase,
   session as probeSession,

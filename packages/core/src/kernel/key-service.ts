@@ -30,8 +30,17 @@ export interface KeyService {
     reason: string,
     expected?: { readonly entity: string; readonly id: string; readonly field: string },
   ): Promise<string>;
-  /** HKDF-SHA-256 from the scope's current key (index keys, bucket keys: S-36); `info` names the purpose and version. */
-  derive(scope: StorageScope, info: string, length: number): Promise<Uint8Array>;
+  /**
+   * HKDF-SHA-256 from the scope's current key (index keys, bucket keys: S-36); `info` names the
+   * purpose and version. A scope without a key gets one, unless `create` is `false` (a reader that
+   * must not write): then the scope is `not_found` and nothing is created.
+   */
+  derive(
+    scope: StorageScope,
+    info: string,
+    length: number,
+    options?: { readonly create?: false },
+  ): Promise<Uint8Array>;
   /** Drops cached keys of the scope, after an erasure or a retirement. */
   invalidate(scope: StorageScope): void;
 }

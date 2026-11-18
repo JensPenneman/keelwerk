@@ -1,6 +1,8 @@
 import { type HybridClock, hybridClock } from '../clock/hybrid-clock.ts';
 import { acceptAsyncCommand } from '../effects/accept-async-command.ts';
-import { refuseReservedCommandId } from '../ids/refuse-reserved-command-id.ts';
+import { errors } from '../errors/errors.ts';
+import { checkCallerCommandId } from '../ids/check-caller-command-id.ts';
+import { isOpaqueId } from '../ids/is-opaque-id.ts';
 import type { CommandRunner } from '../invoker/command-runner.ts';
 import { commandReceiptId } from './command-receipt-id.ts';
 import { defaultNodeId } from './default-node-id.ts';
@@ -39,7 +41,18 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
     // Before any receipt is written, so a refused id is never recorded or claimed.
     if (job === undefined) {
       try {
-        refuseReservedCommandId(invocation.commandId);
+        checkCallerCommandId(invocation.commandId);
+        const clientId = invocation.sync?.clientId;
+        if (clientId !== undefined && !isOpaqueId(clientId)) {
+          throw errors.validation('A client id is a UUID of version 4 or 7, or a ULID.', {
+            issues: [
+              {
+                path: ['clientId'],
+                message: 'A client id is a UUID of version 4 or 7, or a ULID.',
+              },
+            ],
+          });
+        }
       } catch (error) {
         return Promise.reject(error);
       }

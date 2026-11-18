@@ -1,5 +1,5 @@
 import { postgresAdapter } from '@keelwerk/adapter-postgres';
-import { reactionJob, reactionsInModuleOrder } from '@keelwerk/core';
+import { jobKeyInfo, reactionJob, reactionsInModuleOrder } from '@keelwerk/core';
 import { afterAll, describe, expect, test } from 'vitest';
 import { createTestDatabase } from '../support/create-test-database.ts';
 import { jobSpy } from './support/job-spy.ts';
@@ -72,6 +72,7 @@ describe('the reaction dispatcher over one PostgreSQL database', () => {
       lineage: { depth: 1, origin: 'origin-event' },
       build: { id: 'test-build', revision: 1 },
       now: first.now(),
+      keySecret: await first.runtime.keys.derive(first.scopeOf('acme'), jobKeyInfo, 32),
     });
     const { spy } = watched;
     const before = spy.completions.length;

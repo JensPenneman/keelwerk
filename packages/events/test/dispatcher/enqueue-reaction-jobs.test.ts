@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import type { JobQueue, JobSpec, Logger, Registry, Unit } from '@keelwerk/core';
-import { processStreamRef, sealingUnit } from '@keelwerk/core';
+import { encodeAad, processStreamRef, sealingUnit } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import { enqueueReactionJobs } from '../../src/dispatcher/enqueue-reaction-jobs.ts';
 import {
@@ -10,7 +10,12 @@ import {
   reactionLiteral,
 } from './support/dispatch-registry.ts';
 
-const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
+/** The job key secret the fixture's key service answers for the job key info. */
+const keySecret = new Uint8Array(32).fill(9);
+const digestOf = (owner: string, part: string): string =>
+  createHmac('sha256', keySecret)
+    .update(encodeAad([owner, part]))
+    .digest('hex');
 const registry = dispatchRegistry();
 const now = Temporal.Instant.from('2026-03-01T08:00:01Z');
 const build = { id: 'build-1', revision: 1 };
@@ -65,6 +70,7 @@ const run = (
     registry: over.registry ?? registry,
     events,
     queue,
+    keySecret,
     log: over.log ?? recorder().log,
     maxDepth: 64,
     build,
@@ -126,7 +132,7 @@ describe('the jobs of one batch', () => {
     );
     // The row is gone in this unit, so the key falls back to the function's own default.
     expect(ordered?.key).toEqual({
-      value: `trace.ordered:${sha256('none')}`,
+      value: `trace.ordered:${digestOf('trace.ordered', 'none')}`,
       onConflict: 'append',
     });
     expect(ordered?.ordering).toBe('fifo-per-key');
@@ -141,6 +147,7 @@ describe('the jobs of one batch', () => {
         registry: quiet,
         events: [eventOf('trace.note.created')],
         queue,
+        keySecret,
         log: recorder().log,
         maxDepth: 64,
         build,
@@ -248,10 +255,10 @@ describe('the jobs of one batch', () => {
         );
       const scope = eventOf('trace.note.created').scope;
       expect(inputs.map((input) => input.processStream)).toEqual([
-        processStreamRef(scope, 'trace.tally', uuid).id,
-        processStreamRef(scope, 'trace.tally', erased).id,
+        processStreamRef(scope, 'trace.tally', uuid, keySecret).id,
+        processStreamRef(scope, 'trace.tally', erased, keySecret).id,
       ]);
-      expect(inputs[0]?.subject).toMatchObject({ $kwe: 1, k: 'dk-1' });
+      expect(inputs[0]?.subject).toMatchObject({ $kwe: 2, k: 'dk-1' });
       expect(inputs[1]?.subject).toBeNull();
       // The sealed subject holds the instance key in no readable form.
       expect(JSON.stringify(inputs[0]?.subject)).not.toContain(uuid);
@@ -300,6 +307,7 @@ describe('the jobs of one batch', () => {
         registry: kept,
         events: [eventOf('trace.note.archived', { stream: { type: 'trace.note', id: 'n1' } })],
         queue,
+        keySecret,
         log: recorder().log,
         maxDepth: 64,
         build,

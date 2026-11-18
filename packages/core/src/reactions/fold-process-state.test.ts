@@ -12,7 +12,12 @@ import { foldProcessState } from './fold-process-state.ts';
 import { processStreamRef } from './process-stream-ref.ts';
 
 const tally = reactionOf(reactionRegistry(), 'tally');
-const stream = processStreamRef(reactionTenantScope, 'logs.tally', 'note-1');
+const stream = processStreamRef(
+  reactionTenantScope,
+  'logs.tally',
+  'note-1',
+  new Uint8Array(32).fill(7),
+);
 
 const recorded = (version: number, name: string, data: unknown): StoredEvent =>
   noteEvent({

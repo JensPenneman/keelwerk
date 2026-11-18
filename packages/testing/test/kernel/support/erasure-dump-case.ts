@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type { StorageScope, Unit } from '@keelwerk/core';
 import { openStoredEvents } from '@keelwerk/core';
 import type { consumers, ErasureWorker } from '@keelwerk/events';
@@ -10,6 +9,7 @@ import type { DumpQuery } from '../../../src/index.ts';
 import { findPlaintext } from '../../../src/index.ts';
 import { sectionsOf } from './dump-sections.ts';
 import { expectDeadJobOpens, expectDeadJobUnreadable } from './erasure-dead-job.ts';
+import { expectDerivedDataGone } from './erasure-derived-data.ts';
 import { dumpMarker, gapMarker } from './erasure-dump-markers.ts';
 import { plantMarkers } from './erasure-dump-plant.ts';
 import {
@@ -200,11 +200,24 @@ async function runErasureDumpCase(setup: DumpCase): Promise<void> {
       plainFingerprint(action, runtime.head, input),
     ]),
   );
+  // A command whose input has a personal member that names its subject keeps no plain fingerprint
+  // at all (its member is digested under the key of the subject); every other command keeps the
+  // plain one until the erasure scrubs it (WP-130).
+  const digested = new Set([
+    'probe.subscribe',
+    'probe.defer',
+    'probe.armPersonal',
+    'probe.remind',
+    'probe.jot',
+    'probe.claim',
+    // A generated update names the entity's personal field inside its patch: keyed as well.
+    'probe.person.update',
+  ]);
   const heldBefore = [...fingerprints].filter(([, hash]) => before.includes(hash)).map(([n]) => n);
   expect(
     heldBefore.sort(),
-    'the plain fingerprints of the commands are in the dump before',
-  ).toEqual([...fingerprints.keys()].sort());
+    'the plain fingerprints of the commands without a personal member are in the dump before',
+  ).toEqual([...fingerprints.keys()].filter((name) => !digested.has(name)).sort());
 
   await operator.invoke(
     'core.eraseSubject',
@@ -304,20 +317,22 @@ async function runErasureDumpCase(setup: DumpCase): Promise<void> {
     ),
   ).toEqual([]);
 
-  // The gaps that are known are found, each one, and nothing else of the kind is.
-  const evidence = {
+  // The personal values in derived data are gone (WP-130).
+  expectDerivedDataGone({
     after,
     fingerprints,
+    planted,
+    erasedMarkers,
     fingerprintsFound,
     jobKey: gapMarker.jobKey,
-    reactionKeyHash: createHash('sha256').update(marker.topic).digest('hex'),
-    opened,
-    effectOutput: marker.effectOutput,
-    sealedLengths: envelopes
-      .filter((envelope) => envelope.kind === 'kwe' && envelope.keyId === keyId)
-      .map((envelope) => envelope.sealed.length),
-  };
-  const claimed_: string[] = [];
+    effectKey: gapMarker.effectKey,
+    topic: marker.topic,
+    envelopes,
+  });
+
+  // The gap that is known is found, and nothing else of the kind is: only the output of an effect
+  // opens.
+  const evidence = { opened, effectOutput: marker.effectOutput };
   const claimedOpen: string[] = [];
   for (const gap of knownGaps as readonly KnownGap[]) {
     const found = gap.found(evidence);
@@ -325,18 +340,11 @@ async function runErasureDumpCase(setup: DumpCase): Promise<void> {
       found,
       `${gap.name} (${gap.workPackage}) is found; when it is closed, remove its entry`,
     ).not.toEqual([]);
-    claimed_.push(...found.filter((entry) => entry.startsWith('fingerprint:')));
     claimedOpen.push(...found.filter((entry) => entry.includes(' opens through ')));
   }
   expect(opened, 'what opens with a key that exists is exactly what the known gaps name').toEqual(
     claimedOpen.sort(),
   );
-  expect(
-    [...fingerprintsFound]
-      .flatMap(([name, tables]) => tables.map((table) => `fingerprint:${name}@${table}`))
-      .sort(),
-    'the fingerprints in the dump are exactly the ones the known gaps name',
-  ).toEqual([...new Set(claimed_)].sort());
 
   // Every table is named by the inventory or by an entity of the app.
   const entityTables = new Set(

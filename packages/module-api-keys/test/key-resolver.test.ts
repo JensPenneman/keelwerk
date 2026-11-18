@@ -1,4 +1,10 @@
-import { absentVerifier, type Carrier, type PrincipalResolver, type Scope } from '@keelwerk/core';
+import {
+  absentVerifier,
+  type Carrier,
+  isOpaqueId,
+  type PrincipalResolver,
+  type Scope,
+} from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import { principalResolversFill } from '../src/contributions/to-core/fills/principal-resolvers.ts';
 import { apiKeys } from '../src/module.generated.ts';
@@ -275,6 +281,12 @@ describe('the key resolver', () => {
     expect(refused).toBe(refusalOf(() => resolve({ row: undefined, verified: false }, bearer)));
     const accepted = resolve({ row: bound, verified: true }, { ...bearer, transport: 'cli' });
     expect(accepted.result).toMatchObject({ principal: { via: 'api-keys.key' } });
+  });
+
+  test('answers an opaque principal id', () => {
+    const accepted = resolve({ row: liveRow, verified: true }, bearer);
+    const { principal } = accepted.result as { principal: { ref: { principalId: string } } };
+    expect(isOpaqueId(principal.ref.principalId)).toBe(true);
   });
 
   test('fromRef answers null for a revoked or expired key and the principal for a live one', () => {

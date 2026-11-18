@@ -32,6 +32,11 @@ export interface EnqueueReactionJobsInput {
   readonly registry: Registry;
   readonly events: readonly StoredEvent[];
   readonly queue: JobQueue;
+  /**
+   * The job key secret of the unit's scope (`jobKeyInfo`), derived before the unit opened: it
+   * digests the parts of a job key.
+   */
+  readonly keySecret: Uint8Array;
   /** Where a reaction whose key failed is logged (its id and the error code only). */
   readonly log: Logger;
   /** The deepest lineage a reaction job may have (`ReactionDispatcherOptions.maxDepth`). */
@@ -51,13 +56,15 @@ export interface EnqueueReactionJobsInput {
  * and module. A process's key is computed here once, from the event without `current`; the job
  * carries the derived stream id (and, for a process with a data subject, the sealed subject), and
  * the run folds that stream: it never computes the key again. A key that throws, is not text or is
- * empty, and the instance key of a process with personal members that is no UUID, make that reaction's job alone a job that fails when it runs
- * (a dead letter of that reaction): the other reactions' jobs and the checkpoint commit as usual,
- * so one module's fault never holds an event back from another. Answers the number of jobs
- * enqueued. A reaction is skipped for an event of a scope its job could not decide in
- * (`reactionDecidesIn`: the deployment): no job, no line, no count; the checkpoint advances. The
- * unit is the batch's, so the jobs and the checkpoint advance commit together; nothing but `key`
- * runs module code.
+ * empty, and the instance key of a process with personal members that is no UUID, make that
+ * reaction's job alone a job that fails when it runs (a dead letter of that reaction): the other
+ * reactions' jobs and the checkpoint commit as usual, so one module's fault never holds an event
+ * back from another. Answers the number of jobs enqueued. A reaction is skipped for an event of a
+ * scope its job could not decide in (`reactionDecidesIn`: the deployment): no job, no line, no
+ * count; the checkpoint advances. The part of a job key a reaction chose is stored as its digest
+ * under `keySecret`, which the caller derived from the scope's key (`jobKeyInfo`) before the unit
+ * opened (`jobKeyDigest`). The unit is the batch's, so the jobs and the checkpoint advance commit
+ * together; nothing but `key` runs module code.
  *
  * The depth bound (7.7): the job of an event is one reaction job deeper than the event
  * (`nextReactionLineage`), and a job deeper than `maxDepth` is not queued, for any reaction, before
@@ -69,6 +76,7 @@ export async function enqueueReactionJobs(input: EnqueueReactionJobsInput): Prom
   const { unit, registry } = input;
   const reactions = reactionsInModuleOrder(registry, 'async');
   if (reactions.length === 0) return 0;
+  const { keySecret } = input;
   let count = 0;
   for (const event of input.events) {
     if (event.transient || isProcessStream(registry, event.stream.type)) continue;
@@ -119,7 +127,7 @@ export async function enqueueReactionJobs(input: EnqueueReactionJobsInput): Prom
       }
       let instance: Awaited<ReturnType<typeof processJobInstance>> = {};
       if (reaction.process === true && declaredKey !== undefined) {
-        instance = await processJobInstance(unit, reaction, event, declaredKey);
+        instance = await processJobInstance(unit, reaction, event, declaredKey, keySecret);
       }
       await input.queue.enqueue(
         reactionJob({
@@ -131,6 +139,7 @@ export async function enqueueReactionJobs(input: EnqueueReactionJobsInput): Prom
           ...(keyError === undefined ? {} : { keyError }),
           build: input.build,
           now: input.now,
+          keySecret,
         }),
         unit,
       );

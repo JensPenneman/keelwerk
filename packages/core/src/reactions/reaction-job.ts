@@ -33,6 +33,11 @@ export interface ReactionJobOptions {
   /** The enqueuer's build (section 19.2). */
   readonly build: { readonly id: string; readonly revision: number };
   readonly now: Temporal.Instant;
+  /**
+   * The job key secret of the event's scope (`jobKeyInfo`): the part a reaction's key was built
+   * from is stored as its digest under it.
+   */
+  readonly keySecret: Uint8Array;
 }
 
 /**
@@ -46,8 +51,18 @@ export interface ReactionJobOptions {
  * `declaredKey` is the empty string.
  */
 export function reactionJob(options: ReactionJobOptions): JobSpec {
-  const { reaction, event, declaredKey, keyError, processStream, subject, lineage, build, now } =
-    options;
+  const {
+    reaction,
+    event,
+    declaredKey,
+    keyError,
+    processStream,
+    subject,
+    lineage,
+    build,
+    now,
+    keySecret,
+  } = options;
   if (declaredKey === '') {
     throw errors.validation(`The key of the reaction "${reaction.id}" is empty for an event.`);
   }
@@ -96,8 +111,11 @@ export function reactionJob(options: ReactionJobOptions): JobSpec {
     build: common.build,
     key:
       keyError === undefined
-        ? reactionJobKey(reaction, event, declaredKey)
-        : { value: reactionKeyValue(reaction, event.eventId), onConflict: 'keep' as const },
+        ? reactionJobKey(reaction, event, declaredKey, keySecret)
+        : {
+            value: reactionKeyValue(reaction, event.eventId, keySecret),
+            onConflict: 'keep' as const,
+          },
     // A coalescing reaction is also ordered: a newer event waits behind the older one that is
     // still running, so the last write is always the newest event's.
     ...(keyError === undefined && (reaction.ordering === 'fifo-per-key' || coalescing)

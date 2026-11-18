@@ -51,7 +51,7 @@ describe('effects in a dry run and in a trace', () => {
     const rows = await adapter.unit(namespace, tenant, async (unit) => ({
       books: (await unit.rows.find(bookEntity, {})).rows,
       effects: (await unit.rows.find(effectEntity, {})).rows,
-      receipt: await unit.receipts.get('dry-1'),
+      receipt: await unit.receipts.get('00000000-0000-7000-8000-000000000001'),
     }));
     expect(rows.books).toEqual([]);
     expect(rows.effects).toEqual([]);
@@ -62,7 +62,11 @@ describe('effects in a dry run and in a trace', () => {
     const { adapter, run } = dry(registry, 'library.send');
     const report = await run();
     const { invoke } = effectsKit(registry, { adapter });
-    const real = await invoke('library.send', {}, { commandId: 'dry-1' });
+    const real = await invoke(
+      'library.send',
+      {},
+      { commandId: '00000000-0000-7000-8000-000000000001' },
+    );
     expect(real).toMatchObject({ ok: true });
     if (report.status !== 'decided' || !real.ok) throw new Error('unreachable');
     expect(real.effects).toEqual(report.deferred);
@@ -71,12 +75,16 @@ describe('effects in a dry run and in a trace', () => {
   test('a trace of the effect id leads to the command, whose effect shows its status', async () => {
     const { adapter } = dry(registry, 'library.send');
     const { invoke } = effectsKit(registry, { adapter });
-    const real = await invoke('library.send', {}, { commandId: 'c-real' });
+    const real = await invoke(
+      'library.send',
+      {},
+      { commandId: '00000000-0000-7000-8000-000000000002' },
+    );
     if (!real.ok) throw new Error('unreachable');
     const [effectId] = real.effects ?? [];
     const traced = await traceCommand({ adapter, namespace, scope: tenant, id: String(effectId) });
     expect(traced.requested).toEqual({ kind: 'effect', id: effectId });
-    expect(traced.command.commandId).toBe('c-real');
+    expect(traced.command.commandId).toBe('00000000-0000-7000-8000-000000000002');
     expect(traced.command.effects).toMatchObject([
       { id: effectId, type: 'library.notify', status: 'requested' },
     ]);
@@ -127,7 +135,9 @@ describe('the seam', () => {
     const { adapter, run } = dry(registry, 'library.noop');
     expect(await run()).toMatchObject({ status: 'decided', events: [] });
     const { invoke } = effectsKit(registry, { adapter });
-    expect(await invoke('library.noop', {}, { commandId: 'dry-1' })).toMatchObject({ ok: true });
+    expect(
+      await invoke('library.noop', {}, { commandId: '00000000-0000-7000-8000-000000000001' }),
+    ).toMatchObject({ ok: true });
     await expect(run()).rejects.toMatchObject({ kind: 'conflict' });
   });
 });

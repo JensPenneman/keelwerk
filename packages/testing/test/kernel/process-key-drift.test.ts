@@ -1,7 +1,7 @@
-import { processStreamRef } from '@keelwerk/core';
 import { afterAll, afterEach, describe, expect, test } from 'vitest';
 import type { LoggedLine } from '../../src/harness/logged-line.ts';
 import { recordingLogger } from '../../src/harness/recording-logger.ts';
+import { processInstanceStream } from './support/process-instance-stream.ts';
 import { bootReactions, relayOtherOwner, relayOwner } from './support/reactions-kit.ts';
 import { relayControl } from './support/relay-control.ts';
 
@@ -13,13 +13,20 @@ afterEach(() => {
 });
 const { runtime, spy } = kit;
 
-const streamHolds = (owner: string) =>
-  runtime.adapter.unit(
+const streamHolds = async (owner: string) => {
+  const stream = await processInstanceStream(
+    runtime.keys,
+    kit.scopeOf('acme'),
+    'relay.tally',
+    owner,
+  );
+  return runtime.adapter.unit(
     runtime.namespace,
     kit.scopeOf('acme'),
-    (unit) => unit.events.readStream(processStreamRef(kit.scopeOf('acme'), 'relay.tally', owner)),
+    (unit) => unit.events.readStream(stream),
     { readOnly: true },
   );
+};
 
 describe('the instance of a process (7.7)', () => {
   test('does not move with the row between the dispatch and the run: the job decides under the instance of its event', async () => {
@@ -98,15 +105,7 @@ describe('the instance of a process (7.7)', () => {
       (row) => row.reaction === 'relay.tally' && row.channel === 'erased',
     );
     expect(tallies).toEqual([]);
-    expect(
-      await runtime.adapter.unit(
-        runtime.namespace,
-        kit.scopeOf('acme'),
-        (unit) =>
-          unit.events.readStream(processStreamRef(kit.scopeOf('acme'), 'relay.tally', gone)),
-        { readOnly: true },
-      ),
-    ).toEqual([]);
+    expect(await streamHolds(gone)).toEqual([]);
     expect(
       lines.filter(
         (line) => line.message === 'a process job found its subject erased and decides nothing',

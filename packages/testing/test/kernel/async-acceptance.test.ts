@@ -28,9 +28,16 @@ const registry = registryWith({
 describe('asynchronous acceptance', () => {
   test('an async command answers accepted with a receipt and a job, and runs nothing', async () => {
     const { adapter, invoke } = effectsKit(registry);
-    const outcome = await invoke('library.slow', { n: 1 }, { commandId: 'a1' });
-    expect(outcome).toMatchObject({ ok: true, receipt: { commandId: 'a1', status: 'accepted' } });
-    const receipt = await receiptOf(adapter, 'a1');
+    const outcome = await invoke(
+      'library.slow',
+      { n: 1 },
+      { commandId: '00000000-0000-7000-8000-000000000001' },
+    );
+    expect(outcome).toMatchObject({
+      ok: true,
+      receipt: { commandId: '00000000-0000-7000-8000-000000000001', status: 'accepted' },
+    });
+    const receipt = await receiptOf(adapter, '00000000-0000-7000-8000-000000000001');
     expect(receipt).toMatchObject({
       status: 'accepted',
       outcome: null,
@@ -46,9 +53,16 @@ describe('asynchronous acceptance', () => {
     expect(jobs[0]).toMatchObject({
       kind: 'action',
       queue: 'commands',
-      run: { action: 'library.slow', input: { n: 1 }, commandId: 'a1' },
+      run: {
+        action: 'library.slow',
+        input: { n: 1 },
+        commandId: '00000000-0000-7000-8000-000000000001',
+      },
       principal: { principalId: 'ada' },
-      causation: { commandId: 'a1', actor: { kind: 'user', id: 'ada' } },
+      causation: {
+        commandId: '00000000-0000-7000-8000-000000000001',
+        actor: { kind: 'user', id: 'ada' },
+      },
       build: { id: 'build-42', revision: 7 },
       apiVersion: '2026-11-01',
     });
@@ -57,44 +71,64 @@ describe('asynchronous acceptance', () => {
 
   test('the receipt expires after the action window', async () => {
     const { adapter, invoke } = effectsKit(registry);
-    await invoke('library.slow', {}, { commandId: 'a1' });
-    const receipt = await receiptOf(adapter, 'a1');
+    await invoke('library.slow', {}, { commandId: '00000000-0000-7000-8000-000000000001' });
+    const receipt = await receiptOf(adapter, '00000000-0000-7000-8000-000000000001');
     const accepted = receipt?.expiresAt;
     expect(accepted?.toString()).toBe(Temporal.Instant.from('2026-01-01T01:00:00Z').toString());
   });
 
   test('a retry with the same id and input answers accepted again and enqueues nothing more', async () => {
     const { adapter, invoke } = effectsKit(registry);
-    await invoke('library.slow', { n: 1 }, { commandId: 'a1' });
-    const again = await invoke('library.slow', { n: 1 }, { commandId: 'a1' });
+    await invoke('library.slow', { n: 1 }, { commandId: '00000000-0000-7000-8000-000000000001' });
+    const again = await invoke(
+      'library.slow',
+      { n: 1 },
+      { commandId: '00000000-0000-7000-8000-000000000001' },
+    );
     expect(again).toMatchObject({
       ok: true,
       replayed: true,
-      receipt: { commandId: 'a1', status: 'accepted' },
+      receipt: { commandId: '00000000-0000-7000-8000-000000000001', status: 'accepted' },
     });
     expect((await stored(adapter)).jobs).toHaveLength(1);
   });
 
   test('another input under the same id is core.idempotency_mismatch', async () => {
     const { invoke } = effectsKit(registry);
-    await invoke('library.slow', { n: 1 }, { commandId: 'a1' });
-    const other = await invoke('library.slow', { n: 2 }, { commandId: 'a1' });
+    await invoke('library.slow', { n: 1 }, { commandId: '00000000-0000-7000-8000-000000000001' });
+    const other = await invoke(
+      'library.slow',
+      { n: 2 },
+      { commandId: '00000000-0000-7000-8000-000000000001' },
+    );
     expect(!other.ok && other.error.code).toBe('core.idempotency_mismatch');
   });
 
   test('a finished receipt replays its outcome', async () => {
     const { adapter, invoke } = effectsKit(registry);
-    await invoke('library.slow', { n: 1 }, { commandId: 'a1' });
+    await invoke('library.slow', { n: 1 }, { commandId: '00000000-0000-7000-8000-000000000001' });
     await adapter.unit((await import('./support/run-read-kit.ts')).namespace, tenant, (unit) =>
-      unit.receipts.complete('a1', { ok: true, value: { done: true }, effects: [] }),
+      unit.receipts.complete('00000000-0000-7000-8000-000000000001', {
+        ok: true,
+        value: { done: true },
+        effects: [],
+      }),
     );
-    const again = await invoke('library.slow', { n: 1 }, { commandId: 'a1' });
+    const again = await invoke(
+      'library.slow',
+      { n: 1 },
+      { commandId: '00000000-0000-7000-8000-000000000001' },
+    );
     expect(again).toMatchObject({ ok: true, replayed: true, value: { done: true } });
   });
 
   test('an either command runs synchronously unless the caller prefers async', async () => {
     const sync = effectsKit(registry);
-    const ran = await sync.invoke('library.flexible', {}, { commandId: 'e1' });
+    const ran = await sync.invoke(
+      'library.flexible',
+      {},
+      { commandId: '00000000-0000-7000-8000-000000000002' },
+    );
     expect(ran).toMatchObject({ ok: true });
     expect(ran.ok && ran.receipt).toBeUndefined();
     expect((await stored(sync.adapter)).books).toHaveLength(1);
@@ -102,9 +136,12 @@ describe('asynchronous acceptance', () => {
     const accepted = await later.invoke(
       'library.flexible',
       {},
-      { commandId: 'e2', prefer: 'async' },
+      { commandId: '00000000-0000-7000-8000-000000000003', prefer: 'async' },
     );
-    expect(accepted).toMatchObject({ ok: true, receipt: { commandId: 'e2', status: 'accepted' } });
+    expect(accepted).toMatchObject({
+      ok: true,
+      receipt: { commandId: '00000000-0000-7000-8000-000000000003', status: 'accepted' },
+    });
     const kept = await stored(later.adapter);
     expect(kept.books).toHaveLength(0);
     expect(kept.jobs).toHaveLength(1);
@@ -120,11 +157,15 @@ describe('asynchronous acceptance', () => {
 
   test('an async command that answers an entity row or has required outputs is accepted, not shaped', async () => {
     const { adapter, invoke } = effectsKit(registry);
-    const outcome = await invoke('library.mounted', {}, { commandId: 'm1' });
+    const outcome = await invoke(
+      'library.mounted',
+      {},
+      { commandId: '00000000-0000-7000-8000-000000000004' },
+    );
     expect(outcome).toMatchObject({
       ok: true,
       value: {},
-      receipt: { commandId: 'm1', status: 'accepted' },
+      receipt: { commandId: '00000000-0000-7000-8000-000000000004', status: 'accepted' },
     });
     expect((await stored(adapter)).jobs).toHaveLength(1);
   });

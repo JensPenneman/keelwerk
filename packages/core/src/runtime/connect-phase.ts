@@ -35,6 +35,7 @@ import { checkControlNamespace } from './check-control-namespace.ts';
 import type { Composed } from './compose-phase.ts';
 import type { Connected } from './connected.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
+import { keyCacheOptionsOf } from './key-cache-options-of.ts';
 import { masterKeySourceOf } from './master-key-source-of.ts';
 import type { RuntimeOptions } from './runtime-options.ts';
 import { secretResolverOf } from './secret-resolver-of.ts';
@@ -197,6 +198,7 @@ export async function connectPhase(input: ConnectInput): Promise<Connected> {
       deploymentId,
       withScopeKeys: withScopeKeys(controlAdapter, namespace),
       clock,
+      cache: keyCacheOptionsOf(input.options),
       log,
     });
     const compute = createComputePool();

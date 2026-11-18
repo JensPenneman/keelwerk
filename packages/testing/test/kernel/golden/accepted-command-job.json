@@ -11,7 +11,7 @@
     "principalId": "ada"
   },
   "causation": {
-    "commandId": "a1",
+    "commandId": "00000000-0000-7000-8000-000000000003",
     "actor": {
       "kind": "user",
       "id": "ada",
@@ -30,7 +30,7 @@
     "input": {
       "n": 1
     },
-    "commandId": "a1"
+    "commandId": "00000000-0000-7000-8000-000000000003"
   },
   "id": "1",
   "runAt": "2026-01-01T00:00:00Z",

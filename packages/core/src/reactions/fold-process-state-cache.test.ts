@@ -18,7 +18,7 @@ import { processStateFrom } from './process-state-from.ts';
 const GOLDEN_PLAIN =
   '{"v":1,"from":"368d50ad99a5f58bd8c31790241356e6147f075db9212667fed43af5bdb9bfce","version":10000,"hash":"hash-10000","text":"{\\"count\\":10000}"}';
 const GOLDEN_SEALED =
-  '{"v":1,"from":"368d50ad99a5f58bd8c31790241356e6147f075db9212667fed43af5bdb9bfce","version":40,"hash":"hash-40","sealed":{"$kwe":1,"k":"dk-1","n":"AQEBAQEBAQEBAQEB","c":"DcPq2OXRmCzr4Oxc3wmU2y3TzF-Ewb_5TVLLRQ"}}';
+  '{"v":1,"from":"368d50ad99a5f58bd8c31790241356e6147f075db9212667fed43af5bdb9bfce","version":40,"hash":"hash-40","sealed":{"$kwe":2,"k":"dk-1","n":"AQEBAQEBAQEBAQEB","c":"DcPq2OXRmCzr4Oxc8DdwMaj7FPQYlzsTWDFDYma0NrusbrCp8oaOXvxWMnRo0XFT"}}';
 
 /** What a `jsonb` column keeps of a value: the members of every object sorted, shorter names first. */
 function jsonbOf(value: unknown): unknown {
@@ -284,13 +284,15 @@ describe('folding with the state cache of a process instance', () => {
     expect(JSON.stringify(folded.state)).toBe(JSON.stringify(expected.state));
   });
 
+  // WP-130: $kwe 2 pads the plaintext (S8) and the process stream id binds its owner; the envelope
+  // and every hash over it were regenerated.
   test('a process with a data subject keeps only the sealed state, bound to the event at its version', async () => {
     const written = fake(eventsUpTo(40));
     await fold(written.unit, subjectTally);
     const [record] = written.appends as { sealed?: unknown; text?: unknown; version: number }[];
     expect(record).toBeDefined();
     expect(record).not.toHaveProperty('text');
-    expect(record?.sealed).toMatchObject({ $kwe: 1, k: 'dk-1' });
+    expect(record?.sealed).toMatchObject({ $kwe: 2, k: 'dk-1' });
     expect(record?.version).toBe(40);
     // The stored form, byte for byte, under the kit's fixed key and nonce.
     expect(JSON.stringify(record)).toBe(GOLDEN_SEALED);

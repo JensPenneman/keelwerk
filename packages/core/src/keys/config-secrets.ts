@@ -38,6 +38,7 @@ async function seal(
     new TextEncoder().encode(plain),
     bindingOf(binding),
     random,
+    1,
   );
   return [
     prefix,

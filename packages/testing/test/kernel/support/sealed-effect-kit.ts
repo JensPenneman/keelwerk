@@ -93,11 +93,11 @@ export async function dottedSubjectCase(booted: BootedCourier): Promise<void> {
   const deliverEffect = result.rows['core.effect']?.find(
     (effect) => effect.type === 'courier.deliver',
   );
-  expect(deliverEffect?.input).toMatchObject({ to: { $kwe: 1, k: key?.id } });
+  expect(deliverEffect?.input).toMatchObject({ to: { $kwe: 2, k: key?.id } });
   const effectCreated = result.events.find(
     (event) => event.type === 'core.effect.created' && event.stream.id === deliverEffect?.id,
   );
-  expect(dump(effectCreated?.data)).toContain('"$kwe":1');
+  expect(dump(effectCreated?.data)).toContain('"$kwe":2');
   expect(dump(effectCreated?.data)).not.toContain(user);
   const refs = await booted.raw((unit) => unit.keys.refs(owner, null, 10));
   expect(refs).toContainEqual({ type: 'core.effect', id: String(deliverEffect?.id) });

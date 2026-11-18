@@ -74,12 +74,18 @@ describe.each(kinds)('the control commands over the invoker on %s (S-109)', (kin
   }, async () => {
     const { runtime, calls, create, deployment } = await started(kind);
     const backend = await ok(
-      create.backend({ name: 'b', app: 'hooks-app', placement: 'main' }, 'c-b'),
+      create.backend(
+        { name: 'b', app: 'hooks-app', placement: 'main' },
+        '00000000-0000-7000-8000-000000000001',
+      ),
     );
     expect(backend).toEqual({ id: expect.any(String) });
     expect(calls).toEqual({ backend: 1, tenant: 0 });
     const tenant = await ok(
-      create.tenant({ backendId: backend.id, name: 't', domains: ['t.example.test'] }, 'c-t'),
+      create.tenant(
+        { backendId: backend.id, name: 't', domains: ['t.example.test'] },
+        '00000000-0000-7000-8000-000000000002',
+      ),
     );
     expect(calls).toEqual({ backend: 1, tenant: 1 });
     const me = await call(
@@ -90,11 +96,17 @@ describe.each(kinds)('the control commands over the invoker on %s (S-109)', (kin
     expect(me).toMatchObject({ ok: true });
     const receipts = await ok(
       call(runtime.invoker, local, 'core.commandReceipt.get', {
-        ids: [commandReceiptUuid(deployment(), 'c-b')],
+        ids: [commandReceiptUuid(deployment(), '00000000-0000-7000-8000-000000000001')],
       }),
     );
     expect(receipts).toMatchObject({
-      list: [{ commandId: 'c-b', action: 'core.backend.create', status: 'completed' }],
+      list: [
+        {
+          commandId: '00000000-0000-7000-8000-000000000001',
+          action: 'core.backend.create',
+          status: 'completed',
+        },
+      ],
       notFound: [],
     });
     const stored = (receipts.list as Record<string, unknown>[])[0];
@@ -191,19 +203,23 @@ describe.each(kinds)('the control commands over the invoker on %s (S-109)', (kin
   }, async () => {
     const { runtime, calls, create } = await started(kind);
     const input = { name: 'b', app: 'hooks-app', placement: 'main' };
-    const first = await ok(create.backend(input, 'once'));
-    const again = await ok(create.backend(input, 'once'));
+    const first = await ok(create.backend(input, '00000000-0000-7000-8000-000000000003'));
+    const again = await ok(create.backend(input, '00000000-0000-7000-8000-000000000003'));
     expect(again.id).toBe(first.id);
     expect(calls.backend).toBe(1);
     const rows = await ok(call(runtime.invoker, local, 'core.backend.query', {}));
     expect((rows.items as unknown[]).length).toBe(1);
-    expect(await create.backend({ ...input, name: 'other' }, 'once')).toMatchObject({
+    expect(
+      await create.backend({ ...input, name: 'other' }, '00000000-0000-7000-8000-000000000003'),
+    ).toMatchObject({
       ok: false,
       error: { code: 'core.idempotency_mismatch' },
     });
     const tenantInput = { backendId: first.id, name: 't' };
-    const tenant = await ok(create.tenant(tenantInput, 'tenant-once'));
-    expect((await ok(create.tenant(tenantInput, 'tenant-once'))).id).toBe(tenant.id);
+    const tenant = await ok(create.tenant(tenantInput, '00000000-0000-7000-8000-000000000004'));
+    expect((await ok(create.tenant(tenantInput, '00000000-0000-7000-8000-000000000004'))).id).toBe(
+      tenant.id,
+    );
     expect(calls.tenant).toBe(1);
   });
 });

@@ -1,3 +1,4 @@
+import { isOpaqueId } from '@keelwerk/core';
 import { describe, expect, onTestFinished, test } from 'vitest';
 import {
   ada,
@@ -89,6 +90,22 @@ describe.each(['memory', 'pglite'] as const)('auth sessions on %s', (kind: Stora
     );
     expect(foreign.ok).toBe(false);
     expect((await whoami(auth, asBearer(hers.sessionToken))).ok).toBe(true);
+  });
+
+  test('answers an opaque principal id', { timeout }, async () => {
+    const auth = await boot();
+    await enrol(auth, ada);
+    const { sessionToken } = await signIn(auth, ada);
+    const commandId = crypto.randomUUID();
+    const revoked = await auth.request(
+      'auth.session.revoke',
+      { id: crypto.randomUUID() },
+      { headers: asCookie(sessionToken), commandId },
+    );
+    expect(revoked).toBeDefined();
+    const receipt = await auth.inUnit((unit) => unit.receipts.get(commandId));
+    expect(receipt?.principalResolver).toBe('auth.session');
+    expect(isOpaqueId(receipt?.principalId ?? '')).toBe(true);
   });
 
   test('a revoked credential ends its sessions and refuses a new login', { timeout }, async () => {

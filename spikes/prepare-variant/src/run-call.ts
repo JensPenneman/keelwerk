@@ -1,8 +1,15 @@
 import type { CommandResult, DataAdapter, Principal } from '@keelwerk/core';
-import { normalizeRule, runCommand } from '@keelwerk/core';
+import { deriveHkdf, normalizeRule, runCommand } from '@keelwerk/core';
 import type { InlineEffectStub } from './inline-effect-stub.ts';
 import { runInlineVariant } from './run-inline-variant.ts';
 import type { SpikeWorld } from './start-spike-world.ts';
+
+/**
+ * The one key the spike's commands derive their secrets from; a write derives them before its unit
+ * opens.
+ */
+const derivedKey = (scope: unknown, info: string, length: number) =>
+  Promise.resolve(deriveHkdf(new Uint8Array(32).fill(7), JSON.stringify(scope), info, length));
 
 const silent = {
   debug: () => undefined,
@@ -52,7 +59,7 @@ export function runCall(world: SpikeWorld, call: CallOptions): Promise<CommandRe
     request: { transport: 'test', requestId: 'req-1' },
     // The harness adapter reads the system clock when it checks a receipt's window.
     clock: { now: () => Temporal.Now.instant() },
-    keys: {} as never,
+    keys: { derive: derivedKey } as never,
     compute: {} as never,
     log: silent,
     trace: {} as never,

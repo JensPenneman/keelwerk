@@ -24,6 +24,6 @@ export function processStateRecordOf(value: unknown, from: string): ProcessState
       : undefined;
   }
   if (!isKweEnvelope(stored.sealed)) return undefined;
-  const { k, n, c } = stored.sealed;
-  return { v: 1, from, version, hash, sealed: { $kwe: 1, k, n, c } };
+  const { $kwe, k, n, c } = stored.sealed;
+  return { v: 1, from, version, hash, sealed: { $kwe, k, n, c } };
 }

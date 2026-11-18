@@ -65,20 +65,46 @@ describe('the command ids the kernel makes itself', () => {
       unit.receipts.get(id),
     );
     expect(receipt).toBeUndefined();
-    // Any other id passes.
-    expect(await invokeWith('relay.send', input, 'relay.echo:e1')).toMatchObject({ ok: true });
+    // Any id of the grammar passes.
+    expect(
+      await invokeWith('relay.send', input, '00000000-0000-7000-8000-000000000001'),
+    ).toMatchObject({ ok: true });
   });
 
-  test('the form that was the id of a reaction job before is an ordinary id now, and claims nothing of the kernel', async () => {
+  test('a client id that is no UUID or ULID is refused at its path, with no receipt and without the value', async () => {
+    const commandId = '00000000-0000-7000-8000-000000000002';
+    const email = 'order-jan@example.com';
+    const outcome = await runtime.invoker.invoke({
+      action: 'relay.send',
+      input: { channel: 'x', text: 'y', owner: relayOwner },
+      commandId,
+      sync: { clientId: email, clientSeq: 1, baseVersions: {}, hlc: '0' },
+      carrier: testCarrier(runtime.tenants.acme, testPrincipal(relayOwner)),
+      requestId: crypto.randomUUID(),
+      signal: new AbortController().signal,
+    });
+    expect(outcome).toMatchObject({
+      ok: false,
+      error: { kind: 'validation', code: 'core.validation' },
+    });
+    if (outcome.ok) throw new Error('the invocation was accepted');
+    expect(JSON.stringify(outcome.error)).not.toContain(email);
+    expect(outcome.error).toMatchObject({ issues: [{ path: ['clientId'] }] });
+    const receipt = await runtime.adapter.unit(runtime.namespace, kit.scopeOf('acme'), (unit) =>
+      unit.receipts.get(commandId),
+    );
+    expect(receipt).toBeUndefined();
+  });
+
+  test('the form that was the id of a reaction job before is no id of the grammar, and claims nothing of the kernel', async () => {
     const signalId = await sendSignal('old-form');
     const created = await createdOf(signalId);
     const claimed = await kit.call('acme', 'relay.claim', {
       commandId: `relay.echo:${created.eventId}`,
     });
-    expect(claimed.ok).toBe(true);
+    expect(claimed).toMatchObject({ ok: false, error: { code: 'core.validation' } });
     await kit.settle();
     expect((await echoesOf('relay.echo')).filter((row) => row.signal === signalId)).toHaveLength(1);
-    expect((await echoesOf('relay.note')).some((row) => row.signal === 'claimed')).toBe(true);
     expect(deadOf()).toEqual([]);
   });
 });

@@ -74,6 +74,12 @@ export interface TestRuntimeOptions<Name extends string = 'acme' | 'globex'> {
    * Read when a flag is resolved, so a test that changes the object it passed changes the flag.
    */
   readonly env?: Readonly<Record<string, string | undefined>>;
+  /**
+   * The life of an unwrapped scope key in milliseconds of the runtime's clock (default 60 seconds).
+   * 0 keeps no key, so every derivation reads the control store, as one does after an eviction or a
+   * slow unit; a test watches the reads that a derivation inside an open unit makes.
+   */
+  readonly keyCache?: { readonly ttlMs?: number };
   /** Flag providers added to the deployment, after the targeting provider and before `env` (20.3). */
   readonly flagProviders?: readonly FlagProvider[];
   /**

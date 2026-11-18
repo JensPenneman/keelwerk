@@ -5,6 +5,7 @@ import { deriveFieldKey } from './derive-field-key.ts';
 import { deriveHkdf } from './derive-hkdf.ts';
 import { encodeAad } from './encode-aad.ts';
 import { encodeBase32 } from './encode-base32.ts';
+import { kweAad } from './kwe-aad.ts';
 import { openAesGcm } from './open-aes-gcm.ts';
 import { openColumn } from './open-column.ts';
 import { openKwe } from './open-kwe.ts';
@@ -71,8 +72,40 @@ describe('AES-256-GCM', () => {
 describe('the $kwe envelope', () => {
   const binding = { namespace: 'ns', streamId: 's1', eventId: 'e1', field: 'email' };
 
+  // WP-130: $kwe 2 pads the plaintext (S8). Version 2 is what `sealKwe` writes now; the vector
+  // below was regenerated for it, and the version 1 vector of 0.1.0 is kept as it was.
   it('is final: golden envelope', () => {
     const envelope = sealKwe(key, text('jens@example.com'), binding, countingRandomSource());
+    expect(envelope).toEqual({
+      $kwe: 2,
+      k: '01930000-0000-7000-8000-000000000001',
+      n: 'AAECAwQFBgcICQoL',
+      c: '4q5dIUCY95ivCD6A02CxYdRsqJq_nY_2z8vkC401D2_wUWxT6ABF8-GDoH_ZqAvG',
+    });
+    expect(openKwe(envelope, key.material, binding)).toEqual(text('jens@example.com'));
+  });
+
+  it('seals version 2 with the plaintext padded to 32 bytes', () => {
+    const envelope = sealKwe(key, text('true'), binding, countingRandomSource());
+    expect(envelope).toEqual({
+      $kwe: 2,
+      k: '01930000-0000-7000-8000-000000000001',
+      n: 'AAECAwQFBgcICQoL',
+      c: '_LlGN4D9j_nCeFLl_QPeDFRsqJq_nY_2z8vkC401D28vaAc_XWVSrbGJLzAEGg50',
+    });
+    expect(Buffer.from(envelope.c, 'base64url').length).toBe(32 + 16);
+    expect(openKwe(envelope, key.material, binding)).toEqual(text('true'));
+  });
+
+  it('a personal true and false seal to the same length', () => {
+    const sealed = (value: string): number =>
+      Buffer.from(sealKwe(key, text(value), binding, countingRandomSource()).c, 'base64url').length;
+    expect(sealed('true')).toBe(sealed('false'));
+    expect(sealed('true')).toBe(48);
+  });
+
+  it('opens a version 1 envelope written by 0.1.0', () => {
+    const envelope = sealKwe(key, text('jens@example.com'), binding, countingRandomSource(), 1);
     expect(envelope).toEqual({
       $kwe: 1,
       k: '01930000-0000-7000-8000-000000000001',
@@ -80,6 +113,28 @@ describe('the $kwe envelope', () => {
       c: '4q5dIUCY95ivCD6A02CxYWrBZbcsaJ3Oc9itQzJTvEQ',
     });
     expect(openKwe(envelope, key.material, binding)).toEqual(text('jens@example.com'));
+  });
+
+  it('an envelope whose version was changed from 2 to 1 does not open', () => {
+    const envelope = sealKwe(key, text('v'), binding, countingRandomSource());
+    expect(openKwe({ ...envelope, $kwe: 1 }, key.material, binding)).toBeUndefined();
+    const old = sealKwe(key, text('v'), binding, countingRandomSource(), 1);
+    expect(openKwe({ ...old, $kwe: 2 }, key.material, binding)).toBeUndefined();
+  });
+
+  it('a version 2 plaintext with a broken padding does not open', () => {
+    const material = key.material;
+    const aad = kweAad(binding, 2);
+    for (const broken of [text('no padding at all'), new Uint8Array([0x61, 0x80, 0x00, 0x01])]) {
+      const sealed = sealAesGcm(material, broken, aad, countingRandomSource());
+      const envelope = {
+        $kwe: 2,
+        k: key.id,
+        n: Buffer.from(sealed.nonce).toString('base64url'),
+        c: Buffer.from(sealed.ciphertext).toString('base64url'),
+      } as const;
+      expect(openKwe(envelope, material, binding)).toBeUndefined();
+    }
   });
 
   it('fails to open when moved to another stream, event or field', () => {

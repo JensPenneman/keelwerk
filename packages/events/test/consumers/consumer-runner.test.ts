@@ -91,6 +91,31 @@ describe.each(['memory', 'pglite'] as const satisfies readonly ConsumerKitKind[]
       expect(seen.size).toBe(2);
     });
 
+    test('what beforeBatch answers for a scope reaches consume of the same batch, and beforeBatch runs before the unit opens', async () => {
+      await kit.addBooks('acme', 2);
+      const consumer = kit.counting('test.prepared');
+      const asked: string[] = [];
+      const seen: unknown[] = [];
+      const spec = {
+        ...consumer.spec,
+        beforeBatch: async (scope: { readonly level: string; readonly tenantId?: string }) => {
+          asked.push(scope.tenantId ?? scope.level);
+          return { prepared: scope.tenantId };
+        },
+        consume: async (
+          events: Parameters<typeof consumer.spec.consume>[0],
+          unit: Parameters<typeof consumer.spec.consume>[1],
+          prepared?: unknown,
+        ) => {
+          seen.push(prepared);
+          await consumer.spec.consume(events, unit);
+        },
+      };
+      await kit.runnerOf(spec, 'one').pass();
+      expect(asked).toContain(kit.scopeIdOf('acme'));
+      expect(seen).toContainEqual({ prepared: kit.scopeIdOf('acme') });
+    });
+
     test('a busy scope yields after one batch, so a quiet scope is served next', async () => {
       await kit.addBooks('acme', 6);
       await kit.addBooks('globex', 1);

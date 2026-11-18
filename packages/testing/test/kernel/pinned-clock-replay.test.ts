@@ -33,7 +33,7 @@ describe.each(kinds)('a replay under a pinned clock on %s', (kind) => {
           carrier: local,
           requestId: crypto.randomUUID(),
           signal: new AbortController().signal,
-          commandId: 'pinned-issue',
+          commandId: '00000000-0000-7000-8000-000000000001',
         });
       const first = await issue();
       expect(first).toMatchObject({ ok: true });
@@ -44,10 +44,20 @@ describe.each(kinds)('a replay under a pinned clock on %s', (kind) => {
 
       const input = { name: 'pinned', app: 'library', placement: 'main' };
       const created = await ok(
-        callWithId(runtime.invoker, 'core.backend.create', input, 'pinned-create'),
+        callWithId(
+          runtime.invoker,
+          'core.backend.create',
+          input,
+          '00000000-0000-7000-8000-000000000002',
+        ),
       );
       const again = await ok(
-        callWithId(runtime.invoker, 'core.backend.create', input, 'pinned-create'),
+        callWithId(
+          runtime.invoker,
+          'core.backend.create',
+          input,
+          '00000000-0000-7000-8000-000000000002',
+        ),
       );
       expect(again.id).toBe(created.id);
       const backends = await ok(call(runtime.invoker, local, 'core.backend.query', {}));

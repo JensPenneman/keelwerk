@@ -74,17 +74,17 @@ describe.each(kinds)('operator tokens on %s: shown once and the unit keys', (kin
       deploymentOf(kind, { operator: { hosts: [operatorHost] }, factory: spy.factory }),
       { clock: testClock().clock },
     );
-    const first = await issue(runtime, 'issue-1');
+    const first = await issue(runtime, '00000000-0000-7000-8000-000000000001');
     if (!first.ok) throw first.error;
     const secretPart = first.value.token.split('_')[2] ?? '?';
-    const receipt = await spy.receipt('issue-1');
+    const receipt = await spy.receipt('00000000-0000-7000-8000-000000000001');
     expect(receipt?.status).toBe('completed');
     expect(JSON.stringify(receipt)).not.toContain(secretPart);
     expect(JSON.stringify(receipt)).not.toContain(first.value.token);
-    const again = await issue(runtime, 'issue-1');
+    const again = await issue(runtime, '00000000-0000-7000-8000-000000000001');
     expect(again).toMatchObject({ ok: false, error: { kind: 'conflict' } });
     // A new command issues a new token.
-    const second = await issue(runtime, 'issue-2');
+    const second = await issue(runtime, '00000000-0000-7000-8000-000000000002');
     expect(second).toMatchObject({ ok: true });
   });
 
@@ -95,7 +95,7 @@ describe.each(kinds)('operator tokens on %s: shown once and the unit keys', (kin
       clock: testClock().clock,
     });
     const outcomes = await Promise.all(
-      ['a', 'b', 'c'].map((label) => issue(runtime, `p-${label}`, label)),
+      ['a', 'b', 'c'].map((label) => issue(runtime, crypto.randomUUID(), label)),
     );
     for (const outcome of outcomes) {
       if (!outcome.ok) throw outcome.error;

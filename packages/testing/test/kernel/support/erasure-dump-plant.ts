@@ -76,8 +76,11 @@ async function plantMarkers(
     'probe.answer.ada',
   );
   await run('probe.jot', { threadId: adaThread, tag: marker.tag });
-  plant('probe.claim', 'probe.claim', { email: marker.claim });
-  const claimed = await operator.attempt('probe.claim', { email: marker.claim });
+  plant('probe.claim', 'probe.claim', { ownerId: ada, email: marker.claim });
+  const claimed = await operator.attempt('probe.claim', {
+    ownerId: ada as never,
+    email: marker.claim,
+  });
   expect(claimed.ok).toBe(false);
   plant('probe.subscribe', 'probe.subscribe', { address: marker.address, ownerId: ada });
   await operator.invoke(
@@ -101,6 +104,22 @@ async function plantMarkers(
   );
   // A module built a job key from a personal value, and a reaction was keyed by the topic.
   await run('probe.remind', { threadId: adaThread, ownerId: ada, address: gapMarker.jobKey });
+  // A module chose the key of an external effect from a personal value: the record stores a digest.
+  await run(
+    'probe.notify',
+    { threadId: adaThread, to: 'neutral', key: gapMarker.effectKey },
+    'probe.notify.keyed',
+  );
+  // A client wrote Ada's address through a generated update of another person, and the write failed
+  // (a version conflict): the failed receipt keeps a fingerprint, which must not be the plain
+  // digest.
+  const refusedUpdate = { id: bea, ifVersion: 99, patch: { email: marker.email } };
+  plant('probe.person.update', 'probe.person.update', refusedUpdate);
+  const refused = await operator.attempt('probe.person.update' as never, refusedUpdate as never);
+  expect(refused, 'the generated update fails on its version').toMatchObject({
+    ok: false,
+    error: { code: 'core.version_mismatch' },
+  });
   // An effect settled with a secret in its output, and one that its executor refused.
   await run(
     'probe.notify',

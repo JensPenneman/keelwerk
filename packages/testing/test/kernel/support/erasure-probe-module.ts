@@ -134,7 +134,10 @@ const answer = defineCommand(probeBase, {
 
 /** Appends a personal tag to the notes of a thread. */
 const jot = defineCommand(probeBase, {
-  input: shape({ threadId: field.ref.own('thread'), tag: field.string() }),
+  input: shape({
+    threadId: field.ref.own('thread'),
+    tag: field.string().personal({ subject: 'threadId.ownerId' }),
+  }),
   principal: 'operator',
   decide: (input, ctx) => ({
     events: [ctx.write.probe.notes.append(input.threadId, [{ n: 1, tags: [input.tag] }])],
@@ -143,7 +146,10 @@ const jot = defineCommand(probeBase, {
 
 /** Always refuses with the declared error, which carries the address. */
 const claim = defineCommand(probeBase, {
-  input: shape({ email: field.string() }),
+  input: shape({
+    ownerId: field.subject(),
+    email: field.string().personal({ subject: 'ownerId' }),
+  }),
   errors: [emailTaken],
   principal: 'operator',
   decide: (input) => {
@@ -265,6 +271,13 @@ const rules = {
   armPersonal: defineRule(probeBase, armPersonal, { effect: 'allow', principal: 'operator' }),
   send: defineRule(probeBase, send, { effect: 'allow', principal: 'operator' }),
   reachOut: defineRule(probeBase, reachOut, { effect: 'allow', principal: 'user' }),
+  // The generated update and set of a person: a client writes the personal fields through them.
+  editPerson: defineRule(probeBase, person, {
+    effect: 'allow',
+    actions: ['update', 'set'],
+    principal: 'operator',
+    reason: 'An operator edits a person through the generated update and set.',
+  }),
 };
 
 const probeDef = defineModule(probeBase, {
@@ -303,6 +316,7 @@ const probeDef = defineModule(probeBase, {
     reachOut: { users: rules.reachOut },
     notify: { operators: proofRules.notify },
     remind: { operators: proofRules.remind },
+    person: { operators: rules.editPerson },
   },
 });
 interface Probe extends ModuleType<typeof probeDef> {}

@@ -110,13 +110,16 @@ async function noteCount(): Promise<number> {
 
 describe('a queued job takes a fresh flag snapshot when its worker runs it', () => {
   test('a gate closed after acceptance refuses the job as an external call is refused, and writes no note event', async () => {
-    expect(await accept('gated-1')).toMatchObject({ ok: true, receipt: { status: 'accepted' } });
+    expect(await accept('00000000-0000-7000-8000-000000000001')).toMatchObject({
+      ok: true,
+      receipt: { status: 'accepted' },
+    });
     const before = await noteCount();
     variables[gate] = 'false';
-    await queueJob('gated-1');
+    await queueJob('00000000-0000-7000-8000-000000000001');
     expect(await runtime.drainJobs()).toBe(1);
     expect(await noteCount()).toBe(before);
-    expect(await receiptOf('gated-1')).toMatchObject({
+    expect(await receiptOf('00000000-0000-7000-8000-000000000001')).toMatchObject({
       status: 'failed',
       outcome: {
         ok: false,
@@ -139,11 +142,16 @@ describe('a queued job takes a fresh flag snapshot when its worker runs it', () 
 
   test('with the gate open when the worker runs, the job runs and appends its event', async () => {
     variables[gate] = 'true';
-    expect(await accept('gated-2')).toMatchObject({ ok: true, receipt: { status: 'accepted' } });
+    expect(await accept('00000000-0000-7000-8000-000000000002')).toMatchObject({
+      ok: true,
+      receipt: { status: 'accepted' },
+    });
     const before = await noteCount();
-    await queueJob('gated-2');
+    await queueJob('00000000-0000-7000-8000-000000000002');
     expect(await runtime.drainJobs()).toBe(1);
     expect(await noteCount()).toBe(before + 1);
-    expect(await receiptOf('gated-2')).toMatchObject({ status: 'completed' });
+    expect(await receiptOf('00000000-0000-7000-8000-000000000002')).toMatchObject({
+      status: 'completed',
+    });
   });
 });

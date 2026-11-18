@@ -50,11 +50,11 @@ export interface EncryptedPersonalValues {
 
 /**
  * Seals the personal values of an event payload and its before-image (14.7.4): each under its
- * subject's data key as `{ "$kwe": 1, "k", "n", "c" }` with `namespace ‖ stream id ‖ event id ‖
- * field` as associated data, and records the subject's reference to the stream so erasure finds it.
- * It fences the entity's data subject first (`fenceDataSubject`), whether the event carries a
- * personal value or not.
- * The result is what the chain hashes and the store keeps.
+ * subject's data key as `{ "$kwe": 2, "k", "n", "c" }` (version 2 pads the plaintext and binds the
+ * version; version 1 is still read) with `namespace ‖ stream id ‖ event id ‖ field ‖ kwe2` as
+ * associated data, and records the subject's reference to the stream so erasure finds it. It
+ * fences the entity's data subject first (`fenceDataSubject`), whether the event carries a
+ * personal value or not. The result is what the chain hashes and the store keeps.
  */
 export async function encryptPersonalValues(
   context: SealingContext,

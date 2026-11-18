@@ -2,21 +2,20 @@ import type { HybridClock } from '../clock/hybrid-clock.ts';
 import { personalSealerOf } from '../encryption/personal-sealer-of.ts';
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
-import { chainHash } from '../events/chain-hash.ts';
-import { currentEventSchemaVersion } from '../events/current-event-schema-version.ts';
 import type { EventMeta } from '../events/event-meta.ts';
 import type { Hlc } from '../events/hlc.ts';
-import type { NewEvent } from '../events/new-event.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import type { AnyDraft } from '../protocol/any-draft.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 import type { Registry } from '../registry/registry.ts';
+import type { DataKey } from '../storage/data-key.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
 import { applyDomainEvolve } from './apply-domain-evolve.ts';
 import { assertBoundary } from './assert-boundary.ts';
 import { beforeImage } from './before-image.ts';
+import { chainStagedEvents } from './chain-staged-events.ts';
 import { changedOpsOf } from './changed-ops-of.ts';
 import { checkInvariant } from './check-invariant.ts';
 import { createdValues } from './created-values.ts';
@@ -26,11 +25,10 @@ import type { EvolvingEvent } from './evolving-event.ts';
 import { genericEvolve } from './generic-evolve.ts';
 import { missingFields } from './missing-fields.ts';
 import { resolveDraftById } from './resolve-draft-by-id.ts';
+import { stagedDataKeys } from './staged-data-keys.ts';
+import type { StagedEvent } from './staged-event.ts';
 import { transientRecords } from './transient-records.ts';
 import type { WrittenRow } from './written-row.ts';
-
-/** The event schema version generated and domain events are written with (section 15.1.9). */
-const schemaVersion = currentEventSchemaVersion;
 
 /** What the drafts of a decision are turned into events with. */
 export interface DraftsToEventsInput {
@@ -42,11 +40,13 @@ export interface DraftsToEventsInput {
   readonly authority: string;
   readonly now: Temporal.Instant;
   /**
-   * Builds the meta every event carries from the reads the decision recorded. It is called once,
-   * after every draft's row is loaded and before any event is hashed, so the decision record the
-   * chain covers is the record that is stored.
+   * Builds the meta every event carries from the reads the decision recorded and the data keys of
+   * the `$kwe` envelopes the events were sealed with (the decision digest is keyed under them,
+   * `decisionDigest`). It is called once, after every draft's row is loaded and every event is
+   * evolved and sealed, and before any event is hashed, so the decision record the chain covers is
+   * the record that is stored.
    */
-  readonly meta: (reads: readonly RecordedRead[]) => EventMeta;
+  readonly meta: (reads: readonly RecordedRead[], sealed: readonly DataKey[]) => EventMeta;
   /** The decision's reads so far; a draft by id appends its load here (S-21). */
   readonly reads: RecordedRead[];
   /** Rows the command already holds locked, by `entity/id`: the target of an entity command. */
@@ -63,8 +63,10 @@ export interface DraftsToEventsInput {
  * row must find its version, a create uses expected version 0), the evolve (generic or the
  * author's) with the before-image, the invariant on each post-image, and the event with its
  * clock reading and meta. Several drafts for one row chain: the row is loaded once, its events
- * append with the loaded version as expected version. Nothing is written here; `WrittenRow`s
- * come back for the state update and the append.
+ * append with the loaded version as expected version. It runs in two passes: the first evolves and
+ * seals every draft, so the meta can name the keys the events were sealed with; the second chains
+ * and hashes them in order. Nothing is written here; `WrittenRow`s come back for the state update
+ * and the append.
  */
 export async function draftsToEvents(input: DraftsToEventsInput): Promise<readonly WrittenRow[]> {
   const planned: { readonly draft: AnyDraft; readonly entry: EntityEntry }[] = [];
@@ -107,8 +109,7 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
           }),
     );
   }
-  const meta = input.meta(input.reads);
-
+  const staged: StagedEvent[] = [];
   const written = new Map<string, WrittenRow>();
   for (const { draft, entry } of planned) {
     const behaviour = input.behaviours(entry.ref);
@@ -253,45 +254,32 @@ export async function draftsToEvents(input: DraftsToEventsInput): Promise<readon
           });
     const before = sealedPayload.before;
     const sealedData = sealedPayload.data;
-    const prevHash = transient ? null : ((previous?.kwLastHash as string | undefined) ?? null);
-    const hash = transient
-      ? null
-      : chainHash(prevHash, {
-          eventId,
-          streamId: draft.id,
-          version: Number(next.version),
-          name,
-          schemaVersion,
-          data: sealedData,
-          before,
-          hlc,
-          recordedAt,
-          actor: meta.actor,
-          writer: meta.writer,
-          flags: meta.flags,
-          decision: meta.decision,
-          commandId: meta.commandId,
-          client: meta.client,
-        });
-    if (hash !== null) next = { ...next, kwLastHash: hash };
-    const event: NewEvent = {
+    staged.push({
+      key,
+      work,
+      imageAt: work.images.length,
+      entry,
+      draftId: draft.id,
       eventId,
       name,
-      schemaVersion,
-      shape: entry.descriptor.shape.id,
-      data: sealedData,
-      before,
       hlc,
       recordedAt,
-      meta,
+      data: sealedData,
+      before,
       transient,
-      prevHash,
-      hash,
-    };
-    work.events.push(event);
+      version: Number(next.version),
+    });
     work.opened.push({ data: stored, before: plainBefore });
     work.images.push(next);
     work.row = next;
+  }
+
+  // The keys the events were sealed with: the decision digest is keyed under them (D4).
+  const meta = input.meta(input.reads, await stagedDataKeys(input.unit, staged));
+  chainStagedEvents(staged, meta);
+  for (const work of written.values()) {
+    const last = work.images.at(-1);
+    if (last !== undefined) work.row = last;
   }
   return [...written.values()];
 }

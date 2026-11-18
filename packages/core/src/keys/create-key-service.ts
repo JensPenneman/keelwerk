@@ -99,6 +99,14 @@ function keyServiceOver(
         });
         return key;
       })
+        .then(async (created) => {
+          // The creation is committed: read it back, which fills the cache, so one derivation
+          // leaves the key cached (a rolled-back creation never reaches this line).
+          const stored = await read();
+          if (stored === 'absent') return created;
+          cache.set(`${target.level}:${target.scopeId}`, stored);
+          return stored;
+        })
         .catch(async (error: unknown) => {
           // Another process may have created the key first; its row wins.
           const winner = await read();
@@ -121,9 +129,14 @@ function keyServiceOver(
     return cache.get(`${target.level}:${target.scopeId}`) ?? (await load(target, create));
   };
 
-  const derive: DeriveScopeKey = async (scope, info, length) => {
-    const key = await scopeKey(scope, true);
-    if (key === undefined) throw errors.internal('the scope key could not be created');
+  const derive: DeriveScopeKey = async (scope, info, length, deriveOptions) => {
+    const create = deriveOptions?.create !== false;
+    const key = await scopeKey(scope, create);
+    if (key === undefined) {
+      throw create
+        ? errors.internal('the scope key could not be created')
+        : errors.not_found('the scope has no key, and none is created here');
+    }
     return deriveHkdf(key, '', info, length);
   };
 
@@ -176,9 +189,9 @@ function keyServiceOver(
 
 /**
  * The key service of 14.7.4. Deployment, backend and tenant keys are random 256-bit keys wrapped
- * under the master key (S-55); rotation re-wraps, so a key's material is stable. Unwrapped keys
- * are cached for 60 seconds. A key created by this call is not cached until it is read back, so
- * a rolled-back creation never leaves a phantom key behind.
+ * under the master key (S-55); rotation re-wraps, so a key's material is stable. Unwrapped keys are
+ * cached for 60 seconds. A key an owned service creates is cached once its creation has committed
+ * and been read back, so a rolled-back creation never leaves a phantom key behind.
  */
 export function createKeyService(options: KeyServiceOptions): ForkableKeyService {
   const cache = createKeyCache<Uint8Array>(options.cache);

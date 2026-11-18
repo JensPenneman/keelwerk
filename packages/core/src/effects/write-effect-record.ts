@@ -1,6 +1,7 @@
 import { errors } from '../errors/errors.ts';
 import type { AnyDraft } from '../protocol/any-draft.ts';
 import { appendEvents } from '../write-path/append-events.ts';
+import { decisionMetaWithKeys } from '../write-path/decision-meta-with-keys.ts';
 import { draftsToEvents } from '../write-path/drafts-to-events.ts';
 import type { RunCommandInput } from '../write-path/run-command-input.ts';
 import { writeStateRows } from '../write-path/write-state-rows.ts';
@@ -29,7 +30,7 @@ export async function writeEffectRecord(
     drafts: [draft],
     authority: 'core',
     now: target.clock.now(),
-    meta: () => target.meta,
+    meta: (_reads, sealed) => decisionMetaWithKeys(target.meta, sealed),
     reads: [],
     loaded: new Map(),
     hybridClock: target.hybridClock,

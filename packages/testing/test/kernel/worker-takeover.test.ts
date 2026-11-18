@@ -101,27 +101,34 @@ describe("a job takes over only its own submitter's accepted receipt", () => {
   test('a job that names another principal’s command id neither takes nor fails its receipt, and the owner’s job still completes it', async () => {
     await lendBook(runtime, 'Dune');
     // The thief's principal must resolve, or the job would fail before it reaches the receipt.
-    await askCloseAll(runtime, 'tk-thief', testOperator('mallory'));
-    expect((await askCloseAll(runtime, 'tk-1', testOperator('olive'))).ok).toBe(true);
-    expect((await receiptOf('tk-1'))?.status).toBe('accepted');
+    await askCloseAll(runtime, '00000000-0000-7000-8000-000000000001', testOperator('mallory'));
+    expect(
+      (await askCloseAll(runtime, '00000000-0000-7000-8000-000000000002', testOperator('olive')))
+        .ok,
+    ).toBe(true);
+    expect((await receiptOf('00000000-0000-7000-8000-000000000002'))?.status).toBe('accepted');
 
     // A job of another principal, named after the accepted command: refused at the receipt.
     spy.completions.length = 0;
     await enqueue({
-      run: { action: 'loans.closeAll', input, commandId: 'tk-1' },
+      run: { action: 'loans.closeAll', input, commandId: '00000000-0000-7000-8000-000000000002' },
       principal: { resolver: 'test.principal', principalId: 'mallory' },
-      causation: { commandId: 'somebody-elses-decision' },
+      causation: { commandId: '00000000-0000-7000-8000-000000000005' },
     });
     // A job of another principal that fails before it runs: it gives up and fails nothing of tk-1.
     await enqueue({
-      run: { action: 'loans.closeAll', input, commandId: 'tk-1' },
+      run: { action: 'loans.closeAll', input, commandId: '00000000-0000-7000-8000-000000000002' },
       principal: { resolver: 'ghost.resolver', principalId: 'nobody' },
-      causation: { commandId: 'tk-1' },
+      causation: { commandId: '00000000-0000-7000-8000-000000000002' },
     });
     // The submitter's own principal, but a job that is not the accepted one (an enqueue names the
     // deciding command as its cause): its failure leaves the receipt alone too.
     await enqueue({
-      run: { action: 'loans.closeAll', input: {}, commandId: 'tk-1' },
+      run: {
+        action: 'loans.closeAll',
+        input: {},
+        commandId: '00000000-0000-7000-8000-000000000002',
+      },
       principal: olive,
       causation: { commandId: 'a-decision' },
     });
@@ -132,18 +139,18 @@ describe("a job takes over only its own submitter's accepted receipt", () => {
         error: expect.objectContaining({ code: 'core.idempotency_mismatch' }),
       }),
     );
-    expect((await receiptOf('tk-1'))?.status).toBe('accepted');
+    expect((await receiptOf('00000000-0000-7000-8000-000000000002'))?.status).toBe('accepted');
     expect(await openLoans()).toBe(1);
 
     spy.completions.length = 0;
     await enqueue({
-      run: { action: 'loans.closeAll', input, commandId: 'tk-1' },
+      run: { action: 'loans.closeAll', input, commandId: '00000000-0000-7000-8000-000000000002' },
       principal: olive,
-      causation: { commandId: 'tk-1' },
+      causation: { commandId: '00000000-0000-7000-8000-000000000002' },
     });
     expect(await runtime.drainJobs()).toBe(1);
     expect(outcomes()).toEqual([{ kind: 'succeeded' }]);
-    expect(await receiptOf('tk-1')).toMatchObject({
+    expect(await receiptOf('00000000-0000-7000-8000-000000000002')).toMatchObject({
       status: 'completed',
       principalId: 'olive',
       outcome: { ok: true },
@@ -154,8 +161,8 @@ describe("a job takes over only its own submitter's accepted receipt", () => {
 
 describe('a handler that throws leaves a failed receipt its submitter can read', () => {
   test('the job completes failed and so does the receipt', async () => {
-    await askCloseAll(runtime, 'th-1', testOperator('olive'));
-    expect((await receiptOf('th-1'))?.status).toBe('accepted');
+    await askCloseAll(runtime, '00000000-0000-7000-8000-000000000003', testOperator('olive'));
+    expect((await receiptOf('00000000-0000-7000-8000-000000000003'))?.status).toBe('accepted');
     runtime.revoke('olive');
     // The give-up unit of the job fails once, after it completed the receipt: the handler rejects.
     let crashed = false;
@@ -166,15 +173,15 @@ describe('a handler that throws leaves a failed receipt its submitter can read',
     };
     spy.completions.length = 0;
     await enqueue({
-      run: { action: 'loans.closeAll', input, commandId: 'th-1' },
+      run: { action: 'loans.closeAll', input, commandId: '00000000-0000-7000-8000-000000000003' },
       principal: olive,
-      causation: { commandId: 'th-1' },
+      causation: { commandId: '00000000-0000-7000-8000-000000000003' },
     });
     expect(await runtime.drainJobs()).toBe(1);
     spy.afterReceiptComplete = undefined;
     expect(crashed).toBe(true);
     expect(outcomes().map((outcome) => outcome.kind)).toEqual(['failed']);
-    expect(await receiptOf('th-1')).toMatchObject({
+    expect(await receiptOf('00000000-0000-7000-8000-000000000003')).toMatchObject({
       status: 'failed',
       outcome: { ok: false, error: { kind: 'conflict' } },
     });
@@ -187,7 +194,7 @@ describe('the principal a resolver answers is the one the job stored (S-122)', (
     const before = await openLoans();
     spy.completions.length = 0;
     await enqueue({
-      run: { action: 'loans.closeAll', input, commandId: 'sw-1' },
+      run: { action: 'loans.closeAll', input, commandId: '00000000-0000-7000-8000-000000000004' },
       principal: { resolver: 'swap.keys', principalId: 'ada' },
     });
     expect(await runtime.drainJobs()).toBe(1);
@@ -198,6 +205,6 @@ describe('the principal a resolver answers is the one the job stored (S-122)', (
       }),
     ]);
     expect(await openLoans()).toBe(before);
-    expect(await receiptOf('sw-1')).toBeUndefined();
+    expect(await receiptOf('00000000-0000-7000-8000-000000000004')).toBeUndefined();
   });
 });

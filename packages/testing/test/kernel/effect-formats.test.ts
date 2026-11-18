@@ -86,11 +86,18 @@ describe('the stored formats of effects (F-12)', () => {
       }),
     );
     const { adapter, invoke } = effectsKit(registry);
-    await invoke('library.send', {}, { commandId: 'c1' });
+    await invoke('library.send', {}, { commandId: '00000000-0000-7000-8000-000000000001' });
     const { effects, jobs, books } = await stored(adapter, ['mail']);
     const [bookEvent] = await eventsOf(adapter, 'library.book', String(books[0]?.id));
-    const [created] = await eventsOf(adapter, 'core.effect', deriveEffectId(tenant, 'c1', 0));
+    const [created] = await eventsOf(
+      adapter,
+      'core.effect',
+      deriveEffectId(tenant, '00000000-0000-7000-8000-000000000001', 0),
+    );
     const ids = new Map([[String(bookEvent?.eventId), '<book event id>']]);
+    // WP-130: the effect key is stored as its digest (HMAC-SHA-256 of the module and the key under
+    // the scope's job key secret), so effect-row-submitter and effect-created-event-data-submitter
+    // hold the digest of 'k-1' for 'library'; the other members are unchanged.
     matchGolden('effect-row-submitter', plainJsonValue(effects[0], ids));
     matchGolden('effect-created-event-data-submitter', plainJsonValue(created?.data, ids));
     matchGolden('effect-job', plainJsonValue(jobs[0]));
@@ -107,7 +114,7 @@ describe('the stored formats of effects (F-12)', () => {
               action: 'library.later',
               input: { n: 2 },
               key: 'k-1',
-              commandId: 'follow-me',
+              commandId: '00000000-0000-7000-8000-000000000002',
             },
           ],
         })),
@@ -115,7 +122,9 @@ describe('the stored formats of effects (F-12)', () => {
       ],
     });
     const { adapter, invoke } = effectsKit(registry);
-    await invoke('library.launch', {}, { commandId: 'c1' });
+    await invoke('library.launch', {}, { commandId: '00000000-0000-7000-8000-000000000001' });
+    // WP-130: the key is `<module>:<HMAC-SHA-256 of the module and the key>`; command-job was
+    // regenerated with the digest of 'k-1' bound to 'library' (computed outside the kernel).
     matchGolden('command-job', plainJsonValue((await stored(adapter)).jobs[0]));
   });
 
@@ -138,10 +147,14 @@ describe('the stored formats of effects (F-12)', () => {
       ],
     });
     const { adapter, invoke } = effectsKit(registry);
-    await invoke('library.launch', {}, { commandId: 'c1' });
+    await invoke('library.launch', {}, { commandId: '00000000-0000-7000-8000-000000000001' });
     const ids = new Map([
-      [`kernel:timer:${deriveEffectId(tenant, 'c1', 0)}`, 'kernel:timer:<effect id>'],
+      [
+        `kernel:timer:${deriveEffectId(tenant, '00000000-0000-7000-8000-000000000001', 0)}`,
+        'kernel:timer:<effect id>',
+      ],
     ]);
+    // WP-130: timer-job was regenerated with the digest of 'offline:1' bound to 'library'.
     matchGolden('timer-job', plainJsonValue((await stored(adapter)).jobs[0], ids));
   });
 
@@ -150,7 +163,9 @@ describe('the stored formats of effects (F-12)', () => {
       actions: [command('slow', () => [], { execution: 'async', idempotencyWindowMs: 3_600_000 })],
     });
     const { adapter, invoke } = effectsKit(registry);
-    await invoke('library.slow', { n: 1 }, { commandId: 'a1' });
+    await invoke('library.slow', { n: 1 }, { commandId: '00000000-0000-7000-8000-000000000003' });
+    // WP-130: the command id of the test is a UUID now (a caller's command id is an opaque id); the
+    // golden holds that id and the stored format is unchanged.
     matchGolden('accepted-command-job', plainJsonValue((await stored(adapter)).jobs[0]));
   });
 
@@ -178,7 +193,7 @@ describe('the stored formats of effects (F-12)', () => {
       ],
     });
     const { adapter, invoke } = effectsKit(registry);
-    await invoke('library.add', {}, { commandId: 'c1' });
+    await invoke('library.add', {}, { commandId: '00000000-0000-7000-8000-000000000001' });
     const { jobs } = await stored(adapter);
     expect(jobs[0]?.principal).toEqual({ resolver: 'core.module', principalId: 'library.system' });
     expect(jobs[0]?.causation.actor).toEqual({ kind: 'user', id: 'ada', via: 'test' });

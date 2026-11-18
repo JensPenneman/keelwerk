@@ -31,19 +31,20 @@ const contextOf = (keys: { readonly shredded: boolean }) => {
 };
 
 describe('the sealed state of a process cache', () => {
+  // WP-130: $kwe 2 pads the plaintext (S8); the envelope and every hash over it were regenerated.
   test('golden: the same envelope under a fixed key and nonce, and it opens to the state', async () => {
     const { context, asked } = contextOf({ shredded: false });
     const sealed = await sealProcessState(context, { streamId, eventId, subject, state });
     // namespace, stream id, event id and the field name `$state` are the associated data: a change
     // to that mapping changes this envelope, and every cache would read as unopenable.
     expect(sealed).toEqual({
-      $kwe: 1,
+      $kwe: 2,
       k: 'dk-1',
       n: 'AQEBAQEBAQEBAQEB',
       c: expect.any(String),
     });
     expect(sealed?.c).toBe(
-      'DcPq2OXRmCzr5_ADHlgEVNvZLq868ElyNlUuDRLcU8ni82zRvk74j-g7hXGosdEEiUBaPei79w',
+      'DcPq2OXRmCzr5_ADHlgEVNvZLq868ElyNlUuDRLcU8ni82zRvk74AF5ySAvBfu6ZjhvpAl2-_1-iQqcI1iKFlXSLFu7Flh_9KHvGLCt-vzo',
     );
     // The key is never created for a cache.
     expect(asked).toEqual([[subject, { create: false }]]);

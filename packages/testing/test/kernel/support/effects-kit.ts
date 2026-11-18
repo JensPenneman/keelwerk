@@ -3,6 +3,7 @@ import type {
   DataAdapter,
   EffectEntry,
   ExecutorEntry,
+  KeyService,
   ReactionEntry,
   Registry,
   Scope,
@@ -28,10 +29,11 @@ if (effectEntry === undefined) throw new Error('the fixture has no core.effect')
 const receiptEntry = servedRegistry.entities.get('core.commandReceipt');
 if (receiptEntry === undefined) throw new Error('the fixture has no core.commandReceipt');
 const receiptEntity = receiptEntry.descriptor;
-function invoker(registry: Registry, adapter: DataAdapter) {
+function invoker(registry: Registry, adapter: DataAdapter, keys?: KeyService) {
   const built = kit({
     registry,
     adapter,
+    ...(keys === undefined ? {} : { keys }),
     build: { id: 'build-42', revision: 7 },
     commands: createCommandRunner({
       deploymentId: '0198a1e0-0000-7000-8000-00000000d001',
@@ -179,10 +181,10 @@ export function externalEffect(
 /** An invoker over the fixture, the in-memory adapter and the write path, with the build the jobs record. */
 export function effectsKit(
   registry: Registry,
-  over: { readonly adapter?: DataAdapter } = {},
+  over: { readonly adapter?: DataAdapter; readonly keys?: KeyService } = {},
 ): { readonly adapter: DataAdapter; readonly invoke: ReturnType<typeof invoker> } {
   const adapter = over.adapter ?? open([bookEntity, loanEntity, effectEntity, receiptEntity]);
-  return { adapter, invoke: invoker(registry, adapter) };
+  return { adapter, invoke: invoker(registry, adapter, over.keys) };
 }
 
 /** Everything a test reads back of the scope: the books, the effect rows, the events of the books and the jobs. */

@@ -62,13 +62,13 @@ const outcomes = () => spy.completions.map((entry) => entry.outcome);
 describe('a job is gated under the transport of its receipt, else an unknown one', () => {
   test('a job with no receipt of its own meets a deny rule on a transport, as an invoke does', async () => {
     // Olive's principal must resolve again, so the request is made once.
-    await askCloseAll(runtime, 'tr-0', testOperator('olive'));
+    await askCloseAll(runtime, '00000000-0000-7000-8000-000000000001', testOperator('olive'));
     const before = await openLoans();
     spy.completions.length = 0;
     await enqueue({
-      run: { action: 'loans.closeAll', input, commandId: 'tr-1' },
+      run: { action: 'loans.closeAll', input, commandId: '00000000-0000-7000-8000-000000000002' },
       principal: olive,
-      causation: { commandId: 'a-decision' },
+      causation: { commandId: '00000000-0000-7000-8000-000000000004' },
     });
     expect(await runtime.drainJobs()).toBe(1);
     expect(outcomes()).toEqual([
@@ -82,15 +82,15 @@ describe('a job is gated under the transport of its receipt, else an unknown one
 
   test('an accepted command is gated as at acceptance: by the transport its receipt records', async () => {
     await lendBook(runtime, 'Ulysses');
-    await askCloseAll(runtime, 'tr-2', testOperator('olive'));
+    await askCloseAll(runtime, '00000000-0000-7000-8000-000000000003', testOperator('olive'));
     spy.completions.length = 0;
     await enqueue({
-      run: { action: 'loans.closeAll', input, commandId: 'tr-2' },
+      run: { action: 'loans.closeAll', input, commandId: '00000000-0000-7000-8000-000000000003' },
       principal: olive,
-      causation: { commandId: 'tr-2' },
+      causation: { commandId: '00000000-0000-7000-8000-000000000003' },
     });
     expect(await runtime.drainJobs()).toBe(1);
     expect(outcomes()).toEqual([{ kind: 'succeeded' }]);
-    expect(await receiptStatus('tr-2')).toBe('completed');
+    expect(await receiptStatus('00000000-0000-7000-8000-000000000003')).toBe('completed');
   });
 });

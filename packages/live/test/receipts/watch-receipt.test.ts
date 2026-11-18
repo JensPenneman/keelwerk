@@ -70,7 +70,7 @@ const receiptStream = (commandId: string, as = operator) =>
 
 describe('core.commandReceipt.watch', () => {
   test('an asynchronous command reaches completed after drainJobs', async () => {
-    const commandId = `watch-${crypto.randomUUID()}`;
+    const commandId = crypto.randomUUID();
     await askCloseAll(commandId);
     const stream = receiptStream(commandId);
     try {
@@ -85,7 +85,7 @@ describe('core.commandReceipt.watch', () => {
   });
 
   test('a command that fails in the worker reaches failed', async () => {
-    const commandId = `fail-${crypto.randomUUID()}`;
+    const commandId = crypto.randomUUID();
     const second = testOperator('pat');
     // The receipt id follows from the command id, so the submitter can follow it before it exists.
     // Its own stream is not revalidated before the worker runs.
@@ -106,8 +106,8 @@ describe('core.commandReceipt.watch', () => {
   });
 
   test('another principal sees no item of the receipt', async () => {
-    const commandId = `private-${crypto.randomUUID()}`;
-    const markerId = `marker-${crypto.randomUUID()}`;
+    const commandId = crypto.randomUUID();
+    const markerId = crypto.randomUUID();
     // Bea follows the receipt of the operator and one of her own, which is written after it.
     const other = collectFrames(
       bea.subscribe('core.commandReceipt.watch', {
@@ -135,7 +135,7 @@ describe('core.commandReceipt.watch', () => {
   });
 
   test('the submitter watches its own receipt', async () => {
-    const commandId = `own-${crypto.randomUUID()}`;
+    const commandId = crypto.randomUUID();
     await askLend(commandId);
     const stream = collectFrames(
       bea.subscribe('core.commandReceipt.watch', {
@@ -152,7 +152,7 @@ describe('core.commandReceipt.watch', () => {
   });
 
   test('the receipts of a submitter are followed by id and never listed', async () => {
-    await askLend(`listed-${crypto.randomUUID()}`);
+    await askLend(crypto.randomUUID());
     const stream = collectFrames(
       bea.subscribe('core.commandReceipt.watch', { from: 'beginning' } as never),
     );
@@ -163,13 +163,13 @@ describe('core.commandReceipt.watch', () => {
   test("the receipts of other users' commands are never poked", async () => {
     const stream = collectFrames(bea.subscribe('live.pokes' as never, {} as never));
     const lendAndRun = async () => {
-      await askLend(`poked-${crypto.randomUUID()}`);
+      await askLend(crypto.randomUUID());
       await runtime.drainJobs();
     };
     try {
       // Bea is poked for her loans only; every receipt written on the way is written in her scope too.
       const base = await attachPokes(stream, 'loans.loan', lendAndRun);
-      await askCloseAll(`others-${crypto.randomUUID()}`);
+      await askCloseAll(crypto.randomUUID());
       await runtime.drainJobs();
       await lendAndRun();
       await stream.until((frames) => pokesNaming(frames, 'loans.loan').length > base);

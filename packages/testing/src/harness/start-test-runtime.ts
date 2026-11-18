@@ -157,6 +157,7 @@ export async function startTestRuntime<
       environment: 'test',
       clock,
       ...(options.timers === undefined ? {} : { timers: options.timers }),
+      ...(options.keyCache === undefined ? {} : { keyCache: options.keyCache }),
       ...(options.logger === undefined ? {} : { logger: options.logger }),
       ...(options.workers === undefined
         ? {}

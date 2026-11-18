@@ -14,6 +14,8 @@ interface FoundEnvelope {
   readonly sealed: Buffer;
   /** The `kwv1` text, to open it through the key service. */
   readonly text?: string;
+  /** The `$kwe` version of a `kwe` envelope: version 2 holds its plaintext padded to 32 bytes. */
+  readonly version?: 1 | 2;
 }
 
 const kwvPattern = /kwv1\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)/g;
@@ -27,7 +29,7 @@ function walk(table: string, value: unknown, found: FoundEnvelope[]): void {
   if (typeof value === 'object' && value !== null) {
     const record = value as Record<string, unknown>;
     if (
-      record.$kwe === 1 &&
+      (record.$kwe === 1 || record.$kwe === 2) &&
       typeof record.k === 'string' &&
       typeof record.n === 'string' &&
       typeof record.c === 'string'
@@ -35,6 +37,7 @@ function walk(table: string, value: unknown, found: FoundEnvelope[]): void {
       found.push({
         table,
         kind: 'kwe',
+        version: record.$kwe,
         keyId: record.k,
         nonce: Buffer.from(record.n, 'base64url'),
         sealed: Buffer.from(record.c, 'base64url'),
@@ -103,7 +106,8 @@ async function envelopesIn(queries: readonly DumpQuery[]): Promise<readonly Foun
 /**
  * What a 256-bit key makes of an envelope, with no check of the tag and no associated data: AES-GCM
  * encrypts with counter mode from the block after the nonce's first, so a key that is held opens
- * the text of a value whoever can guess its binding. A wrong key gives noise.
+ * the text of a value whoever can guess its binding (the padding of a version 2 envelope is
+ * removed). A wrong key gives noise.
  */
 function openWithoutTag(envelope: FoundEnvelope, key: Uint8Array): Buffer | undefined {
   if (key.length !== 32 || envelope.nonce.length !== 12 || envelope.sealed.length < 16) {
@@ -114,10 +118,16 @@ function openWithoutTag(envelope: FoundEnvelope, key: Uint8Array): Buffer | unde
     key,
     Buffer.concat([envelope.nonce, Buffer.from([0, 0, 0, 2])]),
   );
-  return Buffer.concat([
+  const opened = Buffer.concat([
     decipher.update(envelope.sealed.subarray(0, envelope.sealed.length - 16)),
     decipher.final(),
   ]);
+  // A version 2 plaintext ends in 0x80 and zeros; with a wrong key the bytes stay as they are.
+  const end = opened.lastIndexOf(0x80);
+  if (envelope.version !== 2 || end < 0 || opened.subarray(end + 1).some((byte) => byte !== 0)) {
+    return opened;
+  }
+  return opened.subarray(0, end);
 }
 
 export type { FoundEnvelope };

@@ -51,7 +51,12 @@ describe('a create with a secret config (S-111)', () => {
   test('the replay seals nothing again, the fingerprint is stable and keyed, and the event digest is too', async () => {
     const { runtime, spy, deployment } = await secretStart();
     const first = await ok(
-      callWithId(runtime.invoker, 'core.backend.create', input, 'secret-once'),
+      callWithId(
+        runtime.invoker,
+        'core.backend.create',
+        input,
+        '00000000-0000-7000-8000-000000000001',
+      ),
     );
     const readRow = async () => {
       const read = await ok(call(runtime.invoker, local, 'core.backend.get', { ids: [first.id] }));
@@ -61,14 +66,19 @@ describe('a create with a secret config (S-111)', () => {
     const receiptOf = async () => {
       const receipts = await ok(
         call(runtime.invoker, local, 'core.commandReceipt.get', {
-          ids: [commandReceiptUuid(deployment(), 'secret-once')],
+          ids: [commandReceiptUuid(deployment(), '00000000-0000-7000-8000-000000000001')],
         }),
       );
       return (receipts.list as Record<string, unknown>[])[0];
     };
     const before = await receiptOf();
     const again = await ok(
-      callWithId(runtime.invoker, 'core.backend.create', input, 'secret-once'),
+      callWithId(
+        runtime.invoker,
+        'core.backend.create',
+        input,
+        '00000000-0000-7000-8000-000000000001',
+      ),
     );
     expect(again.id).toBe(first.id);
     expect(JSON.stringify((await readRow())?.config)).toBe(sealed);
@@ -128,9 +138,21 @@ describe('a create with a secret config (S-111)', () => {
       deploymentOf('memory', { factory, apps: [libraryApp, withTestResolver(vaultApp)] }),
       { clock: time.clock },
     );
-    const first = await ok(callWithId(runtime.invoker, 'core.backend.create', input, 'expiring'));
+    const first = await ok(
+      callWithId(
+        runtime.invoker,
+        'core.backend.create',
+        input,
+        '00000000-0000-7000-8000-000000000002',
+      ),
+    );
     armed = true;
-    const raced = await callWithId(runtime.invoker, 'core.backend.create', input, 'expiring');
+    const raced = await callWithId(
+      runtime.invoker,
+      'core.backend.create',
+      input,
+      '00000000-0000-7000-8000-000000000002',
+    );
     expect(raced).toMatchObject({
       ok: false,
       error: { code: 'core.command_in_progress', retryable: true },
@@ -143,7 +165,12 @@ describe('a create with a secret config (S-111)', () => {
     expect(JSON.stringify(items[0]?.config)).toContain('kwc1.');
     // The retry takes the full path, whose checks see the backend that exists.
     expect(
-      await callWithId(runtime.invoker, 'core.backend.create', input, 'expiring'),
+      await callWithId(
+        runtime.invoker,
+        'core.backend.create',
+        input,
+        '00000000-0000-7000-8000-000000000002',
+      ),
     ).toMatchObject({
       ok: false,
       error: { kind: 'conflict' },

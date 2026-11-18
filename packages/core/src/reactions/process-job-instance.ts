@@ -10,15 +10,18 @@ import type { ReactionJobInput } from './reaction-job-input.ts';
  * What a process job carries of its instance (S-124): the id of the instance's state stream, which
  * the job folds without computing the key again, and for a process that declares its data subject
  * the instance key sealed under the subject's own key (`null` when that subject is erased), so the
- * job row holds no key in the clear. `internal` when the unit cannot seal.
+ * job row holds no key in the clear. The stream id derives from the digest of the instance key
+ * under the scope's job key secret, owned by the reaction (`processStreamRef`), so it cannot be
+ * computed from a guessed key without the scope key. `internal` when the unit cannot seal.
  */
 export async function processJobInstance(
   unit: Unit,
   reaction: Pick<ReactionEntry, 'id' | 'dataSubject'>,
   event: Pick<StoredEvent, 'scope' | 'eventId'>,
   instanceKey: string,
+  keySecret: Uint8Array,
 ): Promise<Pick<ReactionJobInput, 'processStream' | 'subject'>> {
-  const processStream = processStreamRef(event.scope, reaction.id, instanceKey).id;
+  const processStream = processStreamRef(event.scope, reaction.id, instanceKey, keySecret).id;
   if (reaction.dataSubject !== 'instanceKey') return { processStream };
   const sealer = personalSealerOf(unit);
   if (sealer === undefined) {

@@ -52,7 +52,7 @@ describe('reading a stored process state record', () => {
     ['a text that is no string', { ...good, text: { count: 1 } }],
     ['a text that is null', { ...good, text: null }],
     ['a sealed member that is text', { ...good, sealed: 'x' }],
-    ['a sealed member of another form', { ...good, sealed: { $kwe: 2, k: 'a', n: 'b', c: 'c' } }],
+    ['a sealed member of another form', { ...good, sealed: { $kwe: 3, k: 'a', n: 'b', c: 'c' } }],
     ['a sealed member without a nonce', { ...good, sealed: { $kwe: 1, k: 'a', c: 'c' } }],
     ['a sealed member that is null', { ...good, sealed: null }],
   ])('%s answers undefined', (_name, value) => {

@@ -23,14 +23,14 @@ describe('commands', () => {
     }));
     const answer = await ask(
       handler,
-      `mutation { loansLend(input: { bookTitle: "T", dueAt: "2026-12-01T00:00:00Z", commandId: "key-1" }) { __typename ... on LoansLendSuccess { commandId result { loanId } } } }`,
+      `mutation { loansLend(input: { bookTitle: "T", dueAt: "2026-12-01T00:00:00Z", commandId: "00000000-0000-7000-8000-000000000301" }) { __typename ... on LoansLendSuccess { commandId result { loanId } } } }`,
     );
     expect(answer.body.data.loansLend).toEqual({
       __typename: 'LoansLendSuccess',
-      commandId: 'key-1',
+      commandId: '00000000-0000-7000-8000-000000000301',
       result: { loanId: publicId('loan', 5) },
     });
-    expect(calls[0]?.commandId).toBe('key-1');
+    expect(calls[0]?.commandId).toBe('00000000-0000-7000-8000-000000000301');
     const generated = await ask(
       handler,
       `mutation { loansLend(input: ${lendInput}) { ... on LoansLendSuccess { commandId } } }`,
@@ -163,12 +163,19 @@ describe('commands', () => {
     expect(calls).toEqual([]);
   });
 
-  test('a command id that is empty, too long or not visible ASCII answers core.malformed_request at input.commandId', async () => {
+  test('a command id that is no UUID or ULID (empty, too long, spaced, an address) answers core.malformed_request at input.commandId', async () => {
     const { handler, calls } = await mountedGraphql(surface, () => ({
       ok: true,
       value: { loanId: uuidOf(5) },
     }));
-    for (const id of ['', 'x'.repeat(256), 'two words', 'caf\u00e9']) {
+    for (const id of [
+      '',
+      'x'.repeat(256),
+      'two words',
+      'caf\u00e9',
+      'order-jan@example.com',
+      '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+    ]) {
       const answer = await ask(
         handler,
         'mutation($id: String) { loansLend(input: { bookTitle: "T", dueAt: "2026-12-01T00:00:00Z", commandId: $id }) { __typename } }',
@@ -178,10 +185,11 @@ describe('commands', () => {
       const { keelwerk } = answer.body.errors[0].extensions;
       expect(keelwerk.code).toBe('core.malformed_request');
       expect(keelwerk.issues[0].path).toEqual(['input', 'commandId']);
+      expect(keelwerk.issues[0].message).toBe('Expected a UUID of version 4 or 7, or a ULID.');
     }
     const kept = await ask(
       handler,
-      'mutation { loansLend(input: { bookTitle: "T", dueAt: "2026-12-01T00:00:00Z", commandId: "x" }) { __typename } }',
+      'mutation { loansLend(input: { bookTitle: "T", dueAt: "2026-12-01T00:00:00Z", commandId: "00000000-0000-7000-8000-000000000303" }) { __typename } }',
     );
     expect(kept.body.errors).toBeUndefined();
     expect(calls).toHaveLength(1);
@@ -215,9 +223,9 @@ describe('commands', () => {
     }));
     const answer = await ask(
       handler,
-      `mutation { loansLend(input: { bookTitle: "T", dueAt: "2026-12-01T00:00:00Z", commandId: "again" }) { ... on LoansLendSuccess { commandId } } }`,
+      `mutation { loansLend(input: { bookTitle: "T", dueAt: "2026-12-01T00:00:00Z", commandId: "00000000-0000-7000-8000-000000000302" }) { ... on LoansLendSuccess { commandId } } }`,
     );
-    expect(answer.body.data.loansLend.commandId).toBe('again');
+    expect(answer.body.data.loansLend.commandId).toBe('00000000-0000-7000-8000-000000000302');
   });
 
   test('a command sets the cookie its hint names for a browser request', async () => {

@@ -119,6 +119,7 @@ function sealedAddressOf(row: Row): FoundEnvelope | undefined {
   return {
     table: 'kw_jobs',
     kind: 'kwe',
+    ...(sealed.$kwe === 1 || sealed.$kwe === 2 ? { version: sealed.$kwe } : {}),
     keyId: sealed.k,
     nonce: Buffer.from(sealed.n, 'base64url'),
     sealed: Buffer.from(sealed.c, 'base64url'),

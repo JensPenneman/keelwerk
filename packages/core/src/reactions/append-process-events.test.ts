@@ -23,7 +23,12 @@ vi.mock('../ids/new-uuid-v7.ts', () => ({
 
 const tally = reactionOf(reactionRegistry(), 'tally');
 const subject = '0197a1c2-7b3e-7c11-9a55-3f2e8d6b4a12';
-const stream = processStreamRef(reactionTenantScope, 'logs.tally', subject);
+const stream = processStreamRef(
+  reactionTenantScope,
+  'logs.tally',
+  subject,
+  new Uint8Array(32).fill(7),
+);
 const dataKey: DataKey = { id: 'dk-1', material: new Uint8Array(32).fill(7) };
 const now = Temporal.Instant.from('2026-03-01T08:00:00Z');
 const meta: EventMeta = {
@@ -111,6 +116,9 @@ const run = (unit: Unit, drafts: readonly EventDraft[], folded = fresh) =>
   });
 
 describe('appending the events of a process', () => {
+  // WP-130: $kwe 2 pads the plaintext (S8) and the process stream id binds its owner (the digest of
+  // the instance key is bound to the process); the envelope and every hash over it were
+  // regenerated.
   test('golden: sealed envelope of a personal member, version, hlc and the hash chain', async () => {
     sequence = 0;
     const { unit, batches } = recordingUnit();
@@ -145,32 +153,32 @@ describe('appending the events of a process', () => {
         eventId: '0197a1c2-7b3e-7c11-9a55-000000000001',
         data: {
           note: {
-            $kwe: 1,
+            $kwe: 2,
             k: 'dk-1',
             n: 'AQEBAQEBAQEBAQEB',
-            c: 'VIDt1tDalG-8pLBEXlQfXIrP_od7tV3SDUi7tFsdbVcK',
+            c: 'VIDt1tDalG-8pLBEXlQfXIp7FPQYlzsTWDFDYma0NrvlWgG74kYiC6WlDrtHidVp',
           },
           n: 1,
         },
         hlc: '019ca86950000000-n',
         prevHash: null,
-        hash: '7f7c90b0b4a2b0e67f2aac9cd11d3747e0598a924be2a95c46b40323229d124c',
+        hash: '8227a3e165ab3f879900f78a57ccde5ff34b30267d9d9506ebd4a4b5c1bda393',
       },
       {
         ...stored,
         eventId: '0197a1c2-7b3e-7c11-9a55-000000000002',
         data: {
           note: {
-            $kwe: 1,
+            $kwe: 2,
             k: 'dk-1',
             n: 'AQEBAQEBAQEBAQEB',
-            c: 'VJLs1P_RiCxEBdcEKzzjyRY8nKkhq72E',
+            c: 'VJLs1P_RiCxR1NwhcDdwMaj7FPQYlzsTWDFDYma0NrvOb4-4aw_BTU8dUL3__PL2',
           },
           n: 2,
         },
         hlc: '019ca86950000001-n',
-        prevHash: '7f7c90b0b4a2b0e67f2aac9cd11d3747e0598a924be2a95c46b40323229d124c',
-        hash: '459cc9b4b9bc38b88302eb386527b1941e44886424e57ede053224a792b56306',
+        prevHash: '8227a3e165ab3f879900f78a57ccde5ff34b30267d9d9506ebd4a4b5c1bda393',
+        hash: 'b98cfa19ebc74dd08ee31f6d276d567a4167fb44d7cfa88227110d581376845b',
       },
     ]);
     // The hash covers the stored (sealed) payload: recomputed from the record it is the same.

@@ -21,13 +21,13 @@ import { processDraftsOf } from '../reactions/process-drafts-of.ts';
 import { decodeRow } from '../repositories/decode-row.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
-import { stateTokenKey } from '../tokens/state-token-key.ts';
 import { completeJobHere } from '../worker/complete-job-here.ts';
 import { appendEvents } from './append-events.ts';
 import { appendReceiptChange } from './append-receipt-change.ts';
 import { appendStreamRecords } from './append-stream-records.ts';
 import { checkWrittenItems } from './check-written-items.ts';
 import { commandOutput } from './command-output.ts';
+import { decisionDigest } from './decision-digest.ts';
 import { defaultNodeId } from './default-node-id.ts';
 import { draftsToEvents } from './drafts-to-events.ts';
 import { insertPendingReceipt } from './insert-pending-receipt.ts';
@@ -44,6 +44,7 @@ import type { RunCommandInput } from './run-command-input.ts';
 import { runInUnitKeys } from './run-in-unit-keys.ts';
 import { sealCommandOutput } from './seal-command-output.ts';
 import { sealDrafts } from './seal-drafts.ts';
+import { stateSealKeyOf } from './state-seal-key-of.ts';
 import { writeStateRows } from './write-state-rows.ts';
 
 /** What one attempt of a command runs with. */
@@ -211,7 +212,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     drafts,
     authority,
     now,
-    meta: (recorded) => {
+    meta: (recorded, sealed) => {
       meta = buildEventMeta({
         ...metaBase,
         ...(causationId === undefined ? {} : { causationId }),
@@ -220,7 +221,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
         flags,
         decision: buildDecisionRecord({
           part: action.ref,
-          inputDigest: fingerprint,
+          inputDigest: decisionDigest(fingerprint, sealed),
           reads: recorded,
           answers,
           ...(sealedInput === undefined ? {} : { input: sealedInput }),
@@ -274,7 +275,10 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
         {
           run: nestedRun,
           commandId: nested.commandId,
-          fingerprint: await nestedFingerprint(nestedRun),
+          fingerprint: await nestedFingerprint(runInUnitKeys(nestedRun, nestedUnit), {
+            unit: nestedUnit,
+            create: true,
+          }),
           clock,
           prepared: undefined,
           nested,
@@ -284,13 +288,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   });
   const result =
     action.generated === 'set' && generated !== undefined
-      ? setResultWithState(
-          run,
-          unit,
-          generated,
-          decided.result,
-          await stateTokenKey(run.keys, run.scope),
-        )
+      ? setResultWithState(run, unit, generated, decided.result, await stateSealKeyOf(run))
       : decided.result;
   const { output, outcome } = commandOutput({
     registry,

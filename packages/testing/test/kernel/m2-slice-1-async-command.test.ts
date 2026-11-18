@@ -63,16 +63,16 @@ describe('SLICE M2-1: an async command runs in a worker of the test runtime', ()
   test('accepted, taken, run as the re-resolved principal and completed with its value', async () => {
     await lendBook('Dune');
     await lendBook('Emma');
-    const accepted = await askCloseAll('close-1', operator);
+    const accepted = await askCloseAll('00000000-0000-7000-8000-000000000001', operator);
     expect(accepted).toMatchObject({
       ok: true,
-      receipt: { commandId: 'close-1', status: 'accepted' },
-      receiptId: commandReceiptId(acme.id, 'close-1'),
+      receipt: { commandId: '00000000-0000-7000-8000-000000000001', status: 'accepted' },
+      receiptId: commandReceiptId(acme.id, '00000000-0000-7000-8000-000000000001'),
     });
 
     expect(await runtime.drainJobs()).toBe(1);
 
-    expect(await receiptOf('close-1')).toMatchObject({
+    expect(await receiptOf('00000000-0000-7000-8000-000000000001')).toMatchObject({
       status: 'completed',
       outcome: { ok: true, value: { closed: 2 } },
     });
@@ -85,16 +85,18 @@ describe('SLICE M2-1: an async command runs in a worker of the test runtime', ()
     expect(
       closed.every((event) => event.actor.id === 'olive' && event.actor.via === 'test.principal'),
     ).toBe(true);
-    expect(closed.every((event) => event.commandId === 'close-1')).toBe(true);
+    expect(
+      closed.every((event) => event.commandId === '00000000-0000-7000-8000-000000000001'),
+    ).toBe(true);
   });
 
   test('a principal revoked before the drain fails the job closed: unauthenticated, nothing ran', async () => {
     await lendBook('Ulysses');
     const second = testOperator('pat');
-    await askCloseAll('close-2', second);
+    await askCloseAll('00000000-0000-7000-8000-000000000002', second);
     runtime.revoke('pat');
     expect(await runtime.drainJobs()).toBe(1);
-    const receipt = await receiptOf('close-2', second);
+    const receipt = await receiptOf('00000000-0000-7000-8000-000000000002', second);
     expect(receipt).toMatchObject({
       status: 'failed',
       outcome: { ok: false, error: { kind: 'unauthenticated' } },

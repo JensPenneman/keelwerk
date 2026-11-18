@@ -166,7 +166,12 @@ describe('open', () => {
       queue: 'commands',
       run: { action: 'library.addBook', input: {} },
       scope: tenant,
-      key: { value: 'library:slide', onConflict: 'keep' },
+      // WP-130: the module id, then the key a resolver chose as its HMAC-SHA-256 under the scope's
+      // job key secret.
+      key: {
+        value: 'library:bae193f73812a480bf74ded7e6223b35ffbb3d2a10c43b61ffea24cdd046a26f',
+        onConflict: 'keep',
+      },
     });
   });
 

@@ -1,5 +1,7 @@
+import { createHmac } from 'node:crypto';
 import { expect, test } from 'vitest';
 import { isKernelCommandId } from '../../ids/is-kernel-command-id.ts';
+import { encodeAad } from '../../keys/encode-aad.ts';
 import type { Principal } from '../../principals/principal.ts';
 import type { AnyEffect } from '../../protocol/any-effect.ts';
 import type { StoredJobSpec } from '../../storage/stored-job-spec.ts';
@@ -22,7 +24,10 @@ function setup(actionScope = 'backend', sessionScope: 'backend' | 'tenant' = 'ba
     input: {},
   };
   const env = {
-    options: { clock: { now: () => Temporal.Instant.from('2026-11-04T10:00:00Z') } },
+    options: {
+      clock: { now: () => Temporal.Instant.from('2026-11-04T10:00:00Z') },
+      keys: { derive: async () => new Uint8Array(32).fill(7) },
+    },
     appOf: () => ({ registry: { actions: new Map([['auth.touch', touch]]) } }),
   } as unknown as InvokerEnv;
   const target = {
@@ -71,17 +76,24 @@ test('a timer from a module resolver is keyed to the module service principal an
   ).toBe(true);
 });
 
-test('a timer from a module resolver is stored under the key of its module', async () => {
+test('a timer from a module resolver is stored under the module id and the digest of its key', async () => {
   const { jobs, env, target, principal, timer } = setup();
   await performResolverEffects(env, target, principal, [timer], 'auth');
-  expect(jobs[0]?.key).toEqual({ value: 'auth:idle:1', onConflict: 'replace' });
+  // WP-130: HMAC-SHA-256 of the module `auth` and `idle:1` under a job key secret of 32 bytes of 7
+  // (the digest binds its owner); the key text is not stored.
+  expect(jobs[0]?.key).toEqual({
+    value: 'auth:dc6f6fa158cabee451093366dc1274c6cf7348b86ea6c0b25c64eb330c368618',
+    onConflict: 'replace',
+  });
 });
 
-test('a timer without a module is refused and writes nothing', async () => {
+test('a timer without a module is refused, does not name its key and writes nothing', async () => {
   const { jobs, env, target, principal, timer } = setup();
-  await expect(performResolverEffects(env, target, principal, [timer])).rejects.toMatchObject({
-    code: 'core.request_not_allowed',
-  });
+  const error = await performResolverEffects(env, target, principal, [timer]).catch(
+    (caught: unknown) => caught,
+  );
+  expect(error).toMatchObject({ code: 'core.request_not_allowed' });
+  expect(JSON.stringify(error)).not.toContain('idle:1');
   expect(jobs).toHaveLength(0);
 });
 
@@ -185,7 +197,10 @@ const keyed = (effect: AnyEffect): AnyEffect =>
 test('a keyed enqueue from a module resolver is stored under the key of that module', async () => {
   const { jobs, env, target, principal, enqueue } = setup();
   await performResolverEffects(env, target, principal, [keyed(enqueue)], 'auth');
-  expect(jobs[0]?.key).toEqual({ value: 'auth:idle:1', onConflict: 'keep' });
+  const digest = createHmac('sha256', new Uint8Array(32).fill(7))
+    .update(encodeAad(['auth', 'idle:1']))
+    .digest('hex');
+  expect(jobs[0]?.key).toEqual({ value: `auth:${digest}`, onConflict: 'keep' });
 });
 
 test('a keyed enqueue without the module of its resolver is refused, does not name its key and writes nothing', async () => {

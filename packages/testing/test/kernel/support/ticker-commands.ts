@@ -158,7 +158,11 @@ const escalateChosen = defineCommand(tickerBase, {
   decide: (input) => ({
     events: [],
     effects: [
-      enqueue(recordBeat, { source: 'enqueue', at: input.at }, { commandId: 'close-2026-11' }),
+      enqueue(
+        recordBeat,
+        { source: 'enqueue', at: input.at },
+        { commandId: '00000000-0000-7000-8000-000000002026' },
+      ),
     ],
   }),
 });

@@ -5,6 +5,7 @@ import type {
   DataAdapter,
   EntityBehaviours,
   Invoker,
+  KeyService,
   Principal,
   Receipt,
   Registry,
@@ -145,6 +146,8 @@ export function runDirect(over: {
   readonly behaviours?: EntityBehaviours;
   readonly signal?: AbortSignal;
   readonly concurrentUnits?: boolean;
+  /** Default: `deriveOnlyKeys`. */
+  readonly keys?: KeyService;
 }): Promise<CommandResult> {
   const registry = over.registry ?? served;
   const action = registry.actions.get(over.action);
@@ -159,7 +162,7 @@ export function runDirect(over: {
     principal: over.principal ?? userOf('ada'),
     request: { transport: 'test', requestId: 'req-1' },
     clock,
-    keys: deriveOnlyKeys,
+    keys: over.keys ?? deriveOnlyKeys,
     compute: {} as never,
     log: silent,
     trace: {} as never,

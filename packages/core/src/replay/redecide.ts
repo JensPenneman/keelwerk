@@ -9,10 +9,11 @@ import { encodeDecisionRecord } from '../events/encode-decision-record.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
 import { recordedFlagSnapshot } from '../flags/recorded-flag-snapshot.ts';
 import { canonicalizeJson } from '../json/canonicalize-json.ts';
+import { deriveScopeSecrets } from '../keys/derive-scope-secrets.ts';
+import type { ScopeSecrets } from '../keys/scope-secrets.ts';
 import { decodeRow } from '../repositories/decode-row.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
-import { commandFingerprint } from '../write-path/command-fingerprint.ts';
 import { defaultNodeId } from '../write-path/default-node-id.ts';
 import { draftsToEvents } from '../write-path/drafts-to-events.ts';
 import { loadTarget } from '../write-path/load-target.ts';
@@ -24,6 +25,7 @@ import { asOfAdapter } from './as-of-adapter.ts';
 import type { AsOfContext } from './as-of-context.ts';
 import { createAsOfReads } from './as-of-reads.ts';
 import { asOfUnit } from './as-of-unit.ts';
+import { checkRecordedInput } from './check-recorded-input.ts';
 import { commandEvents } from './command-events.ts';
 import type { ComparableEvent } from './comparable-event.ts';
 import { comparableOfStored } from './comparable-of-stored.ts';
@@ -51,7 +53,11 @@ function isReplay(error: KeelwerkError, kind: 'mismatch' | 'unsupported'): boole
   );
 }
 
-async function replayIn(unit: Unit, input: RedecideInput): Promise<RedecideResult> {
+async function replayIn(
+  unit: Unit,
+  input: RedecideInput,
+  secrets: ScopeSecrets,
+): Promise<RedecideResult> {
   const { registry, commandId } = input;
   const events = await commandEvents(unit, commandId);
   const first = events[0];
@@ -70,10 +76,8 @@ async function replayIn(unit: Unit, input: RedecideInput): Promise<RedecideResul
       `"${action.ref}" has a generated handler or a prepare; this release re-decides decide only.`,
     );
   }
-  const fingerprint = await commandFingerprint({ ...input, action });
-  if (fingerprint !== record.inputDigest) {
-    throw errors.validation('The input is not the one the decision recorded.');
-  }
+  const source = { ...input, action, fingerprintKey: secrets.fingerprintKey };
+  await checkRecordedInput(unit, source, events, record.inputDigest);
   const authority = action.contributedBy ?? action.module;
   const principal = input.principal ?? principalOfActor(first.actor, input.scope);
   const context: AsOfContext = {
@@ -101,6 +105,9 @@ async function replayIn(unit: Unit, input: RedecideInput): Promise<RedecideResul
     request: { transport: 'replay', requestId: first.correlationId, ...input.request },
     clock,
     keys: input.keys,
+    jobKeySecret: secrets.jobKey,
+    fingerprintKey: secrets.fingerprintKey,
+    stateSealKey: secrets.stateTokenKey,
     compute: input.compute,
     log: input.log,
     trace: input.trace,
@@ -190,7 +197,7 @@ async function replayIn(unit: Unit, input: RedecideInput): Promise<RedecideResul
     const flags = [...decision.flags.values()];
     const redecidedRecord = buildDecisionRecord({
       part: action.ref,
-      inputDigest: fingerprint,
+      inputDigest: record.inputDigest,
       reads,
       answers: decision.answers,
       effects: sameEffectCount ? record.effects : [],
@@ -286,8 +293,17 @@ async function replayIn(unit: Unit, input: RedecideInput): Promise<RedecideResul
  * built and dropped. A handler that fails or asks for more than the record holds is a
  * difference, not an exception.
  */
-export function redecide(input: RedecideInput): Promise<RedecideResult> {
-  return input.adapter.unit(input.namespace, input.scope, (unit) => replayIn(unit, input), {
-    readOnly: true,
-  });
+export async function redecide(input: RedecideInput): Promise<RedecideResult> {
+  // Before the unit opens: a derivation inside it would open a second unit once the key service's
+  // cache expired. The secrets are those of the scope the unit opens, whatever the input holds.
+  // A re-decide only reads: a scope without a key is `not_found` here and is given none.
+  const secrets = await deriveScopeSecrets(input.keys, input.scope, { create: false });
+  return input.adapter.unit(
+    input.namespace,
+    input.scope,
+    (unit) => replayIn(unit, input, secrets),
+    {
+      readOnly: true,
+    },
+  );
 }

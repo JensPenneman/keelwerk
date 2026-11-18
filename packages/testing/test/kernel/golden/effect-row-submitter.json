@@ -1,10 +1,10 @@
 {
-  "id": "a0ce80a8-a21c-8721-9c60-4e526c7b19f1",
+  "id": "589c0364-d9e7-8149-bb98-867b7989114e",
   "createdAt": "2026-01-01T00:00:00Z",
   "updatedAt": "2026-01-01T00:00:00Z",
   "version": 1,
   "type": "library.notify",
-  "commandId": "c1",
+  "commandId": "00000000-0000-7000-8000-000000000001",
   "status": "requested",
   "attempts": 0,
   "performer": "executor",
@@ -16,7 +16,7 @@
   "continuationWith": {
     "id": "x"
   },
-  "key": "k-1",
+  "key": "77db2baa623d0b6d257624d3fe72e12fdb5b562911153a9838a1f45b52038456",
   "deadline": "2026-02-01T00:00:00Z",
   "principalResolver": "test.principal",
   "principalId": "ada"

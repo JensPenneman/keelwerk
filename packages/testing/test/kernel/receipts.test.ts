@@ -8,7 +8,7 @@ const input = { title: 'Dune', isbn: 'isbn-1' };
 
 function pending(over: Partial<Receipt> = {}): Receipt {
   return {
-    commandId: 'held',
+    commandId: '00000000-0000-7000-8000-000000000001',
     action: 'library.addBook',
     fingerprint: 'other',
     principal: null,
@@ -29,16 +29,26 @@ describe('replay', () => {
   test('the same command id and input answers the recorded outcome without running again', async () => {
     const { adapter, invoker } = commandKit();
     const first = await invoker.invoke(
-      call('library.addBook', input, { carrier: ada, commandId: 'c1' }),
+      call('library.addBook', input, {
+        carrier: ada,
+        commandId: '00000000-0000-7000-8000-000000000002',
+      }),
     );
     const again = await invoker.invoke(
-      call('library.addBook', input, { carrier: ada, commandId: 'c1' }),
+      call('library.addBook', input, {
+        carrier: ada,
+        commandId: '00000000-0000-7000-8000-000000000002',
+      }),
     );
     expect(first).toMatchObject({ ok: true });
     expect(again).toMatchObject({ ok: true, replayed: true });
     expect(first.ok && again.ok && again.value).toEqual(first.ok && first.value);
     expect(first.ok && 'replayed' in first).toBe(false);
-    const { books, events } = await snapshot(adapter, undefined, 'c1');
+    const { books, events } = await snapshot(
+      adapter,
+      undefined,
+      '00000000-0000-7000-8000-000000000002',
+    );
     expect(books).toHaveLength(1);
     expect(events).toHaveLength(0);
   });
@@ -46,9 +56,24 @@ describe('replay', () => {
   test('a replay of an entity command re-reads the row and answers the same id', async () => {
     const { adapter, invoker } = commandKit();
     const [id] = await addBooks(adapter, 1);
-    const first = await invokeAsAda(invoker, 'library.book.reserve', { id }, 'r1');
-    await invokeAsAda(invoker, 'library.book.reserve', { id }, 'r2');
-    const again = await invokeAsAda(invoker, 'library.book.reserve', { id }, 'r1');
+    const first = await invokeAsAda(
+      invoker,
+      'library.book.reserve',
+      { id },
+      '00000000-0000-7000-8000-000000000003',
+    );
+    await invokeAsAda(
+      invoker,
+      'library.book.reserve',
+      { id },
+      '00000000-0000-7000-8000-000000000004',
+    );
+    const again = await invokeAsAda(
+      invoker,
+      'library.book.reserve',
+      { id },
+      '00000000-0000-7000-8000-000000000003',
+    );
     expect(first.replayed).toBeUndefined();
     expect(again.replayed).toBe(true);
     expect(again.output).toMatchObject({ id, version: 3 });
@@ -56,10 +81,19 @@ describe('replay', () => {
 
   test('the same command id with another input is core.idempotency_mismatch', async () => {
     const { adapter, invoker } = commandKit();
-    await invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'c1' }));
+    await invoker.invoke(
+      call('library.addBook', input, {
+        carrier: ada,
+        commandId: '00000000-0000-7000-8000-000000000002',
+      }),
+    );
     const error = failure(
       await invoker.invoke(
-        call('library.addBook', { ...input, isbn: 'isbn-2' }, { carrier: ada, commandId: 'c1' }),
+        call(
+          'library.addBook',
+          { ...input, isbn: 'isbn-2' },
+          { carrier: ada, commandId: '00000000-0000-7000-8000-000000000002' },
+        ),
       ),
     );
     expect(error).toMatchObject({ kind: 'conflict', code: 'core.idempotency_mismatch' });
@@ -70,16 +104,33 @@ describe('replay', () => {
 describe('core.command_in_progress', () => {
   test('a receipt that is still pending answers a retryable conflict and runs nothing', async () => {
     const done = commandKit();
-    await done.invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'held' }));
-    const { receipt } = await snapshot(done.adapter, undefined, 'held');
+    await done.invoker.invoke(
+      call('library.addBook', input, {
+        carrier: ada,
+        commandId: '00000000-0000-7000-8000-000000000001',
+      }),
+    );
+    const { receipt } = await snapshot(
+      done.adapter,
+      undefined,
+      '00000000-0000-7000-8000-000000000001',
+    );
     const { adapter, invoker } = commandKit();
     await adapter.unit(namespace, tenant, async (unit) => {
       await unit.receipts.put(
-        pending({ commandId: 'held', fingerprint: receipt?.fingerprint ?? '' }),
+        pending({
+          commandId: '00000000-0000-7000-8000-000000000001',
+          fingerprint: receipt?.fingerprint ?? '',
+        }),
       );
     });
     const error = failure(
-      await invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'held' })),
+      await invoker.invoke(
+        call('library.addBook', input, {
+          carrier: ada,
+          commandId: '00000000-0000-7000-8000-000000000001',
+        }),
+      ),
     );
     expect(error).toMatchObject({
       kind: 'conflict',
@@ -111,7 +162,7 @@ describe('an expired receipt', () => {
         call(
           'library.addBook',
           { title: 'Dune', isbn: `isbn-${current.toString().slice(8, 10)}` },
-          { carrier: ada, commandId: 'c1' },
+          { carrier: ada, commandId: '00000000-0000-7000-8000-000000000002' },
         ),
       );
     expect(await run()).toMatchObject({ ok: true });
@@ -119,19 +170,31 @@ describe('an expired receipt', () => {
     const again = await run();
     expect(again).toMatchObject({ ok: true });
     expect('replayed' in again).toBe(false);
-    expect((await snapshot(adapter, undefined, 'c1')).books).toHaveLength(2);
+    expect(
+      (await snapshot(adapter, undefined, '00000000-0000-7000-8000-000000000002')).books,
+    ).toHaveLength(2);
   });
 });
 
 describe('failed commands', () => {
   test('a declared error is recorded and a retry with the same id answers it from the receipt', async () => {
     const { adapter, invoker } = commandKit();
-    await invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'a' }));
+    await invoker.invoke(
+      call('library.addBook', input, {
+        carrier: ada,
+        commandId: '00000000-0000-7000-8000-000000000006',
+      }),
+    );
     const first = failure(
-      await invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'b' })),
+      await invoker.invoke(
+        call('library.addBook', input, {
+          carrier: ada,
+          commandId: '00000000-0000-7000-8000-000000000007',
+        }),
+      ),
     );
     expect(first.code).toBe('library.isbn_taken');
-    const { receipt } = await snapshot(adapter, undefined, 'b');
+    const { receipt } = await snapshot(adapter, undefined, '00000000-0000-7000-8000-000000000007');
     expect(receipt).toMatchObject({
       status: 'failed',
       outcome: {
@@ -145,7 +208,12 @@ describe('failed commands', () => {
     });
     expect(JSON.stringify(receipt?.outcome)).not.toContain('details');
     const again = failure(
-      await invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'b' })),
+      await invoker.invoke(
+        call('library.addBook', input, {
+          carrier: ada,
+          commandId: '00000000-0000-7000-8000-000000000007',
+        }),
+      ),
     );
     expect(again).toMatchObject({ kind: first.kind, code: 'library.isbn_taken' });
     // What reaches storage is the closed projection (D9): the live answer keeps its text and data,
@@ -159,20 +227,32 @@ describe('failed commands', () => {
     const { adapter, units } = flaky(commandKit().adapter, 1);
     const { invoker } = commandKit({ adapter });
     const outcome = await invoker.invoke(
-      call('library.addBook', input, { carrier: ada, commandId: 'c1' }),
+      call('library.addBook', input, {
+        carrier: ada,
+        commandId: '00000000-0000-7000-8000-000000000002',
+      }),
     );
     expect(outcome.ok).toBe(true);
     expect(units()).toBe(2);
-    expect((await snapshot(adapter, undefined, 'c1')).receipt?.status).toBe('completed');
+    expect(
+      (await snapshot(adapter, undefined, '00000000-0000-7000-8000-000000000002')).receipt?.status,
+    ).toBe('completed');
   });
 
   test('a conflict that outlasts the retries records nothing', async () => {
     const { adapter } = flaky(commandKit().adapter, 10);
     const { invoker } = commandKit({ adapter });
     const error = failure(
-      await invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'c2' })),
+      await invoker.invoke(
+        call('library.addBook', input, {
+          carrier: ada,
+          commandId: '00000000-0000-7000-8000-000000000005',
+        }),
+      ),
     );
     expect(error.code).toBe('core.version_mismatch');
-    expect((await snapshot(adapter, undefined, 'c2')).receipt).toBeUndefined();
+    expect(
+      (await snapshot(adapter, undefined, '00000000-0000-7000-8000-000000000005')).receipt,
+    ).toBeUndefined();
   });
 });

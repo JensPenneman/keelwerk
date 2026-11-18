@@ -9,6 +9,7 @@ import {
   shape,
 } from '@keelwerk/core';
 import { afterAll, describe, expect, test } from 'vitest';
+import { processInstanceStream } from './support/process-instance-stream.ts';
 import { bootReactions, relayOwner } from './support/reactions-kit.ts';
 
 const kit = await bootReactions();
@@ -18,7 +19,7 @@ const { runtime } = kit;
 const tallyRows = async () =>
   (await kit.rows('acme', 'relay.echo')).filter((row) => row.reaction === 'relay.tally');
 const streamOf = (tenant: 'acme' | 'globex') =>
-  processStreamRef(kit.scopeOf(tenant), 'relay.tally', relayOwner);
+  processInstanceStream(runtime.keys, kit.scopeOf(tenant), 'relay.tally', relayOwner);
 
 describe('process managers', () => {
   test('the state folds over two events, and the second job sees the first', async () => {
@@ -37,7 +38,7 @@ describe('process managers', () => {
   });
 
   test('the stream is chained, and its personal member is sealed under the instance subject', async () => {
-    const stream = streamOf('acme');
+    const stream = await streamOf('acme');
     const stored = await runtime.adapter.unit(
       runtime.namespace,
       kit.scopeOf('acme'),
@@ -51,9 +52,24 @@ describe('process managers', () => {
     expect(stored[0]?.prevHash).toBeNull();
     expect(stored[1]?.prevHash).toBe(stored[0]?.hash);
     expect(stored.every((event) => event.hash !== null && !event.transient)).toBe(true);
-    expect(stored[0]?.data).toMatchObject({ n: 1, note: { $kwe: 1 } });
+    expect(stored[0]?.data).toMatchObject({ n: 1, note: { $kwe: 2 } });
     expect(JSON.stringify(stored.map((event) => event.data))).not.toContain('example.com');
     // The fold opens the member: the second decision of the first test saw the first note's 15 characters.
+  });
+
+  test('a process keyed by a personal value stores no stream id derivable without the scope key', async () => {
+    const scope = kit.scopeOf('acme');
+    const derived = await streamOf('acme');
+    // The stream the instance lives in is the one of the digest under the scope's secret, not the
+    // one a holder of another secret derives.
+    const plain = processStreamRef(scope, 'relay.tally', relayOwner, new Uint8Array(32));
+    expect(derived.id).not.toBe(plain.id);
+    const stored = (stream: { type: string; id: string }) =>
+      runtime.adapter.unit(runtime.namespace, scope, (unit) => unit.events.readStream(stream), {
+        readOnly: true,
+      });
+    expect((await stored(derived)).length).toBeGreaterThan(0);
+    expect(await stored(plain)).toEqual([]);
   });
 
   test('a process that reacts to an event of a backend entity is refused at compose', () => {

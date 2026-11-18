@@ -1,5 +1,5 @@
 import type { ConsumerSpec, Registry, RuntimeServiceContext } from '@keelwerk/core';
-import { errors } from '@keelwerk/core';
+import { errors, jobKeyInfo } from '@keelwerk/core';
 import { dispatcherMark } from './dispatcher-mark.ts';
 import { dispatcherSelector } from './dispatcher-selector.ts';
 import { enqueueReactionJobs } from './enqueue-reaction-jobs.ts';
@@ -58,7 +58,11 @@ export function reactionDispatcher(
       id: 'core.reactions',
       selector: dispatcherSelector(registries.values()),
       start: 'now',
-      consume: async (events, unit) => {
+      // The job key secret is derived here, before the unit opens, and handed to `consume`: the
+      // scope key must exist by then, and a derivation inside the unit would open a second unit
+      // once the key service's cache expired.
+      beforeBatch: (scope) => context.keys.derive(scope, jobKeyInfo, 32),
+      consume: async (events, unit, prepared) => {
         const registry = registries.get(unit.namespace.id);
         if (registry === undefined) {
           throw errors.internal(
@@ -71,6 +75,11 @@ export function reactionDispatcher(
           registry,
           events,
           queue: context.queue,
+          // Without `beforeBatch` (a direct call of `consume`) the secret is derived here.
+          keySecret:
+            prepared instanceof Uint8Array
+              ? prepared
+              : await context.keys.derive(unit.scope, jobKeyInfo, 32),
           log: context.log,
           maxDepth,
           ...(options.meter === undefined ? {} : { meter: options.meter }),

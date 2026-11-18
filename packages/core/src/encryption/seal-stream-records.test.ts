@@ -62,6 +62,7 @@ const storedOf = (data: unknown): StreamRecord => ({
 });
 
 describe('sealing the records of a stream', () => {
+  // WP-130: $kwe 2 pads the plaintext (S8); the envelope and every hash over it were regenerated.
   test('golden: one personal member is the same envelope under a fixed key and nonce', async () => {
     const [sealed] = await sealStreamRecords(context, {
       stream,
@@ -73,10 +74,10 @@ describe('sealing the records of a stream', () => {
     // changes this envelope, and every stored record would read as absent.
     expect(sealed).toEqual({
       line: {
-        $kwe: 1,
+        $kwe: 2,
         k: 'dk-1',
         n: 'AQEBAQEBAQEBAQEB',
-        c: 'VIns2_zQzrfNQTDTb38rAtO8XUJZBZE',
+        c: 'VIns2_zQzo7R1NwhcDdwMaj7FPQYlzsTWDFDYma0NrutIm68XoN5t9au-AgXjfIE',
       },
       n: 1,
     });
@@ -90,7 +91,7 @@ describe('sealing the records of a stream', () => {
       key,
       records: [{ to: ['bob@example.com', 'eve@example.com'], n: 2 }],
     })) as readonly Record<string, unknown>[];
-    expect(sealed?.to).toMatchObject({ $kwe: 1, k: 'dk-1' });
+    expect(sealed?.to).toMatchObject({ $kwe: 2, k: 'dk-1' });
     expect(JSON.stringify(sealed)).not.toContain('example.com');
     expect(refs).toEqual([{ subject: reviewer, refs: [{ type: 'logs.note', id: key }] }]);
     const [opened] = await openStreamRecords(context, {

@@ -21,16 +21,17 @@ const contextOf = (keys: { readonly shredded: boolean }) =>
   }) as unknown as SealingContext;
 
 describe('the sealed subject of a process job', () => {
+  // WP-130: $kwe 2 pads the plaintext (S8); the envelope and every hash over it were regenerated.
   test('golden: the same envelope under a fixed key and nonce, and it opens to the subject', async () => {
     const context = contextOf({ shredded: false });
     const sealed = await sealProcessSubject(context, { streamId, eventId, subject });
     // namespace, stream id, event id and the field name `$subject` are the associated data: a change
     // to that mapping changes this envelope, and every queued process job would read as erased.
     expect(sealed).toEqual({
-      $kwe: 1,
+      $kwe: 2,
       k: 'dk-1',
       n: 'AQEBAQEBAQEBAQEB',
-      c: 'RtCwgPGOjzz8474SFRpHUpnKOc15og4-a1dxB17QANn20zmCHTg-so5EGnryM_90tliW-g',
+      c: 'RtCwgPGOjzz8474SFRpHUpnKOc15og4-a1dxB17QANn20zmCHBOFgF5ySAvBfu6ZjhvpAl2-_1-iQqcI1iKFlQ7x-9Hmgkua4Icw-tq_WX0',
     });
     if (sealed === null) throw new Error('the subject was not sealed');
     expect(await openProcessSubject(context, { streamId, eventId, sealed })).toBe(subject);

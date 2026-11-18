@@ -1,3 +1,4 @@
+import { checkModuleRowId } from '../ids/check-module-row-id.ts';
 import { createRequest } from '../interpreter/create-request.ts';
 import { refuseRequest } from '../interpreter/refuse-request.ts';
 import type { RequestAuthorities } from '../interpreter/request-authorities.ts';
@@ -54,6 +55,7 @@ function constructorsOf(
     ...events,
     create: (values: Readonly<Record<string, unknown>>): AnyDraft => {
       const { id, ...rest } = values;
+      if (typeof id === 'string') checkModuleRowId(ref, id);
       const named = typeof id === 'string' ? id : input.newId(ref);
       return Object.freeze({
         kind: 'create',

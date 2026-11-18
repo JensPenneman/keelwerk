@@ -90,6 +90,7 @@ const deliver = effect(
 );
 
 describe('sealed effect input', () => {
+  // WP-130: $kwe 2 pads the plaintext (S8); the envelope and every hash over it were regenerated.
   test('a personal input member is the $kwe envelope of golden vector G1', async () => {
     const stub = stubUnit();
     const sealed = (await sealEffectInput({
@@ -101,16 +102,16 @@ describe('sealed effect input', () => {
       random: fixed,
     })) as Record<string, unknown>;
     expect(sealed.to).toEqual({
-      $kwe: 1,
+      $kwe: 2,
       k: 'key-1',
       n: 'CQkJCQkJCQkJCQkJ',
-      c: 'BeTg9f6VuQDNEqddyIXRuPbRoonqvAopbeX2gnb9Stt-',
+      c: 'BeTg9f6VuQDNEqddyIXRuPYwY_M07vfAb65GptV0AXqwPhy8hvvt_3jWDfG-niYM',
     });
     expect(sealed.cc).toEqual({
-      $kwe: 1,
+      $kwe: 2,
       k: 'key-1',
       n: 'CQkJCQkJCQkJCQkJ',
-      c: 'fKfm-9ywpBnBD7tUg8TMrbOST9FRmJKACtYny6UYZFS8l4Dhvw2FB9e1LZpf7ywyqVKSkgU',
+      c: 'fKfm-9ywpBnBD7tUg8TMrbOST9FRmJKACtYny6UYZFS8l4Dhv9IqEH-zpRZENOPUfFSelBKUrk5lbwGXVhZ6jodPp_kB034cAiJJBDRETRA',
     });
     expect(sealed.owner).toBe(owner);
     expect(

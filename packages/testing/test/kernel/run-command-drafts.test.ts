@@ -24,11 +24,18 @@ describe('the item check, the invariant and the module boundary', () => {
     const { registry } = withCommand('noop', () => [], 'library.addBook', {}, strict);
     const { adapter, invoker } = commandKit({ registry });
     const [id] = await addBooks(adapter, 1);
-    const error = await invokeAsAda(invoker, 'library.book.reserve', { id }, 'r1').catch(
-      (caught: unknown) => caught,
-    );
+    const error = await invokeAsAda(
+      invoker,
+      'library.book.reserve',
+      { id },
+      '00000000-0000-7000-8000-000000000002',
+    ).catch((caught: unknown) => caught);
     expect(error).toMatchObject({ kind: 'forbidden' });
-    const { books, events, receipt } = await snapshot(adapter, id, 'r1');
+    const { books, events, receipt } = await snapshot(
+      adapter,
+      id,
+      '00000000-0000-7000-8000-000000000002',
+    );
     expect(books[0]?.version).toBe(1);
     expect(books[0]?.reservedBy).toBeUndefined();
     expect(events).toHaveLength(1);
@@ -120,7 +127,13 @@ describe('a draft by id', () => {
     const outcome = await commandKit({
       registry: rename.registry,
       adapter: watched,
-    }).invoker.invoke(call(rename.ref, { bookId: second }, { carrier: ada, commandId: 'n1' }));
+    }).invoker.invoke(
+      call(
+        rename.ref,
+        { bookId: second },
+        { carrier: ada, commandId: '00000000-0000-7000-8000-000000000001' },
+      ),
+    );
     expect(outcome.ok).toBe(true);
     expect(locks).toEqual(['library.book']);
     const { books, events } = await snapshot(adapter, second);

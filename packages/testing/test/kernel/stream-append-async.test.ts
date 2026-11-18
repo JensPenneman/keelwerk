@@ -188,7 +188,7 @@ describe.each(['memory', 'pglite'] as const)('stream appends of an async command
     if (folderId === undefined) throw new Error('the worker wrote no folder');
     expect(raw.receipt?.status).toBe('completed');
     expect(raw.records).toHaveLength(1);
-    expect(raw.records[0]?.data).toMatchObject({ text: { $kwe: 1 } });
+    expect(raw.records[0]?.data).toMatchObject({ text: { $kwe: 2 } });
     expect(findPlaintext(dump(raw), [secret])).toEqual([]);
     const opened = await runtime.sealed.unit(runtime.namespace, scope, async (unit) =>
       openStoredRecords(unit, {

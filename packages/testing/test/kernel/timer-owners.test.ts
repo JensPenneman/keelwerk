@@ -1,5 +1,6 @@
 import { splitTimerKey } from '@keelwerk/core';
 import { afterAll, describe, expect, test } from 'vitest';
+import { tickerKeyDigest } from './support/ticker-key-digest.ts';
 import type { TickerKit } from './support/ticker-kit.ts';
 import { bootTicker, seededAt } from './support/ticker-kit.ts';
 
@@ -35,7 +36,13 @@ describe.each(adapters)('timer owners on %s', (adapter) => {
     const timers = kit.spy.enqueued
       .map((entry) => entry.job)
       .filter((job) => job.queue === 'timers');
-    expect(timers.map((job) => job.key?.value)).toEqual(['ticker:pulse', 'echo:pulse']);
+    const tickerPulse = await tickerKeyDigest(kit, 'ticker', 'pulse');
+    const echoPulse = await tickerKeyDigest(kit, 'echo', 'pulse');
+    expect(tickerPulse).not.toBe(echoPulse);
+    expect(timers.map((job) => job.key?.value)).toEqual([
+      `ticker:${tickerPulse}`,
+      `echo:${echoPulse}`,
+    ]);
     expect(
       timers.map((job) =>
         splitTimerKey(job.key?.value ?? '', {
@@ -44,12 +51,60 @@ describe.each(adapters)('timer owners on %s', (adapter) => {
         }),
       ),
     ).toEqual([
-      { module: 'ticker', key: 'pulse' },
-      { module: 'echo', key: 'pulse' },
+      { module: 'ticker', key: tickerPulse },
+      { module: 'echo', key: echoPulse },
     ]);
     await kit.advanceTo(later(46));
     expect(await tickerFired(kit)).toEqual(['t']);
     expect(await echoFired(kit)).toEqual(['e']);
+  });
+
+  test('a timer key is stored as the module id and a digest, and cancelTimer of the same key reaches it', {
+    timeout: 30_000,
+  }, async () => {
+    const kit = await boot();
+    expect((await kit.call('acme', 'ticker.armTimer', { at: 't' })).ok).toBe(true);
+    const [timer] = kit.spy.enqueued
+      .map((entry) => entry.job)
+      .filter((job) => job.queue === 'timers');
+    expect(timer?.key?.value).toBe(`ticker:${await tickerKeyDigest(kit, 'ticker', 'pulse')}`);
+    expect((await kit.call('acme', 'ticker.disarm', {})).ok).toBe(true);
+    await kit.advanceTo(later(46));
+    expect(await tickerFired(kit)).toEqual([]);
+  });
+
+  test('a timer and an enqueue of two modules with one key text store two digests', {
+    timeout: 30_000,
+  }, async () => {
+    const kit = await boot();
+    await armBoth(kit);
+    const runAt = seededAt.add({ minutes: 2 }).toString();
+    expect((await kit.call('acme', 'ticker.escalateLater', { at: 't', runAt })).ok).toBe(true);
+    expect((await kit.call('acme', 'echo.enqueueLater', { at: 'e', runAt })).ok).toBe(true);
+    const digestsOf = (queue: string) =>
+      kit.spy.enqueued
+        .map((entry) => entry.job)
+        .filter((job) => job.queue === queue && job.key !== undefined)
+        .map((job) => job.key?.value.split(':')[1]);
+    const [tickerTimer, echoTimer] = digestsOf('timers');
+    const [tickerJob, echoJob] = digestsOf('commands');
+    expect(tickerTimer).toBeDefined();
+    expect(tickerTimer).not.toBe(echoTimer);
+    expect(tickerJob).toBeDefined();
+    expect(tickerJob).not.toBe(echoJob);
+  });
+
+  test('the stored key never holds the key text', {
+    timeout: 30_000,
+  }, async () => {
+    const kit = await boot();
+    await armBoth(kit);
+    const keys = kit.spy.enqueued
+      .map((entry) => entry.job)
+      .filter((job) => job.queue === 'timers')
+      .map((job) => job.key?.value ?? '');
+    expect(keys).toHaveLength(2);
+    for (const key of keys) expect(key).not.toContain('pulse');
   });
 
   test("a module's cancelTimer leaves another module's timer of the same key", {

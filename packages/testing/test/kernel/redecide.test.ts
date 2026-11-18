@@ -241,4 +241,64 @@ describe('readAsOfPosition', () => {
     );
     expect(rows).toEqual([]);
   });
+
+  test('a re-decide on a scope without a key writes nothing to the control store', async () => {
+    const run = await started(libraryApp, 'library.addBook', { input: dune, principal: ada });
+    const { app, control } = run.runtime;
+    const address = tenantAddress(run.runtime, 'globex');
+    // The scope keys the control store was asked to add, by any unit that opens on it.
+    const added: string[] = [];
+    const controlUnit = control.adapter.unit.bind(control.adapter);
+    control.adapter.unit = (namespace, scope, work, options) =>
+      controlUnit(
+        namespace,
+        scope,
+        (unit) =>
+          work(
+            new Proxy(unit, {
+              get(target, key) {
+                const held = Reflect.get(target, key, target);
+                if (key !== 'scopeKeys' || typeof held !== 'object' || held === null) return held;
+                return new Proxy(held, {
+                  get(store, member) {
+                    if (member === 'add') added.push('add');
+                    return Reflect.get(store, member, store);
+                  },
+                });
+              },
+            }),
+          ),
+        options,
+      );
+    const compute = createComputePool({ size: 1 });
+    const answer = await redecide({
+      registry: app.registry,
+      adapter: run.runtime.adapter,
+      namespace: address.namespace,
+      scope: address.scope,
+      commandId: run.commandId,
+      input: dune,
+      apiVersion: run.runtime.head,
+      behaviours: entityBehavioursOf(app.modules),
+      rules: [...app.registry.rules.values()]
+        .filter((rule) => rule.disabled !== true)
+        .map(normalizeRule),
+      keys: run.runtime.keys,
+      compute,
+      clock: run.runtime.clock,
+      config: run.runtime.config,
+      log: run.runtime.log,
+      trace: run.runtime.tracer.startSpan('redecide'),
+    })
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      )
+      .finally(() => compute.close());
+    expect(answer).toMatchObject({
+      kind: 'not_found',
+      message: 'the scope has no key, and none is created here',
+    });
+    expect(added, 'no scope key was added').toEqual([]);
+  });
 });

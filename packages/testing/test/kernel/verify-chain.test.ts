@@ -13,7 +13,12 @@ import { openPglite } from './support/pglite-kit.ts';
 async function chainOfTwo() {
   const { adapter, invoker } = commandKit();
   const [id = ''] = await addBooks(adapter, 1);
-  await invokeAsAda(invoker, 'library.book.reserve', { id, ifVersion: 1 }, 'r1');
+  await invokeAsAda(
+    invoker,
+    'library.book.reserve',
+    { id, ifVersion: 1 },
+    '00000000-0000-7000-8000-000000000002',
+  );
   const { events } = await snapshot(adapter, id);
   return { events };
 }
@@ -52,7 +57,7 @@ describe('the chain of a stream written by commands', () => {
       { flags: [{ key: 'x', variant: 'on', reason: 'DEFAULT', ruleVersion: null }] },
       { decision: first.decision === null ? null : { ...first.decision, effects: ['e1'] } },
       { schemaVersion: 2 },
-      { commandId: 'another' },
+      { commandId: '00000000-0000-7000-8000-000000000001' },
     ];
     for (const patch of patches) {
       expect(verifyChain(replaced(events, 0, patch))).toMatchObject({
@@ -113,7 +118,12 @@ describe('a command that changes two rows', () => {
     );
     const { adapter, invoker } = commandKit({ registry: probe.registry });
     const [first = '', second = ''] = await addBooks(adapter, 2);
-    await invokeAsAda(invoker, probe.ref, { first, second }, 'both');
+    await invokeAsAda(
+      invoker,
+      probe.ref,
+      { first, second },
+      '00000000-0000-7000-8000-000000000003',
+    );
     const one = (await snapshot(adapter, first)).events;
     const two = (await snapshot(adapter, second)).events;
     expect(one).toHaveLength(2);
@@ -128,8 +138,18 @@ describe('the process clock', () => {
   test('commands in one runtime never repeat or lower a reading', async () => {
     const { adapter, invoker } = commandKit();
     const [first = '', second = ''] = await addBooks(adapter, 2);
-    await invokeAsAda(invoker, 'library.book.reserve', { id: first, ifVersion: 1 }, 'c1');
-    await invokeAsAda(invoker, 'library.book.reserve', { id: second, ifVersion: 1 }, 'c2');
+    await invokeAsAda(
+      invoker,
+      'library.book.reserve',
+      { id: first, ifVersion: 1 },
+      '00000000-0000-7000-8000-000000000004',
+    );
+    await invokeAsAda(
+      invoker,
+      'library.book.reserve',
+      { id: second, ifVersion: 1 },
+      '00000000-0000-7000-8000-000000000005',
+    );
     const a = (await snapshot(adapter, first)).events[1]?.hlc ?? '';
     const b = (await snapshot(adapter, second)).events[1]?.hlc ?? '';
     expect(a).not.toBe(b);
@@ -145,10 +165,15 @@ describe('the stored format on PGlite', () => {
         invoker,
         'library.addBook',
         { title: 'Dune', isbn: 'isbn-1' },
-        'p1',
+        '00000000-0000-7000-8000-000000000007',
       );
       const id = (result.output as { bookId: string }).bookId;
-      await invokeAsAda(invoker, 'library.book.reserve', { id, ifVersion: 1 }, 'p2');
+      await invokeAsAda(
+        invoker,
+        'library.book.reserve',
+        { id, ifVersion: 1 },
+        '00000000-0000-7000-8000-000000000006',
+      );
       const { events } = await snapshot(adapter, id);
       expect(events).toHaveLength(2);
       expect(events[0]?.decision?.reads).toBeDefined();

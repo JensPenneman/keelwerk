@@ -63,7 +63,7 @@ describe.each(['memory', 'pglite'] as const)('personal fields on %s (14.7.9)', (
     const { values } = created0;
     expect(values.name).toBe('Jens');
     for (const name of ['email', 'nickname', 'notes']) {
-      expect(values[name]).toMatchObject({ $kwe: 1, k: expect.any(String), n: expect.any(String) });
+      expect(values[name]).toMatchObject({ $kwe: 2, k: expect.any(String), n: expect.any(String) });
     }
     const text = dump(stored).toLowerCase();
     for (const marker of ['jenspenneman', 'jens@', 'a private note', '"jp"']) {
@@ -191,9 +191,9 @@ describe.each(['memory', 'pglite'] as const)('personal fields on %s (14.7.9)', (
     const changed = events[1];
     const changedData = changed?.data as { set: Record<string, { $kwe: number }> };
     const { set } = changedData;
-    expect([set.email?.$kwe, set.notes?.$kwe]).toEqual([1, 1]);
+    expect([set.email?.$kwe, set.notes?.$kwe]).toEqual([2, 2]);
     const before = changed?.before as Record<string, { $kwe: number }>;
-    expect([before.email?.$kwe, before.notes?.$kwe]).toEqual([1, 1]);
+    expect([before.email?.$kwe, before.notes?.$kwe]).toEqual([2, 2]);
     expect(dump(events).toLowerCase()).not.toMatch(/example\.org|"old"|"new"/);
 
     // Erasing the subject's keys: the values read as absent, and no condition discloses the row.

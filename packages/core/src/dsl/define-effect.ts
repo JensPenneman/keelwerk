@@ -13,7 +13,11 @@ export interface EffectOptions {
   readonly continueWith?: AnyActionPart;
   /** Stored in plaintext next to the sealed input: a member the continuation's input declares personal or secret is refused. */
   readonly with?: Readonly<Record<string, unknown>>;
-  /** Stored in plaintext in the record: it must not carry a personal or secret value. */
+  /**
+   * The module's own text. The record and its requested event keep it as a keyed digest bound to
+   * the module, never as the text. The digest protects the text against whoever holds only a dump;
+   * an erasure does not remove it. A key holds no personal value: use a random id that stands for the person.
+   */
   readonly key?: string;
   readonly runAt?: Temporal.Instant;
   readonly deadline?: Temporal.Instant;

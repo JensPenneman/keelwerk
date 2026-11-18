@@ -6,7 +6,11 @@ import { acmeScope, askCloseAll, lendBook, startWatched } from './support/worker
 
 const golden = fileURLToPath(new URL('./golden/receipt-change-records.json', import.meta.url));
 
-/** The stored format of the records, by command id: written once, final from then on (rule 10). */
+/**
+ * The stored format of the records, by command id: written once, final from then on (rule 10).
+ * WP-130: the command ids of the test are UUIDs now (a caller's command id is an opaque id); the
+ * golden holds those ids and the stored format is unchanged.
+ */
 function stored(): Record<string, unknown> {
   return JSON.parse(readFileSync(golden, 'utf8')) as Record<string, unknown>;
 }
@@ -56,7 +60,11 @@ async function receiptRecords() {
 describe('the change records of a receipt (S-145)', () => {
   test('acceptance writes created, completion writes changed, both transient and unhashed', async () => {
     await lendBook(runtime, 'Dune');
-    const accepted = await askCloseAll(runtime, 'rec-1', testOperator('olive'));
+    const accepted = await askCloseAll(
+      runtime,
+      '00000000-0000-7000-8000-000000000001',
+      testOperator('olive'),
+    );
     expect(accepted.ok).toBe(true);
     expect(await runtime.drainJobs()).toBe(1);
     const records = await receiptRecords();
@@ -66,15 +74,19 @@ describe('the change records of a receipt (S-145)', () => {
       ['core.commandReceipt.created', 1, true, null],
       ['core.commandReceipt.changed', 2, true, null],
     ]);
-    expect(JSON.parse(JSON.stringify(records))).toEqual(stored()['rec-1']);
+    expect(JSON.parse(JSON.stringify(records))).toEqual(
+      stored()['00000000-0000-7000-8000-000000000001'],
+    );
     expect(spy.completions.at(-1)?.outcome).toEqual({ kind: 'succeeded' });
   });
 
   test('a failed job writes changed with the failure', async () => {
-    await askCloseAll(runtime, 'rec-2', testOperator('gone'));
+    await askCloseAll(runtime, '00000000-0000-7000-8000-000000000002', testOperator('gone'));
     runtime.revoke('gone');
     expect(await runtime.drainJobs()).toBe(1);
-    const mine = (await receiptRecords()).filter((record) => record.commandId === 'rec-2');
+    const mine = (await receiptRecords()).filter(
+      (record) => record.commandId === '00000000-0000-7000-8000-000000000002',
+    );
     expect(mine.map((record) => [record.type, record.version])).toEqual([
       ['core.commandReceipt.created', 1],
       ['core.commandReceipt.changed', 2],
@@ -82,6 +94,8 @@ describe('the change records of a receipt (S-145)', () => {
     expect(mine[1]?.data).toMatchObject({
       set: { status: 'failed', outcome: { ok: false, error: { kind: 'unauthenticated' } } },
     });
-    expect(JSON.parse(JSON.stringify(mine))).toEqual(stored()['rec-2']);
+    expect(JSON.parse(JSON.stringify(mine))).toEqual(
+      stored()['00000000-0000-7000-8000-000000000002'],
+    );
   });
 });

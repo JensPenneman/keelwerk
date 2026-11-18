@@ -43,6 +43,7 @@ function run(events: Parameters<typeof enqueueReactionJobs>[0]['events'], bound 
     registry,
     events,
     queue,
+    keySecret: new Uint8Array(32).fill(9),
     log,
     maxDepth: bound,
     meter,

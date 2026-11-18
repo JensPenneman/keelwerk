@@ -20,6 +20,7 @@ import {
   ownedValueKeys,
   recordScopeMarks,
   scrubFlagPrincipals,
+  scrubReceiptFingerprints,
   shredStep,
   subjectSpellings,
 } from '@keelwerk/core';
@@ -58,7 +59,8 @@ export type RunErasureOptions = Required<Pick<ErasureOptions, 'pageSize'>> &
  * (and appends the tombstones to the ledger and the sinks), walks `kw_subject_refs` in pages of
  * read units and erases each stream in one writing unit of its own (`eraseStream`), then walks the
  * rows the subject owns that hold no personal value (`ownedRows`) the same way, purges the
- * principals' receipts, jobs and tickets, scrubs the flag targeting and completes the receipt, then
+ * principals' receipts, jobs and tickets and the fingerprints of the receipts of every command
+ * that wrote in a visited stream, scrubs the flag targeting and completes the receipt, then
  * appends the completion record to the control ledger (never to a sink). Every step is idempotent
  * and the record stays in the ledger, so a crash after any step is repaired by running the record
  * again. `afterStep` runs after each committed step.
@@ -157,6 +159,10 @@ export async function runErasure(
   // values belong to someone else, and so do their commands.
   const ids = new Set<string>(subjectSpellings(record.subjectId));
   const commandIds = new Set<string>();
+  // The commands that wrote an event in ANY stream this run visits, `core.effect` ones included,
+  // whoever ran them and whether or not the stream is owned: their receipts that the purge below
+  // keeps get an erased fingerprint (D5).
+  const touched = new Set<string>();
   // The streams that carry this erasure's `erased` event, however often a run reaches them (a run
   // that crashed, or a row the reference walk and the owned walk both find): the count the receipt
   // reports is the same after a repair as after a run without one.
@@ -180,16 +186,14 @@ export async function runErasure(
       await options.insideStep?.('streams', record);
       return eraseStream(u, { registry, stream, record, writer, now: context.clock.now() });
     });
-    if (result.owned || ownedByLookup) {
-      into.ids.add(stream.id);
-      const events = await unit(true, (u) => u.events.readStream(stream));
-      for (const event of events) {
-        // The erasure's own receipt is completed last, by step 6.
-        if (event.commandId !== null && event.commandId !== record.commandId) {
-          into.commandIds.add(event.commandId);
-        }
-      }
+    const events = await unit(true, (u) => u.events.readStream(stream));
+    for (const event of events) {
+      // The erasure's own receipt is completed last, by step 6.
+      if (event.commandId === null || event.commandId === record.commandId) continue;
+      touched.add(event.commandId);
+      if (result.owned || ownedByLookup) into.commandIds.add(event.commandId);
     }
+    if (result.owned || ownedByLookup) into.ids.add(stream.id);
     if (result.outcome !== 'skipped') erased.add(`${stream.type}\u0000${stream.id}`);
     if (result.outcome === 'erased') await after('streams');
   };
@@ -231,7 +235,12 @@ export async function runErasure(
     owned = page.next;
   }
 
-  await unit(false, (u) => erasePrincipals(u, registry, [...ids], [...commandIds], purgeOptions));
+  await unit(false, async (u) => {
+    await erasePrincipals(u, registry, [...ids], [...commandIds], purgeOptions);
+    // The receipts the purge kept (another principal ran the command): the fingerprint of an input
+    // that may have held a value of the subject goes (D5).
+    await scrubReceiptFingerprints(u, registry, [...touched]);
+  });
   await after('principals');
 
   // The scrub's units run through the same guard, and the seam holds one in flight at the stop

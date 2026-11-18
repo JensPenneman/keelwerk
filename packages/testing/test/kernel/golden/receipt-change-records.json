@@ -1,5 +1,5 @@
 {
-  "rec-1": [
+  "00000000-0000-7000-8000-000000000001": [
     {
       "type": "core.commandReceipt.created",
       "version": 1,
@@ -13,7 +13,7 @@
         "id": "olive",
         "via": "test.principal"
       },
-      "commandId": "rec-1",
+      "commandId": "00000000-0000-7000-8000-000000000001",
       "action": "loans.closeAll",
       "causationId": null,
       "correlationId": "the request id",
@@ -29,7 +29,7 @@
       "before": null,
       "data": {
         "values": {
-          "commandId": "rec-1",
+          "commandId": "00000000-0000-7000-8000-000000000001",
           "action": "loans.closeAll",
           "status": "accepted",
           "apiVersion": "2026-11-04",
@@ -52,7 +52,7 @@
         "id": "olive",
         "via": "test.principal"
       },
-      "commandId": "rec-1",
+      "commandId": "00000000-0000-7000-8000-000000000001",
       "action": "loans.closeAll",
       "causationId": null,
       "correlationId": "the request id",
@@ -80,7 +80,7 @@
       }
     }
   ],
-  "rec-2": [
+  "00000000-0000-7000-8000-000000000002": [
     {
       "type": "core.commandReceipt.created",
       "version": 1,
@@ -94,7 +94,7 @@
         "id": "gone",
         "via": "test.principal"
       },
-      "commandId": "rec-2",
+      "commandId": "00000000-0000-7000-8000-000000000002",
       "action": "loans.closeAll",
       "causationId": null,
       "correlationId": "the request id",
@@ -110,7 +110,7 @@
       "before": null,
       "data": {
         "values": {
-          "commandId": "rec-2",
+          "commandId": "00000000-0000-7000-8000-000000000002",
           "action": "loans.closeAll",
           "status": "accepted",
           "apiVersion": "2026-11-04",
@@ -133,10 +133,10 @@
         "id": "gone",
         "via": "test.principal"
       },
-      "commandId": "rec-2",
+      "commandId": "00000000-0000-7000-8000-000000000002",
       "action": "loans.closeAll",
       "causationId": null,
-      "correlationId": "rec-2",
+      "correlationId": "00000000-0000-7000-8000-000000000002",
       "client": null,
       "merge": null,
       "writer": {

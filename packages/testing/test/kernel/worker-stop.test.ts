@@ -21,7 +21,11 @@ async function enqueueHeld(runtime: Awaited<ReturnType<typeof startWatched>>['ru
     unit.jobs.enqueue(
       jobOf(runtime, {
         queue: 'held',
-        run: { action: 'loans.openDesk', input: { desk: 'north' }, commandId: 's-1' },
+        run: {
+          action: 'loans.openDesk',
+          input: { desk: 'north' },
+          commandId: '00000000-0000-7000-8000-000000000001',
+        },
         principal: { resolver: 'test.principal', principalId: 'bea' },
       }),
     ),
@@ -126,7 +130,7 @@ describe('stop drains the workers within its deadline', () => {
   test('a runtime without workers starts no fetcher: the job stays available', async () => {
     const { runtime } = await startWatched();
     await lendBook(runtime, 'Dune');
-    await askCloseAll(runtime, 's-3');
+    await askCloseAll(runtime, '00000000-0000-7000-8000-000000000002');
     expect(await runtime.advanceTo(runtime.clock.now().add({ hours: 1 }))).toBe(0);
     const stats = await statsOf(runtime, 'commands');
     expect([stats?.due, stats?.running]).toEqual([1, 0]);

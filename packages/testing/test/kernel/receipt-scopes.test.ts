@@ -98,12 +98,18 @@ async function started() {
 describe('reads of an invocation entity accept every session level in its own scope (S-102)', () => {
   test('an operator at deployment scope reads a deployment receipt', async () => {
     const { spy, runtime } = await started();
-    await spy.put('deployment', receiptOf('d1', 'core.operator', 'local.in-process'));
-    const id = commandReceiptUuid(spy.deployment(), 'd1');
+    await spy.put(
+      'deployment',
+      receiptOf('00000000-0000-7000-8000-000000000001', 'core.operator', 'local.in-process'),
+    );
+    const id = commandReceiptUuid(spy.deployment(), '00000000-0000-7000-8000-000000000001');
     const read = await call(runtime.invoker, local, 'core.commandReceipt.get', { ids: [id] });
     expect(read).toMatchObject({
       ok: true,
-      value: { list: [{ commandId: 'd1', status: 'accepted' }], notFound: [] },
+      value: {
+        list: [{ commandId: '00000000-0000-7000-8000-000000000001', status: 'accepted' }],
+        notFound: [],
+      },
     });
     const other = await call(runtime.invoker, local, 'core.commandReceipt.get', {
       ids: [commandReceiptUuid(spy.deployment(), 'unknown')],
@@ -113,23 +119,38 @@ describe('reads of an invocation entity accept every session level in its own sc
 
   test('a backend session reads its backend receipt', async () => {
     const { spy, runtime, backend } = await started();
-    await spy.put(`backend:${backend.id}`, receiptOf('b1', 'test.principal', 'ada'));
+    await spy.put(
+      `backend:${backend.id}`,
+      receiptOf('00000000-0000-7000-8000-000000000002', 'test.principal', 'ada'),
+    );
     const carrier = adaIn({ 'x-backend': backend.id });
-    const id = commandReceiptUuid(backend.id, 'b1');
+    const id = commandReceiptUuid(backend.id, '00000000-0000-7000-8000-000000000002');
     const read = await call(runtime.invoker, carrier, 'core.commandReceipt.get', { ids: [id] });
     expect(read).toMatchObject({
       ok: true,
-      value: { list: [{ commandId: 'b1', status: 'accepted' }], notFound: [] },
+      value: {
+        list: [{ commandId: '00000000-0000-7000-8000-000000000002', status: 'accepted' }],
+        notFound: [],
+      },
     });
   });
 
   test('reads across scopes answer core.not_found', async () => {
     const { spy, runtime, backend } = await started();
-    await spy.put('deployment', receiptOf('d1', 'test.principal', 'ada'));
-    await spy.put(`backend:${backend.id}`, receiptOf('b1', 'test.principal', 'ada'));
+    await spy.put(
+      'deployment',
+      receiptOf('00000000-0000-7000-8000-000000000001', 'test.principal', 'ada'),
+    );
+    await spy.put(
+      `backend:${backend.id}`,
+      receiptOf('00000000-0000-7000-8000-000000000002', 'test.principal', 'ada'),
+    );
     const carrier = adaIn({ 'x-backend': backend.id });
-    const deploymentId = commandReceiptUuid(spy.deployment(), 'd1');
-    const backendId = commandReceiptUuid(backend.id, 'b1');
+    const deploymentId = commandReceiptUuid(
+      spy.deployment(),
+      '00000000-0000-7000-8000-000000000001',
+    );
+    const backendId = commandReceiptUuid(backend.id, '00000000-0000-7000-8000-000000000002');
     const fromBackend = await call(runtime.invoker, carrier, 'core.commandReceipt.get', {
       ids: [deploymentId],
     });
@@ -192,28 +213,54 @@ describe('the receipt id an accepted command answers with (S-102)', () => {
 
   test('a command whose receipt is in the session scope answers with the id core.commandReceipt.get reads it by', async () => {
     const { invoke } = effectsKit(registry);
-    const outcome = await invoke('library.slow', {}, { commandId: 'a1' });
-    expect(outcome).toMatchObject({ ok: true, receipt: { commandId: 'a1', status: 'accepted' } });
-    expect(outcome.ok && outcome.receiptId).toBe(commandReceiptId(tenantScopeId, 'a1'));
+    const outcome = await invoke(
+      'library.slow',
+      {},
+      { commandId: '00000000-0000-7000-8000-000000000003' },
+    );
+    expect(outcome).toMatchObject({
+      ok: true,
+      receipt: { commandId: '00000000-0000-7000-8000-000000000003', status: 'accepted' },
+    });
+    expect(outcome.ok && outcome.receiptId).toBe(
+      commandReceiptId(tenantScopeId, '00000000-0000-7000-8000-000000000003'),
+    );
   });
 
   test('a retry answers with the same id', async () => {
     const { invoke } = effectsKit(registry);
-    await invoke('library.slow', {}, { commandId: 'a1' });
-    const again = await invoke('library.slow', {}, { commandId: 'a1' });
-    expect(again.ok && again.receiptId).toBe(commandReceiptId(tenantScopeId, 'a1'));
+    await invoke('library.slow', {}, { commandId: '00000000-0000-7000-8000-000000000003' });
+    const again = await invoke(
+      'library.slow',
+      {},
+      { commandId: '00000000-0000-7000-8000-000000000003' },
+    );
+    expect(again.ok && again.receiptId).toBe(
+      commandReceiptId(tenantScopeId, '00000000-0000-7000-8000-000000000003'),
+    );
   });
 
   test('a receipt in another scope than the session is not offered', async () => {
     const { invoke } = effectsKit(registry);
-    const outcome = await invoke('library.backendSlow', {}, { commandId: 'b1' });
-    expect(outcome).toMatchObject({ ok: true, receipt: { commandId: 'b1', status: 'accepted' } });
+    const outcome = await invoke(
+      'library.backendSlow',
+      {},
+      { commandId: '00000000-0000-7000-8000-000000000002' },
+    );
+    expect(outcome).toMatchObject({
+      ok: true,
+      receipt: { commandId: '00000000-0000-7000-8000-000000000002', status: 'accepted' },
+    });
     expect(outcome.ok && outcome.receiptId).toBeUndefined();
   });
 
   test('a command that ran at once has no receipt id', async () => {
     const { invoke } = effectsKit(registry);
-    const outcome = await invoke('library.fast', {}, { commandId: 's1' });
+    const outcome = await invoke(
+      'library.fast',
+      {},
+      { commandId: '00000000-0000-7000-8000-000000000004' },
+    );
     expect(outcome).toMatchObject({ ok: true });
     expect(outcome.ok && outcome.receiptId).toBeUndefined();
   });

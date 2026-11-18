@@ -1,3 +1,5 @@
+import { createHmac } from 'node:crypto';
+import { encodeAad, jobKeyInfo } from '@keelwerk/core';
 import { describe, expect, onTestFinished, test } from 'vitest';
 import { createKey, keyOwner } from './support/api-key-calls.ts';
 import { type BootedApiKeys, bootApiKeys, type KeysStorage } from './support/boot-api-keys.ts';
@@ -19,6 +21,15 @@ describe.each(['memory', 'pglite'] as const)('api-keys timer owners on %s', (kin
       unit.jobs.cancel('timers', key),
     );
 
+  /**
+   * The key api-keys' timer is stored under: its module id, a colon and the digest of the key text
+   * under the scope's job key secret.
+   */
+  const storedKey = async (app: BootedApiKeys, key: string) =>
+    `api-keys:${createHmac('sha256', await app.runtime.keys.derive(app.scope, jobKeyInfo, 32))
+      .update(encodeAad(['api-keys', key]))
+      .digest('hex')}`;
+
   test('the last-use timer is stored under the module of the key, out of reach of another module', {
     timeout,
   }, async () => {
@@ -35,7 +46,7 @@ describe.each(['memory', 'pglite'] as const)('api-keys timer owners on %s', (kin
     // The same timer under its stored key, which only api-keys builds, is the one that ends.
     const again = await createKey(app, { scopes: ['read'] });
     await app.withKey(again.key, 'library.book.query', {});
-    expect(await cancelStored(app, `api-keys:api-keys.lastUse:${again.id}`)).toBe(1);
+    expect(await cancelStored(app, await storedKey(app, `api-keys.lastUse:${again.id}`))).toBe(1);
     await app.runtime.drainJobs();
     expect((await app.row(again.id))?.lastUsedAt).toBeUndefined();
   });
@@ -56,7 +67,7 @@ describe.each(['memory', 'pglite'] as const)('api-keys timer owners on %s', (kin
     expect((await app.row(id))?.apiVersion).toBe('2026-11-11');
     const again = await createKey(app, { scopes: ['write'], apiVersion: '2026-11-04' });
     await app.withKey(again.key, 'library.book.query', {});
-    expect(await cancelStored(app, `api-keys:api-keys.repin:${again.id}`)).toBe(1);
+    expect(await cancelStored(app, await storedKey(app, `api-keys.repin:${again.id}`))).toBe(1);
     await app.runtime.drainJobs();
     expect((await app.row(again.id))?.apiVersion).toBe('2026-11-04');
   });

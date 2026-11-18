@@ -98,17 +98,30 @@ describe('command requests', () => {
       receipt: { commandId: inv.commandId ?? '', status: 'accepted' },
     }));
     const response = await call(handler, 'POST', '/api/accounts/profiles', {
-      headers: { prefer: 'respond-async, wait=10', 'idempotency-key': 'order-17' },
+      headers: {
+        prefer: 'respond-async, wait=10',
+        'idempotency-key': '00000000-0000-7000-8000-000000000501',
+      },
       body: { name: 'Ada' },
     });
     expect(response.status).toBe(202);
     const location = response.headers.get('location') ?? '';
-    expect(location).toBe(`/api/core/command-receipts/${commandReceiptId('t1', 'order-17')}`);
+    expect(location).toBe(
+      `/api/core/command-receipts/${commandReceiptId('t1', '00000000-0000-7000-8000-000000000501')}`,
+    );
     expect(location).toMatch(/^\/api\/core\/command-receipts\/rcpt_[0-9a-hjkmnpqrstv-z]{26}$/);
     expect(response.headers.get('preference-applied')).toBe('respond-async');
-    expect(response.headers.get('keelwerk-command-id')).toBe('order-17');
-    expect(await response.json()).toEqual({ commandId: 'order-17', status: 'accepted' });
-    expect(lastCall(calls)).toMatchObject({ prefer: 'async', commandId: 'order-17' });
+    expect(response.headers.get('keelwerk-command-id')).toBe(
+      '00000000-0000-7000-8000-000000000501',
+    );
+    expect(await response.json()).toEqual({
+      commandId: '00000000-0000-7000-8000-000000000501',
+      status: 'accepted',
+    });
+    expect(lastCall(calls)).toMatchObject({
+      prefer: 'async',
+      commandId: '00000000-0000-7000-8000-000000000501',
+    });
 
     const plain = await call(handler, 'POST', '/api/accounts/profiles', { body: { name: 'Ada' } });
     expect(plain.status).toBe(202);
@@ -132,7 +145,7 @@ describe('command requests', () => {
         fake.invoker,
       );
       return call(handler, 'POST', '/api/accounts/profiles', {
-        headers: { 'idempotency-key': 'order-18' },
+        headers: { 'idempotency-key': '00000000-0000-7000-8000-000000000502' },
         body: { name: 'Ada' },
         session: session(sessionScope),
       });
@@ -142,7 +155,7 @@ describe('command requests', () => {
       const response = await create('tenant', {});
       expect(response.status).toBe(202);
       expect(response.headers.get('location')).toBe(
-        `/api/core/command-receipts/${commandReceiptId('t1', 'order-18')}`,
+        `/api/core/command-receipts/${commandReceiptId('t1', '00000000-0000-7000-8000-000000000502')}`,
       );
     });
 
@@ -150,14 +163,17 @@ describe('command requests', () => {
       const response = await create('backend', {});
       expect(response.status).toBe(202);
       expect(response.headers.has('location')).toBe(false);
-      expect(await response.json()).toEqual({ commandId: 'order-18', status: 'accepted' });
+      expect(await response.json()).toEqual({
+        commandId: '00000000-0000-7000-8000-000000000502',
+        status: 'accepted',
+      });
     });
 
     test('a backend session running a backend-scope command is told where its receipt is', async () => {
       const response = await create('backend', { scope: { level: 'backend', backendId: 'b1' } });
       expect(response.status).toBe(202);
       expect(response.headers.get('location')).toBe(
-        `/api/core/command-receipts/${commandReceiptId('b1', 'order-18')}`,
+        `/api/core/command-receipts/${commandReceiptId('b1', '00000000-0000-7000-8000-000000000502')}`,
       );
     });
 
@@ -165,7 +181,7 @@ describe('command requests', () => {
       const response = await create('deployment', { scope: { level: 'deployment' } });
       expect(response.status).toBe(202);
       expect(response.headers.get('location')).toBe(
-        `/api/core/command-receipts/${commandReceiptId('0198a1e0-0000-7000-8000-00000000d001', 'order-18')}`,
+        `/api/core/command-receipts/${commandReceiptId('0198a1e0-0000-7000-8000-00000000d001', '00000000-0000-7000-8000-000000000502')}`,
       );
     });
   });
@@ -173,17 +189,33 @@ describe('command requests', () => {
   test('Idempotency-Key is the command id, a replay says so', async () => {
     const { handler, calls } = await mountedRest(() => ({ ok: true, value: row, replayed: true }));
     const response = await call(handler, 'POST', '/api/accounts/profiles', {
-      headers: { 'idempotency-key': 'k-1' },
+      headers: { 'idempotency-key': '00000000-0000-7000-8000-000000000503' },
       body: { name: 'Ada' },
     });
     expect(response.headers.get('idempotent-replayed')).toBe('true');
-    expect(response.headers.get('keelwerk-command-id')).toBe('k-1');
-    expect(lastCall(calls).commandId).toBe('k-1');
+    expect(response.headers.get('keelwerk-command-id')).toBe(
+      '00000000-0000-7000-8000-000000000503',
+    );
+    expect(lastCall(calls).commandId).toBe('00000000-0000-7000-8000-000000000503');
     const invalid = await call(handler, 'POST', '/api/accounts/profiles', {
       headers: { 'idempotency-key': 'has space' },
       body: { name: 'Ada' },
     });
     expect(invalid.status).toBe(400);
+    const address = await call(handler, 'POST', '/api/accounts/profiles', {
+      headers: { 'idempotency-key': 'order-jan@example.com' },
+      body: { name: 'Ada' },
+    });
+    expect(address.status).toBe(400);
+    expect(await address.json()).toMatchObject({ code: 'core.malformed_request' });
+    const versionOne = await call(handler, 'POST', '/api/accounts/profiles', {
+      headers: { 'idempotency-key': '6ba7b810-9dad-11d1-80b4-00c04fd430c8' },
+      body: { name: 'Ada' },
+    });
+    expect(versionOne.status).toBe(400);
+    expect(JSON.stringify(await versionOne.json())).toContain(
+      'Expected a UUID of version 4 or 7, or a ULID.',
+    );
     const query = await call(handler, 'GET', '/api/app/health');
     expect(query.headers.has('keelwerk-command-id')).toBe(false);
     expect(lastCall(calls).commandId).toBeUndefined();

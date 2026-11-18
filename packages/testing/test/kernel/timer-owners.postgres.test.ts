@@ -2,6 +2,7 @@ import { postgresAdapter } from '@keelwerk/adapter-postgres';
 import { splitTimerKey } from '@keelwerk/core';
 import { afterAll, describe, expect, test } from 'vitest';
 import { createTestDatabase } from '../support/create-test-database.ts';
+import { tickerKeyDigest } from './support/ticker-key-digest.ts';
 import type { TickerKit } from './support/ticker-kit.ts';
 import { bootTicker, seededAt } from './support/ticker-kit.ts';
 
@@ -38,9 +39,11 @@ describe('timer owners on PostgreSQL', () => {
           principalId: job.principal.principalId,
         }),
       );
+    // The stored key is the module and the digest of the key under that module, never the text.
     expect(keys).toEqual([
-      { module: 'ticker', key: 'pulse' },
-      { module: 'echo', key: 'pulse' },
+      { module: 'ticker', key: await tickerKeyDigest(kit, 'ticker', 'pulse') },
+      { module: 'echo', key: await tickerKeyDigest(kit, 'echo', 'pulse') },
     ]);
+    expect(JSON.stringify(keys)).not.toContain('pulse');
   });
 });

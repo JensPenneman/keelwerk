@@ -58,7 +58,7 @@ describe.each(['memory', 'pglite'] as const)(
       expect(row?.subject).toBeInstanceOf(Uint8Array);
       const created = result.events.find((event) => event.type === 'courier.message.created');
       const values = (created?.data ?? {}) as { values?: { subject?: unknown } };
-      expect(values.values?.subject).toMatchObject({ $kwe: 1, k: key?.id });
+      expect(values.values?.subject).toMatchObject({ $kwe: 2, k: key?.id });
       expect(dump(result)).not.toContain(subjectLine);
       await booted.runtime.stop();
     });

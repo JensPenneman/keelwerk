@@ -1,6 +1,7 @@
 import { postgresAdapter } from '@keelwerk/adapter-postgres';
 import { afterAll, describe, expect, test } from 'vitest';
 import { createTestDatabase } from '../support/create-test-database.ts';
+import { tickerKeyDigest } from './support/ticker-key-digest.ts';
 import type { TickerKit } from './support/ticker-kit.ts';
 import { bootTicker, seededAt } from './support/ticker-kit.ts';
 
@@ -28,7 +29,12 @@ describe('enqueue key owners on PostgreSQL', () => {
       .map((entry) => entry.job)
       .filter((job) => job.queue === 'commands' && job.key !== undefined)
       .map((job) => job.key?.value);
-    expect(keys).toEqual(['ticker:later', 'echo:later']);
+    // The stored key is the module and the digest of the key under that module, never the text.
+    expect(keys).toEqual([
+      `ticker:${await tickerKeyDigest(kit, 'ticker', 'later')}`,
+      `echo:${await tickerKeyDigest(kit, 'echo', 'later')}`,
+    ]);
+    expect(JSON.stringify(keys)).not.toContain('later');
     await kit.advanceTo(runAt);
     const tickerRuns = (await kit.rows('backend', 'ticker.beat'))
       .filter((row) => row.source === 'later')

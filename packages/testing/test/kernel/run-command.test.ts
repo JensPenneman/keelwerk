@@ -7,19 +7,27 @@ describe('create', () => {
   test('addBook stores the row, the created event and a completed receipt', async () => {
     const { adapter, invoker } = commandKit();
     const outcome = await invoker.invoke(
-      call('library.addBook', { title: 'Dune', isbn: 'isbn-1' }, { carrier: ada, commandId: 'c1' }),
+      call(
+        'library.addBook',
+        { title: 'Dune', isbn: 'isbn-1' },
+        { carrier: ada, commandId: '00000000-0000-7000-8000-000000000001' },
+      ),
     );
     expect(outcome.ok).toBe(true);
     const [row] = (await snapshot(adapter)).books;
     expect(row).toMatchObject({ title: 'Dune', isbn: 'isbn-1', addedBy: 'ada', version: 1 });
-    const { events, receipt } = await snapshot(adapter, String(row?.id), 'c1');
+    const { events, receipt } = await snapshot(
+      adapter,
+      String(row?.id),
+      '00000000-0000-7000-8000-000000000001',
+    );
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
       type: 'library.book.created',
       version: 1,
       data: { values: { title: 'Dune', isbn: 'isbn-1', addedBy: 'ada' } },
       before: null,
-      commandId: 'c1',
+      commandId: '00000000-0000-7000-8000-000000000001',
       action: 'library.addBook',
       transient: false,
       actor: { kind: 'user', id: 'ada' },
@@ -34,12 +42,26 @@ describe('create', () => {
   test('a rejected decision stores no book and records a failed receipt', async () => {
     const { adapter, invoker } = commandKit();
     const input = { title: 'Dune', isbn: 'isbn-1' };
-    await invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'c1' }));
+    await invoker.invoke(
+      call('library.addBook', input, {
+        carrier: ada,
+        commandId: '00000000-0000-7000-8000-000000000001',
+      }),
+    );
     const second = failure(
-      await invoker.invoke(call('library.addBook', input, { carrier: ada, commandId: 'c2' })),
+      await invoker.invoke(
+        call('library.addBook', input, {
+          carrier: ada,
+          commandId: '00000000-0000-7000-8000-000000000002',
+        }),
+      ),
     );
     expect(second.code).toBe('library.isbn_taken');
-    const { books, receipt } = await snapshot(adapter, undefined, 'c2');
+    const { books, receipt } = await snapshot(
+      adapter,
+      undefined,
+      '00000000-0000-7000-8000-000000000002',
+    );
     expect(books).toHaveLength(1);
     expect(receipt).toMatchObject({ status: 'failed' });
   });
@@ -54,9 +76,18 @@ describe('update with a version', () => {
 
   test('reserve changes the contributed field, bumps the version and keeps the before-image', async () => {
     const { adapter, invoker, id } = await seeded();
-    const result = await invokeAsAda(invoker, 'library.book.reserve', { id, ifVersion: 1 }, 'r1');
+    const result = await invokeAsAda(
+      invoker,
+      'library.book.reserve',
+      { id, ifVersion: 1 },
+      '00000000-0000-7000-8000-000000000003',
+    );
     expect(result.output).toMatchObject({ id, reservedBy: 'ada', version: 2 });
-    const { books, events, receipt } = await snapshot(adapter, id, 'r1');
+    const { books, events, receipt } = await snapshot(
+      adapter,
+      id,
+      '00000000-0000-7000-8000-000000000003',
+    );
     expect(books[0]).toMatchObject({ reservedBy: 'ada', version: 2, title: 'Book 1' });
     expect(events).toHaveLength(2);
     expect(events[1]).toMatchObject({
@@ -98,11 +129,19 @@ describe('conflicts and retries', () => {
     const { adapter, units } = flaky(commandKit().adapter, 1);
     const { invoker } = commandKit({ adapter });
     const outcome = await invoker.invoke(
-      call('library.addBook', { title: 'Dune', isbn: 'isbn-1' }, { carrier: ada, commandId: 'c1' }),
+      call(
+        'library.addBook',
+        { title: 'Dune', isbn: 'isbn-1' },
+        { carrier: ada, commandId: '00000000-0000-7000-8000-000000000001' },
+      ),
     );
     expect(outcome.ok).toBe(true);
     expect(units()).toBe(2);
-    const { books, receipt } = await snapshot(adapter, undefined, 'c1');
+    const { books, receipt } = await snapshot(
+      adapter,
+      undefined,
+      '00000000-0000-7000-8000-000000000001',
+    );
     expect(books).toHaveLength(1);
     expect(receipt?.status).toBe('completed');
   });

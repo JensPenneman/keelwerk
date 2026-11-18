@@ -110,7 +110,7 @@ for (const adapter of ['memory', 'pglite'] as const) {
       const pageId = (written as { value: { pageId: string } }).value.pageId;
       const raw = await readLines(journal.runtime, journal.tenant, pageId, false);
       const first = raw[0]?.data as { text: unknown; n: number };
-      expect(first.text).toMatchObject({ $kwe: 1 });
+      expect(first.text).toMatchObject({ $kwe: 2 });
       expect(first.n).toBe(1);
       expect(
         JSON.stringify(raw, (_key, value) => (typeof value === 'bigint' ? String(value) : value)),

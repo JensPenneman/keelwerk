@@ -1,7 +1,14 @@
 import type { CommandResult, Principal } from '@keelwerk/core';
-import { normalizeRule, runCommand } from '@keelwerk/core';
+import { deriveHkdf, normalizeRule, runCommand } from '@keelwerk/core';
 import type { BenchWorld } from './bench-world.ts';
 import { nextCommandId } from './next-command-id.ts';
+
+/**
+ * The one key the spike's commands derive their secrets from; a write derives them before its unit
+ * opens.
+ */
+const derivedKey = (scope: unknown, info: string, length: number) =>
+  Promise.resolve(deriveHkdf(new Uint8Array(32).fill(7), JSON.stringify(scope), info, length));
 
 const silent = {
   debug: () => undefined,
@@ -43,7 +50,7 @@ export function runBenchCommand(
     principal,
     request: { transport: 'test', requestId: 'req-1' },
     clock: { now: () => Temporal.Now.instant() },
-    keys: {} as never,
+    keys: { derive: derivedKey } as never,
     compute: {} as never,
     log: silent,
     trace: {} as never,

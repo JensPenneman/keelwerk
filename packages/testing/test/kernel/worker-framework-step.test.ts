@@ -25,7 +25,7 @@ describe('a namespace whose framework track misses step 0002 gives no jobs to a 
       },
     });
     await lendBook(runtime, 'Dune');
-    await askCloseAll(runtime, 'f-1');
+    await askCloseAll(runtime, '00000000-0000-7000-8000-000000000001');
     expect(await runtime.drainJobs()).toBe(0);
     expect(await runtime.drainJobs()).toBe(0);
     expect((await statsOf(runtime, 'commands'))?.due).toBe(1);

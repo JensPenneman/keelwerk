@@ -6,6 +6,8 @@ import { commandActionOf } from './command-action-of.ts';
 import { enqueueDeadlineTimer } from './deadline-timer.ts';
 import type { EffectScene } from './effect-scene.ts';
 import { enqueueEffectJob } from './enqueue-effect-job.ts';
+import { jobKeyDigest } from './job-key-digest.ts';
+import { jobKeySecretOf } from './job-key-secret-of.ts';
 import { requestedEffectDraft } from './requested-effect-draft.ts';
 import { sealEffectInput } from './seal-effect-input.ts';
 import { sensitiveWithMember } from './sensitive-with-member.ts';
@@ -16,7 +18,9 @@ import { writeEffectRecord } from './write-effect-record.ts';
  * Records an external effect a decision requested (section 7.9.6): the `requested` row of the
  * stream `core.effect/<id>` in this unit, with the input as declared (validated, secrets sealed
  * as references, personal values sealed under their data subject's key), the command and events
- * it accompanies, its continuation, key and deadline; and, for an effect with an executor, the
+ * it accompanies, its continuation, key and deadline; the key a module chose is stored as its
+ * digest under the scope's job key secret, bound to the module (`jobKeyDigest`), never as the text,
+ * in the row and in the requested event; and, for an effect with an executor, the
  * effect job a worker takes after commit. An effect with an outside performer has the record
  * and, when it has a deadline, the deadline timer (`enqueueDeadlineTimer`); the performer finds it
  * through the live subscription. An outside performer's effect with `runAt` is a validation error
@@ -73,6 +77,10 @@ export async function recordExternalEffect(
         ) as Readonly<Record<string, unknown>>,
       };
     }
+  }
+  if (requested.key !== undefined) {
+    const secret = await jobKeySecretOf(scene.run);
+    requested = { ...requested, key: jobKeyDigest(secret, scene.module, requested.key) };
   }
   await writeEffectRecord(scene, requestedEffectDraft(scene, requested, entry, id, input));
   if (entry.performer === 'external') {

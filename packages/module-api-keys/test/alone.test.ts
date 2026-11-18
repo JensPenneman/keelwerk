@@ -186,11 +186,11 @@ describe.each(['memory', 'pglite'] as const)('api-keys alone on %s', (kind: Keys
     const { key } = await createKey(app, { scopes: ['write'] });
     const accepted = await app.withKey(key, 'loans.lend', lend, {
       prefer: 'async',
-      commandId: 'lend-3',
+      commandId: '00000000-0000-7000-8000-000000000203',
     });
     expect(accepted.ok).toBe(true);
     await app.runtime.drainJobs();
-    expect((await app.receipt('lend-3'))?.status).toBe('completed');
+    expect((await app.receipt('00000000-0000-7000-8000-000000000203'))?.status).toBe('completed');
   });
 
   test('a revoked or expired key ends an open session at its next revalidation', {

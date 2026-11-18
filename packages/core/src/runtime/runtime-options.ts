@@ -25,6 +25,15 @@ export interface RuntimeOptions {
   readonly env?: Readonly<Record<string, string | undefined>>;
   /** Tests: a fixed or stepped clock. */
   readonly clock?: { now(): Temporal.Instant };
+  /**
+   * Internal, for the test harness only, and it may go: the life of an unwrapped scope key in
+   * milliseconds (default 60 seconds; a run with a `clock` measures it on that clock). 0 keeps no
+   * key, so every derivation reads the control store, also one made inside an open unit. An
+   * application never sets it.
+   *
+   * @internal
+   */
+  readonly keyCache?: { readonly ttlMs?: number };
   /** The waits of live carriers and of the usage flusher (heartbeat, maximum duration, the minute between flushes); default: timers on the runtime's clock (change note, WP-94). */
   readonly timers?: LiveTimers;
   /** What a process with the `work` role works: slots, capabilities and the drain (section 21.1). */

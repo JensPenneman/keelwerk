@@ -7,7 +7,9 @@ import { holdsPersonal } from './holds-personal.ts';
  * `serialPartition` (14.7.5, 15.1.4): the values of a serial's `per` field are kept in plain text,
  * in `kw_serials.partition` and in the mark name of `kw_scope_marks`, where no erasure reaches. So
  * `per` must name a field of the entity that holds no personal value, is not sealed and is not the
- * entity's data subject; a `per` that names no field is refused too.
+ * entity's data subject; a `per` that names no field is refused too. A plain field's value is not
+ * checked for opaqueness; the other rule on ids a module chooses is `checkModuleRowId`
+ * (`ids/check-module-row-id.ts`), and an author reads the two together.
  */
 export function checkSerialPartitions(
   entities: ReadonlyMap<string, EntityEntry>,

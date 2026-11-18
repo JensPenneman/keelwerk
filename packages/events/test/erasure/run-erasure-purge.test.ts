@@ -16,7 +16,7 @@ describe('step 5a purges what belongs to the subject and nothing of another subj
       ((await p.invokeAs.invoke('probe.enrol', { name, email })) as { personId: string }).personId,
     );
 
-  test("the receipt of another subject's own command survives, and the same command id answers the first run", {
+  test("the receipt of another subject's own command survives with its fingerprint erased, and the same command id answers a mismatch", {
     timeout: 60_000,
   }, async () => {
     probe = await bootProbe();
@@ -35,11 +35,14 @@ describe('step 5a purges what belongs to the subject and nothing of another subj
     });
     await probe.eraseAsOperator(adaId);
     await finish(probe);
-    expect((await receiptOf(probe, openId))?.status).toBe('completed');
-    const again = (await probe.invokeAs.invoke('probe.open', input, {
-      commandId: openId,
-    })) as { threadId: string };
-    expect(again.threadId).toBe(opened.threadId);
+    // The command wrote in a stream the erasure visited, so its receipt stays, completed, with the
+    // fingerprint scrubbed (WP-130, D5): a retry never runs twice and never replays.
+    const receipt = await receiptOf(probe, openId);
+    expect(receipt?.status).toBe('completed');
+    expect(receipt?.fingerprint).toBe('erased');
+    await expect(
+      probe.invokeAs.invoke('probe.open', input, { commandId: openId }),
+    ).rejects.toMatchObject({ code: 'core.idempotency_mismatch' });
     expect((await probe.rowsOf('probe.thread')).length).toBe(1);
   });
 

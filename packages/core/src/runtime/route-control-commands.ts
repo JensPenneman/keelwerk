@@ -1,5 +1,5 @@
 import { isControlCommand } from '../core-module/is-control-command.ts';
-import { refuseReservedCommandId } from '../ids/refuse-reserved-command-id.ts';
+import { checkCallerCommandId } from '../ids/check-caller-command-id.ts';
 import type { CommandResult, CommandRunner } from '../invoker/command-runner.ts';
 import type { ControlPath } from './control-path.ts';
 import type { FlagTargetingCheck } from './flag-targeting-check.ts';
@@ -22,7 +22,7 @@ export function routeControlCommands(runner: CommandRunner, path: ControlPath): 
       return runner(run);
     }
     if (!isControlCommand(run.action.ref)) return runner(run);
-    refuseReservedCommandId(run.invocation.commandId);
+    checkCallerCommandId(run.invocation.commandId);
     const who = {
       principal: run.session.principal,
       request: run.request,

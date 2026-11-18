@@ -42,6 +42,7 @@ const input = (data: Record<string, unknown>, over: { subject?: string } = {}) =
 });
 
 describe('sealing the personal members of a process event', () => {
+  // WP-130: $kwe 2 pads the plaintext (S8); the envelope and every hash over it were regenerated.
   test('golden: a personal member is the same envelope under a fixed key and nonce', async () => {
     refs.length = 0;
     const sealed = await sealProcessEvent(context, input({ note: 'ada@example.com', n: 1 }));
@@ -49,10 +50,10 @@ describe('sealing the personal members of a process event', () => {
     // changes this envelope, and every stored process event would read as absent.
     expect(sealed).toEqual({
       note: {
-        $kwe: 1,
+        $kwe: 2,
         k: 'dk-1',
         n: 'AQEBAQEBAQEBAQEB',
-        c: 'VIDt1tDalG-8pLBEXlQfXIoyZSlDgBthP3DdZj9hmRIY',
+        c: 'VIDt1tDalG-8pLBEXlQfXIp7FPQYlzsTWDFDYma0Nrs-inXgRpPVmkXne1aY3sT2',
       },
       n: 1,
     });
@@ -62,7 +63,7 @@ describe('sealing the personal members of a process event', () => {
   test('a personal list is sealed whole, an absent member is not, and a plain event is unchanged', async () => {
     refs.length = 0;
     const sealed = await sealProcessEvent(context, input({ tags: ['a', 'b'], n: 2 }));
-    expect(sealed.tags).toMatchObject({ $kwe: 1, k: 'dk-1' });
+    expect(sealed.tags).toMatchObject({ $kwe: 2, k: 'dk-1' });
     expect(sealed.note).toBeUndefined();
     refs.length = 0;
     expect(await sealProcessEvent(context, input({ n: 3 }))).toEqual({ n: 3 });

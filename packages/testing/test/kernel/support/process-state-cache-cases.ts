@@ -1,5 +1,5 @@
 import type { Scope, StoredEvent, Unit } from '@keelwerk/core';
-import { foldProcessState, processStreamRef } from '@keelwerk/core';
+import { foldProcessState } from '@keelwerk/core';
 import { memoryAdapter } from '@keelwerk/data';
 import type { PgliteAdapter } from '@keelwerk/data/pglite';
 import pg from 'pg';
@@ -11,6 +11,7 @@ import type { TestRuntimeOptions } from '../../../src/harness/test-runtime-optio
 import { appendTurnEvents } from './append-turn-events.ts';
 import { loopRelayApp } from './loop-module.ts';
 import { oldestPending, orderedPendingOf } from './ordered-pending-process.ts';
+import { processInstanceStream } from './process-instance-stream.ts';
 import { countingReads } from './process-state-cache-reads.ts';
 import type { ReactionsKit } from './reactions-kit.ts';
 import { bootReactions, relayOwner } from './reactions-kit.ts';
@@ -149,8 +150,8 @@ export function processStateCacheCases(target: Target): void {
           embedded.asOwner(async (database) => (await database.query(sql)).rows as never);
       }
       scope = kit.scopeOf('acme');
-      cycleStream = processStreamRef(scope, 'loop.cycle', 'process');
-      tallyStream = processStreamRef(scope, 'relay.tally', relayOwner);
+      cycleStream = await processInstanceStream(kit.runtime.keys, scope, 'loop.cycle', 'process');
+      tallyStream = await processInstanceStream(kit.runtime.keys, scope, 'relay.tally', relayOwner);
     }, 120_000);
     afterAll(async () => {
       await kit.stop();
@@ -232,7 +233,12 @@ export function processStateCacheCases(target: Target): void {
     test('a plain state whose members are not in sorted order is cached as text and decides what a fold without a cache decides', async () => {
       // The oldest entry is the first key. A jsonb column would sort the keys, shorter names first:
       // ord-9 before ord-10, so a cache kept as a value would ship another entry than the stream's fold.
-      const stream = processStreamRef(scope, 'loop.cycle', 'insertion-order');
+      const stream = await processInstanceStream(
+        kit.runtime.keys,
+        scope,
+        'loop.cycle',
+        'insertion-order',
+      );
       await appendTurns(40, stream);
       const ordered = orderedPendingOf(reactionOf('loop.cycle'));
       const writable = <T>(fn: (unit: Unit) => Promise<T>): Promise<T> =>
@@ -262,7 +268,7 @@ export function processStateCacheCases(target: Target): void {
       expect(JSON.stringify(cached.state)).toBe(JSON.stringify(without.state));
     });
 
-    test('a tally instance past 32 events is cached sealed: the record holds "$kwe":1 and no note text', {
+    test('a tally instance past 32 events is cached sealed: the record holds "$kwe":2 and no note text', {
       timeout: 180_000,
     }, async () => {
       for (let n = 0; n < 34; n += 1) {
@@ -286,9 +292,9 @@ export function processStateCacheCases(target: Target): void {
       expect(record).toMatchObject({ v: 1 });
       expect(record?.version).toBeGreaterThanOrEqual(32);
       expect(record).not.toHaveProperty('text');
-      expect(record?.sealed).toMatchObject({ $kwe: 1 });
+      expect(record?.sealed).toMatchObject({ $kwe: 2 });
       const text = JSON.stringify(rows);
-      expect(text).toContain('"$kwe":1');
+      expect(text).toContain('"$kwe":2');
       expect(text).not.toContain('private-note');
       // The stream's own events hold no note text in the clear either.
       const events = await inUnit((unit) => unit.events.readStream(tallyStream), true);

@@ -15,7 +15,12 @@ const subjectTally = reactionOf(reactionRegistry(), 'tally');
 // The same process without a data subject: its state is kept plain.
 const { dataSubject: _subject, ...plainParts } = subjectTally as unknown as Record<string, unknown>;
 const plainTally = plainParts as unknown as ReactionEntry;
-const stream = processStreamRef(reactionTenantScope, 'logs.tally', 'note-1');
+const stream = processStreamRef(
+  reactionTenantScope,
+  'logs.tally',
+  'note-1',
+  new Uint8Array(32).fill(7),
+);
 const build = 'build-1';
 const subject = '0197a1c2-7b3e-7c11-9a55-3f2e8d6b4a12';
 const dataKey = { id: 'dk-1', material: new Uint8Array(32).fill(7) };

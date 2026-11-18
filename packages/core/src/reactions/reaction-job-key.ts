@@ -4,8 +4,8 @@ import type { ReactionEntry } from '../registry/reaction-entry.ts';
 import { reactionKeyValue } from './reaction-key-value.ts';
 
 /**
- * The key of a reaction's job (7.7; the format `<reaction id>:<sha256 of the part>` is stored and
- * final, see `reactionKeyValue`): an ordered reaction (`fifo-per-key`), a coalescing one or a
+ * The key of a reaction's job (7.7; the format `<reaction id>:<keyed digest of the part>` is stored
+ * and final, see `reactionKeyValue`): an ordered reaction (`fifo-per-key`), a coalescing one or a
  * process groups by the key its `key(event)` declared, else by the event's stream, and any other
  * reaction by the event itself, so every event is its own job. A coalescing reaction replaces the
  * pending job of its key, and the later event wins (the store's own `coalesce` would keep the older
@@ -17,6 +17,7 @@ export function reactionJobKey(
   reaction: ReactionEntry,
   event: StoredEvent,
   declared: string | undefined,
+  secret: Uint8Array,
 ): NonNullable<JobSpec['key']> {
   const ordered = reaction.ordering === 'fifo-per-key' || reaction.coalesce;
   const part = ordered ? (declared ?? event.stream.id) : event.eventId;
@@ -25,5 +26,5 @@ export function reactionJobKey(
     : reaction.ordering === 'fifo-per-key'
       ? 'append'
       : 'keep';
-  return { value: reactionKeyValue(reaction, part), onConflict };
+  return { value: reactionKeyValue(reaction, part, secret), onConflict };
 }

@@ -1,4 +1,5 @@
 import { keyIdBytes } from './key-id-bytes.ts';
+import { padIso7816 } from './pad-iso7816.ts';
 import type { RandomSource } from './random-source.ts';
 import { sealAesGcm } from './seal-aes-gcm.ts';
 import type { SealedColumnBinding } from './sealed-column-aad.ts';
@@ -17,9 +18,7 @@ export function sealColumn(
   random: RandomSource,
 ): Uint8Array {
   const id = keyIdBytes(key.id);
-  const padded = new Uint8Array((Math.floor(plain.length / 16) + 1) * 16);
-  padded.set(plain);
-  padded[plain.length] = 0x80;
+  const padded = padIso7816(plain, 16);
   const sealed = sealAesGcm(key.material, padded, sealedColumnAad(binding, id), random);
   const out = new Uint8Array(1 + 16 + 12 + sealed.ciphertext.length);
   out[0] = sealedColumnFormat;

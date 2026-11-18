@@ -18,11 +18,15 @@ describe.each(adapters)('enqueue key owners on %s', (adapter) => {
   const tickerRuns = async (kit: TickerKit) =>
     (await kit.rows('backend', 'ticker.beat')).filter((r) => r.source === 'later').map((r) => r.at);
   const echoRuns = async (kit: TickerKit) => (await kit.rows('acme', 'echo.tick')).map((r) => r.at);
+  /**
+   * The stored keys, each as its module id and the 64 hexadecimal characters of the digest the
+   * module's key text got.
+   */
   const keysOf = (kit: TickerKit) =>
     kit.spy.enqueued
       .map((entry) => entry.job)
       .filter((job) => job.queue === 'commands' && job.key !== undefined)
-      .map((job) => job.key?.value);
+      .map((job) => /^([a-z]+):([0-9a-f]{64})$/.exec(job.key?.value ?? '')?.slice(1));
 
   test('two modules enqueue under one key in one scope: both jobs are stored apart and both run', {
     timeout: 30_000,
@@ -34,7 +38,12 @@ describe.each(adapters)('enqueue key owners on %s', (adapter) => {
     expect(
       (await kit.call('acme', 'echo.enqueueLater', { at: 'e', runAt: runAt.toString() })).ok,
     ).toBe(true);
-    expect(keysOf(kit)).toEqual(['ticker:later', 'echo:later']);
+    const [ticker, echo] = keysOf(kit);
+    expect(ticker?.[0]).toBe('ticker');
+    expect(echo?.[0]).toBe('echo');
+    expect(ticker?.[1]).toBeDefined();
+    // The digest binds its module: one key text of two modules gives two digests.
+    expect(ticker?.[1]).not.toBe(echo?.[1]);
     await kit.advanceTo(runAt);
     expect(await tickerRuns(kit)).toEqual(['t']);
     expect(await echoRuns(kit)).toEqual(['e']);
@@ -46,7 +55,7 @@ describe.each(adapters)('enqueue key owners on %s', (adapter) => {
     expect(
       (await reverse.call('acme', 'ticker.escalateLater', { at: 't', runAt: runAt.toString() })).ok,
     ).toBe(true);
-    expect(keysOf(reverse)).toEqual(['echo:later', 'ticker:later']);
+    expect(keysOf(reverse).map((key) => key?.[0])).toEqual(['echo', 'ticker']);
     await reverse.advanceTo(runAt);
     expect(await tickerRuns(reverse)).toEqual(['t']);
     expect(await echoRuns(reverse)).toEqual(['e']);

@@ -148,7 +148,9 @@ describe.each(kinds)('explain on %s', { timeout: 60_000 }, (kind) => {
   test('the dry run sees the decision refuse what the real run would refuse', async () => {
     const { explain, invoke, asAda } = await setup(kind);
     const input = { title: 'Dune', isbn: 'i-1' };
-    expect(await invoke('library.addBook', input, asAda, 'c1')).toMatchObject({ ok: true });
+    expect(
+      await invoke('library.addBook', input, asAda, '00000000-0000-7000-8000-000000000002'),
+    ).toMatchObject({ ok: true });
     const answer = await explain({
       mode: 'dry-run',
       ref: 'library.addBook',
@@ -183,16 +185,21 @@ describe.each(kinds)('explain on %s', { timeout: 60_000 }, (kind) => {
   test('a trace prints the command, its events and its decision, by command, event or stream id', async () => {
     const { explain, invoke, asAda } = await setup(kind);
     expect(
-      await invoke('library.addBook', { title: 'Dune', isbn: 'i-1' }, asAda, 'cmd-1'),
+      await invoke(
+        'library.addBook',
+        { title: 'Dune', isbn: 'i-1' },
+        asAda,
+        '00000000-0000-7000-8000-000000000001',
+      ),
     ).toMatchObject({ ok: true });
-    const byCommand = await explain({ mode: 'trace', id: 'cmd-1' });
+    const byCommand = await explain({ mode: 'trace', id: '00000000-0000-7000-8000-000000000001' });
     expect(byCommand).toMatchObject({
       ok: true,
       value: {
         mode: 'trace',
-        requested: { kind: 'command', id: 'cmd-1' },
+        requested: { kind: 'command', id: '00000000-0000-7000-8000-000000000001' },
         command: {
-          commandId: 'cmd-1',
+          commandId: '00000000-0000-7000-8000-000000000001',
           action: 'library.addBook',
           actor: { kind: 'user', id: 'ada' },
           decision: { part: 'library.addBook', effects: [] },
@@ -205,7 +212,7 @@ describe.each(kinds)('explain on %s', { timeout: 60_000 }, (kind) => {
     expect(event).toMatchObject({ type: 'library.book.created', version: 1 });
     const byEvent = await explain({ mode: 'trace', id: event?.eventId });
     expect(byEvent.value.requested.kind).toBe('event');
-    expect(byEvent.value.command.commandId).toBe('cmd-1');
+    expect(byEvent.value.command.commandId).toBe('00000000-0000-7000-8000-000000000001');
     expect(await explain({ mode: 'trace', id: 'nobody' })).toMatchObject({
       ok: false,
       error: { kind: 'not_found' },

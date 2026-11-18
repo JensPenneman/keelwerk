@@ -27,11 +27,12 @@ export interface SealStreamRecordsInput {
 /**
  * Seals each present, non-null top-level member of a record whose field is `.personal()`, or is a
  * list or set of personal elements, under the data key of its subject (14.7.4; the whole member is
- * sealed, under the element's subject): `{ "$kwe": 1, "k", "n", "c" }` with `namespace ‖ stream ‖
- * key ‖ member` as associated data. The subject is read from the keyed row at the field's
- * `subject` path (or its element's), else the entity's data subject, else the row itself. Records one reference per
- * subject to the keyed row's entity stream, so erasure finds it. Records without personal members
- * come back unchanged.
+ * sealed, under the element's subject): `{ "$kwe": 2, "k", "n", "c" }` (version 2 pads the
+ * plaintext and binds the version; version 1 is still read) with `namespace ‖ stream ‖ key ‖
+ * member ‖ kwe2` as associated data. The subject is read from the keyed row at the field's
+ * `subject` path (or its element's), else the entity's data subject, else the row itself. Records
+ * one reference per subject to the keyed row's entity stream, so erasure finds it. Records without
+ * personal members come back unchanged.
  */
 export async function sealStreamRecords(
   context: SealingContext,

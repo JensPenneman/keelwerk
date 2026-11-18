@@ -66,7 +66,7 @@ describe('the operator endpoint of a process that serves two apps (18.5)', () =>
         input: { app: 'aging', version: older },
         carrier: local,
         requestId: 'retire-request-1',
-        commandId: 'retire-1',
+        commandId: '00000000-0000-7000-8000-000000000001',
         signal: new AbortController().signal,
       });
     const first = await retire();
@@ -83,7 +83,7 @@ describe('the operator endpoint of a process that serves two apps (18.5)', () =>
     const repin = history.find((event) => event.action === 'core.tenant.repinApiVersion');
     expect(repin).toMatchObject({
       actor: { kind: 'operator' },
-      causationId: 'retire-1',
+      causationId: '00000000-0000-7000-8000-000000000001',
       correlationId: 'retire-request-1',
     });
     const again = await retire();
@@ -92,10 +92,12 @@ describe('the operator endpoint of a process that serves two apps (18.5)', () =>
     expect(again.replayed).toBe(true);
     const receipt = await ok(
       call(two.invoker, local, 'core.commandReceipt.get', {
-        ids: [commandReceiptUuid(spy.deployment(), 'retire-1')],
+        ids: [commandReceiptUuid(spy.deployment(), '00000000-0000-7000-8000-000000000001')],
       }),
     );
-    expect(receipt).toMatchObject({ list: [{ commandId: 'retire-1', status: 'completed' }] });
+    expect(receipt).toMatchObject({
+      list: [{ commandId: '00000000-0000-7000-8000-000000000001', status: 'completed' }],
+    });
     expect(JSON.stringify(receipt)).toContain('"tenants":1');
   });
 
@@ -122,7 +124,7 @@ describe('the operator endpoint of a process that serves two apps (18.5)', () =>
           input: { app, version: older },
           carrier: local,
           requestId: crypto.randomUUID(),
-          commandId: 'retire-same-id',
+          commandId: '00000000-0000-7000-8000-000000000002',
           signal: new AbortController().signal,
         });
       const pins = async () => {

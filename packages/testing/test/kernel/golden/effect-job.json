@@ -11,7 +11,7 @@
     "principalId": "library.system"
   },
   "causation": {
-    "commandId": "c1",
+    "commandId": "00000000-0000-7000-8000-000000000001",
     "actor": {
       "kind": "user",
       "id": "ada",
@@ -26,11 +26,11 @@
   "queue": "mail",
   "run": {
     "executor": "library.notify",
-    "effect": "a0ce80a8-a21c-8721-9c60-4e526c7b19f1"
+    "effect": "589c0364-d9e7-8149-bb98-867b7989114e"
   },
   "capability": ["smtp-out"],
   "key": {
-    "value": "a0ce80a8-a21c-8721-9c60-4e526c7b19f1",
+    "value": "589c0364-d9e7-8149-bb98-867b7989114e",
     "onConflict": "keep"
   },
   "retry": {
