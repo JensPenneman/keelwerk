@@ -21,10 +21,12 @@ const credentialDef = defineEntity({
     },
   ],
   events: {
+    loggedIn: shape({ at: field.instant() }),
     revoked: shape({ at: field.instant(), reason: field.string().optional() }),
     signedUp: shape({ displayName: field.string({ maxLength: 120 }).optional() }),
   },
   evolve: {
+    loggedIn: (state, event) => ({ ...state, lastUsedAt: event.at }),
     revoked: (state, event) => ({ ...state, revokedAt: event.at }),
     signedUp: (state) => state,
   },

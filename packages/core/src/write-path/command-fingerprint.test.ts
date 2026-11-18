@@ -73,6 +73,16 @@ describe('the input fingerprint of a command with secret members (S-111)', () =>
     expect(await sealed('2026-01-01', job)).toBe(await sealed('2027-06-01', job));
     expect(await sealed('2026-01-01')).not.toBe(await sealed('2027-06-01'));
   });
+
+  test('a hook job has no version in it either, and fingerprints as the reaction form does', async () => {
+    const plain = { name: 'acme' };
+    const at = (apiVersion: string, job: object) =>
+      commandFingerprint(source({ input: plain, apiVersion, job }), null);
+    const hook = { hook: true };
+    expect(await at('2026-01-01', hook)).toBe(await at('2027-06-01', hook));
+    expect(await at('2026-01-01', hook)).toBe(await at('2026-01-01', { reaction: true }));
+    expect(await at('2026-01-01', hook)).toBe(inputFingerprint('core.backend.create', '', plain));
+  });
 });
 
 const personalAction = {

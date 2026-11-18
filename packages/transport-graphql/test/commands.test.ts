@@ -245,4 +245,29 @@ describe('commands', () => {
     const body = await response.json();
     expect(body.data.loansOpenDesk.result.desk).toBe('north');
   });
+
+  test('a command that answers nothing clears the cookie its hint names for a browser request', async () => {
+    const clearing = surfaceWithAction(
+      surface,
+      {
+        output: { optional: false, access: 'read-write', kind: 'void' },
+        hints: { http: { cookie: { clear: { name: '__Host-kw-desk' } } } },
+      },
+      'loans.openDesk',
+    );
+    const { handler } = await mountedGraphql(clearing, () => ({ ok: true, value: undefined }));
+    const mutation = 'mutation { loansOpenDesk(input: { desk: "north" }) { __typename } }';
+    const browser = await sendGraphql(
+      handler,
+      { query: mutation },
+      { carrierHeaders: { 'sec-fetch-site': 'same-origin' } },
+    );
+    expect((await browser.json()).errors).toBeUndefined();
+    const cookies = browser.headers.getSetCookie();
+    expect(cookies).toHaveLength(1);
+    expect(cookies[0]).toMatch(/^__Host-kw-desk=;/);
+    expect(cookies[0]).toContain('Max-Age=0');
+    const plain = await sendGraphql(handler, { query: mutation });
+    expect(plain.headers.getSetCookie()).toEqual([]);
+  });
 });

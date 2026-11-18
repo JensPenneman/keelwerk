@@ -135,7 +135,7 @@ describe.each(['memory', 'pglite'] as const)(
       expect(done.ok).toBe(true);
       expect(
         codeOf(
-          await both.request('auth.resetPassword', { token: link, newPassword: 'x'.repeat(14) }),
+          await both.request('auth.resetPassword', { token: link, newPassword: 'x'.repeat(15) }),
         ),
       ).toBe('auth.reset_token_invalid');
     });

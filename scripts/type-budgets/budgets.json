@@ -43,9 +43,9 @@
         "reason": "api-keys with its key entity, create, revoke, revokeSubject, the key resolver, the read-only and operator rules, and the deactivation reaction under the accounts condition (2,497 B manifest and 16,776 B package measured on 2026-11-12 plus 15 %, rounded up to 256 B)"
       },
       "packages/module-auth": {
-        "manifestBytes": 11776,
-        "packageBytes": 66816,
-        "reason": "auth with accounts: contribution, conditional parts, reset flow, four more actions, and the six session-only deny rules with their three lib files (11,655 B manifest and 57,956 B package measured on 2026-11-12 plus 15 %, rounded up to 256 B)"
+        "manifestBytes": 13824,
+        "packageBytes": 79872,
+        "reason": "auth with accounts: contribution, conditional parts, reset flow, the actions that deliver a reset link, revoke the sessions of a deactivated subject page by page and extend a session as the module's service principal, the six session-only deny rules with their lib files, and the session-rate, password-length and liveness checks (11,850 B manifest and 69,391 B package measured on 2026-11-18 plus 15 %, rounded up to 256 B)"
       },
       "packages/testing/src/fixtures/modules/loans": {
         "manifestBytes": 8448,

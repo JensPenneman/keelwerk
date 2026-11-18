@@ -41,7 +41,7 @@ describe.each(['memory', 'pglite'] as const)('auth alone on %s', (kind: StorageK
   }, async () => {
     const auth = await boot();
     const answers = await Promise.all(
-      ['one password', 'two password'].map((password) =>
+      ['one password 1234', 'two password 1234'].map((password) =>
         auth.request('auth.signUp', { identifier: ada.identifier, password }),
       ),
     );

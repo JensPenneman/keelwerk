@@ -23,7 +23,7 @@ describe('concurrent sign-ups on PostgreSQL', () => {
 
   test('two sign-ups of one identifier at once: exactly one succeeds, the other is auth.identifier_taken', async () => {
     const answers = await Promise.all(
-      ['one password', 'two password'].map((password) =>
+      ['one password 1234', 'two password 1234'].map((password) =>
         auth.request('auth.signUp', { identifier: ada.identifier, password }),
       ),
     );

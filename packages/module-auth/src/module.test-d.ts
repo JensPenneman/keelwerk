@@ -3,6 +3,7 @@ import { accounts } from '@keelwerk/module-accounts';
 import type { ExpectValidApp, HasAction, HasEntity } from '@keelwerk/testing/types';
 import { describe, expectTypeOf, test } from 'vitest';
 import { revoke as credentialRevoke } from './actions/credential/revoke.ts';
+import { deliverPasswordReset } from './actions/deliver-password-reset.ts';
 import { extendSession } from './actions/extend-session.ts';
 import { issueResetLink } from './actions/issue-reset-link.ts';
 import { login } from './actions/login.ts';
@@ -10,6 +11,7 @@ import { logout } from './actions/logout.ts';
 import { reauthenticate } from './actions/reauthenticate.ts';
 import { requestPasswordReset } from './actions/request-password-reset.ts';
 import { resetPassword } from './actions/reset-password.ts';
+import { revokeSessions } from './actions/revoke-sessions.ts';
 import { revokeSubject } from './actions/revoke-subject.ts';
 import { revoke as sessionRevoke } from './actions/session/revoke.ts';
 import { signUp } from './actions/sign-up.ts';
@@ -54,6 +56,7 @@ describe('the auth manifest', () => {
   test('has the type of the same module written in one file', () => {
     const written = defineModule(authBase, {
       actions: {
+        deliverPasswordReset,
         extendSession,
         issueResetLink,
         login,
@@ -61,6 +64,7 @@ describe('the auth manifest', () => {
         reauthenticate,
         requestPasswordReset,
         resetPassword,
+        revokeSessions,
         revokeSubject,
         signUp,
         whoami,

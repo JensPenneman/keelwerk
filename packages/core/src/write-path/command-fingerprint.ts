@@ -70,7 +70,7 @@ export interface FingerprintSource {
   readonly scope: Scope;
   readonly apiVersion: string;
   /** Set for the job of a reaction: its fingerprint holds no version (see `commandFingerprint`). */
-  readonly job?: { readonly reaction?: true };
+  readonly job?: { readonly reaction?: true; readonly hook?: true };
   readonly input: unknown;
   /** The client's own input, when `input` holds values sealed on the way in. */
   readonly fingerprintInput?: unknown;
@@ -94,7 +94,8 @@ export async function commandFingerprint(
   source: FingerprintSource,
   keys: FingerprintKeys | null,
 ): Promise<string> {
-  const version = source.job?.reaction === true ? '' : source.apiVersion;
+  const version =
+    source.job?.reaction === true || source.job?.hook === true ? '' : source.apiVersion;
   const personal = keys !== null && source.fingerprintInput === undefined;
   const members = personal ? personalMembersOf(source) : [];
   const generated = personal ? generatedPersonalRecords(source) : [];

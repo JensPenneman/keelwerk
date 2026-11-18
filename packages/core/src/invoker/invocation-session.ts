@@ -16,6 +16,11 @@ export interface InvocationSession {
   readonly deprecation: { readonly at: string; readonly sunset?: string } | null;
   /** Cookie names the host clears on the response, copied from the resolution. */
   readonly clearCookies?: readonly string[];
+  /**
+   * `Set-Cookie` values the host adds to the response: the resolution's `renewCookie`, rendered at the
+   * invocation clock, only for a browser request when `resolvedBy` is 'hostname'.
+   */
+  readonly setCookies?: readonly string[];
   /** Which tenant resolver matched; the cookie hint of S-48 applies under 'hostname' only. */
   readonly resolvedBy: TenantResolver['kind'] | 'local';
   /** When the presented credentials stop being valid. */

@@ -5,14 +5,18 @@ import type {
   Clock,
   DataAdapterFactory,
   EntityDescriptor,
+  EventWorker,
   InfrastructureEntry,
   LiveTimers,
   Logger,
+  WorkersProbe,
 } from '@keelwerk/core';
 import { secret, startRuntime } from '@keelwerk/core';
 import { memoryAdapter, schemaPlanner } from '@keelwerk/data';
 import { clientAddresses } from '../../harness/client-addresses.ts';
 import { clientFetchOf } from '../../harness/client-fetch-of.ts';
+import { drainJobs } from '../../harness/drain-jobs.ts';
+import type { DrainState } from '../../harness/drain-state.ts';
 import type { TestApp } from '../../harness/test-app.ts';
 import { testMasterKeyName } from '../../harness/test-master-key-name.ts';
 import type { TestPrincipalBook } from '../../harness/test-principal-book.ts';
@@ -50,6 +54,14 @@ export interface TransportRuntimeOptions {
   readonly timers?: LiveTimers;
   /** Where the runtime logs; default: the core's no-op logger. A test passes a capturing logger to read what was logged. */
   readonly logger?: Logger;
+  /**
+   * Event workers added to the deployment's infrastructure, such as `consumers()` of
+   * `@keelwerk/events`. With them, or with `workers`, the runtime runs role 'all' (the kernel's
+   * workers serve every queue), so a command that is accepted is finished by a worker.
+   */
+  readonly eventWorkers?: readonly EventWorker[];
+  /** Runs the kernel's workers on every queue; `drainJobs` of the runtime then waits for them. */
+  readonly workers?: true;
 }
 
 /**
@@ -73,10 +85,19 @@ export async function startTransportRuntime(
   const names = options.tenants ?? ['acme', 'globex'];
   const directory = await mkdtemp(join(tmpdir(), 'kw-transport-'));
   const socket = join(directory, 'op.sock');
+  const working = options.workers === true || options.eventWorkers !== undefined;
+  const drain: DrainState = { probe: undefined, counted: 0 };
+  const probed = Promise.withResolvers<void>();
   const runtime = await startRuntime(
     {
       apps: [withRevocation(withCookieResolver(withTestResolver(app, false, book)), book)],
-      infrastructure: [factory, schemaPlanner(), testSecrets, options.host],
+      infrastructure: [
+        factory,
+        schemaPlanner(),
+        testSecrets,
+        ...(options.eventWorkers ?? []),
+        options.host,
+      ],
       control: { adapter: id },
       placements: { main: { adapter: id, strategy: 'shared-tables' } },
       operator: { socket },
@@ -84,8 +105,19 @@ export async function startTransportRuntime(
       keys: { masterKey: secret(testMasterKeyName) },
     },
     {
-      // Serve only: the cases read receipts that stay `accepted`, which a worker would finish.
-      role: 'serve',
+      // Serve only unless the caller asks for workers: the cases read receipts that stay `accepted`, which a worker would finish.
+      role: working ? 'all' : 'serve',
+      ...(working
+        ? {
+            work: {
+              slots: { '*': 4 },
+              probe: (probe: WorkersProbe) => {
+                drain.probe = probe;
+                probed.resolve();
+              },
+            },
+          }
+        : {}),
       listen: true,
       environment: 'test',
       ...(options.clock === undefined ? {} : { clock: options.clock }),
@@ -122,6 +154,8 @@ export async function startTransportRuntime(
     }
     domains[name] = domain;
   }
+  // The runtime starts its workers in the background and hands the probe over when they run.
+  if (working) await probed.promise;
   const addresses = clientAddresses();
   return {
     runtime,
@@ -138,6 +172,7 @@ export async function startTransportRuntime(
       book.revoked.add(subject);
     },
     socket,
+    drainJobs: () => drainJobs(drain),
     stop: async () => {
       await runtime.stop(1000);
       await rm(directory, { recursive: true, force: true });

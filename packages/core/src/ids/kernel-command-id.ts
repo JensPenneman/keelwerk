@@ -7,15 +7,17 @@ export type KernelCommandKind =
   | 'effect'
   | 'schedule'
   | 'timer'
-  | 'erasure';
+  | 'erasure'
+  | 'hook';
 
 /**
  * The command id of a command the kernel makes itself (final): `kernel:<kind>:<part>[:<part>]`, one
  * form for the job of a reaction (reaction id, event id), the continuation of an effect (effect id)
  * and the command an effect runs (effect id), the job of a timer (`kernel:timer:<effect id>`, or a
  * fresh id for a resolver's timer), the job of a schedule's tick
- * (`kernel:schedule:<schedule>:<scope id>:<period in milliseconds>:<tick in epoch milliseconds>`)
- * and a step the erasure of a subject makes itself (the hash of the erasure's identity, the step: `flagScrubCommandId`). Such an id is the idempotency key of that work in the
+ * (`kernel:schedule:<schedule>:<scope id>:<period in milliseconds>:<tick in epoch milliseconds>`),
+ * the job of a tenant's lifecycle hook (`kernel:hook:<hook id>:<tenant id>`), and a step the erasure
+ * of a subject makes itself (the hash of the erasure's identity, the step: `flagScrubCommandId`). Such an id is the idempotency key of that work in the
  * scope's receipt table, so `refuseReservedCommandId` keeps every id a caller chooses out of the
  * form.
  */

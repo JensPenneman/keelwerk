@@ -42,7 +42,7 @@ export async function bootHooks(
       ? {}
       : {
           workers: {
-            queues: ['hooks', 'probes', 'commands'],
+            queues: ['posts', 'probes', 'commands'],
             egress: loopback,
             ...(capabilities === undefined ? {} : { capabilities }),
           },

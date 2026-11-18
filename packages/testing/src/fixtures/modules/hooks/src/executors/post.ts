@@ -5,7 +5,7 @@ import { post as postEffect } from '../effects/post.ts';
 
 /** One POST is all or nothing, so its retries are mechanical and belong to the executor: the effect id is the idempotency key of every attempt. */
 export const post = defineEffectExecutor(hooksBase, postEffect, {
-  queue: 'hooks',
+  queue: 'posts',
   inline: true,
   timeout: '10s',
   group: ({ input }) => ({ id: `host:${new URL(input.url).host}`, concurrency: 2 }),

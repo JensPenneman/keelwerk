@@ -12,7 +12,7 @@ import { attemptErrorOf } from '../executors/attempt-error-of.ts';
 export function kernelJobError(
   error: unknown,
   declared: ReadonlySet<string>,
-  subject: 'reaction' | 'timer' | 'schedule',
+  subject: 'reaction' | 'timer' | 'schedule' | 'hook',
 ): KeelwerkError {
   const projected = attemptErrorOf(error, '', declared);
   return new KeelwerkError({

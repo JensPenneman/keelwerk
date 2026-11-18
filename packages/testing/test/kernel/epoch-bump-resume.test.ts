@@ -32,7 +32,7 @@ describe('what a restore leaves behind at the next start (14.7.6), PGlite on dir
       });
     const queued = async (booted: Awaited<ReturnType<typeof bootEffects>>): Promise<number> =>
       booted.raw(async (unit) =>
-        (await unit.jobs.stats('hooks')).reduce((sum, row) => sum + row.queued, 0),
+        (await unit.jobs.stats('posts')).reduce((sum, row) => sum + row.queued, 0),
       );
     const first = await bootEffects();
     directories.track(() => first.runtime.stop(1000));
@@ -45,7 +45,7 @@ describe('what a restore leaves behind at the next start (14.7.6), PGlite on dir
     expect(effect).toMatchObject({ status: 'requested' });
     expect(await queued(first)).toBe(1);
     // The queue loses the job while the row stays requested: the state a backup of a queue that lags its rows holds.
-    expect(await first.raw((unit) => unit.jobs.cancel('hooks', String(effect?.id)))).toBe(1);
+    expect(await first.raw((unit) => unit.jobs.cancel('posts', String(effect?.id)))).toBe(1);
     expect(await queued(first)).toBe(0);
     await first.runtime.stop(1000);
     directories.release();
@@ -68,7 +68,7 @@ describe('what a restore leaves behind at the next start (14.7.6), PGlite on dir
     });
     // The restored row is requested and its job is back: keyed by the effect id, once.
     expect(await queued(third)).toBe(1);
-    expect(await third.raw((unit) => unit.jobs.cancel('hooks', String(effect?.id)))).toBe(1);
+    expect(await third.raw((unit) => unit.jobs.cancel('posts', String(effect?.id)))).toBe(1);
   });
 
   test('a stream resumed with a token from before the restore answers reset; a token from after it resumes', {

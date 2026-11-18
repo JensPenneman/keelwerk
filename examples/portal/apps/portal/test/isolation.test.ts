@@ -5,11 +5,16 @@ import { portal } from '../src/app.ts';
 import { restIsolationCases, storeIsolationCases } from './support/isolation-cases.ts';
 import { type LocalPortal, startLocalPortal } from './support/local-portal.ts';
 import { portalConfig } from './support/portal-config.ts';
+import { portalDispatcher } from './support/portal-event-workers.ts';
 import { portalRest } from './support/portal-rest.ts';
 
 const options = { app: portal, host: httpHost(), config: portalConfig };
-const memory = await startTransportRuntime(options);
-const pglite = await startTransportRuntime({ ...options, adapter: 'pglite' });
+const memory = await startTransportRuntime({ ...options, eventWorkers: [portalDispatcher()] });
+const pglite = await startTransportRuntime({
+  ...options,
+  adapter: 'pglite',
+  eventWorkers: [portalDispatcher()],
+});
 const stores = {
   memory: await startLocalPortal('memory'),
   pglite: await startLocalPortal('pglite'),

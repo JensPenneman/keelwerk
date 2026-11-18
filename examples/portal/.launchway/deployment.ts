@@ -3,6 +3,7 @@ import { byHeader, byHostname, defineDeployment, env, secret } from '@keelwerk/c
 import { ledgerFile } from '@keelwerk/core/ledger';
 import { schemaPlanner } from '@keelwerk/data';
 import { pgliteAdapterFactory } from '@keelwerk/data/pglite';
+import { consumers, reactionDispatcher } from '@keelwerk/events';
 import { httpHost } from '@keelwerk/transport-http';
 import { portal } from '@keelwerk-examples/app-portal';
 
@@ -24,6 +25,8 @@ const deployment = defineDeployment({
         hostname: process.env.KEELWERK_HOST ?? '127.0.0.1',
       },
     }),
+    // Auth records a login on the profile as an asynchronous reaction: a worker must run it.
+    consumers({ consumers: [reactionDispatcher()], runs: ['asyncReactions'] }),
     ledgerFile({ path: process.env.KEELWERK_LEDGER ?? '/var/lib/keelwerk/ledger/ledger.log' }),
   ],
   control: { adapter: 'postgres', url: env('KEELWERK_CONTROL_URL') },

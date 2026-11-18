@@ -30,9 +30,9 @@ export function resolveVersion(
   principal: Principal,
 ): ChosenVersion {
   const app = env.appOf(resolved.app);
-  // A reaction job runs at the head of the build that runs it (7.7): the header, the credential's
+  // A reaction job or a hook job runs at the head of the build that runs it (7.7): the header, the credential's
   // pin and the tenant's or backend's pin are ignored, so a retired pin cannot fail the job.
-  if (carrier.job?.reaction === true) {
+  if (carrier.job?.reaction === true || carrier.job?.hook === true) {
     return { apiVersion: headApiVersion(app), deprecation: null };
   }
   const choice = {

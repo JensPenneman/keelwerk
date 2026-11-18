@@ -5,6 +5,17 @@ import { securityHeaders } from './security-headers.ts';
 import { versionHeaders } from './version-headers.ts';
 
 /**
+ * A response that carries a session token in a cookie must never be stored by a shared cache and
+ * replayed to another visitor: unless the handler's own `cache-control` already says `no-store` or
+ * `private`, it becomes `private, no-store`.
+ */
+function keepOutOfSharedCaches(headers: Headers): void {
+  const present = headers.get('cache-control')?.toLowerCase() ?? '';
+  if (/(^|[\s,])(no-store|private)([\s,=]|$)/.test(present)) return;
+  headers.set('cache-control', 'private, no-store');
+}
+
+/**
  * The cross-cutting response headers of the host (section 16.3.3): request id, API version and
  * deprecation, CORS, security headers, and the cookies to set or clear. Copies the response so a
  * handler's immutable headers do not matter.
@@ -42,6 +53,15 @@ export function decorateResponse(
   for (const name of state.session?.clearCookies ?? []) {
     if (!setNames.has(name)) {
       headers.append('set-cookie', clearedCookie(name));
+    }
+  }
+  // The session's own cookie (a sliding expiry) yields to a cookie the response sets or clears by name.
+  const clearedNames = new Set(state.session?.clearCookies ?? []);
+  for (const cookie of state.session?.setCookies ?? []) {
+    const name = cookie.slice(0, cookie.indexOf('='));
+    if (!setNames.has(name) && !clearedNames.has(name)) {
+      headers.append('set-cookie', cookie);
+      keepOutOfSharedCaches(headers);
     }
   }
   for (const cookie of state.setCookies) {

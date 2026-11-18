@@ -13,7 +13,7 @@ import { withTestResolver } from '../../src/harness/with-test-resolver.ts';
 import { call, callWithId, local, ok } from './support/core-actions-kit.ts';
 import {
   ada,
-  boot,
+  bootWorking,
   deploymentOf,
   factoryOf,
   type Kind,
@@ -52,7 +52,7 @@ async function started(kind: Kind) {
       return base.create(placement, env);
     },
   };
-  const runtime = await boot(
+  const { runtime, drain } = await bootWorking(
     deploymentOf(kind, { factory, apps: [libraryApp, hooksApp, withTestResolver(vaultApp)] }),
   );
   const create = {
@@ -65,14 +65,14 @@ async function started(kind: Kind) {
         ? call(runtime.invoker, local, 'core.tenant.create', input)
         : callWithId(runtime.invoker, 'core.tenant.create', input, commandId),
   };
-  return { runtime, calls, create, deployment: () => deploymentId };
+  return { runtime, calls, create, drain, deployment: () => deploymentId };
 }
 
 describe.each(kinds)('the control commands over the invoker on %s (S-109)', (kind) => {
   test('creating a backend and a tenant answers the id, resolves at once, runs both hooks and keeps the operator on the receipt', {
     timeout: 60_000,
   }, async () => {
-    const { runtime, calls, create, deployment } = await started(kind);
+    const { runtime, calls, create, drain, deployment } = await started(kind);
     const backend = await ok(
       create.backend(
         { name: 'b', app: 'hooks-app', placement: 'main' },
@@ -87,6 +87,7 @@ describe.each(kinds)('the control commands over the invoker on %s (S-109)', (kin
         '00000000-0000-7000-8000-000000000002',
       ),
     );
+    await drain();
     expect(calls).toEqual({ backend: 1, tenant: 1 });
     const me = await call(
       runtime.invoker,
@@ -201,7 +202,7 @@ describe.each(kinds)('the control commands over the invoker on %s (S-109)', (kin
   test('the same command id replays with the same id, one row and the hooks once; another input is a mismatch', {
     timeout: 60_000,
   }, async () => {
-    const { runtime, calls, create } = await started(kind);
+    const { runtime, calls, create, drain } = await started(kind);
     const input = { name: 'b', app: 'hooks-app', placement: 'main' };
     const first = await ok(create.backend(input, '00000000-0000-7000-8000-000000000003'));
     const again = await ok(create.backend(input, '00000000-0000-7000-8000-000000000003'));
@@ -220,6 +221,7 @@ describe.each(kinds)('the control commands over the invoker on %s (S-109)', (kin
     expect((await ok(create.tenant(tenantInput, '00000000-0000-7000-8000-000000000004'))).id).toBe(
       tenant.id,
     );
+    await drain();
     expect(calls.tenant).toBe(1);
   });
 });

@@ -14,14 +14,17 @@ const pageSize = 1000;
  * profile the kernel creates under the system principal, in the unit that created the credential.
  * The sign-up marks its credential `linkPending` and the marker is cleared here in the same unit, so
  * a system-invoked `accounts.register` from another module (a tenant hook, an import) never claims
- * an older unlinked credential of the same address. The marker is an interim guard until reaction
- * events carry a causation id (7.7).
+ * an older unlinked credential of the same address. The profile must also have a cause among the
+ * events (`causationId`), which a profile created by a command of its own has not. The cause alone
+ * never decides: another module's inline invoke on the same `signedUp` event carries the same cause,
+ * so the identifier and the marker stay the guard (open point 463 of the specification).
  */
 export const linkProfile = defineReaction(within(authBase, whenAccounts), {
   on: 'accounts.profile.created',
   timing: 'inline',
   *react(event, ctx) {
-    if (event.actor.kind !== 'system') return [];
+    // A profile created by a command of a person or an operator has no cause among the events: it is never the one a sign-up made.
+    if (event.causationId === null) return [];
     const found = yield* ctx.load.auth.credential.one({
       where: {
         identifier: event.state.email,

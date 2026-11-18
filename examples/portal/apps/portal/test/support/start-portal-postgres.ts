@@ -10,6 +10,7 @@ import { clientFetchOf } from '@keelwerk/testing';
 import { httpHost } from '@keelwerk/transport-http';
 import { portal } from '../../src/app.ts';
 import { portalConfig } from './portal-config.ts';
+import { portalDispatcher } from './portal-event-workers.ts';
 import { masterKeyName, portalSecrets } from './portal-secrets.ts';
 
 /** Where the portal is stored on PostgreSQL and which accelerations it may use. */
@@ -43,7 +44,14 @@ export async function startPortalPostgres(options: PostgresPortalOptions): Promi
   const runtime = await startRuntime(
     {
       apps: [portal],
-      infrastructure: [factory, schemaPlanner(), fallbackReporter(), portalSecrets, httpHost()],
+      infrastructure: [
+        factory,
+        schemaPlanner(),
+        fallbackReporter(),
+        portalSecrets,
+        httpHost(),
+        portalDispatcher(),
+      ],
       control: { adapter: factory.id, url: options.appUrl },
       placements: {
         main: { adapter: factory.id, strategy: 'shared-tables', url: options.appUrl },
@@ -89,6 +97,8 @@ export async function startPortalPostgres(options: PostgresPortalOptions): Promi
       throw new Error('The portal runtime has no test principal book to revoke a subject from.');
     },
     socket,
+    // The runtime serves its own queues in the background; nothing here waits for them.
+    drainJobs: () => Promise.resolve(0),
     stop: async () => {
       await runtime.stop(1000);
       await rm(directory, { recursive: true, force: true });

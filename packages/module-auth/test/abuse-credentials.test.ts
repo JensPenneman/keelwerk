@@ -76,7 +76,7 @@ describe.each(['memory', 'pglite'] as const)(
       ).toBe(true);
     });
 
-    test('reset requests are limited per identifier and answer the same for a known and an unknown one', {
+    test('a reset request answers the same for a known and an unknown identifier, however often it is asked', {
       timeout,
     }, async () => {
       const both = await boot();
@@ -91,8 +91,7 @@ describe.each(['memory', 'pglite'] as const)(
       const known = await run(ada.identifier);
       const unknown = await run('nobody@example.org');
       expect(known).toEqual(unknown);
-      expect(known.slice(0, 5)).toEqual(Array(5).fill({ accepted: true }));
-      expect(known.slice(5)).toEqual(['core.rate_limited', 'core.rate_limited']);
+      expect(known).toEqual(Array(7).fill({ accepted: true }));
     });
   },
 );

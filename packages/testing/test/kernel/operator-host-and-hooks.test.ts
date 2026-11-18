@@ -2,8 +2,8 @@ import { defineApp, defineHook, defineModule, defineModuleBase } from '@keelwerk
 import { describe, expect, test } from 'vitest';
 import { testCarrier } from '../../src/harness/test-carrier.ts';
 import { withTestResolver } from '../../src/harness/with-test-resolver.ts';
-import { call, operatorHost, testClock } from './support/core-actions-kit.ts';
-import { ada, boot, deploymentOf, type Kind } from './support/runtime-kit.ts';
+import { bearer, call, issued, operatorHost, testClock } from './support/core-actions-kit.ts';
+import { ada, boot, bootWorking, deploymentOf, type Kind } from './support/runtime-kit.ts';
 
 const kinds: readonly Kind[] = ['memory', 'pglite'];
 
@@ -53,7 +53,7 @@ describe('rerunTenantHooks', () => {
       },
     });
     const app = withTestResolver(defineApp({ id: 'hooks-app', modules: [hooks] }));
-    const runtime = await boot(deploymentOf('memory', { apps: [app] }), {
+    const { runtime, drain } = await bootWorking(deploymentOf('memory', { apps: [app] }), {
       clock: testClock().clock,
     });
     const backend = await runtime.control.createBackend({
@@ -62,6 +62,7 @@ describe('rerunTenantHooks', () => {
       placement: 'main',
     });
     const tenant = await runtime.control.createTenant({ backendId: backend.id, name: 't' });
+    await drain();
     expect(calls).toEqual({ steady: 1, flaky: 1 });
     expect(await runtime.control.rerunTenantHooks(tenant.id)).toEqual(['hooks.flaky']);
     expect(calls).toEqual({ steady: 1, flaky: 2 });
@@ -71,5 +72,42 @@ describe('rerunTenantHooks', () => {
     // Completed: nothing is left to rerun.
     expect(await runtime.control.rerunTenantHooks(tenant.id)).toEqual([]);
     expect(calls).toEqual({ steady: 1, flaky: 3 });
+  });
+});
+
+describe('a tenant created over the operator socket', () => {
+  test('runs its hooks as jobs', async () => {
+    const hooksBase = defineModuleBase({ id: 'hooks', version: '0.1.0' });
+    let runs = 0;
+    const hooks = defineModule(hooksBase, {
+      lifecycle: {
+        seeded: defineHook(hooksBase, 'onTenantCreated', () => {
+          runs++;
+          return { events: [] };
+        }),
+      },
+    });
+    const app = withTestResolver(defineApp({ id: 'hooks-app', modules: [hooks] }));
+    const { runtime, drain } = await bootWorking(
+      deploymentOf('memory', { apps: [app], operator: { hosts: [operatorHost] } }),
+      {
+        clock: testClock().clock,
+      },
+    );
+    const backend = await runtime.control.createBackend({
+      name: 'b',
+      app: 'hooks-app',
+      placement: 'main',
+    });
+    const { token } = await issued(runtime);
+    const created = await call(runtime.invoker, bearer(token), 'core.tenant.create', {
+      backendId: backend.id,
+      name: 't',
+    });
+    expect(created).toMatchObject({ ok: true });
+    // The creation only queues the hook; a worker runs it.
+    expect(runs).toBe(0);
+    await drain();
+    expect(runs).toBe(1);
   });
 });

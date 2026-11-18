@@ -2,6 +2,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { AnyModule, DataAdapter, DataAdapterFactory, SchemaPlanner } from '@keelwerk/core';
 import { controlNamespace, defineApp, secret, startRuntime } from '@keelwerk/core';
 import { memoryAdapter, schemaPlanner } from '@keelwerk/data';
+import { consumers, reactionDispatcher } from '@keelwerk/events';
 import { expect, test } from 'vitest';
 import { buildIdOf } from '../src/db/build-id-of.ts';
 import { tracksOfApp } from '../src/db/tracks-of-app.ts';
@@ -58,7 +59,12 @@ test('one process serving two apps gives each namespace its own tracks, and the 
   const runtime = await startRuntime(
     {
       apps: [solo, pair],
-      infrastructure: [factory, planner],
+      // auth records a login as an asynchronous reaction, which the boot refuses without an event worker.
+      infrastructure: [
+        factory,
+        planner,
+        consumers({ consumers: [reactionDispatcher()], runs: ['asyncReactions'] }),
+      ],
       control: { adapter: 'memory' },
       placements: { main: { adapter: 'memory', strategy: 'shared-tables' } },
       tenantResolution: [{ kind: 'header', header: 'x-tenant' }],

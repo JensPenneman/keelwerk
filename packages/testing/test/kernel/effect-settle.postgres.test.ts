@@ -134,7 +134,7 @@ describe('the settled record of an effect on PostgreSQL (7.9.6)', () => {
     await p.raw((unit) =>
       unit.jobs.enqueue({
         kind: 'effect',
-        queue: 'hooks',
+        queue: 'posts',
         run: { executor: 'hooks.post', effect: String(requested?.id) },
         scope: p.scope,
         principal: { resolver: 'core.module', principalId: 'hooks.system' },

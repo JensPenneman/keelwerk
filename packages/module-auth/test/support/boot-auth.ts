@@ -2,6 +2,7 @@ import { defineApp, type Logger, selfErase, type Unit } from '@keelwerk/core';
 import {
   clientAddresses,
   createLocalClient,
+  settleReactions,
   startTestRuntime,
   type TestPrincipal,
   type TestRuntime,
@@ -23,6 +24,8 @@ export const authErasingApp: typeof authApp = defineApp({
 export interface HandClock {
   now(): Temporal.Instant;
   advance(duration: Temporal.DurationLike): void;
+  /** Sets the clock to an instant, also an earlier one: the skew between two servers. */
+  set(instant: Temporal.Instant): void;
 }
 
 export function handClock(): HandClock {
@@ -31,6 +34,9 @@ export function handClock(): HandClock {
     now: () => instant,
     advance: (duration) => {
       instant = instant.add(duration);
+    },
+    set: (to) => {
+      instant = to;
     },
   };
 }
@@ -42,6 +48,8 @@ export type StorageKind = 'memory' | 'pglite';
 export interface BootedAuth {
   readonly runtime: TestRuntime<typeof authApp>;
   readonly clock: HandClock;
+  /** Runs every job that is due until none is left: the wait before a test reads what a job wrote. */
+  settle(): Promise<void>;
   /** A local client of a tenant (acme unless named). */
   client(
     principal: TestPrincipal,
@@ -76,6 +84,7 @@ export async function bootAuth(
     operators: true,
     tenants: ['acme', 'globex'],
     clock,
+    workers: true,
     config: { auth: config },
     ...(logger === undefined ? {} : { logger }),
     ...(external === undefined ? {} : { external }),
@@ -84,6 +93,7 @@ export async function bootAuth(
   return {
     runtime,
     clock,
+    settle: () => settleReactions({ settled: async () => 0 }, runtime.drainJobs),
     client: (principal, tenant = 'acme') => createLocalClient(runtime, { principal, tenant }),
     inUnit: (fn, options = {}) =>
       (options.sealed === true ? runtime.sealed : runtime.adapter).unit(

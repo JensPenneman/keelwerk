@@ -30,6 +30,8 @@ export interface JobCarrier {
   readonly key?: string;
   /** Set when the job runs the reaction its `action` names: the invoker locates a reaction, and the write path decides it with the event it reads (7.7). */
   readonly reaction?: true;
+  /** Set when the job runs the lifecycle hook its action names: the invoker locates a hook (`hookJobAction`) and the head of the build serves it. */
+  readonly hook?: true;
   /** The fencing id: the process id. */
   readonly worker: string;
   /** `Job.signal`: aborts at expireInSeconds (`core.timeout`) or a lost lease (`core.job_lease_lost`). */

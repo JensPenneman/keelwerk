@@ -901,6 +901,7 @@ export type {
 export type { AppliedMigration } from './storage/applied-migration.ts';
 export type { BucketStore } from './storage/bucket-store.ts';
 export type { BucketTake } from './storage/bucket-take.ts';
+export { cancelsRunningAttempt } from './storage/cancels-running-attempt.ts';
 export type { Catalogue } from './storage/catalogue.ts';
 export type { ChangeFeedSource } from './storage/change-feed-source.ts';
 export type { ColumnSpec } from './storage/column-spec.ts';

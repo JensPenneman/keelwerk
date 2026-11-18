@@ -68,6 +68,8 @@ export interface ResolvedPrincipal {
   readonly authenticated: boolean;
   /** The rows whose change revalidates the session at once: the rows of the resolution's `cache` (S-151). */
   readonly dependsOn?: readonly { readonly entity: string; readonly id: string }[];
+  /** The cookie a resolver asked the host to set again (a session whose idle expiry slides). */
+  readonly renewCookie?: NonNullable<PrincipalResolution['renewCookie']>;
   /** A single-use credential the resolver accepted: `resolvePrincipal` spends it and resolves its reference (S-161); `principal` is then the anonymous placeholder. */
   readonly redeem?: CredentialRedemption;
 }
@@ -192,6 +194,7 @@ export async function runPrincipalResolvers(
       module,
       authenticated: true,
       ...(resolution.cache === undefined ? {} : { dependsOn: cacheDrops(resolution.cache) }),
+      ...(resolution.renewCookie === undefined ? {} : { renewCookie: resolution.renewCookie }),
     };
   }
   if (kept !== undefined) throw kept.error;

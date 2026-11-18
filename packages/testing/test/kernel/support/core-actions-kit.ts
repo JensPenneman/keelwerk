@@ -6,6 +6,7 @@ import type {
   NamespaceRef,
   Runtime,
   StorageScope,
+  Unit,
 } from '@keelwerk/core';
 import { memoryAdapter } from '@keelwerk/data';
 import { boot, deploymentOf } from './runtime-kit.ts';
@@ -54,6 +55,8 @@ export function spiedMemory() {
   const real = memoryAdapter();
   let deploymentId = '';
   let found: { adapter: DataAdapter; namespace: NamespaceRef; scope: StorageScope } | undefined;
+  /** The adapter and namespace that served the units of each tenant: a placement has its own store. */
+  const tenants = new Map<string, { adapter: DataAdapter; namespace: NamespaceRef }>();
   const factory: DataAdapterFactory = {
     ...real,
     create: (placement, env) => {
@@ -62,6 +65,7 @@ export function spiedMemory() {
       const open = adapter.unit.bind(adapter);
       adapter.unit = (namespace, scope, fn, options) => {
         if (scope.level === 'deployment') found = { adapter, namespace, scope };
+        if (scope.level === 'tenant') tenants.set(scope.tenantId, { adapter, namespace });
         return open(namespace, scope, fn, options);
       };
       return adapter;
@@ -75,6 +79,15 @@ export function spiedMemory() {
       if (found === undefined) throw new Error('the control store was not opened');
       const { adapter, namespace, scope } = found;
       return adapter.unit(namespace, scope, (unit) => unit.events.readStream({ type, id }));
+    },
+    /** Runs `fn` in a unit of a tenant, over the raw store of the placement that serves it. */
+    inTenant: <T>(
+      scope: Extract<StorageScope, { level: 'tenant' }>,
+      fn: (unit: Unit) => Promise<T>,
+    ): Promise<T> => {
+      const owner = tenants.get(scope.tenantId);
+      if (owner === undefined) throw new Error('no unit of the tenant was opened');
+      return owner.adapter.unit(owner.namespace, scope, fn);
     },
   };
 }

@@ -3,12 +3,17 @@ import { httpHost } from '@keelwerk/transport-http';
 import { afterAll, describe } from 'vitest';
 import { portal } from '../src/app.ts';
 import { portalConfig } from './support/portal-config.ts';
+import { portalDispatcher } from './support/portal-event-workers.ts';
 import { portalRest } from './support/portal-rest.ts';
 import { scenarioCases } from './support/scenario-cases.ts';
 
 const options = { app: portal, host: httpHost(), config: portalConfig };
-const memory = await startTransportRuntime(options);
-const pglite = await startTransportRuntime({ ...options, adapter: 'pglite' });
+const memory = await startTransportRuntime({ ...options, eventWorkers: [portalDispatcher()] });
+const pglite = await startTransportRuntime({
+  ...options,
+  adapter: 'pglite',
+  eventWorkers: [portalDispatcher()],
+});
 afterAll(async () => {
   await memory.stop();
   await pglite.stop();

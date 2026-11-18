@@ -1,13 +1,15 @@
 import { defineCommand, errors, field, shape } from '@keelwerk/core';
 import { authBase } from '../base.ts';
 import { issueResetToken } from '../lib/issue-reset-token.ts';
+import { retireResetTokens } from '../lib/retire-reset-tokens.ts';
 
 /**
  * The operator's way to a reset link without a delivery filler: inside an entered tenant it
- * returns the one-time token and its expiry for the operator to pass on (17.2.5, S-43).
+ * returns the one-time token and its expiry for the operator to pass on (17.2.5, S-43). The unused
+ * links before it stop working, as they do when a delivered link is issued.
  */
 const issueResetLinkDef = defineCommand(authBase, {
-  input: shape({ identifier: field.string({ format: 'email' }) }),
+  input: shape({ identifier: field.string({ format: 'email' }).personal() }),
   output: shape({ token: field.string(), expiresAt: field.instant() }),
   shownOnce: ['token'],
   principal: 'operator',
@@ -17,8 +19,12 @@ const issueResetLinkDef = defineCommand(authBase, {
       where: { identifier: input.identifier, kind: 'password', revokedAt: { isNull: true } },
     });
     if (found === undefined) throw errors.not_found('No password credential has this identifier.');
+    const retired = yield* retireResetTokens(ctx, found.id, undefined);
     const issued = yield* issueResetToken(ctx, found);
-    return { events: [issued.draft], result: { token: issued.token, expiresAt: issued.expiresAt } };
+    return {
+      events: [...retired, issued.draft],
+      result: { token: issued.token, expiresAt: issued.expiresAt },
+    };
   },
 });
 

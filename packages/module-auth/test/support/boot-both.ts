@@ -1,11 +1,14 @@
 import { defineApp, type Unit } from '@keelwerk/core';
+import { consumers, reactionDispatcher } from '@keelwerk/events';
 import { accounts } from '@keelwerk/module-accounts';
 import {
   clientAddresses,
   createLocalClient,
+  settleReactions,
   startTestRuntime,
   type TestPrincipal,
   type TestRuntime,
+  type TestRuntimeOptions,
 } from '@keelwerk/testing';
 import { auth } from '../../src/module.generated.ts';
 import { type HandClock, handClock, type StorageKind } from './boot-auth.ts';
@@ -18,6 +21,8 @@ const bothApp = defineApp({ id: 'both', modules: [accounts, auth, mailbox] as co
 export interface BootedBoth {
   readonly runtime: TestRuntime<typeof bothApp>;
   readonly clock: HandClock;
+  /** Dispatches the asynchronous reactions and runs the jobs until nothing is left: the wait before a test reads what a login or a reset wrote. */
+  settle(): Promise<void>;
   /** A local client of the acme tenant. */
   client(principal: TestPrincipal): ReturnType<typeof createLocalClient<typeof bothApp>>;
   /** Runs `fn` in a unit of the acme tenant over the raw store (sealed values stay sealed) or, with `sealed`, over the placement the kernel sees. */
@@ -45,13 +50,24 @@ export async function bootBoth(
     readonly accounts?: Readonly<Record<string, unknown>>;
     readonly auth?: Readonly<Record<string, unknown>>;
   } = {},
+  external?: TestRuntimeOptions['external'],
 ): Promise<BootedBoth> {
   const clock = handClock();
+  // A lease of a day: the test clock moves by hours, and a lease that follows it would lapse and
+  // be taken again only after the clock had moved on, which a hand clock never does by itself.
+  const dispatcher = consumers({
+    consumers: [reactionDispatcher()],
+    runs: ['asyncReactions'],
+    leaseMs: 86_400_000,
+  });
   const runtime = await startTestRuntime(bothApp, {
     adapter: kind,
     operators: true,
     tenants: ['acme'],
     clock,
+    workers: true,
+    eventWorkers: [dispatcher],
+    ...(external === undefined ? {} : { external }),
     config: {
       accounts: { allowSelfRegistration: true, ...settings.accounts },
       auth: settings.auth ?? {},
@@ -62,6 +78,7 @@ export async function bootBoth(
   return {
     runtime,
     clock,
+    settle: () => settleReactions(dispatcher, runtime.drainJobs),
     client: (principal) => createLocalClient(runtime, { principal, tenant: 'acme' }),
     inUnit: (fn, options = {}) =>
       (options.sealed === true ? runtime.sealed : runtime.adapter).unit(

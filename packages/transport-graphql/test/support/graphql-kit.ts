@@ -190,6 +190,8 @@ export interface GraphqlCallOptions {
   readonly rawBody?: string;
   readonly signal?: AbortSignal;
   readonly path?: string;
+  /** The headers of the carrier the transport handed the invoker; a browser request names an origin or a fetch mode. */
+  readonly carrierHeaders?: Record<string, string>;
 }
 
 /** One request through the handler, as the host would pass it. */
@@ -211,7 +213,12 @@ export async function sendGraphql(
   });
   const context: HttpContext = {
     session: options.session ?? graphqlSession(),
-    carrier: { transport: 'http', host: 'portal.example', path: '/graphql', headers: {} },
+    carrier: {
+      transport: 'http',
+      host: 'portal.example',
+      path: '/graphql',
+      headers: options.carrierHeaders ?? {},
+    },
     requestId: graphqlRequestId,
     signal: options.signal ?? new AbortController().signal,
     path: options.path ?? '/',

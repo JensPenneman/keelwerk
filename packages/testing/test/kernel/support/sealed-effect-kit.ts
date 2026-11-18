@@ -67,7 +67,7 @@ export async function storedCourier(
         events.push(...(await unit.events.readStream({ type, id: String(row.id) })));
     }
     const jobs: StoredJob[] = [];
-    for (const queue of ['hooks']) {
+    for (const queue of ['posts']) {
       const taken = await unit.jobs.take(queue, 'test', {
         limit: 50,
         capabilitySets: [''],

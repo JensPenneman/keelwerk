@@ -14,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createPortalDatabase, type PortalDatabase } from './support/create-portal-database.ts';
 import { credentialsOf, freshPerson, sessionCookie } from './support/people.ts';
 import { localConfig } from './support/portal-config.ts';
+import { portalDispatcher } from './support/portal-event-workers.ts';
 
 /** The portal's own modules and the live module, whose hub holds the streams a session opens. */
 const liveApp = defineApp({ id: 'portal', modules: [accounts, auth, live] as const });
@@ -36,13 +37,14 @@ describe('a live stream held by a second process when its session is erased (14.
       operators: true,
       config: localConfig,
       workers: true,
-      eventWorkers: [worker],
+      eventWorkers: [worker, portalDispatcher()],
     });
     // The second process only serves: it holds the stream and never runs the erasure.
     second = await startTestRuntime(liveApp, {
       external,
       config: localConfig,
       clock,
+      eventWorkers: [portalDispatcher()],
       join: {
         backendId: first.backendId,
         tenants: { acme: first.tenants.acme.id, globex: first.tenants.globex.id },

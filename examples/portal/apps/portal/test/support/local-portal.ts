@@ -8,6 +8,7 @@ import {
 } from '@keelwerk/testing';
 import { localApp } from './local-app.ts';
 import { localConfig } from './portal-config.ts';
+import { portalDispatcher } from './portal-event-workers.ts';
 
 /** The tenants of a local portal. */
 type TenantName = 'acme' | 'globex';
@@ -50,6 +51,8 @@ export async function startLocalPortal(
     operators: true,
     config: localConfig,
     ...extra,
+    // Auth records a login as an asynchronous reaction: every boot needs the dispatcher.
+    eventWorkers: [...(extra.eventWorkers ?? []), portalDispatcher()],
   });
   return {
     runtime,

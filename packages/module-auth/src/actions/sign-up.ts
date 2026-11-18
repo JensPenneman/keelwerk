@@ -3,6 +3,7 @@ import { authBase } from '../base.ts';
 import { credential } from '../entities/credential.ts';
 import { identifierTaken } from '../errors/identifier-taken.ts';
 import { tooManyRecords } from '../errors/too-many-records.ts';
+import { checkPasswordLength } from '../lib/check-password-length.ts';
 import { opaqueSubject } from '../lib/opaque-subject.ts';
 import { registerErrors } from '../lib/register-errors.ts';
 
@@ -16,7 +17,7 @@ const saltBytes = 16;
  */
 const signUpDef = defineCommand(authBase, {
   input: shape({
-    identifier: field.string({ format: 'email' }),
+    identifier: field.string({ format: 'email' }).personal(),
     password: field.secret(),
     displayName: field.string({ maxLength: 120 }).optional(),
   }),
@@ -25,6 +26,7 @@ const signUpDef = defineCommand(authBase, {
   auth: { public: true },
   execution: 'sync',
   *decide(input, ctx) {
+    checkPasswordLength(input.password, ctx.config.minPasswordLength, 'password');
     // With accounts selected its gate comes first, so a closed registration answers every address alike.
     const open = yield* ctx.services.accounts.ifPresent((accounts) => accounts.registrationOpen());
     if (open === false) throw errors.forbidden('Self-registration is disabled.');

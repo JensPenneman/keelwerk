@@ -2,6 +2,7 @@ import { defineCommand, field, parseToken, shape } from '@keelwerk/core';
 import { authBase } from '../base.ts';
 import { resetTokenInvalid } from '../errors/reset-token-invalid.ts';
 import { tooManyRecords } from '../errors/too-many-records.ts';
+import { checkPasswordLength } from '../lib/check-password-length.ts';
 import { resetTokenPrefix } from '../lib/reset-token-prefix.ts';
 import { retireResetTokens } from '../lib/retire-reset-tokens.ts';
 import { revokeOtherSessions } from '../lib/revoke-other-sessions.ts';
@@ -19,6 +20,7 @@ const resetPasswordDef = defineCommand(authBase, {
   auth: { public: true },
   execution: 'sync',
   *decide(input, ctx) {
+    checkPasswordLength(input.newPassword, ctx.config.minPasswordLength, 'newPassword');
     const parsed = parseToken(input.token);
     if (parsed === undefined || parsed.prefix !== resetTokenPrefix) throw resetTokenInvalid();
     const row = yield* ctx.load.auth.resetToken.one({ where: { publicId: parsed.publicId } });

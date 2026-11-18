@@ -1,23 +1,26 @@
 import {
   defineFill,
-  enqueue,
   errors,
   type Id,
   type Principal,
   type PrincipalResolution,
+  setTimer,
   within,
 } from '@keelwerk/core';
 import { extendSession } from '../../../actions/extend-session.ts';
 import { authBase } from '../../../base.ts';
 import { extensionIntervalMinutes } from '../../../lib/extension-interval-minutes.ts';
+import { idleExpiry } from '../../../lib/idle-expiry.ts';
+import { isLiveSession } from '../../../lib/is-live-session.ts';
 import { parseSessionToken } from '../../../lib/parse-session-token.ts';
 import { presentedToken } from '../../../lib/presented-token.ts';
+import { principalOfSession } from '../../../lib/principal-of-session.ts';
 import { sessionCacheKey } from '../../../lib/session-cache-key.ts';
 import { sessionCookieName } from '../../../lib/session-cookie-name.ts';
+import { sessionExtensionKey } from '../../../lib/session-extension-key.ts';
+import { sessionRefCacheKey } from '../../../lib/session-ref-cache-key.ts';
 import { sessionResolverId } from '../../../lib/session-resolver-id.ts';
 import { toCore } from '../contribution.ts';
-
-const profileSubjectRef = 'accounts.profile';
 
 const sessionScheme = { scheme: 'cookie', name: sessionCookieName } as const;
 
@@ -58,53 +61,62 @@ const sessionResolverFill = defineFill(within(authBase, toCore), 'principalResol
       const verified = yield* own.secrets.verify(presented.token, row.tokenVerifier);
       const now = clock.now();
       const credential = yield* own.load.auth.credential.byId(row.credentialId);
-      if (
-        !verified ||
-        credential === undefined ||
-        credential.revokedAt !== undefined ||
-        row.revokedAt !== undefined ||
-        Temporal.Instant.compare(row.idleExpiresAt, now) <= 0 ||
-        Temporal.Instant.compare(row.absoluteExpiresAt, now) <= 0
-      ) {
+      if (!verified || credential === undefined || !isLiveSession(row, credential, now)) {
         return stale();
       }
-      // With accounts selected the credential holds the profile it belongs to, and the subject is its id (17.2.1).
-      const profileId: string | undefined = Reflect.get(credential, 'profileId');
-      const ref = {
-        resolver: sessionResolverId,
-        principalId: row.id,
-        credentialId: row.credentialId,
-        sessionId: row.id,
-      };
-      const principal: Principal = {
-        kind: 'user',
-        subject: row.subject,
-        subjectRef: profileId === undefined ? null : profileSubjectRef,
-        subjectAs: <R extends string>(ref: R) =>
-          profileId !== undefined && ref === profileSubjectRef ? (profileId as Id<R>) : null,
-        scope: where,
-        claims: {},
-        roles: [],
-        memberships: [],
-        via: sessionResolverId,
-        ref,
-        expiresAt:
-          Temporal.Instant.compare(row.idleExpiresAt, row.absoluteExpiresAt) < 0
-            ? row.idleExpiresAt
-            : row.absoluteExpiresAt,
-      };
+      const principal = principalOfSession(row, credential, scope);
       const due = now.subtract({ minutes: extensionIntervalMinutes });
+      const extending = Temporal.Instant.compare(row.lastSeenAt, due) < 0;
       return {
         principal,
-        ...(Temporal.Instant.compare(row.lastSeenAt, due) < 0
+        ...(extending
           ? {
               effects: [
-                enqueue(extendSession, { sessionId: row.id }, { key: `auth.extend:${row.id}` }),
+                // A timer runs as the module's service principal, so the job judges the session itself.
+                setTimer({
+                  key: sessionExtensionKey(row.id),
+                  invoke: extendSession,
+                  input: { sessionId: row.id, seenAt: now },
+                  at: now,
+                }),
               ],
+              // The extension slides the idle expiry, so a cookie is set again with the expiry it will have (S-110).
+              ...(presented.source === 'cookie'
+                ? {
+                    renewCookie: {
+                      name: sessionCookieName,
+                      value: presented.token,
+                      expiresAt: idleExpiry(
+                        now,
+                        row.absoluteExpiresAt,
+                        own.config.sessionIdleMinutes,
+                      ),
+                    },
+                  }
+                : {}),
             }
           : {}),
         cache: {
           key: sessionCacheKey(presented.token),
+          drops: [
+            { entity: 'auth.session', id: row.id },
+            { entity: 'auth.credential', id: row.credentialId },
+          ],
+        },
+      };
+    },
+    // Queued work, a redeemed ticket and an open stream hold no token: the reference alone is judged, so
+    // a revoked session or credential and an expired session stop there (S-122). The sessions bind no
+    // transport, so the transport is not looked at, and nothing is extended.
+    *fromRef(ref, { scope, clock }) {
+      const row = yield* own.load.auth.session.byId(ref.principalId as Id<'auth.session'>);
+      if (row === undefined || Reflect.get(ref, 'credentialId') !== row.credentialId) return null;
+      const credential = yield* own.load.auth.credential.byId(row.credentialId);
+      if (credential === undefined || !isLiveSession(row, credential, clock.now())) return null;
+      return {
+        principal: principalOfSession(row, credential, scope),
+        cache: {
+          key: sessionRefCacheKey(row.id),
           drops: [
             { entity: 'auth.session', id: row.id },
             { entity: 'auth.credential', id: row.credentialId },

@@ -93,15 +93,16 @@ export function storeCases(subject: ConformanceSubject): void {
       expect(await subject.run(tenantA, (unit) => unit.jobs.cancel('commands', 'later'))).toBe(0);
     });
 
-    test('cancel of a key in the timers queue takes the running attempt too: its completion is refused and its command unit rolls back', async () => {
+    // The queues whose cancel takes the attempt that is running too (timers and hooks).
+    test.each(['timers', 'hooks'])('cancel in %s takes the running attempt', async (queue) => {
       await subject.run(tenantA, (unit) =>
-        unit.jobs.enqueue(
-          storedJob({ queue: 'timers', key: { value: 'running', onConflict: 'replace' } }),
-        ),
+        unit.jobs.enqueue(storedJob({ queue, key: { value: 'running', onConflict: 'replace' } })),
       );
-      const [job] = await take(subject, 'w1', 'timers');
+      const [job] = await take(subject, 'w1', queue);
       if (job === undefined) throw new Error('no job was taken');
-      expect(await subject.run(tenantA, (unit) => unit.jobs.cancel('timers', 'running'))).toBe(1);
+      const cancel = (name: string, key: string) =>
+        subject.run(tenantA, (unit) => unit.jobs.cancel(name, key));
+      expect(await cancel(queue, 'running')).toBe(1);
       // The command the job ran commits in a unit of its own that also completes the job: refused.
       await expect(
         subject.run(tenantA, async (unit) => {
@@ -111,12 +112,13 @@ export function storeCases(subject: ConformanceSubject): void {
           }
         }),
       ).rejects.toThrow('lease lost');
-      expect(await subject.run(tenantA, (unit) => unit.jobs.cancel('commands', 'effect'))).toBe(0);
-      expect(
-        await subject.run(namespaceScope, (unit) => unit.jobs.heartbeat([job.attempt], 'w1', 1000)),
-      ).toEqual([]);
-      expect(await take(subject, 'w1', 'timers')).toEqual([]);
-      expect(await subject.run(tenantA, (unit) => unit.jobs.cancel('timers', 'running'))).toBe(0);
+      expect(await cancel('commands', 'effect')).toBe(0);
+      const beat = subject.run(namespaceScope, (unit) =>
+        unit.jobs.heartbeat([job.attempt], 'w1', 1000),
+      );
+      expect(await beat).toEqual([]);
+      expect(await take(subject, 'w1', queue)).toEqual([]);
+      expect(await cancel(queue, 'running')).toBe(0);
     });
 
     test('cancel of a running keyed timer gives its group slot back', async () => {

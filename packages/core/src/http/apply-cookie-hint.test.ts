@@ -29,3 +29,27 @@ describe('applyCookieHint and the clock', () => {
     expect(result.setCookies[0]).toContain('Max-Age=0');
   });
 });
+
+describe('applyCookieHint and an action that answers nothing', () => {
+  const clearing = { clear: { name: '__Host-session' } };
+
+  it('clears the cookie of a clearing hint whatever the output', () => {
+    for (const value of [undefined, null, 'done', ['a']]) {
+      const result = applyCookieHint(clearing, value, session, browser, pinned);
+      expect(result.value).toBe(value);
+      expect(result.setCookies).toHaveLength(1);
+      expect(result.setCookies[0]).toMatch(/^__Host-session=;/);
+      expect(result.setCookies[0]).toContain('Max-Age=0');
+    }
+  });
+
+  it('clears nothing for a request that is no browser request or not under host-based resolution', () => {
+    expect(applyCookieHint(clearing, undefined, session, {}, pinned).setCookies).toEqual([]);
+    const byHeader = { resolvedBy: 'header' } as unknown as InvocationSession;
+    expect(applyCookieHint(clearing, undefined, byHeader, browser, pinned).setCookies).toEqual([]);
+  });
+
+  it('sets nothing for a hint that names a cookie to set when the output is no record', () => {
+    expect(applyCookieHint(hint, undefined, session, browser, pinned).setCookies).toEqual([]);
+  });
+});

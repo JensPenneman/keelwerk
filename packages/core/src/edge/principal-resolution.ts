@@ -13,6 +13,15 @@ export interface PrincipalResolution {
   /** Cookie names the host clears, returned with an anonymous principal for a stale session (sections 16.3.4 and 16.4.10). */
   readonly clearCookies?: readonly string[];
   /**
+   * A cookie session whose idle expiry slides: the host sets the cookie again with this expiry on a
+   * browser response under host-based tenant resolution (16.4.10, S-110). Never for a bearer token.
+   */
+  readonly renewCookie?: {
+    readonly name: string;
+    readonly value: string;
+    readonly expiresAt: Temporal.Instant;
+  };
+  /**
    * What the kernel caches the session under and which change records drop it (section 17.2.4
    * step 4): one row (`entity`, `id`), or `drops` for several, such as a session and its credential.
    */

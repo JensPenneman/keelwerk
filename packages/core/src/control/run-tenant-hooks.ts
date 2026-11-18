@@ -1,17 +1,16 @@
 import { trace } from '@opentelemetry/api';
 import { effectiveRules } from '../authorization/effective-rules.ts';
-import type { DecideContext } from '../contexts/decide-context.ts';
-import type { CoreBase } from '../core-module/core-base-type.ts';
 import type { HookPayloads } from '../dsl/define-hook.ts';
-import { shape } from '../fields/shape.ts';
 import type { ScopeTarget } from '../invoker/scope-target.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
-import type { ActionEntry } from '../registry/action-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import { registryBehaviours } from '../write-path/registry-behaviours.ts';
 import { runCommand } from '../write-path/run-command.ts';
 import type { ControlStore } from './control-store.ts';
-import { runControlCommand } from './run-control-command.ts';
+import { hookActionOf } from './hook-action-of.ts';
+import { hookJobKey } from './hook-job-key.ts';
+import { hookQueue } from './hook-queue.ts';
+import { recordHookEvent } from './record-hook-event.ts';
 
 /** The tenant a hook payload names, for the hooks that run on a tenant. */
 function tenantIdOf(
@@ -19,29 +18,6 @@ function tenantIdOf(
   payload: HookPayloads[keyof HookPayloads],
 ): string | undefined {
   return hook === 'onBackendCreated' ? undefined : String(payload.id);
-}
-
-/**
- * Appends `core.tenant.hookFailed` or `core.tenant.hookCompleted` (data `{ hook }`) to the tenant's
- * stream in the control store, where `keelwerk doctor` reads them (S-84). A failure to record is
- * logged and never hides the hook's own outcome.
- */
-async function recordHookEvent(
-  store: ControlStore,
-  tenantId: string,
-  type: 'hookFailed' | 'hookCompleted',
-  hook: string,
-): Promise<void> {
-  try {
-    await runControlCommand(store, `tenant.${type}`, (ctx) => ({
-      events: [ctx.write.core.tenant[type](tenantId as never, { hook })],
-    }));
-  } catch (error) {
-    store.log.error(`the outcome of the lifecycle hook ${hook} could not be recorded`, {
-      hook,
-      cause: error,
-    });
-  }
 }
 
 /** What the hooks of one new tenant or backend need. */
@@ -82,28 +58,14 @@ export async function runTenantHooks(input: TenantHooksInput): Promise<readonly 
         tenant: target.scope.level === 'tenant' ? target.scope.tenantId : null,
       },
     });
-    const action: ActionEntry = {
-      ref: hook.id,
-      module: hook.contributedBy ?? hook.module,
-      name: hook.id.slice(hook.id.indexOf('.') + 1),
-      mount: 'module',
-      kind: 'command',
-      instance: false,
-      input: shape({}),
-      output: shape({}),
-      errors: [],
-      auth: 'policy',
-      scope: hook.unit,
-      execution: 'sync',
-      idempotent: false,
-      offline: false,
-      resumable: false,
-      hints: {},
-      since: input.head,
-      changedIn: [],
-      handler: (_input: unknown, ctx: unknown) =>
-        hook.react(input.payload, ctx as DecideContext<CoreBase>),
-    };
+    const action = hookActionOf(hook, input.head);
+    // A hook job the creation queued must not run beside the rerun, a running attempt included (the
+    // hooks queue cancels it, and its unit rolls back): it is cancelled first.
+    if (input.rerun === true && target.scope.level === 'tenant') {
+      await target.handle.adapter.unit(target.namespace, target.scope, (unit) =>
+        unit.jobs.cancel(hookQueue, hookJobKey(hook.id)),
+      );
+    }
     const span = trace.getTracer('keelwerk').startSpan(`keelwerk.hook.${hook.id}`);
     try {
       await runCommand({
@@ -112,7 +74,7 @@ export async function runTenantHooks(input: TenantHooksInput): Promise<readonly 
         namespace: target.namespace,
         scope: target.scope,
         action,
-        input: {},
+        input: input.payload,
         principal,
         request: { transport: 'runtime', requestId: globalThis.crypto.randomUUID() },
         config: input.config,

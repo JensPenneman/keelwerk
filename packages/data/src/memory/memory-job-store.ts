@@ -1,5 +1,5 @@
 import type { JobAttempt, JobGroup, JobStore, PurgedJob } from '@keelwerk/core';
-import { errors, timerQueue } from '@keelwerk/core';
+import { cancelsRunningAttempt, errors } from '@keelwerk/core';
 import { memoryAdjustLane } from './memory-adjust-lane.ts';
 import { memoryJobComplete } from './memory-job-complete.ts';
 import { memoryJobEnqueue } from './memory-job-enqueue.ts';
@@ -55,7 +55,7 @@ export function memoryJobStore(ctx: MemoryUnitContext): MemoryJobStore {
       let cancelled = 0;
       for (const tables of memoryJobScopes(ctx)) {
         for (const job of tables.jobs().values()) {
-          // A running attempt is cancelled only in the timers queue: its row goes, so the completion
+          // A running attempt is cancelled only in the timers and hooks queues: its row goes, so the completion
           // of its worker matches nothing (a lost lease) and exactly one of the cancel and its
           // command wins. In any other queue the command may commit in another scope's unit, so a
           // running job is left to finish.
@@ -63,7 +63,7 @@ export function memoryJobStore(ctx: MemoryUnitContext): MemoryJobStore {
             job.state === 'scheduled' ||
             job.state === 'available' ||
             job.state === 'waiting' ||
-            (job.state === 'running' && queue === timerQueue);
+            (job.state === 'running' && cancelsRunningAttempt(queue));
           if (cancellable && job.spec.queue === queue && job.spec.key?.value === key) {
             if (job.state === 'running') memoryReleaseJobGroup(ctx, job);
             memoryJobFinish(ctx, tables, job, 'cancelled', null);

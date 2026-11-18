@@ -217,7 +217,11 @@ describe('lifecycle hooks (S-27)', () => {
   const welcomeApp = defineApp({ id: 'welcome-app', modules: [welcome] });
 
   test('onTenantCreated decides in a tenant unit of its own right after the creating unit commits', async () => {
-    const runtime = await startTestRuntime(welcomeApp, { tenants: ['acme', 'globex'] });
+    const runtime = await startTestRuntime(welcomeApp, {
+      tenants: ['acme', 'globex'],
+      workers: true,
+    });
+    await runtime.drainJobs();
     const client = createLocalClient(runtime, { principal: testPrincipal('ada') });
     expect(await client.invoke('welcome.greetings', {})).toEqual({ notes: ['welcome acme'] });
     expect(await client.as({ tenant: 'globex' }).invoke('welcome.greetings', {})).toEqual({

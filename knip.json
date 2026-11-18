@@ -90,7 +90,7 @@
     },
     "examples/portal": {
       "entry": [".launchway/deployment.ts", ".launchway/launchway.ts"],
-      "ignoreDependencies": ["@keelwerk/cli", "@keelwerk/events"]
+      "ignoreDependencies": ["@keelwerk/cli"]
     },
     "packages/events": {
       "entry": ["src/**/*.test-d.ts", "test/**/*.test.ts"],

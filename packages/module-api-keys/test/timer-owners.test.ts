@@ -30,6 +30,37 @@ describe.each(['memory', 'pglite'] as const)('api-keys timer owners on %s', (kin
       .update(encodeAad(['api-keys', key]))
       .digest('hex')}`;
 
+  /**
+   * Keeps the workers from taking a job until the returned function is called, so a timer the
+   * resolver set is still pending when the test cancels it: without the hold the worker may take it
+   * first, which depends on how fast the store answers.
+   */
+  const holdTakes = (app: BootedApiKeys): (() => void) => {
+    let held = true;
+    const target = app.runtime.adapter as { unit: typeof app.runtime.adapter.unit };
+    const inner = target.unit.bind(app.runtime.adapter);
+    target.unit = (namespace, scope, fn, options) =>
+      inner(
+        namespace,
+        scope,
+        (unit) =>
+          fn({
+            ...unit,
+            jobs: {
+              ...unit.jobs,
+              take: (queue, worker, request) =>
+                held
+                  ? Promise.resolve({ jobs: [], skippedLanes: 0 })
+                  : unit.jobs.take(queue, worker, request),
+            },
+          }),
+        options,
+      );
+    return () => {
+      held = false;
+    };
+  };
+
   test('the last-use timer is stored under the module of the key, out of reach of another module', {
     timeout,
   }, async () => {
@@ -45,8 +76,10 @@ describe.each(['memory', 'pglite'] as const)('api-keys timer owners on %s', (kin
     expect((await app.row(id))?.lastUsedAt).toBeDefined();
     // The same timer under its stored key, which only api-keys builds, is the one that ends.
     const again = await createKey(app, { scopes: ['read'] });
+    const release = holdTakes(app);
     await app.withKey(again.key, 'library.book.query', {});
     expect(await cancelStored(app, await storedKey(app, `api-keys.lastUse:${again.id}`))).toBe(1);
+    release();
     await app.runtime.drainJobs();
     expect((await app.row(again.id))?.lastUsedAt).toBeUndefined();
   });
@@ -66,8 +99,10 @@ describe.each(['memory', 'pglite'] as const)('api-keys timer owners on %s', (kin
     await app.runtime.drainJobs();
     expect((await app.row(id))?.apiVersion).toBe('2026-11-11');
     const again = await createKey(app, { scopes: ['write'], apiVersion: '2026-11-04' });
+    const release = holdTakes(app);
     await app.withKey(again.key, 'library.book.query', {});
     expect(await cancelStored(app, await storedKey(app, `api-keys.repin:${again.id}`))).toBe(1);
+    release();
     await app.runtime.drainJobs();
     expect((await app.row(again.id))?.apiVersion).toBe('2026-11-04');
   });

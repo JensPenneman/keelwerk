@@ -101,7 +101,8 @@ describe.each(['memory', 'pglite'] as const)('auth abuse limits on %s', (kind: S
   test('successful logins do not use the failure budget of an identifier', {
     timeout,
   }, async () => {
-    const auth = await boot();
+    // The cap of sessions per credential is out of the way: this case is about the failure budget.
+    const auth = await boot({ successfulLoginsPerMinute: 20 });
     await enrol(auth);
     for (let index = 0; index < 8; index += 1) {
       expect((await auth.request('auth.login', ada)).ok).toBe(true);

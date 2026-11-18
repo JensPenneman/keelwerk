@@ -4,6 +4,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { portal } from '../src/app.ts';
 import { credentialsOf, freshPerson } from './support/people.ts';
 import { portalConfig } from './support/portal-config.ts';
+import { portalDispatcher } from './support/portal-event-workers.ts';
 import { portalRest } from './support/portal-rest.ts';
 
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 60_000 });
@@ -12,7 +13,12 @@ const loginPath = '/api/auth/login';
 
 describe('the login limit of one client address', () => {
   test('holds at its default: the eleventh attempt from one address is refused, another address is not', async () => {
-    const t = await startTransportRuntime({ app: portal, host: httpHost(), config: portalConfig });
+    const t = await startTransportRuntime({
+      app: portal,
+      host: httpHost(),
+      config: portalConfig,
+      eventWorkers: [portalDispatcher()],
+    });
     try {
       const from = (remoteAddress: string) =>
         portalRest((request) => t.fetch(request, { remoteAddress }), t.domains.acme ?? '');
@@ -33,7 +39,12 @@ describe('the login limit of one client address', () => {
   });
 
   test('a host.fetch call that names no address shares one address bucket', async () => {
-    const t = await startTransportRuntime({ app: portal, host: httpHost(), config: portalConfig });
+    const t = await startTransportRuntime({
+      app: portal,
+      host: httpHost(),
+      config: portalConfig,
+      eventWorkers: [portalDispatcher()],
+    });
     try {
       const host = t.runtime.host;
       if (host === undefined) throw new Error('the runtime has no host');
@@ -57,6 +68,7 @@ describe('the login limit of one client address', () => {
       app: portal,
       host: httpHost({ listen: { port: 0 } }),
       config: portalConfig,
+      eventWorkers: [portalDispatcher()],
     });
     try {
       const attempt = async (index: number) => {

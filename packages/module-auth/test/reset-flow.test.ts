@@ -58,14 +58,34 @@ describe.each(['memory', 'pglite'] as const)('reset links on %s', (kind: Storage
     expect(codeOf(await reset(both, expired))).toBe(invalid);
   });
 
-  test('a reset retires every other open link of the credential', { timeout }, async () => {
+  test('a newly issued link retires the one before it, and a reset retires any other open link', {
+    timeout,
+  }, async () => {
     const both = await boot();
     const first = await resetLink(both);
     const second = await resetLink(both);
-    expect((await reset(both, first)).ok).toBe(true);
-    expect(codeOf(await reset(both, second, 'yet another password 44'))).toBe(invalid);
+    expect(codeOf(await reset(both, first))).toBe(invalid);
+    // A link that an earlier release left open (two could be live then): a copy of the live row.
+    await both.inUnit(
+      async (unit) => {
+        const descriptor = both.runtime.app.registry.entities.get('auth.resetToken')?.descriptor;
+        if (descriptor === undefined) throw new Error('no auth.resetToken');
+        const rows = (await unit.rows.find(descriptor, { select: Object.keys(descriptor.fields) }))
+          .rows;
+        const live = rows.find((row) => row.usedAt === undefined);
+        if (live === undefined) throw new Error('no live link');
+        await unit.rows.insert(descriptor, [
+          { ...live, id: crypto.randomUUID(), publicId: crypto.randomUUID(), version: 0 },
+        ]);
+      },
+      { sealed: true },
+    );
+    expect(
+      (await both.rows('auth.resetToken')).filter((row) => row.usedAt === undefined),
+    ).toHaveLength(2);
+    expect((await reset(both, second)).ok).toBe(true);
     const rows = await both.rows('auth.resetToken');
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(3);
     expect(rows.every((row) => row.usedAt !== undefined)).toBe(true);
     expect((await both.request('auth.login', { ...ada, password: fresh })).ok).toBe(true);
   });
@@ -85,12 +105,14 @@ describe.each(['memory', 'pglite'] as const)('reset links on %s', (kind: Storage
     const unknown = await both.request('auth.requestPasswordReset', {
       identifier: 'nobody@example.org',
     });
+    await both.settle();
     expect(await both.rows('auth.resetToken')).toHaveLength(0);
     expect(delivered).toHaveLength(0);
     const known = await both.request('auth.requestPasswordReset', { identifier: ada.identifier });
     expect(known).toEqual(unknown);
     expect(known.ok).toBe(true);
     expect(JSON.stringify(known)).not.toContain('auth_');
+    await both.settle();
     expect(await both.rows('auth.resetToken')).toHaveLength(1);
   });
 
@@ -98,6 +120,7 @@ describe.each(['memory', 'pglite'] as const)('reset links on %s', (kind: Storage
     const both = await boot();
     await both.request('auth.requestPasswordReset', { identifier: ada.identifier });
     await both.request('auth.requestPasswordReset', { identifier: 'nobody@example.org' });
+    await both.settle();
     expect(delivered).toHaveLength(1);
     const [message] = delivered;
     expect(message?.identifier).toBe(ada.identifier);

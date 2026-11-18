@@ -18,9 +18,9 @@ export interface JobStore {
   /** Keys: keep, replace or coalesce a pending job with the same key and lane. */
   enqueue(job: StoredJobSpec): Promise<JobId>;
   /**
-   * Cancels the pending jobs of a queue and key. In the timers queue the attempt that is running is
-   * cancelled too: a timer never crosses scopes, so its command commits in the unit that completes
-   * the job. Its row goes with its lease, so its worker's `complete` answers false and its heartbeat
+   * Cancels the pending jobs of a queue and key. In the timers and hooks queues the attempt that is
+   * running is cancelled too: such a job never crosses scopes, so its command commits in the unit
+   * that completes the job. Its row goes with its lease, so its worker's `complete` answers false and its heartbeat
    * is refused; the unit of the command rolls back, and exactly one of the cancel and that command
    * commits. In every other queue a running job is left to finish and is not counted (its command may commit in
    * another scope's unit, where nothing could take it back). Answers how many it cancelled.

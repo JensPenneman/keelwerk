@@ -1,4 +1,5 @@
 import { defineApp, type Unit } from '@keelwerk/core';
+import { consumers, reactionDispatcher } from '@keelwerk/events';
 import { accounts } from '@keelwerk/module-accounts';
 import { auth } from '@keelwerk/module-auth';
 import {
@@ -61,6 +62,7 @@ export async function bootOwnerApp(kind: KeysStorage): Promise<BootedOwnerApp> {
     tenants: ['acme'],
     operators: true,
     workers: true,
+    eventWorkers: [consumers({ consumers: [reactionDispatcher()], runs: ['asyncReactions'] })],
     clock: { now: () => bootedAt },
     config: { accounts: { allowSelfRegistration: true } },
   });

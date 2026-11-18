@@ -1,4 +1,5 @@
 import { defineApp } from '@keelwerk/core';
+import { consumers, reactionDispatcher } from '@keelwerk/events';
 import { accounts } from '@keelwerk/module-accounts';
 import { startTestRuntime, testOperator } from '@keelwerk/testing';
 import { describe, expect, onTestFinished, test } from 'vitest';
@@ -70,6 +71,8 @@ describe.each(['memory', 'pglite'] as const)('profile linking on %s', (kind: Sto
         operators: true,
         tenants: ['acme'],
         config: { accounts: { allowSelfRegistration: true }, auth: {} },
+        workers: true,
+        eventWorkers: [consumers({ consumers: [reactionDispatcher()], runs: ['asyncReactions'] })],
       },
     );
     onTestFinished(() => runtime.stop());
@@ -114,6 +117,17 @@ describe.each(['memory', 'pglite'] as const)('profile linking on %s', (kind: Sto
     );
     const adas = rows.find((row) => row.identifier === ada.identifier);
     const graces = rows.find((row) => row.identifier === grace.identifier);
+    // The importer's invoke ran on the same event (its profile exists) and still linked nothing.
+    const profiles = await runtime.sealed.unit(
+      runtime.namespace,
+      { level: 'tenant', backendId: runtime.backendId, tenantId: tenant.id },
+      async (unit) => {
+        const profile = runtime.app.registry.entities.get('accounts.profile')?.descriptor;
+        if (profile === undefined) throw new Error('no accounts.profile');
+        return (await unit.rows.find(profile, { select: Object.keys(profile.fields) })).rows;
+      },
+    );
+    expect(profiles.map((row) => row.email).sort()).toEqual([ada.identifier, grace.identifier]);
     expect(adas?.profileId).toBeUndefined();
     expect(adas?.subject).toBe(older);
     expect(graces?.profileId).toBeDefined();

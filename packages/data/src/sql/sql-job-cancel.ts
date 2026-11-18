@@ -1,4 +1,4 @@
-import { timerQueue } from '@keelwerk/core';
+import { cancelsRunningAttempt } from '@keelwerk/core';
 import { encodeInstant } from './encode-instant.ts';
 import { groupKeyOfJob } from './group-key-of-job.ts';
 import { quoteIdentifier } from './postgres/quote-identifier.ts';
@@ -26,8 +26,8 @@ export interface SqlCancelledJob {
 /**
  * Takes jobs out of the queue and writes their `cancelled` history rows, which never hold the input
  * (9.5.2): pending ones (`scheduled`, `available` or `waiting`) for ids or a key, and for a key of the
- * timers queue also the one `running` attempt (a timer never crosses scopes; in any other queue the
- * command may commit in another unit, so a running job is left to finish). A running job's row is deleted, so its worker's completion matches
+ * timers or hooks queue also the one `running` attempt (such a job never crosses scopes; in any other
+ * queue the command may commit in another unit, so a running job is left to finish). A running job's row is deleted, so its worker's completion matches
  * nothing and answers a lost lease (the unit of a command that was running rolls back: exactly one
  * of the cancel and the command wins), and its next heartbeat is refused; its lane's `done` count
  * and its group's running slot are given back at the commit tail. A job that was `available` leaves
@@ -47,7 +47,7 @@ export async function sqlJobCancel(
     return `$${parameters.length}::${cast}`;
   };
   const conditions = [
-    'ids' in target || target.queue !== timerQueue
+    'ids' in target || !cancelsRunningAttempt(target.queue)
       ? `state in ('scheduled', 'available', 'waiting')`
       : `state in ('scheduled', 'available', 'waiting', 'running')`,
   ];

@@ -3,17 +3,27 @@ import { authBase } from '../../../base.ts';
 import { whenAccounts } from '../condition.ts';
 
 /**
- * The login time flows back to the profile field auth contributed. Inline in M1, since workers
- * arrive with M2 (S-24).
+ * The login time flows back to the profile field auth contributed, in a job queued from the
+ * credential's `loggedIn` event (7.7). The session cannot be the cause: it is a `history: 'state'`
+ * entity, so its records are transient and reach inline reactions only. The write is guarded: a
+ * job writes only when the profile has no login time yet or an earlier one, and it writes the
+ * profile it loaded, so its version decides between two jobs that run at once. Jobs of two logins
+ * may run in either order and the newer time stays.
  */
 export const recordLogin = defineReaction(within(authBase, whenAccounts), {
-  on: 'auth.session.created',
-  timing: 'inline',
+  on: 'auth.credential.loggedIn',
+  timing: 'async',
   *react(event, ctx) {
-    const credential = yield* ctx.load.auth.credential.byId(event.state.credentialId);
-    const profileId = credential?.profileId;
-    return profileId === undefined
-      ? []
-      : [ctx.write.accounts.profile.update(profileId, { lastLoginAt: event.at })];
+    const profileId = event.current?.profileId;
+    if (profileId === undefined) return [];
+    const profile = yield* ctx.load.accounts.profile.byId(profileId);
+    if (profile === undefined) return [];
+    if (
+      profile.lastLoginAt !== undefined &&
+      Temporal.Instant.compare(profile.lastLoginAt, event.data.at) >= 0
+    ) {
+      return [];
+    }
+    return [ctx.write.accounts.profile.update(profile, { lastLoginAt: event.data.at })];
   },
 });

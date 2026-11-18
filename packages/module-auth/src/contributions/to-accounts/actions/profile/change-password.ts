@@ -4,6 +4,8 @@ import { session } from '../../../../entities/session.ts';
 import { invalidCredentials } from '../../../../errors/invalid-credentials.ts';
 import { reauthenticationRequired } from '../../../../errors/reauthentication-required.ts';
 import { tooManyRecords } from '../../../../errors/too-many-records.ts';
+import { checkPasswordLength } from '../../../../lib/check-password-length.ts';
+import { checkSessionRate } from '../../../../lib/check-session-rate.ts';
 import { isRecentlyAuthenticated } from '../../../../lib/is-recently-authenticated.ts';
 import { retireResetTokens } from '../../../../lib/retire-reset-tokens.ts';
 import { revokeOtherSessions } from '../../../../lib/revoke-other-sessions.ts';
@@ -42,6 +44,7 @@ export const changePassword = defineCommand(within(authBase, toAccounts), 'profi
   errors: [invalidCredentials, reauthenticationRequired, tooManyRecords],
   execution: 'sync',
   *decide(input, _current, ctx) {
+    checkPasswordLength(input.newPassword, ctx.config.minPasswordLength, 'newPassword');
     const recent = yield* isRecentlyAuthenticated(ctx);
     const found = yield* ctx.load.auth.credential.one({
       where: { subject: ctx.principal.subject, kind: 'password', revokedAt: { isNull: true } },
@@ -56,6 +59,7 @@ export const changePassword = defineCommand(within(authBase, toAccounts), 'profi
       throw reauthenticationRequired();
     }
     if (found === undefined) throw errors.not_found('This profile has no password to change.');
+    yield* checkSessionRate(ctx, found);
     const verifier = yield* ctx.compute.argon2idHash(
       input.newPassword,
       yield* ctx.random(saltBytes),

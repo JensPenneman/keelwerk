@@ -72,6 +72,7 @@ export type { LoggedLine } from './harness/logged-line.ts';
 export type { PinnedLiveTimers } from './harness/pinned-live-timers.ts';
 export { pinnedLiveTimers } from './harness/pinned-live-timers.ts';
 export { recordingLogger } from './harness/recording-logger.ts';
+export { settleReactions } from './harness/settle-reactions.ts';
 export { startTestRuntime } from './harness/start-test-runtime.ts';
 export type { TestApp } from './harness/test-app.ts';
 export { testCarrier } from './harness/test-carrier.ts';

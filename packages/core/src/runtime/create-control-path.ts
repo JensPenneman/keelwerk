@@ -3,6 +3,7 @@ import type { BackendInput } from '../control/create-backend.ts';
 import { createBackend } from '../control/create-backend.ts';
 import type { TenantInput } from '../control/create-tenant.ts';
 import { createTenant } from '../control/create-tenant.ts';
+import { enqueueTenantHooks } from '../control/enqueue-tenant-hooks.ts';
 import { findControlRows } from '../control/find-control-rows.ts';
 import { runTenantHooks } from '../control/run-tenant-hooks.ts';
 import { errors } from '../errors/errors.ts';
@@ -213,18 +214,16 @@ export function createControlPath(input: {
       ) {
         throw errors.internal('A tenant was created but does not resolve.');
       }
-      await runTenantHooks({
+      // The tenant is usable at once; its hooks run as jobs, so a worker must serve the queue `hooks`.
+      await enqueueTenantHooks({
         store: control,
         registry: app.registry,
-        hook: 'onTenantCreated',
-        payload: { id: created.id as never, name: tenant.name },
         target: {
           scope: { level: 'tenant', backendId: backend.id, tenantId: created.id },
           namespace: record.namespace,
           handle,
         },
-        head: app.head,
-        config: configOf(app, backend.config),
+        tenant: { id: created.id, name: tenant.name },
       });
       return created;
     },

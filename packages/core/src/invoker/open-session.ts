@@ -1,5 +1,7 @@
 import { isKeelwerkError } from '../errors/is-keelwerk-error.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { isBrowserRequest } from '../http/is-browser-request.ts';
+import { sessionCookie } from '../http/session-cookie.ts';
 import type { Span } from '../observability/span.ts';
 import type { PrincipalRef } from '../principals/principal-ref.ts';
 import type { Carrier } from './carrier.ts';
@@ -53,6 +55,20 @@ async function open(
   // A session that a redeemed credential opened is revalidated by the reference it stands for, never by the spent credential.
   const reference = found.redeem?.ref ?? standsFor;
   const kept = withoutTicket(carrier);
+  const renew = found.renewCookie;
+  const renewed =
+    renew !== undefined &&
+    resolved.resolvedBy === 'hostname' &&
+    isBrowserRequest(carrier.headers ?? {})
+      ? [
+          sessionCookie(
+            renew.name,
+            renew.value,
+            env.options.clock.now(),
+            new Date(renew.expiresAt.epochMilliseconds),
+          ),
+        ]
+      : [];
   const session: InvocationSession = {
     scope: resolved.scope,
     app: resolved.app,
@@ -61,6 +77,7 @@ async function open(
     deprecation: version.deprecation,
     ...(found.clearCookies.length === 0 ? {} : { clearCookies: found.clearCookies }),
     resolvedBy: resolved.resolvedBy,
+    ...(renewed.length === 0 ? {} : { setCookies: renewed }),
     ...(principal.expiresAt === undefined ? {} : { expiresAt: principal.expiresAt }),
     ...(found.dependsOn === undefined || found.dependsOn.length === 0
       ? {}

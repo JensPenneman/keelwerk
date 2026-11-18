@@ -31,6 +31,15 @@ describe('the API version of an invocation', () => {
     });
   });
 
+  test('a hook job runs at the head although the tenant is pinned to an older version', () => {
+    const hookJob = { hook: true } as unknown as NonNullable<Carrier['job']>;
+    const carrier = carrierOf({ headers: { 'keelwerk-version': '2026-03-01' }, job: hookJob });
+    expect(resolveVersion(env, resolved, carrier, principal)).toEqual({
+      apiVersion: '2026-06-01',
+      deprecation: null,
+    });
+  });
+
   test('the same carrier without the reaction mark is answered by the choice: the header', () => {
     const carrier = carrierOf({ headers: { 'keelwerk-version': '2026-06-01' }, job: otherJob });
     expect(resolveVersion(env, resolved, carrier, principal).apiVersion).toBe('2026-06-01');

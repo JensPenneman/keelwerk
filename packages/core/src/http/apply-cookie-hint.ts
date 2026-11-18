@@ -17,7 +17,9 @@ export interface CookieHintResult {
 /**
  * The `http.cookie` hint of section 16.4.10 under S-48: it applies only to a browser request under
  * host-based tenant resolution, then the cookie is set (or cleared) and the `omitFromBody` fields
- * leave the output. Every other request gets the full output and no cookie. `now` is the
+ * leave the output. A clearing hint needs no output: an action that answers nothing (a logout)
+ * clears its cookie all the same, and the host then does not set the session's renewed cookie of
+ * that name again. Every other request gets the full output and no cookie. `now` is the
  * invocation's clock reading for the cookie's `Max-Age`; without it the system clock is read (F-09 change note, followups).
  */
 export function applyCookieHint(
@@ -27,16 +29,11 @@ export function applyCookieHint(
   headers: Headers | Readonly<Record<string, string>>,
   now?: Temporal.Instant,
 ): CookieHintResult {
-  if (
-    hint === undefined ||
-    session.resolvedBy !== 'hostname' ||
-    !isBrowserRequest(headers) ||
-    !isRecord(value)
-  ) {
+  if (hint === undefined || session.resolvedBy !== 'hostname' || !isBrowserRequest(headers)) {
     return { value, setCookies: [] };
   }
   const setCookies: string[] = [];
-  if (hint.set !== undefined) {
+  if (isRecord(value) && hint.set !== undefined) {
     const token = value[hint.set.from];
     if (typeof token === 'string' && token !== '') {
       const expiry = hint.set.expiresFrom === undefined ? undefined : value[hint.set.expiresFrom];
@@ -51,9 +48,8 @@ export function applyCookieHint(
       );
     }
   }
-  if (hint.clear !== undefined) {
-    setCookies.push(clearedCookie(hint.clear.name));
-  }
+  if (hint.clear !== undefined) setCookies.push(clearedCookie(hint.clear.name));
+  if (!isRecord(value)) return { value, setCookies };
   const omitted = new Set(hint.omitFromBody ?? []);
   const body =
     omitted.size === 0

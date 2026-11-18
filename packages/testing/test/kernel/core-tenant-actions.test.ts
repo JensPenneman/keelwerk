@@ -12,7 +12,7 @@ import {
   spiedMemory,
   testClock,
 } from './support/core-actions-kit.ts';
-import { ada, boot, deploymentOf } from './support/runtime-kit.ts';
+import { ada, boot, bootWorking, deploymentOf } from './support/runtime-kit.ts';
 
 describe('tenant entry and pins (sections 8.8 and 18.3)', () => {
   async function withTenant() {
@@ -134,15 +134,17 @@ describe('lifecycle hook outcomes on the tenant stream (S-84)', () => {
 
   test('a failed hook is recorded as core.tenant.hookFailed and the tenant stays created', async () => {
     const spy = spiedMemory();
-    const runtime = await boot(deploymentOf('memory', { apps: [flakyApp], factory: spy.factory }), {
-      clock: testClock().clock,
-    });
+    const { runtime, drain } = await bootWorking(
+      deploymentOf('memory', { apps: [flakyApp], factory: spy.factory }),
+      { clock: testClock().clock },
+    );
     const backend = await runtime.control.createBackend({
       name: 'b',
       app: 'flaky-app',
       placement: 'main',
     });
     const tenant = await runtime.control.createTenant({ backendId: backend.id, name: 't' });
+    await drain();
     const history = await ok(
       call(runtime.invoker, local, 'core.tenant.history', { id: tenant.id }),
     );
@@ -167,15 +169,17 @@ describe('lifecycle hook outcomes on the tenant stream (S-84)', () => {
     });
     const app = withTestResolver(defineApp({ id: 'mending-app', modules: [mending] }));
     const spy = spiedMemory();
-    const runtime = await boot(deploymentOf('memory', { apps: [app], factory: spy.factory }), {
-      clock: testClock().clock,
-    });
+    const { runtime, drain } = await bootWorking(
+      deploymentOf('memory', { apps: [app], factory: spy.factory }),
+      { clock: testClock().clock },
+    );
     const backend = await runtime.control.createBackend({
       name: 'b',
       app: 'mending-app',
       placement: 'main',
     });
     const tenant = await runtime.control.createTenant({ backendId: backend.id, name: 't' });
+    await drain();
     broken = false;
     expect(await runtime.control.rerunTenantHooks(tenant.id)).toEqual([]);
     const raw = await spy.stream('core.tenant', tenant.id);

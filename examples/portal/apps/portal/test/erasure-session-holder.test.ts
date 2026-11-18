@@ -1,4 +1,4 @@
-import type { ErasureRecord, Unit } from '@keelwerk/core';
+import type { DataAdapter, ErasureRecord, JobOutcome, Unit } from '@keelwerk/core';
 import { erasure } from '@keelwerk/events';
 import { testOperator } from '@keelwerk/testing';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
@@ -157,23 +157,53 @@ describe('the idle extension a session has queued (17.2.3, 14.7.5)', () => {
   const worker = erasure({ pollMs: 3_600_000 });
   let portal: LocalPortal;
   let kit: ReturnType<typeof kitOf>;
+  /** How the attempts of the timers queue ended, and whether the worker may take them yet. */
+  const timers = { held: true, outcomes: [] as JobOutcome[] };
 
   beforeAll(async () => {
-    // No worker takes the commands queue, so the job the resolver queues stays until the erasure purges it.
     portal = await startLocalPortal('pglite', {
-      workers: { queues: [] },
+      workers: { queues: ['timers'] },
       eventWorkers: [worker],
       clock,
     });
     kit = kitOf(portal);
+    // The worker takes nothing until the test lets it, so the timer the resolver sets stays where it is.
+    const adapter = portal.runtime.adapter as { unit: DataAdapter['unit'] };
+    const inner = adapter.unit.bind(portal.runtime.adapter);
+    adapter.unit = (namespace, scope, fn, options) =>
+      inner(
+        namespace,
+        scope,
+        (unit) =>
+          fn({
+            ...unit,
+            jobs: {
+              ...unit.jobs,
+              take: (queue, workerId, request) =>
+                timers.held
+                  ? Promise.resolve({ jobs: [], skippedLanes: 0 })
+                  : unit.jobs.take(queue, workerId, request),
+              complete: (attempt, workerId, outcome) => {
+                timers.outcomes.push(outcome);
+                return unit.jobs.complete(attempt, workerId, outcome);
+              },
+            },
+          }),
+        options,
+      );
   }, 120_000);
 
   afterAll(() => portal?.runtime.stop());
 
-  test('is purged with the erased subject', { timeout: 180_000 }, async () => {
+  test('is a timer of the module, so the erasure leaves it, and it decides nothing when it runs', {
+    timeout: 180_000,
+  }, async () => {
     const me = await kit.enrol('queued');
-    expect(await kit.pendingJobs()).toBe(0);
-    // A request after the extension interval asks for the idle extension: a job of the session's principal.
+    // The creation hooks of the tenants are jobs too, and no worker takes their queue here: they stay.
+    const others = await kit.pendingJobs();
+    // A request after the extension interval asks for the idle extension: a timer of the module's
+    // service principal, whose input holds the opaque session id and the instant of the request,
+    // and whose causation names the user who made the request (the subject, as the actor).
     now = now.add({ minutes: 6 });
     const resolved = await portal.request(
       'auth.whoami',
@@ -181,8 +211,10 @@ describe('the idle extension a session has queued (17.2.3, 14.7.5)', () => {
       { headers: asCookie(me.sessionToken) },
     );
     expect(resolved.ok).toBe(true);
-    expect(await kit.pendingJobs()).toBe(1);
-    // The erasure runs from the ledger alone, so the queued job is still there when its principals are purged.
+    expect(await kit.pendingJobs()).toBe(others + 1);
+    // The erasure runs from the ledger alone. It purges the jobs of the subject's principals; this
+    // timer belongs to the module's, so it stays, with the user's id as the actor that caused it
+    // (a reference, no personal value).
     const record: ErasureRecord = {
       type: 'erasure',
       tenantId: portal.runtime.tenants.acme.id,
@@ -198,7 +230,14 @@ describe('the idle extension a session has queued (17.2.3, 14.7.5)', () => {
       async (unit) => unit.ledger?.append(record),
     );
     await worker.pass();
-    expect(await kit.pendingJobs()).toBe(0);
-    expect((await kit.rowsOfSubject('auth.session', me.subject))[0]?.kwErasedAt).toBeDefined();
+    expect(await kit.pendingJobs()).toBe(others + 1);
+    const erased = await kit.rowsOfSubject('auth.session', me.subject);
+    expect(erased[0]?.kwErasedAt).toBeDefined();
+    // A worker runs the timer after the erasure: it succeeds, and the erased row stays as it was.
+    timers.held = false;
+    await portal.runtime.drainJobs();
+    expect(timers.outcomes.map((outcome) => outcome.kind)).toEqual(['succeeded']);
+    expect(await kit.pendingJobs()).toBe(others);
+    expect(await kit.rowsOfSubject('auth.session', me.subject)).toEqual(erased);
   });
 });

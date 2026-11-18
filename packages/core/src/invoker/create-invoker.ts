@@ -3,6 +3,7 @@ import { chargeFailureBuckets } from '../admission/charge-failure-buckets.ts';
 import type { Admitted } from '../admission/run-admission.ts';
 import { translateError } from '../api-versions/translate-error.ts';
 import type { VersionTranslation } from '../api-versions/version-translation.ts';
+import { hookJobAction } from '../control/hook-job-action.ts';
 import type { RuleMatch } from '../errors/rule-match.ts';
 import type { StateToken } from '../events/state-token.ts';
 import { buildSnapshot } from '../flags/build-snapshot.ts';
@@ -87,7 +88,9 @@ async function run(
   const action =
     inv.carrier.job?.reaction === true
       ? reactionJobAction(registry, inv.action, scope, session.apiVersion)
-      : locate(registry, inv.action, scope, translation);
+      : inv.carrier.job?.hook === true
+        ? hookJobAction(registry, inv.action, scope, session.apiVersion)
+        : locate(registry, inv.action, scope, translation);
   state.action = action;
   const log = logOf(action.ref);
   state.log = log;

@@ -149,8 +149,10 @@ describe('ctx.config beyond commands and reads (S-106)', () => {
     const runtime = await startTestRuntime(app, {
       tenants: ['acme'],
       config: { claims: { greeting: 'hi' } },
+      workers: true,
     });
     onTestFinished(() => runtime.stop());
+    await runtime.drainJobs();
     expect(seen).toEqual(expect.arrayContaining(['hi']));
     expect(seen.every((one) => one === 'hi')).toBe(true);
     expect(seen.length).toBeGreaterThanOrEqual(2);

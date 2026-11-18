@@ -126,7 +126,7 @@ describe.each(['memory', 'pglite'] as const)('the hooks sketch on %s (7.9.5, M2-
     await booted.raw((unit) =>
       unit.jobs.enqueue({
         kind: 'effect',
-        queue: 'hooks',
+        queue: 'posts',
         run: { executor: 'hooks.post', effect: String(effect?.id) },
         scope: booted.scope,
         principal: { resolver: 'core.module', principalId: 'hooks.system' },
@@ -169,7 +169,7 @@ describe('the default rule never reaches another tenant (7.7, 7.9.5)', () => {
       adapter: 'memory',
       config: { hooks: { endpoint: endpoint.url, signingKey: 'hook-signing-key' } },
       external: { factory: watched.factory, url: 'memory://watched' },
-      workers: { queues: ['hooks', 'probes', 'commands'], egress: { allow: ['127.0.0.0/8'] } },
+      workers: { queues: ['posts', 'probes', 'commands'], egress: { allow: ['127.0.0.0/8'] } },
     });
     cleanup.push(
       () => runtime.stop(),

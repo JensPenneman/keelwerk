@@ -84,11 +84,6 @@ export const invocationMiddlewareFill = defineFill(
       // A carrier without a connection shares one bucket, so an in-process call or a transport that builds its own carrier cannot go past the address limit.
       const address = input.request.connection?.remote.address ?? unknownClientAddress;
       const failure = failureKey(input, registry);
-      // A reset request is charged per identifier whatever its outcome, since it never fails (the answer is the same).
-      const requested =
-        input.action === 'auth.requestPasswordReset'
-          ? identifierOf(input.input, registry)
-          : undefined;
       const admit: BucketCharge[] = [
         {
           bucket: `address:${addressBucket(address)}`,
@@ -96,15 +91,6 @@ export const invocationMiddlewareFill = defineFill(
           refillPerSecond: limits.addressAttemptsPerMinute / secondsPerMinute,
         },
       ];
-      if (requested !== undefined) {
-        admit.push({
-          bucket: `reset-request:${requested}`,
-          capacity: limits.identifierFailedAttempts,
-          refillPerSecond:
-            limits.identifierFailedAttempts /
-            (limits.identifierFailureWindowMinutes * secondsPerMinute),
-        });
-      }
       const onDeclaredError: BucketCharge[] =
         failure === undefined
           ? []

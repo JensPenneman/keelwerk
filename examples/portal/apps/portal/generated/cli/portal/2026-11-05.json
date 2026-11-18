@@ -616,8 +616,29 @@
       "flags": [
         {
           "kind": "ref",
+          "name": "credential-id",
+          "required": true
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "auth.deliverPasswordReset",
+      "route": "call auth.deliverPasswordReset",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "ref",
           "name": "session-id",
           "required": true
+        },
+        {
+          "kind": "instant",
+          "name": "seen-at",
+          "required": false
         }
       ],
       "kind": "command",
@@ -878,6 +899,22 @@
       "positionals": [],
       "ref": "auth.resetToken.queryChanges",
       "route": "call auth.resetToken.queryChanges",
+      "scope": "tenant"
+    },
+    {
+      "aliases": [],
+      "auth": "policy",
+      "flags": [
+        {
+          "kind": "subject",
+          "name": "subject",
+          "required": true
+        }
+      ],
+      "kind": "command",
+      "positionals": [],
+      "ref": "auth.revokeSessions",
+      "route": "call auth.revokeSessions",
       "scope": "tenant"
     },
     {
@@ -3370,5 +3407,5 @@
     "wait-effects"
   ],
   "format": "keelwerk.cli/1",
-  "surface": "sha256-IuRdmFmoAPKTDuQmuHVjzEGM4axVUrFbpcCQQXFjW-0"
+  "surface": "sha256-xsx1O_nP3TB3GqjVZjtc2ymfWqHhzV-OQAMx2av8kds"
 }

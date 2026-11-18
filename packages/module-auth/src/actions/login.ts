@@ -2,6 +2,7 @@ import { defineCommand, field, shape } from '@keelwerk/core';
 import { authBase } from '../base.ts';
 import { session } from '../entities/session.ts';
 import { invalidCredentials } from '../errors/invalid-credentials.ts';
+import { checkSessionRate } from '../lib/check-session-rate.ts';
 import { sessionCookieName } from '../lib/session-cookie-name.ts';
 import { sessionExpiry } from '../lib/session-expiry.ts';
 import { sessionTokenPrefix } from '../lib/session-token-prefix.ts';
@@ -14,7 +15,10 @@ const saltBytes = 16;
  * (S-97). An unknown identifier is verified against a dummy hash at the same cost (17.2.2).
  */
 const loginDef = defineCommand(authBase, {
-  input: shape({ identifier: field.string({ format: 'email' }), password: field.secret() }),
+  input: shape({
+    identifier: field.string({ format: 'email' }).personal(),
+    password: field.secret(),
+  }),
   output: shape({
     sessionToken: field.string(),
     sessionId: field.ref.own('session'),
@@ -39,6 +43,8 @@ const loginDef = defineCommand(authBase, {
     });
     const ok = yield* ctx.compute.argon2idVerify(verifierOrDummy(found?.verifier), input.password);
     if (found === undefined || !ok) throw invalidCredentials();
+    // After the proof of the password and before any draft: the cap bounds what a login appends to the credential.
+    yield* checkSessionRate(ctx, found);
     // The stored verifier is sealed text: the kernel opens it to compare the parameters (17.2.2).
     const rehashed = (yield* ctx.compute.argon2idNeedsRehash(found.verifier))
       ? yield* ctx.compute.argon2idHash(input.password, yield* ctx.random(saltBytes))
@@ -64,10 +70,13 @@ const loginDef = defineCommand(authBase, {
           ...(userAgent === undefined ? {} : { userAgent }),
           ...(address === undefined ? {} : { address }),
         }),
-        ctx.write.auth.credential.update(found, {
-          lastUsedAt: now,
-          ...(rehashed === undefined ? {} : { verifier: rehashed }),
-        }),
+        // One chain event for the login; a rehash adds the update of the verifier before it. The
+        // event is no transient record, so the reaction that records the login on the profile is
+        // queued from it.
+        ...(rehashed === undefined
+          ? []
+          : [ctx.write.auth.credential.update(found, { verifier: rehashed })]),
+        ctx.write.auth.credential.loggedIn(found, { at: now }),
       ],
       result: { sessionToken: token.plain, sessionId: id, expiresAt: idleExpiresAt },
     };

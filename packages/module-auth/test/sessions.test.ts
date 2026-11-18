@@ -12,6 +12,7 @@ import {
   whoami,
 } from './support/auth-calls.ts';
 import { type BootedAuth, bootAuth, type StorageKind } from './support/boot-auth.ts';
+import { holdJobs } from './support/hold-jobs.ts';
 
 describe.each(['memory', 'pglite'] as const)('auth sessions on %s', (kind: StorageKind) => {
   const timeout = kind === 'pglite' ? 60_000 : 10_000;
@@ -30,10 +31,35 @@ describe.each(['memory', 'pglite'] as const)('auth sessions on %s', (kind: Stora
     const { sessionToken } = await signIn(auth);
     auth.clock.advance({ hours: 11 });
     expect((await whoami(auth, asBearer(sessionToken))).ok).toBe(true);
-    auth.clock.advance({ hours: 2 });
+    // The use at 11 hours slides the expiry, so only an idle period without use ends the session.
+    await auth.settle();
+    auth.clock.advance({ hours: 13 });
     expect(codeOf(await whoami(auth, asBearer(sessionToken)))).toBe('core.unauthenticated');
     expect(codeOf(await probe(auth, asBearer(sessionToken)))).toBe('core.unauthenticated');
     expect(codeOf(await probe(auth, asCookie(sessionToken)))).toBe('auth.invalid_credentials');
+  });
+
+  test('the resolver asks for the idle extension at most every five minutes, as one keyed timer', {
+    timeout,
+  }, async () => {
+    const auth = await boot();
+    await enrol(auth);
+    const { sessionToken } = await signIn(auth);
+    // No worker takes the job, so the count shows what the resolver queued.
+    holdJobs(auth.runtime.adapter);
+    const jobs = async () =>
+      auth.inUnit(async (unit) => {
+        const stats = await unit.jobs.stats('timers');
+        return stats.reduce((total, row) => total + row.due, 0);
+      });
+    expect(await jobs()).toBe(0);
+    auth.clock.advance({ minutes: 4 });
+    await whoami(auth, asBearer(sessionToken));
+    expect(await jobs()).toBe(0);
+    auth.clock.advance({ minutes: 2 });
+    await whoami(auth, asBearer(sessionToken));
+    await whoami(auth, asCookie(sessionToken));
+    expect(await jobs()).toBe(1);
   });
 
   test('the absolute lifetime caps the idle one', { timeout }, async () => {
@@ -45,27 +71,6 @@ describe.each(['memory', 'pglite'] as const)('auth sessions on %s', (kind: Stora
     expect((await whoami(auth, asBearer(session.sessionToken))).ok).toBe(true);
     auth.clock.advance({ hours: 2 });
     expect(codeOf(await probe(auth, asBearer(session.sessionToken)))).toBe('core.unauthenticated');
-  });
-
-  test('the resolver asks for the idle extension at most every five minutes, as one keyed job', {
-    timeout,
-  }, async () => {
-    const auth = await boot();
-    await enrol(auth);
-    const { sessionToken } = await signIn(auth);
-    const jobs = async () =>
-      auth.inUnit(async (unit) => {
-        const stats = await unit.jobs.stats('commands');
-        return stats.reduce((total, row) => total + row.due, 0);
-      });
-    expect(await jobs()).toBe(0);
-    auth.clock.advance({ minutes: 4 });
-    await whoami(auth, asBearer(sessionToken));
-    expect(await jobs()).toBe(0);
-    auth.clock.advance({ minutes: 2 });
-    await whoami(auth, asBearer(sessionToken));
-    await whoami(auth, asCookie(sessionToken));
-    expect(await jobs()).toBe(1);
   });
 
   test("a user revokes one of their own sessions, and nobody else's", { timeout }, async () => {

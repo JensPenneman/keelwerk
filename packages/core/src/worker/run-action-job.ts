@@ -1,3 +1,4 @@
+import { hookQueue } from '../control/hook-queue.ts';
 import { RestoreHoldRefusal } from '../control/restore-hold-refusal.ts';
 import { timerQueue } from '../effects/timer-queue.ts';
 import { declaredErrorCodesOf } from '../executors/declared-error-codes-of.ts';
@@ -18,6 +19,7 @@ import { isCrossScopeJob } from './is-cross-scope-job.ts';
 import { jobOutcomeOfError } from './job-outcome-of-error.ts';
 import { kernelJobError } from './kernel-job-error.ts';
 import { type PreparedJob, prepareActionJob } from './prepare-action-job.ts';
+import { recordHookOutcome } from './record-hook-outcome.ts';
 import type { RunJobContext } from './run-job.ts';
 import { settleHeldJob } from './settle-held-job.ts';
 import { settleJobAttempt } from './settle-job-attempt.ts';
@@ -49,6 +51,8 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
   // A reaction job's input is the event reference the dispatcher stored: it holds no secret member and no receipt of
   // its own, so there is nothing to prepare, and the gate judges an unknown transport.
   const reaction = stored.queue === reactionQueue;
+  // A hook job's input is the hook's payload, which holds no secret member either: nothing to prepare.
+  const hook = stored.queue === hookQueue;
   const entry = context.source.registry.actions.get(action);
   const crossesScopes =
     !reaction && entry !== undefined && isCrossScopeJob(stored.scope, entry.scope);
@@ -65,9 +69,10 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
   }
   let prepared: PreparedJob;
   try {
-    prepared = reaction
-      ? { input: stored.run.input, transport: null }
-      : await prepareActionJob(context.source, stored, stored.run);
+    prepared =
+      reaction || hook
+        ? { input: stored.run.input, transport: null }
+        : await prepareActionJob(context.source, stored, stored.run);
   } catch (error) {
     // The key of a personal member is destroyed: nothing will ever open the input again.
     if (!(error instanceof PersonalKeyDestroyed)) throw error;
@@ -86,6 +91,7 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
       attempt: stored.attempt,
       ...(stored.retry === undefined ? {} : { retry: stored.retry }),
       ...(reaction ? { reaction: true as const } : {}),
+      ...(hook ? { hook: true as const } : {}),
       ...(reaction && stored.key !== undefined ? { key: stored.key.value } : {}),
       ...(stored.causation.eventId === undefined ? {} : { causationId: stored.causation.eventId }),
       ...(lineage === undefined ? {} : { lineage }),
@@ -108,6 +114,9 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
   if (outcome.ok) {
     // The command of a tenant's job that runs in its backend's unit could not complete the job there.
     if (crossesScopes) await settleJobAttempt(context, stored, { kind: 'succeeded' });
+    // A hook that succeeds after an attempt failed closes the failure the first attempt recorded.
+    if (hook && stored.attempt.attempt > 1)
+      await recordHookOutcome(context, stored, 'hookCompleted');
     return;
   }
   // A tenant held by a restore refuses its jobs until the hold lifts: they wait and keep their attempt.
@@ -127,23 +136,41 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
           context.source.registry.reactions.get(action)?.module,
         ),
       )
-    : stored.queue === timerQueue || stored.queue === scheduleQueue
+    : hook
       ? kernelJobError(
           outcome.error,
           declaredErrorCodesOf(
             context.source.registry,
-            context.source.registry.actions.get(action)?.module,
+            context.source.registry.hooks.get(action)?.module,
           ),
-          stored.queue === timerQueue ? 'timer' : 'schedule',
+          'hook',
         )
-      : commandJobError(
-          outcome.error,
-          declaredErrorCodesOf(
-            context.source.registry,
-            context.source.registry.actions.get(action)?.module,
-          ),
-        );
+      : stored.queue === timerQueue || stored.queue === scheduleQueue
+        ? kernelJobError(
+            outcome.error,
+            declaredErrorCodesOf(
+              context.source.registry,
+              context.source.registry.actions.get(action)?.module,
+            ),
+            stored.queue === timerQueue ? 'timer' : 'schedule',
+          )
+        : commandJobError(
+            outcome.error,
+            declaredErrorCodesOf(
+              context.source.registry,
+              context.source.registry.actions.get(action)?.module,
+            ),
+          );
   const next = jobOutcomeOfError(failure, stored, context.clock.now(), context.random);
   if (next === undefined) return;
   await settleJobAttempt(context, stored, next);
+  // `hookFailed` is recorded for `keelwerk doctor` at the first attempt that fails and again at
+  // every attempt that ends the job (no retry follows): an attempt lost to a redeploy or a lapsed
+  // lease records nothing, so the attempts after it must still put a dead hook on the operator's
+  // list. A hook whose first attempt failed and whose later attempt ends the job therefore records
+  // twice; the record is keyed by tenant and hook, so the second replaces the first. A retry after
+  // the first attempt records nothing.
+  if (hook && (stored.attempt.attempt === 1 || next.kind !== 'retry')) {
+    await recordHookOutcome(context, stored, 'hookFailed');
+  }
 }

@@ -1,5 +1,11 @@
 import { readFileSync } from 'node:fs';
-import type { DataAdapterFactory, DeploymentDefinition, Logger, Runtime } from '@keelwerk/core';
+import type {
+  DataAdapterFactory,
+  DeploymentDefinition,
+  Logger,
+  Runtime,
+  WorkersProbe,
+} from '@keelwerk/core';
 import { KeelwerkError, secret, startRuntime } from '@keelwerk/core';
 import { fallbackReporter, memoryAdapter, schemaPlanner } from '@keelwerk/data';
 import { afterEach, expect } from 'vitest';
@@ -52,6 +58,33 @@ export async function boot(
   });
   running.push(runtime);
   return runtime;
+}
+
+/** A runtime that works its queues, and the wait a test takes before it reads what a hook job did. */
+export interface WorkingRuntime {
+  readonly runtime: Runtime;
+  /** Wakes the workers and settles once they are idle. */
+  drain(): Promise<void>;
+}
+
+/** `boot` with workers on every queue, so the hook jobs of a creation run; `drain` waits for them. */
+export async function bootWorking(
+  deployment: DeploymentDefinition,
+  over: Partial<Parameters<typeof startRuntime>[1]> = {},
+): Promise<WorkingRuntime> {
+  const probed = Promise.withResolvers<WorkersProbe>();
+  const runtime = await boot(deployment, {
+    ...over,
+    work: { slots: { '*': 4 }, probe: (probe: WorkersProbe) => probed.resolve(probe) },
+  });
+  const probe = await probed.promise;
+  return {
+    runtime,
+    drain: async () => {
+      probe.wake();
+      await probe.idle();
+    },
+  };
 }
 
 export async function refusal(work: Promise<unknown>): Promise<KeelwerkError> {

@@ -46,7 +46,7 @@ const deliver = defineEffect(courierBase, {
 });
 
 const postExecutor = defineEffectExecutor(courierBase, post, {
-  queue: 'hooks',
+  queue: 'posts',
   run: () => Promise.resolve({ status: 200 }),
 });
 

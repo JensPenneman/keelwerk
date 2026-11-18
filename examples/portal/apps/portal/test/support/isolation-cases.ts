@@ -118,14 +118,21 @@ export function storeIsolationCases(portal: () => LocalPortal): void {
 
     test('backend and deployment units are refused on tenant entities', async () => {
       const { adapter, namespace, backendId } = portal().runtime;
-      const backend = adapter.unit(namespace, { level: 'backend', backendId }, (unit) =>
-        unit.rows.find(credential(), {}),
-      );
-      const deployment = adapter.unit(namespace, { level: 'deployment' }, (unit) =>
-        unit.rows.find(credential(), {}),
-      );
-      expect(await refusal(backend)).toEqual(forbidden);
-      expect(await refusal(deployment)).toEqual(forbidden);
+      // Each unit is handed to `refusal` as it is made, so no refusal waits without a handler.
+      expect(
+        await refusal(
+          adapter.unit(namespace, { level: 'backend', backendId }, (unit) =>
+            unit.rows.find(credential(), {}),
+          ),
+        ),
+      ).toEqual(forbidden);
+      expect(
+        await refusal(
+          adapter.unit(namespace, { level: 'deployment' }, (unit) =>
+            unit.rows.find(credential(), {}),
+          ),
+        ),
+      ).toEqual(forbidden);
     });
   });
 }

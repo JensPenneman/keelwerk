@@ -65,8 +65,8 @@ describe.each(['memory', 'pglite'] as const)('auth with accounts on %s', (kind: 
       email: grace.identifier,
     });
     // The profile exists, so the registration the sign-up invokes refuses with its own error, which
-    // the sign-up names in its map: its client sees the code it always saw.
-    expect(codeOf(await both.request('auth.signUp', grace))).toBe('accounts.email_taken');
+    // the sign-up maps to the error of an identifier that is taken.
+    expect(codeOf(await both.request('auth.signUp', grace))).toBe('auth.identifier_taken');
     expect(await both.rows('accounts.profile', { sealed: true })).toHaveLength(2);
   });
 
@@ -92,6 +92,7 @@ describe.each(['memory', 'pglite'] as const)('auth with accounts on %s', (kind: 
     await signUp(both);
     const session = await signIn(both);
     both.clock.advance({ minutes: 1 });
+    await both.settle();
     const mine = await both.request(
       'accounts.profile.get',
       { ids: [String((await both.rows('auth.credential', { sealed: true }))[0]?.profileId)] },
@@ -122,7 +123,7 @@ describe.each(['memory', 'pglite'] as const)('auth with accounts on %s', (kind: 
     expect(after.map((row) => row.displayName).toSorted()).toEqual(['Ada L.', 'Grace']);
   });
 
-  test('deactivating a profile revokes its credentials and sessions in the same unit', {
+  test('deactivating a profile revokes its credentials in the same unit and its sessions in the job that follows', {
     timeout,
   }, async () => {
     const both = await boot();
@@ -139,6 +140,13 @@ describe.each(['memory', 'pglite'] as const)('auth with accounts on %s', (kind: 
     expect(credentials.every((row) => row.revokedAt !== null && row.revokedAt !== undefined)).toBe(
       true,
     );
+    // The sessions are dead at once, and their rows are revoked by the follow-up job.
+    for (const session of [first, second]) {
+      expect(codeOf(await whoami(both, asBearer(session.sessionToken)))).toBe(
+        'core.unauthenticated',
+      );
+    }
+    await both.settle();
     const sessions = await both.rows('auth.session');
     expect(sessions).toHaveLength(2);
     expect(sessions.every((row) => row.revokedAt !== null && row.revokedAt !== undefined)).toBe(

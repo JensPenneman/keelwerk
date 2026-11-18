@@ -7,6 +7,7 @@ import type { RowStore } from '../storage/row-store.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import { checkSortable } from './check-sortable.ts';
 import { fillApproximatePage } from './fill-approximate-page.ts';
+import { openDecoyColumn } from './open-decoy-column.ts';
 import { openRow } from './open-row.ts';
 import { planEncryption } from './plan-encryption.ts';
 import type { PlannedCondition } from './planned-condition.ts';
@@ -46,6 +47,8 @@ export function sealingRows(context: SealingContext): RowStore {
     plan: PlannedCondition | undefined,
   ): Promise<readonly StorageRow[]> => {
     let opened: readonly StorageRow[] = await openAll(entity, rows);
+    // A lookup by a personal value that found nothing does the key read a found row does.
+    if (plan?.verify === true && rows.length === 0) await openDecoyColumn(context);
     if (plan?.verify === true && query.where !== undefined) {
       opened = verifyUnsealed(context, entity, query.where, opened);
     }

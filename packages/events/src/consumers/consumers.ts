@@ -256,6 +256,9 @@ export function consumers(options: ConsumersOptions): ConsumersWorker {
         for (const runner of runners) round += (await runner.pass({ sweep: true })).batches;
         if (round === 0) return total;
         total += round;
+        // A store whose calls all settle as microtasks (the memory adapter) must not starve the
+        // timers and I/O of the process while rounds keep finding work.
+        await new Promise<void>((resolve) => setImmediate(resolve));
       }
     },
     unpark: async (

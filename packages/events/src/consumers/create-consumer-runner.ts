@@ -180,10 +180,10 @@ export function createConsumerRunner(input: ConsumerRunnerInput): ConsumerRunner
       return false;
     }
     failing.delete(scopeId);
-    if (result.to !== null) {
-      known.set(scopeId, result.to);
-      if (single !== undefined && result.to >= single) singles.delete(scopeId);
-    }
+    // A scope with no event reads to no position: it is known as read to position zero, so a wake
+    // that its own empty batch caused is answered by the head check and not by another batch.
+    known.set(scopeId, result.to ?? 0n);
+    if (single !== undefined && result.to !== null && result.to >= single) singles.delete(scopeId);
     if (result.kind === 'more') enqueue(scopeId);
     return true;
   };

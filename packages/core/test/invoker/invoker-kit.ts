@@ -153,7 +153,18 @@ const resolver: PrincipalResolver = {
     const token = header.slice('Bearer '.length);
     if (token === 'bad') throw errors.unauthenticated('The token is invalid.');
     if (token === 'boom') throw new Error('resolver exploded');
-    return token.startsWith('tok-') ? { principal: user(token.slice(4)) } : null;
+    if (!token.startsWith('tok-')) return null;
+    // A request that names `x-renew` asks the host to set the session cookie again.
+    return carrier.headers?.['x-renew'] === undefined
+      ? { principal: user(token.slice(4)) }
+      : {
+          principal: user(token.slice(4)),
+          renewCookie: {
+            name: '__Host-sid',
+            value: token,
+            expiresAt: Temporal.Instant.from('2026-11-04T06:00:00Z'),
+          },
+        };
   },
 };
 

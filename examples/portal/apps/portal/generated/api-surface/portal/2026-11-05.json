@@ -2810,6 +2810,52 @@
       "input": {
         "access": "read-write",
         "fields": {
+          "credentialId": {
+            "access": "read-write",
+            "kind": "ref",
+            "optional": false,
+            "prefix": "cred",
+            "tag": 1,
+            "target": "auth.credential"
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-h_FqXJoX10bHXkZ__tILU1-tngKpxhJVZ0eLn0Ttzww",
+      "instance": false,
+      "kind": "command",
+      "module": "auth",
+      "mount": "module",
+      "name": "deliverPasswordReset",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "kind": "void",
+        "optional": false
+      },
+      "outputHash": "sha256-zej-bMEJmGGq_mKCuqNPNDJAucdkfnebQhqSUKsBmg8",
+      "ref": "auth.deliverPasswordReset",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-05"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "errors": [],
+      "execution": "sync",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "seenAt": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": true,
+            "tag": 2
+          },
           "sessionId": {
             "access": "read-write",
             "kind": "ref",
@@ -2822,7 +2868,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-LdLtqtLf6IwtUJu9D6rcKg2uHUDOC69_bltZInzluRY",
+      "inputHash": "sha256-1ozncyXdTeE-zFgVyzGjh_a9pxcFlbQBpWAHM-UkhgI",
       "instance": false,
       "kind": "command",
       "module": "auth",
@@ -2855,13 +2901,14 @@
             "format": "email",
             "kind": "string",
             "optional": false,
+            "personal": true,
             "tag": 1
           }
         },
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-n0Oaegy0Kc8d3wLGFxs8s50BOMmQ9-D_YJJZTZneyxQ",
+      "inputHash": "sha256-_YqYaRfOeQ6FJ6WQD7c5UCO9xjRZHeKWUSy8IZ5hu4w",
       "instance": false,
       "kind": "command",
       "module": "auth",
@@ -2928,6 +2975,7 @@
             "format": "email",
             "kind": "string",
             "optional": false,
+            "personal": true,
             "tag": 1
           },
           "password": {
@@ -2940,7 +2988,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-bnwH5DaRlhjYrR2-Wigp8Phb6ZyEC0ax3wlVpK-ZR3w",
+      "inputHash": "sha256-JfJfFMpcsuGD5HfVKozyFnbBXc22ko-qTe2Fx6N3c7U",
       "instance": false,
       "kind": "command",
       "module": "auth",
@@ -3081,13 +3129,14 @@
             "format": "email",
             "kind": "string",
             "optional": false,
+            "personal": true,
             "tag": 1
           }
         },
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-n0Oaegy0Kc8d3wLGFxs8s50BOMmQ9-D_YJJZTZneyxQ",
+      "inputHash": "sha256-_YqYaRfOeQ6FJ6WQD7c5UCO9xjRZHeKWUSy8IZ5hu4w",
       "instance": false,
       "kind": "command",
       "module": "auth",
@@ -3762,6 +3811,44 @@
         ]
       },
       "ref": "auth.resetToken.queryChanges",
+      "resumable": false,
+      "scope": "tenant",
+      "since": "2026-11-05"
+    },
+    {
+      "auth": "policy",
+      "changedIn": [],
+      "errors": [],
+      "execution": "sync",
+      "hints": {},
+      "idempotent": false,
+      "input": {
+        "access": "read-write",
+        "fields": {
+          "subject": {
+            "access": "read-write",
+            "kind": "subject",
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "inputHash": "sha256-MaQpPuuNiSeQgg52VwhxG_P9e931Gv53IJsWYhSTa4Q",
+      "instance": false,
+      "kind": "command",
+      "module": "auth",
+      "mount": "module",
+      "name": "revokeSessions",
+      "offline": false,
+      "output": {
+        "access": "read-write",
+        "kind": "void",
+        "optional": false
+      },
+      "outputHash": "sha256-zej-bMEJmGGq_mKCuqNPNDJAucdkfnebQhqSUKsBmg8",
+      "ref": "auth.revokeSessions",
       "resumable": false,
       "scope": "tenant",
       "since": "2026-11-05"
@@ -4671,6 +4758,7 @@
             "format": "email",
             "kind": "string",
             "optional": false,
+            "personal": true,
             "tag": 1
           },
           "password": {
@@ -4683,7 +4771,7 @@
         "kind": "shape",
         "optional": false
       },
-      "inputHash": "sha256-kvmb0HH6-6jLRDCc3HVJPLmGrJXEYHD4-vvl52lL6mg",
+      "inputHash": "sha256-nFHTEq8OK54xQ1usJKfhzXTlgCx3TXufkgve5taAizo",
       "instance": false,
       "kind": "command",
       "module": "auth",
@@ -16830,6 +16918,24 @@
       "name": "erased"
     },
     {
+      "data": {
+        "access": "read-write",
+        "fields": {
+          "at": {
+            "access": "read-write",
+            "kind": "instant",
+            "optional": false,
+            "tag": 1
+          }
+        },
+        "kind": "shape",
+        "optional": false
+      },
+      "entity": "auth.credential",
+      "generated": false,
+      "name": "loggedIn"
+    },
+    {
       "entity": "auth.credential",
       "generated": true,
       "name": "restored"
@@ -17093,7 +17199,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-IuRdmFmoAPKTDuQmuHVjzEGM4axVUrFbpcCQQXFjW-0",
+  "hash": "sha256-xsx1O_nP3TB3GqjVZjtc2ymfWqHhzV-OQAMx2av8kds",
   "modules": [
     {
       "id": "accounts",
