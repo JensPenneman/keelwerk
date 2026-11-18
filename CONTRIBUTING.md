@@ -25,6 +25,8 @@ pnpm install       # installs dependencies and the Git hooks
 pnpm check         # biome ci, knip, tsc -b, vitest run
 ```
 
+Versions outside the manifests (the CLI templates, the compose files, the schema urls, the release workflow's npm, the PostgreSQL test image, the pnpm version above) are copies: `pnpm pins` writes them and `pnpm pins --check` (run in CI) fails on a stale one. A copy follows a place Dependabot moves: the root package.json, or `pins/node.Dockerfile` and `pins/postgres.Dockerfile` for the two container images (a new major of an image is a hand edit of its one FROM line). Only npm has no such place yet and is moved by hand in the `pins` member of the root package.json.
+
 | Command       | What it does                                             |
 | ------------- | -------------------------------------------------------- |
 | `pnpm build`  | `tsc -b`: type-check and build every project             |

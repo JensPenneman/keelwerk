@@ -20,6 +20,7 @@ export function rootPackageJson(names: InitNames): unknown {
       '@keelwerk/data': version,
       '@keelwerk/transport-http': version,
     },
+    // The versions are copies of the root package.json of keelwerk, written by `pnpm pins`.
     devDependencies: {
       '@biomejs/biome': '2.6.8',
       '@keelwerk/biome-config': version,

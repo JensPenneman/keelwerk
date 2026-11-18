@@ -4,6 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 
 const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const pins = (
+  JSON.parse(readFileSync(join(repositoryRoot, 'package.json'), 'utf8')) as {
+    readonly pins: { readonly npm: string };
+  }
+).pins;
 const workflow = readFileSync(join(repositoryRoot, '.github/workflows/release-please.yml'), 'utf8');
 
 /** A job block: from `  <job>:` to the next two-space key. */
@@ -55,7 +60,7 @@ test('the publish step runs release.sh with the flag of the release step', () =>
   expect(step).toMatch(/RELEASE_FLAG: \$\{\{ steps\.release\.outputs\.flag \}\}/);
   expect(step).toContain('run: bash scripts/release.sh "$RELEASE_FLAG"');
   expect(publish).toContain('- name: npm with stage commands');
-  expect(publish).toContain('npm install -g npm@11.21.2');
+  expect(publish).toContain(`npm install -g npm@${pins.npm}\n`);
   expect(publish).not.toContain('sort -V');
 });
 

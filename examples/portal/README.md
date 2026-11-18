@@ -12,7 +12,7 @@ apps/portal/               the app (`@keelwerk-examples/app-portal`) and its gen
 
 ## From a fresh clone
 
-Node 26 or later and pnpm 11 are needed. Nothing is built.
+Node 26 or later and the pnpm that `packageManager` in the root package.json names are needed. Nothing is built.
 
 ```sh
 git clone https://github.com/JensPenneman/keelwerk.git

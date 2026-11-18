@@ -1,2 +1,2 @@
-/** PostgreSQL 18 on Alpine at an exact release; moved by hand, since no dependency update reads this file. */
+/** PostgreSQL 18 on Alpine at an exact release: the copy of pins/postgres.Dockerfile, written by `pnpm pins`. */
 export const postgresImage = 'postgres:18.7-alpine';

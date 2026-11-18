@@ -1,6 +1,10 @@
 import type { InitNames } from '../init-names.ts';
 
-/** `knip.json`: unused files are forgotten mounts, so every package is a workspace with its type tests as entries. */
+/**
+ * `knip.json`: unused files are forgotten mounts, so every package is a workspace with its type tests
+ * as entries. The schema's knip version is a copy of the root package.json of keelwerk, written by
+ * `pnpm pins`.
+ */
 export function knipJson(names: InitNames): unknown {
   const entry = {
     entry: ['src/**/*.test-d.ts'],

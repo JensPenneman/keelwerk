@@ -48,6 +48,26 @@ updates:
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
 
+  # The one place of each container image: a Dockerfile with a single FROM line. `pnpm pins`
+  # copies it into the CLI template, the portal's compose file and the testing package (the copies
+  # are written on the Dependabot branch before its checks decide the merge). Minor and patch
+  # releases move here; a new major version is a hand edit of the FROM line.
+  - package-ecosystem: docker
+    directory: /pins
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Brussels
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 1
+    commit-message:
+      prefix: chore(deps)
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

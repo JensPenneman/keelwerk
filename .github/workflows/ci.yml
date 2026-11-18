@@ -67,6 +67,10 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm keelwerk generate --check
 
+      - name: Pinned copies follow the root manifest (step 5)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node scripts/sync-pins.ts --check
+
       - name: Migrations on a scratch PGlite (step 6)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm keelwerk db check

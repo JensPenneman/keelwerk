@@ -143,6 +143,7 @@ test('${id} composes into an app without problems and answers through a local cl
         dependencies.map((other) => [`${scope}/module-${other}`, 'workspace:*']),
       ),
     },
+    // The versions are copies of the root package.json of keelwerk, written by `pnpm pins`.
     devDependencies: {
       '@keelwerk/testing': request.coreSibling ? 'workspace:*' : version,
       vitest: '5.1.0',
