@@ -115,7 +115,7 @@ describe('the ids of nodes and of a get field are bounded before any row is read
       session: graphqlSession(),
       development: false,
       requestId: graphqlRequestId,
-      log: recordingLogger(),
+      logger: recordingLogger(),
       loaderOf: () => {
         loaded += 1;
         throw new Error('no load may run');

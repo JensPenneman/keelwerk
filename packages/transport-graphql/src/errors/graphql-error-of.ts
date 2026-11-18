@@ -18,10 +18,10 @@ function withoutSuggestion(message: string): string {
  */
 export function graphqlErrorOf(
   error: KeelwerkError,
-  context: Pick<GraphqlContext, 'session' | 'development' | 'requestId' | 'log'>,
+  context: Pick<GraphqlContext, 'session' | 'development' | 'requestId' | 'logger'>,
 ): GraphQLError {
   if (error.kind === 'internal') {
-    context.log.error('The GraphQL request failed.', {
+    context.logger.error('The GraphQL request failed.', {
       requestId: context.requestId,
       code: error.code,
       cause: error.cause,

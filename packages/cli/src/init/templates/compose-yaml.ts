@@ -6,7 +6,7 @@
 export function composeYaml(): string {
   return `services:
   app:
-    image: node:26
+    image: node:26.13.1-trixie
     working_dir: /app
     stop_grace_period: 70s
     volumes:
@@ -21,7 +21,7 @@ export function composeYaml(): string {
     ports:
       - "3000:3000"
     command: >
-      sh -c "npm install -g pnpm@11.21.0 && pnpm install --frozen-lockfile &&
+      sh -c "npm install -g pnpm@11.28.12 && pnpm install --frozen-lockfile &&
       pnpm exec tsc -b &&
       pnpm exec keelwerk start --config .launchway/deployment.ts"
 volumes:

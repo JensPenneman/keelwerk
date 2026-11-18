@@ -89,10 +89,19 @@ describe('the operation limits run before any row is read', () => {
   });
 
   test('a document at the limits passes and runs', async () => {
-    const { handler, calls } = handlerWithLimits(surface, nothing, defaultSelectionLimits);
-    const response = await sendGraphql(handler, { query: `{ ${'__typename '.repeat(1000)} }` });
+    // Distinct aliases: graphql 17.1 aborts the validation of a thousand copies of one field.
+    const { handler, calls } = handlerWithLimits(surface, nothing, {
+      ...defaultSelectionLimits,
+      aliases: 1000,
+    });
+    const leaves = Array.from({ length: 1000 }, (_, index) => `a${index}: __typename`).join(' ');
+    const response = await sendGraphql(handler, { query: `{ ${leaves} }` });
     expect(response.status).toBe(200);
     expect(calls).toEqual([]);
+  });
+
+  test('a thousand copies of one field exhaust the merge check of graphql and are refused', async () => {
+    await refused(`{ ${'__typename '.repeat(1000)} }`, /^Validation aborted\.$/);
   });
 });
 

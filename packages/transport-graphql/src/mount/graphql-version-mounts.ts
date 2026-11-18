@@ -43,6 +43,7 @@ function mountOf(
     landingPage: false,
     cors: false,
     logging: false,
+    requestId: false,
     maskedErrors: { isDev: false },
     parserAndValidationCache: false,
     plugins: [preparedDocumentsPlugin((context) => context.documents), keelwerkErrorsPlugin()],

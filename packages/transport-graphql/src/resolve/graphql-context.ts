@@ -24,7 +24,7 @@ export interface GraphqlContext {
   readonly surface: ApiSurface;
   readonly invoker: Invoker;
   readonly development: boolean;
-  readonly log: Logger;
+  readonly logger: Logger;
   readonly now?: Temporal.Instant;
   /** The documents the gate parsed, measured and validated, by query text. */
   readonly documents: ReadonlyMap<string, DocumentNode>;

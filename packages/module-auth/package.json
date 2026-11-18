@@ -33,6 +33,6 @@
   "devDependencies": {
     "@keelwerk/adapter-postgres": "workspace:*",
     "@keelwerk/testing": "workspace:*",
-    "vitest": "5.0.5"
+    "vitest": "5.1.0"
   }
 }

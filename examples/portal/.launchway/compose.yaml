@@ -2,7 +2,7 @@
 # deployment file. The database urls and the master key come from the environment of the platform.
 services:
   app:
-    image: node:26
+    image: node:26.13.1-trixie
     working_dir: /app
     stop_grace_period: 70s
     volumes:
@@ -17,7 +17,7 @@ services:
     ports:
       - "3000:3000"
     command: >
-      sh -c "npm install -g pnpm@11.21.0 && pnpm install --frozen-lockfile &&
+      sh -c "npm install -g pnpm@11.28.12 && pnpm install --frozen-lockfile &&
       pnpm exec tsc -b &&
       cd examples/portal && pnpm exec keelwerk start --config .launchway/deployment.ts"
 volumes:

@@ -81,7 +81,7 @@ export function graphqlWsHandler(deps: GraphqlHandlerDeps): WebSocketHandler {
           session: connection.session(),
           development: deps.development,
           requestId: ctx.requestId,
-          log: deps.log,
+          logger: deps.log,
         });
       const server = makeServer({
         connectionInitWaitTimeout: 0,

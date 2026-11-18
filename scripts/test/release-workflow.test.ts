@@ -55,7 +55,7 @@ test('the publish step runs release.sh with the flag of the release step', () =>
   expect(step).toMatch(/RELEASE_FLAG: \$\{\{ steps\.release\.outputs\.flag \}\}/);
   expect(step).toContain('run: bash scripts/release.sh "$RELEASE_FLAG"');
   expect(publish).toContain('- name: npm with stage commands');
-  expect(publish).toContain('npm install -g npm@11.21.1');
+  expect(publish).toContain('npm install -g npm@11.21.2');
   expect(publish).not.toContain('sort -V');
 });
 

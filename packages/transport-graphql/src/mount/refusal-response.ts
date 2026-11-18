@@ -10,7 +10,7 @@ import type { GraphqlContext } from '../resolve/graphql-context.ts';
  */
 export function refusalResponse(
   error: KeelwerkError,
-  context: Pick<GraphqlContext, 'session' | 'development' | 'requestId' | 'log'>,
+  context: Pick<GraphqlContext, 'session' | 'development' | 'requestId' | 'logger'>,
   status: number = statusOfError(error),
 ): Response {
   const headers = new Headers({

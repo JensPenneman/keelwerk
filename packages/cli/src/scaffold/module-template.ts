@@ -145,7 +145,7 @@ test('${id} composes into an app without problems and answers through a local cl
     },
     devDependencies: {
       '@keelwerk/testing': request.coreSibling ? 'workspace:*' : version,
-      vitest: '5.0.5',
+      vitest: '5.1.0',
     },
   };
   const vitestConfig = `import { configDefaults, defineConfig } from 'vitest/config';

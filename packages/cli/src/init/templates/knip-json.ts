@@ -7,7 +7,7 @@ export function knipJson(names: InitNames): unknown {
     project: ['src/**/*.ts'],
   };
   return {
-    $schema: 'https://unpkg.com/knip@6.42.1/schema.json',
+    $schema: 'https://unpkg.com/knip@6.45.1/schema.json',
     ignore: ['**/generated/**'],
     workspaces: {
       '.': {

@@ -29,7 +29,7 @@ export function graphqlContextOf(
     surface: mount.surface,
     invoker: deps.invoker,
     development: deps.development,
-    log: deps.log,
+    logger: deps.log,
     ...(now === undefined ? {} : { now }),
     documents,
     loaderOf: (entity) => {

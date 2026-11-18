@@ -21,13 +21,13 @@ export function rootPackageJson(names: InitNames): unknown {
       '@keelwerk/transport-http': version,
     },
     devDependencies: {
-      '@biomejs/biome': '2.6.3',
+      '@biomejs/biome': '2.6.8',
       '@keelwerk/biome-config': version,
       '@keelwerk/cli': version,
-      '@types/node': '26.6.5',
-      knip: '6.42.1',
+      '@types/node': '26.6.6',
+      knip: '6.45.1',
       typescript: '7.0.2',
-      vitest: '5.0.5',
+      vitest: '5.1.0',
     },
   };
 }

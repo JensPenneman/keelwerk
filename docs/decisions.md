@@ -145,6 +145,10 @@ Status values: `open`, `decided <date>` (with the answer), `applied` (with the s
     come back only through explicit backfills or polyfills. To apply: sections 13.2, 13.3, 22 and
     Appendix A (Node 26 baseline, engines field); Node 26 ships Temporal natively, so 19b needs no polyfill;
     see section K.
+    Amendment 2026-11-18 (Jens), dependency age: below 1.0.0 every dependency is an exact pin at its
+    newest release, with no minimum age; pnpm's one-day install-time hold stays as a guard and
+    Dependabot's cooldown is one day. From 1.0.0 an exact release at least two weeks old is pinned.
+    TypeScript 7 everywhere, in the development phase too.
 29. **History default.** a) ★ `history: 'chain'` for every entity, opt-out with a reason;
     b) `history: 'state'` by default, opt-in per entity. Status: decided 2026-10-27: **a**, `chain` by default, `state` opt-out with a reason; applied
     (section 6.6).
@@ -796,6 +800,10 @@ sections it touched.
      API as `typescript-6` (`npm:typescript@6.0.3`), so the workspace's `tsc` stays 7.0.2. Status:
      decided by the lead 2026-11-04 (M1 plan S-18), applied (sections 13.2, 13.8, 13.11, 22; roadmap
      M1).
+     Amendment 2026-11-18 (Jens), TypeScript: the rule in force is TypeScript 7 everywhere. The 6.0.3
+     pins of this entry stay for now, for two reasons: attest 0.58 needs TypeScript 7.1 or later, and
+     the newest stable release is 7.0.2 (7.1 is a beta); the CLI alias holds for the compiler API in
+     JavaScript, which 7.x does not ship. The type-budget tool moves to 7 with the next planned step.
 139. **Positioned loads in the row store** (S-19). `RowQuery.positioned?: true` makes the adapter
      read the scope counter in the same statement and return `RowPage.position`; the kernel issues
      positioned single loads as `find` with `first: 1`, and a locked load reads its position with
@@ -2550,6 +2558,8 @@ of the entries below, into architecture.md and this register.
      changes its major with the baseline. Minor and patch updates keep coming for both lines. Status:
      decided by the lead 2026-11-10. Applied in: the code; the specification follows in the next
      editing pass.
+     Amendment 2026-11-18 (Jens), TypeScript: unchanged, with the rule in force of entry 138: the 6.x
+     line is kept only where that entry names it.
 491. **The checks run daily on main.** The CI workflow also runs every day on `main`, so a failure
      that depends on the calendar shows on main before a dependency update meets it; one stayed
      hidden from 2026-11-06 until the dependency updates of 2026-11-10, because CI on main had last

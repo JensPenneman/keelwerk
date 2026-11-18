@@ -27,15 +27,15 @@
     "dist"
   ],
   "dependencies": {
-    "@hono/node-server": "2.1.6",
+    "@hono/node-server": "2.1.9",
     "@keelwerk/core": "workspace:*",
-    "hono": "4.13.16",
-    "ws": "8.22.1"
+    "hono": "4.13.19",
+    "ws": "8.23.0"
   },
   "devDependencies": {
     "@keelwerk/live": "workspace:*",
     "@keelwerk/testing": "workspace:*",
     "@types/ws": "8.18.2",
-    "vitest": "5.0.5"
+    "vitest": "5.1.0"
   }
 }

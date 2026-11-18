@@ -17,10 +17,10 @@ Apache-2.0 future licence: see [LICENSE.md](LICENSE.md). Licensor: Jens Penneman
 
 ## Development setup
 
-You need the current Node.js LTS (`.nvmrc` holds `lts/*`; `engines.node` is `>=26`) and pnpm 11.21.0.
+You need the current Node.js LTS (`.nvmrc` holds `lts/*`; `engines.node` is `>=26`) and pnpm 11.28.12.
 
 ```sh
-npm install -g pnpm@11.21.0   # pnpm then follows packageManager in package.json
+npm install -g pnpm@11.28.12   # pnpm then follows packageManager in package.json
 pnpm install       # installs dependencies and the Git hooks
 pnpm check         # biome ci, knip, tsc -b, vitest run
 ```

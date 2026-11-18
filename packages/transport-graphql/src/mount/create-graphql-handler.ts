@@ -15,6 +15,7 @@ import type { GraphqlHandlerDeps } from './graphql-handler-deps.ts';
 import type { GraphqlVersionMount } from './graphql-version-mount.ts';
 import { linkedAbort } from './linked-abort.ts';
 import { refusalResponse } from './refusal-response.ts';
+import { sizedResponse } from './sized-response.ts';
 
 /** The introspection authority (decision D8): `core.introspect` through the invoker decides, so the backend setting and the core rule decide once. */
 async function introspectionRefusal(context: GraphqlContext): Promise<KeelwerkError | undefined> {
@@ -41,14 +42,16 @@ async function execute(
     new Request(new URL('/graphql', request.url), { method: 'POST', headers, body }),
     { ...context },
   );
-  if (context.setCookies.length === 0) return answer;
+  if (context.setCookies.length === 0) return await sizedResponse(answer);
   const merged = new Headers(answer.headers);
   for (const cookie of context.setCookies) merged.append('set-cookie', cookie);
-  return new Response(answer.body, {
-    status: answer.status,
-    statusText: answer.statusText,
-    headers: merged,
-  });
+  return await sizedResponse(
+    new Response(answer.body, {
+      status: answer.status,
+      statusText: answer.statusText,
+      headers: merged,
+    }),
+  );
 }
 
 /** Whether any request of the batch runs a subscription operation (the one its `operationName` names). */
@@ -86,7 +89,7 @@ export function createGraphqlHandler(deps: GraphqlHandlerDeps): HttpHandler {
       session: ctx.session,
       development: deps.development,
       requestId: ctx.requestId,
-      log: deps.log,
+      logger: deps.log,
     };
     let mount: GraphqlVersionMount;
     try {
@@ -102,9 +105,11 @@ export function createGraphqlHandler(deps: GraphqlHandlerDeps): HttpHandler {
     }
     if (request.method === 'GET' && deps.development) {
       if ((request.headers.get('accept') ?? '').includes('text/html')) {
-        return await mount.yoga.fetch(graphiqlRequest(request, ctx), {
-          ...graphqlContextOf(deps, mount, ctx, new Map()),
-        });
+        return await sizedResponse(
+          await mount.yoga.fetch(graphiqlRequest(request, ctx), {
+            ...graphqlContextOf(deps, mount, ctx, new Map()),
+          }),
+        );
       }
     }
     if (request.method !== 'POST') {

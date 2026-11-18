@@ -5,7 +5,7 @@
   "description": "The keelwerk framework workspace.",
   "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
-  "packageManager": "pnpm@11.21.0",
+  "packageManager": "pnpm@11.28.12",
   "scripts": {
     "build": "tsc -b",
     "keelwerk": "node --conditions=@keelwerk/source packages/cli/src/bin/keelwerk.ts",
@@ -23,14 +23,14 @@
     "prepare": "lefthook install"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.4",
+    "@biomejs/biome": "2.6.8",
     "@commitlint/cli": "21.2.4",
     "@commitlint/config-conventional": "21.2.4",
     "@keelwerk/biome-config": "workspace:*",
     "@types/node": "26.6.6",
-    "knip": "6.44.1",
+    "knip": "6.45.1",
     "lefthook": "2.2.2",
     "typescript": "7.0.2",
-    "vitest": "5.0.5"
+    "vitest": "5.1.0"
   }
 }

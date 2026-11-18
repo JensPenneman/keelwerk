@@ -96,11 +96,11 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # The stage commands need npm 11.15.0 or later, trusted publishing 11.5.1 or later. Always the
-      # pinned version (older than 14 days), so the npm that stages never floats with the Node LTS.
+      # pinned version, so the npm that stages never floats with the Node LTS.
       - name: npm with stage commands
         if: steps.release.outputs.run == 'true'
         run: |
-          npm install -g npm@11.21.1
+          npm install -g npm@11.21.2
           npm --version
 
       - name: Install dependencies

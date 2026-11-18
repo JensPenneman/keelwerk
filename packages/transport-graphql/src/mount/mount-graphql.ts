@@ -47,7 +47,7 @@ export async function mountGraphql(
         session: httpContext.session,
         development,
         requestId: httpContext.requestId,
-        log: ctx.log,
+        logger: ctx.log,
       });
     }
     const pending = inner(request, httpContext);
