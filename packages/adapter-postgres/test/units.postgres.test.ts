@@ -199,6 +199,27 @@ describe('unit settings', () => {
     expect(seen).toEqual([{ id: deploymentId }]);
   });
 
+  test('a deployment unit has the ledger, the identities and the marks, a namespace unit the counters', async () => {
+    const deployment = await control.unit(controlNamespace, { level: 'deployment' }, async (u) => ({
+      ledger: u.ledger !== undefined,
+      identities: u.identities !== undefined,
+      marks: u.marks !== undefined,
+      counters: u.counters !== undefined,
+    }));
+    expect(deployment).toEqual({ ledger: true, identities: true, marks: true, counters: false });
+    const namespace = await adapter.unit(
+      testNamespace,
+      { level: 'namespace', reason: 'test' },
+      async (u) => ({
+        ledger: u.ledger !== undefined,
+        identities: u.identities !== undefined,
+        marks: u.marks !== undefined,
+        counters: u.counters !== undefined,
+      }),
+    );
+    expect(namespace).toEqual({ ledger: false, identities: false, marks: false, counters: true });
+  });
+
   test('an aborted signal refuses the unit before it starts', async () => {
     const controller = new AbortController();
     controller.abort(new Error('stopped'));

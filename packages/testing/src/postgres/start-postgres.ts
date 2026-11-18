@@ -40,6 +40,7 @@ export async function startPostgres(): Promise<RunningPostgres> {
       adminUrl,
       appUrl,
       version: versionResult.output.trim(),
+      containerId: container.getId(),
       stop: async () => {
         await container.stop();
       },

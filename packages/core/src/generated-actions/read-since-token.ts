@@ -26,7 +26,8 @@ export function readSinceToken(
 ): SinceToken {
   const parts = decodeStateToken(token);
   assertTokenScope(parts, input.scope);
-  if (parts.epoch !== input.tokens.epoch) return { ok: false, reason: 'epoch' };
+  const epoch = input.tokens.epochOf?.(input.scope) ?? input.tokens.epoch;
+  if (parts.epoch !== epoch) return { ok: false, reason: 'epoch' };
   const check = currentTokenCheck(input.tokens, input.entry.ref, input.scope, selector);
   if (!tokenCheckHolds(parts, check, input.tokens.sealKey)) {
     return { ok: false, reason: 'check' };

@@ -5,7 +5,6 @@ import type {
   EventWorker,
   LedgerSink,
   RuntimeServiceContext,
-  Scope,
   StorageRow,
   Unit,
 } from '@keelwerk/core';
@@ -24,6 +23,11 @@ interface TenantProbe {
   inTenant<T>(fn: (unit: Unit) => Promise<T>): Promise<T>;
   /** The rows of an entity as the kernel reads them (sealed unit), archived ones included. */
   rowsOf(entity: 'probe.person' | 'probe.thread'): Promise<readonly StorageRow[]>;
+  /**
+   * Moves the tenant's epoch to 1 through the control store's marks, as a detected restore does:
+   * a completion at epoch 0 no longer finishes an erasure.
+   */
+  bumpEpoch(): Promise<number>;
   /** Asks the operator's erasure; a given `commandId` is the command id of the request. */
   eraseAsOperator(
     subjectId: string,
@@ -53,7 +57,6 @@ export interface Probe extends TenantProbe {
    * of another process. Its steps are collected in `steps` of the result.
    */
   startWorker(options?: {
-    readonly epochOf?: (scope: Scope) => number;
     /** The worker's poll interval (default: an hour, so only the start pass runs). */
     readonly pollMs?: number;
     /** The worker's writing unit of this step fails once (a transient error), so the record goes into its retry. */
@@ -62,9 +65,9 @@ export interface Probe extends TenantProbe {
     readonly ledger?: {
       /** The largest page of the control ledger the worker is given. */
       readonly limit?: number;
-      /** The nth read of the control ledger (1 is the first) fails once. */
+      /** The nth read of the control ledger (1 is the first; `since` and `unfinished` count) fails once. */
       readonly failRead?: number;
-      /** Every sink fails when it is read. */
+      /** Every sink fails when it is read, and the number of times one was read is counted in `sinkReads`. */
       readonly sinksUnreadable?: boolean;
     };
   }): Promise<{
@@ -72,8 +75,18 @@ export interface Probe extends TenantProbe {
     readonly steps: ErasureStep[];
     /** How many pages of the control ledger the worker has read through its context. */
     readonly ledgerReads: () => number;
-    /** The `after` of every read of the control ledger, in order, and how many of them found nothing. */
-    readonly reads: { readonly after: bigint[]; empty: number };
+    /**
+     * The `after` of every read of the control ledger, in order (`since` and `unfinished`), how many
+     * of them found nothing, how many `unfinished` and `find` calls the worker made, and how many
+     * times a sink was read.
+     */
+    readonly reads: {
+      readonly after: bigint[];
+      empty: number;
+      unfinished: number;
+      finds: number;
+      sinkReads: number;
+    };
   }>;
 }
 
@@ -164,6 +177,20 @@ export async function bootProbe(
           if (entry === undefined) throw new Error(`no entity ${entity}`);
           return (await unit.rows.find(entry.descriptor, { includeArchived: true })).rows;
         }),
+      bumpEpoch: () => {
+        if (started === undefined) throw new Error('the runtime has not started its workers');
+        return started.control.marks.bump(
+          {
+            scopeId: scope.tenantId,
+            namespaceId: runtime.namespace.id,
+            epoch: 1,
+            position: 0n,
+            serials: {},
+            updatedAt: Temporal.Now.instant(),
+          },
+          0,
+        );
+      },
       eraseAsOperator: async (subjectId, options = {}) => {
         const receipt = await invokeAs.invoke(
           'core.eraseSubject',
@@ -191,7 +218,13 @@ export async function bootProbe(
       const collected: ErasureStep[] = [];
       const faults = options.ledger ?? {};
       let reads = 0;
-      const seen: Awaited<ReturnType<Probe['startWorker']>>['reads'] = { after: [], empty: 0 };
+      const seen: Awaited<ReturnType<Probe['startWorker']>>['reads'] = {
+        after: [],
+        empty: 0,
+        unfinished: 0,
+        finds: 0,
+        sinkReads: 0,
+      };
       const { ledger } = started.control;
       const counted: RuntimeServiceContext = {
         ...started,
@@ -203,6 +236,7 @@ export async function bootProbe(
                 append: async () => undefined,
                 // biome-ignore lint/correctness/useYield: the sink is unreadable
                 read: async function* () {
+                  seen.sinkReads += 1;
                   throw new Error('the sink cannot be read');
                 },
               },
@@ -220,6 +254,22 @@ export async function bootProbe(
               if (page.length === 0) seen.empty += 1;
               return page;
             },
+            find: (lookups, page) => {
+              seen.finds += 1;
+              return ledger.find(lookups, page);
+            },
+            unfinished: async (query) => {
+              reads += 1;
+              seen.unfinished += 1;
+              seen.after.push(query.after);
+              if (faults.failRead === reads) throw new Error('the control ledger cannot be read');
+              const answer = await ledger.unfinished({
+                ...query,
+                limit: Math.min(query.limit, faults.limit ?? query.limit),
+              });
+              if (answer.erasures.length === 0) seen.empty += 1;
+              return answer;
+            },
           },
         },
       };
@@ -235,7 +285,6 @@ export async function bootProbe(
         afterStep: async (step) => {
           collected.push(step);
         },
-        ...(options.epochOf === undefined ? {} : { epochOf: options.epochOf }),
       });
       await second.start(counted);
       return { worker: second, steps: collected, ledgerReads: () => reads, reads: seen };

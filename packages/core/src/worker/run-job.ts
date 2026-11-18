@@ -1,4 +1,5 @@
 import type { ControlStore } from '../control/control-store.ts';
+import type { RestoreHold } from '../control/restore-hold.ts';
 import { errors } from '../errors/errors.ts';
 import type { EgressPolicy } from '../executors/egress-policy.ts';
 import { runDeadlineJob } from '../executors/run-deadline-job.ts';
@@ -14,7 +15,9 @@ import type { Meter } from '../observability/meter.ts';
 import type { Tracer } from '../observability/tracer.ts';
 import type { ServedApp } from '../runtime/served-app.ts';
 import type { QueueSource } from './queue-source.ts';
+import { refusalOfHold } from './refusal-of-hold.ts';
 import { runActionJob } from './run-action-job.ts';
+import { settleHeldJob } from './settle-held-job.ts';
 
 /** What a worker runs a job with. */
 export interface RunJobContext {
@@ -42,21 +45,32 @@ export interface RunJobContext {
   readonly control: ControlStore;
   /** The deployment's ledger sinks (`RuntimeInfrastructure.ledgers`). */
   readonly ledgers: readonly LedgerSink[];
+  /** The tenants a restore holds (14.7.6); absent in a bare start, where none is held. */
+  readonly restoreHold?: RestoreHold;
 }
 
 /**
  * Runs one job (the seam of F-32) by the shape of its run: an action job goes through the invoker,
  * an effect job runs its executor outside any unit (`runEffectJob`), a deadline job settles an
- * external effect that is still `requested` (`runDeadlineJob`). Any other run is one this build
- * does not know (a job of a newer build, or a damaged row): it ends with an `internal` error that
- * names the kind and the queue and never the input, which is never retried, so the job ends at its
- * first attempt.
+ * external effect that is still `requested` (`runDeadlineJob`); the last two wait while their
+ * tenant is held. Any other run is one this build does not know (a job of a newer build, or a
+ * damaged row): it ends with an `internal` error that names the kind and the queue and never the
+ * input, which is never retried, so the job ends at its first attempt.
  */
 export function runJob(job: Job, context: RunJobContext): Promise<void> {
   const { run, kind, queue } = job.stored;
   if ('action' in run) return runActionJob(job, context);
-  if ('executor' in run) return runEffectJob(job, context);
-  if ('effectDeadline' in run) return runDeadlineJob(job, context);
+  if ('executor' in run || 'effectDeadline' in run) {
+    // A tenant that a restore holds is served nothing: its effect and deadline jobs are given back
+    // like its action jobs, before an executor or a deadline runs.
+    return refusalOfHold(context, job.stored).then((refusal) =>
+      refusal !== undefined
+        ? settleHeldJob(context, job.stored, refusal)
+        : 'executor' in run
+          ? runEffectJob(job, context)
+          : runDeadlineJob(job, context),
+    );
+  }
   return Promise.reject(
     errors.internal(
       `A job of kind ${kind} in the queue ${queue} has a run this build does not know.`,

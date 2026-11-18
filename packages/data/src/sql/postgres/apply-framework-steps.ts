@@ -13,7 +13,10 @@ import type { SchemaSession } from './schema-session.ts';
  * checksum (another checksum is a `conflict`); a step without a row whose marker table exists is
  * recorded without running (a root created before the step existed, or a history that was
  * truncated); any other step runs its DDL, then its grants when a role is given, then is recorded.
- * A recorded step this build does not know is left alone. Answers the ids whose DDL ran.
+ * A recorded step this build does not know is left alone. Answers the ids whose DDL ran. The
+ * duration recorded is the time the DDL took; a step recognised, or one with no statement for this
+ * root (step 0003 on a namespace root), took none and records 0, so the history does not depend on
+ * how long the probe of its marker took.
  */
 export async function applyFrameworkSteps(
   session: SchemaSession,
@@ -77,7 +80,7 @@ export async function applyFrameworkSteps(
         step.id,
         checksum,
         encodeInstant(input.now),
-        recognised ? 0 : Math.round(performance.now() - started),
+        recognised || statements.length === 0 ? 0 : Math.round(performance.now() - started),
         statements.length,
       ],
     );

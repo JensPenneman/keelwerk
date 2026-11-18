@@ -1,8 +1,11 @@
 import type { ControlLedger } from '../control/control-ledger.ts';
+import type { NamespaceIdentities } from '../control/namespace-identities.ts';
+import type { ScopeMarks } from '../control/scope-marks.ts';
 import type { EventStore } from '../events/event-store.ts';
 import type { ApiUsageStore } from './api-usage-store.ts';
 import type { BucketStore } from './bucket-store.ts';
 import type { ConsumerStore } from './consumer-store.ts';
+import type { CounterStore } from './counter-store.ts';
 import type { JobStore } from './job-store.ts';
 import type { NamespaceRef } from './namespace-ref.ts';
 import type { NestedUnitOptions } from './nested-unit-options.ts';
@@ -48,6 +51,12 @@ export interface Unit {
   readonly apiUsage?: ApiUsageStore;
   /** The deployment's ledger in the control root (S-125); present on deployment-scope units only, like `scopeKeys`. */
   readonly ledger?: ControlLedger;
+  /** The counters of every scope of the namespace (14.7.6); namespace-scope units only. */
+  readonly counters?: CounterStore;
+  /** kw_namespace_identities (14.7.6, S-119); deployment-scope units only. */
+  readonly identities?: NamespaceIdentities;
+  /** kw_scope_marks (14.7.6, S-119); deployment-scope units only. */
+  readonly marks?: ScopeMarks;
   /**
    * A savepoint: rolls back to it when `fn` throws, then rethrows. A tenant unit may pass
    * `{ as: <backend scope>, readOnly: true }` to read backend data; no other `as` is allowed.

@@ -55,12 +55,21 @@ export function createScheduleTicker(limits?: Partial<ScheduleLimits>): RuntimeS
   let timer: ReturnType<typeof setInterval> | undefined;
   let stopping = false;
   let log: Logger | undefined;
+  const halt = (): void => {
+    stopping = true;
+    clearInterval(timer);
+    for (const { state } of served) state.stopping = true;
+  };
 
   return {
     id: 'core.schedules',
     roles: ['work'],
     start: async (context) => {
       log = context.log;
+      if (context.signal.aborted) {
+        stopping = true;
+        return;
+      }
       const readiness = sourceReadiness(context.clock, context.log, 'its schedules');
       for (const source of context.namespaces) {
         if (source.namespace.id === context.control.namespace.id) continue;
@@ -119,11 +128,11 @@ export function createScheduleTicker(limits?: Partial<ScheduleLimits>): RuntimeS
         }, bounds.passEveryMs);
         timer.unref();
       }
+      // A process that leaves service starts no further pass (the stop still waits for the running).
+      context.signal.addEventListener('abort', halt, { once: true });
     },
     stop: async (deadline) => {
-      stopping = true;
-      clearInterval(timer);
-      for (const { state } of served) state.stopping = true;
+      halt();
       const pending = served.flatMap(({ state, running }) => {
         const pass = running();
         return [...(pass === undefined ? [] : [pass]), ...state.running];

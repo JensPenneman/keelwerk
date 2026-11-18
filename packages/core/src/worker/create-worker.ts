@@ -12,7 +12,8 @@ import { runJob } from './run-job.ts';
  * `runJob`; `stop` drains every fetcher by the deadline, so attempts running at that moment finish
  * and what is still running is aborted and left to its lease (D6, interim: 21.6 step 4 releases it
  * without counting the attempt, which waits for a release member on the job store). When the process
- * is torn down before the deadline, the same happens at once: nothing is released, the leases expire.
+ * is torn down before the deadline, or leaves service (the abort of `context.signal`), the same
+ * happens at once: nothing is released, the leases expire.
  */
 export function createWorker(input: StartPhaseInput): RuntimeService {
   const handles: { drain(deadline: Temporal.Instant): Promise<number> }[] = [];
@@ -44,19 +45,21 @@ export function createWorker(input: StartPhaseInput): RuntimeService {
                 tracer: trace.getTracer('keelwerk'),
                 control: connected.control,
                 ledgers: input.composed.infrastructure.ledgers,
+                ...(input.restoreHold === undefined ? {} : { restoreHold: input.restoreHold }),
               }),
             { slots, capabilitySets: role.capabilitySets, revision: role.revision },
           ),
         );
       }
-      context.signal.addEventListener(
-        'abort',
-        () => {
-          const now = Temporal.Now.instant();
-          for (const handle of handles) void handle.drain(now);
-        },
-        { once: true },
-      );
+      // Draining at once, when the process is torn down or leaves service: the signal of a service
+      // also aborts when the gate closes, even with its evidence pending, and no fetcher may take a
+      // job meanwhile (an executor would run again on rows a restore brought back).
+      const drainAll = (): void => {
+        const now = Temporal.Now.instant();
+        for (const handle of handles) void handle.drain(now);
+      };
+      if (context.signal.aborted) drainAll();
+      else context.signal.addEventListener('abort', drainAll, { once: true });
     },
     stop: async (deadline) => {
       const left = await Promise.all(handles.map((handle) => handle.drain(deadline)));

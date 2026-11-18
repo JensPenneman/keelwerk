@@ -68,6 +68,25 @@ test('step 0002 of the control store is the stored format', async () => {
   );
 });
 
+test('step 0003 of the control store is the stored format and a namespace has no statement', async () => {
+  await expect(renderStep(stepOf('0003'), 'kw__control', control)).toMatchFileSnapshot(
+    './golden/control-0003.sql',
+  );
+  expect(stepOf('0003').ddl('example', {})).toEqual([]);
+  expect(stepOf('0003').grants('kw__control', 'kw_app', control)).toEqual([]);
+});
+
+test('step 0003 indexes the erasure identity, the tombstone key and the tombstone scope', () => {
+  const statements = stepOf('0003').ddl('kw__control', control);
+  expect(statements).toHaveLength(3);
+  expect(statements.map((statement) => /^create index (\w+) /.exec(statement)?.[1])).toEqual([
+    'kw_ledger_erasure_identity',
+    'kw_ledger_tombstone_key',
+    'kw_ledger_tombstone_scope',
+  ]);
+  expect(stepOf('0003').marker).toBe('kw_ledger_erasure_identity');
+});
+
 test('the step checksums are the stored values', async () => {
   const lines = ['namespace', 'control'].flatMap((kind) =>
     frameworkSteps.map(
@@ -88,7 +107,10 @@ test('the root appears only as the quoted schema, so the template checksum stand
     );
   for (const step of frameworkSteps) {
     for (const options of [{}, control]) {
-      expect(step.ddl('a', options)).not.toEqual(step.ddl('b', options));
+      // Step 0003 has no statement for a namespace root: both roots render the same empty list.
+      if (step.id !== '0003' || options === control) {
+        expect(step.ddl('a', options)).not.toEqual(step.ddl('b', options));
+      }
       expect(asRoot(step.ddl('a', options), 'a', 'b')).toEqual(step.ddl('b', options));
       expect(frameworkStepChecksum(step, options)).toBe(
         sha256(canonicalizeJson(step.ddl('kw__root', options))),

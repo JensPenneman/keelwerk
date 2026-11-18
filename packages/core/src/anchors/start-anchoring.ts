@@ -10,7 +10,6 @@ import type { NamespaceRef } from '../storage/namespace-ref.ts';
 import type { AnchorSinkStatus } from './anchor-sink-status.ts';
 import { createAnchorWriter } from './create-anchor-writer.ts';
 import type { AnchorRecord } from './newest-anchors.ts';
-import { newestAnchors } from './newest-anchors.ts';
 
 const sweepPage = 500;
 
@@ -34,6 +33,8 @@ export async function startAnchoring(input: {
   readonly connected: Connected;
   readonly migrated: Migrated;
   readonly sinks: readonly LedgerSink[];
+  /** The newest anchor per scope the restore check read from the sinks at this boot. */
+  readonly anchors: ReadonlyMap<string, AnchorRecord>;
   readonly appIds: readonly string[];
   readonly clock: Clock;
   readonly log: Logger;
@@ -41,9 +42,7 @@ export async function startAnchoring(input: {
   const { deployment, connected, migrated, sinks, log } = input;
   if (sinks.length === 0) return { stop: async () => undefined, sinkStatus: () => [] };
   const known = new Map<string, bigint>();
-  for (const [scopeId, anchor] of await newestAnchors(sinks).catch(
-    () => new Map<string, AnchorRecord>(),
-  )) {
+  for (const [scopeId, anchor] of input.anchors) {
     known.set(scopeId, BigInt(anchor.position));
   }
   const writer = createAnchorWriter({

@@ -14,6 +14,7 @@ test('start does not wait for the first pass of a namespace that is not ready', 
   const never = () => undefined;
   const context = {
     clock: { now: () => Temporal.Instant.from('2026-01-01T00:00:00Z') },
+    signal: new AbortController().signal,
     log: { info: never, warn: never, error: never, debug: never },
     namespaces: [source],
     control: { namespace: { id: 'ns-control' } },

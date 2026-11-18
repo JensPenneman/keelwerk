@@ -18,6 +18,7 @@ import {
   guardUnits,
   ownedRows,
   ownedValueKeys,
+  recordScopeMarks,
   scrubFlagPrincipals,
   shredStep,
   subjectSpellings,
@@ -34,10 +35,10 @@ interface Principals {
 
 /** What one record is run with beyond the options of the worker. */
 export type RunErasureOptions = Required<Pick<ErasureOptions, 'pageSize'>> &
-  Pick<ErasureOptions, 'afterStep' | 'insideStep' | 'epochOf'> & {
+  Pick<ErasureOptions, 'afterStep' | 'insideStep'> & {
     /**
-     * The key ids the control ledger holds a tombstone for. The caller reads the ledger once and
-     * hands the set to every run; a tombstone this run appends joins it.
+     * The key ids this process has seen the control ledger hold a tombstone for: a repeat needs no
+     * lookup. The caller hands one set to every run; a tombstone this run finds or appends joins it.
      */
     readonly tombstoned: Set<string>;
     /**
@@ -87,14 +88,17 @@ export async function runErasure(
   const known = options.tombstoned;
   /**
    * Tombstones go to the control ledger and to every sink, before any later step. A tombstone the
-   * control ledger holds already (the step ran before and failed at a sink, or after it) is not
-   * appended there again, but the sinks get it again: a sink that failed missed it, and a tombstone
-   * twice in a sink changes nothing.
+   * control ledger holds already (the step ran before and failed at a sink, or after it; one
+   * lookup by key id) is not appended there again, but the sinks get it again: a sink that failed
+   * missed it, and a tombstone twice in a sink changes nothing.
    */
   const recordTombstones = async (tombstones: readonly KeyTombstoneRecord[]): Promise<void> => {
     for (const tombstone of tombstones) {
       if (!known.has(tombstone.keyId)) {
-        await ledger.append(tombstone);
+        const held = await ledger.find([{ type: 'keyTombstone', keyId: tombstone.keyId }], {
+          limit: 1,
+        });
+        if (held.length === 0) await ledger.append(tombstone);
         known.add(tombstone.keyId);
       }
       for (const sink of context.ledgers) await guard(() => sink.append([tombstone]));
@@ -121,7 +125,8 @@ export async function runErasure(
     await options.afterStep?.(step, record);
   };
   const { writer } = context.control;
-  const epoch = options.epochOf?.(target.scope) ?? context.control.epochOf(target.scope);
+  // The epoch the steps run under: a bump that lands meanwhile leaves the completion at the old one, so the erasure runs again.
+  const epoch = context.control.epochOf(target.scope);
 
   // Step 1 is the ledger record itself. The job appended it to the control ledger and the sinks,
   // but a sink that refused it left the job's attempt to run again, which finds the control copy
@@ -244,6 +249,17 @@ export async function runErasure(
   );
   await after('receipt');
 
+  // The marks of the tenant's scope are raised right before the completion, so a completion never
+  // stands without a mark that covers the erasure's own events: a backup taken before it (the window
+  // between the shred and the completion included) restores counters below that mark, and the next
+  // `connect` detects the restore (14.7.6).
+  await guard(() =>
+    recordScopeMarks(
+      context.control,
+      { namespace: source.namespace, handle: source.handle },
+      { now: context.clock.now(), scopeIds: [record.tenantId] },
+    ),
+  );
   await ledger.append({
     type: 'erasureCompleted',
     tenantId: record.tenantId,

@@ -1,6 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { DeploymentDefinition, RuntimeOptions } from '@keelwerk/core';
 import { startRuntime } from '@keelwerk/core';
 import { expect, test, vi } from 'vitest';
@@ -26,17 +25,16 @@ vi.mock('@keelwerk/core', async (importOriginal) => {
 
 const newProject = useScratchProject();
 const key = Buffer.alloc(32, 7).toString('base64');
-const factory = fileURLToPath(new URL('./support/durable-pglite-factory.ts', import.meta.url));
 
 const configText = (root: string): string => `import { secret } from '@keelwerk/core';
 import { schemaPlanner } from '@keelwerk/data';
 import { demo } from './apps/demo/src/app.ts';
-import { durablePgliteFactory } from ${JSON.stringify(factory)};
+import { durablePgliteFactory } from '@keelwerk/testing';
 
 export default {
   apps: [demo],
   keys: { masterKey: secret('KW_PROJECT_KEY') },
-  infrastructure: [durablePgliteFactory(), schemaPlanner()],
+  infrastructure: [durablePgliteFactory({ dataDirOf: (placement) => placement.url }), schemaPlanner()],
   control: { adapter: 'pglite', url: ${JSON.stringify(join(root, 'data/control'))} },
   placements: { main: { adapter: 'pglite', strategy: 'shared-tables', url: ${JSON.stringify(join(root, 'data/main'))} } },
 };

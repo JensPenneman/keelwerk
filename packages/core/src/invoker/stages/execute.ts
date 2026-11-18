@@ -87,6 +87,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
           namespaceOf: (scope) => (scope.level === 'backend' ? backendNamespace : target.namespace),
           epoch: epochOf(options.epochOf, target.scope),
           ...(env.bootNonce === undefined ? {} : { bootNonce: env.bootNonce }),
+          ...(options.epochOf === undefined ? {} : { epochOf: options.epochOf }),
           ...(capabilities === undefined
             ? {}
             : { concurrentUnits: capabilities.processes !== 'single' }),
@@ -123,6 +124,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
           principal: session.principal,
           rules,
           epoch,
+          ...(options.epochOf === undefined ? {} : { epochOf: options.epochOf }),
           flags: input.flags,
         });
       }
@@ -150,6 +152,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
           rules,
           principal: session.principal,
           epoch,
+          epochOf: options.epochOf,
           ...sealing,
           flags: input.flags,
         }),

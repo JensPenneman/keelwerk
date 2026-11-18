@@ -125,6 +125,12 @@ export function consumers(options: ConsumersOptions): ConsumersWorker {
     timer.unref();
   };
 
+  const halt = (): void => {
+    stopping.abort();
+    if (timer !== undefined) clearTimeout(timer);
+    for (const runner of runners) runner.halt();
+  };
+
   const follow = (start: RuntimeServiceContext): void => {
     const adapters = new Map<
       (typeof start.namespaces)[number]['handle']['adapter'],
@@ -202,6 +208,9 @@ export function consumers(options: ConsumersOptions): ConsumersWorker {
             running.set(runner, { again: false, promise: undefined });
           }
         }
+        // A process that leaves service (its signal aborts) starts no batch, replay or turn more.
+        if (start.signal.aborted) halt();
+        else start.signal.addEventListener('abort', halt, { once: true });
         follow(start);
         for (const runner of runners) trigger(runner);
         schedule();
@@ -212,10 +221,8 @@ export function consumers(options: ConsumersOptions): ConsumersWorker {
       }
     },
     stop: async (deadline) => {
-      stopping.abort();
-      if (timer !== undefined) clearTimeout(timer);
       // Before any waiting: no runner begins another scope, replay or turn during the stop window.
-      for (const runner of runners) runner.halt();
+      halt();
       const inFlight = [...running.values()].flatMap((state) =>
         state.promise === undefined ? [] : [state.promise],
       );

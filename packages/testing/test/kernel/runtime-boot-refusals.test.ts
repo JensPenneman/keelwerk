@@ -171,7 +171,7 @@ describe('migrate (section 3.3)', () => {
 });
 
 describe('anchors (S-35)', () => {
-  test('a scope behind its newest anchor is logged as rewound', async () => {
+  test('a scope behind its newest anchor is bumped to a new epoch and logged', async () => {
     const inner = memoryAdapter();
     let shared: DataAdapter | undefined;
     const once: DataAdapterFactory = {
@@ -207,11 +207,11 @@ describe('anchors (S-35)', () => {
         } as const;
       },
     };
-    const errors: string[] = [];
+    const warnings: { readonly message: string; readonly fields: unknown }[] = [];
     const logger: Logger = {
       ...phaseLogger,
-      error: (message) => {
-        errors.push(message);
+      warn: (message, fields) => {
+        warnings.push({ message, fields });
       },
       child: () => logger,
     };
@@ -222,6 +222,7 @@ describe('anchors (S-35)', () => {
       { logger },
     );
     expect(runtime).toBeDefined();
-    expect(errors.some((message) => message.includes('behind its newest anchor'))).toBe(true);
+    const bump = warnings.find((entry) => entry.message.includes('a restore was detected'));
+    expect(bump?.fields).toMatchObject({ reason: 'anchor', from: 0, to: 2 });
   });
 });

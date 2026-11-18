@@ -75,7 +75,7 @@ export interface SqlUnitContext {
    * another scope level, is refused (section 14.3.8).
    */
   scopedDb(entities?: readonly EntityDescriptor[]): Kysely<SqlDb>;
-  /** The same for the control root's `kw_scope_keys` and `kw_ledger`, which a deployment unit reads across scopes (S-55, S-125). */
+  /** The same for the control root's `kw_scope_keys`, `kw_ledger` and `kw_namespace_identities`, which a deployment unit reads across scopes (S-55, S-125). */
   controlDb(): Kysely<SqlDb>;
 }
 
@@ -145,6 +145,7 @@ export function sqlUnitContext(parts: SqlUnitContextParts): SqlUnitContext {
             { schema: root, name: 'kw_scope_keys' },
             { schema: root, name: 'kw_api_usage' },
             { schema: root, name: 'kw_ledger' },
+            { schema: root, name: 'kw_namespace_identities' },
           ],
           deploymentId: parts.deploymentId,
         }),

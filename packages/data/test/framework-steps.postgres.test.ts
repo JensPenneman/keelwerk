@@ -34,6 +34,8 @@ const schemaOf = (postgres: TestDatabase): SchemaOperations =>
     { role: 'kw_app', clock: { now: () => fixedInstant } },
   );
 
+const stepIds = frameworkSteps.map((step) => step.id);
+
 const frameworkRows = async (admin: Client, root: string): Promise<readonly string[]> =>
   (
     await admin.query<{ id: string }>(
@@ -55,13 +57,13 @@ describe('the M1 dump on PostgreSQL', () => {
     await admin?.end();
   });
 
-  test('the M1 dump migrates to 0002 on PostgreSQL', async () => {
+  test('the M1 dump migrates to 0003 on PostgreSQL', async () => {
     await admin.query(dump);
     const schema = schemaOf(postgres);
     await schema.provision(exampleNamespace, []);
     await schema.provision(storeControlNamespace, []);
     for (const root of ['example', 'kw__control']) {
-      expect(await frameworkRows(admin, root)).toEqual(['0001', '0002']);
+      expect(await frameworkRows(admin, root)).toEqual(stepIds);
       const found = await admin.query<{ id: string; durationMs: number }>(
         `select id, duration_ms as "durationMs" from "${root}".kw_migrations where track = $1 order by id`,
         [frameworkTrack],
@@ -109,21 +111,46 @@ describe('fresh roots on PostgreSQL', () => {
     await admin?.end();
   });
 
-  test('a fresh namespace gets both steps', async () => {
+  test('a fresh namespace gets all three steps', async () => {
     const history = (await schemaOf(postgres).history(fresh)).filter(
       (row) => row.track === frameworkTrack,
     );
-    expect(history.map((row) => row.id)).toEqual(['0001', '0002']);
+    expect(history.map((row) => row.id)).toEqual(stepIds);
     expect(history.map((row) => row.checksum)).toEqual(
       frameworkSteps.map((step) => frameworkStepChecksum(step, {})),
     );
     for (const row of history) expect(row.appliedAt.toString()).toBe(fixedInstant.toString());
   });
 
+  test('a control root recorded at 0002 gets step 0003 and its three ledger indexes at the next provision', async () => {
+    const indexes = [
+      'kw_ledger_erasure_identity',
+      'kw_ledger_tombstone_key',
+      'kw_ledger_tombstone_scope',
+    ];
+    const present = async (): Promise<readonly string[]> =>
+      (
+        await admin.query<{ indexname: string }>(
+          `select indexname from pg_indexes where schemaname = 'kw__control' and tablename = 'kw_ledger' and indexname = any($1) order by indexname`,
+          [indexes],
+        )
+      ).rows.map((row) => row.indexname);
+    expect(await present()).toEqual(indexes);
+    // The state a root recorded at 0002 is in: no step 0003 row and none of its indexes.
+    for (const name of indexes) await admin.query(`drop index "kw__control".${name}`);
+    await admin.query(`delete from "kw__control".kw_migrations where track = $1 and id = '0003'`, [
+      frameworkTrack,
+    ]);
+    expect(await present()).toEqual([]);
+    await schemaOf(postgres).provision(storeControlNamespace, []);
+    expect(await present()).toEqual(indexes);
+    expect(await frameworkRows(admin, 'kw__control')).toEqual(stepIds);
+  });
+
   test('two provisions at once record each step once', async () => {
     const schema = schemaOf(postgres);
     await Promise.all([schema.provision(racing, []), schema.provision(racing, [])]);
-    expect(await frameworkRows(admin, 'racing_ns')).toEqual(['0001', '0002']);
+    expect(await frameworkRows(admin, 'racing_ns')).toEqual(stepIds);
   });
 
   const scopedInserts: readonly (readonly [string, string])[] = [

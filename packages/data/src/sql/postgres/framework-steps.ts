@@ -1,6 +1,7 @@
 import { applicationRoleDdl } from './application-role.ts';
 import type { FrameworkStep } from './framework-step.ts';
 import { frameworkTablesDdl } from './framework-tables.ts';
+import { ledgerIndexesDdl } from './ledger-indexes.ts';
 import { m2ApplicationRoleDdl } from './m2-application-role.ts';
 import { m2FrameworkTablesDdl } from './m2-framework-tables.ts';
 import { m2RlsPoliciesDdl } from './m2-rls-policies.ts';
@@ -8,7 +9,8 @@ import { rlsPoliciesDdl } from './rls-policies.ts';
 
 /**
  * The framework track in order: step 0001 is the M1 tables, policies and grants; step 0002 adds
- * the M2 tables (S-117). Never edited: a new framework table is a new step.
+ * the M2 tables (S-117); step 0003 adds the indexes of the control ledger (a namespace root records
+ * it with no statement). Never edited: a new framework table is a new step.
  */
 export const frameworkSteps: readonly FrameworkStep[] = [
   {
@@ -28,5 +30,11 @@ export const frameworkSteps: readonly FrameworkStep[] = [
       ...m2RlsPoliciesDdl(root, options),
     ],
     grants: m2ApplicationRoleDdl,
+  },
+  {
+    id: '0003',
+    marker: 'kw_ledger_erasure_identity',
+    ddl: (root, options) => (options.control === true ? ledgerIndexesDdl(root) : []),
+    grants: () => [],
   },
 ];

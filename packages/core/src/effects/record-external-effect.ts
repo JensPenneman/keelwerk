@@ -2,61 +2,15 @@ import { errors } from '../errors/errors.ts';
 import { refuseRequest } from '../interpreter/refuse-request.ts';
 import type { ExternalEffect } from '../protocol/external-effect.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
-import type { EffectEntry } from '../registry/effect-entry.ts';
-import type { ExecutorEntry } from '../registry/executor-entry.ts';
 import { commandActionOf } from './command-action-of.ts';
 import { enqueueDeadlineTimer } from './deadline-timer.ts';
-import { durationMs } from './duration-ms.ts';
 import type { EffectScene } from './effect-scene.ts';
-import { executorOptionInput } from './executor-option-input.ts';
-import { jobInput } from './job-input.ts';
+import { enqueueEffectJob } from './enqueue-effect-job.ts';
 import { requestedEffectDraft } from './requested-effect-draft.ts';
 import { sealEffectInput } from './seal-effect-input.ts';
 import { sensitiveWithMember } from './sensitive-with-member.ts';
 import { validateEffectInput } from './validate-effect-input.ts';
 import { writeEffectRecord } from './write-effect-record.ts';
-
-/** The job that has a worker run an effect's executor outside any unit (decision 50a). */
-async function enqueueEffectJob(
-  scene: EffectScene,
-  effect: ExternalEffect,
-  entry: EffectEntry,
-  executor: ExecutorEntry,
-  id: string,
-  input: unknown,
-): Promise<void> {
-  const { run, unit } = scene;
-  const config = run.config?.(entry.module);
-  const context = { config, input: executorOptionInput(entry, input) };
-  const capability = executor.capabilityOf?.(context) ?? executor.capability;
-  const group = executor.group?.(context);
-  await unit.jobs.enqueue({
-    ...jobInput({
-      actor: scene.causeActor,
-      scope: run.scope,
-      principal: moduleServicePrincipal(entry.module, run.principal),
-      caller: scene.module,
-      causation: {
-        commandId: scene.commandId,
-        ...(scene.causeEventId === undefined ? {} : { eventId: scene.causeEventId }),
-        ...(scene.meta.lineage === undefined ? {} : { lineage: scene.meta.lineage }),
-      },
-      build: run.build,
-      now: scene.clock.now(),
-    }),
-    kind: 'effect',
-    queue: executor.queue,
-    run: { executor: executor.ref, effect: id },
-    capability,
-    ...(effect.runAt === undefined ? {} : { runAt: effect.runAt }),
-    key: { value: id, onConflict: 'keep' },
-    ...(group === undefined ? {} : { group }),
-    ...(executor.retry === undefined ? {} : { retry: executor.retry }),
-    ...(executor.timeout === undefined
-      ? {}
-      : { expireInSeconds: Math.ceil(durationMs(executor.timeout) / 1000) }),
-  });
-}
 
 /**
  * Records an external effect a decision requested (section 7.9.6): the `requested` row of the
@@ -131,5 +85,23 @@ export async function recordExternalEffect(
   if (executor === undefined) {
     throw errors.internal(`the effect "${entry.ref}" has no executor to perform it`);
   }
-  await enqueueEffectJob(scene, requested, entry, executor, id, input);
+  await enqueueEffectJob(scene.unit, {
+    scope: scene.run.scope,
+    entry,
+    executor,
+    effectId: id,
+    input,
+    config: scene.run.config?.(entry.module),
+    principal: moduleServicePrincipal(entry.module, scene.run.principal),
+    actor: scene.causeActor,
+    caller: scene.module,
+    causation: {
+      commandId: scene.commandId,
+      ...(scene.causeEventId === undefined ? {} : { eventId: scene.causeEventId }),
+      ...(scene.meta.lineage === undefined ? {} : { lineage: scene.meta.lineage }),
+    },
+    build: scene.run.build,
+    now: scene.clock.now(),
+    ...(requested.runAt === undefined ? {} : { runAt: requested.runAt }),
+  });
 }

@@ -65,6 +65,8 @@ export { clientAddresses } from './harness/client-addresses.ts';
 export { clientFetchOf } from './harness/client-fetch-of.ts';
 export type { ClientRuntime } from './harness/client-runtime.ts';
 export { createLocalClient } from './harness/create-local-client.ts';
+export { durablePgliteFactory } from './harness/durable-pglite-factory.ts';
+export type { IdentityOf } from './harness/identity-of.ts';
 export type { LocalClientOptions } from './harness/local-client-options.ts';
 export type { LoggedLine } from './harness/logged-line.ts';
 export type { PinnedLiveTimers } from './harness/pinned-live-timers.ts';

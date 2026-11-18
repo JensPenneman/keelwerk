@@ -47,5 +47,45 @@ describe.each(['memory', 'pglite'] as const satisfies readonly ConsumerKitKind[]
         await kit.stop();
       }
     }, 60_000);
+
+    test('a process that left service delivers nothing of an event that becomes available afterwards', async () => {
+      const calls: number[] = [];
+      let armed = false;
+      const worker = consumers({
+        consumers: [
+          {
+            id: 'test.left-service',
+            selector: {},
+            start: 'beginning',
+            consume: async (events) => {
+              if (armed) calls.push(events.length);
+            },
+          },
+        ],
+      });
+      // The signal of a service aborts when the gate closes, even with its evidence pending.
+      const leaving = new AbortController();
+      const gated = {
+        ...worker,
+        start: (context: Parameters<typeof worker.start>[0]) =>
+          worker.start({ ...context, signal: AbortSignal.any([context.signal, leaving.signal]) }),
+      };
+      const kit = await startConsumerKit(kind, { eventWorkers: [gated] });
+      try {
+        await worker.settled();
+        armed = true;
+        await kit.appendNotes('acme', poisonedStream, 0, 1);
+        await worker.settled();
+        expect(calls).toEqual([1]);
+        leaving.abort();
+        await kit.appendNotes('acme', poisonedStream, 1, 2);
+        // The change feed wakes the runners and the wall timer runs them: neither delivers.
+        await worker.settled();
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        expect(calls).toEqual([1]);
+      } finally {
+        await kit.stop();
+      }
+    }, 60_000);
   },
 );

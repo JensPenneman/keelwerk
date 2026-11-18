@@ -1,5 +1,6 @@
 import type { LedgerRecord } from '../kernel/ledger-record.ts';
 import type { LedgerSink } from '../kernel/ledger-sink.ts';
+import { readSinks } from '../runtime/read-sinks.ts';
 
 /** An anchor record. */
 export type AnchorRecord = Extract<LedgerRecord, { readonly type: 'anchor' }>;
@@ -8,15 +9,5 @@ export type AnchorRecord = Extract<LedgerRecord, { readonly type: 'anchor' }>;
 export async function newestAnchors(
   sinks: readonly LedgerSink[],
 ): Promise<ReadonlyMap<string, AnchorRecord>> {
-  const newest = new Map<string, { record: AnchorRecord; position: bigint }>();
-  for (const sink of sinks) {
-    for await (const record of sink.read()) {
-      if (record.type !== 'anchor') continue;
-      const position = BigInt(record.position);
-      const known = newest.get(record.scopeId);
-      if (known === undefined || position > known.position)
-        newest.set(record.scopeId, { record, position });
-    }
-  }
-  return new Map([...newest].map(([scopeId, entry]) => [scopeId, entry.record]));
+  return (await readSinks(sinks)).anchors;
 }

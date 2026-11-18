@@ -22,7 +22,7 @@ export interface CompleteJobInput {
  * The completion statement of a job's unit (9.5.2), conditional on the job running for this worker
  * and attempt: success and a failure without a dead-letter target delete the row, a dead letter
  * keeps it in state `dead` with its input, a retry sets it back to `scheduled` at the given time with
- * its lost leases cleared. All but the retry write the history row (outcome, attempts, timings
+ * its lost leases cleared (and, when uncounted, its attempt given back). All but the retry write the history row (outcome, attempts, timings
  * and error, never the input; a dead letter replayed and finished again replaces its row). The
  * statement answers the job's lane, key and group, or nothing when the lease was lost.
  */
@@ -45,7 +45,9 @@ export function completeJobStatement(input: CompleteJobInput): PostgresStatement
       case 'dead':
         return `update ${root}.kw_jobs set state = 'dead', worker = null, lease_until = null where ${fenced} returning ${returned}`;
       case 'retry':
-        return `update ${root}.kw_jobs set state = 'scheduled', run_at = ${bind(encodeInstant(outcome.at), 'timestamptz')}, worker = null, lease_until = null, lost_leases = 0
+        return `update ${root}.kw_jobs set state = 'scheduled', run_at = ${bind(encodeInstant(outcome.at), 'timestamptz')}, worker = null, lease_until = null, lost_leases = 0${
+          outcome.uncounted === true ? ', attempt = greatest(attempt - 1, 0)' : ''
+        }
 where ${fenced} returning ${returned}`;
     }
   })();

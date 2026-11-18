@@ -1,3 +1,4 @@
+import { RestoreHoldRefusal } from '../control/restore-hold-refusal.ts';
 import { timerQueue } from '../effects/timer-queue.ts';
 import { declaredErrorCodesOf } from '../executors/declared-error-codes-of.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
@@ -18,6 +19,7 @@ import { jobOutcomeOfError } from './job-outcome-of-error.ts';
 import { kernelJobError } from './kernel-job-error.ts';
 import { type PreparedJob, prepareActionJob } from './prepare-action-job.ts';
 import type { RunJobContext } from './run-job.ts';
+import { settleHeldJob } from './settle-held-job.ts';
 import { settleJobAttempt } from './settle-job-attempt.ts';
 
 /**
@@ -106,6 +108,11 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
   if (outcome.ok) {
     // The command of a tenant's job that runs in its backend's unit could not complete the job there.
     if (crossesScopes) await settleJobAttempt(context, stored, { kind: 'succeeded' });
+    return;
+  }
+  // A tenant held by a restore refuses its jobs until the hold lifts: they wait and keep their attempt.
+  if (outcome.error instanceof RestoreHoldRefusal) {
+    await settleHeldJob(context, stored, outcome.error);
     return;
   }
   // The history error of a job the kernel made is the closed projection, never the command's own

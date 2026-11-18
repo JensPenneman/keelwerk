@@ -28,6 +28,8 @@ export interface RunGeneratedReadInput {
   readonly rules?: readonly NormalizedRule[];
   /** The scope's epoch (section 15.2.6); default 0, the epoch of a scope whose positions never restarted. */
   readonly epoch?: number;
+  /** The epoch of another scope a token names (a read into the backend's data); default: `epoch` for every scope. */
+  readonly epochOf?: (scope: Scope) => number;
   /** The invocation's flag snapshot; absent: declared defaults. */
   readonly flags?: FlagSnapshot | undefined;
   readonly signal?: AbortSignal;
@@ -73,6 +75,7 @@ export async function runGeneratedRead(input: RunGeneratedReadInput): Promise<un
           rules,
           principal: input.principal,
           epoch: input.epoch ?? 0,
+          epochOf: input.epochOf,
           sealKey,
           flags: input.flags,
         },

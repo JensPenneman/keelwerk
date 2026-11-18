@@ -17,7 +17,7 @@ export function issueStateToken(
 ): StateToken {
   return encodeStateToken(
     {
-      epoch: context.epoch,
+      epoch: context.epochOf?.(scope) ?? context.epoch,
       position,
       scope: tokenScopePart(scope),
       check: currentTokenCheck(context, entity, scope, selector),

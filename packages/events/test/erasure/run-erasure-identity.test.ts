@@ -87,7 +87,9 @@ describe('an erasure is identified by its tenant, its command id and its subject
     // At the replay of a start (the epoch moved) every one of the three is run again, none is skipped
     // as a duplicate of another, and each ends with a completion of its own.
     const before = (await erasedEvents(probe)).length;
-    const second = await probe.startWorker({ epochOf: () => 1 });
+    await acme.bumpEpoch();
+    await globex.bumpEpoch();
+    const second = await probe.startWorker();
     expect(second.steps.filter((step) => step === 'completed')).toHaveLength(3);
     expect((await erasedEvents(probe)).length).toBe(before);
     const ledger = await probe.runtime.control.adapter.unit(

@@ -8,6 +8,7 @@ import type { Span } from '../observability/span.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { NamespaceRef } from '../storage/namespace-ref.ts';
+import type { Scope } from '../storage/scope.ts';
 import type { StorageScope } from '../storage/storage-scope.ts';
 import type { CommandReceipt } from './command-receipt.ts';
 import type { Invocation } from './invocation.ts';
@@ -46,6 +47,8 @@ export interface CommandRun {
   readonly epoch?: number;
   /** A text that is new at every start of a development runtime and absent otherwise (`InvokerEnv.bootNonce`): a cache of derived data of the process must not outlive the run. */
   readonly bootNonce?: string;
+  /** The epoch of the scope a token names; default: `epoch`. */
+  readonly epochOf?: (scope: Scope) => number;
   /** Whether a second unit can be open beside the command's (the adapter's capabilities say so). */
   readonly concurrentUnits?: boolean;
   /** The namespace of another scope's data, for a backend read. */

@@ -1,6 +1,6 @@
 import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import type { DeploymentDefinition } from '@keelwerk/core';
 import { startRuntime } from '@keelwerk/core';
 import { expect, test } from 'vitest';
@@ -9,19 +9,18 @@ import { scopeTargetsOf } from '../src/db/scope-targets-of.ts';
 import { useScratchProject } from './support/scratch-project.ts';
 
 const newProject = useScratchProject();
-const factory = fileURLToPath(new URL('./support/durable-pglite-factory.ts', import.meta.url));
 const key = Buffer.alloc(32, 7).toString('base64');
 
 function configText(directories: { control: string; main: string; ledger: string }): string {
   return `import { defineApp, secret } from '@keelwerk/core';
 import { ledgerFile } from '@keelwerk/core/ledger';
 import { schemaPlanner } from '@keelwerk/data';
-import { durablePgliteFactory } from ${JSON.stringify(factory)};
+import { durablePgliteFactory } from '@keelwerk/testing';
 
 export default {
   apps: [defineApp({ id: 'demo', modules: [] })],
   infrastructure: [
-    durablePgliteFactory(),
+    durablePgliteFactory({ dataDirOf: (placement) => placement.url }),
     schemaPlanner(),
     ledgerFile({ path: ${JSON.stringify(directories.ledger)} }),
   ],

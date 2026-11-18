@@ -58,6 +58,7 @@ export function memoryJobComplete(
         tables.putJob({
           ...job,
           state: 'scheduled',
+          attempt: outcome.uncounted === true ? Math.max(job.attempt - 1, 0) : job.attempt,
           runAt: outcome.at,
           worker: null,
           leaseUntil: null,

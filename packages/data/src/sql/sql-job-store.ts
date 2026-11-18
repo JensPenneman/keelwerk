@@ -14,6 +14,7 @@ import { sqlJobCancel } from './sql-job-cancel.ts';
 import { sqlJobComplete } from './sql-job-complete.ts';
 import { sqlJobGroup } from './sql-job-group.ts';
 import { sqlJobHeartbeat } from './sql-job-heartbeat.ts';
+import { sqlJobKeyed } from './sql-job-keyed.ts';
 import { sqlJobLane } from './sql-job-lane.ts';
 import { sqlJobPromote } from './sql-job-promote.ts';
 import { sqlJobPurge } from './sql-job-purge.ts';
@@ -49,6 +50,7 @@ export interface SqlJobStore
     | 'complete'
     | 'enqueue'
     | 'heartbeat'
+    | 'keyed'
     | 'promote'
     | 'purgeForPrincipals'
     | 'queued'
@@ -215,6 +217,7 @@ returning id::text as id`,
     },
     stats: async (queue) => sqlGuard(async () => sqlJobStats(ctx, queue)),
     queued: async (queue, limit) => sqlGuard(async () => sqlJobQueued(ctx, queue, limit)),
+    keyed: async (queue, key) => sqlGuard(async () => sqlJobKeyed(ctx, queue, key)),
     schedules: () => sqlScheduleStore(ctx),
     purgeForPrincipals: async (principalIds, queues) => {
       ctx.writable();

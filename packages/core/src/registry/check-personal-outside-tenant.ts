@@ -1,11 +1,7 @@
-import type { FieldDescriptor } from '../storage/field-descriptor.ts';
 import { compositionError } from './composition-error.ts';
 import type { CompositionProblem } from './composition-problem.ts';
 import type { EntityEntry } from './entity-entry.ts';
-
-function holdsPersonal(field: FieldDescriptor): boolean {
-  return field.personal !== false || (field.inner !== null && holdsPersonal(field.inner));
-}
+import { holdsPersonal } from './holds-personal.ts';
 
 /**
  * `personalOutsideTenant` (14.7.5): erasure reaches the tenant scope, so a personal field, or a

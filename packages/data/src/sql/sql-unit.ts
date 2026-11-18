@@ -4,12 +4,15 @@ import type {
   Clock,
   ConsumerStore,
   ControlLedger,
+  CounterStore,
   EventStore,
+  NamespaceIdentities,
   NamespaceRef,
   NestedUnitOptions,
   ReceiptStore,
   RowStore,
   ScopeKeyStore,
+  ScopeMarks,
   SerialStore,
   StorageScope,
   StreamRecordStore,
@@ -27,6 +30,7 @@ import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
 import { sqlCommitBuffer } from './sql-commit-buffer.ts';
 import { runCommitTail } from './sql-commit-tail.ts';
 import { sqlConsumerStore } from './sql-consumer-store.ts';
+import { sqlCounterStore } from './sql-counter-store.ts';
 import type { SqlDb } from './sql-db.ts';
 import type { SqlEntityIndex } from './sql-entity-index.ts';
 import { sqlEventStore } from './sql-event-store.ts';
@@ -34,9 +38,11 @@ import type { SqlJobStore } from './sql-job-store.ts';
 import { sqlJobStore } from './sql-job-store.ts';
 import type { SqlKeyWrapper } from './sql-key-wrapper.ts';
 import { sqlLedgerStore } from './sql-ledger-store.ts';
+import { sqlNamespaceIdentities } from './sql-namespace-identities.ts';
 import { sqlReceiptStore } from './sql-receipt-store.ts';
 import { sqlRowStore } from './sql-row-store.ts';
 import { sqlScopeKeyStore } from './sql-scope-key-store.ts';
+import { sqlScopeMarks } from './sql-scope-marks.ts';
 import { sqlSerialStore } from './sql-serial-store.ts';
 import type { SqlSession } from './sql-session.ts';
 import { sqlStreamRecordStore } from './sql-stream-record-store.ts';
@@ -86,6 +92,12 @@ export interface SqlUnit {
   /** `kw_api_usage`; deployment-scope units only (S-144). */
   readonly apiUsage?: ApiUsageStore;
   readonly ledger?: ControlLedger;
+  /** `kw_namespace_identities`; deployment-scope units only (S-119). */
+  readonly identities?: NamespaceIdentities;
+  /** `kw_scope_marks`; deployment-scope units only (S-119). */
+  readonly marks?: ScopeMarks;
+  /** The counters of every scope of the namespace; namespace-scope units only (14.7.6). */
+  readonly counters?: CounterStore;
   nested<T>(fn: (u: SqlUnit) => Promise<T>, options?: NestedUnitOptions): Promise<T>;
   afterCommit(fn: () => void): void;
   /**
@@ -150,7 +162,14 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
       streams: sqlStreamRecordStore(ctx),
       ...(scopeKeys === undefined ? {} : { scopeKeys }),
       ...(apiUsage === undefined ? {} : { apiUsage }),
-      ...(current.scope.level === 'deployment' ? { ledger: sqlLedgerStore(ctx) } : {}),
+      ...(current.scope.level === 'deployment'
+        ? {
+            ledger: sqlLedgerStore(ctx),
+            identities: sqlNamespaceIdentities(ctx),
+            marks: sqlScopeMarks(ctx),
+          }
+        : {}),
+      ...(current.scope.level === 'namespace' ? { counters: sqlCounterStore(ctx) } : {}),
       nested: async <T>(fn: (u: SqlUnit) => Promise<T>, options?: NestedUnitOptions) => {
         const target = options?.as ?? current.scope;
         if (

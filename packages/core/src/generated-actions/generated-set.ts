@@ -107,7 +107,7 @@ async function assertState(
   const parts = decodeStateToken(token);
   assertTokenScope(parts, scope);
   const stale =
-    parts.epoch !== context.epoch ||
+    parts.epoch !== (context.epochOf?.(scope) ?? context.epoch) ||
     !tokenCheckHolds(parts, currentTokenCheck(context, entry.ref, scope), context.sealKey) ||
     ((await unit.events.head({ streamTypes: [entry.ref] })) ?? 0n) > parts.position;
   if (stale) {
@@ -146,6 +146,7 @@ export async function generatedSet(input: GeneratedSetInput): Promise<unknown> {
     rules: run.rules,
     principal: run.principal,
     epoch: run.epoch ?? 0,
+    epochOf: run.epochOf,
     sealKey: await stateTokenKey(run.keys, run.scope),
     flags: run.flags,
   };

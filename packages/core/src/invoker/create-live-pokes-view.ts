@@ -108,7 +108,7 @@ export async function createLivePokesView(
     judge: (token: string, head: Position) => {
       const parts = decodeStateToken(token);
       assertTokenScope(parts, scope);
-      if (parts.epoch !== epoch) return 'resync';
+      if (parts.epoch !== (tokens.epochOf?.(scope) ?? epoch)) return 'resync';
       if (!tokenCheckHolds(parts, pokesCheck, tokens.sealKey)) return 'resync';
       return parts.position > head ? 'resync' : parts.position;
     },

@@ -49,7 +49,7 @@ test('the adapter migrates M1 roots at provision', async () => {
   expect(await stepIds(m1App)).toEqual([]);
   await instance.schema.provision(m1App, []);
   await instance.schema.provision(control, []);
-  for (const ref of [m1App, control]) expect(await stepIds(ref)).toEqual(['0001', '0002']);
+  for (const ref of [m1App, control]) expect(await stepIds(ref)).toEqual(['0001', '0002', '0003']);
   const admin = new pg.Client({ connectionString: running.adminUrl });
   await admin.connect();
   const tables = await admin
@@ -60,11 +60,11 @@ test('the adapter migrates M1 roots at provision', async () => {
   expect(tables.rows[0]).toEqual({ consumers: true, ledger: true });
 });
 
-test('a fresh namespace provisioned by the adapter gets both steps, stamped at the environment clock', async () => {
+test('a fresh namespace provisioned by the adapter gets every step, stamped at the environment clock', async () => {
   await instance.schema.provision(fresh, []);
   const history = (await instance.schema.history(fresh)).filter(
     (row) => row.track === frameworkTrack,
   );
-  expect(history.map((row) => row.id)).toEqual(['0001', '0002']);
+  expect(history.map((row) => row.id)).toEqual(['0001', '0002', '0003']);
   for (const row of history) expect(row.appliedAt.toString()).toBe(pinned.toString());
 });

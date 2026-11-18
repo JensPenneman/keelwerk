@@ -13,6 +13,8 @@ import type { Unit } from '../storage/unit.ts';
 import type { ControlApiUsage } from './control-api-usage.ts';
 import type { ControlFlags } from './control-flags.ts';
 import type { ControlLedger } from './control-ledger.ts';
+import type { NamespaceIdentities } from './namespace-identities.ts';
+import type { ScopeMarks } from './scope-marks.ts';
 
 /**
  * The control store (section 14.2): the deployment namespace of the core module in the control
@@ -38,10 +40,16 @@ export interface ControlStore {
     readonly build: { readonly id: string; readonly revision: number };
   };
   /**
-   * The epoch of a scope, part of every state token (section 15.2.6). Positions are never rewound
-   * in M1 (the epoch bump and its mark tables come in M2, S-35), so every scope answers 0.
+   * The epoch of a scope, part of every state token (section 15.2.6): `epochs()` of the scope's id
+   * (the deployment, backend or tenant id), 0 for a scope no restore has moved (S-119).
    */
   epochOf(scope: Scope): number;
+  /** The epoch cache: scope id to its highest epoch above 0 over its namespaces. */
+  epochs(): ReadonlyMap<string, number>;
+  /** kw_namespace_identities, each call in its own deployment unit. */
+  readonly identities: NamespaceIdentities;
+  /** kw_scope_marks, each call in its own deployment unit; the answers of `bumped` and `bump` feed the epoch cache. */
+  readonly marks: ScopeMarks;
   /** The descriptor of a core entity ('core.backend'). */
   entity(ref: string): EntityDescriptor;
   /** The targeting rows of core.flag and their change subscription (WP-98). */

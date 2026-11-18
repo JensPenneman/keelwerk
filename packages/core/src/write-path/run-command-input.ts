@@ -70,6 +70,8 @@ export interface RunCommandInput {
   readonly epoch?: number;
   /** New at every start of a development runtime, absent otherwise: the cache of a process state is bound to it, so an edit of the code `evolve` calls never meets a state folded by the old code. */
   readonly bootNonce?: string;
+  /** The epoch of the scope a token names, which may differ from the command's (a read into the backend's data); default: `epoch`. */
+  readonly epochOf?: (scope: Scope) => number;
   /** Aborts on the action's timeout: the unit rolls back and `runCommand` rejects with the reason. */
   readonly signal?: AbortSignal;
   /** Whether a second unit can be open beside this one (see `RunReadInput.concurrentUnits`). */

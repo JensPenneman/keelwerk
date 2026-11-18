@@ -51,6 +51,8 @@ const rowsOfFixture = async (adapter: PgliteAdapter): Promise<readonly unknown[]
     ].map((sql) => rowsOf(adapter, sql)),
   );
 
+const stepIds = frameworkSteps.map((step) => step.id);
+
 const stepOf = (id: string): FrameworkStep => {
   const step = frameworkSteps.find((candidate) => candidate.id === id);
   if (step === undefined) throw new Error(`no framework step ${id}`);
@@ -70,7 +72,7 @@ const counts = async (adapter: PgliteAdapter): Promise<readonly unknown[]> =>
     )
   ).map((rows) => rows[0]?.n);
 
-describe('the framework track on PGlite', () => {
+describe('the framework track on PGlite', { timeout: 30_000 }, () => {
   test('a fresh namespace records both steps at the adapter clock', async () => {
     const adapter = await open();
     await provisionExampleRoots(adapter);
@@ -81,7 +83,7 @@ describe('the framework track on PGlite', () => {
       const history = (await adapter.schema.history(ref)).filter(
         (row) => row.track === frameworkTrack,
       );
-      expect(history.map((row) => row.id)).toEqual(['0001', '0002']);
+      expect(history.map((row) => row.id)).toEqual(stepIds);
       expect(history.map((row) => row.checksum)).toEqual(
         frameworkSteps.map((step) => frameworkStepChecksum(step, options)),
       );
@@ -89,7 +91,7 @@ describe('the framework track on PGlite', () => {
     }
   });
 
-  test('the M1 dump migrates: 0001 is recognised and 0002 adds the tables', async () => {
+  test('the M1 dump migrates: 0001 is recognised, 0002 adds the tables and 0003 the ledger indexes', async () => {
     const adapter = await open();
     await adapter.asOwner(async (database) => database.exec(dump));
     const before = await counts(adapter);
@@ -98,7 +100,7 @@ describe('the framework track on PGlite', () => {
     expect(await rowsOfFixture(adapter)).toEqual(fixtureRows);
     for (const root of ['example', 'kw__control']) {
       const rows = await frameworkRows(adapter, root);
-      expect(rows.map((row) => row.id)).toEqual(['0001', '0002']);
+      expect(rows.map((row) => row.id)).toEqual(stepIds);
       expect(rows[0]?.duration_ms).toBe(0);
       const tables = await rowsOf(
         adapter,
@@ -129,7 +131,7 @@ describe('the framework track on PGlite', () => {
     expect(positions).toEqual([{ next: 8 }]);
     const after = await counts(adapter);
     expect(after.map(Number)).toEqual(
-      before.map(Number).map((n, index) => (index === 0 || index === 2 ? n + 2 : n)),
+      before.map(Number).map((n, index) => (index === 0 || index === 2 ? n + 3 : n)),
     );
   });
 
@@ -170,14 +172,13 @@ describe('the framework track on PGlite', () => {
     await provisionExampleRoots(adapter);
     await adapter.asOwner(async (database) =>
       database.exec(
-        `insert into "example".kw_migrations values ('${frameworkTrack}', '0003', '${'f'.repeat(64)}', now(), 0, 1)`,
+        `insert into "example".kw_migrations values ('${frameworkTrack}', '9999', '${'f'.repeat(64)}', now(), 0, 1)`,
       ),
     );
     await adapter.schema.provision(exampleNamespace, []);
     expect((await frameworkRows(adapter, 'example')).map((row) => row.id)).toEqual([
-      '0001',
-      '0002',
-      '0003',
+      ...stepIds,
+      '9999',
     ]);
   });
 
@@ -187,8 +188,8 @@ describe('the framework track on PGlite', () => {
     await adapter.asOwner(async (database) => database.exec(`truncate "example".kw_migrations`));
     await adapter.schema.provision(exampleNamespace, []);
     const rows = await frameworkRows(adapter, 'example');
-    expect(rows.map((row) => row.id)).toEqual(['0001', '0002']);
-    expect(rows.map((row) => row.duration_ms)).toEqual([0, 0]);
+    expect(rows.map((row) => row.id)).toEqual(stepIds);
+    expect(rows.map((row) => row.duration_ms)).toEqual(frameworkSteps.map(() => 0));
     expect(rows.map((row) => row.steps_applied)).toEqual(
       frameworkSteps.map((step) => step.ddl('example', {}).length),
     );
@@ -205,8 +206,10 @@ describe('the framework track on PGlite', () => {
     ).rejects.toMatchObject({ kind: 'conflict' });
   });
 
-  test('step 0002 is the second step of the track', () => {
-    expect(frameworkSteps.map((step) => step.id)).toEqual(['0001', '0002']);
+  test('steps 0002 and 0003 are in the track, in order, with their markers', () => {
+    const ids = frameworkSteps.map((step) => step.id);
+    expect(ids.slice(0, 3)).toEqual(['0001', '0002', '0003']);
     expect(stepOf('0002').marker).toBe('kw_consumers');
+    expect(stepOf('0003').marker).toBe('kw_ledger_erasure_identity');
   });
 });

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { finish, seed } from './support/erasure-helpers.ts';
+import { erasedEvents, finish, seed } from './support/erasure-helpers.ts';
 import { bootProbe, type Probe } from './support/erasure-kit.ts';
 
 let probe: Probe | undefined;
@@ -20,44 +20,49 @@ async function finishedErasure(): Promise<Probe> {
 
 const farOff = () => Temporal.Now.instant().add({ hours: 1 });
 
-describe('what the worker reads of the ledgers after its start pass (14.7.5)', () => {
-  test('a sink that cannot be read at the start does not send the poll back to the head of the ledger', async () => {
+describe('what the worker reads of the ledgers (14.7.5, 14.7.6)', () => {
+  test('the start pass reads only the unfinished erasures: a completed one is not looked at, and no sink is read', async () => {
     const booted = await finishedErasure();
-    const second = await booted.startWorker({
-      pollMs: 5,
-      ledger: { limit: 1, sinksUnreadable: true },
-    });
+    const second = await booted.startWorker({ ledger: { sinksUnreadable: true } });
+    // One read of the unfinished records, which answered none: nothing was looked up or run.
+    expect(second.reads.unfinished).toBe(1);
+    expect(second.reads.finds).toBe(0);
+    expect(second.reads.sinkReads).toBe(0);
+    expect(second.steps).toEqual([]);
+  });
+
+  test('a completion at the old epoch does not finish an erasure after a bump', async () => {
+    const booted = await finishedErasure();
+    await booted.bumpEpoch();
+    const second = await booted.startWorker();
+    expect(second.reads.unfinished).toBe(1);
+    expect(second.steps).toContain('shred');
+    expect(second.steps.at(-1)).toBe('completed');
+    // A third start finds the completion at the new epoch and runs nothing.
+    const third = await booted.startWorker();
+    expect(third.steps).toEqual([]);
+  });
+
+  test('the poll starts at the head the start pass read, never again at 0', async () => {
+    const booted = await finishedErasure();
+    const second = await booted.startWorker({ pollMs: 5, ledger: { limit: 1 } });
     const afterStart = second.reads.after.length;
     await vi.waitFor(() => expect(second.reads.empty).toBeGreaterThan(1));
     await second.worker.stop(farOff());
-    // The last read of the start pass found nothing after the head.
-    const head = second.reads.after[afterStart - 1] ?? 0n;
+    const head = second.reads.after[afterStart] ?? 0n;
     expect(head).toBeGreaterThan(0n);
-    // Every poll read starts at the head the start pass found, never again at 0.
     expect(second.reads.after.slice(afterStart).every((after) => after >= head)).toBe(true);
     expect(second.steps).toEqual([]);
   });
 
-  test('a start pass that failed after it read the completions leaves the poll no erasure to run again', async () => {
+  test('a start pass that failed on the ledger runs nothing and leaves the poll from the start of the ledger', async () => {
     const booted = await finishedErasure();
-    // The record, the tombstone and the completion are three pages of one record; the fourth read fails.
-    const second = await booted.startWorker({ pollMs: 5, ledger: { limit: 1, failRead: 4 } });
-    await vi.waitFor(() => expect(second.reads.empty).toBeGreaterThan(1));
+    // The first read of the pass fails: no head is known, the poll walks the ledger from 0, finds
+    // the record, asks for its completions and finds one at the current epoch.
+    const second = await booted.startWorker({ pollMs: 5, ledger: { failRead: 1 } });
+    await vi.waitFor(() => expect(second.reads.empty).toBeGreaterThan(0));
     await second.worker.stop(farOff());
-    // The poll walked the ledger from its start, and the record and its completion were on
-    // different pages of it: the completion the pass had read still counted.
-    expect(second.reads.after[4]).toBe(0n);
-    expect(second.steps).toEqual([]);
-  });
-
-  test('a start pass that failed on the ledger leaves the poll no erasure whose completion lies on a later page', async () => {
-    const booted = await finishedErasure();
-    // The record and its completion are on different pages; the second read of the pass fails, so
-    // the poll walks the ledger from its start and must read every page before it finishes a record.
-    const second = await booted.startWorker({ pollMs: 5, ledger: { limit: 1, failRead: 2 } });
-    await vi.waitFor(() => expect(second.reads.empty).toBeGreaterThan(1));
-    await second.worker.stop(farOff());
-    expect(second.reads.after[2]).toBe(0n);
+    expect(second.reads.after[1]).toBe(0n);
     expect(second.steps).toEqual([]);
   });
 
@@ -77,5 +82,13 @@ describe('what the worker reads of the ledgers after its start pass (14.7.5)', (
     await vi.waitFor(() => expect(second.reads.empty).toBeGreaterThan(emptyBefore + 1));
     await second.worker.stop(farOff());
     expect(second.steps).toEqual(before);
+  });
+
+  test('a bump leaves one erased event per stream: the rerun adds none', async () => {
+    const booted = await finishedErasure();
+    const before = (await erasedEvents(booted)).length;
+    await booted.bumpEpoch();
+    await booted.startWorker();
+    expect((await erasedEvents(booted)).length).toBe(before);
   });
 });

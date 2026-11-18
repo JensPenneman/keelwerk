@@ -19,6 +19,12 @@ export interface StateTokenContext {
    * backend's key). Absent: every token is sealed with `sealKey`.
    */
   readonly sealKeyOf?: ((scope: Scope) => Uint8Array) | undefined;
+  /**
+   * The epoch of the scope a token names, as `sealKeyOf` resolves its key (a tenant invocation that
+   * reads backend data issues a token of the backend's scope, which that scope's epoch binds).
+   * Absent: `epoch` applies to every scope.
+   */
+  readonly epochOf?: ((scope: Scope) => number) | undefined;
   /** The invocation's flag snapshot: the flags the read rules read are part of the token's check (20.6). */
   readonly flags?: FlagSnapshot | undefined;
 }

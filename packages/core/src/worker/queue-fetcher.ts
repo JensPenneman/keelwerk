@@ -165,6 +165,9 @@ export function queueFetcher(input: {
           maxRevision: options.revision,
           leaseMs: takeLeaseMs,
         });
+        // A drain that began while the take was in flight: nothing of the batch starts (no executor
+        // runs after the gate closed or the process stopped), and the leases of its jobs expire (D6).
+        if (draining) return;
         slots.hold(batch.jobs.length);
         for (const stored of batch.jobs) start(stored, source);
         took ||= batch.jobs.length > 0;

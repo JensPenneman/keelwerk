@@ -1,17 +1,10 @@
-import type {
-  ErasureCompletedRecord,
-  ErasureRecord,
-  RuntimeServiceContext,
-  UnitGuard,
-} from '@keelwerk/core';
+import type { ErasureRecord, RuntimeServiceContext, UnitGuard } from '@keelwerk/core';
 import { erasureKey, errors } from '@keelwerk/core';
-import { createCompletions } from './create-completions.ts';
 import { ErasureHalted } from './erasure-halted.ts';
 import type { ErasureOptions } from './erasure-options.ts';
 import { erasureTarget } from './erasure-target.ts';
 import type { ErasureWorker } from './erasure-worker.ts';
 import { isErasureFinished } from './is-erasure-finished.ts';
-import { readErasureLedger } from './read-erasure-ledger.ts';
 import { runErasure } from './run-erasure.ts';
 
 const defaultPollMs = 1000;
@@ -27,14 +20,15 @@ function integerAtLeast(name: string, value: number, least: number): number {
 
 /**
  * The event worker that runs erasures (`runs: ['erasure']`, section 14.7.5): a start pass over the
- * whole union of the control ledger and the sinks, which finishes every record that has no
- * completion in the control ledger (a completion that stands after the record, of the tenant's
- * current epoch, with no key of the subject destroyed after it: a restore rewinds the placement and
- * the erasure is run again, 14.7.6); then it follows `control.ledger.since(last seq)` every
- * `pollMs` and retries what failed. A pass reads the control ledger once, however many erasures
- * there are. Every identity here is `erasureKey` (tenant, command id and subject): a command id is
- * unique in one scope only. Stopping halts between units; a unit still running at the deadline is ended,
- * so abandoned work writes nothing, and the record is finished by the next start pass.
+ * erasure records of the control ledger that have no completion at their tenant's current epoch
+ * (`control.ledger.unfinished`, paged; a restore made `connect` bump the epoch and so brings every
+ * completed erasure of that tenant back here, 14.7.6), which finishes each of them; then it follows
+ * `control.ledger.since(head)` every `pollMs` for new records and retries what failed. The start pass
+ * reads no sink: the union with the sinks was made at `connect`, before any worker started. A
+ * boot costs one read of the unfinished records, however many erasures were ever made. Every identity
+ * here is `erasureKey` (tenant, command id and subject): a command id is unique in one scope only.
+ * Stopping halts between units; a unit still running at the deadline is ended, so abandoned work
+ * writes nothing, and the record is finished by the next start pass.
  */
 export function erasure(options: ErasureOptions = {}): ErasureWorker {
   const pollMs = integerAtLeast('pollMs', options.pollMs ?? defaultPollMs, 1);
@@ -44,11 +38,9 @@ export function erasure(options: ErasureOptions = {}): ErasureWorker {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let lastSeq = 0n;
   let chain: Promise<unknown> = Promise.resolve();
-  /** The completions of the control ledger, fed by every pass and every poll page, kept for the worker's life. */
-  const completions = createCompletions();
   const finished = new Set<string>();
-  const retry = new Map<string, ErasureRecord>();
-  /** The key ids the control ledger holds a tombstone for: read at the start, kept up by the poll. */
+  const retry = new Map<string, { readonly record: ErasureRecord; readonly seq: bigint }>();
+  /** The key ids this process has seen the control ledger hold a tombstone for. */
   const tombstoned = new Set<string>();
   const abandoned = Promise.withResolvers<never>();
   abandoned.promise.catch(() => undefined);
@@ -74,22 +66,18 @@ export function erasure(options: ErasureOptions = {}): ErasureWorker {
   const finish = async (
     ctx: RuntimeServiceContext,
     record: ErasureRecord,
-    completed: readonly ErasureCompletedRecord[],
+    seq: bigint,
   ): Promise<boolean> => {
     const key = erasureKey(record);
     if (finished.has(key)) return false;
     try {
       const found = await erasureTarget(ctx, record);
-      if (
-        found === undefined ||
-        !(await isErasureFinished(ctx, found, record, completed, options.epochOf))
-      ) {
+      if (found === undefined || !(await isErasureFinished(ctx, found, record, seq))) {
         await runErasure(ctx, record, {
           pageSize,
           tombstoned,
           ...(options.afterStep === undefined ? {} : { afterStep: options.afterStep }),
           ...(options.insideStep === undefined ? {} : { insideStep: options.insideStep }),
-          ...(options.epochOf === undefined ? {} : { epochOf: options.epochOf }),
           guard,
         });
       }
@@ -98,7 +86,7 @@ export function erasure(options: ErasureOptions = {}): ErasureWorker {
       return true;
     } catch (error) {
       if (!(error instanceof ErasureHalted)) {
-        retry.set(key, record);
+        retry.set(key, { record, seq });
         ctx.log.error('an erasure could not be finished; it is tried again', {
           commandId: record.commandId,
           cause: error,
@@ -108,48 +96,53 @@ export function erasure(options: ErasureOptions = {}): ErasureWorker {
     }
   };
 
-  /** One pass: reads the control ledger once, then finishes each record that has no completion. */
+  /** One pass: finishes each erasure record that has no completion at its tenant's epoch, page by page. */
   const doPass = async (ctx: RuntimeServiceContext): Promise<number> => {
-    const ledger = await readErasureLedger(ctx, completions);
-    for (const keyId of ledger.tombstoned) tombstoned.add(keyId);
-    if (ledger.lastSeq > lastSeq) lastSeq = ledger.lastSeq;
     let count = 0;
-    for (const record of ledger.records) {
-      if (stopping) break;
-      if (await finish(ctx, record, completions.of(record))) count += 1;
+    let after = 0n;
+    for (;;) {
+      const page = await ctx.control.ledger.unfinished({
+        epochs: ctx.control.epochs(),
+        after,
+        limit: ledgerPage,
+      });
+      // The first read's head is where the poll starts: whatever is appended later it reads itself.
+      if (after === 0n && page.head > lastSeq) lastSeq = page.head;
+      for (const { record, seq } of page.erasures) {
+        if (stopping) return count;
+        if (await finish(ctx, record, seq)) count += 1;
+      }
+      const last = page.erasures.at(-1);
+      if (last === undefined || page.erasures.length < ledgerPage) return count;
+      after = last.seq;
     }
-    return count;
   };
 
   /**
-   * The records appended since the last read, then what failed before. It reads every page up to
-   * the head and feeds the completions and the tombstones first, and only then finishes the
-   * erasure records it found: a record and its completion may stand on different pages (more than
-   * a page apart, or the start pass failed before it read them), and an erasure must never run
-   * again for a completion that lies a page later. The cursor moves only when the whole read
-   * succeeded; reading a page again is harmless.
+   * The erasure records appended since the last read, then what failed before. It reads every page
+   * up to the head and only then finishes the records it found; the cursor moves once, after the
+   * whole read succeeded (reading a page again is harmless). Whether a record is finished is asked of
+   * the ledger by one indexed lookup of its completions.
    */
   const doPoll = async (ctx: RuntimeServiceContext): Promise<number> => {
     let count = 0;
     let after = lastSeq;
-    const found: ErasureRecord[] = [];
+    const found: { readonly record: ErasureRecord; readonly seq: bigint }[] = [];
     for (;;) {
       const page = await ctx.control.ledger.since(after, ledgerPage);
       const last = page.at(-1);
       if (last === undefined) break;
       after = last.seq;
-      for (const { record } of page) {
-        completions.observe(record);
-        if (record.type === 'keyTombstone') tombstoned.add(record.keyId);
-        if (record.type === 'erasure') found.push(record);
+      for (const { seq, record } of page) {
+        if (record.type === 'erasure') found.push({ record, seq });
       }
     }
     lastSeq = after;
-    for (const record of found) {
-      if (!stopping && (await finish(ctx, record, completions.of(record)))) count += 1;
+    for (const { record, seq } of found) {
+      if (!stopping && (await finish(ctx, record, seq))) count += 1;
     }
-    for (const record of [...retry.values()]) {
-      if (!stopping && (await finish(ctx, record, completions.of(record)))) count += 1;
+    for (const { record, seq } of [...retry.values()]) {
+      if (!stopping && (await finish(ctx, record, seq))) count += 1;
     }
     return count;
   };
@@ -172,6 +165,13 @@ export function erasure(options: ErasureOptions = {}): ErasureWorker {
     timer.unref();
   };
 
+  /** The process stops or leaves service: no unit begins, and the one in flight is ended. */
+  const halt = (): void => {
+    stopping = true;
+    if (timer !== undefined) clearTimeout(timer);
+    abandoned.reject(new ErasureHalted());
+  };
+
   return {
     id: 'events.erasure',
     roles: ['work'],
@@ -180,6 +180,8 @@ export function erasure(options: ErasureOptions = {}): ErasureWorker {
     runs: ['erasure'],
     start: async (start) => {
       context = start;
+      if (start.signal.aborted) halt();
+      else start.signal.addEventListener('abort', halt, { once: true });
       await serial(() => doPass(start)).catch((error: unknown) => {
         start.log.error('the erasure start pass failed', { cause: error });
       });

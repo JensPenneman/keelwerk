@@ -6,6 +6,8 @@ export interface RunningPostgres {
   readonly appUrl: string;
   /** The server's `select version()` text. */
   readonly version: string;
+  /** The container's id: `execInContainer` runs the image's client tools (`pg_dump`, `pg_restore`) in it from another process. */
+  readonly containerId: string;
   /** Stops and removes the container. */
   stop(): Promise<void>;
 }

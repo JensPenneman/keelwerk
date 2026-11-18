@@ -9,7 +9,9 @@ import type { QueueSource } from './queue-source.ts';
  * Rows of an app this process does not serve or of a placement it is not connected to are left out.
  * Per-tenant namespaces arrive with M5, which needs the sweep of 9.5.6.
  */
-export async function queueSources(input: StartPhaseInput): Promise<readonly QueueSource[]> {
+export async function queueSources(
+  input: Pick<StartPhaseInput, 'connected' | 'apps'>,
+): Promise<readonly QueueSource[]> {
   const { connected, apps } = input;
   const { control } = connected;
   const placements = new Map([...connected.placementIds].map(([name, id]) => [id, name] as const));

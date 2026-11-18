@@ -222,7 +222,7 @@ export function createLiveKernel(
       judge: (token: string, head: Position) => {
         const parts = decodeStateToken(token);
         assertTokenScope(parts, scope);
-        if (parts.epoch !== epoch) return 'resync';
+        if (parts.epoch !== (tokens.epochOf?.(scope) ?? epoch)) return 'resync';
         if (
           ![checks.stream, ...checks.accepted].some((check) =>
             tokenCheckHolds(parts, check, tokens.sealKey),

@@ -31,6 +31,7 @@ import type { DataAdapter } from '../storage/data-adapter.ts';
 import type { DataAdapterFactory } from '../storage/data-adapter-factory.ts';
 import type { PlacementConfig } from '../storage/placement-config.ts';
 import { buildManifestOf } from './build-manifest-of.ts';
+import { checkControlNamespace } from './check-control-namespace.ts';
 import type { Composed } from './compose-phase.ts';
 import type { Connected } from './connected.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
@@ -253,6 +254,8 @@ export async function connectPhase(input: ConnectInput): Promise<Connected> {
         capabilities,
       });
     }
+    // Before the first control command: the boot's own writes must not lift a rewound counter.
+    await checkControlNamespace({ control, deploymentId, clock, log });
     const placementIds = await registerPlacements(control, deployment.placements);
 
     const single = [

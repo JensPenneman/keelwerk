@@ -58,7 +58,8 @@
     "@keelwerk/core": "workspace:*",
     "@keelwerk/data": "workspace:*",
     "@testcontainers/postgresql": "12.2.1",
-    "fast-check": "4.10.2"
+    "fast-check": "4.10.2",
+    "testcontainers": "12.2.1"
   },
   "peerDependencies": {
     "vitest": ">=5.0.5 <6.0.0"

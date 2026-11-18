@@ -1,4 +1,3 @@
-import { connectRewindCheck } from '../anchors/connect-rewind-check.ts';
 import { startAnchoring } from '../anchors/start-anchoring.ts';
 import { type VersionProjection, versionProjection } from '../api-versions/version-projection.ts';
 import { latestTenantEntry } from '../control/latest-tenant-entry.ts';
@@ -19,7 +18,6 @@ import { createOperatorTokenResolver } from '../principals/operator-token-resolv
 import type { ApiSurface } from '../surface/api-surface.ts';
 import { deriveSurface } from '../surface/derive-surface.ts';
 import type { SurfaceSource } from '../surface/surface-source.ts';
-import { anchorScopes } from './anchor-scopes.ts';
 import { answerRuntimeQueries } from './answer-runtime-queries.ts';
 import { AppNotServedError } from './app-not-served-error.ts';
 import { composePhase } from './compose-phase.ts';
@@ -27,6 +25,7 @@ import { connectPhase } from './connect-phase.ts';
 import { controlCommandsOf } from './control-commands-of.ts';
 import { createControlPath } from './create-control-path.ts';
 import { createRuntimeControl } from './create-runtime-control.ts';
+import { createServiceGate } from './create-service-gate.ts';
 import { defaultLogger } from './default-logger.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
 import { drainingInvoker } from './draining-invoker.ts';
@@ -36,6 +35,7 @@ import type { Listening } from './listening.ts';
 import { migratePhase } from './migrate-phase.ts';
 import { refuseUnknownApiVersion } from './refuse-unknown-api-version.ts';
 import { registerTelemetry } from './register-telemetry.ts';
+import { restoreCheck } from './restore-check.ts';
 import type { Runtime } from './runtime.ts';
 import { runtimeEnvironment } from './runtime-environment.ts';
 import type { RuntimeOptions } from './runtime-options.ts';
@@ -86,14 +86,14 @@ export async function startRuntime(
   try {
     log.debug('phase', { phase: 'migrate' });
     const migrated = await migratePhase({ deployment, composed, served, connected, development });
-    const rewound = await connectRewindCheck(composed.infrastructure.ledgers, (wanted) =>
-      anchorScopes(connected, migrated, wanted),
-    );
-    for (const scopeId of rewound) {
-      log.error('a scope is behind its newest anchor: the database may have been restored', {
-        scope: scopeId,
-      });
-    }
+    const restore = await restoreCheck({
+      connected,
+      migrated,
+      served,
+      sinks: composed.infrastructure.ledgers,
+      clock,
+      log,
+    });
 
     // Each runtime opens its own hub for each app it serves, so two runtimes of one app share nothing.
     const apps = invokerAppsOf(served, { clock, log, hubs });
@@ -141,6 +141,7 @@ export async function startRuntime(
         : { tenantResolution: deployment.tenantResolution }),
       clock,
       epochOf: (scope) => connected.control.epochOf(scope),
+      restoreHold: restore.hold,
       operatorTokens: createOperatorTokenResolver(connected.control),
       tenantEntry: (tenantId, actor) => latestTenantEntry(connected.control, tenantId, actor),
       operatorHosts: deployment.operator?.hosts ?? [],
@@ -169,7 +170,15 @@ export async function startRuntime(
       answerExplain(answering, { options: invokerOptions, hybridClock: connected.hybridClock }),
       { ...streamOptions, ...(decisions === undefined ? {} : { decisions }) },
     );
-    const draining = drainingInvoker(explaining);
+    const gate = createServiceGate();
+    const draining = drainingInvoker(explaining, gate);
+    void gate.whenClosed.then(() =>
+      setProcessState(connected.control, connected.processId, 'draining').catch(
+        (error: unknown) => {
+          log.warn('the process could not be marked draining', { cause: error });
+        },
+      ),
+    );
 
     // A deployment-scope session (the operator socket) belongs to the app `core`, which the
     // invoker answers from the one served app, or else from the registry of the control app.
@@ -224,6 +233,8 @@ export async function startRuntime(
       apps: servedById,
       invoker: draining.invoker,
       clock,
+      gate,
+      restoreHold: restore.hold,
     });
     started = ready;
     const anchoring = await startAnchoring({
@@ -231,6 +242,7 @@ export async function startRuntime(
       connected,
       migrated,
       sinks: composed.infrastructure.ledgers,
+      anchors: restore.anchors,
       appIds: served.map((app) => app.id),
       clock,
       log,
@@ -258,6 +270,7 @@ export async function startRuntime(
     let stopping: Promise<void> | undefined;
     return {
       invoker: draining.invoker,
+      outOfService: gate.outOfService,
       surface,
       registry: (appId) => {
         const app = served.find((candidate) => candidate.id === appId);

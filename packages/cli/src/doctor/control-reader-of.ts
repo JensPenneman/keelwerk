@@ -1,6 +1,7 @@
 import type { ControlReader } from './control-reader.ts';
 import type { ControlSource } from './control-source.ts';
 import type { ProcessFact } from './deployment-facts.ts';
+import { heldTenantsOf } from './held-tenants-of.ts';
 import { hookFailuresOf } from './hook-failures-of.ts';
 
 function textOf(value: unknown): string | undefined {
@@ -40,5 +41,7 @@ export function controlReaderOf(source: ControlSource, now: () => Temporal.Insta
       });
     },
     hookFailures: () => source.read(hookFailuresOf),
+    bumpedMarks: () => source.read((unit) => unit.marks?.bumped() ?? Promise.resolve([])),
+    heldTenants: () => source.read(heldTenantsOf),
   };
 }

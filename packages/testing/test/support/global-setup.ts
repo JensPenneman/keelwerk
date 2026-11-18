@@ -7,6 +7,7 @@ declare module 'vitest' {
       readonly adminUrl: string;
       readonly appUrl: string;
       readonly version: string;
+      readonly containerId: string;
     };
   }
 }
@@ -18,6 +19,7 @@ export async function setup(project: TestProject): Promise<() => Promise<void>> 
     adminUrl: running.adminUrl,
     appUrl: running.appUrl,
     version: running.version,
+    containerId: running.containerId,
   });
   return async () => {
     await running.stop();

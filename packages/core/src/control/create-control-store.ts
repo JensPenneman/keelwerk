@@ -11,7 +11,9 @@ import type { NamespaceRef } from '../storage/namespace-ref.ts';
 import type { ControlStore } from './control-store.ts';
 import { createControlApiUsage } from './create-control-api-usage.ts';
 import { createControlFlags } from './create-control-flags.ts';
+import { createControlIdentities } from './create-control-identities.ts';
 import { createControlLedger } from './create-control-ledger.ts';
+import { createControlMarks } from './create-control-marks.ts';
 
 /** What the control store is built from. */
 export interface ControlStoreOptions {
@@ -31,6 +33,7 @@ export interface ControlStoreOptions {
 /** The control store over a connected adapter. */
 export function createControlStore(options: ControlStoreOptions): ControlStore {
   const { adapter, namespace, registry } = options;
+  const epochs = new Map<string, number>();
   return {
     adapter,
     capabilities: options.capabilities,
@@ -50,7 +53,17 @@ export function createControlStore(options: ControlStoreOptions): ControlStore {
       deploymentId: options.deploymentId,
     }),
     ledger: createControlLedger(adapter, namespace),
-    epochOf: () => 0,
+    identities: createControlIdentities(adapter, namespace),
+    marks: createControlMarks(adapter, namespace, epochs),
+    epochs: () => epochs,
+    epochOf: (scope) =>
+      epochs.get(
+        scope.level === 'tenant'
+          ? scope.tenantId
+          : scope.level === 'backend'
+            ? scope.backendId
+            : options.deploymentId,
+      ) ?? 0,
     entity: (ref) => {
       const entry = registry.entities.get(ref);
       if (entry === undefined) throw errors.internal(`The registry has no entity ${ref}.`);

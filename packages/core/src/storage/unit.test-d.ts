@@ -2,7 +2,10 @@ import { expectTypeOf, test } from 'vitest';
 import type { Condition } from '../conditions/condition.ts';
 import type { ConditionOp } from '../conditions/condition-op.ts';
 import type { ControlLedger } from '../control/control-ledger.ts';
+import type { NamespaceIdentities } from '../control/namespace-identities.ts';
+import type { ScopeMarks } from '../control/scope-marks.ts';
 import type { ApiUsageStore } from './api-usage-store.ts';
+import type { CounterStore } from './counter-store.ts';
 import type { EntityDescriptor } from './entity-descriptor.ts';
 import type { JobOutcome } from './job-outcome.ts';
 import type { JobStore } from './job-store.ts';
@@ -33,11 +36,17 @@ test('Unit has exactly the members of S-03', () => {
     | 'scopeKeys'
     | 'apiUsage'
     | 'ledger'
+    | 'counters'
+    | 'identities'
+    | 'marks'
     | 'nested'
     | 'afterCommit'
   >();
   expectTypeOf<Unit['scopeKeys']>().toEqualTypeOf<ScopeKeyStore | undefined>();
   expectTypeOf<Unit['apiUsage']>().toEqualTypeOf<ApiUsageStore | undefined>();
+  expectTypeOf<Unit['counters']>().toEqualTypeOf<CounterStore | undefined>();
+  expectTypeOf<Unit['identities']>().toEqualTypeOf<NamespaceIdentities | undefined>();
+  expectTypeOf<Unit['marks']>().toEqualTypeOf<ScopeMarks | undefined>();
   expectTypeOf<Unit['ledger']>().toEqualTypeOf<ControlLedger | undefined>();
   expectTypeOf<Unit['jobs']>().toEqualTypeOf<JobStore>();
   expectTypeOf<Unit['streams']>().toEqualTypeOf<StreamRecordStore>();
@@ -54,6 +63,7 @@ test('JobStore has the members of S-03, the schedules (M2) and the erasure purge
     | 'complete'
     | 'stats'
     | 'queued'
+    | 'keyed'
     | 'schedules'
     | 'purgeForPrincipals'
   >();

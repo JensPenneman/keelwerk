@@ -1,6 +1,6 @@
 import pg from 'pg';
 import { describe, expect, inject, it } from 'vitest';
-import { startPostgres } from '../src/postgres/index.ts';
+import { execInContainer, startPostgres } from '../src/postgres/index.ts';
 
 async function query<Row extends pg.QueryResultRow>(
   connectionString: string,
@@ -61,6 +61,20 @@ describe('startPostgres', () => {
       } finally {
         await own.stop();
       }
+    },
+    startTimeout,
+  );
+
+  it(
+    'runs a command in the container: the image carries pg_dump and pg_restore, and a failing one answers its exit code',
+    async () => {
+      const { containerId } = inject('postgresCluster');
+      for (const tool of ['pg_dump', 'pg_restore']) {
+        const answer = await execInContainer(containerId, [tool, '--version']);
+        expect(answer.exitCode).toBe(0);
+        expect(answer.output).toContain('(PostgreSQL) 18');
+      }
+      expect((await execInContainer(containerId, ['false'])).exitCode).not.toBe(0);
     },
     startTimeout,
   );

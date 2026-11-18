@@ -63,12 +63,26 @@ export const startCommand: Command<CliContext> = buildCommand<
         throw error;
       });
       logger.info('listening', { port: app.port, operatorSocket: app.operatorSocket });
+      let outOfService: string | undefined;
       if (!this.signal.aborted) {
-        await new Promise<void>((resolve) => {
-          this.signal.addEventListener('abort', () => resolve(), { once: true });
-        });
+        await Promise.race([
+          new Promise<void>((resolve) => {
+            this.signal.addEventListener('abort', () => resolve(), { once: true });
+          }),
+          app.runtime.outOfService.then((reason) => {
+            outOfService = reason;
+          }),
+        ]);
       }
       await app.stop(drainMs);
+      if (outOfService !== undefined) {
+        // A restore was found under the process: it ends with a failure so its supervisor restarts it.
+        throw localFailure(
+          'unavailable',
+          'core.unavailable',
+          `The process stopped because a restore was detected under it (${outOfService}); restart it.`,
+        );
+      }
     } catch (failure) {
       handleFailure(this, failure);
     }

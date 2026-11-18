@@ -68,6 +68,13 @@ export interface JobStore {
   /** Per queue and capability set, from the lane tables (section 21.4). */
   stats(queue?: string): Promise<readonly WorkClassStats[]>;
   /**
+   * Whether the unit's reach holds a job of `queue` with `key` that is alive: scheduled, available,
+   * waiting or running (a finished or dead job does not count). The restore check asks it before it
+   * enqueues the job of an effect again, so a restored job that was running when the backup was
+   * taken is not joined by a second one.
+   */
+  keyed(queue: string, key: string): Promise<boolean>;
+  /**
    * The jobs of `queue` in the unit's reach that wait to run (scheduled, available or waiting; never
    * running or dead), counted up to `limit + 1` and no further, so the read is bounded: an answer
    * above `limit` says only "more than `limit`". `validation` (`core.malformed_request`) for a

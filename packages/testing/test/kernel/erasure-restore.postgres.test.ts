@@ -13,6 +13,12 @@ import {
   useRestartDatabase,
 } from './support/restart-kit.ts';
 
+/** The SQLSTATE of a deadlock; the transaction is rolled back and can run again. */
+const deadlockDetected = '40P01';
+const maxRestoreAttempts = 5;
+/** The deadline a stop gets: it waits for the services to finish and closes the adapters. */
+const stopMs = 10_000;
+
 describe('a placement restored from a backup on PostgreSQL (14.7.5 step 6, 14.7.6)', () => {
   const { stops, external, dispatcher, owner, seedAda, inTenant, joined } = useRestartDatabase();
 
@@ -37,16 +43,30 @@ describe('a placement restored from a backup on PostgreSQL (14.7.5 step 6, 14.7.
       tables,
       restore: async (keep: (table: string) => boolean = () => true): Promise<void> => {
         const kept = tables.filter(keep);
-        await client.query('begin');
-        await client.query('set local session_replication_role = replica');
-        await client.query(`truncate ${kept.map((table) => `"${schema}"."${table}"`).join(', ')}`);
-        for (const table of kept) {
-          const index = tables.indexOf(table);
-          await client.query(
-            `insert into "${schema}"."${table}" overriding system value select * from "${copy}".t${index}`,
-          );
+        // The runtime was stopped with a deadline, so it has finished its work. A session that still
+        // held a lock would end the truncate in a deadlock, which rolls the transaction back as a
+        // whole: the restore is one transaction and runs again.
+        for (let attempt = 1; ; attempt += 1) {
+          try {
+            await client.query('begin');
+            await client.query('set local session_replication_role = replica');
+            await client.query(
+              `truncate ${kept.map((table) => `"${schema}"."${table}"`).join(', ')}`,
+            );
+            for (const table of kept) {
+              const index = tables.indexOf(table);
+              await client.query(
+                `insert into "${schema}"."${table}" overriding system value select * from "${copy}".t${index}`,
+              );
+            }
+            await client.query('commit');
+            return;
+          } catch (error) {
+            await client.query('rollback');
+            const code = (error as { readonly code?: string }).code;
+            if (code !== deadlockDetected || attempt === maxRestoreAttempts) throw error;
+          }
         }
-        await client.query('commit');
       },
     };
   }
@@ -62,7 +82,7 @@ describe('a placement restored from a backup on PostgreSQL (14.7.5 step 6, 14.7.
     ).flatMap((entry) => (entry.record.type === 'erasureCompleted' ? [entry.record.epoch] : []));
 
   /** A runtime on the database of `first`, with an erasure worker whose steps are collected. */
-  async function startAgain(first: Runtime, sink: ReturnType<typeof memorySink>, epoch?: number) {
+  async function startAgain(first: Runtime, sink: ReturnType<typeof memorySink>) {
     const steps: string[] = [];
     const runtime = await startTestRuntime(erasureDumpApp, {
       external: external(),
@@ -77,7 +97,6 @@ describe('a placement restored from a backup on PostgreSQL (14.7.5 step 6, 14.7.
           afterStep: async (step) => {
             steps.push(step);
           },
-          ...(epoch === undefined ? {} : { epochOf: () => epoch }),
         }),
       ],
     });
@@ -113,7 +132,7 @@ describe('a placement restored from a backup on PostgreSQL (14.7.5 step 6, 14.7.
     await worker.pass();
     expect(await completionEpochs(first)).toEqual([0]);
     await afterErase(first);
-    await first.stop();
+    await first.stop(stopMs);
     return { sink, first, id, backup, client };
   }
   test('a placement restored from before the erasure erases the rows again and appends a second completion', {
@@ -136,17 +155,23 @@ describe('a placement restored from a backup on PostgreSQL (14.7.5 step 6, 14.7.
     expect(
       await inTenant(again, (unit) => unit.keys.dataKey(id, { create: false })),
     ).toBeUndefined();
-    expect(await completionEpochs(again)).toEqual([0, 0]);
+    // The restore is detected (the counters lie below the mark written before the completion): the
+    // tenant moves from epoch 0 to epoch 2, and the completion of epoch 0 no longer counts.
+    expect(await completionEpochs(again)).toEqual([0, 2]);
   });
 
-  test('a placement restored with only its rows, the keys still destroyed, runs nothing, and the epoch seam runs it', {
+  test('a placement restored with only its rows, the keys and the counters left as they were, shows no restore and runs nothing; a bumped epoch runs it', {
     timeout: 240_000,
   }, async () => {
-    const { sink, first, id, backup } = await eraseAfterBackup(
+    const { sink, first, id, backup, client } = await eraseAfterBackup(
       async (runtime) => (await seedAda(runtime)).ada,
       async () => undefined,
     );
-    await backup.restore((table) => table !== 'kw_subject_keys' && table !== 'kw_value_keys');
+    // The counters are left as they were too: a restore that leaves no counter below its mark is
+    // the one case the epoch cannot see (identity, timeline and anchors apply).
+    await backup.restore(
+      (table) => !['kw_subject_keys', 'kw_value_keys', 'kw_positions'].includes(table),
+    );
     const unchanged = await startAgain(first, sink);
     // The keys are still destroyed and the boot destroys nothing: nothing shows a restore.
     expect(unchanged.steps).toEqual([]);
@@ -154,10 +179,13 @@ describe('a placement restored from a backup on PostgreSQL (14.7.5 step 6, 14.7.
     expect(restored.map((row) => row.id)).toEqual([id]);
     expect(restored[0]?.kwErasedAt ?? null).toBeNull();
     expect(await completionEpochs(unchanged.runtime)).toEqual([0]);
-    await unchanged.runtime.stop();
+    await unchanged.runtime.stop(stopMs);
 
-    // The epoch that WP-111 will bump at a detected restore: the erasure runs again.
-    const bumped = await startAgain(first, sink, 1);
+    // The epoch a detected restore bumps (here moved by hand in the control store): the erasure runs again.
+    await client.query(`update "kw__control".kw_scope_marks set epoch = 1 where scope_id = $1`, [
+      first.tenants.acme?.id ?? '',
+    ]);
+    const bumped = await startAgain(first, sink);
     expect(bumped.steps).toContain('shred');
     expect(
       (await kernelRows(bumped.runtime, 'probe.person'))[0]?.kwErasedAt ?? null,
@@ -197,7 +225,7 @@ describe('a placement restored from a backup on PostgreSQL (14.7.5 step 6, 14.7.
     const rows = await kernelRows(again, 'probe.thread');
     expect(rows).toHaveLength(1);
     expect(rows[0]?.kwErasedAt ?? null).not.toBeNull();
-    expect(await completionEpochs(again)).toEqual([0, 0]);
+    expect(await completionEpochs(again)).toEqual([0, 2]);
     const operator = createLocalClient(again, { principal: testOperator(), tenant: 'acme' });
     const outcome = await operator.attempt('probe.open', { ownerId: id as never, title: 'new' });
     expect(outcome.ok).toBe(false);

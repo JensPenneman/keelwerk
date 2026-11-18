@@ -102,12 +102,13 @@ describe('the completion of an erasure (14.7.5)', () => {
     });
   }
 
-  test('the epoch seam answering 1 runs the erasure again and appends a completion of epoch 1', async () => {
+  test('a bump of the tenant epoch to 1 runs the erasure again and appends a completion of epoch 1', async () => {
     probe = await bootProbe('memory');
     const ids = await seed(probe);
     await probe.eraseAsOperator(ids.adaId);
     await finish(probe);
-    const second = await probe.startWorker({ epochOf: () => 1 });
+    await probe.bumpEpoch();
+    const second = await probe.startWorker();
     expect(second.steps).toContain('shred');
     const epochs = (await completionsOf(probe)).map((entry) =>
       entry.record.type === 'erasureCompleted' ? entry.record.epoch : -1,
@@ -133,10 +134,10 @@ describe('a pass reads the control ledger once, however many erasures it finishe
     await globex.eraseAsOperator(people[2] ?? '');
     await probe.runtime.drainJobs();
     // Three records stand in the ledger and the first worker has not run: the start pass of a
-    // second worker finishes all three, and the ledger is read once (one page and the empty page).
+    // second worker finishes all three, and the unfinished records are read once (one page).
     const second = await probe.startWorker();
     expect(second.steps.filter((step) => step === 'completed')).toHaveLength(3);
-    expect(second.ledgerReads()).toBe(2);
+    expect(second.ledgerReads()).toBe(1);
   });
 });
 

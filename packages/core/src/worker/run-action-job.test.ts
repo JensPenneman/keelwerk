@@ -1,4 +1,6 @@
 import { expect, test, vi } from 'vitest';
+import { RestoreHoldRefusal } from '../control/restore-hold-refusal.ts';
+import { errors } from '../errors/errors.ts';
 import type { Job } from '../jobs/job.ts';
 import { reactionQueue } from '../reactions/reaction-queue.ts';
 import type { JobOutcome } from '../storage/job-outcome.ts';
@@ -28,7 +30,7 @@ function setup(
     invoker: { invoke },
     source: {
       namespace: { id: 'ns' },
-      registry: { actions: new Map([['m.up', backendCommand]]) },
+      registry: { actions: new Map([['m.up', backendCommand]]), reactions: new Map() },
       handle: {
         adapter: {
           unit: async (_ns: unknown, _scope: unknown, fn: (u: unknown) => unknown) => fn(unit),
@@ -72,4 +74,36 @@ test('the stored retry policy reaches the carrier of the job', async () => {
   expect(invoke).toHaveBeenCalledTimes(1);
   const [call] = invoke.mock.calls[0] ?? [];
   expect(call).toMatchObject({ carrier: { job: { retry } } });
+});
+
+test('a job a held tenant refused waits a second and keeps its attempt, however many it has used', async () => {
+  const { completed, invoke, context, job } = setup(
+    { action: 'm.up', input: {} },
+    {
+      queue: reactionQueue,
+      attempt: { jobId: '1', attempt: 3 },
+      retry: { delays: ['1s'], limit: 3 },
+    },
+  );
+  invoke.mockResolvedValueOnce({ ok: false, error: new RestoreHoldRefusal() } as never);
+  await runActionJob(job, context);
+  expect(completed).toHaveLength(1);
+  const [outcome] = completed;
+  expect(outcome).toMatchObject({ kind: 'retry', uncounted: true });
+  if (outcome?.kind !== 'retry') return;
+  expect(outcome.at).toEqual(Temporal.Instant.from('2026-01-01T00:00:01Z'));
+  expect(outcome.error).toMatchObject({ code: 'core.unavailable', retryAfter: 1 });
+
+  // Any other unavailable at the last attempt gives up, as before.
+  const other = setup(
+    { action: 'm.up', input: {} },
+    {
+      queue: reactionQueue,
+      attempt: { jobId: '1', attempt: 3 },
+      retry: { delays: ['1s'], limit: 3 },
+    },
+  );
+  other.invoke.mockResolvedValueOnce({ ok: false, error: errors.unavailable('down') } as never);
+  await runActionJob(other.job, other.context);
+  expect(other.completed[0]).toMatchObject({ kind: 'failed' });
 });

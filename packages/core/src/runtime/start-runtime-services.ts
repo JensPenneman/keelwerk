@@ -5,6 +5,7 @@ import { kernelServices } from './kernel-services.ts';
 import type { RuntimeService } from './runtime-service.ts';
 import type { RuntimeServiceContext } from './runtime-service-context.ts';
 import type { StartPhaseInput } from './start-phase-input.ts';
+import { staysInService } from './stays-in-service.ts';
 
 /** Seconds a draining process may take when `RuntimeOptions.work` says nothing (21.6). */
 const defaultDrainSeconds = 60;
@@ -20,10 +21,12 @@ function aborted(signal: AbortSignal): Promise<void> {
  * The runtime-service seam (F-19, S-154, D7): builds the kernel queue over the namespaces of the
  * process, and starts the kernel services in list order and then the event workers of the
  * deployment, each start awaited before the next and every one whose roles match the process role
- * (`all` runs every service). A start that rejects is logged and the others
- * continue. It never throws synchronously: the start runs in the background, and the function it
- * returns stops every started service at once against one wall-clock deadline (now plus
- * `drainSeconds`), after waiting for the start chain, both within the phase's own deadline signal.
+ * (`all` runs every service). Every service except those of `staysInService` gets a `signal` that
+ * also aborts when the process gate closes, even with its evidence still pending. A start that
+ * rejects is logged and the others continue. It never throws synchronously: the start runs in the
+ * background, and the function it returns stops every started service at once against one
+ * wall-clock deadline (now plus `drainSeconds`), after waiting for the start chain, both within the
+ * phase's own deadline signal.
  * A deadline signal that aborts (or is aborted already) before the chain ends makes the chain start
  * nothing more and stop what it started at once, so a start that is given up on leaves no worker.
  * The probe goes to `options.work` after the services started, and only in a process that works
@@ -71,6 +74,14 @@ export function startRuntimeServices(
       ledgers: input.composed.infrastructure.ledgers,
       clock: input.clock,
     };
+    // A service stops its work when `signal` aborts: at teardown, or when the process gate closes
+    // (a restore was found under it). Only the services of `staysInService` keep the plain one.
+    const leaving =
+      input.gate === undefined ? undefined : AbortSignal.any([connected.signal, input.gate.signal]);
+    const contextOf = (service: RuntimeService): RuntimeServiceContext =>
+      leaving === undefined || staysInService.has(service.id)
+        ? context
+        : { ...context, signal: leaving };
     const started: RuntimeService[] = [];
     const services = [
       ...kernelServices.map((build) => build(input)),
@@ -79,7 +90,7 @@ export function startRuntimeServices(
     for (const service of services) {
       if (stopping) break;
       try {
-        await service.start(context);
+        await service.start(contextOf(service));
         started.push(service);
       } catch (error) {
         connected.log.error('a runtime service did not start', {

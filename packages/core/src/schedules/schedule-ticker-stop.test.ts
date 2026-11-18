@@ -27,6 +27,7 @@ test('a pass that fails while the ticker is stopping is not logged as a failed p
   };
   const context = {
     clock: { now: () => Temporal.Instant.from('2026-01-01T00:00:00Z') },
+    signal: new AbortController().signal,
     log: { info: record, warn: record, error: record, debug: record },
     namespaces: [source],
     control: { namespace: { id: 'ns-control' } },
@@ -53,6 +54,7 @@ test('the same failure is logged when the ticker is not stopping', async () => {
   };
   const context = {
     clock: { now: () => Temporal.Instant.from('2026-01-01T00:00:00Z') },
+    signal: new AbortController().signal,
     log: { info: record, warn: record, error: record, debug: record },
     namespaces: [source],
     control: { namespace: { id: 'ns-control' } },
@@ -62,5 +64,33 @@ test('the same failure is logged when the ticker is not stopping', async () => {
   const ticker = createScheduleTicker();
   await ticker.start(context);
   await vi.waitFor(() => expect(logged).toContain('a schedule pass failed'));
+  await ticker.stop(Temporal.Now.instant());
+});
+
+test('a ticker whose signal aborted before the start runs no pass', async () => {
+  gate.wait = Promise.resolve();
+  const logged: string[] = [];
+  const record = (message: string): void => {
+    logged.push(message);
+  };
+  const source = {
+    namespace: { id: 'ns-app', appId: 'app' },
+    registry: { schedules: new Map([['m.every', {}]]) },
+  };
+  const leaving = new AbortController();
+  leaving.abort();
+  const context = {
+    clock: { now: () => Temporal.Instant.from('2026-01-01T00:00:00Z') },
+    signal: leaving.signal,
+    log: { info: record, warn: record, error: record, debug: record },
+    namespaces: [source],
+    control: { namespace: { id: 'ns-control' } },
+    apps: new Map([['app', {}]]),
+    queue: {},
+  } as unknown as RuntimeServiceContext;
+  const ticker = createScheduleTicker({ passEveryMs: 10 });
+  await ticker.start(context);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(logged).toEqual([]);
   await ticker.stop(Temporal.Now.instant());
 });

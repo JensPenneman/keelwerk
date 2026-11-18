@@ -1,5 +1,6 @@
 import type { RowEnvironment } from '../authorization/row-environment.ts';
 import type { ControlApiUsage } from '../control/control-api-usage.ts';
+import type { RestoreHold } from '../control/restore-hold.ts';
 import type { CarrierEnricher } from '../edge/carrier-enricher.ts';
 import type { TenantResolver } from '../edge/tenant-resolver.ts';
 import type { FlagProvider } from '../flags/flag-provider.ts';
@@ -44,6 +45,8 @@ export interface InvokerOptions {
   readonly build?: { readonly id: string; readonly revision: number };
   /** The epoch of a scope, part of every state token (section 15.2.6); default: 0 for every scope. */
   readonly epochOf?: (scope: Scope) => number;
+  /** Tenants a restore made run an erasure again: their requests are refused until it is done (14.7.6); without it none is held. */
+  readonly restoreHold?: RestoreHold;
   /** Resolves a presented operator token (section 3.5); throws `unauthenticated` for one it does not accept. Without it tokens are not recognised. */
   readonly operatorTokens?: (token: string) => Promise<OperatorPrincipal>;
   /** The operator host names (`operator.hosts` of the deployment); an operator token is honoured at these hosts only (sections 3.5 and 8.8). */

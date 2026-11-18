@@ -48,6 +48,7 @@ export async function liveTokenContextOf(input: {
     rules: input.rules,
     principal: other.principal,
     epoch: input.epoch,
+    epochOf: env.options.epochOf,
     sealKey: await stateTokenKey(env.options.keys, input.scope),
     flags,
   };

@@ -2,14 +2,17 @@ import type { Unit } from '@keelwerk/core';
 import { memoryApiUsageStore } from './memory-api-usage-store.ts';
 import { memoryBucketStore } from './memory-bucket-store.ts';
 import { memoryConsumerStore } from './memory-consumer-store.ts';
+import { memoryCounterStore } from './memory-counter-store.ts';
 import { memoryEventStore } from './memory-event-store.ts';
 import { memoryJobStore } from './memory-job-store.ts';
 import { memoryKeyStore } from './memory-key-store.ts';
 import { memoryLedgerStore } from './memory-ledger-store.ts';
+import { memoryNamespaceIdentities } from './memory-namespace-identities.ts';
 import { memoryNestedContext } from './memory-nested-context.ts';
 import { memoryReceiptStore } from './memory-receipt-store.ts';
 import { memoryRowStore } from './memory-row-store.ts';
 import { memoryScopeKeyStore } from './memory-scope-key-store.ts';
+import { memoryScopeMarks } from './memory-scope-marks.ts';
 import { memorySerialStore } from './memory-serial-store.ts';
 import { memoryStreamRecordStore } from './memory-stream-record-store.ts';
 import type { MemoryUnitContext } from './memory-unit-context.ts';
@@ -41,8 +44,11 @@ export function memoryBuildUnit(ctx: MemoryUnitContext, hooks: (() => void)[]): 
           scopeKeys: memoryScopeKeyStore(ctx),
           apiUsage: memoryApiUsageStore(ctx),
           ledger: memoryLedgerStore(ctx),
+          identities: memoryNamespaceIdentities(ctx),
+          marks: memoryScopeMarks(ctx),
         }
       : {}),
+    ...(ctx.scope.level === 'namespace' ? { counters: memoryCounterStore(ctx) } : {}),
     nested: async (fn, options) => {
       const view = memoryNestedContext(ctx, options);
       const rollback = ctx.tx.savepoint();

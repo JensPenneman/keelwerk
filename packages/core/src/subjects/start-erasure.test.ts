@@ -90,6 +90,25 @@ function setup({
         },
         since: async (seq: bigint) =>
           ledger.map((record, at) => ({ seq: BigInt(at + 1), record })).filter((e) => e.seq > seq),
+        find: async (
+          lookups: readonly {
+            type: string;
+            tenantId?: string;
+            commandId?: string;
+            subjectId?: string;
+          }[],
+        ) =>
+          ledger
+            .map((record: { type: string }, at) => ({ seq: BigInt(at + 1), record }))
+            .filter(({ record }) =>
+              lookups.some(
+                (lookup) =>
+                  record.type === lookup.type &&
+                  Object.entries(lookup).every(
+                    ([key, value]) => (record as Record<string, unknown>)[key] === value,
+                  ),
+              ),
+            ),
       },
     },
     ledgers: [{ append: sunk }],

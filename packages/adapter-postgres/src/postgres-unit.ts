@@ -25,6 +25,9 @@ function toUnit(base: SqlUnit): Unit {
     ...(base.scopeKeys === undefined ? {} : { scopeKeys: base.scopeKeys }),
     ...(base.apiUsage === undefined ? {} : { apiUsage: base.apiUsage }),
     ...(base.ledger === undefined ? {} : { ledger: base.ledger }),
+    ...(base.identities === undefined ? {} : { identities: base.identities }),
+    ...(base.marks === undefined ? {} : { marks: base.marks }),
+    ...(base.counters === undefined ? {} : { counters: base.counters }),
     nested: async (fn, options) => base.nested(async (inner) => fn(toUnit(inner)), options),
     afterCommit: (fn) => {
       base.afterCommit(fn);

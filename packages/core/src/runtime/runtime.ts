@@ -10,6 +10,15 @@ import type { RuntimeOptions } from './runtime-options.ts';
 export interface Runtime {
   readonly invoker: Invoker;
   /**
+   * Settles, with the reason, when the process took itself out of service because a restore was
+   * detected under it (14.7.6): the invoker refuses with `core.unavailable` and the process row is
+   * no longer `ready`. It settles only once the evidence of the restore is recorded in the control
+   * store, which a failing store delays (the process tries again every minute); until then the
+   * process must keep running. The host stops the runtime and exits with a failure, so its
+   * supervisor restarts the process and the restore check runs at boot. Never rejects.
+   */
+  readonly outOfService: Promise<string>;
+  /**
    * Default: the app's head. Throws `AppNotServedError` for an app this process does not serve; any
    * other throw is an internal failure.
    */

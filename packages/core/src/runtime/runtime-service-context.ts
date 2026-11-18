@@ -9,7 +9,13 @@ import type { ServedApp } from './served-app.ts';
 
 /** What a runtime service receives at start (S-154). */
 export interface RuntimeServiceContext
-  extends Pick<Connected, 'build' | 'control' | 'keys' | 'log' | 'placements' | 'signal'> {
+  extends Pick<Connected, 'build' | 'control' | 'keys' | 'log' | 'placements'> {
+  /**
+   * Aborts when the process stops or leaves service (a restore was found under it, 14.7.6): a
+   * service stops taking and starting work then and leaves what it holds to its lease. The mark
+   * recorder, which records the evidence of the restore, gets one that aborts at the stop only.
+   */
+  readonly signal: AbortSignal;
   /** The served apps by id: registries for action jobs and reactions. */
   readonly apps: ReadonlyMap<string, ServedApp>;
   /** Action jobs run through it (section 9.5.6). */
