@@ -31,7 +31,7 @@
     "@keelwerk/core": "workspace:*",
     "dataloader": "2.2.3",
     "graphql": "17.1.0",
-    "graphql-ws": "6.4.2",
+    "graphql-ws": "6.4.3",
     "graphql-yoga": "6.1.0"
   },
   "devDependencies": {
