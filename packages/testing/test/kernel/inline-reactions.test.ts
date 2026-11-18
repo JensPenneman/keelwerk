@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { InlineReactionEvent } from '@keelwerk/core';
 import { deriveEffectId, kernelCommandId } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
@@ -102,6 +103,10 @@ describe('inline reactions', () => {
       action: 'library.shout',
       causationId: events[0]?.eventId,
     });
+    // The decision of a reaction stores a tagged digest of the causing event id, never 64 bare hex.
+    expect(events[1]?.decision?.inputDigest).toBe(
+      `kwr1.${createHash('sha256').update(String(events[0]?.eventId)).digest('hex')}`,
+    );
   });
 
   test('reactions run in module order, then by id', async () => {

@@ -3,9 +3,9 @@ import { canonicalizeJson } from '../json/canonicalize-json.ts';
 import { encodeEventValue } from './encode-event-value.ts';
 
 /**
- * The digest of a command's input and the API version its outcome is expressed in (section
- * 15.1.7), over the canonical JSON of both: the same request always has the same fingerprint, and
- * another input or version never does.
+ * The 0.1.0 form of a command's fingerprint (section 15.1.7): the plain sha256 of the canonical
+ * JSON of `{ action, apiVersion, input }`. Nothing writes it any more; `legacyFingerprint` computes
+ * it to compare a receipt or a decision that 0.1.0 wrote.
  */
 export function inputFingerprint(action: string, apiVersion: string, input: unknown): string {
   return sha256(canonicalizeJson({ action, apiVersion, input: encodeEventValue(input) ?? null }));

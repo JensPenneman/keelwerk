@@ -10,13 +10,12 @@ import { checkErasureGrant } from '../subjects/check-erasure-grant.ts';
 import { erasureAction } from '../subjects/erasure-action.ts';
 import { appendReceiptChange } from '../write-path/append-receipt-change.ts';
 import { assertSameRequest } from '../write-path/assert-same-request.ts';
-import { commandFingerprint } from '../write-path/command-fingerprint.ts';
+import { commandDigests } from '../write-path/command-digests.ts';
 import { defaultNodeId } from '../write-path/default-node-id.ts';
 import { receiptRow } from '../write-path/receipt-row.ts';
 import { replayReceipt } from '../write-path/replay-receipt.ts';
 import { retryUnit } from '../write-path/retry-unit.ts';
 import type { RunCommandInput } from '../write-path/run-command-input.ts';
-import { runInUnitKeys } from '../write-path/run-in-unit-keys.ts';
 import { commandJobRun } from './command-job-run.ts';
 import { commandQueue } from './command-queue.ts';
 import { jobInput } from './job-input.ts';
@@ -24,16 +23,17 @@ import { sealJobInput } from './seal-job-input.ts';
 
 /**
  * Accepts an asynchronous command (section 7.4): the invoker has validated and authorized it, and
- * this writes its `accepted` receipt and its job in one unit, so either both exist or neither.
- * The answer is `{ commandId, status: 'accepted' }`; the receipt stays `accepted` until a worker
- * takes the job. The unit also appends the receipt's transient `created` record (S-145), so a watcher
- * sees the command arrive. The job carries the principal reference, the
- * causation, the enqueuer's build and the API version of the input, and its command id is the
- * receipt's. The input is stored with its secret members sealed (`sealJobInput`), while the
- * receipt's fingerprint is over the plaintext. A retry with the same id and input answers
- * `accepted` again and enqueues nothing; a receipt a worker finished replays its outcome; another
- * input is `core.idempotency_mismatch`. A fresh `core.eraseSubject` is also checked for ownership
- * (`checkErasureGrant`) before its job is written; a replayed receipt skips that.
+ * this writes its `accepted` receipt and its job in one unit, so either both exist or neither. The
+ * answer is `{ commandId, status: 'accepted' }`; the receipt stays `accepted` until a worker takes
+ * the job. The unit also appends the receipt's transient `created` record (S-145), so a watcher
+ * sees the command arrive. The job carries the principal reference, the causation, the enqueuer's
+ * build and the API version of the input, and its command id is the receipt's. The input is stored
+ * with its secret members sealed (`sealJobInput`), while the receipt's fingerprint is
+ * `commandDigests` of the plaintext input, secrets and verifiers withheld. A retry with the same id
+ * and input answers `accepted` again and enqueues nothing; a receipt a worker finished replays its
+ * outcome; another input is `core.idempotency_mismatch`. A fresh `core.eraseSubject` is also
+ * checked for ownership (`checkErasureGrant`) before its job is written; a replayed receipt skips
+ * that.
  */
 export async function acceptAsyncCommand(input: RunCommandInput): Promise<CommandResult> {
   const { action } = input;
@@ -43,7 +43,8 @@ export async function acceptAsyncCommand(input: RunCommandInput): Promise<Comman
   const now = input.clock.now();
   // Before the unit opens: a derivation inside it would open a second unit once the cache expired.
   const { fingerprintKey } = await deriveScopeSecrets(input.keys, input.scope);
-  const run: RunCommandInput = { ...input, fingerprintKey };
+  // Pure: the same text serves every retry of the unit, and no key is read or created.
+  const digests = commandDigests({ ...input, fingerprintKey });
   const accepted: CommandResult = {
     output: {},
     receipt: { commandId, status: 'accepted' },
@@ -54,15 +55,11 @@ export async function acceptAsyncCommand(input: RunCommandInput): Promise<Comman
         input.namespace,
         input.scope,
         async (unit) => {
-          // Inside the unit: the data key of a personal member's subject lives there.
           const receipt = {
             ...receiptRow({
               commandId,
               action: action.ref,
-              fingerprint: await commandFingerprint(runInUnitKeys(run, unit), {
-                unit,
-                create: true,
-              }),
+              fingerprint: digests.fingerprint,
               principal: input.principal,
               apiVersion: input.apiVersion,
               request: input.request,
@@ -79,7 +76,7 @@ export async function acceptAsyncCommand(input: RunCommandInput): Promise<Comman
             if (existing === undefined) {
               throw errors.internal(`the receipt of command ${commandId} vanished`);
             }
-            assertSameRequest(existing, receipt);
+            assertSameRequest(existing, receipt, digests.legacyFingerprint);
             if (existing.status === 'accepted') return { ...accepted, replayed: true as const };
             if (existing.status === 'pending') {
               throw new KeelwerkError({

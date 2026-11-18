@@ -10,7 +10,7 @@ afterEach(stopBooted);
 type Runtime = TestRuntime<typeof erasureDumpApp>;
 
 const timeout = 60_000;
-const plainFingerprint = /^[0-9a-f]{64}$/;
+const keyedFingerprint = /^kwf1\.[0-9a-f]{64}$/;
 const opened = '00000000-0000-7000-8000-000000000101';
 const sent = '00000000-0000-7000-8000-000000000102';
 const elsewhere = '00000000-0000-7000-8000-000000000103';
@@ -70,7 +70,7 @@ describe('the receipts of commands that touched the erased subject (14.7.5, WP-1
     const booted = await bootErasureRules();
     const { runtime, worker, subject } = booted;
     await plant(booted, subject);
-    expect(await fingerprintOf(runtime, opened)).toMatch(plainFingerprint);
+    expect(await fingerprintOf(runtime, opened)).toMatch(keyedFingerprint);
     await erase(booted, subject);
     await runtime.drainJobs();
     await worker.pass();
@@ -81,7 +81,7 @@ describe('the receipts of commands that touched the erased subject (14.7.5, WP-1
     const booted = await bootErasureRules();
     const { runtime, worker, subject } = booted;
     await plant(booted, subject);
-    expect(await fingerprintOf(runtime, sent)).toMatch(plainFingerprint);
+    expect(await fingerprintOf(runtime, sent)).toMatch(keyedFingerprint);
     await erase(booted, subject);
     await runtime.drainJobs();
     await worker.pass();
@@ -120,7 +120,7 @@ describe('the receipts of commands that touched the erased subject (14.7.5, WP-1
     await erase(booted, subject);
     await runtime.drainJobs();
     await worker.pass();
-    expect(await fingerprintOf(runtime, elsewhere)).toMatch(plainFingerprint);
+    expect(await fingerprintOf(runtime, elsewhere)).toMatch(keyedFingerprint);
   });
 
   test('a second run scrubs nothing', { timeout }, async () => {

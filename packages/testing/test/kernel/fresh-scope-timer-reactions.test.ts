@@ -21,10 +21,11 @@ afterAll(() => runtime.stop());
 
 // A derivation reads the scope keys of the control store. The harness runs the control store and
 // the tenant data as two PGlite instances, so a derivation inside an open tenant unit does not wait
-// here; the test counts the control reads that the three ScopeSecrets derivations (the job key, the
-// fingerprint key and the state token key) make inside an open tenant unit. A store that held both
-// on one session would wait on such a read. Those secrets are derived before the unit opens.
-const secretDerivations = /state-token-key\.ts|job-key-secret-of\.ts|command-fingerprint\.ts/;
+// here; the test counts the control reads that the two derivations of a unit's secrets (the job key
+// and the state token key) make inside an open tenant unit. The fingerprint key is derived before
+// the unit opens and no digest derives a key inside it. A store that held both on one session
+// would wait on such a read. Those secrets are derived before the unit opens.
+const secretDerivations = /state-token-key\.ts|job-key-secret-of\.ts/;
 const insideDataUnit = new AsyncLocalStorage<true>();
 const secretReadsInDataUnits: string[] = [];
 const { adapter: data } = runtime;

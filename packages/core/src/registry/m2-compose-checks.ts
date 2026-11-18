@@ -1,4 +1,5 @@
 import { checkAsyncTransientReactions } from './check-async-transient-reactions.ts';
+import { checkCredentialShapes } from './check-credential-shapes.ts';
 import { checkDataSubjectIndexes } from './check-data-subject-indexes.ts';
 import { checkDeploymentGroups } from './check-deployment-groups.ts';
 import { checkEffectSubjects } from './check-effect-subjects.ts';
@@ -51,4 +52,5 @@ export const m2ComposeChecks: readonly ((
   checkPendingEffectsWhere,
   checkSettleWhere,
   checkAsyncTransientReactions,
+  checkCredentialShapes,
 ];

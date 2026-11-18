@@ -1,7 +1,5 @@
-import { createHash } from 'node:crypto';
 import type { DataAdapterFactory } from '@keelwerk/core';
 import {
-  canonicalizeJson,
   commandReceiptUuid,
   defineApp,
   defineCommand,
@@ -17,13 +15,12 @@ import { describe, expect, test } from 'vitest';
 import { vaultApp } from '../../src/fixtures/index.ts';
 import { withTestResolver } from '../../src/harness/with-test-resolver.ts';
 import { call, callWithId, local, ok, spiedMemory, testClock } from './support/core-actions-kit.ts';
+import { plainFingerprint } from './support/erasure-dump-tools.ts';
 import { boot, deploymentOf, app as libraryApp } from './support/runtime-kit.ts';
 
 const vaultConfig = { vault: { endpoint: 'https://vault.example', signingKey: 'sign-me-secret' } };
 const plainDigest = (apiVersion: string, input: unknown): string =>
-  createHash('sha256')
-    .update(canonicalizeJson({ action: 'core.backend.create', apiVersion, input }))
-    .digest('hex');
+  plainFingerprint('core.backend.create', apiVersion, input);
 
 describe('a create with a secret config (S-111)', () => {
   async function secretStart() {
@@ -85,13 +82,15 @@ describe('a create with a secret config (S-111)', () => {
     expect(sealed).toContain(`kwc1.${first.id as string}.vault.signingKey`);
     const after = await receiptOf();
     expect(after?.fingerprint).toBe(before?.fingerprint);
-    expect(after?.fingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(after?.fingerprint).toMatch(/^kwf1\.[0-9a-f]{64}$/);
     expect(after?.fingerprint).not.toBe(plainDigest(String(after?.apiVersion), input));
     const uuid = String(first.id).includes('-')
       ? String(first.id)
       : parseTypeId(String(first.id), 'bknd');
     const [event] = await spy.stream('core.backend', uuid ?? '');
-    expect(event?.decision?.inputDigest).toBe(before?.fingerprint);
+    // The event meta holds the decision base, never the receipt's fingerprint.
+    expect(event?.decision?.inputDigest).toMatch(/^kwb1\.[0-9a-f]{64}$/);
+    expect(event?.decision?.inputDigest).not.toBe(before?.fingerprint);
     expect(
       JSON.stringify(event, (_key, value) => (typeof value === 'bigint' ? String(value) : value)),
     ).not.toContain('sign-me-secret');

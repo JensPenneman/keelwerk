@@ -7,6 +7,7 @@ import { buildDecisionRecord } from '../events/build-decision-record.ts';
 import { buildEventMeta } from '../events/build-event-meta.ts';
 import { encodeDecisionRecord } from '../events/encode-decision-record.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
+import { shownDecisionRecord } from '../explain/shown-decision-record.ts';
 import { recordedFlagSnapshot } from '../flags/recorded-flag-snapshot.ts';
 import { canonicalizeJson } from '../json/canonicalize-json.ts';
 import { deriveScopeSecrets } from '../keys/derive-scope-secrets.ts';
@@ -136,7 +137,11 @@ async function replayIn(
     reproduced: false,
     differences: [message],
     ...(refused === undefined ? {} : { refused }),
-    recorded: { events: recordedEvents, effects: record.effects, decision: recordedRecord },
+    recorded: {
+      events: recordedEvents,
+      effects: record.effects,
+      decision: shownDecisionRecord(recordedRecord),
+    },
     redecided: { events: [], effects: [] },
   });
 
@@ -264,11 +269,15 @@ async function replayIn(
       part: action.ref,
       reproduced: differences.length === 0,
       differences,
-      recorded: { events: recordedEvents, effects: record.effects, decision: recordedRecord },
+      recorded: {
+        events: recordedEvents,
+        effects: record.effects,
+        decision: shownDecisionRecord(recordedRecord),
+      },
       redecided: {
         events: alignedTo(recordedEvents),
         effects: decided.effects.map((effect) => effect.kind),
-        decision: encoded,
+        decision: shownDecisionRecord(encoded),
         result: decided.result,
       },
     };

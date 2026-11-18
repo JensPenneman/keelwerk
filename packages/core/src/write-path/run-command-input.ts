@@ -31,6 +31,11 @@ export interface RunCommandInput {
   readonly input: unknown;
   /** What the receipt's fingerprint covers when it is not `input`: the client's own input, for a command whose `input` holds values sealed on the way in (S-109). */
   readonly fingerprintInput?: unknown;
+  /**
+   * Set by the control path only: applied to `fingerprintInput ?? input` before both digests of the
+   * command, never to the 0.1.0 form of the fingerprint.
+   */
+  readonly fingerprintMask?: (input: unknown) => unknown;
   /** Set by the runtime's control path only: it alone may run `core.backend.create` and `core.tenant.create` (S-109). */
   readonly controlPath?: boolean;
   /** Set by the control path when it saw a live receipt and skipped its checks: the command must replay, never run. If the receipt turns out to be gone (it expired before the claim), the unit rolls back with a retryable `core.command_in_progress` and the retry takes the full path (S-111). */

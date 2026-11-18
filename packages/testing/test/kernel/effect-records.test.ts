@@ -1,5 +1,4 @@
-import { createHmac } from 'node:crypto';
-import { deriveEffectId, encodeAad, field, jobKeyInfo, shape } from '@keelwerk/core';
+import { deriveEffectId, field, shape } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import { deriveOnlyKeys } from './support/derive-only-keys.ts';
 import {
@@ -12,6 +11,7 @@ import {
 } from './support/effects-kit.ts';
 import { otherTenant } from './support/invoker-kit.ts';
 import { tenant } from './support/run-read-kit.ts';
+import { storedJobKeyDigest } from './support/stored-job-key-digest.ts';
 
 interface Writes {
   readonly write: {
@@ -34,16 +34,8 @@ const parts = (over: Parameters<typeof externalEffect>[2] = {}) => {
   };
 };
 
-/**
- * HMAC-SHA-256 of the module and the key under the scope's job key secret, computed outside the
- * kernel.
- */
-async function keyDigest(module: string, key: string): Promise<string> {
-  const secret = await deriveOnlyKeys.derive(tenant, jobKeyInfo, 32);
-  return createHmac('sha256', secret)
-    .update(encodeAad([module, key]))
-    .digest('hex');
-}
+const keyDigest = (module: string, key: string): Promise<string> =>
+  storedJobKeyDigest(deriveOnlyKeys, tenant, module, key);
 
 describe('external effect records', () => {
   test('a decision leaves a requested record, its stream and an effect job', async () => {

@@ -2,6 +2,8 @@ import { parseSealedValueText } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import { bootVault } from './support/vault-kit.ts';
 
+/** The subject of the decoy data key of a scope (`decoySubject` of the core's keys). */
+const decoySubject = '00000000-0000-4000-8000-00000000decc';
 const apiKey = 'sk-live-0123456789-plain';
 const replacement = 'sk-live-9876543210-newer';
 
@@ -134,12 +136,26 @@ describe.each(['memory', 'pglite'] as const)('credential sealing on %s (14.7.4)'
       input: { label: 'ci', apiKey },
     });
     expect(report.ok).toBe(true);
+    // The digest has the form of a real run's (the key service forks, so the scope key of the dry
+    // run is its own).
+    const shown = (
+      report as unknown as { value: { report: { decision?: { inputDigest: string } } } }
+    ).value.report.decision?.inputDigest;
+    expect(shown).toMatch(/^kw[bd]1\.[0-9a-f]{64}$/);
     expect(dump(report)).not.toContain(apiKey);
     expect(dump(report)).not.toContain('"kwv1.');
     expect(await vault.hasScopeKey(vault.tenantId)).toBe(false);
     expect(await vault.raw((view) => view.rows())).toHaveLength(0);
+    // The token the command issues creates the decoy data key of a scope in a real run; a dry run
+    // reads that key and never creates it.
+    expect(await vault.raw((view) => view.keys.dataKey(decoySubject, { create: false }))).toBe(
+      undefined,
+    );
     // The real run creates the key the dry run only imagined.
     expect(await vault.call('vault.store', { label: 'ci', apiKey })).toMatchObject({ ok: true });
     expect(await vault.hasScopeKey(vault.tenantId)).toBe(true);
+    expect(
+      await vault.raw((view) => view.keys.dataKey(decoySubject, { create: false })),
+    ).toBeDefined();
   });
 });

@@ -29,12 +29,12 @@ interface DerivedDataEvidence {
 /**
  * The personal values in derived data are gone. No plain fingerprint of a command whose input held
  * a value of the subject is in the dump: the receipt of a command another principal ran is
- * scrubbed, the personal members of a fingerprint are digested under the subject's key, and the
- * decision record of an event is keyed under the keys of the decision's personal values. Bea's
- * commands hold none of Ada's values and may keep theirs. The key a module built from a personal
- * value is stored as a digest, never as the text (a timer's, and the key of an external effect in
- * its record and its requested event), a reaction's key is no longer the unsalted hash
- * of its part, and a sealed value hides its length in buckets of 32 bytes.
+ * scrubbed, and no command writes a plain fingerprint at all: a receipt holds the keyed `kwf1.`
+ * form and a decision record the decision base, which holds no personal value. Bea's commands hold
+ * none of Ada's values and may keep theirs. The key a module built from a personal value is stored
+ * as a digest, never as the text (a timer's, and the key of an external effect in its record and
+ * its requested event), a reaction's key is no longer the unsalted hash of its part, and a sealed
+ * value hides its length in buckets of 32 bytes.
  */
 function expectDerivedDataGone(evidence: DerivedDataEvidence): void {
   const { after, planted, erasedMarkers } = evidence;

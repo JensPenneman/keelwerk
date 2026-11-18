@@ -52,6 +52,8 @@ describe('writes only the control path makes', () => {
           run,
           commandId: 'c1',
           fingerprint: 'f',
+          decisionBase: 'b',
+          legacyFingerprint: () => 'l',
           clock: { now: () => Temporal.Now.instant() },
           prepared: undefined,
         },

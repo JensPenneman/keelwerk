@@ -200,24 +200,13 @@ async function runErasureDumpCase(setup: DumpCase): Promise<void> {
       plainFingerprint(action, runtime.head, input),
     ]),
   );
-  // A command whose input has a personal member that names its subject keeps no plain fingerprint
-  // at all (its member is digested under the key of the subject); every other command keeps the
-  // plain one until the erasure scrubs it (WP-130).
-  const digested = new Set([
-    'probe.subscribe',
-    'probe.defer',
-    'probe.armPersonal',
-    'probe.remind',
-    'probe.jot',
-    'probe.claim',
-    // A generated update names the entity's personal field inside its patch: keyed as well.
-    'probe.person.update',
-  ]);
+  // No command keeps a plain fingerprint, before or after the erasure (WP-158): every receipt holds
+  // the keyed `kwf1.` form, and a decision record holds `kwb1.` or `kwd1.`.
   const heldBefore = [...fingerprints].filter(([, hash]) => before.includes(hash)).map(([n]) => n);
-  expect(
-    heldBefore.sort(),
-    'the plain fingerprints of the commands without a personal member are in the dump before',
-  ).toEqual([...fingerprints.keys()].filter((name) => !digested.has(name)).sort());
+  expect(heldBefore, 'no plain fingerprint of a command is in the dump, not even before').toEqual(
+    [],
+  );
+  expect(before, 'the receipts hold the keyed form').toMatch(/kwf1\.[0-9a-f]{64}/);
 
   await operator.invoke(
     'core.eraseSubject',

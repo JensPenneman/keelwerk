@@ -3,11 +3,12 @@ import type { StreamAppend } from '../events/stream-append.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import { attemptCommand } from '../write-path/attempt-command.ts';
-import { inputFingerprint } from '../write-path/input-fingerprint.ts';
+import { commandDigests } from '../write-path/command-digests.ts';
 import type { RunCommandInput } from '../write-path/run-command-input.ts';
 import { runPrepare } from '../write-path/run-prepare.ts';
 import { withoutShownOnce } from '../write-path/without-shown-once.ts';
 import { buildDryRunReport } from './build-dry-run-report.ts';
+import { dryRunFingerprintKey } from './dry-run-fingerprint-key.ts';
 import { dryRunKeys } from './dry-run-keys.ts';
 import { dryRunPerform } from './dry-run-perform.ts';
 import type { DryRunReport } from './dry-run-report.ts';
@@ -29,7 +30,10 @@ export interface DryRunInput extends RunCommandInput {
  * receipt, the load, `decide`, the events and their item checks, the kernel effects and the
  * reactions, all in a unit that always rolls back. Answers the events with before-images, the
  * effects with ids and continuations, the result and the decision record, redacted; an inline
- * effect without an answer stops the run as `would-perform`. The database is untouched.
+ * effect without an answer stops the run as `would-perform`. The database is untouched, and no key
+ * is created or needed: where the scope has its fingerprint key the report's `inputDigest` is the
+ * text a real run of the same input stores; where it has none the digest has the real form, under
+ * a key held in memory for this dry run alone.
  */
 export async function dryRun(input: DryRunInput): Promise<DryRunReport> {
   const { answers, ...base } = input;
@@ -44,9 +48,14 @@ export async function dryRun(input: DryRunInput): Promise<DryRunReport> {
   const now = base.clock.now();
   const clock = { now: () => now };
   // New scope keys and value keys stay in memory: the rollback cannot undo a key the key service commits itself.
+  const keys = dryRunKeys(base.keys);
+  // The key of the digests, taken before the unit opens: a derivation inside it could open a second
+  // unit. It never creates a scope key (see `dryRunFingerprintKey`).
+  const fingerprintKey = await dryRunFingerprintKey(base.keys, keys, base.scope);
   const run: RunCommandInput = {
     ...base,
-    keys: dryRunKeys(base.keys),
+    keys,
+    fingerprintKey,
     clock,
     replace: { ...base.replace, perform: dryRunPerform(answers) },
   };
@@ -62,7 +71,7 @@ export async function dryRun(input: DryRunInput): Promise<DryRunReport> {
       input: redactEffectInput(registry.effects.get(error.effect)?.input, error.effectInput),
     };
   }
-  const fingerprint = inputFingerprint(action.ref, base.apiVersion, base.input);
+  const digests = commandDigests({ ...run, fingerprintKey });
   const batches: StreamAppend[] = [];
   const valueKeys = dryRunValueKeys();
   const held: { result?: CommandResult } = {};
@@ -72,7 +81,7 @@ export async function dryRun(input: DryRunInput): Promise<DryRunReport> {
       base.scope,
       async (unit) => {
         held.result = await attemptCommand(
-          { run, commandId, fingerprint, clock, prepared },
+          { run, commandId, ...digests, clock, prepared },
           recordingUnit(
             unit,
             (batch) => {

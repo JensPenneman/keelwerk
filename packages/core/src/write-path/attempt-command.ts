@@ -51,7 +51,12 @@ import { writeStateRows } from './write-state-rows.ts';
 export interface AttemptInput {
   readonly run: RunCommandInput;
   readonly commandId: string;
+  /** The receipt's fingerprint (`kwf1.`). */
   readonly fingerprint: string;
+  /** The decision base (`kwb1.`): the base of the event meta's inputDigest. */
+  readonly decisionBase: string;
+  /** The 0.1.0 form of the command's fingerprint, computed only to compare a receipt of 0.1.0. */
+  readonly legacyFingerprint: () => string;
   /** The invocation's clock: one instant for every attempt. */
   readonly clock: Clock;
   readonly prepared: unknown;
@@ -87,7 +92,10 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     now,
     windowMs: receiptWindowMs(action, job),
   });
-  const pending = await insertPendingReceipt(unit, receipt, { takeOver: job !== undefined });
+  const pending = await insertPendingReceipt(unit, receipt, {
+    takeOver: job !== undefined,
+    legacyFingerprint: input.legacyFingerprint,
+  });
   if (pending.kind === 'inserted' && run.replayOnly === true) {
     throw new KeelwerkError({
       kind: 'conflict',
@@ -221,7 +229,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
         flags,
         decision: buildDecisionRecord({
           part: action.ref,
-          inputDigest: decisionDigest(fingerprint, sealed),
+          inputDigest: decisionDigest(input.decisionBase, sealed),
           reads: recorded,
           answers,
           ...(sealedInput === undefined ? {} : { input: sealedInput }),
@@ -270,21 +278,22 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     ...(opened?.event === undefined
       ? {}
       : { cause: { eventId: opened.event.id, actor: opened.event.actor } }),
-    runNested: async (nestedUnit, nestedRun, nested) =>
-      attemptCommand(
+    runNested: async (nestedUnit, nestedRun, nested) => {
+      const { fingerprintKey } = nestedRun;
+      if (fingerprintKey === undefined)
+        throw errors.internal('the nested run has no fingerprint key');
+      return attemptCommand(
         {
           run: nestedRun,
           commandId: nested.commandId,
-          fingerprint: await nestedFingerprint(runInUnitKeys(nestedRun, nestedUnit), {
-            unit: nestedUnit,
-            create: true,
-          }),
+          ...nestedFingerprint({ ...nestedRun, fingerprintKey }),
           clock,
           prepared: undefined,
           nested,
         },
         nestedUnit,
-      ),
+      );
+    },
   });
   const result =
     action.generated === 'set' && generated !== undefined

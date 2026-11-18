@@ -3,6 +3,7 @@ import type { EventMatch } from '../events/event-match.ts';
 import type { StoredEvent } from '../events/stored-event.ts';
 import type { Position } from '../storage/position.ts';
 import type { Unit } from '../storage/unit.ts';
+import { shownInputDigest } from './shown-input-digest.ts';
 import type { TraceInput } from './trace-input.ts';
 import type { TraceCommand, TraceEffect, TraceEvent, TraceReport } from './trace-report.ts';
 
@@ -113,7 +114,11 @@ async function commandOf(
     decision:
       decision === null
         ? null
-        : { part: decision.part, inputDigest: decision.inputDigest, effects: decision.effects },
+        : {
+            part: decision.part,
+            inputDigest: shownInputDigest(decision.inputDigest),
+            effects: decision.effects,
+          },
     effects,
     nested,
   };

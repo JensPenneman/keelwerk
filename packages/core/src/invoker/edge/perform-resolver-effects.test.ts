@@ -1,7 +1,6 @@
-import { createHmac } from 'node:crypto';
 import { expect, test } from 'vitest';
+import { jobKeyDigest } from '../../effects/job-key-digest.ts';
 import { isKernelCommandId } from '../../ids/is-kernel-command-id.ts';
-import { encodeAad } from '../../keys/encode-aad.ts';
 import type { Principal } from '../../principals/principal.ts';
 import type { AnyEffect } from '../../protocol/any-effect.ts';
 import type { StoredJobSpec } from '../../storage/stored-job-spec.ts';
@@ -197,10 +196,10 @@ const keyed = (effect: AnyEffect): AnyEffect =>
 test('a keyed enqueue from a module resolver is stored under the key of that module', async () => {
   const { jobs, env, target, principal, enqueue } = setup();
   await performResolverEffects(env, target, principal, [keyed(enqueue)], 'auth');
-  const digest = createHmac('sha256', new Uint8Array(32).fill(7))
-    .update(encodeAad(['auth', 'idle:1']))
-    .digest('hex');
-  expect(jobs[0]?.key).toEqual({ value: `auth:${digest}`, onConflict: 'keep' });
+  expect(jobs[0]?.key).toEqual({
+    value: `auth:${jobKeyDigest(new Uint8Array(32).fill(7), 'auth', 'idle:1')}`,
+    onConflict: 'keep',
+  });
 });
 
 test('a keyed enqueue without the module of its resolver is refused, does not name its key and writes nothing', async () => {

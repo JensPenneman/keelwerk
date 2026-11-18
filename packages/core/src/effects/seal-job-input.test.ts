@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv } from 'node:crypto';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
@@ -87,5 +87,108 @@ describe('the sealed input of a job (golden, final)', () => {
         stored,
       ),
     ).rejects.toMatchObject({ kind: 'conflict' });
+  });
+});
+
+describe('a job whose generated write would store a credential or personal value unsealed', () => {
+  const personal = { kind: 'string', personal: { subject: 'id' }, sealed: false, inner: null };
+  const registry = {
+    entities: new Map([
+      [
+        'probe.person',
+        {
+          descriptor: {
+            fields: {
+              name: { kind: 'string', personal: false, sealed: false, inner: null },
+              email: personal,
+              password: { kind: 'secret', personal: false, sealed: true, inner: null },
+              apiKey: { kind: 'verifier', personal: false, sealed: true, inner: null },
+            },
+          },
+        },
+      ],
+    ]),
+  } as unknown as Registry;
+  const generatedOf = (generated: 'create' | 'update' | 'set') =>
+    ({
+      ref: `probe.person.${generated}`,
+      module: 'probe',
+      entity: 'probe.person',
+      generated,
+      input: shape({}),
+    }) as unknown as ActionEntry;
+  const seal = vi.fn(unit.keys.sealValue.bind(unit.keys));
+  const spied = { keys: { ...unit.keys, sealValue: seal } } as unknown as Unit;
+
+  async function refusal(generated: 'create' | 'update' | 'set', input: object) {
+    seal.mockClear();
+    const error = await sealJobInput(
+      spied,
+      registry,
+      commandId,
+      generatedOf(generated),
+      input,
+    ).then(
+      () => undefined,
+      (caught: unknown) => caught,
+    );
+    expect(seal).not.toHaveBeenCalled();
+    return error;
+  }
+
+  test('an enqueue of a generated update whose patch names a secret is refused', async () => {
+    const error = await refusal('update', { id: 'p1', patch: { password: 'hunter2' } });
+    expect(error).toMatchObject({ kind: 'internal', code: 'core.request_not_allowed' });
+    expect(String((error as Error).message)).toContain('probe.person.update');
+    expect(String((error as Error).message)).toContain("'patch.password'");
+    expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain('hunter2');
+  });
+
+  test('an enqueue of a generated set whose item names a personal field is refused', async () => {
+    const error = await refusal('set', {
+      create: [{ name: 'Ada' }],
+      update: [{ id: 'p1', patch: { email: 'ada@example.org' } }],
+    });
+    expect(error).toMatchObject({ kind: 'internal', code: 'core.request_not_allowed' });
+    expect(String((error as Error).message)).toContain("'update.0.patch.email'");
+    expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain('ada@example');
+  });
+
+  test('an item of a map is named by a star: its key is an input value and stays out of the error', async () => {
+    const key = 'ada@example.org';
+    for (const [input, member] of [
+      [{ create: { [key]: { name: 'x', email: 'someone@example.org' } } }, 'create.*.email'],
+      [
+        { update: { [key]: { id: 'p1', patch: { password: 'hunter2' } } } },
+        'update.*.patch.password',
+      ],
+    ] as const) {
+      const error = await refusal('set', input);
+      expect(error).toMatchObject({ kind: 'internal', code: 'core.request_not_allowed' });
+      expect(String((error as Error).message)).toContain(`'${member}'`);
+      const shown = JSON.stringify(error, Object.getOwnPropertyNames(error));
+      expect(shown).not.toContain(key);
+      expect(shown).not.toContain('example.org');
+    }
+  });
+
+  test('an enqueue of a generated create with a verifier is refused', async () => {
+    const error = await refusal('create', { name: 'Ada', apiKey: 'k-123' });
+    expect(error).toMatchObject({ kind: 'internal', code: 'core.request_not_allowed' });
+    expect(String((error as Error).message)).toContain("'apiKey'");
+    expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain('k-123');
+  });
+
+  test('a generated write without such a member is sealed as any other, and an unknown entity is not refused', async () => {
+    await expect(
+      sealJobInput(spied, registry, commandId, generatedOf('update'), {
+        id: 'p1',
+        patch: { name: 'Ada' },
+      }),
+    ).resolves.toBeDefined();
+    const unknown = { ...generatedOf('update'), entity: 'probe.other' } as ActionEntry;
+    await expect(
+      sealJobInput(spied, registry, commandId, unknown, { id: 'p1', patch: { password: 'x' } }),
+    ).resolves.toBeDefined();
   });
 });

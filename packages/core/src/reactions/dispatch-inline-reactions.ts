@@ -13,6 +13,7 @@ import { checkWrittenItems } from '../write-path/check-written-items.ts';
 import { draftsToEvents } from '../write-path/drafts-to-events.ts';
 import { normalizeDecision } from '../write-path/normalize-decision.ts';
 import { openDecision } from '../write-path/open-decision.ts';
+import { reactionDigestPrefix } from '../write-path/reaction-digest-prefix.ts';
 import { sealDrafts } from '../write-path/seal-drafts.ts';
 import { writeStateRows } from '../write-path/write-state-rows.ts';
 import type { WrittenRow } from '../write-path/written-row.ts';
@@ -73,7 +74,7 @@ export async function dispatchInlineReactions(
           flags: [...decision.flags.values()],
           decision: buildDecisionRecord({
             part: reaction.id,
-            inputDigest: sha256(event.id),
+            inputDigest: reactionDigestPrefix + sha256(event.id),
             reads: recorded,
             answers: decision.answers,
             effects: plannedEffectIds(run.scope, cause, decided.effects),

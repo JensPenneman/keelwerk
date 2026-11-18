@@ -107,6 +107,7 @@ export async function runInvokeEffect(
     commandId: _commandId,
     controlPath: _controlPath,
     fingerprintInput: _fingerprintInput,
+    fingerprintMask: _fingerprintMask,
     replayOnly: _replayOnly,
     ...outer
   } = run;

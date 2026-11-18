@@ -1,6 +1,5 @@
-import { createHmac } from 'node:crypto';
 import type { JobQueue, JobSpec, Logger, Registry, Unit } from '@keelwerk/core';
-import { encodeAad, processStreamRef, sealingUnit } from '@keelwerk/core';
+import { processStreamRef, reactionJobKey, sealingUnit } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import { enqueueReactionJobs } from '../../src/dispatcher/enqueue-reaction-jobs.ts';
 import {
@@ -12,10 +11,6 @@ import {
 
 /** The job key secret the fixture's key service answers for the job key info. */
 const keySecret = new Uint8Array(32).fill(9);
-const digestOf = (owner: string, part: string): string =>
-  createHmac('sha256', keySecret)
-    .update(encodeAad([owner, part]))
-    .digest('hex');
 const registry = dispatchRegistry();
 const now = Temporal.Instant.from('2026-03-01T08:00:01Z');
 const build = { id: 'build-1', revision: 1 };
@@ -131,10 +126,13 @@ describe('the jobs of one batch', () => {
       (spec) => 'action' in spec.run && spec.run.action === 'trace.ordered',
     );
     // The row is gone in this unit, so the key falls back to the function's own default.
-    expect(ordered?.key).toEqual({
-      value: `trace.ordered:${digestOf('trace.ordered', 'none')}`,
-      onConflict: 'append',
-    });
+    const reaction = registry.reactions.get('trace.ordered');
+    if (reaction === undefined) throw new Error('trace.ordered is not registered');
+    expect(ordered?.key).toEqual(
+      reactionJobKey(reaction, eventOf('trace.note.created'), 'none', keySecret),
+    );
+    expect(ordered?.key?.onConflict).toBe('append');
+    expect(ordered?.key?.value).not.toContain('none');
     expect(ordered?.ordering).toBe('fifo-per-key');
   });
 

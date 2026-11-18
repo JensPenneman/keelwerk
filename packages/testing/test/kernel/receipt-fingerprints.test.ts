@@ -1,15 +1,14 @@
-import { createHash } from 'node:crypto';
-import { canonicalizeJson } from '@keelwerk/core';
 import { afterEach, describe, expect, test } from 'vitest';
+import { plainFingerprint } from './support/erasure-dump-tools.ts';
 import { bootErasureRules, stopBooted } from './support/erasure-rules-kit.ts';
 import { scopeOf } from './support/restart-kit.ts';
 
 afterEach(stopBooted);
 
-describe('the fingerprint of a command with a personal member (WP-130)', () => {
+describe('the fingerprint of a command with a personal member (WP-130, WP-158)', () => {
   const subscribed = '00000000-0000-7000-8000-000000000201';
   const opened = '00000000-0000-7000-8000-000000000202';
-  const hex = /^[0-9a-f]{64}$/;
+  const keyed = /^kwf1\.[0-9a-f]{64}$/;
 
   /** The client of the probe app, loosely typed: the subject id of the input is built from text. */
   const asyncCall = async (
@@ -46,7 +45,7 @@ describe('the fingerprint of a command with a personal member (WP-130)', () => {
     expect(await asyncCall(booted, input)).toMatchObject({ ok: true });
     const accepted = await receiptOf(booted);
     expect(accepted?.status).toBe('accepted');
-    expect(accepted?.fingerprint).toMatch(hex);
+    expect(accepted?.fingerprint).toMatch(keyed);
     expect(await booted.runtime.drainJobs()).toBe(1);
     const completed = await receiptOf(booted);
     expect(completed?.status).toBe('completed');
@@ -57,7 +56,7 @@ describe('the fingerprint of a command with a personal member (WP-130)', () => {
     expect(await booted.runtime.drainJobs()).toBe(0);
   });
 
-  test('a retry with a receipt in the 0.1.0 form answers core.idempotency_mismatch', {
+  test('a retry with a receipt in the 0.1.0 form is compared in its own form and replays (legacy-receipts.test.ts owns the cases)', {
     timeout: 60_000,
   }, async () => {
     const booted = await bootErasureRules();
@@ -65,18 +64,13 @@ describe('the fingerprint of a command with a personal member (WP-130)', () => {
     // A receipt as 0.1.0 wrote it: the plain digest of the canonical input, under the id of the
     // retry.
     expect(await asyncCall(booted, input, opened)).toMatchObject({ ok: true });
-    const keyed = await receiptOf(booted, opened);
-    if (keyed === undefined) throw new Error('the receipt is missing');
-    const plain = createHash('sha256')
-      .update(canonicalizeJson({ action: 'probe.subscribe', apiVersion: keyed.apiVersion, input }))
-      .digest('hex');
-    expect(plain).not.toBe(keyed.fingerprint);
+    const stored = await receiptOf(booted, opened);
+    if (stored === undefined) throw new Error('the receipt is missing');
+    const plain = plainFingerprint('probe.subscribe', stored.apiVersion, input);
+    expect(plain).not.toBe(stored.fingerprint);
     await booted.runtime.adapter.unit(booted.runtime.namespace, scopeOf(booted.runtime), (unit) =>
-      unit.receipts.put({ ...keyed, commandId: subscribed, fingerprint: plain }),
+      unit.receipts.put({ ...stored, commandId: subscribed, fingerprint: plain }),
     );
-    expect(await asyncCall(booted, input, subscribed)).toMatchObject({
-      ok: false,
-      error: { code: 'core.idempotency_mismatch' },
-    });
+    expect(await asyncCall(booted, input, subscribed)).toMatchObject({ ok: true });
   });
 });

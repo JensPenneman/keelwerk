@@ -7,6 +7,7 @@ import type { ControlRun } from './control-run.ts';
 import type { ControlStore } from './control-store.ts';
 import { coreBackendConfig } from './core-backend-config.ts';
 import { findControlRows } from './find-control-rows.ts';
+import { maskConfigValues } from './mask-config-values.ts';
 import { runControlCreate } from './run-control-create.ts';
 
 /** A configuration secret waiting to be sealed: where it goes and its plain value. */
@@ -133,7 +134,8 @@ export interface BackendCreateOptions {
  * Creates a backend row through `core.backend.create` (S-26, S-109); the name is unique. The
  * backend's `config` is checked against the selected modules' config shapes and the name is checked
  * free before its secrets are sealed, then the command runs with the sealed values; the receipt's
- * fingerprint covers the client's input, never the sealed values.
+ * fingerprint covers the client's input, never the sealed values, and withholds every value of
+ * `config` (`maskConfigValues`).
  */
 export async function createBackend(
   store: ControlStore,
@@ -146,7 +148,12 @@ export async function createBackend(
     return runControlCreate(
       store,
       'backend',
-      { values: fingerprintInput, fingerprintInput, replayOnly: true },
+      {
+        values: fingerprintInput,
+        fingerprintInput,
+        fingerprintMask: maskConfigValues,
+        replayOnly: true,
+      },
       who,
     );
   }
@@ -179,5 +186,10 @@ export async function createBackend(
     ...(input.apiVersion === undefined ? {} : { apiVersion: input.apiVersion }),
     ...(config === undefined ? {} : { config }),
   };
-  return runControlCreate(store, 'backend', { values, fingerprintInput, id }, who);
+  return runControlCreate(
+    store,
+    'backend',
+    { values, fingerprintInput, fingerprintMask: maskConfigValues, id },
+    who,
+  );
 }

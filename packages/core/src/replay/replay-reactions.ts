@@ -21,6 +21,7 @@ import { defaultNodeId } from '../write-path/default-node-id.ts';
 import { draftsToEvents } from '../write-path/drafts-to-events.ts';
 import { normalizeDecision } from '../write-path/normalize-decision.ts';
 import { openDecision } from '../write-path/open-decision.ts';
+import { reactionDigestPrefix } from '../write-path/reaction-digest-prefix.ts';
 import type { RunCommandInput } from '../write-path/run-command-input.ts';
 import type { WrittenRow } from '../write-path/written-row.ts';
 import { asOfAdapter } from './as-of-adapter.ts';
@@ -161,7 +162,7 @@ export async function replayReactions(input: ReplayReactionsInput): Promise<Repl
         });
         const redecided = buildDecisionRecord({
           part: reaction.id,
-          inputDigest: sha256(cause),
+          inputDigest: reactionDigestPrefix + sha256(cause),
           reads: readsOut,
           answers: decision.answers,
           effects: decided.effects.length === record?.effects.length ? record.effects : [],

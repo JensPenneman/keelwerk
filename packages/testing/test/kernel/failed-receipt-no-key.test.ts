@@ -41,8 +41,10 @@ const keysOf = async (booted: Booted, subject: string) =>
     JSON.stringify(row).includes(subject),
   );
 
-describe('a failed command records no receipt for a subject that has no data key', () => {
-  test('a refused generated update with a fresh id leaves no key and no receipt', {
+const keyedFingerprint = /^kwf1\.[0-9a-f]{64}$/;
+
+describe('a failed command is pinned by its receipt and creates no data key (WP-158)', () => {
+  test('a refused generated update with a fresh id leaves no key and records its failed receipt', {
     timeout: 60_000,
   }, async () => {
     const booted = await bootErasureRules('pglite');
@@ -56,7 +58,9 @@ describe('a failed command records no receipt for a subject that has no data key
     );
     expect(answer.ok).toBe(false);
     expect(await keysOf(booted, subject)).toEqual([]);
-    expect(await receiptOf(booted, commandId)).toBeUndefined();
+    const receipt = await receiptOf(booted, commandId);
+    expect(receipt?.status).toBe('failed');
+    expect(receipt?.fingerprint).toMatch(keyedFingerprint);
   });
 
   test('a generated set whose create item carries an id leaves no key and no failed receipt', {
@@ -77,7 +81,7 @@ describe('a failed command records no receipt for a subject that has no data key
     expect((await receiptOf(booted, commandId))?.status).toBe('completed');
   });
 
-  test('a failed module command whose personal member names an input id leaves no key and no receipt', {
+  test('a failed module command whose personal member names an input id leaves no key and records its failed receipt', {
     timeout: 60_000,
   }, async () => {
     const booted = await bootErasureRules('pglite');
@@ -87,11 +91,13 @@ describe('a failed command records no receipt for a subject that has no data key
     const first = await attempt(booted.operator, 'probe.claim', input, commandId);
     expect(first).toMatchObject({ ok: false, error: { code: 'probe.email_taken' } });
     expect(await keysOf(booted, subject)).toEqual([]);
-    expect(await receiptOf(booted, commandId)).toBeUndefined();
-    // The retry runs the command again and fails again with the same refusal.
+    const receipt = await receiptOf(booted, commandId);
+    expect(receipt?.status).toBe('failed');
+    expect(receipt?.fingerprint).toMatch(keyedFingerprint);
+    // The retry is the stored answer, and it creates no key either.
     const retry = await attempt(booted.operator, 'probe.claim', input, commandId);
     expect(retry).toMatchObject({ ok: false, error: { code: 'probe.email_taken' } });
-    expect(await receiptOf(booted, commandId), 'the retry recorded none either').toBeUndefined();
+    expect(await keysOf(booted, subject)).toEqual([]);
   });
 
   test('a failed command on a subject that has a key is pinned and a retry is answered from it', {

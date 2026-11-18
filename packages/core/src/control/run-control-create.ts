@@ -22,6 +22,11 @@ export interface ControlCreate {
   readonly values: Readonly<Record<string, unknown>>;
   /** The client's own input, which the receipt's fingerprint covers; sealed values never reach it. */
   readonly fingerprintInput: unknown;
+  /**
+   * Applied to the client's input before both digests of the command
+   * (`RunCommandInput.fingerprintMask`).
+   */
+  readonly fingerprintMask?: (input: unknown) => unknown;
   /** Pins the id of the new row (the runtime's own seam, never a client's input). */
   readonly id?: string;
   /** The checks were skipped because a live receipt exists: the command may only replay (S-111). */
@@ -54,6 +59,7 @@ export async function runControlCreate(
     action,
     input: create.values,
     fingerprintInput: create.fingerprintInput,
+    ...(create.fingerprintMask === undefined ? {} : { fingerprintMask: create.fingerprintMask }),
     controlPath: true,
     ...(create.replayOnly === true ? { replayOnly: true } : {}),
     ...(create.id === undefined ? {} : { replace: { id: pinnedId(create.id) } }),

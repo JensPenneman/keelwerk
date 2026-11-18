@@ -3,11 +3,10 @@ import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import { deriveScopeSecrets } from '../keys/derive-scope-secrets.ts';
 import { attemptCommand } from './attempt-command.ts';
-import { commandFingerprint } from './command-fingerprint.ts';
+import { commandDigests } from './command-digests.ts';
 import { refuseGeneratedWrite } from './refuse-generated-write.ts';
 import { retryUnit } from './retry-unit.ts';
 import type { RunCommandInput } from './run-command-input.ts';
-import { runInUnitKeys } from './run-in-unit-keys.ts';
 import { runPrepare } from './run-prepare.ts';
 
 /** A generated `set` that names a state: two of them must not both commit on the same token (section 6.7). */
@@ -57,27 +56,15 @@ export async function runCommand(input: RunCommandInput): Promise<CommandResult>
     fingerprintKey: secrets.fingerprintKey,
     stateSealKey: secrets.stateTokenKey,
   };
+  // Pure: the same two texts serve every retry of the unit, and no key is read or created.
+  const digests = commandDigests({ ...run, fingerprintKey: secrets.fingerprintKey });
   const prepared = action.prepare === undefined ? undefined : await runPrepare(run, input.input);
   return retryUnit(
     () =>
       input.adapter.unit(
         input.namespace,
         input.scope,
-        async (unit) =>
-          attemptCommand(
-            {
-              run,
-              commandId,
-              // Inside the unit: the data key of a personal member's subject lives there.
-              fingerprint: await commandFingerprint(runInUnitKeys(run, unit), {
-                unit,
-                create: true,
-              }),
-              clock,
-              prepared,
-            },
-            unit,
-          ),
+        async (unit) => attemptCommand({ run, commandId, ...digests, clock, prepared }, unit),
         {
           ...(input.signal === undefined ? {} : { signal: input.signal }),
           ...(carriesState(action.generated, input.input) ? { isolation: 'serializable' } : {}),
