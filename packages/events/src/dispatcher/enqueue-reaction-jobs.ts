@@ -14,6 +14,7 @@ import {
   isProcessStream,
   nextReactionLineage,
   processJobInstance,
+  reactionDecidesIn,
   reactionJob,
   reactionKeyError,
   reactionMatches,
@@ -53,8 +54,10 @@ export interface EnqueueReactionJobsInput {
  * empty, and the instance key of a process with personal members that is no UUID, make that reaction's job alone a job that fails when it runs
  * (a dead letter of that reaction): the other reactions' jobs and the checkpoint commit as usual,
  * so one module's fault never holds an event back from another. Answers the number of jobs
- * enqueued. The unit is the batch's, so the jobs and the checkpoint advance commit together;
- * nothing but `key` runs module code.
+ * enqueued. A reaction is skipped for an event of a scope its job could not decide in
+ * (`reactionDecidesIn`: the deployment): no job, no line, no count; the checkpoint advances. The
+ * unit is the batch's, so the jobs and the checkpoint advance commit together; nothing but `key`
+ * runs module code.
  *
  * The depth bound (7.7): the job of an event is one reaction job deeper than the event
  * (`nextReactionLineage`), and a job deeper than `maxDepth` is not queued, for any reaction, before
@@ -75,7 +78,8 @@ export async function enqueueReactionJobs(input: EnqueueReactionJobsInput): Prom
       AsyncReactionEvent<string, unknown, Readonly<Record<string, unknown>>>
     >();
     for (const reaction of reactions) {
-      if (!reactionMatches(reaction, event.type)) continue;
+      if (!reactionMatches(reaction, event.type) || !reactionDecidesIn(reaction, event.scope))
+        continue;
       if (lineage.depth > input.maxDepth) {
         input.log.warn(
           'a chain of reactions reached its depth bound and a reaction was not queued',

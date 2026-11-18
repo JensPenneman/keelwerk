@@ -186,8 +186,7 @@ describe.each(['memory', 'pglite'] as const)(
           depth: maxDepth + 1,
         });
       }
-      // The runtime's own events outside the tenant are answered too: those jobs cannot write a
-      // tick there and die, and no chain of the tenant depends on them.
+      // Settling again enqueues nothing more: the chain has ended.
       const queued = selfKit.spy?.enqueued.length;
       await selfKit.settle();
       expect(selfKit.spy?.enqueued.length).toBe(queued);

@@ -834,6 +834,7 @@ export { isProcessStream } from './reactions/is-process-stream.ts';
 export { nextReactionLineage } from './reactions/next-reaction-lineage.ts';
 export { processJobInstance } from './reactions/process-job-instance.ts';
 export { processStreamRef } from './reactions/process-stream-ref.ts';
+export { reactionDecidesIn } from './reactions/reaction-decides-in.ts';
 export type { ReactionJobOptions } from './reactions/reaction-job.ts';
 export { reactionJob } from './reactions/reaction-job.ts';
 export type { ReactionJobInput } from './reactions/reaction-job-input.ts';

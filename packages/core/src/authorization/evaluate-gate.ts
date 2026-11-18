@@ -8,14 +8,8 @@ import { operationOf } from './operation-of.ts';
 import { ownModuleRulePrefix } from './own-module-rule-prefix.ts';
 import { ruleApplies } from './rule-applies.ts';
 import { ruleConditions } from './rule-conditions.ts';
+import { scopeRefusal } from './scope-refusal.ts';
 import { selectRules } from './select-rules.ts';
-
-const scopeLevels = {
-  tenant: ['tenant'],
-  backend: ['backend', 'tenant'],
-  deployment: ['deployment'],
-  invocation: ['tenant', 'backend', 'deployment'],
-} as const;
 
 function refusal(reason: string): GateResult {
   return { allowed: false, rules: [], reason };
@@ -54,12 +48,8 @@ export function evaluateGate(input: GateInput): GateResult {
   if (action.principal !== undefined && !action.principal.includes(principal.kind)) {
     return refusal(`"${action.ref}" does not admit ${principal.kind} principals.`);
   }
-  if (!(scopeLevels[action.scope] as readonly string[]).includes(scope.level)) {
-    return refusal(`"${action.ref}" runs at the ${action.scope} level, not at ${scope.level}.`);
-  }
-  if (action.scope === 'deployment' && principal.kind !== 'operator') {
-    return refusal(`"${action.ref}" is reachable by operator principals only.`);
-  }
+  const refused = scopeRefusal(action, scope.level, principal.kind);
+  if (refused !== undefined) return refusal(refused);
   if (principal.kind !== 'operator' && principal.kind !== 'system') {
     if (
       scope.level !== 'deployment' &&
