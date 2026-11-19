@@ -27,10 +27,10 @@ function wireOf(action: SurfaceAction, args: Members): unknown {
  * invoker subscribes under the connection's session and its frames are wire encoded. It awaits the
  * first frame before it returns, so a refusal (a malformed `after`, a forbidden subscription) is
  * thrown as a GraphQL error and answers as the operation's error. Each frame is a member of the event
- * union (`eventMemberOf`). A failure of a later frame ends the stream with a GraphQL error as its last item; one of kind
- * unauthenticated also asks the socket's session check to run now. The returned iterator's `return`
- * aborts the invocation first, so the hub's iterator is free to return (a carrier that awaits `return`
- * with a `next` pending would otherwise wait for an event).
+ * union (`eventMemberOf`). A failure of a later frame ends the stream with a GraphQL error as its
+ * last item; one of kind unauthenticated also asks the socket's session check to run now. The
+ * returned iterator's `return` aborts the invocation first, so the hub's iterator is free to return
+ * (a carrier that awaits `return` with a `next` pending would otherwise wait for an event).
  */
 export function subscribeResolver(
   action: SurfaceAction,

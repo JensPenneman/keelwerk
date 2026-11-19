@@ -31,7 +31,35 @@ describe('the host ends a mounted stream at the edges', () => {
     await vi.waitFor(() => expect(record.cancelled).toBe(1), { timeout: waitMs });
   }, 120_000);
 
-  test('a renewal that never answers ends the stream one second after its expiry', async () => {
+  test('a renewal that never answers ends the stream at its expiry', async () => {
+    let calls = 0;
+    const session: InvocationSession = fakeSession({
+      expiresAt: start.add({ milliseconds: 10_000 }),
+      revalidate: () => {
+        calls += 1;
+        return new Promise<Outcome<InvocationSession>>(() => undefined);
+      },
+    });
+    const { open, move, ended } = mounted(setup, session, {
+      maxDurationMs: 86_400_000,
+      revalidateMs: 3_600_000,
+    });
+    const body = drained(await open());
+    await move(8_999);
+    expect(calls).toBe(0);
+    expect(ended()).toHaveLength(0);
+    await move(1);
+    expect(calls).toBe(1);
+    await move(999);
+    expect(ended()).toHaveLength(0);
+    await move(1);
+    await body;
+    expect(calls).toBe(1);
+    expect(ended()[0]).toMatchObject({ fields: { reason: 'core.unauthenticated' } });
+  }, 120_000);
+
+  test('a route frame enqueued after the expiry never reaches the client', async () => {
+    let route: ReadableStreamDefaultController<Uint8Array> | undefined;
     const session: InvocationSession = fakeSession({
       expiresAt: start.add({ milliseconds: 10_000 }),
       revalidate: () => new Promise<Outcome<InvocationSession>>(() => undefined),
@@ -39,14 +67,41 @@ describe('the host ends a mounted stream at the edges', () => {
     const { open, move, ended } = mounted(setup, session, {
       maxDurationMs: 86_400_000,
       revalidateMs: 3_600_000,
+      keep: (controller) => {
+        route = controller;
+      },
     });
     const body = drained(await open());
     await move(10_000);
-    expect(ended()).toHaveLength(0);
-    await move(999);
+    try {
+      route?.enqueue(new TextEncoder().encode('data: late\n\n'));
+    } catch {
+      // The host already cancelled the route's body.
+    }
+    await move(1_000);
+    expect(await body).toBe('data: first\n\n');
+    expect(ended()).toHaveLength(1);
+  }, 120_000);
+
+  test('when the floor falls at or after the expiry the stream ends at the expiry without a check', async () => {
+    let calls = 0;
+    const session: InvocationSession = fakeSession({
+      expiresAt: start.add({ milliseconds: 500 }),
+      revalidate: async () => {
+        calls += 1;
+        return { ok: true, value: session };
+      },
+    });
+    const { open, move, ended } = mounted(setup, session, {
+      maxDurationMs: 86_400_000,
+      revalidateMs: 3_600_000,
+    });
+    const body = drained(await open());
+    await move(499);
     expect(ended()).toHaveLength(0);
     await move(1);
     await body;
+    expect(calls).toBe(0);
     expect(ended()[0]).toMatchObject({ fields: { reason: 'core.unauthenticated' } });
   }, 120_000);
 

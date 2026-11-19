@@ -1,4 +1,11 @@
-import type { Carrier, Invocation, InvocationSession, LiveFrame, StateToken } from '@keelwerk/core';
+import type {
+  Carrier,
+  Invocation,
+  InvocationSession,
+  LiveFrame,
+  Logger,
+  StateToken,
+} from '@keelwerk/core';
 import { pinnedLiveTimers } from '@keelwerk/testing';
 import type { HttpHostOptions } from '../../src/index.ts';
 import { createFakeHost, type FakeHost } from './create-fake-host.ts';
@@ -31,6 +38,8 @@ export interface StreamHost extends FakeHost {
 export interface StreamHostOptions {
   readonly host?: HttpHostOptions;
   readonly session?: InvocationSession;
+  /** The host's logger; default: silent. */
+  readonly log?: Logger;
 }
 
 /** A host whose one subscription, `loans.loanEvents`, is what `subscribed` says. */
@@ -58,7 +67,12 @@ export function streamHost(subscribe: Subscribed, options: StreamHostOptions = {
     surface: fakeSurface([
       fakeAction('loans.loanEvents', { kind: 'subscription', output: stringNode }),
     ]),
-    deps: { liveCarrier: () => realSseCarrier(), clock, timers },
+    deps: {
+      liveCarrier: () => realSseCarrier(),
+      clock,
+      timers,
+      ...(options.log === undefined ? {} : { log: options.log }),
+    },
   });
   return {
     ...made,

@@ -1,7 +1,9 @@
 import { expect, test } from 'vitest';
 import type { Caller } from './call.ts';
+import { closeLoansOf } from './close-loans-of.ts';
 import { freshName } from './fresh-name.ts';
 import { lendCall } from './lend-call.ts';
+import { lendTitles } from './lend-titles.ts';
 import { liveSocketCases } from './live-socket-cases.ts';
 import { originOf } from './origin-of.ts';
 import { requestHeaders } from './request-headers.ts';
@@ -202,9 +204,7 @@ export function subscriptionCases(target: TransportTarget): void {
         await ada.until((frame) => frame.event === 'head', 30_000);
         await bob.until((frame) => frame.event === 'head', 30_000);
         const controls = ['reset', 'head', 'gap', 'later'];
-        for (const control of controls) {
-          await sendCall(target, lendCall(adaName, control, { caller: caller(adaName) }));
-        }
+        await lendTitles(target, adaName, caller(adaName), controls);
         for (const stream of [ada, bob]) {
           const frames = await stream.until(
             (frame) => (frame.data as { control?: string } | undefined)?.control === 'later',
@@ -217,6 +217,7 @@ export function subscriptionCases(target: TransportTarget): void {
         }
       } finally {
         await Promise.all([ada.close(), bob.close()]);
+        await closeLoansOf(target, adaName, tenant);
       }
     },
     120_000,

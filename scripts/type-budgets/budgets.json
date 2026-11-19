@@ -48,9 +48,9 @@
         "reason": "auth with accounts: contribution, conditional parts, reset flow, the actions that deliver a reset link, revoke the sessions of a deactivated subject page by page and extend a session as the module's service principal, the six session-only deny rules with their lib files, and the session-rate, password-length and liveness checks (11,850 B manifest and 69,391 B package measured on 2026-11-18 plus 15 %, rounded up to 256 B)"
       },
       "packages/testing/src/fixtures/modules/loans": {
-        "manifestBytes": 8704,
-        "packageBytes": 20480,
-        "reason": "the loans fixture with the rule that lets a signed-in user follow loans.loanEvents once live is selected, and the public stream loans.loanTicker that the conformance case about anonymous streams per address holds open (7,125 B manifest and 17,180 B package measured plus 15 %, rounded up to 256 B); the stream cases of WP-94 need the first (lead approval); WP-180 adds the subscription loans.loanTitles and its rule for the item-against-control case (8,639 B manifest and 20,305 B package measured, limits raised to the next 256 B with headroom)"
+        "manifestBytes": 9984,
+        "packageBytes": 23552,
+        "reason": "the loans fixture with the rule that lets a signed-in user follow loans.loanEvents once live is selected, and the public stream loans.loanTicker that the conformance case about anonymous streams per address holds open (7,125 B manifest and 17,180 B package measured plus 15 %, rounded up to 256 B); the stream cases of WP-94 need the first (lead approval); WP-180 adds the subscription loans.loanTitles and its rule for the item-against-control case (8,639 B manifest and 20,305 B package measured on 2026-11-19 plus 15 %, rounded up to 256 B)"
       }
     }
   },

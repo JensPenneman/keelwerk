@@ -10,20 +10,52 @@ async function revalidated(session: InvocationSession): Promise<Outcome<Invocati
   }
 }
 
-/** How long a renewal at the expiry may take to answer before the stream ends. */
+/** How long before `expiresAt` the check at the expiry starts, so a resolver has time to answer. */
 const answerMs = 1000;
+
+/** No check starts sooner than this after the previous check started. */
+const floorMs = 1000;
+
+const earlier = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
+  Temporal.Instant.compare(a, b) <= 0 ? a : b;
+
+const later = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
+  Temporal.Instant.compare(a, b) >= 0 ? a : b;
 
 const expiredError = (): KeelwerkError =>
   coreError('core.unauthenticated', { message: 'The session expired.' });
 
+/** Whether a renewal holds the credentials the checked session held: same kind, same stored reference, same scope. */
+function holdsSameCredentials(held: InvocationSession, renewed: InvocationSession): boolean {
+  const [a, b] = [held.principal, renewed.principal];
+  if (a.kind !== b.kind) return false;
+  if (a.kind === 'user' && b.kind === 'user' && a.subject !== b.subject) return false;
+  if (a.ref?.resolver !== b.ref?.resolver || a.ref?.principalId !== b.ref?.principalId) {
+    return false;
+  }
+  return (
+    a.scope.tenant === b.scope.tenant &&
+    a.scope.backend === b.scope.backend &&
+    held.scope.level === renewed.scope.level &&
+    ('tenantId' in held.scope ? held.scope.tenantId : null) ===
+      ('tenantId' in renewed.scope ? renewed.scope.tenantId : null) &&
+    ('backendId' in held.scope ? held.scope.backendId : null) ===
+      ('backendId' in renewed.scope ? renewed.scope.backendId : null)
+  );
+}
+
 /**
  * The session check of one HTTP stream (16.3.4, the rule of `keepSocketSession`): at
- * `nextSessionCheckAt` it runs `session.revalidate()` on the host's timers; a session that holds
- * replaces the one checked next. `end` is called at most once, and the loop stops, when the check
- * answers an error, when it throws (`asKeelwerkError`), or when the renewed session's `expiresAt` is
- * not after the clock's now (`core.unauthenticated`, message 'The session expired.'); a session already expired when the
- * function is called ends at once, and a check still unanswered one second after `expiresAt` (or after its start, when that is later) ends the stream. The first wait is
- * registered before the function returns; aborting `signal` ends every wait.
+ * `nextSessionCheckAt` it runs `session.revalidate()` on the host's timers. `end` is called at most
+ * once, and the loop stops, when the check answers an error, when it throws (`asKeelwerkError`), when
+ * the renewal holds other credentials than the session checked (`core.unauthenticated`), when a check
+ * does not answer within `revalidateMs` (`core.unavailable`), or at `expiresAt`
+ * (`core.unauthenticated`, 'The session expired.'). The check at the expiry starts one second before
+ * `expiresAt` (never sooner than one second after the previous check started) and races the expiry;
+ * nothing continues the stream past `expiresAt` except a renewal answered before it with a strictly
+ * later `expiresAt` (or none). A session already expired when the function is called ends at once.
+ * The first wait is registered before the function returns; aborting `signal` ends every wait and
+ * returns the loop at once, also from a check that never answers.
  */
 export function keepStreamSession(input: {
   readonly session: InvocationSession;
@@ -34,31 +66,35 @@ export function keepStreamSession(input: {
   readonly end: (error: KeelwerkError) => void;
 }): void {
   const { clock, timers, signal } = input;
-  // The check of a session with an expiry never outlives that expiry: a resolver that does not answer
-  // cannot keep an expired stream open.
-  const isExpired = (session: InvocationSession): boolean =>
-    session.expiresAt !== undefined &&
-    Temporal.Instant.compare(session.expiresAt, clock.now()) <= 0;
-  const checked = async (session: InvocationSession): Promise<Outcome<InvocationSession>> => {
-    const { expiresAt } = session;
-    if (expiresAt === undefined) return await revalidated(session);
+  const isPast = (instant: Temporal.Instant | undefined): boolean =>
+    instant !== undefined && Temporal.Instant.compare(instant, clock.now()) <= 0;
+  // The check races its own ends: the expiry, the bound of one interval and the abort of the stream.
+  // Whichever comes first answers; a wait the abort cut short answers too, and the loop then returns.
+  const checked = async (
+    session: InvocationSession,
+    startedAt: Temporal.Instant,
+  ): Promise<Outcome<InvocationSession>> => {
     const waiting = new AbortController();
-    // The check starts at or after the expiry, so the instant is already past: the renewal gets a
-    // bounded time to answer from the later of the two, never an instant that has already gone by.
-    const now = clock.now();
-    const deadline = (Temporal.Instant.compare(expiresAt, now) > 0 ? expiresAt : now).add({
-      milliseconds: answerMs,
-    });
+    const stop = AbortSignal.any([signal, waiting.signal]);
+    const { expiresAt } = session;
+    const bound = startedAt.add({ milliseconds: Math.max(input.revalidateMs, floorMs) });
+    const wait = (
+      at: Temporal.Instant,
+      error: KeelwerkError,
+    ): Promise<Outcome<InvocationSession>> =>
+      timers.sleepUntil(at, stop).then(() => ({ ok: false as const, error }));
     try {
       return await Promise.race([
         revalidated(session),
-        timers
-          .sleepUntil(deadline, AbortSignal.any([signal, waiting.signal]))
-          .then((reached) =>
-            reached
-              ? { ok: false as const, error: expiredError() }
-              : new Promise<Outcome<InvocationSession>>(() => undefined),
-          ),
+        ...(expiresAt === undefined ? [] : [wait(expiresAt, expiredError())]),
+        ...(expiresAt === undefined || Temporal.Instant.compare(bound, expiresAt) < 0
+          ? [
+              wait(
+                bound,
+                coreError('core.unavailable', { message: 'The session check did not answer.' }),
+              ),
+            ]
+          : []),
       ]);
     } finally {
       waiting.abort();
@@ -66,24 +102,54 @@ export function keepStreamSession(input: {
   };
   void (async () => {
     let session = input.session;
+    // The caller resolved the session just before, which is as good as a check.
+    let previous = clock.now();
     while (!signal.aborted) {
-      if (isExpired(session)) {
+      const { expiresAt } = session;
+      const now = clock.now();
+      if (isPast(expiresAt)) {
         input.end(expiredError());
         return;
       }
-      const at = nextSessionCheckAt(clock.now(), input.revalidateMs, session.expiresAt);
+      let at = nextSessionCheckAt(now, input.revalidateMs, undefined);
+      if (expiresAt !== undefined) {
+        at = earlier(at, later(now, expiresAt.subtract({ milliseconds: answerMs })));
+      }
+      at = later(
+        at,
+        earlier(previous.add({ milliseconds: floorMs }), now.add({ milliseconds: floorMs })),
+      );
+      if (expiresAt !== undefined && Temporal.Instant.compare(at, expiresAt) >= 0) {
+        // The floor reaches the expiry: no check can answer before it.
+        if (await timers.sleepUntil(expiresAt, signal)) input.end(expiredError());
+        return;
+      }
       if (!(await timers.sleepUntil(at, signal))) return;
-      const outcome = await checked(session);
+      if (isPast(expiresAt)) {
+        input.end(expiredError());
+        return;
+      }
+      previous = clock.now();
+      const outcome = await checked(session, previous);
       if (signal.aborted) return;
+      // An answer seen at or after the expiry never continues the stream, even when its timer has not fired yet.
+      if (isPast(expiresAt)) {
+        input.end(expiredError());
+        return;
+      }
       if (!outcome.ok) {
         input.end(outcome.error);
         return;
       }
-      session = outcome.value;
-      if (isExpired(session)) {
-        input.end(expiredError());
+      if (!holdsSameCredentials(session, outcome.value)) {
+        input.end(
+          coreError('core.unauthenticated', {
+            message: 'The session no longer holds the credentials the stream opened with.',
+          }),
+        );
         return;
       }
+      session = outcome.value;
     }
   })();
 }

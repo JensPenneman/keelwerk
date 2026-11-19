@@ -77,20 +77,29 @@ describe('the host ends a mounted stream', () => {
     await freeAgain(open);
   }, 120_000);
 
-  test('a session ends at its expiry even when its renewal still resolves', async () => {
+  test('a renewal without a later expiry ends the stream at the expiry', async () => {
+    let calls = 0;
     const session: InvocationSession = fakeSession({
       expiresAt: start.add({ milliseconds: 10_000 }),
-      revalidate: async () => ({ ok: true, value: session }),
+      revalidate: async () => {
+        calls += 1;
+        return { ok: true, value: session };
+      },
     });
     const { open, move, ended } = mounted(setup, session, {
       maxDurationMs: 86_400_000,
       revalidateMs: 3_600_000,
     });
     const body = drained(await open());
-    await move(9_999);
+    await move(8_999);
+    expect(calls).toBe(0);
+    await move(1);
+    expect(calls).toBe(1);
+    await move(999);
     expect(ended()).toHaveLength(0);
     await move(1);
     await body;
+    expect(calls).toBe(1);
     expect(ended()[0]).toMatchObject({ fields: { reason: 'core.unauthenticated' } });
     await freeAgain(open);
   }, 120_000);
@@ -109,7 +118,8 @@ describe('the host ends a mounted stream', () => {
       revalidateMs: 3_600_000,
     });
     const body = drained(await open());
-    await move(10_000);
+    await move(9_000);
+    await move(1_000);
     expect(ended()).toHaveLength(0);
     await move(9_999);
     expect(ended()).toHaveLength(0);
@@ -118,7 +128,9 @@ describe('the host ends a mounted stream', () => {
     expect(ended()[0]).toMatchObject({ fields: { reason: 'core.unauthenticated' } });
   }, 120_000);
 
-  test('a renewal that answers after a real macrotask still keeps the stream past the first expiry', async () => {
+  test('a renewal that answers after a real macrotask, before the expiry, with a later expiry keeps the stream past the first expiry', async () => {
+    let calls = 0;
+    let answered = false;
     const renewed: InvocationSession = fakeSession({
       expiresAt: start.add({ milliseconds: 20_000 }),
       revalidate: async () => ({ ok: true, value: renewed }),
@@ -126,7 +138,9 @@ describe('the host ends a mounted stream', () => {
     const session: InvocationSession = fakeSession({
       expiresAt: start.add({ milliseconds: 10_000 }),
       revalidate: async () => {
+        calls += 1;
         await new Promise((resolve) => setTimeout(resolve, 20));
+        answered = true;
         return { ok: true, value: renewed };
       },
     });
@@ -135,12 +149,15 @@ describe('the host ends a mounted stream', () => {
       revalidateMs: 3_600_000,
     });
     const body = drained(await open());
-    await move(10_000);
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    await move(0);
+    await move(9_000);
+    expect(calls).toBe(1);
+    await vi.waitFor(() => expect(answered).toBe(true), { timeout: waitMs });
+    await move(1_000);
     expect(ended()).toHaveLength(0);
     expect(record.contextSignals[0]?.aborted).toBe(false);
-    await move(10_000);
+    await move(9_999);
+    expect(ended()).toHaveLength(0);
+    await move(1);
     await body;
     expect(ended()[0]).toMatchObject({ fields: { reason: 'core.unauthenticated' } });
   }, 120_000);

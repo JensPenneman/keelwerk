@@ -14,7 +14,12 @@ export interface RouteRecord {
 export function mounted(
   setup: ReturnType<typeof useHosts>['setup'],
   session: InvocationSession | ((opened: number) => InvocationSession),
-  extra: { maxDurationMs?: number; revalidateMs?: number } = {},
+  extra: {
+    maxDurationMs?: number;
+    revalidateMs?: number;
+    /** Receives the controller of each route body, for a route that keeps enqueuing. */
+    keep?: (controller: ReadableStreamDefaultController<Uint8Array>) => void;
+  } = {},
 ) {
   const time = pinnedTime();
   const lines: LoggedLine[] = [];
@@ -41,7 +46,10 @@ export function mounted(
       record.requestSignals.push(request.signal);
       return new Response(
         new ReadableStream<Uint8Array>({
-          start: (controller) => controller.enqueue(new TextEncoder().encode('data: first\n\n')),
+          start: (controller) => {
+            controller.enqueue(new TextEncoder().encode('data: first\n\n'));
+            extra.keep?.(controller);
+          },
           cancel: () => {
             record.cancelled += 1;
           },

@@ -1,13 +1,13 @@
 import type { LiveServerMessage } from '@keelwerk/core';
 import { expect, test, vi } from 'vitest';
 import type { Caller } from './call.ts';
+import { closeLoansOf } from './close-loans-of.ts';
 import type { EventStreamReader } from './event-stream-reader.ts';
 import { freshName } from './fresh-name.ts';
-import { lendCall } from './lend-call.ts';
+import { lendTitles } from './lend-titles.ts';
 import { liveSocketDialect } from './live-socket-dialect.ts';
 import { originOf } from './origin-of.ts';
 import { requestHeaders } from './request-headers.ts';
-import { sendCall } from './send-call.ts';
 import type { SocketDialect } from './socket-dialect.ts';
 import type { SocketUpgrade } from './socket-upgrade.ts';
 import type { TestSocket } from './test-socket.ts';
@@ -296,9 +296,7 @@ export function liveSocketCases(target: TransportTarget): void {
           expect(await dialect.subscribeTitles(socket, 't')).toEqual({ kind: 'head' });
         }
         const controls = ['reset', 'head', 'gap', 'later'];
-        for (const control of controls) {
-          await sendCall(target, lendCall(adaName, control, { caller: caller(adaName) }));
-        }
+        await lendTitles(target, adaName, caller(adaName), controls);
         for (const socket of [ada, bob]) {
           for (const control of controls) {
             expect(await dialect.frame(socket, 't', 30_000)).toMatchObject({
@@ -309,6 +307,7 @@ export function liveSocketCases(target: TransportTarget): void {
         }
       } finally {
         await Promise.all(sockets.map((socket) => socket.close()));
+        await closeLoansOf(target, adaName, tenant);
       }
     },
     120_000,

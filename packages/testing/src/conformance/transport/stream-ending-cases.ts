@@ -2,8 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { Caller } from './call.ts';
 import type { EventStreamReader } from './event-stream-reader.ts';
 import { freshName } from './fresh-name.ts';
-import { lendCall } from './lend-call.ts';
-import { sendCall } from './send-call.ts';
+import { lendTitles } from './lend-titles.ts';
 import type { StreamEndingBounds } from './stream-ending-bounds.ts';
 import type { StreamEndingRun } from './stream-ending-run.ts';
 import type { StreamFrame } from './stream-frame.ts';
@@ -21,13 +20,15 @@ const hour = 3_600_000;
 const isItem = (frame: StreamFrame): boolean => frame.event === 'data';
 
 /**
- * The four endings of an HTTP stream that the host owns (15.4.5, 16.3.4, 16.3.6), each on a
- * deployment of its own that `start` boots with the bounds the case names, on a pinned clock, so no
- * ending waits on real time and none shares a host: a revoked session within one revalidation
- * interval, an expired session, the maximum duration, the host's stop. Each case subscribes to
- * `loans.loanEvents` through `codec.subscribe` (skipped without one) and proves that the stream ended
- * without an item after the ending, that another subscriber's stream still serves, and that the slot
- * is free again (`maxStreams` 2: a third stream is 429 before the ending and 200 after it).
+ * The endings of an HTTP stream that the host owns (15.4.5, 16.3.4, 16.3.6), each on a deployment of
+ * its own that `start` boots with the bounds the case names, on a pinned clock, so no ending waits
+ * on real time and none shares a host: a revoked session within one revalidation interval (a key,
+ * and a cookie session that its resolver answers as anonymous), an expired session, the maximum
+ * duration, the host's stop. Each case subscribes to `loans.loanTitles` through `codec.subscribe`
+ * (skipped without one), as an auditor who reads every loan of the tenant, and proves that the
+ * stream ended, that a title lent only after the ending is seen reaches the other subscriber (the
+ * positive control) and the ended stream not at all, and that the slot is free again (`maxStreams`
+ * 2: a third stream is 429 before the ending and 200 after it).
  */
 export function streamEndingCases(
   codec: TransportCodec,
@@ -48,9 +49,9 @@ export function streamEndingCases(
       open: async (caller: Caller) => {
         if (subscribe === undefined) throw new Error('The codec has no stream endpoint.');
         const reader = await subscribe(run.target, {
-          action: 'loans.loanEvents',
+          action: 'loans.loanTitles',
           input: {},
-          caller,
+          caller: { roles: ['auditor'], ...caller },
         });
         readers.push(reader);
         return reader;
@@ -87,6 +88,17 @@ export function streamEndingCases(
     }
   };
 
+  /** The frames up to the end of the stream or, when it does not end, up to the first item: a stream that still serves is seen by its item. */
+  const drainedToItem = async (reader: EventStreamReader): Promise<readonly StreamFrame[]> => {
+    const frames: StreamFrame[] = [];
+    for (;;) {
+      const frame = await reader.next(waitMs);
+      if (frame === undefined) return frames;
+      frames.push(frame);
+      if (isItem(frame)) return frames;
+    }
+  };
+
   const slotStatus = async (ctx: Context, subject: string): Promise<number> => {
     const reader = await ctx.open({ subject });
     const { status } = reader.response;
@@ -102,11 +114,14 @@ export function streamEndingCases(
     bob: EventStreamReader,
     bobSubject: string,
   ): Promise<void> => {
-    const after = await drained(ada);
-    expect(after.filter(isItem)).toEqual([]);
-    await sendCall(run.target, lendCall(bobSubject, freshName('Dune')));
+    const ending = await drainedToItem(ada);
+    expect(ending.filter(isItem)).toEqual([]);
+    // Only now, with the ending seen, a title is lent: it must reach bob and never ada.
+    const title = freshName('Dune');
+    await lendTitles(run.target, bobSubject, { subject: bobSubject, roles: ['auditor'] }, [title]);
     const served = await bob.until(isItem, waitMs);
-    expect(served.at(-1)?.event).toBe('data');
+    expect(served.at(-1)).toMatchObject({ event: 'data', data: { control: title } });
+    expect(await ada.next(waitMs)).toBeUndefined();
     expect(await slotStatus(ctx, freshName('carol'))).toBe(200);
   };
 
@@ -120,6 +135,29 @@ export function streamEndingCases(
             const ada = freshName('ada');
             const bob = freshName('bob');
             const adaStream = await headed(ctx, { subject: ada });
+            const bobStream = await headed(ctx, { subject: bob });
+            expect(await slotStatus(ctx, freshName('carol'))).toBe(429);
+            run.target.revoke?.(ada);
+            await run.target.advance?.(5_000);
+            await proveEnded(run, ctx, adaStream, bobStream, bob);
+          },
+        );
+      },
+      120_000,
+    );
+
+    test.skipIf(skip)(
+      'a revoked cookie session, which its resolver answers as anonymous, ends its stream',
+      async () => {
+        await onDeployment(
+          { revalidateMs: 5_000, maxDurationMs: day, maxStreams: 2 },
+          async (run, ctx) => {
+            const ada = freshName('ada');
+            const bob = freshName('bob');
+            const adaStream = await headed(ctx, {
+              cookie: `user:${ada}`,
+              fetchSite: 'same-origin',
+            });
             const bobStream = await headed(ctx, { subject: bob });
             expect(await slotStatus(ctx, freshName('carol'))).toBe(429);
             run.target.revoke?.(ada);
