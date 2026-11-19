@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify
+    name: Verify (checks)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -58,11 +58,6 @@ jobs:
       - name: Typecheck and build (step 3)
         run: pnpm tsc -b
 
-      # Every project that starts no container (the Docker projects are named in the postgres job): unit, type, declaration-emit, transport
-      # conformance and in-memory adapter suites, and the portal scenario in memory.
-      - name: Tests, transport conformance and in-memory adapter suites (steps 4 and 7)
-        run: pnpm vitest run --project '!adapter-postgres-postgres' --project '!app-portal-postgres' --project '!data-postgres' --project '!events-postgres' --project '!module-accounts-postgres' --project '!module-api-keys-postgres' --project '!module-audit-postgres' --project '!module-auth-postgres' --project '!module-members-postgres' --project '!testing-postgres' --project '!spike-write-path'
-
       - name: Generated files are current (step 5)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm keelwerk generate --check
@@ -79,11 +74,58 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm keelwerk surface diff --base origin/main
 
-  postgres:
-    name: PostgreSQL 18 suites
+  # The tests of step 4 and the in-memory suites of step 7, split by Vitest's --shard into one job
+  # per matrix entry. The denominator of SHARD is the number of entries;
+  # scripts/test/ci-workflow.test.ts keeps the two equal.
+  tests:
+    name: Tests (shard ${{ matrix.shard }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # Must run before setup-node: its pnpm cache needs the pnpm binary.
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm tsc -b
+
+      # Every project that starts no container (the Docker projects are named in the postgres job): unit, type, declaration-emit, transport
+      # conformance and in-memory adapter suites, and the portal scenario in memory. vitest.ci.config.ts
+      # adds the slowest tests and the test files in flight to the log.
+      - name: Tests, transport conformance and in-memory adapter suites (steps 4 and 7)
+        env:
+          SHARD: ${{ matrix.shard }}/4
+        run: pnpm exec vitest run --config vitest.ci.config.ts --shard="$SHARD" --project '!adapter-postgres-postgres' --project '!app-portal-postgres' --project '!data-postgres' --project '!events-postgres' --project '!module-accounts-postgres' --project '!module-api-keys-postgres' --project '!module-audit-postgres' --project '!module-auth-postgres' --project '!module-members-postgres' --project '!testing-postgres' --project '!spike-write-path'
+
+  postgres:
+    name: PostgreSQL 18 suites (shard ${{ matrix.shard }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      # The PostgreSQL files use no git history, so this checkout stays shallow.
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -115,8 +157,40 @@ jobs:
       # module-accounts and module-auth sign-up, and the portal scenario, isolation suite,
       # dump test and accelerations-off run, plus the write-path spike. Each project starts
       # its own container in its globalSetup (or beforeAll), so one worker runs at a time.
+      # The files are split over the shards of the matrix.
       - name: Adapter, dual-evaluation and portal suites on PostgreSQL (steps 4 and 7)
-        run: pnpm vitest run --project adapter-postgres-postgres --project app-portal-postgres --project data-postgres --project events-postgres --project module-accounts-postgres --project module-api-keys-postgres --project module-audit-postgres --project module-auth-postgres --project module-members-postgres --project testing-postgres --project spike-write-path --maxWorkers=1
+        env:
+          SHARD: ${{ matrix.shard }}/2
+        run: pnpm exec vitest run --config vitest.ci.config.ts --shard="$SHARD" --project adapter-postgres-postgres --project app-portal-postgres --project data-postgres --project events-postgres --project module-accounts-postgres --project module-api-keys-postgres --project module-audit-postgres --project module-auth-postgres --project module-members-postgres --project testing-postgres --project spike-write-path --maxWorkers=1
+
+  # The gathering jobs keep the check names 'Verify' and 'PostgreSQL 18 suites' that the ruleset of
+  # main may require. They run even when a needed job failed, was cancelled or was skipped (a skipped
+  # required check counts as passing) and fail unless every needed job, every shard included, succeeded.
+  verify-result:
+    name: Verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs: [verify, tests]
+    if: ${{ always() }}
+    steps:
+      - name: Fail when a needed job did not succeed
+        if: ${{ always() && (needs.verify.result != 'success' || needs.tests.result != 'success') }}
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: printf '%s\n' "$RESULTS"; exit 1
+
+  postgres-result:
+    name: PostgreSQL 18 suites
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs: [postgres]
+    if: ${{ always() }}
+    steps:
+      - name: Fail when a needed job did not succeed
+        if: ${{ always() && needs.postgres.result != 'success' }}
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: printf '%s\n' "$RESULTS"; exit 1
 
   budgets:
     name: Type budgets
@@ -187,14 +261,17 @@ jobs:
     name: M1 exit criteria
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    needs: [verify, postgres, budgets, fresh-clone]
-    # A skipped required check counts as passing, so the job runs even when a needed job
-    # failed and then fails itself.
-    if: ${{ !cancelled() }}
+    needs: [verify, verify-result, tests, postgres, postgres-result, budgets, fresh-clone]
+    # A skipped required check counts as passing, so the job runs under always(). Its first step,
+    # also under always(), fails the job when a needed job failed, was cancelled or was skipped,
+    # a cancelled run included.
+    if: ${{ always() }}
     steps:
       - name: Fail when a needed job did not succeed
-        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
-        run: echo '${{ toJSON(needs) }}'; exit 1
+        if: ${{ always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')) }}
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: printf '%s\n' "$RESULTS"; exit 1
 
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
