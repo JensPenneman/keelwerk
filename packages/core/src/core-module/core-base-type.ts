@@ -1,6 +1,7 @@
 import type { Entity } from '../dsl/define-entity.ts';
 import type { StreamDeclaration } from '../dsl/define-stream.ts';
 import type { ExtensionPoint } from '../dsl/extension-point.ts';
+import type { QuotaDimension } from '../dsl/quota.ts';
 import type { AdmissionRule } from '../edge/admission-rule.ts';
 import type { PrincipalEnricher } from '../edge/principal-enricher.ts';
 import type { PrincipalResolver } from '../edge/principal-resolver.ts';
@@ -74,6 +75,18 @@ export interface CoreBase {
     // Declared `single({ min: 0 })`: it reads `LiveHub | undefined`, since an app without the live module has no hub.
     readonly liveHub: ExtensionPoint<LiveHub, 'single', true>;
     readonly liveCarriers: ExtensionPoint<LiveCarrier, 'set'>;
+  };
+  readonly quotas: {
+    readonly rows: QuotaDimension<'count'>;
+    readonly eventBytes: QuotaDimension<'bytes'>;
+    readonly requestRate: QuotaDimension<'rate'>;
+    readonly principalRequestRate: QuotaDimension<'rate'>;
+    readonly commandRate: QuotaDimension<'rate'>;
+    readonly queryRate: QuotaDimension<'rate'>;
+    readonly subscribeRate: QuotaDimension<'rate'>;
+    readonly concurrentInvocations: QuotaDimension<'count'>;
+    readonly liveSubscriptions: QuotaDimension<'count'>;
+    readonly liveConnections: QuotaDimension<'count'>;
   };
   readonly entities: {
     readonly backend: Entity<

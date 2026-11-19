@@ -7,6 +7,7 @@ import type { LiveCarrier } from '../live/live-carrier.ts';
 import type { LiveHub } from '../live/live-hub.ts';
 import type { TransportAdapter } from '../transport/transport-adapter.ts';
 import type { CoreBase } from './core-base-type.ts';
+import { coreQuotas } from './core-quotas.ts';
 import { backend } from './entities/backend.ts';
 import { commandReceipt } from './entities/command-receipt.ts';
 import { domain } from './entities/domain.ts';
@@ -44,4 +45,5 @@ export const coreBase: CoreBase = defineModuleBase({
     flag,
   },
   streams: { effectAttempt },
+  quotas: coreQuotas,
 });
