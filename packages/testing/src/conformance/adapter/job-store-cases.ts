@@ -3,6 +3,7 @@ import { conformanceScopes } from '@keelwerk/data/conformance';
 import { describe, expect, test } from 'vitest';
 import type { ConformanceSubject } from './conformance-subject.ts';
 import { jobStoreHelpers } from './job-store-helpers.ts';
+import { jobStoreLaneWeightCases } from './job-store-lane-weight-cases.ts';
 import { jobStorePendingCases } from './job-store-pending-cases.ts';
 import { jobStoreTenantCases } from './job-store-tenant-cases.ts';
 
@@ -35,6 +36,7 @@ export function jobStoreCases(subject: Pick<ConformanceSubject, 'run' | 'clock'>
   describe('job store (9.5, 14.3.9)', () => {
     jobStoreTenantCases(subject);
     jobStorePendingCases(subject);
+    jobStoreLaneWeightCases(subject);
 
     test('a taken job carries its spec, its scope and the attempt the worker holds', async () => {
       const [id] = await enqueue([

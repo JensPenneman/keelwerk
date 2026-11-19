@@ -63,7 +63,7 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
       capabilitySet,
       priority,
       cap: spec.laneCap,
-      weight: 1,
+      weight: spec.laneWeight ?? 1,
       taken: 0,
       vtime: 0,
       enqueued: 0,
@@ -71,7 +71,11 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
     };
     tables.putLane(laneKey, lane);
   } else {
-    tables.putLane(laneKey, { ...existingLane, cap: spec.laneCap });
+    tables.putLane(laneKey, {
+      ...existingLane,
+      cap: spec.laneCap,
+      weight: spec.laneWeight ?? existingLane.weight,
+    });
   }
 
   const runAt = spec.runAt ?? now;
@@ -133,11 +137,13 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
   const state = follower ? 'waiting' : due ? 'available' : 'scheduled';
   ctx.state.sequences.job += 1;
   const id = ctx.state.sequences.job;
+  // The weight lives on the lane; like the SQL adapter, the stored spec does not keep it.
+  const { laneWeight: _laneWeight, ...stored } = spec;
   tables.putJob({
     id,
     scopeId,
     laneKey,
-    spec,
+    spec: stored,
     state,
     runAt,
     worker: null,

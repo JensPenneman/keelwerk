@@ -5,6 +5,8 @@ import { coreError } from '../http/core-error.ts';
 import type { Job } from '../jobs/job.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { Logger } from '../observability/logger.ts';
+import { laneLimitsOf } from '../quotas/lane-limits-of.ts';
+import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import type { WorkClassStats } from '../storage/work-class-stats.ts';
 import type { HeldJob } from './held-job.ts';
 import { jobLeaseLost } from './job-lease-lost.ts';
@@ -17,8 +19,6 @@ import { sourceReadiness } from './source-readiness.ts';
 
 /** The tick never waits longer than this on the wall clock. */
 const maxTickMs = 1000;
-/** The lane cap of a queue the kernel upserts; the runtime's queue limits replace it (WP-36). */
-const laneCap = 4;
 
 /** What the kernel queue is built from. */
 export interface KernelQueueOptions {
@@ -32,6 +32,8 @@ export interface KernelQueueOptions {
   readonly random?: () => number;
   /** `queues.<q>.takeLanes`; default the batch size. */
   readonly takeLanes?: Readonly<Record<string, number>>;
+  /** The queue limits of section 12.2 for the lanes of the jobs it enqueues; without them the default lane cap. */
+  readonly quotas?: Pick<QuotaLimits, 'queueOf'>;
 }
 
 /**
@@ -205,7 +207,7 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
       unit.jobs.enqueue({
         ...job,
         kind: 'action' in job.run ? 'action' : 'effect',
-        laneCap,
+        ...laneLimitsOf(options.quotas?.queueOf(job.scope, job.queue)),
         createdAt: clock.now(),
       }),
     cancel: (queue, key, unit) => unit.jobs.cancel(queue, key),

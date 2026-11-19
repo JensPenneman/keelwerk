@@ -101,6 +101,7 @@ export function sqlJobStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): SqlJo
           capabilitySet: jobCapabilitySet(spec.capability),
           priority: jobPriority(spec.priority),
           cap: spec.laneCap,
+          ...(spec.laneWeight === undefined ? {} : { weight: spec.laneWeight }),
         });
         const runAt = spec.runAt ?? now;
         const due = Temporal.Instant.compare(runAt, now) <= 0;

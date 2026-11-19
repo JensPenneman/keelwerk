@@ -1,13 +1,12 @@
 import type { ActorRef } from '../principals/actor-ref.ts';
 import type { Principal } from '../principals/principal.ts';
+import { laneLimitsOf } from '../quotas/lane-limits-of.ts';
+import type { QueueLimits } from '../quotas/queue-limits.ts';
 import type { ReactionLineage } from '../reactions/reaction-lineage.ts';
 import type { Scope } from '../storage/scope.ts';
 import type { StoredJobSpec } from '../storage/stored-job-spec.ts';
 import { checkServiceCaller } from './check-service-caller.ts';
 import { principalRefOf } from './principal-ref-of.ts';
-
-/** The lane cap of a queue the kernel upserts; the runtime's queue limits replace it (WP-36). */
-const laneCap = 4;
 
 /** What the common members of a job row are built from. */
 export interface JobInputOptions {
@@ -32,6 +31,8 @@ export interface JobInputOptions {
   /** The API version the input is expressed in (external callers). */
   readonly apiVersion?: string;
   readonly now: Temporal.Instant;
+  /** `queues.<q>` of the job's queue in its scope; absent: the default lane cap and no weight. */
+  readonly limits?: QueueLimits;
 }
 
 /**
@@ -43,13 +44,20 @@ export function jobInput(
   options: JobInputOptions,
 ): Pick<
   StoredJobSpec,
-  'laneCap' | 'createdAt' | 'scope' | 'principal' | 'causation' | 'build' | 'apiVersion'
+  | 'laneCap'
+  | 'laneWeight'
+  | 'createdAt'
+  | 'scope'
+  | 'principal'
+  | 'causation'
+  | 'build'
+  | 'apiVersion'
 > {
   const { principal } = options;
   if (options.action !== undefined) checkServiceCaller(principal, options.action, options.caller);
   const ref = principalRefOf(principal);
   return {
-    laneCap,
+    ...laneLimitsOf(options.limits),
     createdAt: options.now,
     scope: options.scope,
     principal: ref,

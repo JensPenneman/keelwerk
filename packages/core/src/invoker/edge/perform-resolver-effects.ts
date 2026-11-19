@@ -18,14 +18,12 @@ import type { JobGroup } from '../../jobs/job-group.ts';
 import type { Principal } from '../../principals/principal.ts';
 import type { PrincipalRef } from '../../principals/principal-ref.ts';
 import type { AnyEffect } from '../../protocol/any-effect.ts';
+import { laneLimitsOf } from '../../quotas/lane-limits-of.ts';
 import { moduleServicePrincipal } from '../../reactions/module-service-principal.ts';
 import type { ActionEntry } from '../../registry/action-entry.ts';
 import type { StoredJobSpec } from '../../storage/stored-job-spec.ts';
 import type { InvokerEnv } from '../invoker-env.ts';
 import type { ScopeTarget } from '../scope-target.ts';
-
-/** The lane cap of a queue the invoker upserts; the runtime's queue limits replace it (WP-36). */
-const laneCap = 4;
 
 function idOf(principal: Principal): string {
   if (principal.kind === 'user') return String(principal.subject);
@@ -61,7 +59,7 @@ function jobOf(
   };
   const common = {
     kind: 'action',
-    laneCap,
+    ...laneLimitsOf(undefined),
     createdAt: env.options.clock.now(),
     scope: target.scope,
     principal: principalRef,
