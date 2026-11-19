@@ -1,4 +1,4 @@
-import { coreError } from '@keelwerk/core/http';
+import { coreError, readBoundedBody } from '@keelwerk/core/http';
 import { graphqlParamsOf } from './graphql-params-of.ts';
 import type { GraphqlRequestBody } from './graphql-request-body.ts';
 
@@ -6,32 +6,12 @@ function malformed(message: string): Error {
   return coreError('core.malformed_request', { message });
 }
 
-function tooLarge(maxBodyBytes: number): Error {
-  return coreError('core.payload_too_large', {
-    message: `The request body is larger than ${maxBodyBytes} bytes.`,
-  });
-}
-
-/** The body as text, never reading beyond the bound: the declared length is checked first, then the bytes as they arrive. */
+/** The body as text: the bytes bounded by `readBoundedBody`, then decoded as strict UTF-8. */
 async function boundedText(request: Request, maxBodyBytes: number): Promise<string> {
-  const declared = Number(request.headers.get('content-length') ?? Number.NaN);
-  if (Number.isFinite(declared) && declared > maxBodyBytes) throw tooLarge(maxBodyBytes);
-  if (request.body === null) return '';
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > maxBodyBytes) {
-      await reader.cancel();
-      throw tooLarge(maxBodyBytes);
-    }
-    chunks.push(value);
-  }
+  const bytes = await readBoundedBody(request, maxBodyBytes);
+  if (bytes === undefined) return '';
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {
     throw malformed('The request body is not valid UTF-8.');
   }

@@ -1,1 +1,14 @@
+export { checkTrpcSurface } from './check/check-trpc-surface.ts';
+export { createTrpcAdapter } from './create-trpc-adapter.ts';
+export type { TrpcErrorShape } from './errors/trpc-error-shape.ts';
+export { trpc } from './module.ts';
+export { buildTrpcRouter } from './router/build-trpc-router.ts';
+export { keelwerkSuperjson } from './transformer/keelwerk-superjson.ts';
+export type { TrpcConfig } from './trpc-config.ts';
+export type { TrpcModule } from './trpc-module.ts';
+export type { TrpcStaticOptions } from './trpc-static-options.ts';
+export { trpcTransport } from './trpc-transport.ts';
+export type { TrpcFrame } from './types/trpc-frame.ts';
+export type { TrpcRouterOf } from './types/trpc-router-of.ts';
+export type { TrpcStreamItem } from './types/trpc-stream-item.ts';
 export { version } from './version.ts';

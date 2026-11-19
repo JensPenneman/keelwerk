@@ -107,19 +107,8 @@
       "ignoreDependencies": ["@keelwerk/live"]
     },
     "packages/transport-trpc": {
-      "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts"],
-      "ignoreDependencies": [
-        "@keelwerk/core",
-        "@keelwerk/live",
-        "@keelwerk/testing",
-        "@keelwerk/transport-http",
-        "@trpc/client",
-        "@trpc/server",
-        "@types/ws",
-        "eventsource",
-        "superjson"
-      ]
+      "entry": ["src/**/*.test-d.ts", "test/**/*.test-d.ts"],
+      "project": ["src/**/*.ts", "test/support/*.ts"]
     },
     "packages/transport-orpc": {
       "entry": ["src/**/*.test-d.ts"],

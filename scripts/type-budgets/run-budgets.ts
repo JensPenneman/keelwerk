@@ -12,6 +12,7 @@ import { emitModuleDeclarations } from './emit-module-declarations.ts';
 import { type Budgets, evaluateBudgets, type Measurements } from './evaluate-budgets.ts';
 import { measureInstantiations } from './measure-instantiations.ts';
 import { measureProgram } from './measure-program.ts';
+import { measureTrpcRouter } from './measure-trpc-router.ts';
 import { runTsc } from './run-tsc.ts';
 
 const repo = fileURLToPath(new URL('../..', import.meta.url));
@@ -20,6 +21,11 @@ const COUNTS: readonly number[] = [3, 12, 25, 40];
 function read<T>(path: string): T {
   return JSON.parse(readFileSync(path, 'utf8')) as T;
 }
+
+/** Apps whose figure is not the size of a program of files: a measurement of their own, by name. */
+const measuredApart: Readonly<Record<string, (repo: string, scratch: string) => number>> = {
+  'trpc-router-25': measureTrpcRouter,
+};
 
 function measure(budgets: Budgets, scratch: string): Measurements {
   const core = runTsc(repo, ['-b', 'packages/core'], repo);
@@ -34,7 +40,7 @@ function measure(budgets: Budgets, scratch: string): Measurements {
     apps: Object.fromEntries(
       Object.entries(budgets.apps).map(([name, app]) => [
         name,
-        measureProgram(repo, app.include, scratch),
+        measuredApart[name]?.(repo, scratch) ?? measureProgram(repo, app.include, scratch),
       ]),
     ),
     modulePackages: modules.sizes,

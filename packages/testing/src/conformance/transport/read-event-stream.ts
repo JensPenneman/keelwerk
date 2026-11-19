@@ -3,7 +3,12 @@ import type { StreamFrame } from './stream-frame.ts';
 
 const defaultMs = 10_000;
 
-/** One block of the stream (the text between two blank lines) as a frame; comments and blocks with no event are skipped. */
+/**
+ * One block of the stream (the text between two blank lines) as a frame. A block with data lines and
+ * no `event:` line is a `message`, the default of server-sent events, unless every data line is empty:
+ * such a block dispatches nothing, as server-sent events do, like a block with no data at all (a
+ * comment, a keep-alive, an id alone). A named event whose data lines are all empty carries no data.
+ */
 function frameOf(block: string): StreamFrame | undefined {
   let event: string | undefined;
   let id: string | undefined;
@@ -17,10 +22,13 @@ function frameOf(block: string): StreamFrame | undefined {
     else if (name === 'id') id = value;
     else if (name === 'data') data.push(value);
   }
-  if (event === undefined) return undefined;
   // An event whose data lines are all empty (GraphQL over SSE's `complete`) carries no data.
-  const text = data.join('\n');
-  return { event, id, data: text === '' ? undefined : JSON.parse(text) };
+  const empty = data.every((line) => line === '');
+  if (event === undefined) {
+    if (empty) return undefined;
+    event = 'message';
+  }
+  return { event, id, data: empty ? undefined : JSON.parse(data.join('\n')) };
 }
 
 /**

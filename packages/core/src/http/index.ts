@@ -12,6 +12,7 @@ export { encodeFrames } from './encode-frames.ts';
 export { isCommandId } from './is-command-id.ts';
 export { keepMasked } from './keep-masked.ts';
 export { problemTitles } from './problem-titles.ts';
+export { readBoundedBody } from './read-bounded-body.ts';
 export { signalOf } from './signal-of.ts';
 export { statusOfError } from './status-of-error.ts';
 export { wwwAuthenticateValue } from './www-authenticate-value.ts';
