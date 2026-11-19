@@ -27,9 +27,13 @@ function drawOf(limit: RateBucket['limit']): number {
 /**
  * A process's allowance of the shared rate buckets (S-143, decision 156): a request that finds the
  * bucket's tokens held takes one without a store round trip; a request that does not draws up to
- * a tenth of the bucket's capacity (at most 10 tokens) in the same unit that takes its own. Held
- * tokens lapse `holdMs` after the draw and are never returned, so across processes at most
- * `n - 1` tokens per process are lost or spent early.
+ * a tenth of the bucket's capacity (at most 10 tokens) in the same unit that takes its own, and
+ * while that draw is in flight the requests that miss take one token each, so a process never
+ * holds more than one draw per bucket. Held tokens lapse `holdMs` after the draw and are never
+ * returned to the store, so across processes at most `n - 1` tokens per process are lost or spent
+ * early. The buckets of a request are taken in the order given and the first refusal stops the
+ * rest: a refused request spends no token of the buckets after the one that refused, and the
+ * tokens it already took go back into the process's own held tokens.
  */
 export function createProcessAllowance(options: {
   readonly clock: Clock;
@@ -41,6 +45,7 @@ export function createProcessAllowance(options: {
   const holdMs = options.holdMs ?? defaultHoldMs;
   const most = options.most ?? defaultMost;
   const held = new Map<string, Held>();
+  const drawing = new Set<string>();
   const freshOf = (entry: Held | undefined, now: Temporal.Instant): entry is Held =>
     entry !== undefined && now.since(entry.takenAt).total('milliseconds') < holdMs;
   const remember = (name: string, entry: Held): void => {
@@ -52,85 +57,122 @@ export function createProcessAllowance(options: {
       held.delete(oldest.value);
     }
   };
+  /** Takes a held token when the bucket holds one that has not lapsed. */
+  const takeHeld = (name: string): boolean => {
+    const entry = held.get(name);
+    if (!freshOf(entry, options.clock.now()) || entry.tokens < 1) return false;
+    entry.tokens -= 1;
+    remember(name, entry);
+    return true;
+  };
+  /** Puts a held token back; a bucket whose tokens lapsed or were dropped gets nothing. */
+  const putBack = (name: string): void => {
+    const entry = held.get(name);
+    if (freshOf(entry, options.clock.now())) entry.tokens += 1;
+  };
+  /**
+   * Adds the tokens a draw left to what is held now: requests that overlap each add their own,
+   * and the entry's time never moves back to an earlier request's start. An entry that lapsed
+   * while the unit ran counts as 0 and the new tokens are dated from the start of their request.
+   */
+  const settle = (name: string, tokens: number, started: Temporal.Instant): void => {
+    const current = held.get(name);
+    const live = freshOf(current, options.clock.now());
+    const takenAt =
+      live && Temporal.Instant.compare(current.takenAt, started) > 0 ? current.takenAt : started;
+    remember(name, { tokens: (live ? current.tokens : 0) + tokens, takenAt });
+  };
 
   return {
     async take(target, buckets, dry) {
-      const now = options.clock.now();
-      let wait: number | undefined;
-      const refuse = (seconds: number): void => {
-        wait = Math.max(wait ?? 0, seconds);
-      };
-      const names = new Map<RateBucket, string>();
-      const valid: RateBucket[] = [];
-      for (const bucket of buckets) {
-        if (usable(bucket.limit)) {
-          valid.push(bucket);
-          names.set(bucket, `${target.namespace.id}\u0000${bucket.key}`);
-        } else refuse(1);
-      }
-      const nameOf = (bucket: RateBucket): string => names.get(bucket) ?? bucket.key;
-      const pending: { bucket: RateBucket; fresh: boolean }[] = [];
+      const started = options.clock.now();
+      if (buckets.some((bucket) => !usable(bucket.limit))) return 1;
+      const names = buckets.map((bucket) => `${target.namespace.id}\u0000${bucket.key}`);
       if (dry) {
-        for (const bucket of valid) {
-          const entry = held.get(nameOf(bucket));
-          if (freshOf(entry, now) && entry.tokens >= 1) continue;
-          pending.push({ bucket, fresh: false });
-        }
-        if (pending.length > 0) {
-          await target.handle.adapter.unit(
-            target.namespace,
-            target.scope,
-            async (unit) => {
-              for (const { bucket } of pending) {
-                const read = await unit.buckets.check(bucket.key, 1, bucket.limit);
-                if (!read.ok) refuse(read.retryAfter ?? 1);
+        const pending = buckets.filter((_bucket, at) => {
+          const entry = held.get(names[at] ?? '');
+          return !(freshOf(entry, started) && entry.tokens >= 1);
+        });
+        if (pending.length === 0) return undefined;
+        let wait: number | undefined;
+        await target.handle.adapter.unit(
+          target.namespace,
+          target.scope,
+          async (unit) => {
+            wait = undefined;
+            for (const bucket of pending) {
+              const read = await unit.buckets.check(bucket.key, 1, bucket.limit);
+              if (!read.ok) {
+                wait = read.retryAfter ?? 1;
+                return;
               }
-            },
-            { readOnly: true },
-          );
-        }
+            }
+          },
+          { readOnly: true },
+        );
         return wait;
       }
-      valid.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-      for (const bucket of valid) {
-        const name = nameOf(bucket);
+      // Held tokens come first, in order, up to the first bucket that needs the store.
+      const heldNames: string[] = [];
+      let next = 0;
+      while (next < buckets.length) {
+        const name = names[next] ?? '';
+        if (!takeHeld(name)) break;
+        heldNames.push(name);
+        next += 1;
+      }
+      if (next === buckets.length) return undefined;
+      // This request draws up to n tokens of a bucket that was fresh and empty when it began, unless
+      // another request of this process is drawing already: one draw per bucket is in flight.
+      const marked: string[] = [];
+      const costs = buckets.map((bucket, at) => {
+        const name = names[at] ?? '';
         const entry = held.get(name);
-        const fresh = freshOf(entry, now);
-        if (fresh && entry.tokens >= 1) {
-          entry.tokens -= 1;
-          remember(name, entry);
-        } else pending.push({ bucket, fresh });
-      }
-      if (pending.length === 0) return wait;
-      const drawn: { name: string; cost: number }[] = [];
-      const refused: number[] = [];
-      await target.handle.adapter.unit(target.namespace, target.scope, async (unit) => {
-        drawn.length = 0;
-        refused.length = 0;
-        for (const { bucket, fresh } of pending) {
-          let cost = fresh ? drawOf(bucket.limit) : 1;
-          let taken = await unit.buckets.take(bucket.key, cost, bucket.limit);
-          if (!taken.ok && cost > 1) {
-            cost = 1;
-            taken = await unit.buckets.take(bucket.key, cost, bucket.limit);
-          }
-          if (taken.ok) drawn.push({ name: nameOf(bucket), cost });
-          else refused.push(taken.retryAfter ?? 1);
-        }
+        if (at < next || !freshOf(entry, started) || entry.tokens >= 1 || drawing.has(name))
+          return 1;
+        drawing.add(name);
+        marked.push(name);
+        return drawOf(bucket.limit);
       });
-      const after = options.clock.now();
-      for (const { name, cost } of drawn) {
-        // Requests that overlap each add their draw to what is held now, never over it,
-        // and the entry's time never moves back.
-        const current = held.get(name);
-        const base = freshOf(current, after) ? current.tokens : 0;
-        const takenAt =
-          current !== undefined && Temporal.Instant.compare(current.takenAt, now) > 0
-            ? current.takenAt
-            : now;
-        remember(name, { tokens: base + cost - 1, takenAt });
+      const drawn: { name: string; cost: number }[] = [];
+      let wait: number | undefined;
+      try {
+        await target.handle.adapter.unit(target.namespace, target.scope, async (unit) => {
+          // A unit that runs again starts from nothing: what an earlier attempt took is given back.
+          for (const name of heldNames.splice(next)) putBack(name);
+          drawn.length = 0;
+          wait = undefined;
+          for (let at = next; at < buckets.length; at += 1) {
+            const bucket = buckets[at];
+            const name = names[at];
+            if (bucket === undefined || name === undefined) continue;
+            if (takeHeld(name)) {
+              heldNames.push(name);
+              continue;
+            }
+            let cost = costs[at] ?? 1;
+            let taken = await unit.buckets.take(bucket.key, cost, bucket.limit);
+            if (!taken.ok && cost > 1) {
+              cost = 1;
+              taken = await unit.buckets.take(bucket.key, cost, bucket.limit);
+            }
+            if (!taken.ok) {
+              wait = taken.retryAfter ?? 1;
+              return;
+            }
+            drawn.push({ name, cost });
+          }
+        });
+      } catch (error) {
+        for (const name of heldNames) putBack(name);
+        for (const name of marked) drawing.delete(name);
+        throw error;
       }
-      for (const seconds of refused) refuse(seconds);
+      for (const name of marked) drawing.delete(name);
+      // The one token the refused request did not spend stays held with the rest of its draw.
+      for (const { name, cost } of drawn)
+        settle(name, wait === undefined ? cost - 1 : cost, started);
+      if (wait !== undefined) for (const name of heldNames) putBack(name);
       return wait;
     },
   };

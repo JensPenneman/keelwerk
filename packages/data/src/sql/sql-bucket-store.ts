@@ -71,18 +71,22 @@ export function sqlBucketStore(ctx: SqlUnitContext): BucketStore {
           .where('bucket', '=', key)
           .forUpdate()
           .executeTakeFirstOrThrow();
-        // Read after the lock: a take that waited for another must not write an older instant over it.
+        // Read after the lock: a take that waited for another must not write an older instant over
+        // it, and neither may a take from a process whose clock is behind the row's: the row's time
+        // never moves back, or the next take from a clock that is ahead would be credited the
+        // difference again.
         const at = ctx.clock.now();
-        const elapsed =
-          Math.max(0, at.epochMilliseconds - decodeInstant(row.refilled_at).epochMilliseconds) /
-          1000;
+        const refilledAt = decodeInstant(row.refilled_at);
+        const elapsed = Math.max(0, at.epochMilliseconds - refilledAt.epochMilliseconds) / 1000;
         const available = Math.min(capacity, Number(row.tokens) + elapsed * refillPerSecond);
         const granted = available >= cost;
         await db
           .updateTable(table)
           .set({
             tokens: granted ? available - cost : available,
-            refilled_at: encodeInstant(at),
+            refilled_at: encodeInstant(
+              Temporal.Instant.compare(at, refilledAt) > 0 ? at : refilledAt,
+            ),
           })
           .where('bucket', '=', key)
           .execute();

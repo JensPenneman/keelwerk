@@ -14,11 +14,12 @@ export interface SqlJobLaneKey {
 }
 
 /**
- * The id of the lane of the unit's scope, created with its weight (1 when none is given) and its two counter rows when it
- * is new (S-07). The common path is one read: a lane that exists with the same cap is not written,
- * because a write would hold its row lock until the unit ends and make every taker skip the lane
- * while an enqueue burst lasts (9.5.2). A changed cap or a given weight that differs is written, as the cap; a lane another unit creates at
- * the same time is found again after the insert loses.
+ * The id of the lane of the unit's scope, created with its weight (1 when none is given) and its
+ * two counter rows when it is new (S-07). The common path is one read: a lane that exists with the
+ * same cap is not written, because a write would hold its row lock until the unit ends and make
+ * every taker skip the lane while an enqueue burst lasts (9.5.2). A changed cap, or a given weight
+ * that differs from the lane's, is written; a lane another unit creates at the same time is found
+ * again after the insert loses.
  */
 export async function sqlJobLane(ctx: SqlUnitContext, key: SqlJobLaneKey): Promise<string> {
   const root = quoteIdentifier(ctx.namespace.root);

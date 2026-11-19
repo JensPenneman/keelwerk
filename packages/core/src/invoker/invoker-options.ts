@@ -68,7 +68,7 @@ export interface InvokerOptions {
   readonly meter?: Meter;
   /** Counts requests (S-144); without it nothing is counted. */
   readonly apiUsage?: Pick<ControlApiUsage, 'record'>;
-  /** The quota limits of section 12.2; without them nothing is limited. */
+  /** The resolved quota limits (12.2); without it nothing is limited. */
   readonly quotas?: QuotaLimits;
   /** The command write path (WP-38); without it a command is `not_implemented`. */
   readonly commands?: CommandRunner;

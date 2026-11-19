@@ -30,6 +30,7 @@ import { rowCases } from './row-cases.ts';
 import { rowIsolationCases } from './row-isolation-cases.ts';
 import { scheduleCases } from './schedule-cases.ts';
 import { serialCases } from './serial-cases.ts';
+import { storeBucketSkewCases } from './store-bucket-skew-cases.ts';
 import { storeCases } from './store-cases.ts';
 import { storeIsolationCases } from './store-isolation-cases.ts';
 import { streamRecordCases } from './stream-record-cases.ts';
@@ -104,6 +105,7 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('timeouts', () => timeoutCases(subject));
     describe('rows', () => rowCases(subject));
     describe('stores', () => storeCases(subject));
+    describe('bucket clocks', () => storeBucketSkewCases(subject));
     describe('row isolation', () => rowIsolationCases(subject));
     describe('store isolation', () => storeIsolationCases(subject));
     describe('event store', () => eventStoreCases(subject));

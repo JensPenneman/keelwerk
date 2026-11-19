@@ -30,6 +30,39 @@ describe('lane limits of a job (section 12.2)', () => {
     });
   });
 
+  test('a cap and a weight are whole numbers inside the integer columns', () => {
+    const limits = (running: number, weight: number) => ({ running, queued: 10, weight });
+    expect(laneLimitsOf(limits(0, 1))).toEqual({ laneCap: 0, laneWeight: 1 });
+    expect(laneLimitsOf(limits(-1, -1))).toEqual({ laneCap: 0, laneWeight: 1 });
+    expect(laneLimitsOf(limits(2.7, 2.7))).toEqual({ laneCap: 2, laneWeight: 2 });
+    expect(laneLimitsOf(limits(2 ** 40, 2 ** 40))).toEqual({
+      laneCap: 2_147_483_647,
+      laneWeight: 2_147_483_647,
+    });
+    expect(laneLimitsOf(limits(2_147_483_647, 2_147_483_647))).toEqual({
+      laneCap: 2_147_483_647,
+      laneWeight: 2_147_483_647,
+    });
+  });
+
+  test('a running that is not finite gives cap 4 and a weight that is not finite gives none', () => {
+    const limits = (running: number, weight: number) => ({ running, queued: 10, weight });
+    expect(laneLimitsOf(limits(Number.NaN, 3))).toEqual({ laneCap: 4, laneWeight: 3 });
+    expect(laneLimitsOf(limits(Number.POSITIVE_INFINITY, 3))).toEqual({
+      laneCap: 4,
+      laneWeight: 3,
+    });
+    expect(laneLimitsOf(limits(Number.NEGATIVE_INFINITY, 3))).toEqual({
+      laneCap: 4,
+      laneWeight: 3,
+    });
+    for (const weight of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      const lane = laneLimitsOf(limits(6, weight));
+      expect(lane).toEqual({ laneCap: 6 });
+      expect('laneWeight' in lane).toBe(false);
+    }
+  });
+
   test('jobInput carries the lane limits it is given', () => {
     const base = {
       scope,

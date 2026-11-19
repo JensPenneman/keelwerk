@@ -5,7 +5,10 @@ export interface StoredJobSpec extends JobSpec {
   readonly kind: 'action' | 'effect';
   /** `queues.<q>.running` for an upserted lane (section 9.5.2). */
   readonly laneCap: number;
-  /** `queues.<q>.weight` for an upserted lane (section 12.2); absent: 1 for a new lane, an existing lane keeps its weight. */
+  /**
+   * `queues.<q>.weight` for an upserted lane (section 12.2); absent: 1 for a new lane, an existing
+   * lane keeps its weight.
+   */
   readonly laneWeight?: number;
   readonly createdAt: Temporal.Instant;
 }

@@ -38,6 +38,20 @@ async function setup(capacities: Readonly<Record<string, number>>) {
 }
 
 const asOther = { ...ada, headers: { ...ada.headers, 'x-tenant': otherTenantId } };
+const signedIn = (subject: string) => ({
+  ...ada,
+  headers: { ...ada.headers, authorization: `Bearer tok-${subject}` },
+});
+const fromAddress = (address: string) => ({
+  transport: 'test',
+  headers: { 'x-tenant': tenantId },
+  connection: {
+    id: `c-${address}`,
+    listener: 'http',
+    remote: { address, port: 40_000 },
+    local: { address: '10.0.0.1', port: 443 },
+  },
+});
 
 describe('request rate (section 12.2)', () => {
   test('tenant A over its request rate gets rate_limited with retryAfter while tenant B is served', async () => {
@@ -66,5 +80,49 @@ describe('request rate (section 12.2)', () => {
       adapter.unit(namespace, tenant, (unit) => unit.buckets.check(stored, cost, limits));
     expect((await level(99)).ok).toBe(true);
     expect((await level(100)).ok).toBe(false);
+  });
+
+  test('a user over the principal rate spends nothing of the tenant rate, so other users are served', async () => {
+    const { invoker, probe } = await setup({
+      'core.principalRequestRate': 2,
+      'core.requestRate': 5,
+    });
+    let served = 0;
+    for (let n = 0; n < 20; n++) {
+      const result = await invoker.invoke(call(probe.ref, { who: 'x' }, { carrier: ada }));
+      if (result.ok) served += 1;
+    }
+    expect(served).toBe(2);
+    for (const subject of ['bob', 'eve']) {
+      for (let n = 0; n < 2; n++) {
+        const result = await invoker.invoke(
+          call(probe.ref, { who: 'x' }, { carrier: signedIn(subject) }),
+        );
+        expect(result.ok).toBe(n < (subject === 'bob' ? 2 : 1));
+      }
+    }
+  });
+
+  test('anonymous callers spend their own address share, so the users of the tenant are served', async () => {
+    const { invoker, probe } = await setup({
+      'core.principalRequestRate': 2,
+      'core.requestRate': 5,
+    });
+    let served = 0;
+    for (let n = 0; n < 20; n++) {
+      const result = await invoker.invoke(
+        call(probe.ref, { who: 'x' }, { carrier: fromAddress('203.0.113.7') }),
+      );
+      if (result.ok) served += 1;
+    }
+    expect(served).toBe(2);
+    const elsewhere = await invoker.invoke(
+      call(probe.ref, { who: 'x' }, { carrier: fromAddress('203.0.113.8') }),
+    );
+    expect(elsewhere.ok).toBe(true);
+    for (let n = 0; n < 2; n++) {
+      const result = await invoker.invoke(call(probe.ref, { who: 'x' }, { carrier: ada }));
+      expect(result.ok).toBe(true);
+    }
   });
 });

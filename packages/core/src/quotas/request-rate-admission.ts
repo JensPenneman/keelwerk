@@ -18,7 +18,8 @@ const classRate = {
   subscription: 'core.subscribeRate',
 } as const;
 
-function principalKeyOf(principal: Principal): string | undefined {
+/** The name of the principal's own bucket: an anonymous caller is told apart by its address. */
+function principalKeyOf(principal: Principal, address: string | undefined): string | undefined {
   switch (principal.kind) {
     case 'user':
       return `user:${String(principal.subject)}`;
@@ -26,15 +27,20 @@ function principalKeyOf(principal: Principal): string | undefined {
       return `service:${principal.id}`;
     case 'operator':
       return `operator:${principal.id}`;
+    case 'anonymous':
+      return address === undefined ? 'anonymous' : `anonymous:${address}`;
     default:
       return undefined;
   }
 }
 
 /**
- * The request rate of section 12.2 at `admit`: one token of the tenant's `core.requestRate`, of the
- * principal's `core.principalRequestRate` and of the action class's rate, through the process's
- * allowance; refuses with `rate_limited` `core.rate_limited` and `retryAfter`.
+ * The request rate of section 12.2 at `admit`: one token of the principal's
+ * `core.principalRequestRate`, of the action class's rate and of the tenant's `core.requestRate`,
+ * through the process's allowance, in that order; the first bucket that refuses stops the rest, so
+ * a caller over its own rate spends nothing of the tenant's. An anonymous caller has the bucket of
+ * its client address, or one shared bucket when the address is unknown. Refuses with `rate_limited`
+ * `core.rate_limited` and `retryAfter`.
  */
 export async function checkRequestRate(env: InvokerEnv, run: AdmissionRun): Promise<void> {
   const { quotas } = env.options;
@@ -43,10 +49,11 @@ export async function checkRequestRate(env: InvokerEnv, run: AdmissionRun): Prom
   if (target === null || target.scope.level === 'deployment') return;
   await quotas.fresh();
   const { registry } = env.appOf(run.details.resolved.app);
-  const names: { ref: string; bucket: string }[] = [
-    { ref: 'core.requestRate', bucket: 'core.requestRate' },
-  ];
-  const principalKey = principalKeyOf(run.session.principal);
+  const names: { ref: string; bucket: string }[] = [];
+  const principalKey = principalKeyOf(
+    run.session.principal,
+    run.invocation.carrier.connection?.remote.address,
+  );
   if (principalKey !== undefined) {
     names.push({
       ref: 'core.principalRequestRate',
@@ -54,7 +61,10 @@ export async function checkRequestRate(env: InvokerEnv, run: AdmissionRun): Prom
     });
   }
   const kindRef = classRate[run.action.kind];
-  names.push({ ref: kindRef, bucket: kindRef });
+  names.push(
+    { ref: kindRef, bucket: kindRef },
+    { ref: 'core.requestRate', bucket: 'core.requestRate' },
+  );
   const buckets: RateBucket[] = [];
   for (const { ref, bucket } of names) {
     const limit = quotas.limitOf(registry, target.scope, ref);

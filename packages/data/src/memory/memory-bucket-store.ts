@@ -55,11 +55,17 @@ export function memoryBucketStore(ctx: MemoryUnitContext): BucketStore {
         existing === undefined
           ? capacity
           : Math.min(capacity, existing.tokens + elapsed * refillPerSecond);
+      // The row's time never moves back: a clock that is behind must not make the next take from a
+      // clock that is ahead credit the difference again.
+      const refilledAt =
+        existing !== undefined && Temporal.Instant.compare(existing.refilledAt, now) > 0
+          ? existing.refilledAt
+          : now;
       if (available >= cost) {
-        table.set(bucket, { tokens: available - cost, refilledAt: now });
+        table.set(bucket, { tokens: available - cost, refilledAt });
         return { ok: true };
       }
-      table.set(bucket, { tokens: available, refilledAt: now });
+      table.set(bucket, { tokens: available, refilledAt });
       return { ok: false, retryAfter: (cost - available) / refillPerSecond };
     },
   };
