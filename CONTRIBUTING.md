@@ -25,6 +25,15 @@ pnpm install       # installs dependencies and the Git hooks
 pnpm check         # biome ci, knip, tsc -b, vitest run
 ```
 
+The tests. `pnpm check` and the pre-push hook run every Vitest project. The PostgreSQL projects
+(the `*-postgres` projects and `spike-write-path`) need a running Docker engine: they start
+PostgreSQL 18 containers through Testcontainers: four of them (adapter-postgres, data, testing,
+app-portal) start one container per project in their global setup; the files of the other projects,
+and a few more, start one of their own. Their files run one at a time, after the other projects, so
+that a container stays within its 200 connections (`scripts/postgres-project-run.ts`); a full
+run takes about 14 minutes on ten cores. Without Docker, run
+`pnpm vitest run --project '!*postgres*' --project '!spike-write-path'`.
+
 Versions outside the manifests (the CLI templates, the compose files, the schema urls, the release workflow's npm, the PostgreSQL test image, the pnpm version above) are copies: `pnpm pins` writes them and `pnpm pins --check` (run in CI) fails on a stale one. A copy follows a place Dependabot moves: the root package.json, or `pins/node.Dockerfile` and `pins/postgres.Dockerfile` for the two container images (a new major of an image is a hand edit of its one FROM line). Only npm has no such place yet and is moved by hand in the `pins` member of the root package.json.
 
 | Command       | What it does                                             |
