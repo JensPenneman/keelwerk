@@ -1,18 +1,15 @@
 import type { HostFetchOptions } from './host-fetch-options.ts';
 import type { HttpHandler } from './http-handler.ts';
+import type { RouteSpec } from './route-spec.ts';
 import type { WebSocketHandler } from './web-socket-handler.ts';
 
 /** The deployment's HTTP host, which transports mount on (section 16.3.3). */
 export interface TransportHost {
-  /** An HTTP handler for one app under a path prefix; prefixes of one app must not overlap. */
-  route(
-    spec: {
-      readonly app: string;
-      readonly transport: string;
-      readonly prefix: string;
-    },
-    handler: HttpHandler,
-  ): void;
+  /**
+   * An HTTP handler for one app under a path prefix; prefixes of one app must not overlap. A route
+   * that streams declares `spec.streams`; see `RouteSpec`.
+   */
+  route(spec: RouteSpec, handler: HttpHandler): void;
   /** A WebSocket endpoint for one app, selected by path and subprotocol. */
   upgrade(
     spec: {

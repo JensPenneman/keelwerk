@@ -68,12 +68,10 @@ export function createDispatcher(host: HostContext, telemetry: RequestTelemetry)
         } catch (failure) {
           response = errorResponse(host, state, asKeelwerkError(failure));
         }
-        const decorated = await compressResponse(
-          decorateResponse(response, request, state),
-          request,
-        );
-        finish(state.upgraded === true ? 101 : decorated.status);
-        return decorated;
+        const decorated = decorateResponse(response, request, state);
+        const sent = state.stream === true ? decorated : await compressResponse(decorated, request);
+        finish(state.upgraded === true ? 101 : sent.status);
+        return sent;
       } finally {
         host.lifecycle.leave();
       }

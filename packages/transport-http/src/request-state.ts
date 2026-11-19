@@ -24,6 +24,8 @@ export interface RequestState {
   generatedCommandId?: string;
   /** Set once a WebSocket upgrade was accepted: the response is never sent, the request counts as 101. */
   upgraded?: true;
+  /** Set when a mounted route counted the request as a stream: the response is never compressed. */
+  stream?: true;
   /** The error kind and code of the response, for the error counter. */
   failure?: { readonly kind: string; readonly code: string };
 }

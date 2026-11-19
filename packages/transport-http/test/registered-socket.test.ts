@@ -89,6 +89,36 @@ describe('a transport socket on the host', () => {
     expect(calls).toBe(0);
   });
 
+  test('a route under the socket path counts its predicate once and a throwing one refuses the upgrade', async () => {
+    const calls: string[] = [];
+    let opens = 0;
+    const made = setup({ listen: { port: 0 } }, createFakeInvoker(), { liveCarrier });
+    made.host.upgrade(
+      { app: 'library', transport: 'chat', path: '/chat', protocols: [protocol] },
+      {
+        open: () => {
+          opens += 1;
+        },
+      },
+    );
+    made.host.route(
+      {
+        app: 'library',
+        transport: 'trpc-test',
+        prefix: '/chat',
+        streams: (request) => {
+          calls.push(request.method);
+          throw new Error('predicate failed');
+        },
+      },
+      async () => Response.json({}),
+    );
+    const { port } = await made.host.listen();
+    expect(await connect(port ?? 0)).toEqual({ status: 500 });
+    expect(calls).toEqual(['GET']);
+    expect(opens).toBe(0);
+  });
+
   test('the web socket delivers messages and one close event, and refuses binary sends', async () => {
     const closes: CloseEvent[] = [];
     const { port } = await start({
