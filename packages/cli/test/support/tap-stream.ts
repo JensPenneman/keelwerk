@@ -6,6 +6,8 @@ export interface StreamTap {
   cut: boolean;
   /** The request bodies of every `/subscribe`, in order. */
   readonly bodies: string[];
+  /** How many `/subscribe` requests were let through to the deployment (the second one waits at the gate). */
+  forwarded: number;
   /** The second `/subscribe` is not forwarded to the deployment before this settles. */
   readonly gate: Promise<void>;
   /** Lets the second `/subscribe` through. */
@@ -17,7 +19,7 @@ export function newTap(): StreamTap {
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  return { headSeen: false, cut: false, bodies: [], gate, release };
+  return { headSeen: false, cut: false, forwarded: 0, bodies: [], gate, release };
 }
 
 /**

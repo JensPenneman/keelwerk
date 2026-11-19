@@ -50,13 +50,20 @@ function clientOver<App>(state: RemoteClientState): AppClient<App> {
           readonly commandId?: string;
           readonly effects?: EffectReferences;
         }
-      | { readonly ok: false; readonly error: DeclaredErrorOf<App, R> | TaxonomyError }
+      | {
+          readonly ok: false;
+          readonly error: DeclaredErrorOf<App, R> | TaxonomyError;
+          readonly commandId?: string;
+          readonly effects?: EffectReferences;
+        }
     > {
       const result = await runInvocation(state, ref, input, options);
       if (!result.ok) {
         return {
           ok: false,
           error: result.error as unknown as DeclaredErrorOf<App, R> | TaxonomyError,
+          ...(result.commandId !== undefined && { commandId: result.commandId }),
+          ...(result.effects !== undefined && { effects: result.effects }),
         };
       }
       return {

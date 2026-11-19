@@ -30,7 +30,13 @@ export interface AppClient<App> {
         readonly commandId?: string;
         readonly effects?: EffectReferences;
       }
-    | { readonly ok: false; readonly error: DeclaredErrorOf<App, R> | TaxonomyError }
+    | {
+        readonly ok: false;
+        readonly error: DeclaredErrorOf<App, R> | TaxonomyError;
+        /** Only when the command committed and the wait for its effects failed (see `InvokeOptions.waitEffects`): reuse it, never send a new one. */
+        readonly commandId?: string;
+        readonly effects?: EffectReferences;
+      }
   >;
   /**
    * Subscribes; yields items and control frames, in their in-process form. It resumes from the last token

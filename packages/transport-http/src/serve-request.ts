@@ -182,12 +182,10 @@ export async function serveRequest(
   // dead; on a mounted path the request then goes on as if the member were not a ticket.
   const requestUrl = new URL(request.url);
   const refusedTicket = ticketRefusal(request, requestUrl);
+  const facts = socketFacts(host, request, bindings);
   if (refusedTicket !== null || !carriesTicket(request, requestUrl)) {
-    await spendRefusedTickets(
-      request,
-      requestUrl,
-      socketFacts(host, request, bindings),
-      (carrier) => open(host, carrier, request.signal),
+    await spendRefusedTickets(request, requestUrl, facts, (carrier) =>
+      open(host, carrier, request.signal),
     );
   }
   if (refusedTicket !== null) return errorResponse(host, state, refusedTicket);
@@ -199,10 +197,18 @@ export async function serveRequest(
   } catch (failure) {
     return errorResponse(host, state, asKeelwerkError(failure));
   }
-  const carrier = fillCarrier(request, socketFacts(host, request, bindings));
+  const carrier = fillCarrier(request, facts);
   state.carrier = carrier;
   const opened = await open(host, carrier, request.signal);
   if ('error' in opened) {
+    // A ticket refused on the one request that carries it is spent as well, with its binding not
+    // checked, so a ticket offered for another subscription is dead for its own. Only the refusal
+    // of the ticket itself spends: scope, version, rate and availability failures never judge it.
+    if (carriesTicket(request, requestUrl) && opened.error.code === 'core.ticket_invalid') {
+      await spendRefusedTickets(request, requestUrl, facts, (spent) =>
+        open(host, spent, request.signal),
+      );
+    }
     return errorResponse(host, state, opened.error);
   }
   const { session } = opened;

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { exitCodeFor } from '../src/exit-code-for.ts';
 import { createFakeHost, type SentRequest } from './support/fake-host.ts';
 import { json, portalServer } from './support/portal-server.ts';
 import { remoteProfileFiles } from './support/profile-files.ts';
@@ -59,6 +60,29 @@ describe('call <subscription>', () => {
       { state: token(1), item: 'first' },
       { state: token(3), item: 'later' },
     ]);
+  });
+
+  test('--follow prints an event with a member called control as an item, whatever it says', async () => {
+    const { fake, opened } = deployment([
+      () =>
+        sse(
+          welcome,
+          head(1),
+          item(2, { control: 'reset' }),
+          item(3, { control: 'head' }),
+          item(4, { control: 'gap' }),
+          end,
+        ),
+    ]);
+    const run = await runCliWith(['call', 'auth.sessionEvents', '--follow'], fake.host);
+    expect(run.code).toBe(0);
+    expect(lines(run.stdout).map((line) => JSON.parse(line))).toEqual([
+      { state: token(2), item: { control: 'reset' } },
+      { state: token(3), item: { control: 'head' } },
+      { state: token(4), item: { control: 'gap' } },
+    ]);
+    // No reset restarted the stream: it was opened once, from the start.
+    expect(opened).toEqual([{ action: 'auth.sessionEvents' }]);
   });
 
   test('--follow resumes from the last token when the connection is cut', async () => {
@@ -145,8 +169,19 @@ describe('call <subscription>', () => {
     const broken = 'id: x\nevent: data\ndata: not json\n\n';
     const { fake, opened } = deployment([() => sse(welcome, head(1), broken)]);
     const run = await runCliWith(['call', 'auth.sessionEvents', '--follow'], fake.host);
+    // A ClientError of the stream parser reaches handleFailure as a rendered wire error, never as a bug.
+    expect(run.code).toBe(
+      exitCodeFor({
+        kind: 'internal',
+        code: 'core.internal',
+        message: '',
+        retryable: false,
+        requestId: '',
+      }),
+    );
     expect(run.code).toBe(1);
     expect(run.stderr).toContain('core.internal');
+    expect(run.stderr).not.toMatch(/\n\s+at |\.ts:\d+|ClientError/);
     expect(opened).toHaveLength(1);
   });
 

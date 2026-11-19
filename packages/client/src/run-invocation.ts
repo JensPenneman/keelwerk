@@ -7,6 +7,7 @@ import { errorOfEnvelope } from './error-of-envelope.ts';
 import type { InvocationResult } from './invocation-result.ts';
 import type { InvokeOptions } from './invoke-options.ts';
 import { isRecord } from './is-record.ts';
+import { liveUnavailable } from './live-unavailable.ts';
 import { newCommandId } from './new-command-id.ts';
 import type { Prefer } from './prefer.ts';
 import type { RemoteClientState } from './remote-client-state.ts';
@@ -20,6 +21,32 @@ type Invoked = {
   readonly effects?: EffectReferences;
 };
 
+/** Failures of a wait that came after the command committed, with what the call reported by then. */
+const committed = new WeakMap<ClientError, Reported>();
+
+type Reported = { readonly commandId?: string; readonly effects?: EffectReferences };
+
+/**
+ * The error of a wait that failed after the command committed: the same kind and code, but never
+ * retryable, because a retry sends the command again. It names the command id and the effects, so the
+ * caller waits again with `waitForEffects` instead.
+ */
+function committedFailure(failure: ClientError, reported: Reported): ClientError {
+  const named = reported.commandId === undefined ? '' : ` (command id ${reported.commandId})`;
+  const error = new ClientError({
+    kind: failure.kind,
+    code: failure.code,
+    message: `The command committed${named} but waiting for its effects failed: ${failure.message} Do not send it again; wait for its effects with waitForEffects.`,
+    retryable: false,
+    details: { committed: true, ...reported },
+    cause: failure,
+    ...(failure.issues !== undefined && { issues: failure.issues }),
+    ...(failure.requestId !== undefined && { requestId: failure.requestId }),
+  });
+  committed.set(error, reported);
+  return error;
+}
+
 async function invoke(
   state: RemoteClientState,
   ref: string,
@@ -27,6 +54,12 @@ async function invoke(
   options: InvokeOptions<Prefer>,
 ): Promise<Invoked> {
   const loaded = await state.surfaces.get();
+  const waiting = options.waitEffects !== undefined && options.waitEffects !== false;
+  // A surface without the live module has nothing to wait on: refuse before sending, as the command
+  // would commit and its caller could not wait for it (16.4.7).
+  if (waiting && !loaded.surface.modules.some((candidate) => candidate.id === 'live')) {
+    throw liveUnavailable('Waiting for effects');
+  }
   const action = loaded.actions.get(ref);
   if (action === undefined) {
     throw clientFailure('core.not_found', `The surface has no action ${ref}.`);
@@ -64,12 +97,19 @@ async function invoke(
     answer.receipt !== undefined
       ? answer.receipt
       : decodeWithSurface(action.output, answer.value, `the output of ${ref}`);
-  // The command has committed: a wait that fails is the call's error, and its command id is the caller's own.
-  if (options.waitEffects !== undefined && options.waitEffects !== false && effects !== undefined) {
-    await waitForEffects(state, effects, {
-      ...(typeof options.waitEffects === 'object' && { timeoutMs: options.waitEffects.timeoutMs }),
-      ...(options.signal !== undefined && { signal: options.signal }),
-    });
+  // The command has committed: a wait that fails never takes its outcome away. The failure is the
+  // call's error, marked as not retryable and carrying the command id and the effects.
+  if (waiting && effects !== undefined) {
+    try {
+      await waitForEffects(state, effects, {
+        ...(typeof options.waitEffects === 'object' && {
+          timeoutMs: options.waitEffects.timeoutMs,
+        }),
+        ...(options.signal !== undefined && { signal: options.signal }),
+      });
+    } catch (failure) {
+      throw failure instanceof ClientError ? committedFailure(failure, reported) : failure;
+    }
   }
   return { value, ...reported };
 }
@@ -85,7 +125,7 @@ export async function runInvocation(
     return { ok: true, ...(await invoke(state, ref, input, options)) };
   } catch (failure) {
     if (failure instanceof ClientError) {
-      return { ok: false, error: failure };
+      return { ok: false, error: failure, ...committed.get(failure) };
     }
     throw failure;
   }

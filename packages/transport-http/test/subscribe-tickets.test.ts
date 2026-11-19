@@ -142,6 +142,37 @@ describe.each(['memory', 'pglite'] as const)('stream tickets on %s', (adapter) =
     expect((await kit.open(bound)).status).toBe(401);
   });
 
+  test('a ticket bound to one subscription and offered for another is 401 and spent at once', async () => {
+    const kit = await boot(adapter);
+    const ticket = await kit.issue('ada', 'loans.loanEvents');
+    const wrong = await kit.open(ticket, {}, 'loans.loanTicker');
+    expect(wrong.status).toBe(401);
+    expect(((await wrong.json()) as { error: { code: string } }).error.code).toBe(
+      'core.ticket_invalid',
+    );
+    // The ticket is dead for its own subscription too: whoever reads the wrong URL gets nothing.
+    const own = await kit.open(ticket);
+    expect(own.status).toBe(401);
+    expect(((await own.json()) as { error: { code: string } }).error.code).toBe(
+      'core.ticket_invalid',
+    );
+  });
+
+  test('a forged secret with the public id of a ticket spends nothing', async () => {
+    const kit = await boot(adapter);
+    const ticket = await kit.issue('ada', 'loans.loanEvents');
+    const [prefix, id, secret = ''] = ticket.split('_');
+    const forged = [...secret].map((character) => (character === 'a' ? 'b' : 'a')).join('');
+    expect(forged).toHaveLength(secret.length);
+    expect(forged).not.toBe(secret);
+    const refused = await kit.open(`${prefix}_${id}_${forged}`, {}, 'loans.loanTicker');
+    expect(refused.status).toBe(401);
+    // The spend verifies the secret, so nobody burns a ticket from its public id alone.
+    const real = await kit.open(ticket);
+    expect(real.status).toBe(200);
+    closers.push(async () => void (await real.body?.cancel()));
+  });
+
   test('a ticket sent on a wrong path beside a bearer is spent at once too', async () => {
     const kit = await boot(adapter);
     const ticket = await kit.issue('ada');

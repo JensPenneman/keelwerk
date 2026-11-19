@@ -1,4 +1,7 @@
+import { coreError } from '@keelwerk/core/http';
 import { describe, expect, it } from 'vitest';
+import { createFakeInvoker } from './support/fake-invoker.ts';
+import { fakeSession } from './support/fake-session.ts';
 import { useHosts } from './support/use-hosts.ts';
 
 const { setup } = useHosts();
@@ -47,4 +50,51 @@ describe('a ticket in the query of a request on a mounted path', () => {
       expect(invoker.opened).toHaveLength(1);
     },
   );
+});
+
+describe('a ticket on GET /_keelwerk/v1/subscribe', () => {
+  const subscribe = () =>
+    new Request(`https://library.example/_keelwerk/v1/subscribe?action=a.b&ticket=${ticket}`, {
+      headers: { cookie: '__Host-kw=x', authorization: 'Bearer kwo_token' },
+    });
+  function refusing(code: 'core.ticket_invalid' | 'core.unavailable') {
+    return setup({}, createFakeInvoker({ open: () => ({ ok: false, error: coreError(code) }) }));
+  }
+
+  it('is spent after core.ticket_invalid refused it, with its binding not checked', async () => {
+    const { host, invoker } = refusing('core.ticket_invalid');
+    const response = await host.fetch(subscribe());
+    expect(response.status).toBe(401);
+    expect(((await response.json()) as { error: { code: string } }).error.code).toBe(
+      'core.ticket_invalid',
+    );
+    expect(invoker.opened.map((carrier) => carrier.ticket?.spendOnly ?? false)).toEqual([
+      false,
+      true,
+    ]);
+    expect(invoker.opened.map((carrier) => carrier.ticket?.value)).toEqual([ticket, ticket]);
+    const [, spent] = invoker.opened;
+    expect(spent?.token).toBeUndefined();
+    expect(spent?.headers?.cookie).toBeUndefined();
+    expect(spent?.headers?.authorization).toBeUndefined();
+  });
+
+  it('costs one open when the open fails for any other reason', async () => {
+    const { host, invoker } = refusing('core.unavailable');
+    const response = await host.fetch(subscribe());
+    expect(((await response.json()) as { error: { code: string } }).error.code).toBe(
+      'core.unavailable',
+    );
+    expect(invoker.opened).toHaveLength(1);
+  });
+
+  it('costs one open when it succeeds', async () => {
+    const made = setup(
+      {},
+      createFakeInvoker({ open: () => ({ ok: true, value: fakeSession() }) }),
+      { liveCarrier: () => ({ name: 'sse', serve: async () => undefined }) },
+    );
+    await made.host.fetch(subscribe());
+    expect(made.invoker.opened).toHaveLength(1);
+  });
 });

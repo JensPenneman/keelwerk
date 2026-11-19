@@ -1,4 +1,4 @@
-import type { LiveServerMessage, StateToken } from '@keelwerk/core';
+import type { LiveServerMessage, StateToken, WireError } from '@keelwerk/core';
 import { clientFailure } from '../client-failure.ts';
 import { errorOfEnvelope } from '../error-of-envelope.ts';
 import { isRecord } from '../is-record.ts';
@@ -62,10 +62,12 @@ function socketUrl(origin: string): string {
 
 /**
  * One `keelwerk.live.v1` socket per leg (15.4.7): `hello` with the credential and the selectors,
- * then, once `welcome` arrived, `subscribe` as `s1`. The leg resolves at `welcome`; an `error` before
- * it rejects with that error and a close before it with `core.unavailable`. The events are what the
- * server says of `s1` (and an `error` without an id); a close ends them, and `return()` unsubscribes
- * and closes the socket.
+ * then, once `welcome` arrived, `subscribe` as `s1`. The leg resolves at the server's first answer to
+ * `s1` (its first frame), like the server-sent events leg resolves at its first response: an `error`
+ * before it, to the `hello` or to `s1`, rejects with that error (so a refused reopen is told apart
+ * from a failed stream by what the refusal is) and a close before it with `core.unavailable`. The
+ * events are what the server says of `s1` (and an `error` without an id); a close ends them, and
+ * `return()` unsubscribes and closes the socket.
  */
 export function openSocketLeg(state: RemoteClientState): LiveLeg {
   return (request, signal) =>
@@ -83,6 +85,7 @@ export function openSocketLeg(state: RemoteClientState): LiveLeg {
       let closed = false;
       let welcomed = false;
       let settled = false;
+      let refusing = false;
       const notify = (): void => {
         wake?.();
         wake = undefined;
@@ -100,8 +103,18 @@ export function openSocketLeg(state: RemoteClientState): LiveLeg {
         close();
         reject(error);
       };
+      const refuse = (error: WireError): void => {
+        refusing = true;
+        void state.surfaces
+          .get()
+          .then(
+            (loaded) => errorOfEnvelope({ ok: false, error }, 200, loaded),
+            (failure: unknown) => failure,
+          )
+          .then(fail);
+      };
       const onAbort = (): void => {
-        if (!welcomed) fail(signal.reason);
+        if (!settled) fail(signal.reason);
         else {
           closed = true;
           close();
@@ -143,7 +156,6 @@ export function openSocketLeg(state: RemoteClientState): LiveLeg {
         if (!welcomed) {
           if (message.type === 'welcome') {
             welcomed = true;
-            settled = true;
             send({
               type: 'subscribe',
               id: subscription,
@@ -151,26 +163,33 @@ export function openSocketLeg(state: RemoteClientState): LiveLeg {
               ...(request.input !== undefined && { input: request.input }),
               ...(request.after !== undefined && { after: request.after }),
             });
-            resolve({ [Symbol.asyncIterator]: () => events });
           } else if (message.type === 'error') {
-            void state.surfaces
-              .get()
-              .then(
-                (loaded) => errorOfEnvelope({ ok: false, error: message.error }, 200, loaded),
-                (failure: unknown) => failure,
-              )
-              .then(fail);
+            refuse(message.error);
           }
           return;
         }
         if ('id' in message && message.id !== subscription) return;
         const mapped = eventOf(message);
         if (mapped === undefined) return;
+        if (!settled) {
+          if (refusing) return;
+          if (mapped.kind === 'error') {
+            refuse(mapped.error);
+            return;
+          }
+          // The first answer to `s1`: the connection is accepted from here on.
+          settled = true;
+          queue.push(mapped);
+          resolve({ [Symbol.asyncIterator]: () => events });
+          return;
+        }
         queue.push(mapped);
         notify();
       });
       const onEnd = (): void => {
-        if (!welcomed) {
+        // A refusal is on its way: it is the leg's failure, whatever closes the socket after it.
+        if (refusing && !settled) return;
+        if (!settled) {
           fail(
             clientFailure('core.unavailable', 'The live connection closed before it was ready.'),
           );

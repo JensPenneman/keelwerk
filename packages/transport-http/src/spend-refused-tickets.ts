@@ -14,7 +14,9 @@ import { ticketPattern } from './ticket-pattern.ts';
  * ticket is redeemed like a presented one (`open` is the host's own opening of a session): the
  * kernel spends it and then refuses it with core.ticket_invalid, so no session opens and the
  * rejection is ignored. The ticket's binding to a subscription is not checked (`spendOnly`), so a
- * bound ticket is spent too.
+ * bound ticket is spent too. The host also spends the ticket of the carrying request
+ * (`GET /_keelwerk/v1/subscribe`) after a core.ticket_invalid refusal, so a ticket bound to another
+ * subscription is dead for its own.
  */
 export async function spendRefusedTickets(
   request: Request,

@@ -98,4 +98,33 @@ describe('a mounted route that serves a stream on the host', () => {
     await stopping;
     expect(frames.at(-1)).toMatchObject({ event: 'end', data: { reason: 'going_away' } });
   });
+
+  test('an event whose own member is called control arrives as data and signals nothing', async () => {
+    const release = Promise.withResolvers<void>();
+    const made = createFakeHost({}, { deps: { liveCarrier: () => realSseCarrier() } });
+    hosts.push(made);
+    made.host.route(
+      { app: 'library', transport: 'rest', prefix: '/api' },
+      async (_request, ctx) => {
+        const events = ['reset', 'head', 'gap'];
+        async function* frames(): AsyncGenerator<LiveFrame<unknown>> {
+          for (const control of events) yield { event: { control } };
+          await release.promise;
+          yield { event: { control: 'later' } };
+          await new Promise<void>(() => undefined);
+        }
+        return ctx.serveStream?.(frames(), { action, surfaceHash: 'hash-1' }) ?? new Response(null);
+      },
+    );
+    const response = await get(made, { accept: 'text/event-stream' });
+    const events = readEventStream(response);
+    expect((await events.next())?.event).toBe('welcome');
+    for (const control of ['reset', 'head', 'gap']) {
+      expect(await events.next()).toMatchObject({ event: 'data', data: { control } });
+    }
+    // Nothing of an event's content is a control signal: no reset, head or end was written, and a later event still comes.
+    release.resolve();
+    expect(await events.next()).toMatchObject({ event: 'data', data: { control: 'later' } });
+    await events.close();
+  });
 });

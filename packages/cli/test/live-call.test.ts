@@ -75,6 +75,7 @@ function hostFor(
         tap.tap.bodies.push(request.body ?? '');
         // The reopen waits here, so a change made while the first stream is cut is the one it resumes with.
         if (tap.tap.bodies.length === 2) await tap.tap.gate;
+        tap.tap.forwarded += 1;
       }
       const response = await target.send(
         new Request(url, {
@@ -193,7 +194,10 @@ describe('the CLI against a deployment with the live module and workers', () => 
     await runCliWith(lend(freshName('Ulysses')), writer);
     // The first stream breaks after its first data event; this loan is lent while it is cut.
     await expect.poll(() => tap.cut, { timeout: 60_000 }).toBe(true);
+    // The reopen has reached the host and waits at the gate: the next loan is lent while it is disconnected.
+    await expect.poll(() => tap.bodies.length, { timeout: 60_000 }).toBe(2);
     expect((await runCliWith(lend(freshName('Emma')), writer)).code).toBe(0);
+    expect(tap.forwarded).toBe(1);
     tap.release();
     expect(await watching.code).toBe(130);
     const rows = lines(watching.out).map(
