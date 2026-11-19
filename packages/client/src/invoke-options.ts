@@ -9,8 +9,11 @@ export interface InvokeOptions<P extends Prefer> {
    * Resolve after the effects the answer lists have settled (section 7.9.5), watched on the live carrier;
    * an accepted (asynchronous) answer lists none, so it resolves at once. A surface without the live module
    * fails with `core.live_unavailable` before anything is sent. A wait that fails after the command committed
-   * is an error that is not retryable (`attempt` also returns its `commandId` and `effects`): send the command
-   * again only under that command id, or wait with `waitForEffects`. A timeout resolves with the effects as they stand.
+   * is an error that is not retryable (`attempt` also returns its `commandId` and `effects`):
+   * send it again only under that command id, or wait for its effects with waitForEffects.
+   * So is a wait that ends before every effect settled (`timeoutMs` reached, or the watch closed):
+   * `unavailable`, `core.timeout`. An abort is thrown as it is, also after the command committed, so a
+   * caller that may abort passes its own `commandId`.
    */
   readonly waitEffects?: boolean | { readonly timeoutMs: number };
   readonly signal?: AbortSignal;

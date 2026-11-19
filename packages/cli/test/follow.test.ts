@@ -115,6 +115,65 @@ describe('call <subscription>', () => {
     expect(lines(run.stdout)).toHaveLength(2);
   });
 
+  test('a reset the client cannot repair says on standard error that it starts from now and the caller queries again', async () => {
+    const reset = 'event: reset\ndata: {"reason":"resync"}\n\n';
+    const { fake } = deployment([
+      () => sse(welcome, item(1, 'before'), reset),
+      () => sse(welcome, head(5), item(6, 'after'), end),
+    ]);
+    const run = await runCliWith(['call', 'auth.sessionEvents', '--follow'], fake.host);
+    expect(run.code).toBe(0);
+    expect(run.stderr).toBe(
+      'note: the subscription was reset (resync) and starts again from now; changes before now may be missing, so query again.\n',
+    );
+    expect(lines(run.stdout).map((line) => JSON.parse(line))).toEqual([
+      { state: token(1), item: 'before' },
+      { state: token(6), item: 'after' },
+    ]);
+  });
+
+  test('--follow goes on across a server that stops and answers 503 until it is back: the rows in between arrive once', async () => {
+    const going = 'event: end\ndata: {"reason":"going_away"}\n\n';
+    const stopping = (): Response =>
+      json(
+        {
+          ok: false,
+          error: {
+            kind: 'unavailable',
+            code: 'core.unavailable',
+            message: 'The server is shutting down.',
+            retryable: true,
+            requestId: 'r',
+          },
+        },
+        503,
+      );
+    const proxy = (): Response =>
+      new Response('<html>bad gateway</html>', {
+        status: 502,
+        headers: { 'content-type': 'text/html' },
+      });
+    const { fake, opened } = deployment([
+      () => sse(welcome, head(1), item(2, 'one'), going),
+      stopping,
+      proxy,
+      () => sse(welcome, item(3, 'two'), item(4, 'three'), end),
+    ]);
+    const run = await runCliWith(['call', 'auth.sessionEvents', '--follow'], fake.host);
+    expect(run.code).toBe(0);
+    expect(lines(run.stdout).map((line) => JSON.parse(line))).toEqual([
+      { state: token(2), item: 'one' },
+      { state: token(3), item: 'two' },
+      { state: token(4), item: 'three' },
+    ]);
+    expect(opened).toEqual([
+      { action: 'auth.sessionEvents' },
+      { action: 'auth.sessionEvents', after: token(2) },
+      { action: 'auth.sessionEvents', after: token(2) },
+      { action: 'auth.sessionEvents', after: token(2) },
+    ]);
+  });
+
   test('an error event ends the command with the error of the wire', async () => {
     const failure =
       'event: error\ndata: {"kind":"forbidden","code":"auth.nope","message":"No.","retryable":false,"requestId":"r"}\n\n';

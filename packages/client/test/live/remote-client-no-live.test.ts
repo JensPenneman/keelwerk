@@ -3,6 +3,7 @@ import { createRemoteClient } from '../../src/index.ts';
 import type { ProbeApp } from '../support/probe-app.ts';
 import { probeSurface } from '../support/probe-surface.ts';
 import { type ProtocolFetchOptions, protocolFetch } from '../support/protocol-fetch.ts';
+import { surfaceWithWatch } from './support/surface-with-watch.ts';
 
 const noWait = {
   retries: 3,
@@ -19,35 +20,6 @@ function setup(overrides: ProtocolFetchOptions['handlers'] = {}) {
     retry: noWait,
   });
   return { server, client };
-}
-
-function surfaceWithWatch(withLive: boolean) {
-  const base = probeSurface();
-  const ping = base.actions.find((candidate) => candidate.ref === 'shop.ping');
-  if (ping === undefined) throw new Error('The probe surface has no shop.ping.');
-  const text = { optional: false, access: 'read-write', kind: 'string' } as const;
-  return {
-    ...base,
-    ...(withLive && { modules: [...base.modules, { id: 'live', version: '1.0.0' }] }),
-    actions: [
-      ...base.actions,
-      { ...ping, ref: 'shop.feed', name: 'feed', kind: 'subscription', output: text },
-      {
-        ...ping,
-        ref: 'core.effectStatusWatch',
-        module: 'core',
-        name: 'effectStatusWatch',
-        kind: 'subscription',
-        input: {
-          optional: false,
-          access: 'read-write',
-          kind: 'shape',
-          fields: { ids: { optional: false, access: 'read-write', kind: 'list', item: text } },
-        },
-        output: text,
-      },
-    ],
-  } as typeof base;
 }
 
 /** A server that answers the invocation protocol and has no subscribe endpoint (404). */

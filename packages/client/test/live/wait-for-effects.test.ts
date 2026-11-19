@@ -67,6 +67,22 @@ describe('waitForEffects against a running deployment', () => {
     expect(endpoint.requests).toHaveLength(1);
   });
 
+  it('invoke with waitEffects that times out before the effect settles is core.timeout with the command id', async () => {
+    const { client } = await boot(() => 'hang');
+    const attempted = await client.attempt(
+      'hooks.notify',
+      { payload: 'slow' },
+      { waitEffects: { timeoutMs: 500 } },
+    );
+    expect(attempted).toMatchObject({
+      ok: false,
+      error: { kind: 'unavailable', code: 'core.timeout', retryable: false },
+    });
+    if (attempted.ok) return;
+    expect(attempted.commandId).toEqual(expect.any(String));
+    expect(attempted.effects).toHaveLength(1);
+  });
+
   it('rejects an id the caller never requested with core.not_found', async () => {
     const { client } = await boot();
     await expect(client.waitForEffects([crypto.randomUUID()])).rejects.toMatchObject({

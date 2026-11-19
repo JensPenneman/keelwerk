@@ -16,6 +16,18 @@ function isRateLimited(failure: unknown): boolean {
   );
 }
 
+/**
+ * The deployment says it cannot answer now: a server that stops or restarts (`core.unavailable`), a
+ * proxy in front of one (`cli.bad_response` on a 5xx), or any failure it marks retryable. A deployment
+ * without the live module (`core.live_unavailable`) is final.
+ */
+function isUnavailable(failure: unknown): boolean {
+  if (!(failure instanceof CliFailure) || typeof failure.outcome !== 'object') return false;
+  const { kind, code, retryable } = failure.outcome;
+  if (code === 'core.live_unavailable') return false;
+  return retryable || kind === 'unavailable';
+}
+
 /** An `UntypedClient` over a link. Command ids are minted once per call and reused by network retries. */
 export function createUntypedClient(
   link: () => Promise<DeploymentLink>,
@@ -59,6 +71,7 @@ export function createUntypedClient(
           dropped: (failure) =>
             isUnreachable(failure) ||
             isRateLimited(failure) ||
+            isUnavailable(failure) ||
             !(failure instanceof CliFailure || failure instanceof ClientError),
           failure: (error) => new CliFailure(error, error.message),
         },

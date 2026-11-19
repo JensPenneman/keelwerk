@@ -8,7 +8,8 @@ import { deprecationWarning } from './deprecation-warning.ts';
  * out when the item has none), through `output.line`. It stops at the first `head`, which ends the
  * changes up to now, unless `follow` is set or the action is a generated `watch`, which always
  * follows. A reset the client could not repair by itself (`resync`, `expired`) is a note on standard
- * error. The stream ending `complete` is exit 0; an interrupt is exit 130.
+ * error: the subscription starts again from now (a generated watch reopens without a token), so what
+ * changed between the reset and the reopen is not printed and the caller queries again (15.4.4). The stream ending `complete` is exit 0; an interrupt is exit 130.
  */
 export async function followSubscription(
   context: CliContext,
@@ -33,7 +34,9 @@ export async function followSubscription(
     } else if (frame.control === 'head') {
       if (stopsAtHead) break;
     } else if (frame.control === 'reset') {
-      output.note(`note: the subscription was reset (${frame.reason}); it starts again.`);
+      output.note(
+        `note: the subscription was reset (${frame.reason}) and starts again from now; changes before now may be missing, so query again.`,
+      );
     }
   }
   if (context.signal.aborted) throw new CliFailure('interrupted', 'Interrupted.');

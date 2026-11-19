@@ -67,13 +67,21 @@ export function subscribeRemote(
         if (step.done === true) return step;
         const frame = step.value;
         if ('control' in frame) return { done: false, value: frame };
-        return {
-          done: false,
-          value: {
-            ...frame,
-            event: decodeWithSurface(action.output, frame.event, `an item of ${ref}`),
-          },
-        };
+        try {
+          return {
+            done: false,
+            value: {
+              ...frame,
+              event: decodeWithSurface(action.output, frame.event, `an item of ${ref}`),
+            },
+          };
+        } catch (failure) {
+          // `for await` does not call return() after next() throws: close the leg here, or its connection
+          // and the server's stream slot stay until the server's own rules end them.
+          closed = true;
+          await frames.return?.(undefined);
+          throw failure;
+        }
       },
       async return() {
         closed = true;

@@ -144,14 +144,36 @@ describe('REST subscription routes', () => {
     expect(await response.json()).toMatchObject({ code: 'core.validation' });
   });
 
-  test('a ticket in the query is no credential on a REST path: it is ignored as an unknown parameter', async () => {
+  test('a ticket in the query is no credential on a REST path: it is an unknown parameter, and it is spent', async () => {
+    const caller = { subject: freshName('ada') };
+    const origin = originOf(target, caller);
+    const headers = {
+      ...Object.fromEntries(requestHeaders(caller)),
+      'content-type': 'application/json',
+    };
+    const issued = await target.fetch(
+      new Request(`${origin}/_keelwerk/v1/invoke`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'live.ticket', input: { action: 'loans.loanEvents' } }),
+      }),
+    );
+    const { value } = (await issued.json()) as { value: { ticket: string } };
     const response = await open(
-      `/api/loans/loan-events?ticket=${'a'.repeat(43)}`,
-      freshName('ada'),
+      `/api/loans/loan-events?ticket=${value.ticket}`,
+      caller.subject,
       streamAccept,
     );
     expect(response.status).toBe(422);
     await response.body?.cancel();
+    // The ticket went to a path where it is no credential: it is dead on the endpoint it was made for.
+    const again = await target.fetch(
+      new Request(
+        `${origin}/_keelwerk/v1/subscribe?action=loans.loanEvents&input=%7B%7D&ticket=${value.ticket}`,
+      ),
+    );
+    expect(again.status).toBe(401);
+    expect(await again.json()).toMatchObject({ error: { code: 'core.ticket_invalid' } });
   });
 
   test('a deployment without the live module answers core.live_unavailable', async () => {

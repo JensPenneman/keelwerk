@@ -13,7 +13,7 @@ import type { Prefer } from './prefer.ts';
 import type { RemoteClientState } from './remote-client-state.ts';
 import { requestHeaders } from './request-headers.ts';
 import { sendWithRetry } from './send-with-retry.ts';
-import { waitForEffects } from './wait-for-effects.ts';
+import { settleRemoteEffects } from './settle-remote-effects.ts';
 
 type Invoked = {
   readonly value: unknown;
@@ -36,7 +36,7 @@ function committedFailure(failure: ClientError, reported: Reported): ClientError
   const error = new ClientError({
     kind: failure.kind,
     code: failure.code,
-    message: `The command committed${named} but waiting for its effects failed: ${failure.message} Do not send it again; wait for its effects with waitForEffects.`,
+    message: `The command committed${named} but waiting for its effects failed: ${failure.message} Send it again only under that command id, or wait for its effects with waitForEffects.`,
     retryable: false,
     details: { committed: true, ...reported },
     cause: failure,
@@ -97,16 +97,24 @@ async function invoke(
     answer.receipt !== undefined
       ? answer.receipt
       : decodeWithSurface(action.output, answer.value, `the output of ${ref}`);
-  // The command has committed: a wait that fails never takes its outcome away. The failure is the
-  // call's error, marked as not retryable and carrying the command id and the effects.
+  // The command has committed: a failure of the wait (not an abort) never takes its outcome away. The
+  // failure is the call's error, marked as not retryable and carrying the command id and the effects.
+  // A wait that ended before every effect settled (the timeout, or a watch that closed) is one too:
+  // the call resolves only when the effects settled.
   if (waiting && effects !== undefined) {
     try {
-      await waitForEffects(state, effects, {
+      const settling = await settleRemoteEffects(state, effects, {
         ...(typeof options.waitEffects === 'object' && {
           timeoutMs: options.waitEffects.timeoutMs,
         }),
         ...(options.signal !== undefined && { signal: options.signal }),
       });
+      if (!settling.settled) {
+        throw clientFailure(
+          'core.timeout',
+          'The effects had not settled when the wait ended (timeoutMs reached or the watch closed).',
+        );
+      }
     } catch (failure) {
       throw failure instanceof ClientError ? committedFailure(failure, reported) : failure;
     }

@@ -21,11 +21,16 @@ import { traceContext } from './trace-context.ts';
 export function createDispatcher(host: HostContext, telemetry: RequestTelemetry): Dispatcher {
   // biome-ignore lint/style/useNamingConvention: `Bindings` is Hono's generic key
   const router = new Hono<{ Bindings: HostBindings }>();
+  // A ticket in the query of a probe is refused and spent like on any other path under `/_keelwerk/`.
+  const hasTicketMember = (request: Request): boolean =>
+    new URL(request.url).searchParams.has('ticket');
   router.get('/_keelwerk/health', (context) => {
+    if (hasTicketMember(context.req.raw)) return serveRequest(host, context.req.raw, context.env);
     context.env.state.route = '/_keelwerk/health';
     return healthRoutes();
   });
   router.get('/_keelwerk/ready', (context) => {
+    if (hasTicketMember(context.req.raw)) return serveRequest(host, context.req.raw, context.env);
     context.env.state.route = '/_keelwerk/ready';
     return readyResponse(host);
   });
