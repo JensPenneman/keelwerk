@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
+import { workflowJob } from './support/workflow-job.ts';
 
 const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const pins = (
@@ -11,17 +12,8 @@ const pins = (
 ).pins;
 const workflow = readFileSync(join(repositoryRoot, '.github/workflows/release-please.yml'), 'utf8');
 
-/** A job block: from `  <job>:` to the next two-space key. */
-function job(name: string): string {
-  const lines = workflow.split('\n');
-  const start = lines.indexOf(`  ${name}:`);
-  expect(start).toBeGreaterThan(-1);
-  const end = lines.findIndex((line, at) => at > start && /^ {2}\S/.test(line));
-  return lines.slice(start, end === -1 ? undefined : end).join('\n');
-}
-
 test('the publish job refuses forks and asks for id-token write', () => {
-  const publish = job('publish');
+  const publish = workflowJob(workflow, 'publish');
   expect(publish).toContain("always() && github.repository == 'JensPenneman/keelwerk'");
   // The release job creates the tag this job looks for, so this job runs after it.
   expect(publish).toContain('needs: release-please');
@@ -30,7 +22,7 @@ test('the publish job refuses forks and asks for id-token write', () => {
 });
 
 test('release-please runs only on main of the repository', () => {
-  expect(job('release-please')).toContain(
+  expect(workflowJob(workflow, 'release-please')).toContain(
     "if: github.repository == 'JensPenneman/keelwerk' && github.ref == 'refs/heads/main'",
   );
 });
@@ -52,7 +44,7 @@ test('every action is pinned to a full commit sha', () => {
 });
 
 test('the publish step runs release.sh with the flag of the release step', () => {
-  const publish = job('publish');
+  const publish = workflowJob(workflow, 'publish');
   const step = publish.slice(
     publish.indexOf('- name: Stage every package of the version (or dry-run them)'),
   );
@@ -65,7 +57,7 @@ test('the publish step runs release.sh with the flag of the release step', () =>
 });
 
 test('every step after the release check waits for the release', () => {
-  const publish = job('publish');
+  const publish = workflowJob(workflow, 'publish');
   const steps = publish.split('\n      - name: ').slice(1);
   expect(steps).toHaveLength(7);
   for (const step of steps.slice(2)) {
