@@ -101,7 +101,11 @@ export async function startTransportRuntime(
       control: { adapter: id },
       placements: { main: { adapter: id, strategy: 'shared-tables' } },
       operator: { socket },
-      tenantResolution: [{ kind: 'hostname' }, { kind: 'header', header: 'x-tenant' }],
+      tenantResolution: [
+        { kind: 'hostname' },
+        { kind: 'header', header: 'x-tenant' },
+        { kind: 'path' },
+      ],
       keys: { masterKey: secret(testMasterKeyName) },
     },
     {

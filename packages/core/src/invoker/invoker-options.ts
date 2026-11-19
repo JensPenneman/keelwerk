@@ -29,7 +29,10 @@ export interface InvokerOptions {
   readonly placement: (placementId: string) => PlacementHandle | undefined;
   /** The control store, where deployment-scope actions run. */
   readonly control?: ScopeTarget;
-  /** Deployment order; default `[{ kind: 'hostname' }]`. 'scopeKey' and 'path' are refused at creation (S-20). */
+  /**
+   * Deployment order; default `[{ kind: 'hostname' }]`. 'path' resolves `/t/<tenant TypeID>`;
+   * 'scopeKey' is refused at creation until the scope directory exists (S-146).
+   */
   readonly tenantResolution?: readonly TenantResolver[];
   /** Sets `carrier.scopeKey`; accepted so a deployment can be wired once, unused until the scope directory exists (S-20). */
   readonly carrierEnrichers?: readonly CarrierEnricher[];

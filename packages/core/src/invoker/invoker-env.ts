@@ -21,7 +21,7 @@ import { entityOutputOf } from './stages/entity-output-of.ts';
 /** Refuses the tenant resolvers the release cannot run (S-20): the named problem `scopeDirectoryUnavailable`. */
 function checkResolvers(resolvers: readonly TenantResolver[]): void {
   for (const resolver of resolvers) {
-    if (resolver.kind === 'scopeKey' || resolver.kind === 'path') {
+    if (resolver.kind === 'scopeKey') {
       throw new KeelwerkError({
         kind: 'internal',
         code: 'core.internal',

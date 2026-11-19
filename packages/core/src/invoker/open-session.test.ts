@@ -4,13 +4,26 @@ import {
   carrier,
   failureOf,
   invokerOf,
+  namespace,
   registryOf,
   sessionOf,
   signedIn,
 } from '../../test/invoker/invoker-kit.ts';
+import { staticScopeDirectory } from '../../test/invoker/static-scope-directory.ts';
+import { renderTypeId } from '../ids/render-type-id.ts';
 
 const registry = registryOf([actionOf('doc.open', { auth: 'public' })]);
 const invoker = invokerOf(registry);
+// The kit's tenant 't1' is no uuid, so it has no TypeID: the path tests use a tenant with one.
+const pathTenantId = '00000000-0000-7000-8000-0000000000a1';
+const pathDirectory = staticScopeDirectory({
+  backends: [{ id: 'b1', app: 'doc', placementId: 'main', namespace, status: 'active' }],
+  tenants: [
+    { id: pathTenantId, backendId: 'b1', placementId: 'main', namespace, status: 'active' },
+  ],
+  domains: [{ hostname: 'doc.example', backendId: 'b1', tenantId: pathTenantId }],
+});
+const pathPrefix = `/t/${renderTypeId('tnt', pathTenantId)}`;
 const withHeaders = (headers: Record<string, string>) => ({
   transport: 'test',
   headers: { 'x-tenant': 't1', ...headers },
@@ -108,5 +121,43 @@ describe('open', () => {
     const second = sessionOf(await first.revalidate());
     expect(second).not.toBe(first);
     expect(second.principal).toMatchObject({ kind: 'user', subject: 'ada' });
+  });
+
+  test('a path tenant opens a session that carries the prefix and resolvedBy path', async () => {
+    const pathInvoker = invokerOf(registry, {
+      directory: pathDirectory,
+      tenantResolution: [{ kind: 'hostname' }, { kind: 'path' }],
+    });
+    const session = sessionOf(
+      await pathInvoker.open({ transport: 'test', host: 'doc.example', path: `${pathPrefix}/x` }),
+    );
+    expect(session.resolvedBy).toBe('path');
+    expect(session.tenantPrefix).toBe(pathPrefix);
+    expect(session.scope).toEqual({ level: 'tenant', backendId: 'b1', tenantId: pathTenantId });
+  });
+
+  test('a path that names the tenant by its stored uuid is not found', async () => {
+    const pathInvoker = invokerOf(registry, {
+      directory: pathDirectory,
+      tenantResolution: [{ kind: 'hostname' }, { kind: 'path' }],
+    });
+    const opened = await pathInvoker.open({
+      transport: 'test',
+      host: 'doc.example',
+      path: `/t/${pathTenantId}/x`,
+    });
+    expect(failureOf(opened).kind).toBe('not_found');
+  });
+
+  test('under path resolution the cookie never reaches the principal resolvers', async () => {
+    const pathInvoker = invokerOf(registry, {
+      directory: pathDirectory,
+      tenantResolution: [{ kind: 'hostname' }, { kind: 'path' }],
+    });
+    const base = { transport: 'test', host: 'doc.example', headers: { cookie: 'sid=stale' } };
+    const prefixed = sessionOf(await pathInvoker.open({ ...base, path: `${pathPrefix}/x` }));
+    expect(prefixed.clearCookies).toBeUndefined();
+    const plain = sessionOf(await pathInvoker.open({ ...base, path: '/x' }));
+    expect(plain.clearCookies).toEqual(['sid']);
   });
 });

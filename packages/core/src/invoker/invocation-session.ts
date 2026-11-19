@@ -23,6 +23,12 @@ export interface InvocationSession {
   readonly setCookies?: readonly string[];
   /** Which tenant resolver matched; the cookie hint of S-48 applies under 'hostname' only. */
   readonly resolvedBy: TenantResolver['kind'] | 'local';
+  /**
+   * The tenant path prefix scope resolution consumed (`/t/<tenant TypeID>`, as sent); absent
+   * without one. The HTTP host strips it before it routes and puts it before the mount prefix in
+   * `basePath`.
+   */
+  readonly tenantPrefix?: string;
   /** When the presented credentials stop being valid. */
   readonly expiresAt?: Temporal.Instant;
   /** The rows whose change revalidates the session at once (S-151): the rows of the resolution's `cache`. */

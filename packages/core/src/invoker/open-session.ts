@@ -23,6 +23,16 @@ function withoutTicket(carrier: Carrier): Carrier {
   return kept;
 }
 
+/**
+ * The carrier without its cookie: under path resolution the transports accept bearer tokens only
+ * (16.4.10).
+ */
+function withoutCookie(carrier: Carrier): Carrier {
+  if (carrier.headers?.cookie === undefined) return carrier;
+  const { cookie: _cookie, ...headers } = carrier.headers;
+  return { ...carrier, headers };
+}
+
 async function open(
   env: InvokerEnv,
   carrier: Carrier,
@@ -39,9 +49,10 @@ async function open(
     });
   }
   const deployed = await resolveScope(env, carrier);
-  const found = await resolvePrincipal(env, carrier, deployed, { requestId, span }, standsFor);
-  const resolved = await applyTenantEntry(env, carrier, deployed, found.principal);
-  const version = resolveVersion(env, resolved, carrier, found.principal);
+  const presented = deployed.resolvedBy === 'path' ? withoutCookie(carrier) : carrier;
+  const found = await resolvePrincipal(env, presented, deployed, { requestId, span }, standsFor);
+  const resolved = await applyTenantEntry(env, presented, deployed, found.principal);
+  const version = resolveVersion(env, resolved, presented, found.principal);
   if (resolved.target !== null) {
     await performResolverEffects(
       env,
@@ -54,7 +65,7 @@ async function open(
   const { principal } = found;
   // A session that a redeemed credential opened is revalidated by the reference it stands for, never by the spent credential.
   const reference = found.redeem?.ref ?? standsFor;
-  const kept = withoutTicket(carrier);
+  const kept = withoutTicket(presented);
   const renew = found.renewCookie;
   const renewed =
     renew !== undefined &&
@@ -77,6 +88,7 @@ async function open(
     deprecation: version.deprecation,
     ...(found.clearCookies.length === 0 ? {} : { clearCookies: found.clearCookies }),
     resolvedBy: resolved.resolvedBy,
+    ...(resolved.tenantPrefix === undefined ? {} : { tenantPrefix: resolved.tenantPrefix }),
     ...(renewed.length === 0 ? {} : { setCookies: renewed }),
     ...(principal.expiresAt === undefined ? {} : { expiresAt: principal.expiresAt }),
     ...(found.dependsOn === undefined || found.dependsOn.length === 0

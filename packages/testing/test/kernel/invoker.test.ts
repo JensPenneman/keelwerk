@@ -283,13 +283,14 @@ describe('the pipeline stages fail closed', () => {
     });
   });
 
-  test('createInvoker refuses the resolvers that need the scope directory', () => {
-    for (const kind of ['scopeKey', 'path'] as const) {
+  test('createInvoker refuses the resolver that needs the scope directory', () => {
+    for (const kind of ['scopeKey'] as const) {
       expect(() => kit({ tenantResolution: [{ kind }] })).toThrowError(
         expect.objectContaining({
           details: expect.objectContaining({ code: 'scopeDirectoryUnavailable' }),
         }),
       );
     }
+    expect(() => kit({ tenantResolution: [{ kind: 'path' }] })).not.toThrow();
   });
 });

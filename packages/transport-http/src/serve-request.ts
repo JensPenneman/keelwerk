@@ -22,6 +22,7 @@ import { socketFacts } from './socket-facts.ts';
 import { spendRefusedTickets } from './spend-refused-tickets.ts';
 import { subscribeEndpoint } from './subscribe-endpoint.ts';
 import { surfaceEndpoint } from './surface-endpoint.ts';
+import { syntacticTenantPrefixOf } from './syntactic-tenant-prefix-of.ts';
 import { ticketRefusal } from './ticket-refusal.ts';
 import { wireErrorOf } from './wire-error-of.ts';
 import { withStreamSlot } from './with-stream-slot.ts';
@@ -109,7 +110,7 @@ async function mounted(call: EndpointCall, path: string, streams: boolean): Prom
       ...(state.traceparent !== undefined && { traceparent: state.traceparent }),
       signal: request.signal,
       path: relative.path,
-      basePath: relative.basePath,
+      basePath: `${session.tenantPrefix ?? ''}${relative.basePath}`,
     });
   // The stream gate is the host's: a request its route counts as a stream passed the stream origin
   // check and holds a stream slot until the body ends; a route that streams without it is refused.
@@ -158,12 +159,28 @@ export async function serveRequest(
   const { state } = bindings;
   // Before the session opens only the path says whether a REST mount of any app answers: its
   // errors are problem documents from the first byte, the session's own app refines this below.
-  const restPath = new URL(request.url).pathname;
-  const earlyReserved = restPath === reservedPrefix || restPath.startsWith(`${reservedPrefix}/`);
-  for (const table of host.mounts.values()) {
-    const early = table.match(restPath);
-    if (!earlyReserved && early?.transport === 'rest') {
-      state.problemBase = `${new URL(request.url).origin}${early.prefix === '/' ? '' : early.prefix}`;
+  // Below a tenant prefix, read by its syntax alone, the path without the prefix decides first: a
+  // reserved remainder answers the envelope (no problem base) and a REST mount keeps the prefix in
+  // its base; only otherwise the path as sent is matched.
+  const requestUrl = new URL(request.url);
+  const restPath = requestUrl.pathname;
+  const syntacticPrefix = syntacticTenantPrefixOf(restPath);
+  const candidates = [{ path: restPath, prefix: '' }];
+  if (syntacticPrefix !== '') {
+    candidates.unshift({
+      path: restPath.slice(syntacticPrefix.length) || '/',
+      prefix: syntacticPrefix,
+    });
+  }
+  for (const candidate of candidates) {
+    if (candidate.path === reservedPrefix || candidate.path.startsWith(`${reservedPrefix}/`)) {
+      break;
+    }
+    const found = [...host.mounts.values()]
+      .map((table) => table.match(candidate.path))
+      .find((match) => match?.transport === 'rest');
+    if (found !== undefined) {
+      state.problemBase = `${requestUrl.origin}${candidate.prefix}${found.prefix === '/' ? '' : found.prefix}`;
       break;
     }
   }
@@ -171,7 +188,6 @@ export async function serveRequest(
   // wherever it may not be one, and never reaches another endpoint. A well-formed one on any request
   // but the one that carries it is spent at once, so a ticket that a wrong request left in a log is
   // dead; on a mounted path the request then goes on as if the member were not a ticket.
-  const requestUrl = new URL(request.url);
   const refusedTicket = ticketRefusal(request, requestUrl);
   if (refusedTicket !== null || !carriesTicket(request, requestUrl)) {
     await spendRefusedTickets(
@@ -199,13 +215,15 @@ export async function serveRequest(
   const { session } = opened;
   state.session = session;
   const headers = carrier.headers ?? {};
-  const { pathname } = new URL(request.url);
+  const { pathname: sent } = new URL(request.url);
+  const tenantPrefix = session.tenantPrefix ?? '';
+  const pathname = sent.slice(tenantPrefix.length) || '/';
   const reserved = pathname === reservedPrefix || pathname.startsWith(`${reservedPrefix}/`);
   // The route first: the invocation protocol allows the tenant's domains only, a mount adds its own `cors`.
   const matched = reserved ? undefined : host.mounts.get(session.app)?.match(pathname);
   const transport = matched?.transport;
   if (transport === 'rest' && matched !== undefined) {
-    state.problemBase = `${new URL(request.url).origin}${matched.prefix === '/' ? '' : matched.prefix}`;
+    state.problemBase = `${new URL(request.url).origin}${tenantPrefix}${matched.prefix === '/' ? '' : matched.prefix}`;
   } else {
     delete state.problemBase;
   }

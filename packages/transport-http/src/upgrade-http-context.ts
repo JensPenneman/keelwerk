@@ -11,6 +11,6 @@ export function upgradeHttpContext(call: EndpointCall, signal: AbortSignal): Htt
     ...(state.traceparent !== undefined && { traceparent: state.traceparent }),
     signal,
     path: '/',
-    basePath: '',
+    basePath: call.session.tenantPrefix ?? '',
   };
 }

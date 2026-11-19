@@ -2,6 +2,7 @@ import { clearedCookie } from '@keelwerk/core/http';
 import { cors } from './cors.ts';
 import type { RequestState } from './request-state.ts';
 import { securityHeaders } from './security-headers.ts';
+import { syntacticTenantPrefixOf } from './syntactic-tenant-prefix-of.ts';
 import { versionHeaders } from './version-headers.ts';
 
 /**
@@ -40,9 +41,12 @@ export function decorateResponse(
     }
   }
   const url = new URL(request.url);
+  const prefix = state.session
+    ? (state.session.tenantPrefix ?? '')
+    : syntacticTenantPrefixOf(url.pathname);
   securityHeaders(
     headers,
-    url.pathname,
+    url.pathname.slice(prefix.length) || '/',
     url.protocol === 'https:' || state.carrier?.connection?.tls !== undefined,
   );
   const setNames = new Set(

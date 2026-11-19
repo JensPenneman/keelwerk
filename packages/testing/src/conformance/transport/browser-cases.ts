@@ -1,3 +1,4 @@
+import { renderTypeId } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import type { Call } from './call.ts';
 import { freshName } from './fresh-name.ts';
@@ -95,14 +96,67 @@ export function browserCases(target: TransportTarget): void {
       expect(await loansOf(target, ada, {}, 'globex')).toHaveLength(1);
     });
 
-    // 16.3.8 asks for this scenario, but M1 refuses the `path` and `scopeKey` tenant resolvers at
-    // boot (tenant-resolver.ts), so a request cannot name another tenant in its path: the case
-    // waits for the resolvers of M2 and the host strips the prefix then.
-    test.skip("m2: a path that names another tenant's scope key is refused, not served", async () => {
+    // 16.3.3: the path resolver decides and the host name can only veto it, so a path that names
+    // another tenant than the request's own host is not_found, never a request in that tenant.
+    test("a path that names another tenant's scope key is refused, not served", async () => {
       const sent = await sendCall(target, {
         action: 'loans.loan.query',
         input: {},
-        caller: { subject: freshName('ada'), pathPrefix: `/t/${tenantOf(target, 'globex').id}` },
+        caller: {
+          subject: freshName('ada'),
+          pathPrefix: `/t/${renderTypeId('tnt', tenantOf(target, 'globex').id)}`,
+        },
+      });
+      expect(sent.decoded).toEqual({ ok: false, kind: 'not_found', code: 'core.not_found' });
+      expect(sent.response.status).toBe(404);
+    });
+
+    test("a path that names the request's own tenant is served below the prefix", async () => {
+      // A row only acme holds, so an empty answer from any other scope cannot pass for this one.
+      const ada = freshName('ada');
+      const title = freshName('Dune');
+      expect((await sendCall(target, lendCall(ada, title))).decoded.ok).toBe(true);
+      const plain = await sendCall(target, {
+        action: 'loans.loan.query',
+        input: {},
+        caller: { subject: ada },
+      });
+      expect(plain.decoded).toMatchObject({
+        ok: true,
+        value: { items: [{ borrower: ada, bookTitle: title }] },
+      });
+      const sent = await sendCall(target, {
+        action: 'loans.loan.query',
+        input: {},
+        caller: {
+          subject: ada,
+          pathPrefix: `/t/${renderTypeId('tnt', tenantOf(target, 'acme').id)}`,
+        },
+      });
+      expect(sent.decoded).toEqual(plain.decoded);
+    });
+
+    test('a path that names an unknown tenant is not_found', async () => {
+      const sent = await sendCall(target, {
+        action: 'loans.loan.query',
+        input: {},
+        caller: {
+          subject: freshName('ada'),
+          pathPrefix: `/t/${renderTypeId('tnt', '00000000-0000-7000-8000-000000000000')}`,
+        },
+      });
+      expect(sent.decoded).toEqual({ ok: false, kind: 'not_found', code: 'core.not_found' });
+      expect(sent.response.status).toBe(404);
+    });
+
+    test('a path that names the own tenant by its stored id is not_found', async () => {
+      const sent = await sendCall(target, {
+        action: 'loans.loan.query',
+        input: {},
+        caller: {
+          subject: freshName('ada'),
+          pathPrefix: `/t/${tenantOf(target, 'acme').id}`,
+        },
       });
       expect(sent.decoded).toEqual({ ok: false, kind: 'not_found', code: 'core.not_found' });
       expect(sent.response.status).toBe(404);

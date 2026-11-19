@@ -120,14 +120,15 @@ describe('creation', () => {
     ).toThrowError(expect.objectContaining({ code: 'core.internal' }));
   });
 
-  test.each(['scopeKey', 'path'] as const)(
-    'refuses the %s resolver with the named problem',
-    (kind) => {
-      expect(() => invokerOf(noRules, { tenantResolution: [{ kind }] })).toThrowError(
-        expect.objectContaining({
-          details: expect.objectContaining({ code: 'scopeDirectoryUnavailable' }),
-        }),
-      );
-    },
-  );
+  test('refuses the scopeKey resolver with the named problem', () => {
+    expect(() => invokerOf(noRules, { tenantResolution: [{ kind: 'scopeKey' }] })).toThrowError(
+      expect.objectContaining({
+        details: expect.objectContaining({ code: 'scopeDirectoryUnavailable' }),
+      }),
+    );
+  });
+
+  test('accepts the path resolver', () => {
+    expect(() => invokerOf(noRules, { tenantResolution: [{ kind: 'path' }] })).not.toThrow();
+  });
 });

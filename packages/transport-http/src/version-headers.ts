@@ -1,10 +1,6 @@
 import type { InvocationSession } from '@keelwerk/core';
 import { deprecationHeaderOf, sunsetHeaderOf } from '@keelwerk/core';
 
-/** The surface of the session's API version names the deprecated actions: the `Link` of a deprecated action points there (the REST transport points at its own docs). */
-const actionLink = '</_keelwerk/v1/surface>; rel="deprecation"';
-const versionLink = '</_keelwerk/v1/capabilities>; rel="deprecation"';
-
 /**
  * `Keelwerk-Version` on every response, and at a deprecated API version or for a deprecated action
  * `Deprecation` (RFC 9745, only when a date is declared: an action deprecated without `at` is in
@@ -33,8 +29,12 @@ export function versionHeaders(
   if (sunset !== undefined) {
     headers.set('sunset', sunset);
   }
-  headers.append(
-    'link',
-    session?.deprecation !== null && session?.deprecation !== undefined ? versionLink : actionLink,
-  );
+  // The surface of the session's API version names the deprecated actions: the `Link` of a
+  // deprecated action points there, below the tenant prefix when the session has one.
+  const prefix = session?.tenantPrefix ?? '';
+  const target =
+    session?.deprecation !== null && session?.deprecation !== undefined
+      ? 'capabilities'
+      : 'surface';
+  headers.append('link', `<${prefix}/_keelwerk/v1/${target}>; rel="deprecation"`);
 }

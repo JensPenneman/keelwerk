@@ -27,7 +27,7 @@ describe('boot refusals', () => {
     expect(error.details).toMatchObject({ code: 'missingInfrastructure', ref: 'blobs' });
   });
 
-  test('the tenant resolvers scopeKey and path wait for the scope directory: scopeDirectoryUnavailable', async () => {
+  test('the tenant resolver scopeKey waits for the scope directory: scopeDirectoryUnavailable', async () => {
     const error = await refusal(
       boot(deploymentOf('memory', { tenantResolution: [{ kind: 'scopeKey' }] })),
     );

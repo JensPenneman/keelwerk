@@ -77,5 +77,8 @@ export async function resolveScope(env: InvokerEnv, carrier: Carrier): Promise<R
       message: 'No backend or tenant answers this request.',
     });
   }
-  return tenantScopeOf(env, found.backend, found.tenant, found.resolvedBy);
+  const scoped = tenantScopeOf(env, found.backend, found.tenant, found.resolvedBy);
+  return found.tenantPrefix === undefined
+    ? scoped
+    : { ...scoped, tenantPrefix: found.tenantPrefix };
 }

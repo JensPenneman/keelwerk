@@ -16,4 +16,6 @@ export interface ResolvedScope {
   readonly backendConfig?: Readonly<Record<string, unknown>>;
   /** The backend's or tenant's pinned API version. */
   readonly pinnedVersion?: string;
+  /** The tenant path prefix the path resolver consumed, as sent (`/t/<tenant TypeID>`). */
+  readonly tenantPrefix?: string;
 }

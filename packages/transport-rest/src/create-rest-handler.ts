@@ -157,20 +157,21 @@ export function createRestHandler(deps: RestHandlerDeps): HttpHandler {
   const basePath = deps.options.basePath ?? '/api';
   const reference = referencePage();
   return async (request, ctx) => {
+    const tenantPrefix = ctx.session.tenantPrefix ?? '';
     const method = request.method === 'HEAD' ? 'GET' : request.method;
     let mount: RestVersionMount;
     try {
       mount = deps.versions.at(ctx.session.apiVersion);
     } catch (thrown) {
-      const mountPath = deps.root === true ? basePath : ctx.basePath;
+      const mountPath = deps.root === true ? `${tenantPrefix}${basePath}` : ctx.basePath;
       return failure(deps, asKeelwerkError(thrown), request, ctx, mountPath);
     }
     const pages: Pages = { problem: mount.problem, reference };
     const { documents } = mount;
     const located = locateRoute(mount.table, method, {
       path: ctx.path,
-      stripped: ctx.basePath,
-      basePath,
+      stripped: deps.root === true ? ctx.basePath.slice(tenantPrefix.length) : ctx.basePath,
+      basePath: `${tenantPrefix}${basePath}`,
       root: deps.root === true,
     });
     try {

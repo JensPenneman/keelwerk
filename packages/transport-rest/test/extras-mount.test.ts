@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { createRestAdapter } from '../src/create-rest-adapter.ts';
 import { openApiDocuments } from '../src/openapi-documents.ts';
 import { portalSurface, withAction } from './support/portal-surface.ts';
-import { call, fakeInvoker, invokerWith, mountRest } from './support/rest-kit.ts';
+import { call, fakeInvoker, invokerWith, mountRest, session } from './support/rest-kit.ts';
 
 describe('the mount', () => {
   test('a tenant prefix the host consumed sits before the base path', async () => {
@@ -113,6 +113,25 @@ describe('the mount', () => {
     const root = registered[1]?.handler;
     if (root === undefined) throw new Error('the host-root path registered no handler');
     const response = await call(root, 'GET', '/.well-known/health');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ up: true });
+  });
+
+  test('a host-root rest.path route is found below a tenant prefix', async () => {
+    const surface = withAction(portalSurface(), 'app.health', {
+      hints: { rest: { path: '/.well-known/health' } },
+    });
+    const { registered } = await mountRest(
+      surface,
+      fakeInvoker(() => ({ ok: true, value: { up: true } })).invoker,
+    );
+    const root = registered[1]?.handler;
+    if (root === undefined) throw new Error('the host-root path registered no handler');
+    const response = await call(root, 'GET', '/t/acme/.well-known/health', {
+      tenantPrefix: '/t/acme',
+      mountPrefix: '/.well-known/health',
+      session: session({ resolvedBy: 'path', tenantPrefix: '/t/acme' }),
+    });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ up: true });
   });
