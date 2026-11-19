@@ -1,5 +1,5 @@
 import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach } from 'vitest';
 import { createFakeHost } from './fake-host.ts';
@@ -59,7 +59,15 @@ export function useScratchProject(): () => Promise<ScratchProject> {
       ),
     fork: async () => {
       const copy = await create();
-      await cp(root, copy, { recursive: true });
+      // A lock belongs to a git command running in the original; a copy never carries one, and a lock that
+      // vanishes while the copy walks the directory is never opened, so the walk cannot fail on it.
+      await cp(root, copy, {
+        recursive: true,
+        filter: (source) => {
+          const segments = relative(root, source).split(sep);
+          return !(segments.includes('.git') && (segments.at(-1) ?? '').endsWith('.lock'));
+        },
+      });
       return bind(copy);
     },
   });
