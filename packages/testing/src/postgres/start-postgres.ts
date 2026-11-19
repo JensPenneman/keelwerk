@@ -1,4 +1,5 @@
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import { assertConnectionsClosed } from './assert-connections-closed.ts';
 import { createApplicationRole } from './create-application-role.ts';
 import { postgresImage } from './postgres-image.ts';
 import type { RunningPostgres } from './running-postgres.ts';
@@ -36,12 +37,23 @@ export async function startPostgres(): Promise<RunningPostgres> {
       `${container.getUsername()}:${container.getPassword()}@`,
       'kw_app:kw_app@',
     );
+    const containerId = container.getId();
     return {
       adminUrl,
       appUrl,
       version: versionResult.output.trim(),
-      containerId: container.getId(),
+      containerId,
       stop: async () => {
+        try {
+          await assertConnectionsClosed({ containerId, adminUrl });
+        } catch (cause) {
+          // Stopping the server under a connection that is still open ends it with an error that
+          // nothing handles, so the container stays up and the reaper removes it when this process exits.
+          throw new Error(
+            `${cause instanceof Error ? cause.message : String(cause)} The container ${containerId} was not stopped; the reaper removes it when this process exits.`,
+            { cause },
+          );
+        }
         await container.stop();
       },
     };

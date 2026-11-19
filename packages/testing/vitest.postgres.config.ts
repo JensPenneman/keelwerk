@@ -13,6 +13,7 @@ export default defineConfig({
     include: ['test/**/*.postgres.test.ts'],
     ...postgresProjectRun,
     globalSetup: ['test/support/global-setup.ts'],
+    setupFiles: ['test/support/connections-guard.ts'],
     hookTimeout: 120_000,
     testTimeout: 60_000,
   },

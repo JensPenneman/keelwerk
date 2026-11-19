@@ -145,7 +145,15 @@ export function createPostgresInstance(
       const ended = current.db.destroy();
       const timer = new AbortController();
       const timedOut = await Promise.race([
-        ended.then(() => false),
+        ended.then(
+          () => false,
+          (error: unknown) => {
+            env.log.warn('the postgres pool failed to close', {
+              message: error instanceof Error ? error.message : String(error),
+            });
+            return false;
+          },
+        ),
         delay(deadlineMs, undefined, { signal: timer.signal }).then(
           () => true,
           () => false,

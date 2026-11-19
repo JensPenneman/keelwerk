@@ -53,4 +53,33 @@ describe('mapPostgresError', () => {
     expect(mapPostgresError('text')).toBe('text');
     expect(mapPostgresError(null)).toBeNull();
   });
+
+  test('57P01 is unavailable core.unavailable, retryable, with the driver error as its cause', () => {
+    const driver = Object.assign(new Error('terminating connection'), { code: '57P01' });
+    const mapped = mapPostgresError(driver);
+    expect(isKeelwerkError(mapped)).toBe(true);
+    expect(mapped).toMatchObject({
+      kind: 'unavailable',
+      code: 'core.unavailable',
+      retryable: true,
+      cause: driver,
+    });
+  });
+
+  test('a terminated connection and ECONNREFUSED are unavailable core.unavailable', () => {
+    expect(mapPostgresError(new Error('Connection terminated unexpectedly'))).toMatchObject({
+      kind: 'unavailable',
+      code: 'core.unavailable',
+    });
+    const refused = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+    expect(mapPostgresError(refused)).toMatchObject({
+      kind: 'unavailable',
+      code: 'core.unavailable',
+    });
+  });
+
+  test('a KeelwerkError passes unchanged, so mapping twice changes nothing', () => {
+    const once = mapPostgresError(Object.assign(new Error('gone'), { code: '57P01' }));
+    expect(mapPostgresError(once)).toBe(once);
+  });
 });

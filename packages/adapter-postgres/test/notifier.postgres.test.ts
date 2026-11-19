@@ -1,6 +1,8 @@
+import { createServer, type Server, type Socket, connect as tcpConnect } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { DataAdapter } from '@keelwerk/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
+import { notifySender } from '../src/notify-sender.ts';
 import { createPostgresChangeFeed } from '../src/postgres-change-feed.ts';
 import { streamAppend } from './support/event-fixtures.ts';
 import type { FeedHarness } from './support/feed-harness.ts';
@@ -186,5 +188,123 @@ describe('the listen connection on PostgreSQL', () => {
     expect(found.value).toEqual({ namespace: 'ns-app', scopeIds: [tenantA] });
     stop.abort();
     await feed.close(2000);
+  });
+});
+
+describe('the notify connection after the feed closed', () => {
+  const backends = async (name: string): Promise<number> =>
+    harness.owner(async (client) => {
+      const found = await client.query<{ count: string }>(
+        'select count(*) from pg_stat_activity where application_name = $1',
+        [name],
+      );
+      return Number(found.rows[0]?.count);
+    });
+
+  /**
+   * A TCP relay in front of the database that forwards what a client sends at once but holds back
+   * the end of the server's start-up answer until `release()`: a connection opened through it stays "opening" on the
+   * client side while its backend already shows in `pg_stat_activity`.
+   */
+  const slowRelay = async (
+    target: URL,
+  ): Promise<{ readonly url: string; release(): void; stop(): Promise<void> }> => {
+    let held = true;
+    const sockets = new Set<Socket>();
+    const releases: Array<() => void> = [];
+    const server: Server = createServer((client) => {
+      const upstream = tcpConnect(Number(target.port), target.hostname);
+      sockets.add(client).add(upstream);
+      client.on('error', () => upstream.destroy());
+      upstream.on('error', () => client.destroy());
+      client.pipe(upstream);
+      // The backend reports its application name once it has authenticated, and the driver's connect
+      // resolves at the server's "ready for query" message: that message, and every answer after it,
+      // waits for the release.
+      const readyForQuery = Buffer.from([0x5a, 0, 0, 0, 5, 0x49]);
+      let holding = false;
+      const queued: Buffer[] = [];
+      upstream.on('data', (chunk: Buffer) => {
+        if (held && !holding && chunk.subarray(-readyForQuery.length).equals(readyForQuery)) {
+          holding = true;
+        }
+        if (holding && held) queued.push(chunk);
+        else client.write(chunk);
+      });
+      upstream.on('end', () => client.end());
+      releases.push(() => {
+        for (const chunk of queued.splice(0)) client.write(chunk);
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('The relay has no port');
+    const url = new URL(target);
+    url.hostname = '127.0.0.1';
+    url.port = String(address.port);
+    return {
+      url: url.toString(),
+      release: () => {
+        held = false;
+        for (const forward of releases.splice(0)) forward();
+      },
+      stop: async () => {
+        for (const socket of sockets) socket.destroy();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      },
+    };
+  };
+
+  const waitForBackends = async (
+    name: string,
+    done: (count: number) => boolean,
+    timeoutMs: number,
+  ): Promise<number> => {
+    const deadline = Date.now() + timeoutMs;
+    let count = await backends(name);
+    while (!done(count) && Date.now() < deadline) {
+      await delay(25);
+      count = await backends(name);
+    }
+    return count;
+  };
+
+  test('a wake-up pending when a close with no deadline expires opens no connection', async () => {
+    const relay = await slowRelay(new URL(harness.database.appUrl));
+    const feed = createPostgresChangeFeed({
+      url: relay.url,
+      applicationName: 'lateflush',
+      log: testEnvironment().log,
+      adapter,
+      notify: true,
+      pollIntervalMs: 60_000,
+    });
+    try {
+      // The first flush is in flight: its connection is opening and the relay holds the answer.
+      feed.committed(testNamespace.id, tenantA);
+      expect(await waitForBackends('lateflush-notify', (count) => count > 0, 5000)).toBeGreaterThan(
+        0,
+      );
+      // A second wake-up is pending while it flushes, so the trailing flush after the close has work.
+      feed.committed(testNamespace.id, tenantB);
+      const closing = feed.close(0);
+      relay.release();
+      await closing;
+      expect(await waitForBackends('lateflush-notify', (count) => count === 0, 5000)).toBe(0);
+    } finally {
+      relay.release();
+      await relay.stop();
+    }
+  });
+
+  test('a sender that is closed sends nothing and opens no connection', async () => {
+    const sender = notifySender({
+      url: harness.database.appUrl,
+      applicationName: 'closedsender',
+      log: testEnvironment().log,
+    });
+    await sender.close();
+    await sender.send('ns-app:x');
+    expect(await backends('closedsender-notify')).toBe(0);
   });
 });

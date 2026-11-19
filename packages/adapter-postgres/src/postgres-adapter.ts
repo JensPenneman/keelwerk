@@ -83,6 +83,11 @@ export function postgresAdapter(options: PostgresAdapterOptions = {}): DataAdapt
           // biome-ignore lint/style/useNamingConvention: the key is the driver's option name
           application_name: `${options.applicationName ?? 'keelwerk'}-migrate`,
         });
+        client.on('error', (error) => {
+          env.log.warn('postgres schema connection: the connection failed', {
+            message: error.message,
+          });
+        });
         await client.connect();
         return client;
       });

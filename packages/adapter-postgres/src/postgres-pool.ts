@@ -14,8 +14,9 @@ export interface PostgresPoolSettings {
 
 /**
  * The placement's connection pool. Every session ends a transaction left idle (section 14.3.6) and
- * is tagged in `pg_stat_activity`. An error on an idle connection (the server went away) is logged;
- * the pool drops that connection and the next unit opens another.
+ * is tagged in `pg_stat_activity`. An error on a connection, idle or in use (the server restarted
+ * or ended it), is logged once as a warning with its message only; the pool drops that connection
+ * and the next unit opens another. The unit that held it fails with its own error.
  */
 export function createPostgresPool(settings: PostgresPoolSettings): pg.Pool {
   const pool = new pg.Pool({
@@ -28,8 +29,24 @@ export function createPostgresPool(settings: PostgresPoolSettings): pg.Pool {
     ...(settings.max === undefined ? {} : { max: settings.max }),
     ...(settings.idleTimeoutMs === undefined ? {} : { idleTimeoutMillis: settings.idleTimeoutMs }),
   });
-  pool.on('error', (error) => {
-    settings.log.warn('postgres pool: an idle connection failed', { message: error.message });
+  // pg-pool listens for errors of idle clients only: it removes that listener when it hands a client
+  // out. Every client gets its own listener, so a connection that ends while a unit holds it is not
+  // an uncaught exception. The error object is never logged: the pool attaches the client, whose
+  // options hold the password.
+  const reported = new WeakSet<pg.PoolClient>();
+  const report = (error: Error, client: pg.PoolClient | undefined): void => {
+    if (client !== undefined) {
+      if (reported.has(client)) return;
+      reported.add(client);
+    }
+    settings.log.warn(
+      'postgres pool: a connection failed; the pool drops it and the next unit opens another',
+      { message: error.message },
+    );
+  };
+  pool.on('connect', (client) => {
+    client.on('error', (error) => report(error, client));
   });
+  pool.on('error', (error, client) => report(error, client));
   return pool;
 }

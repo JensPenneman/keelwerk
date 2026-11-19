@@ -23,6 +23,7 @@ export interface NotifySender {
  */
 export function notifySender(settings: NotifySenderSettings): NotifySender {
   let client: Promise<pg.Client> | undefined;
+  let closed = false;
   const connect = async (): Promise<pg.Client> => {
     const created = new pg.Client({
       connectionString: settings.url,
@@ -38,16 +39,24 @@ export function notifySender(settings: NotifySenderSettings): NotifySender {
       client = undefined;
     });
     await created.connect();
+    if (closed) {
+      // The sender was closed while this connection was opening: nothing will use it.
+      created.end().catch(() => undefined);
+      throw new Error('The notify sender is closed');
+    }
     return created;
   };
   return {
     send: async (payload) => {
+      // A wake-up that arrives after the close has nobody to wake and must not open a connection.
+      if (closed) return;
       client ??= connect();
       let connected: pg.Client;
       try {
         connected = await client;
       } catch (error) {
         client = undefined;
+        if (closed) return;
         throw error;
       }
       try {
@@ -61,6 +70,7 @@ export function notifySender(settings: NotifySenderSettings): NotifySender {
       }
     },
     close: async () => {
+      closed = true;
       const current = client;
       client = undefined;
       if (current === undefined) return;
