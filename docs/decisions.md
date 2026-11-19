@@ -1,6 +1,6 @@
 # Decision register
 
-Date: 2026-10-23 (updated 2026-10-24; the M0 spike outcomes of section M, the M1 plan gaps of section N and the M1 follow-ups of section O added 2026-11-04; the M1 follow-ups of section P added 2026-11-05; the decisions of 2026-11-10 in section Q). Status: open. This register lists every open question of the architecture in
+Date: 2026-10-23 (updated 2026-10-24; the M0 spike outcomes of section M, the M1 plan gaps of section N and the M1 follow-ups of section O added 2026-11-04; the M1 follow-ups of section P added 2026-11-05; the decisions of 2026-11-10 in section Q; the M2 follow-ups of section R added 2026-11-19). Status: open. This register lists every open question of the architecture in
 one place, numbered, so that Jens can answer them one by one in conversation. Each answer is
 recorded here with its date and the section or ADR that applies it. The questions come from
 [architecture.md](architecture.md) section 26 (decision points, spike questions, questions by
@@ -705,7 +705,10 @@ sections it touched.
      M1, because Dependabot's updater refuses `"node": ">=26"`; `keelwerk doctor` checks Node 26 or
      later, and the lead decides between the field and Dependabot's version updates before the first
      publish (roadmap M1, criterion 12). Status: decided by the lead 2026-11-04 (M1 plan S-01),
-     applied (sections 13.2, 22; roadmap M1).
+     applied (sections 13.2, 22; roadmap M1). Amended 2026-11-05: the committed manifests stay
+     without `engines`; the release step writes `"engines": { "node": ">=26" }` into every published
+     `package.json` at publish time (`with_publish_engines` in `scripts/release.sh`) until
+     Dependabot's updater runs Node 26 (M1 plan S-116, WP-65). Applied in: sections 13.2 and 22.
 122. **Types the code blocks named without defining** (S-02). `StoredJobSpec`, `StoredJob`,
      `JobAttempt`, `JobOutcome`, `JobId`, `Receipt`, `ReceiptOutcome`, `DataKey`, `SealedValue`,
      `TrackSnapshot`, `TableSpec`, `ColumnSpec`, `IndexSpec`, `ForeignKeySpec`, `Catalogue`,
@@ -1142,6 +1145,10 @@ built until they are answered.
      framework tables and `select` on `kw_migrations`; creating the role belongs to provisioning,
      not to the DDL. Status: decided by the lead 2026-11-04 (M1 plan, WP-11). Applied in: section
      14.3.7.
+     Amended 2026-11-18: kernel maintenance on `kw_events` and `kw_shapes` runs through owner-owned
+     `security definer` functions that the application role may only execute (first:
+     `kw_purge_transient`, framework step 0004). The role keeps `select, insert` only. Applied in:
+     14.3.7, 15.1.11.
 210. **A read's position** (WP-10). A read's position is `kw_positions.next - 1`, the last position
      committed in the scope, and 0 for a scope that never appended (with entry 139). Status: decided
      by the lead 2026-11-04 (M1 plan, WP-10). Applied in: section 15.1.4.
@@ -1165,7 +1172,9 @@ built until they are answered.
      have the fields of the table in section 3.1, backend and tenant `status` is `active` or
      `suspended`, and `core.commandReceipt` and `core.effect` use the core-only tenancy
      `invocation`, riding in the scope of the unit that writes them. Status: decided by the lead
-     2026-11-04 (M1 plan, WP-20). Applied in: sections 3.1, 4.2, 14.3.2 and 16.2.2.
+     2026-11-04 (M1 plan, WP-20). Applied in: sections 3.1, 4.2, 14.3.2 and 16.2.2. Amended
+     2026-11-11: `invocation` is no longer core-only; a module may declare an invocation-tenancy
+     entity (WP-94, entry 399). Applied in: sections 3.1, 4.2 and 14.3.2.
 216. **Processes and scaling members** (WP-20). `processes.<name>` is a `ProcessDefinition`
      (`roles`, `capabilities?`, `slots?`, `placements?`, `provider?`, `scale?: { min?, max?,
      maxPerNode? }`, `drainSeconds?`), and `scaling` is `DeploymentScaling` (`maxProcesses?`,
@@ -1188,7 +1197,9 @@ built until they are answered.
 220. **Generated files stay under Biome** (WP-21). `*.generated.ts` files stay under Biome's check
      (only `generated/` directories are excluded), so generators sort imports as Biome's organizer
      does, and drift checks ignore the producer's version. Status: decided by the lead 2026-11-04
-     (M1 plan, WP-21). Applied in: section 13.7.
+     (M1 plan, WP-21). Applied in: section 13.7. Amended 2026-11-11: generated files name no
+     generator version (entry 268), so drift checks have none to ignore (lead decision, F-13 change
+     note before the first publish). Applied in: section 13.7.
 221. **Generator aliases and contributed references** (WP-21). Import aliases are the camel case of
      scope, target and export (`credentialSelf`, `accountsProfileSelf`), a part with neither adding
      its kind (`postEffect`); a contributed part's reference is `<module>.<target
@@ -1229,7 +1240,10 @@ built until they are answered.
 230. **What a job key does** (WP-13). Keys act on a pending job of the same key and lane: `keep`
      returns it, `coalesce` keeps it and moves its `runAt` to the earlier time (available at once
      when due), and `replace` finishes it as `cancelled`, with history, and enqueues the new job.
-     Status: decided by the lead 2026-11-04 (M1 plan, WP-13). Applied in: section 14.3.9.
+     Status: decided by the lead 2026-11-04 (M1 plan, WP-13). Applied in: section 14.3.9. Amended
+     2026-11-11: the key mode `append` looks no pending job up; the new job joins the key's FIFO as
+     a follower (`ordering: 'fifo-per-key'`), so every job of the key runs, in order (WP-92).
+     Applied in: sections 9.5.1, 9.5.2 and 14.3.9.
 231. **`readAll`'s next position** (WP-13). `EventStore.readAll(after)` returns `next` as the
      position of the last event returned, or `after` when none was. Status: decided by the lead
      2026-11-04 (M1 plan, WP-13). Applied in: section 15.1.11.
@@ -1257,7 +1271,10 @@ built until they are answered.
      `inlineExecutorCapabilities`, `unknownHooks` and `asyncReactionsUnavailable`;
      `emptyExtensionPoints` is a compose warning and a boot error; the app is refused with the first
      error. Status: decided by the lead 2026-11-04 (M1 plan, WP-27). Applied in: sections 3.3, 4.7,
-     5.1, 5.5, 7.3, 7.9.6, 8.1, 9.5.6 and 14.4.2.
+     5.1, 5.5, 7.3, 7.9.6, 8.1, 9.5.6 and 14.4.2. Amended 2026-11-11: `asyncReactionsUnavailable` is
+     a boot check that reads the event worker's `runs` (WP-92). Applied in: sections 4.7 and 7.7.
+     Amended 2026-11-12: the runtime problems gain `mismatchedScheduleScopes` and
+     `invalidScheduleDurations` (WP-82). Applied in: sections 4.7 and 9.5.6.
 237. **Track ids in the registry** (WP-27). `TrackRef.track` is the 14.6.1 track id: the owner
      module's id for its own fields, the contributor's track for contributed ones. Status: decided
      by the lead 2026-11-04 (M1 plan, WP-27). Applied in: section 14.6.1.
@@ -1377,6 +1394,10 @@ built until they are answered.
      indentation), a snapshot names its format in `format`, and the OpenAPI document carries the
      header as `x-keelwerk-generated` with `producerVersion`, which drift checks ignore. Status:
      decided by the lead 2026-11-04 (M1 plan, WP-23, WP-26, WP-33). Applied in: section 13.7.
+     Amended 2026-11-11: generated files no longer name the generator's version; the header is
+     `Generated by keelwerk from <source>. Do not edit. Format <format id>.`, the OpenAPI member
+     `x-keelwerk-generated` carries no `producerVersion`, and a release changes version numbers only
+     (lead decision, F-13 change note before the first publish). Applied in: sections 13.7 and 23.5.
 269. **A required column added later** (WP-23). A required column added to an existing table is
      added nullable and tightened by an `alterColumn` in the contract file, instead of carrying a
      database default until a contract step. Status: decided by the lead 2026-11-04 (M1 plan,
@@ -1667,7 +1688,8 @@ architecture text describes what is built.
 335. **Timers of resolver effects** (WP-37, WP-41). Timers that a principal resolver's effects set
      run under the core module's service principal (`core.module`), since a resolver belongs to no
      command. Status: decided by the lead 2026-11-04 (M1 plan, WP-37, WP-41). Applied in: section
-     9.5.6.
+     9.5.6. Amended 2026-11-11: the timers of a resolver's effects run as the resolver module's own
+     minted service principal, not as `core.module` (WP-82). Applied in: sections 9.5.6 and 12.3.
 336. **Idempotency details** (WP-38). The same command id under another principal is `conflict`,
      `core.idempotency_mismatch`; a `claim` that finds a pending receipt waits up to one second for
      it, then answers `conflict`, `core.command_in_progress` (retryable). Status: decided by the lead
@@ -1714,7 +1736,11 @@ architecture text describes what is built.
      command of another scope is refused with `internal`, `core.request_not_allowed` in M1; the
      post-commit enqueue in a short unit of the target scope (like S-24's resolver effects) arrives
      with the worker in M2. Status: decided by the lead 2026-11-04 (M1 plan, WP-41, S-67). Applied
-     in: sections 7.9.5 and 12.3.
+     in: sections 7.9.5 and 12.3. Amended 2026-11-11: a cross-scope effect is a job in the source
+     scope, committed with the decision, whose action runs in the tenant's own backend unit (no
+     post-commit relay); only a tenant to its own backend is allowed, and a system principal never
+     crosses scopes (WP-82). Applied in: section 12.3. Amended 2026-11-12: a timer never crosses
+     scopes (WP-82). Applied in: sections 7.9.5 and 12.3.
 346. **Failed receipts** (WP-41, S-68). A command that fails with a non-retryable error after its
      pending receipt was claimed records a `failed` receipt (kind, code and message in `outcome`) in
      a short unit after the rollback, so a retry with the same id answers the same error. Nothing is
@@ -1862,7 +1888,11 @@ architecture text describes what is built.
      sealed under the subject's key; a non-entity command whose output has a personal field is
      refused at compose until receipts seal outputs; effect outputs that carry secrets have no
      sealing rule yet (open point 456). Status: decided by the lead 2026-11-05 (M1 plan, WP-48,
-     WP-53, S-81, S-99). Applied in: sections 7.9.5, 14.7.4 and 15.1.7.
+     WP-53, S-81, S-99). Applied in: sections 7.9.5, 14.7.4 and 15.1.7. Amended 2026-11-11:
+     personal effect inputs are sealed under the subject's key (WP-72), and effect inputs and
+     outputs that carry secrets follow the rule of open point 456 (WP-72, WP-93; ADR 0017); a
+     non-entity command's personal output stays refused. Applied in: ADR 0017, sections 7.9.5,
+     14.7.4 and 17.7 (G4).
 371. **Secret drafts, issue and trace** (WP-48). The draft type of a `field.secret()` member is
      `string | SecretRef`; the decide context has `ctx.secrets.issue`; a command's `trace: { input:
      'sealed', retention? }` makes the decision record keep its sealed input; `createKeyService`
@@ -1880,7 +1910,10 @@ architecture text describes what is built.
      oldest declared version or past its entry's sunset (410); any other undeclared date is unknown
      (400); pins follow the same rules, so a retired or unknown pin fails the request (the re-pin event
      of 18.5 is M2). `openSession` passes the principal to `resolveVersion`. Status: decided by the
-     lead 2026-11-05 (M1 plan, WP-49, S-78). Applied in: sections 13.7, 18.2 and 18.3.
+     lead 2026-11-05 (M1 plan, WP-49, S-78). Applied in: sections 13.7, 18.2 and 18.3. Amended
+     2026-11-12: a retired pin is served under its target, the oldest served version newer than it
+     (the head when there is none); only a retired version the request names is 410 (WP-109).
+     Applied in: section 18.3.
 374. **Ledger writes and the version header** (WP-47, WP-49, S-79). A plain `generate-surfaces` run
      creates `ledger.json` when missing and otherwise brings only the head entry's `surfaceHash` and
      `modules` to what the sources imply (`refreshHeadEntry`; the head is the working entry until
@@ -2026,7 +2059,10 @@ architecture text describes what is built.
      scope predicate `scope_id = <tenant, backend or deployment id>`; `core.commandReceipt` and
      `core.effect` share it (as built); the memory adapter stores receipts as rows of the entity store.
      Stored format final from M1. Status: decided by the lead 2026-11-05 (M1 plan, WP-55, S-102; the
-     effect layout as built). Applied in: sections 14.3.7, 14.4.2, 14.4.3 and 15.1.7.
+     effect layout as built). Applied in: sections 14.3.7, 14.4.2, 14.4.3 and 15.1.7. Amended
+     2026-11-11: an `invocation` entity without `kw_*` columns reads its chain state from the last
+     record of its stream, in one bounded read (the lead's binding for WP-93). Applied in: section
+     14.4.2.
 399. **Claims and reads of receipts** (WP-55, WP-58, S-102). Neither adapter's `put` takes over an
      expired receipt; `claim` does, on both. Reads of an `invocation` entity accept tenant, backend
      and deployment sessions, each in its own scope: `ActionEntry.scope` and `SurfaceAction.scope`
@@ -2034,7 +2070,11 @@ architecture text describes what is built.
      written only when the receipt's scope is the session's, so a backend-scope async action called
      from a tenant session answers 202 without `Location`; `watch` and `changes` on receipts need the
      transient change records of 15.1.10 (M2). Status: decided by the lead 2026-11-05 (M1 plan,
-     WP-55, WP-58, S-102). Applied in: sections 8.8, 15.1.7 and 16.4.7.
+     WP-55, WP-58, S-102). Applied in: sections 8.8, 15.1.7 and 16.4.7. Amended 2026-11-11:
+     `invocation` is no longer the core's own: a module may declare an invocation-scope action and
+     an invocation-tenancy entity (S-161: the ticket, with `publicId`, `verifier`, `endpoint`,
+     `principalResolver` and `principalId`); this replaces "from the tenancy only (the DSL cannot
+     declare it)" (WP-94). Applied in: sections 3.1, 4.2, 14.3.2 and 15.4.6.
 400. **Transport runtime interfaces** (WP-55). `MountContext.deploymentId`; `@keelwerk/core/http`
      exports the host's shared helpers and `clearedCookie`; `@keelwerk/testing` exports
      `describeTransportConformance`, `TransportCodec`, `TransportTarget`, `transportTargetOf` and
@@ -2164,7 +2204,11 @@ architecture text describes what is built.
      `--wait` waits until interrupted (130); with no worker in M1 an accepted command's `--wait` ends
      at its timeout; `--wait-effects` stays `core.live_unavailable`; operators may read `core.effect`.
      Status: decided by the lead 2026-11-05 (M1 plan, WP-58, S-109). Applied in: sections 16.8.2,
-     16.9.4 and 16.9.5.
+     16.9.4 and 16.9.5. Amended 2026-11-17: the submitter reads the status views
+     `core.effectStatus` (one id) and `core.effectStatusWatch` (ids), and `--wait-effects` and
+     `waitForEffects` follow the watch and answer statuses, not outcomes; "operators may read
+     `core.effect`" no longer holds, since no core rule lets anyone read it through the API (WP-141,
+     WP-105). Applied in: sections 7.9.5, 16.4.7, 16.8.4 and 16.9.5.
 419. **Empty inputs** (WP-58, S-109). The validate stage turns `undefined` into `{}` when the action's
      input is an empty shape and accepts `undefined` for a `void` input; `null` stays refused. Status:
      decided by the lead 2026-11-05 (M1 plan, WP-58, S-109). Applied in: section 9.2.
@@ -2181,7 +2225,9 @@ architecture text describes what is built.
      answers the retryable `core.command_in_progress` when the receipt turns out inserted), so an
      expired-receipt takeover cannot store unsealed configuration. Stored format final from M1.
      Status: decided by the lead 2026-11-05 (M1 plan, WP-58, S-109, S-111). Applied in: sections 7.5
-     and 15.1.7.
+     and 15.1.7. Amended 2026-11-18: "Stored format final from M1" is superseded by the two digests,
+     `kwf1.` for the receipt fingerprint and `kwb1.` or `kwd1.` for the event meta's `inputDigest`;
+     the 0.1.0 form is kept only for comparison (WP-158).
 422. **Headers carry ids** (WP-58, S-111). The backend and tenant headers carry ids; the CLI resolves
      a backend name to its id once per run before tenant-scoped requests. Status: decided by the lead
      2026-11-05 (M1 plan, WP-58, S-111). Applied in: section 16.8.2.
@@ -2224,7 +2270,9 @@ architecture text describes what is built.
      list of rows); IPv6 addresses are bucketed by their /64 prefix; one rule per action (decision
      60b) with ids `auth.<action>.<name>`, no rule arrays; the session cookie expires at the idle
      expiry in M1 (sliding is M2). Status: decided by the lead 2026-11-05 (M1 plan, WP-60, S-110).
-     Applied in: sections 16.4.10, 17.2.4, 17.2.6 and 17.2.8.
+     Applied in: sections 16.4.10, 17.2.4, 17.2.6 and 17.2.8. Amended 2026-11-12: no resolution
+     cache is built yet (`cache` only feeds `dependsOn`); when one is built it must drop on any
+     change record, the erased record included (WP-100). Applied in: section 17.2.4.
 429. **Type budgets after the fold fix** (WP-47, WP-60, WP-63, S-110, S-113, closes open point 326).
      `ContributionsTo<Ms, I>` filters a module's contributions once per module (fold at 25 modules
      510,100 to 213,162), and the synthetic budgets are the measured figures plus 15 %: fold 246,000
@@ -2260,7 +2308,10 @@ architecture text describes what is built.
      template default-exports a `DeploymentDefinition` literal; `startRuntime` neither builds the
      `httpHost(...)` entry nor calls `listen()`: the CLI's `bootApp` builds the host over the runtime's
      invoker and opens it after startup. Both are interim (open point 458). Status: decided by the
-     lead 2026-11-05 (M1 plan, WP-61, S-108). Applied in: sections 3.3 and 4.6.
+     lead 2026-11-05 (M1 plan, WP-61, S-108). Applied in: sections 3.3 and 4.6. Amended 2026-11-10:
+     the runtime owns the HTTP host; its `listen` phase builds the `httpHost(...)` entry and calls
+     `listen()`, `Runtime` gains `port?` and `operatorSocket?`, and `bootApp` builds no host of its
+     own (WP-74). Applied in: sections 3.3 and 16.3.3.
 435. **`dev` and `init`** (WP-61, S-108). The dev PGlite directory holds one database per entry
      (`control`, `<placement>`); the probe names a hanging import through a child hook, with a default
      limit of 10 seconds; right after `init`, `generate --check` exits 1 until `pnpm install` has run,
@@ -2268,7 +2319,9 @@ architecture text describes what is built.
      dev`; `init` writes `.launchway/tsconfig.json`; the served host gets the deployment's
      `telemetry.otlp` through `@opentelemetry/api`; the 1-second restart target was not met on a
      loaded machine (1.4 to 14 s, open point 459). Status: decided by the lead 2026-11-05 (M1 plan,
-     WP-61, S-108). Applied in: sections 13.6 and 16.9.7.
+     WP-61, S-108). Applied in: sections 13.6 and 16.9.7. Amended 2026-11-10: the probe's single
+     default limit of 10 seconds is replaced by the two stall limits of entry 488. Applied in:
+     section 13.6.
 436. **CLI host and signals** (WP-59, WP-61). `CliHost` gains `promptLine(label)` (echoing;
      `promptSecret` stays for secrets) and `spawn`, `schedule` and `watchTree`; `keelwerk` exits on
      SIGTERM with the command's code after a completed stop and on SIGINT with 130. Status: decided by
@@ -2296,7 +2349,12 @@ architecture text describes what is built.
      never a stranger's unlinked credential; the credential-to-profile relation joins on the explicit,
      indexed `profileId` column, not `subject`; the reset delivery contract's token member is secret,
      and fillers arrive with sealed effect inputs in M2 (S-43). Status: decided by the lead 2026-11-05
-     (M1 plan, WP-62, S-112). Applied in: sections 5.3, 17.2.2 and 17.2.5.
+     (M1 plan, WP-62, S-112). Applied in: sections 5.3, 17.2.2 and 17.2.5. Amended 2026-11-11: a
+     failed `invoke` can be remapped (open point 463, WP-92). Amended 2026-11-17: `link-profile`
+     tests the event's causation id (`event.causationId`) instead of `actor.kind`; the identifier
+     and the `linkPending` marker stay the guard (open point 463, WP-103). Amended 2026-11-18: the
+     sign-up of an address that has a profile answers `auth.identifier_taken` (WP-103). Applied in:
+     section 17.2.2.
 441. **Too many records to change** (WP-62). Revoking a subject's other sessions and retiring a
      credential's reset tokens load at most 1,000 rows; a full page is refused with `conflict`,
      `auth.too_many_records`, rather than leaving live rows behind. Status: recorded as built
@@ -2325,7 +2383,9 @@ architecture text describes what is built.
      with `unsupported`, `core.replay_outside_horizon`. The folded row hands back sealed values (`kwv1`
      text) as live reads do. Transient records carry only the new values; before-images (M2) would let
      rows older than the horizon re-decide. Status: decided by the lead 2026-11-05 (M1 plan, WP-63,
-     S-113, S-114). Applied in: sections 7.9.6, 14.7.1 and 15.1.10.
+     S-113, S-114). Applied in: sections 7.9.6, 14.7.1 and 15.1.10. Amended 2026-11-10: the
+     before-images of transient records are deferred to M5 (M2 plan S-129, entry 496). Applied in:
+     section 15.1.10.
 446. **`argon2idNeedsRehash`** (WP-63, S-114). `ctx.compute.argon2idNeedsRehash(verifier)` is a
      compute request: the kernel opens the sealed verifier and compares its parameters with the
      current ones; it is reproducible and not recorded. A login rehashes only when the parameters
@@ -2357,11 +2417,15 @@ Open points raised by the same packages, for their owners:
 450. **The explain stream line** (WP-45, S-71). The stream line is `<transport> -> <action> <ok|code>
      <n> ms`, without stages, plan or matched rule ids, and `subscribe` writes none; showing the
      matched rules needs an invoker decision hook or an `Outcome` member. Status: open, for M2
-     (concerns sections 11 and 16.11.4).
+     (concerns sections 11 and 16.11.4). Decided by the lead 2026-11-11 (WP-73): the stream line
+     carries the matched rule ids and the failed stage, and the invoker has a decision hook
+     (`InvokerOptions.onDecision`). Applied in: sections 11 and 16.11.4.
 451. **`--as` and roles** (WP-45, S-72). `--as user:<id>` builds a principal without roles from the
      deployment's resolver or enrichers (`--roles` is an unlisted flag); resolving `--as` through the
      `PrincipalEnricher` chain and printing the roles the decision used is open. Status: open, for M2
-     (concerns section 16.9.7).
+     (concerns section 16.9.7). Decided by the lead 2026-11-11 (WP-73): `--as` is resolved on the
+     server through the enricher chain and prints the roles the decision used. Applied in: section
+     16.9.7.
 452. **The third reset case** (WP-47, S-76). A position older than the retention horizon (14.7.2)
      needs a horizon hook beside `epochOf`. Status: open, for M2 with compaction (concerns section
      15.2.6).
@@ -2379,7 +2443,15 @@ Open points raised by the same packages, for their owners:
 456. **Sealing effect inputs and outputs** (WP-44, WP-53, S-99). Personal effect inputs stay refused
      until they are sealed under the subject's key, a non-entity command's personal output until
      receipts seal outputs, and effect outputs that carry secrets have no sealing rule. Status: open,
-     for M2 (concerns sections 7.9.5, 15.1.7 and 17.7 (G4)).
+     for M2 (concerns sections 7.9.5, 15.1.7 and 17.7 (G4)). Decided 2026-11-11 for secrets (WP-72,
+     WP-93): effect inputs and outputs carry secrets only as references the effect's module loaded,
+     which carry that module's own stamp (a foreign or client-sent reference is refused with
+     validation), or as fresh plain values sealed under a value key bound to `core.effect`, the
+     effect id and the member path; outputs open against that binding, and executors and external
+     performers get references through the same check. ADR 0017 records the rule. Applied in: ADR
+     0017, sections 14.7.4 and 17.7 (G4). Personal effect inputs are sealed under the subject's key
+     since WP-72; a non-entity command's personal output stays refused (`personalCommandOutput`)
+     and stays open.
 457. **A data subject through a row the same decision creates** (WP-53, S-100). A dotted
      `dataSubject` path through a row that the same decision creates fails ("needs its data subject");
      hops should resolve against the decision's written and loaded rows first. Status: open, for the
@@ -2387,7 +2459,9 @@ Open points raised by the same packages, for their owners:
 458. **Deployment entries without `provides`, and who owns the host** (WP-61, S-108). Core should
      tolerate infrastructure entries without `provides`, so `init` can use `defineDeployment`, and the
      runtime should build the `httpHost` entry and call `listen()` itself instead of the CLI's
-     `bootApp`. Status: open, for the core owner (concerns sections 3.3 and 4.6).
+     `bootApp`. Status: open, for the core owner (concerns sections 3.3 and 4.6). Decided 2026-11-10
+     for the host (WP-74): the runtime builds the `httpHost` entry and calls `listen()` (entry 434).
+     Applied in: sections 3.3 and 16.3.3. Entries without `provides` stay open.
 459. **The restart target** (WP-61, S-108). The 1-second restart target of 13.6 was not met on a
      loaded machine (1.4 to 14 s); it is to be re-measured on a quiet machine. Status: open, for M2 or
      WP-65 (concerns section 13.6).
@@ -2404,13 +2478,29 @@ Open points raised by the same packages, for their owners:
      effect cannot be remapped to the caller's declared error (so `auth.signUp` answers
      `accounts.email_taken` rather than `auth.identifier_taken`), and reaction events carry no causation
      id, which `link-profile` would use instead of `actor.kind`. Status: open, for M2 (concerns
-     sections 7.4 and 7.7).
+     sections 7.4 and 7.7). Decided 2026-11-11 for the error mapping (WP-92): a failed `invoke` can
+     be remapped. Only an error the caller's map names becomes the caller's declared error; an error
+     named as itself (a declared error of a module the caller depends on) passes through with its
+     details and is listed on the caller's surface; every other failure reaches the caller as the
+     closed projection, which keeps only the retry markers `{ unique: true }` and
+     `{ ifVersion: true }`; an adapter's `RetryableUnitError` passes through unchanged so the
+     caller's unit repeats; anything else becomes `core.internal` with a cause that is never
+     serialised. An inline reaction's action declares the errors of the command it runs in, so it
+     can fail that command with one of the command's declared errors. Applied in: sections 7.4, 7.7
+     and 17.2.2. Decided by the lead 2026-11-17 for causation (WP-103, answer Q3): a reaction's
+     events carry the causing event's id in `meta.causationId` (inline reactions directly, reaction
+     jobs through `JobCarrier.causationId`, WP-93), and `link-profile` tests `event.causationId`
+     instead of `actor.kind`; the identifier and the `linkPending` marker stay the guard. Applied
+     in: sections 7.7 and 17.2.2.
 464. **Transports in the harness** (WP-63, S-113). `startTestRuntime` cannot host a transport module,
      so replay, store isolation and the dump run on a local `portal` app of accounts and auth; the
      in-process host gives every request one address, so the portal test configuration raises
      `auth.addressAttemptsPerMinute` to 1,000. Composing transports in the harness and varying the
      address per request in `startTransportRuntime` are open. Status: open, for the testing owner
-     (concerns section 16.8.5).
+     (concerns section 16.8.5). Decided 2026-11-12 for the address (WP-107): the client address is
+     an argument of `TransportHost.fetch` (`HostFetchOptions`), never a header, and the test runtime
+     gives each request its own address from 198.18.0.0/15 unless a test names one. Applied in:
+     section 16.8.5. Composing transports in the harness stays open.
 465. **Recording request information** (WP-63, S-114). The user agent and address a decision read are
      not recorded, so a re-decide is handed them; recording them is a follow-up of 15.1.3. Status:
      open, for M2 (concerns sections 7.9.6 and 15.1.3). Decided 2026-11-10: the user agent and the
@@ -2420,7 +2510,10 @@ Open points raised by the same packages, for their owners:
      millisecond-exact is open. Status: open, for M2 (concerns sections 7.9.6 and 15.1.3).
 467. **A destroyed key or a wrong secret** (WP-63, S-114). A bare verifier cannot tell "the scope key
      is gone" from "the secret is wrong"; a key-service call is needed to tell them apart. Status:
-     open, for the key-service owner (concerns sections 7.9.6 and 14.7.4).
+     open, for the key-service owner (concerns sections 7.9.6 and 14.7.4). Decided 2026-11-11
+     (WP-100): `verifyOutcome` is on the kernel's `KeyService` only; `ctx.secrets.verify` stays
+     boolean; the kernel's operator-token path logs `core.key_destroyed` once and answers
+     unauthenticated exactly as for a wrong token. Applied in: section 14.7.4.
 468. **The horizon boundary and purged rows** (WP-63, S-114). A folded row that was later hard-deleted
      is still answered, and the refusal should keep a margin at the horizon boundary; both wait for
      M2's purge. Status: open, for M2 (concerns sections 7.9.6 and 15.1.10).
@@ -2490,7 +2583,7 @@ of the entries below, into architecture.md and this register.
      `auth.minPasswordLength` sets it: by default 15 characters when the password is the only factor
      and 8 once a second factor is enrolled (NIST SP 800-63B revision 4), with a maximum of at least
      64 and no composition rules. Status: decided 2026-11-10 (Jens saw the default and raised no
-     objection). Applied in: WP-103; section 17.2.2 follows in the next editing pass.
+     objection). Applied in: WP-103; section 17.2.2.
 480. **Member invitations without a mail module** (M2 plan S-139). Invitations ship in M2 with
      `module-members`, although M2 ships no mail module: the optional extension point
      `invitationDelivery` has no M2 filler, and without one `invite` answers the accept token once,
@@ -2520,25 +2613,27 @@ of the entries below, into architecture.md and this register.
      `"engines": { "node": ">=26" }`, and a release is accepted only when `npm audit signatures`
      passes in a fresh project that pins the published packages. Status: decided 2026-11-10 (Jens:
      0.1.0 once WP-66 is through; the lead: the publishing path). Applied in: roadmap section 3 (M1
-     status, M3); WP-66.
+     status, M3); WP-66. Amended 2026-11-10: every release is staged and approved by Jens with his
+     second factor; the first release is staged with a short-lived stage-only token, later ones
+     through trusted publishing with `--allow-stage-publish`, and a release that adds a package
+     stages that package with a stage-only token again (entry 494). Applied in: section 22.
 485. **The runtime's clock reaches the data adapters.** `startRuntime` handed its injected clock to
      no data adapter, so the memory, PGlite and PostgreSQL adapters read the system clock, and
      receipts written at a fixed test clock read as expired once the wall clock passed their expiry.
      `AdapterEnvironment` gains the optional `clock`, set in the connect phase; an adapter takes its
      own `clock` option first, then the environment's clock, then the system clock, and every new
      adapter path of M2 follows that order (a change note of the frozen interface F-02). Status:
-     decided by the lead 2026-11-10. Applied in: the code; the specification follows in the next
-     editing pass.
+     decided by the lead 2026-11-10. Applied in: the code; section 14.3.2.
 486. **`kw_migrations.applied_at` from the adapter clock.** The migration ledger's `applied_at` is
      written from the adapter's clock, resolved as entry 485 states, so a pinned clock pins it too; no
      reader depends on the order of these instants. Status: decided by the lead 2026-11-10. Applied
-     in: the code; the specification follows in the next editing pass.
+     in: the code; section 14.6.3.
 487. **The session cookie's `Max-Age` from the invocation clock.** The session cookie's `Max-Age`
      was computed from the system clock. `applyCookieHint` takes an optional `now` from the invocation
      clock, and the mount context and the hosts gain an optional clock that carries it
      (`MountContext.clock`, `HttpHostDeps.clock`, `HostDeps.clock`; a change note of the frozen
-     interface F-09, all additive). Status: decided by the lead 2026-11-10. Applied in: the code; the
-     specification follows in the next editing pass.
+     interface F-09, all additive). Status: decided by the lead 2026-11-10. Applied in: the code;
+     sections 16.3.2 and 16.3.3.
 488. **Two stall limits for the dev probe** (section 13.6). One time limit for the whole start
      failed on loaded machines. The probe now chooses a stall limit at every progress event by what
      the child is doing: 10 seconds while a project module import is in flight (the message names
@@ -2546,13 +2641,12 @@ of the entries below, into architecture.md and this register.
      own work (producers, migration checks, the dev database boot). Every event restarts the timer,
      and no flag, environment variable or configuration key changes the limits; the portal's
      dev-session test bounds a silent hang at 120 seconds. Status: decided by the lead 2026-11-10.
-     Applied in: the code; the specification follows in the next editing pass.
+     Applied in: the code; section 13.6.
 489. **Biome 2.6.3.** Every pin moves from 2.5.15 to 2.6.3. A repeated plugin entry adds its scope
      instead of replacing the preset's, so a file in both scopes is reported twice and the root
      configuration repeats no plugin entry; plugin paths resolve from the preset; benchmark files
      (`*.bench.ts`) are exempt from the import-effects rule. Status: decided by the lead 2026-11-10.
-     Applied in: the code; the specification follows in the next editing pass (it names 2.5.15 and
-     says in section 13.9 that a repeated entry replaces the includes).
+     Applied in: the code; section 13.9.
 490. **No TypeScript majors from Dependabot.** Dependabot ignores semver-major updates of
      `typescript`: entry 138 keeps the 6.x line for the compiler API, and the workspace compiler
      changes its major with the baseline. Minor and patch updates keep coming for both lines. Status:
@@ -2563,8 +2657,7 @@ of the entries below, into architecture.md and this register.
 491. **The checks run daily on main.** The CI workflow also runs every day on `main`, so a failure
      that depends on the calendar shows on main before a dependency update meets it; one stayed
      hidden from 2026-11-06 until the dependency updates of 2026-11-10, because CI on main had last
-     run on 2026-11-05. Status: decided by the lead 2026-11-10. Applied in: the code; the
-     specification follows in the next editing pass.
+     run on 2026-11-05. Status: decided by the lead 2026-11-10. Applied in: the code; section 13.8.
 492. **The code frozen in M1 wins over the specification.** Where the specification and the code
      frozen in M1 disagree, the code wins and the specification is edited. The M2 plan's verification
      against the code found planned types that M1 already exports (S-128, S-154, S-159, S-162,
@@ -2590,3 +2683,30 @@ of the entries below, into architecture.md and this register.
      change for it. Calendar schedule expressions (M2 plan S-165) arrive with M4's modules, their
      first users. Status: recorded 2026-11-10 at Jens's request. Applied in: roadmap section 3 (M3,
      M4).
+
+## R. M2 follow-ups (2026-11-19)
+
+On 2026-11-19 documentation pass 1 (WP-173) applied the specification follow-ups that the work
+packages had recorded and that raised no question; an entry of an earlier section that a follow-up
+changes carries a dated amendment. The follow-ups below needed an entry of their own; entry 495 is
+an open point for its owner.
+
+494. **Every release is staged** (WP-66). Every release is staged (`npm stage publish`, with
+     provenance) and approved by Jens with his second factor. The first release is staged with a
+     short-lived stage-only token, later ones through trusted publishing with
+     `--allow-stage-publish`. A trusted publisher can only be configured for a package that already
+     exists on the registry, so a release that adds a package stages that package with a stage-only
+     token again (the lead's release note of 2026-11-11). Scaffolded packages stay private until
+     they are filled, and every published manifest carries `repository`. This amends entry 484.
+     Status: decided by the lead 2026-11-10 (WP-66), on Jens's rule that nothing bypasses the second
+     factor. Applied in: section 22.
+495. **The exact Biome peer of the preset** (WP-145, decision D4). The peer `@biomejs/biome` of
+     `@keelwerk/biome-config` is exact, so every Biome upgrade is a breaking change for the
+     applications that extend the preset (pnpm refuses an unmet peer with `strictPeerDependencies`).
+     Before 1.0.0 that peer needs a range or an explicit exemption recorded in this register,
+     together with the `keelwerk doctor` comparison of the preset's Biome with the installed one,
+     which compares strings today. Status: open, for the lead before 1.0.0 (concerns section 13.9).
+496. **Unbounded change records of state entities** (M2 plan S-129). The change records of state
+     entities grow without bound until before-images (M5) exist. Jens accepts the unbounded growth
+     ("Accept unboundedness"); nothing is brought forward. Status: decided by Jens 2026-11-19.
+     Applied in: section 15.1.10 (S-129).

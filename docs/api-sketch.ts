@@ -264,10 +264,11 @@ const credential = defineEntity({
   },
   indexes: [{ fields: ['identifier'], unique: true, where: { kind: 'password', revokedAt: { isNull: true } } }],
   events: {
+    loggedIn: shape({ at: field.instant() }), // the login, as a chain event recordLogin reacts to
     revoked: shape({ at: field.instant(), reason: field.string().optional() }),
     signedUp: shape({ displayName: field.string({ maxLength: 120 }).optional() }), // the sign-up, as a fact other parts react to
   },
-  evolve: { revoked: (state, e) => ({ ...state, revokedAt: e.at }), signedUp: (state) => state },
+  evolve: { loggedIn: (state, e) => ({ ...state, lastUsedAt: e.at }), revoked: (state, e) => ({ ...state, revokedAt: e.at }), signedUp: (state) => state },
   generated: { set: false }, // credentials change only through auth's own commands
   // `generated: { create: false }` would switch off only the generated create (and the create items of
   // set), for an entity whose rows an explicit `creates: true` command makes, as core.backend does.
@@ -393,7 +394,8 @@ const login = defineCommand(authBase, {
           id, subject: cred.subject, credentialId: cred.id, publicId: token.publicId, tokenVerifier: token.verifier,
           authenticatedAt: now, idleExpiresAt, absoluteExpiresAt: now.add({ hours: 24 * ctx.config.sessionAbsoluteDays }), // an Instant adds hours, not days
         }),
-        ctx.write.auth.credential.update(cred, verifier === undefined ? { lastUsedAt: now } : { lastUsedAt: now, verifier }), // the loaded row's version is the expected version
+        ...(verifier === undefined ? [] : [ctx.write.auth.credential.update(cred, { verifier })]), // the loaded row's version is the expected version
+        ctx.write.auth.credential.loggedIn(cred, { at: now }), // sets lastUsedAt; recordLogin is queued from it
       ],
       result: { sessionToken: token.plain, sessionId: id, expiresAt: idleExpiresAt },
     }
@@ -529,13 +531,19 @@ const revokeOnDeactivation = defineReaction(within(authBase, whenAccounts), {
 // profile id its subject. The sketch leaves them out: its invoke takes own actions by value only.
 
 // and the login timestamp flows back to the profile field auth contributed (a keyed job per event).
+// The cause is the credential's loggedIn event: a session is history 'state', so its records are
+// transient and reach inline reactions only; an async reaction on auth.session.created never runs.
 const recordLogin = defineReaction(within(authBase, whenAccounts), {
-  on: 'auth.session.created',
+  on: 'auth.credential.loggedIn',
   timing: 'async',
-  react: (event, ctx) => {
-    const profileId = event.current ? profileIdOf(event.current.subject) : null
-    // auth may write lastLoginAt because it contributed that field to accounts.profile (section 8.4)
-    return profileId ? [ctx.write.accounts.profile.update(profileId, { lastLoginAt: event.at })] : []
+  *react(event, ctx) {
+    const profileId = event.current?.profileId // the credential as the job finds it; whenAccounts adds profileId
+    const profile = profileId ? yield* ctx.load.accounts.profile.byId(profileId) : undefined
+    // guarded: only when the profile has no lastLoginAt or an earlier one, so jobs that run out of order leave the newer time
+    if (!profile || (profile.lastLoginAt && Temporal.Instant.compare(profile.lastLoginAt, event.data.at) >= 0)) return []
+    // auth may write lastLoginAt because it contributed that field to accounts.profile (section 8.4);
+    // the loaded row's version is the expected version
+    return [ctx.write.accounts.profile.update(profile, { lastLoginAt: event.data.at })]
   },
 })
 
@@ -653,7 +661,7 @@ const postExecutor = defineEffectExecutor(hooksBase, post, {
 })
 
 // A command that requests the effect with a continuation; the response also lists the effect's id,
-// so a client can watch core.effect.watch until it settles.
+// so the submitter can follow core.effectStatusWatch until it settles (statuses, not outcomes).
 const notify = defineCommand(hooksBase, {
   input: shape({ event: field.string({ maxLength: 120 }), payload: field.text() }),
   output: shape({ deliveryId: field.ref.own('delivery') }),

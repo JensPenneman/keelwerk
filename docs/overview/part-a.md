@@ -180,7 +180,7 @@ export const device = defineEntity({
 // v2  2210  changed  { set: { name: $kwe… } } → { name: $kwe… }
 // v3  3307  changed  { set: { ingestToken: sealed } } → none; old value key destroyed
 // get { ids: ['dev_01j…'], asOf: '2026-09-01T12:00:00Z' } → the row folded to v1
-// core.subjects.erase(owner) → v4 erased; history reads { redacted: true }; db verify passes
+// core.eraseSubject(owner) → v4 erased; history reads { redacted: true }; db verify passes
 ```
 
 **Diagram.**
@@ -198,7 +198,7 @@ export const device = defineEntity({
 {"id":"tags","label":"Index tags","kind":"store"},
 {"id":"ledger","label":"Ledger sink anchors","kind":"store"},
 {"id":"asof","label":"asOf read","kind":"box"},
-{"id":"erase","label":"core.subjects.erase","kind":"actor"},
+{"id":"erase","label":"core.eraseSubject","kind":"actor"},
 {"id":"compact","label":"compactHistory rule","kind":"note"}],
 "edges":[
 {"from":"draft","to":"evolve","label":"event proposal"},
@@ -400,7 +400,7 @@ export const archive = defineRule(projectsBase, project, {
 | `execute` | tenant unit: pending receipt keyed by `X-GitHub-Delivery`, `releasePublished` appended, commit at the scope's next position |
 | `complete` | answered; a repeated delivery returns the recorded outcome |
 | after commit | the reaction dispatcher enqueues `deployOnRelease` in the tenant's lane; it invokes `deployments.createAutomatic` with command id `release:<tag>` |
-| live | the UI's `deployments.deployment.watch` receives `created`, token `v1.<epoch>.<position>.<scope>.<check>` |
+| live | the UI's `deployments.deployment.watch` receives `created`, token `v2.<epoch>.<position>.<scope>.<check>` |
 
 **Diagram.**
 

@@ -169,7 +169,7 @@ Appendix A. Versions checked. Appendix B. Verified typing listing.
 | **Unit** | One transaction on one namespace, opened for one storage scope (section 14.3.2). |
 | **Position** | A commit-ordered integer that orders the events of one scope inside a namespace; stream tokens, JMAP states and IMAP `MODSEQ` are positions (section 15.1.4). |
 | **Live source** | What a subscription reads, built by its `source` as a description: an entity's changes, pokes, command receipts, stream records, a topic or the pending effects of an external performer; custom iterables exist only in kernel and listener code (section 15.4.2). |
-| **Stream token** | The resume token every resumable emitted item carries: `v1.<epoch>.<position>.<scope>.<check>` (section 15.2.6). |
+| **Stream token** | The resume token every resumable emitted item carries: `v2.<epoch>.<position>.<scope>.<check>` (section 15.2.6). |
 | **Control store** | The deployment-level database that holds backends, tenants, the scope directory, placements, namespaces, wrapped keys and migration history. |
 | **Placement** | Where a tenant's data lives: an adapter binding plus a strategy (shared tables with a tenant key, a schema per tenant, a database per tenant, a different adapter). |
 | **Node** | A host that runs keelwerk processes (a machine, a virtual machine, a Docker engine), recorded as `core.node` (section 21.1); not a Launchway node, which is tenant data (section 21.8). |
@@ -207,7 +207,7 @@ no business module. It provides:
   each process's provider, instance, slots, reserved connections, drain and interruption, section
   21), the command receipts (`core.commandReceipt`), the effect records (`core.effect`, one stream
   per effect, with the attempt stream `core.effectAttempt`; section 7.9.6), and the operator and
-  client actions (`core.introspect`, `core.me`, `core.capabilities`, `core.subjects.erase`,
+  client actions (`core.introspect`, `core.me`, `core.capabilities`, `core.eraseSubject`,
   `core.retention.*`, `core.tenant.enter`, `core.tenant.move`, `core.tenant.setApiVersion`, and
   `core.flag.*`: `evaluate`, `restoreRules` and the operator actions behind `keelwerk flags`;
   sections 18 to 20).
@@ -244,14 +244,18 @@ The other control entities of M1, all with generated set operations off:
 | `core.commandReceipt` | `invocation`, `history: 'state'` | `commandId`, `status` (`accepted`, `succeeded` or `failed`); section 15.1.7 (amended 2026-11-05: `commandId` (unique), `action`, `fingerprint`, `principal` (json, hidden from reads), `principalResolver` and `principalId` (optional flat copies), `status` (`pending`, `accepted`, `completed` or `failed`), `outcome`, `apiVersion`, `transport`, `remoteAddress`, `userAgent`, `clientId`, `clientSeq`, `expiresAt`, `acknowledgedAt`; entries 337 and 396) |
 | `core.effect` | `invocation` | `type`, `commandId`, `status` (`requested`, `succeeded`, `failed` or `abandoned`), `attempts` (default 0); section 7.9.6 |
 
-Tenancy `invocation` is the core's own: such a row lives in the scope of the unit that writes it
+Tenancy `invocation` is not only the core's own (amended 2026-11-11, amending entry 399: a module
+may declare an invocation-tenancy entity and an action of scope `invocation`): such a row lives in
+the scope of the unit that writes it
 (the invoked command's scope), so receipts and effect records ride with the unit. Its table layout
 is its own (system columns `id`, `created_at`, `updated_at` and `version`, the scope column
 `scope_id`, no `archived_at`, no `kw_*` columns; section 14.4.2, entry 398), and its rows are read
 by tenant, backend and deployment sessions each in its own scope (entry 399). A core rule lets a
 receipt's own principal `get` it (`principalResolver` and `principalId` equal to the caller's
-`ref`), so the 202 `Location` is followable by the submitter (entry 396); operators may read
-`core.effect`.
+`ref`), so the 202 `Location` is followable by the submitter (entry 396); no core rule lets anyone
+read `core.effect` through the API, and an operator reads a tenant's effects through
+`keelwerk explain --trace` and `keelwerk jobs`, after `core.tenant.enter` (section 7.9.5, amended
+2026-11-12).
 
 Everything else is a module or an infrastructure entry in its own package. The two proof apps are
 compositions of such packages (section 17).
@@ -349,9 +353,11 @@ process environment, read for `env()` placement URLs, the default secret provide
 `FallbackReporter` come from `@keelwerk/data`. `Runtime` gains `control: RuntimeControl`
 (`createBackend(BackendInput)` answering `{ id, config }`, `createTenant(TenantInput)`), which
 creates backends and tenants through the same control path as `core.backend.create` and
-`core.tenant.create`. In M1 `startRuntime` neither builds the `httpHost(...)` entry nor calls
-`listen()`: the CLI's `bootApp` builds the host over the runtime's invoker and opens it after
-startup (an interim arrangement, register open point 458).
+`core.tenant.create`. Amended 2026-11-10: the runtime owns the HTTP host. Its `listen` phase builds
+the `httpHost(...)` entry over the runtime's invoker and calls `listen()`, and `Runtime` gains
+`port?` (the TCP port the host bound) and `operatorSocket?` (the operator socket path the host
+bound, after the short-path fallback of section 16.8.3); the CLI's `bootApp` reads both and builds
+no host of its own.
 
 ### 3.4 Wiring: explicit, no container
 
@@ -385,8 +391,9 @@ constructor, and the kernel performs what the handler yields and returns.
   required modules, named by reference (`invoke('accounts.profile.archive', input)`); the kernel
   runs them through the invoker under the current principal with their declared execution mode, a
   synchronous command of the same scope in a savepoint after the decision's events, and its result
-  does not return to the caller. `enqueue(action, input)` runs a command after commit, in any scope
-  (sections 7.6 and 7.9.5). A dependency's query is a request,
+  does not return to the caller. `enqueue(action, input)` runs a command after commit, in the
+  unit's own scope or, from a tenant unit, in the tenant's own backend (sections 7.6, 7.9.5 and
+  12.3; amended 2026-11-11). A dependency's query is a request,
   `ctx.ask('accounts.profile.get', input)`, answered inside the unit.
 - `ctx.flags`: flag requests for the flags of the module and of the modules it requires (the `when`
   modules included inside a conditional part), typed, answered from one snapshot per invocation and
@@ -598,7 +605,7 @@ const credentialDef = defineEntity({
   relations: {},                               // reverse relations are added by contributions, see 6.3
   indexes: [{ fields: ['identifier'], unique: true, where: { kind: 'password', revokedAt: { isNull: true } } }],
   history: 'chain',                            // default; 'state', 'projection' or 'external' (section 6.6)
-  tenancy: 'tenant',                           // default; 'backend' or 'deployment' for control data ('invocation' is the core's own, section 3.1)
+  tenancy: 'tenant',                           // default; 'backend' or 'deployment' for control data; 'invocation' for rows in the scope of the unit that writes them (section 3.1)
   events: {                                    // domain events beyond the generated ones (section 15.1.5)
     revoked: shape({ at: field.instant(), reason: field.string().optional() }),
   },
@@ -637,8 +644,8 @@ and columns. The core defines the kinds and the modifiers; section 14.5.1 maps t
 | `field.enum([...])` | union of the literals | |
 | `field.json(schema)` | the schema's output type | any Standard Schema; stored as JSON |
 | `field.ref(module, entity)`, `field.ref.own(entity)` | `Id<'module.entity'>` | a typed reference; where it may point is section 6.3; `own` names an entity of the declaring or contributing module |
-| `field.subject()` | `SubjectId` | an opaque principal or data-subject id, branded: a plain string is rejected, and a helper that maps an id to a subject returns `SubjectId` (`asSubject(profileId): SubjectId`, section 8.5) |
-| `field.serial({ per })` | `number` | allocated at insert, strictly ascending per partition, read-only (IMAP UIDs) |
+| `field.subject()` | `SubjectId` | an opaque principal or data-subject id, branded: a plain string is rejected, and a helper that maps an id to a subject returns `SubjectId` (`asSubject(profileId): SubjectId`, section 8.5); amended 2026-11-12: a subject id is 128 bits, written in lower case (a UUID with hyphens or 32 hex digits); the field accepts any non-empty text that is no 128-bit value, and refuses a 128-bit value in upper or mixed case where an input or a draft is validated, never where an output is shaped or a stored row is loaded, listed or streamed |
+| `field.serial({ per })` | `number` | allocated at insert, strictly ascending per partition, read-only (IMAP UIDs); `per` is one field name of the entity (amended 2026-11-18), refused at compose when that field is personal, sealed, the data subject or unknown (`serialPartition`, section 4.7) |
 | `field.set(inner)`, `field.list(inner)` | `ReadonlySet<T>`, `readonly T[]` | observed-remove set for merge `set`; CRDT list for merge `sequence` |
 | `field.richText()` | `RichText` (an opaque document handle) | merge `richText`; an app needs a codec module (section 15.3.9) |
 | `field.binary()` | `Uint8Array` | small payloads; large ones are blobs |
@@ -673,6 +680,12 @@ the rows (`core.backend`, `core.tenant`).
 `shape({ ... })` builds an object schema from fields for action inputs and outputs. It is a
 Standard Schema (section 6.5), so any library that accepts Standard Schema accepts it, and it is
 walkable, so transports can project it exactly.
+
+Added 2026-11-12: a write passes the Standard Schema 1.1 `libraryOptions` with `keelwerkWrite:
+true` to the `~standard.validate` of the schema it checks; a keelwerk shape then refuses a subject
+id that is not in lower case at every depth, and any other schema ignores the option. A shape a
+module builds by hand, not through `shape()`, receives the option and may ignore it; the refusal at
+the store is the backstop. A walker never walks the fields of a schema it did not build.
 
 ### 4.3 Actions
 
@@ -995,7 +1008,8 @@ entry without `provides` (an adapter factory, a ledger sink), so `keelwerk init`
 default-exports a `DeploymentDefinition` literal until the core accepts such entries (open point
 458); nothing in the core reads `telemetry.otlp` to register an exporter or a global provider, and
 the served host uses the OpenTelemetry API's global tracer and meter (who registers the provider
-is open point 460).
+is open point 460). Amended 2026-11-10: the runtime registers the OTLP exporters from
+`telemetry.otlp` at startup, once per process (section 11).
 
 The deployment file has a default export and is found in this order: the file named by `--config`
 or `KEELWERK_CONFIG`, then `keelwerk.config.ts`, then `.launchway/deployment.ts` (decision 90c,
@@ -1501,9 +1515,19 @@ core's suite (the cases above, and one each for the checks they do not cover):
 | `readRuleFields` | `defineApp` | a rule naming read actions lists a field that is not maskable or not a field of the entity (section 8.1) |
 | `unknownExtensionPoints`, `singleExtensionPointFillers` | `defineApp` | a fill names a point nobody declares, or a `single` point has several fillers (section 5.5) |
 | `unknownScheduleActions`, `unresolvedPartReferences` | `defineApp` | a schedule invokes no own command the app mounts, or a part the app does not mount (section 9.5.6) |
+| `mismatchedScheduleScopes` | `defineApp` | a schedule invokes a command that does not run at the level the schedule ticks at, or an each-tenant schedule invokes a backend command (section 9.5.6) |
+| `invalidScheduleDurations` | `defineApp` | a schedule's `every` or `jitter` is no duration, its `every` is not above zero, or its jitter is not below `every` (section 9.5.6) |
+| `personalScheduleInput` | `defineApp` | a schedule invokes a command with a personal input member: a schedule's input is the same for every tenant and names no subject (section 9.5.6) |
 | `inlineExecutorCapabilities` | `defineApp` | an inline executor declares a capability (section 7.9.6) |
+| `executorQueueReserved` | `defineApp` | an executor's queue carries the name of an action queue (`commands`, `reactions`, `schedules`, `timers`, `hooks`), whose jobs a worker runs as actions (section 9.5.6) |
 | `unknownHooks` | `defineApp` | a hook name the DSL does not define (section 3.3) |
-| `asyncReactionsUnavailable` | `defineApp` | M1 only: a reaction runs asynchronously, which needs the M2 dispatcher (section 7.7) |
+| `invalidDeprecationDate` | `defineApp` | an action's `deprecated.at` or `sunset` is neither a calendar date (`YYYY-MM-DD`) nor an instant with an offset (`2026-12-01T10:00:00Z`, `+01:00`): a date-time without an offset or `Dec 1, 2026` is refused (section 18.5) |
+| `serialPartition` | `defineApp` | the `per` of a `field.serial({ per })` names a field that is personal, sealed or the entity's data subject, or no field of the entity (section 15.1.4) |
+| `personalOutsideTenant` | `defineApp` | a personal member is in the input of an asynchronous command whose scope is not `tenant`, or in a record of a stream of a row that is not a tenant's, or an entity whose tenancy is not `tenant` declares a personal field or a data subject (erasure reaches the tenant scope only); an `invocation` command counts, although its job is stored in the tenant scope when a tenant invokes it, because the same command can be invoked outside a tenant, where no erasure reaches its stored input (section 14.7.5) |
+| `credentialInJson`, `verifierOutsideEntity` | `defineApp` | a `field.secret()` or `field.verifier()` sits inside a `field.json()` member of a shape a module declares, or a verifier is declared anywhere but as a top-level field of an entity (a command or effect input or output, a module configuration) (section 14.7.4) |
+| `asyncReactionTransient` | `defineApp` | an asynchronous reaction, a process included, names an event of a `history: 'state'` entity; `on: 'all'` is not refused (sections 7.7 and 15.1.10) |
+| `dataSubjectUnindexed` | `defineApp` (a warning) | a field the owned-row lookup of an erasure filters on has no plain index (section 14.7.5) |
+| `asyncReactionsUnavailable` | boot | an app mounts an asynchronous reaction and no event worker of the deployment (`consumers(...)` of `@keelwerk/events`) lists `asyncReactions` in its `runs` (section 7.7) |
 | `missingInfrastructure` | `defineDeployment` | a deployment-level contract has no infrastructure entry (case 14) |
 | `emptyExtensionPoints` | `defineApp` (a warning), boot (refused) | an extension point with `min`, or a `single` point, has fewer fillers (section 5.5) |
 
@@ -2139,7 +2163,8 @@ reads hide archived rows unless the query asks for them and the policy allows it
 module, run explicitly by the operator, is the only operation that drops tables. Entities in the
 `state` mode, transient records and receipts are not history: retention purges them under the
 rules of section 14.7.1, whose defaults Jens accepted on 2026-10-24 (decision point 8, section
-26).
+26), but of transient records only the change records of receipts (`transientPurgeTypes`); those of
+every other stream type are kept (section 15.1.10).
 
 Hidden, secret and credential data:
 
@@ -2167,6 +2192,13 @@ Hidden, secret and credential data:
   before-images. It suits derived index inputs (the extracted text of a message); rebuilds and
   tenant moves recompute it with the entity's `rederive` hook, or leave it absent until
   reindexed.
+
+Added 2026-11-11: a reaction receives of an event's `data`, `before` and `current` exactly what its
+module would read of the row (the rule of rows applied to event payloads, section 7.7): no hidden,
+secret or verifier member of another module's entity, and no field another module contributed.
+Another module's reaction receives only members that are fields of the entity's current descriptor
+and visible to it; a member that is no such field (a field since removed, or one of a module no
+longer composed) reaches the entity's own module only.
 
 Fields marked `.personal()` are encrypted per data subject in the chain, in the state tables and in
 every derived index, so that erasure is a key destruction (section 14.7.4); queries reach them only
@@ -2229,6 +2261,16 @@ As built in M1 (added 2026-11-05; register entries 364, 365, 389, 392, 411 and 4
   `includeArchived` and `partition`; the wire shapes of `changes`, `queryChanges` and `set` follow
   the surface nodes.
 
+Amended 2026-11-12: a generated `update`, and each update item of a generated `set`, leaves an
+omitted field that has a default untouched; only a create fills a default. A patch member is the
+field made optional without its default (`patchFieldOf` for fields, `patchMemberOf` for nodes), so
+the patch members of the surface node name no default. A patch is a Standard Schema whose own
+validate leaves an absent member absent and drops a key that is no member when it is given as
+`undefined` (a create refuses such a key at its name); a `json` member that is given is a whole
+value, so its nested defaults are filled. Open, for the later work package on what a patch means:
+whether a create should accept a key given as `undefined` too, so that an in-process call and a
+call over a transport agree.
+
 ## 7. Actions
 
 ### 7.1 Kinds: commands, queries, subscriptions
@@ -2263,7 +2305,7 @@ interface ActionOptions<I, O> {
   errors?: readonly ErrorSpec[]                 // declared domain errors, section 10
   auth?: 'policy' | { public: true }            // default 'policy': a rule must allow it; public needs no allow, deny rules still apply
   principal?: PrincipalKind | readonly PrincipalKind[]   // the gate admits only these kinds; narrows ctx.principal
-  scope?: 'tenant' | 'backend' | 'deployment'   // default 'tenant'
+  scope?: 'tenant' | 'backend' | 'deployment' | 'invocation'   // default 'tenant'; 'invocation' added 2026-11-11 (section 3.1)
   execution?: 'sync' | 'async' | 'either'       // commands only; default 'sync'
   async?: AsyncJobOptions                       // asynchronous commands: queue, key, ordering, group (concurrency, rate, scope), priority, cost, retry, onGiveUp (section 9.5.1)
   isolation?: 'read-committed' | 'serializable' // commands only; default 'read-committed' (section 14.3.6)
@@ -2274,7 +2316,7 @@ interface ActionOptions<I, O> {
   timeoutMs?: number
   hints?: Partial<TransportHints>               // naming and carriage per transport; never behaviour
   description?: string
-  deprecated?: { reason: string; at?: string; sunset?: string }   // dates; from `at`, responses carry Deprecation and Sunset (section 18.5)
+  deprecated?: { reason: string; at?: string; sunset?: string }   // dates; from `at`, responses carry Deprecation and Sunset; without `at`, in force from its declaration, Sunset when declared and no Deprecation (amended 2026-11-12, section 18.5)
   gate?: BooleanFlagKey                         // a boolean flag of the module; the action runs only while it is true (section 20.6)
   trace?: { input: 'sealed'; retention?: string } // commands only: keep the input, sealed, in the decision record for re-decides; default: its digest only (section 7.9.6)
   prepare?: PrepareHandler<I>                   // execution 'sync' only: runs before the unit, the only place for inline effects (section 7.9.4)
@@ -2357,7 +2399,9 @@ synchronously (gate stage), recorded as an `accepted` receipt in the same unit a
 answered with `{ commandId, status: 'accepted' }`. Its progress is observable through
 `core.commandReceipt.get` and `core.commandReceipt.watch`, and its result through the receipt. The
 receipt stays `accepted` until a worker takes the job; a queue that holds work and has no worker in
-any process is listed at boot and by `keelwerk doctor` (section 9.5.6).
+any process is listed at boot and by `keelwerk doctor` (section 9.5.6). A receipt is taken over
+only by its own job, one of the same command id, principal reference and fingerprint (added
+2026-11-11).
 The job stores a principal reference (resolver id, principal id and the fields the resolving
 module declares, such as auth's credential and session ids; section 8.5), not a snapshot of roles
 and claims. When the job runs, the kernel resolves and enriches the principal again,
@@ -2365,14 +2409,33 @@ fails the command with `unauthenticated` if the credential was revoked or expire
 authorizes the command again against the state at execution time (fail closed). A removed member
 or a revoked API key therefore stops acting through queued work at once.
 
-In M1 (added 2026-11-05, register open point 463) a failed `invoke` effect cannot be remapped to
-the invoking command's declared error: the caller sees the invoked command's code.
+Added 2026-11-12: queued work keeps the transport of the request that queued it. A job is judged
+under the transport its accepted receipt records (the resolver's `fromRef` gets `transport: string |
+null`); work queued by an enqueue effect or a deferred invoke has none, so a resolver that binds a
+credential to transports refuses it.
+
+Added 2026-11-11: a command id the kernel makes itself has the reserved form `kernel:<kind>:...`; a
+caller-chosen command id with that prefix is refused with `core.command_id_reserved`.
+
+In M1 (added 2026-11-05, register open point 463) a failed `invoke` effect could not be remapped
+to the invoking command's declared error. Amended 2026-11-11: it can. Only an error the caller's
+map names becomes the caller's declared error (section 7.9.5); an error named as itself (a declared
+error of a module the caller depends on) passes through with its details and is listed on the
+caller's surface; every other failure reaches the caller as the closed projection, which keeps only
+the retry markers `{ unique: true }` and `{ ifVersion: true }`; an adapter's `RetryableUnitError`
+passes through unchanged so the caller's unit repeats; anything else becomes `core.internal` with a
+cause that is never serialised. An inline reaction's action declares the errors of the command it
+runs in (section 7.7).
 
 ### 7.5 Idempotency
 
-Every command invocation has a command id: a UUIDv7 generated by the client, a client-chosen
-opaque key of 1 to 128 characters of `[A-Za-z0-9._:-]` (so HTTP `Idempotency-Key` values pass
-through), or one generated by the transport when the client sent none. The typed client
+Every command invocation has a command id: a UUIDv7 generated by the client, a caller-chosen id,
+or one generated by the transport when the client sent none. A caller's command id is a UUID of
+version 4 or 7 (either case) or a ULID (amended 2026-11-18), for the REST `Idempotency-Key` header,
+the `commandId` of an HTTP, GraphQL or programmatic invocation, `--command-id` of the CLI and a
+module's `enqueue({ commandId })`; the sync client id follows the same rule. The kernel's own
+`kernel:<kind>:...` form stays reserved (section 7.4) and is never checked by this grammar.
+The typed client
 (section 16.8.4) generates a UUIDv7 for every command it sends without `commandId`, with
 `getRandomValues` so it runs in browsers, and keeps it across its retries. The kernel keeps a
 receipt per `(scope, commandId)` with a fingerprint of the input and the outcome:
@@ -2386,9 +2449,18 @@ receipt per `(scope, commandId)` with a fingerprint of the input and the outcome
 - A retry with the same id and fingerprint returns the recorded outcome; the same id with a
   different fingerprint is `conflict` with code `core.idempotency_mismatch`.
 - Receipts expire after the action's window (`idempotency: { window }`, default 24 hours, at most
-  what the operator's receipt retention allows). Deduplication that must outlive any window (an
+  what the operator's receipt retention allows), counted from the receipt's completion when that is
+  later (amended 2026-11-19), so a submitter has a full window to read the outcome and a retry
+  inside it answers the recorded outcome. The purge of receipts takes only a receipt that names no
+  client (`clientId` null) or whose client has acknowledged it (`acknowledgedAt` set): a receipt of
+  a sync mutation stays until it is acknowledged, whatever its expiry, with its keyed fingerprint.
+  Deduplication that must outlive any window (an
   SMTP sender retrying for days) uses a durable business key instead, such as a unique content hash
   per mail account (section 17.4.6).
+- Death is not an end state of a receipt (added 2026-11-19): the receipt of a job that ends dead
+  stays `accepted`, a replay of the job leaves it `accepted` until the job ends, and only a discard
+  completes it as `failed`, idempotently, through the shared failure path, with a reason that tells
+  a discard from a handler failure; a missing receipt row is not an error (section 9.5.4).
 
 This serves HTTP `Idempotency-Key`, at-least-once queues and the offline push protocol with one
 table. Queries are idempotent by definition.
@@ -2404,9 +2476,12 @@ As built in M1 (added 2026-11-05, register entries 336, 346 and 421):
   `unavailable`, `internal`, `core.idempotency_mismatch`, `core.command_in_progress`, a
   `core.version_mismatch` that did not come from `ifVersion`, or a call without a client command
   id; a non-retryable failure in `prepare` is recorded like one of the unit.
-- The fingerprint of a command whose input carries secret members is a keyed digest
-  (HMAC-SHA-256 under HKDF(control scope key, `keelwerk/fingerprint/v1`)), so a receipt never lets
-  a reader check guesses of a plaintext secret; other inputs keep the plain SHA-256. A control
+- The receipt fingerprint of every command is a keyed digest, `kwf1.` and the HMAC-SHA-256 under
+  HKDF(control scope key, `keelwerk/fingerprint/v1`) (amended 2026-11-18), over the input with its
+  secret and verifier members withheld by the marker `kw:withheld` and its personal members inside,
+  so a receipt never lets a reader check guesses of a plaintext secret. A retry with another secret
+  replays; a retry with another personal value is `core.idempotency_mismatch`; a backend create's
+  `config` is withheld whole. A receipt of 0.1.0 is compared with the 0.1.0 form. A control
   create fingerprints the client's input, before its configuration is sealed.
 
 ### 7.6 The context object
@@ -2480,9 +2555,10 @@ interface SourceContext<M extends AnyModuleBase, W extends readonly AnyModule[] 
   and schedules; inside a module, its own actions are never named by string. A synchronous command
   of the same scope runs in a savepoint of the current unit after the decision's events; a query of
   the same or a wider scope is a request, `ctx.ask(ref, input)`, answered in its own read-only
-  snapshot when the scope differs. Commands of another scope are never invoked inline: `enqueue`
-  runs them after commit, so atomicity never depends on whether two scopes happen to share a
-  database (section 12.3). No invocation hands a result back to the decision that requested it.
+  snapshot when the scope differs. Commands of another scope are never invoked inline: `enqueue`,
+  or an `invoke` that the kernel turns into a job (amended 2026-11-11), runs them after commit, so
+  atomicity never depends on whether two scopes happen to share a database (section 12.3). No
+  invocation hands a result back to the decision that requested it.
 - `ctx.services` lists the services of the module's dependencies only: parts are typed against the
   base, which does not hold the module's own services, so a module's own code calls the `lib/`
   functions its services wrap (section 5.5).
@@ -2501,6 +2577,10 @@ interface SourceContext<M extends AnyModuleBase, W extends readonly AnyModule[] 
   the kernel writes in the unit as jobs (section 9.5.1), and egress belongs to effect executors
   only. Section 7.9 specifies the requests, the effects and the interpreter that answers and
   performs them.
+
+Added 2026-11-18: no derivation from the key service happens inside an open unit. What a unit needs
+is derived before it opens (`ScopeSecrets`: the job key, the fingerprint key and the state token
+key); a re-decide derives them too, so it needs a key service that derives.
 
 ### 7.7 Reactions
 
@@ -2537,32 +2617,72 @@ id, event id)`, checkpoints and dead letters use it, so a key never changes once
 
 A reaction to another module's events is conditional on that module (it must be in `requires`
 or the reaction sits in a conditional part). Reactions run under the module's service principal
-`<module>.system`, never under the principal that caused the event; the causing event's actor and
+`<module>.system` (a contributed part as its contributor's service principal, added 2026-11-11),
+never under the principal that caused the event; the causing event's actor and
 command id are recorded as the causation of whatever the reaction does. The core ships one
 default rule: a module's service principal may invoke the actions of its own module; anything
-else needs a rule like any other principal.
+else needs a rule like any other principal. Amended 2026-11-11: the rule applies on every path, job
+carriers and continuations included, through one implementation, and no module grants its own
+service principal by hand. The kernel recognises a module's service principal by the principal
+object it minted for that module (a brand); no id, `via` or `ref` string is compared, so an object
+literal, a resolver's answer or a copy of a minted principal has no module and fails closed.
+
+Added 2026-11-18: an asynchronous reaction gets no job for an event of the deployment scope,
+whatever its `on` (an `on: 'all'` reaction included), because its job runs under the module's
+service principal and a deployment-scope action is for operator principals only. A reaction still
+gets its job for an event of a backend or of a tenant, in that scope's own unit.
 
 - **Inline** reactions decide in the producing command's unit after the owner's own `evolve`, in
   module order and up to a depth of 8 (beyond it `internal`, `core.reaction_depth`); the kernel
   applies their decisions in the same unit, and a failure rolls the command back.
 - **Async** reactions have two tiers. The kernel's reaction dispatcher is a consumer of the event
   log (section 15.2.3) that does only short work: for each matching event it enqueues one keyed job
-  per reaction in a tenant-scope unit and advances its checkpoint for that scope in the same unit.
+  per reaction in a unit of the event's scope and advances its checkpoint for that scope in the same
+  unit. An event of the deployment scope it skips silently (no job, no log line, no count) and still
+  advances its checkpoint (amended 2026-11-18); dead letters of the earlier behaviour
+  (`core.forbidden`, queue `reactions`, deployment scope) stay until an operator discards them.
   The job runs in the lanes of its queue like any action job (section 9.5.2), and the reaction
-  decides in its own tenant-scope unit, where the kernel applies the decision, with the reaction's
+  decides in its own unit of that scope, where the kernel applies the decision, with the reaction's
   key, ordering, coalescing, concurrency (a group per reaction and scope) and retry options (section
-  9.5). A failing reaction is retried by the queue and never blocks the checkpoint; a job that
+  9.5). A reaction's `coalesce: true` maps to the job key's `replace` (section 9.5.1, added
+  2026-11-11); a coalescing reaction whose newer job already ran can still run an older event of a
+  replayed parked stream last.
+  A failing reaction is retried by the queue and never blocks the checkpoint; a job that
   exhausts its retries is parked as a dead letter, which is a metric, an alert and a line in
   `keelwerk doctor`. Delivery is at least once; a reaction is idempotent by
   `(reaction id, event id)`, from which the ids of its effects derive (section 7.9.5). Module code
-  never receives a namespace-scope unit. A runtime without the reaction dispatcher
-  (`@keelwerk/events`) refuses an app that mounts an async reaction at compose, with the named
-  problem `asyncReactionsUnavailable`.
+  never receives a namespace-scope unit. A deployment whose app mounts an async reaction is refused at
+  boot with the named problem `asyncReactionsUnavailable` when no event worker (`consumers(...)` of
+  `@keelwerk/events`) lists `asyncReactions` in its `runs` (amended 2026-11-11).
 - **Processes** are async reactions with their own state stream per instance, keyed and ordered
   FIFO per instance: `react(event, state, ctx)` decides over the state that `evolve(state, event)`
   folds from the process's stream, and its decision may hold events for that stream.
 
-`react` receives a `ReactionEvent`: decrypted, upcast to the current schema, with typed data.
+Added 2026-11-17: a chain of asynchronous reactions is bounded by its causation depth (the reaction
+dispatcher's `maxDepth`). The bound covers chains through event reactions only; a command that
+enqueues itself is held by its lane's rate and cap (section 9.5.5). A reaction refused at the bound
+becomes a dead letter through the job store's `bury` (amended 2026-11-19), with a reason of its own
+(not retries used up) and its causation lineage kept; a replay of it runs under the same bound and
+is buried again unless `maxDepth` was raised.
+
+Added 2026-11-11: a process's state stream belongs to no entity. The kernel appends it with
+`StreamAppend.tenancy: 'tenant'`, so the store checks the tenancy against the unit's scope without
+an entity descriptor, and stores each of its events with the process's shape id, the SHA-256 of the
+canonical JSON `{ process: <process id>, tracks: {} }`. The stream id and the job key are one-way
+functions of the instance key; the job input carries the one-way stream id of the instance, and
+`ProcessSpec.key` must not return a personal value. A process whose events hold personal members
+declares their data subject explicitly (`dataSubject: 'instanceKey'`): the instance key is then the
+id of that subject, a lower-case UUID (an instance key that is none fails that process's job with
+`core.process_instance_key_invalid`), and erasing the subject shreds those members. Without the
+declaration a process may hold no personal member. Compose refuses a process event member that is a
+secret or a verifier (also inside a list or set); it also refuses a personal member whose field
+names a subject path of its own, because a process has no row to follow a path on. Process streams
+reach no reaction, an `on: 'all'` reaction included.
+
+`react` receives a `ReactionEvent`: decrypted, upcast to the current schema, with typed data. Of an
+event's `data`, `before` and `current` a reaction receives what its module would read of the row
+(section 6.6, added 2026-11-11); another module's reaction receives only members that are fields of
+the entity's current descriptor and visible to it.
 
 ```ts
 interface ReactionEventBase<Name extends string, Data, R> {
@@ -2587,11 +2707,30 @@ interface AsyncReactionEvent<Name extends string, Data, R> extends ReactionEvent
 }
 ```
 
+Added 2026-11-11: an asynchronous reaction whose event was purged before its job ran decides
+nothing and is logged and counted.
+
+Added 2026-11-18: the records of a `history: 'state'` entity are transient and reach inline
+reactions only, so an asynchronous reaction on such an entity's event can never run. Compose refuses
+an asynchronous reaction, a process included, on an event of a `history: 'state'` entity with the
+named problem `asyncReactionTransient` (section 4.7); `on: 'all'` is not refused. Auth's
+`recordLogin` therefore reacts to `auth.credential.loggedIn` (payload `{ at }`), timing `async`, and
+not to `auth.session.created`, which can never reach it (the session is `history: 'state'`); it
+reads the profile through the credential's `profileId` in `event.current`. Its write is guarded
+(only when the profile has no `lastLoginAt` or an earlier one) and goes through the loaded row's
+version, so jobs that run out of order leave the newer time.
+
 Added 2026-11-05 (register entry 348 and open point 463): a job's `causation.actor` is the causing
 actor. Reaction events carry no causation id yet, so a reaction that must know whether its own
-module caused an event (auth's `link-profile`) tests `actor.kind === 'system'`; and a failed `invoke`
-effect cannot be remapped to the invoking command's declared error, so the caller's client sees the
-invoked command's error code (`auth.signUp` answers `accounts.email_taken`). Both are M2 items.
+module caused an event (auth's `link-profile`) tests `actor.kind === 'system'`, an M2 item. In M1 a
+failed `invoke` effect could not be remapped to the invoking command's declared error. Amended
+2026-11-11: it can (section 7.4); an unmapped failure of an invoked command is answered as the
+closed projection, and an inline reaction's action declares the errors of the command it runs in,
+so it can fail that command with one of the command's declared errors. Amended 2026-11-17 (open
+point 463): a reaction's events carry the causing event's id in `meta.causationId` (inline
+reactions directly, reaction jobs through `JobCarrier.causationId`, section 9.5.1), and
+`link-profile` tests `event.causationId` instead of `actor.kind`; the identifier and the
+`linkPending` marker stay the guard (section 17.2.2).
 
 ### 7.8 Errors in actions
 
@@ -2695,7 +2834,7 @@ generator, so `yield*` types each answer (as in Effect); a bare `yield` is a lin
 | `ctx.newId(entity)`, `ctx.random(bytes)` | decide, prepare, react | the kernel: UUIDv7, a CSPRNG | the answers |
 | `ctx.secrets.issue({ prefix })` | decide | the key service | public id and verifier, never the plaintext |
 | `ctx.secrets.reveal(ref, reason)`, `ctx.secrets.verify(token, verifier)` | decide, read, react, services | the key service, logged with the reason | no |
-| `ctx.compute.argon2idHash(password, salt)`, `.argon2idVerify(verifier, password)` | decide, read | a kernel worker pool, off the event loop (about 16 ms per hash at OWASP's minimum) | no: reproducible |
+| `ctx.compute.argon2idHash(password, salt)`, `.argon2idVerify(verifier, password)` | decide, read | a kernel worker pool, off the event loop (about 16 ms per hash at OWASP's minimum); a worker inherits the process's `execArgv` without the main script's options `--input-type` and `-e`, `--eval`, `-p`, `--print` or `-pe` with their values (amended 2026-11-05, M1 plan S-115) | no: reproducible |
 | `ctx.compute.argon2idNeedsRehash(verifier)` (added 2026-11-05, entry 446) | decide, read | the kernel: opens the sealed verifier and compares its parameters with the current ones | no: reproducible |
 | `ctx.perform(effectDraft)` | prepare only | the effect's inline executor | the effect's record |
 
@@ -2815,11 +2954,16 @@ its commit:
 
 | Effect | Performed |
 |---|---|
-| `invoke(action, input, { as?: system(reason), prefer? })` | a command of the same scope, in a savepoint after this decision's events (an asynchronous one, or an `either` one with `prefer: 'async'`, is enqueued); its result does not return to the caller; `as` replaces `ctx.asSystem`, logged with the reason |
-| `enqueue(action, input, { runAt?, key?, commandId? })` | a command job committed with the unit, any scope (section 12.3) |
-| `setTimer({ key, at or after, invoke, input })`, `cancelTimer(key)` | keyed timer jobs (section 9.5.1) |
-| `settle(effect, outcome)` | the `settled` record of an effect with an external performer, and its continuation |
+| `invoke(action, input, { as?: system(reason), prefer?, errors? })` | a command of the same scope, in a savepoint after this decision's events (an asynchronous one, or an `either` one with `prefer: 'async'`, is enqueued as a job whose command id is `kernel:effect:<effect id>`; amended 2026-11-11); a backend command from a tenant unit is always such a job, whose action runs in the tenant's own backend unit (section 12.3, amended 2026-11-11); its result does not return to the caller; `as` replaces `ctx.asSystem`, logged with the reason; `errors` maps the invoked command's codes to the caller's declared errors, and a declared error of a module the caller depends on passes through when the map names it as itself (section 7.4, amended 2026-11-11) |
+| `enqueue(action, input, { runAt?, key?, commandId? })` | a command job committed with the unit, of the unit's own scope or, from a tenant unit, of the tenant's own backend (section 12.3, amended 2026-11-11); without `commandId` the job's command id is `kernel:effect:<effect id>` (amended 2026-11-11) |
+| `setTimer({ key, at or after, invoke, input })`, `cancelTimer(key)` | keyed timer jobs (section 9.5.1) of the unit's own scope: a timer does not cross scopes (amended 2026-11-12) |
+| `settle(effect, outcome, { effect, where? })` | the `settled` record of an effect with an external performer, and its continuation; the first parameter is the effect's id, an `Id<'core.effect'>` (amended 2026-11-12), and the options tie the settle to its performer (amended 2026-11-17, below) |
 | `claimScopeKey(key, owner, { continueWith })`, `releaseScopeKey(key, owner)` | after commit, in the control store; the effect record is the outbox, settling gap G2's open choice |
+
+Added 2026-11-12: `core.eraseSubject` is never the target of an effect. An `enqueue`, `invoke` or
+timer effect that names it, a principal resolver's included, fails with `internal`,
+`core.request_not_allowed`, and a schedule that invokes it is refused at compose: an erasure starts
+only from a request a rule allowed (section 14.7.5).
 
 External effects are declared once and constructed by value:
 
@@ -2865,24 +3009,61 @@ interface ExecutorContext<M> {
 - An executor returns its output or throws a taxonomy error: `unavailable`, `rate_limited` (with
   `retryAfter`) and retryable `conflict` are retried by `retry`; any other kind settles the effect
   as `failed`. A lease lost after the destination may have acted, or an inline run cut by a crash,
-  settles it as `abandoned` (`core.effect_outcome_unknown`).
+  settles it as `abandoned` (`core.effect_outcome_unknown`). Amended 2026-11-11: a timeout is
+  retried with the same idempotency key while the policy allows; with no retry left the effect
+  settles `abandoned`. A stored error code is a core code or a code the effect's module declared,
+  anything else becomes `core.<kind>`, and an effect job's history message is "The effect failed
+  with <code>."
 - Effect ids are UUIDv8 derived from the scope, the cause (a command id, or a reaction id and event
   id) and the effect's index, so a repeated decision requests the same ids and idempotent
   destinations deduplicate.
 - Outcomes reach module code through the continuation (`continueWith`, an own command by value, typed by
-  `outcomeOf(effect, extra)`; entity continuations get the target id through `with`) and the effect
-  record (`core.effect.get` and `watch`, readable by the principal whose command caused it). The
+  `outcomeOf(effect, extra)`; entity continuations get the target id through `with`), which runs
+  under the module's service principal and passes by the default rule of section 7.7, like every
+  job carrier (amended 2026-11-11). The
   option is not called `then`: an options object with a `then` member is a thenable, which `await`
   and `Promise.resolve` treat as a promise, and the preset's `noThenProperty` rule rejects it
   (renamed 2026-11-04 after the composition-types spike).
+- The submitter does not read the effect record (amended 2026-11-12 and 2026-11-17). `core.effect`
+  shows all its released members, but no core rule lets anyone read it through the API, so nobody
+  reads an effect unless an app adds a rule of its own, and its columns `principalResolver` and
+  `principalId` are hidden from API reads. The submitter reads the status views `core.effectStatus`
+  (one id) and `core.effectStatusWatch` (ids), which show id, type, status, `requestedAt`, `runAt`,
+  `deadline`, `settledAt` and, for a failed or abandoned effect, the error's kind and code; any
+  effect not the caller's answers like an unknown one. A module that shows an outcome stores it in
+  an entity of its own. An operator reads a tenant's effects through `keelwerk explain --trace` and
+  `keelwerk jobs`, after `core.tenant.enter`.
 - An effect with `performer: 'external'` has no executor: a program outside keelwerk holds a
   subscription over `ctx.live.effects(effect, { where })` (its pending effects, resumable), performs
   them, and calls an action of the owning module whose decision returns `settle(...)`; `deadline`
   settles an unsettled one as failed (`core.effect_deadline`). Launchway's agent is such a performer.
+  Amended 2026-11-17: `settle(effect, outcome, { effect, where? })` ties a settle to its performer.
+  The `where` is the `where` of `ctx.live.effects` over the plain input, built from the principal,
+  never from the command's input; it is decoded and evaluated over the stored input, read without a
+  lock (it never changes after the request), while the status is decided under the row lock.
+  Another effect type or a mismatch answers `not_found`, as an unknown id does. A `where` over a
+  sealed member is refused at compose when a probe run of the command's `decide` reaches it, else at
+  the settle (`internal`). An effect whose stored input is not whole in the clear (a member that no
+  longer decodes, or a plain member that holds a sealed value) matches no `where`: it ends by its
+  deadline or by a settle without a `where`. An explicit first type argument of `settle` leaves the
+  `where` typed over `unknown`, so let the effect be inferred from the options. The id stays the
+  first parameter and is an `Id<'core.effect'>` (a module declares `field.ref(core, 'effect')`), so
+  code written against 0.1.0 with a string id does not compile. A kernel live leaf is accepted only
+  from its owner: the status leaf from `core.effectStatusWatch`, the effects leaf from the effect's
+  module, a contribution counting as its contributor's.
+- Keys (added 2026-11-17, amended 2026-11-18): the `key` of an external effect (`ExternalEffect.key`)
+  is stored as its digest alone, bound to the module (section 9.5.1). The deadline timer of an
+  external effect is stored under the kernel key `core.deadline:<effect id>` (`deadlineTimerKey`),
+  the continuation job of a settled effect under `core.continuation:<effect id>`
+  (`continuationJobKey`, queue `commands`, `keep`). Both first halves hold a dot, which no module id
+  does (section 5.1), and a module's key ends in a digest, which holds no colon, so no module's key
+  can equal them.
 
 **Sync invocations never await a deferred effect.** The response lists the effect ids; a client that
-needs the outcome watches `core.effect.watch` or the entity the continuation changes
-(`--wait-effects` in the CLI, `waitForEffects` in the typed client). An effect is inline only when
+needs to know when they settle watches `core.effectStatusWatch` (`--wait-effects` in the CLI,
+`waitForEffects` in the typed client, which follow the watch and answer statuses, not outcomes:
+`EffectOutcome` with a value is withdrawn; amended 2026-11-17), and one that needs the outcome
+reads the entity the continuation changes. An effect is inline only when
 the caller needs the answer inside the request, its executor needs no capability and the call is
 bounded: OAuth and OpenID Connect code exchanges, GitHub's manifest conversion, connection tests. So
 testing the SMTP connection (an open question of the jobs design, answered here) is
@@ -2908,24 +3089,37 @@ M1's limits (added 2026-11-05, register entries 345 and 370, open point 456): an
 with the worker in M2. Effect inputs with personal or secret fields are refused until they are
 sealed under the subject's key, and effect outputs that carry secrets have no sealing rule yet.
 
+Amended 2026-11-11 (register entry 345): M2 relays nothing after the commit. A cross-scope
+`enqueue` or `invoke` effect is a job in the source scope, committed with the decision, whose
+action runs in the tenant's own backend unit (section 12.3).
+
+Amended 2026-11-11 (open point 456, ADR 0017): effect inputs and outputs carry secrets only as
+references the effect's module loaded or as fresh plain values, sealed for the effect (gap G4).
+Personal effect inputs are sealed under the subject's key since WP-72 (register entry 370).
+
+Amended 2026-11-12: a timer does not cross scopes in M2 either (the table above). Sealing a
+personal member of a job, timer or effect outside a tenant unit is `internal`, and a job whose
+personal key is destroyed ends without a retry: a timer succeeds without a receipt, a command job
+and an effect fail with `core.key_destroyed`.
+
 #### 7.9.6 The logbook
 
 | What | Recorded |
 |---|---|
 | a decision | each event's envelope (actor, command id, action, causation, writer, flags; section 15.1.3) and a decision record in `meta.decision`, hashed with the event (section 15.1.8) |
-| command inputs | the input's digest (the receipt's fingerprint); the input itself only for actions that opt in with `trace: { input: 'sealed', retention }` (decision point 79): sealed under a value key the retention worker destroys after `retention`, personal fields under the subject's key, `field.secret()` inputs stripped |
+| command inputs | the input's digest: the decision base `kwb1.` or its `kwd1.` rekey under the data keys the decision sealed, never the receipt's fingerprint, holding no secret, verifier or personal value; `keelwerk explain` shows it, and `withheld` for any other form (amended 2026-11-18); the input itself only for actions that opt in with `trace: { input: 'sealed', retention }` (decision point 79): sealed under a value key the retention worker destroys after `retention`, personal fields under the subject's key, `field.secret()` inputs stripped |
 | load answers | not stored: `asOf` reads at the recorded snapshot positions reproduce them (`history: 'state'` entities within the feed horizon only); a locked load's position is read after its lock is held (section 7.9.4, phase 5), so it names the row version the decision saw |
 | ids, random values, issued secrets | in the decision record; issued secrets by public id and verifier only |
 | reveals, verifications, computations | nothing: reproducible while their keys exist |
-| an effect | its stream `core.effect/<id>` (kernel entity, chain, tenancy `invocation`): `requested` in the requesting unit (type; input, personal fields sealed, secrets as references; command id; the ids of the events it accompanied; continuation, key, deadline) and `settled` (`succeeded`, `failed` or `abandoned`; output up to 64 KiB, else a blob reference; error; attempts; timings; SHA-256 digest of the canonical output) |
+| an effect | its stream `core.effect/<id>` (kernel entity, chain, tenancy `invocation`): `requested` in the requesting unit (type; input, personal fields sealed, secrets as references; command id; the ids of the events it accompanied; continuation, key (the digest of the key under the module, section 7.9.5), deadline) and `settled` (`succeeded`, `failed` or `abandoned`; output up to 64 KiB, else a blob reference (amended 2026-11-11: until blob references arrive in M4, an output over 64 KiB is `core.effect_output_too_large` and the effect settles `failed`, section 10); error; attempts; timings; SHA-256 digest of the canonical output) |
 | attempts | records of the stream `core.effectAttempt` keyed by effect id (gap G6: process, build, start, end, error), kept until the operator adopts a `streamRecords` rule for them: like everything else, nothing is purged by default (decisions 78a and 47c, section 14.7.1) |
-| a continuation | its own decision, whose causation is the effect id |
+| a continuation | its own decision, whose causation is the effect's `settled` record (amended 2026-11-11) |
 | logs, traces | not recorded; correlated by scope, command, effect and trace ids |
 
 ```ts
 interface DecisionRecord {
   readonly part: string                                                    // 'auth.login'; a reaction id for reactions
-  readonly inputDigest: string                                             // the receipt's fingerprint
+  readonly inputDigest: string                                             // kwb1. or its kwd1. rekey; kwr1. for an inline reaction; never the receipt's fingerprint
   readonly input?: SealedValue                                             // only with trace: { input: 'sealed' } (decision point 79)
   readonly reads: readonly { readonly scope?: 'backend'; readonly at: Position }[]   // per load, in yield order
   readonly answers: readonly Answer[]                                      // ids, random values, issued secrets' public parts
@@ -2936,6 +3130,16 @@ interface DecisionRecord {
 Stored in `kw_events.meta` as JSON, a read's `at` is decimal text (positions are 64-bit) and the
 sealed input's bytes are base64url; the commit tail's parameters are pinned by a golden test, so
 this encoding cannot drift unnoticed (a stored format, final from M1).
+
+Amended 2026-11-18: the `inputDigest` of an inline reaction's decision is `kwr1.` and the SHA-256 of
+the causing event id (it was the bare SHA-256, the form 0.1.0 used for command inputs); 0.2.0
+writes no bare 64-hex text. A dry run never creates a scope key and never fails for want of one:
+its digest is a real run's text where the scope has its fingerprint key, and has the real form
+under a random in-memory key where it has none. A personal member declared inside a `field.json()`
+value is neither sealed nor reliably withheld from the decision digest (`maskInputMembers` walks
+only the input shape's json; a generated record has none); WP-166 closes this (compose refuses it,
+or the kernel seals it). A keyed enqueue is stored as `<module id>:<digest>` and an effect's key as
+the digest of the key under its module (sections 7.9.5 and 9.5.1).
 
 **Rebuilding.** The database is the fold of the chain: state rows per stream (section 15.2.4) and
 effect state per `core.effect` stream. After a rebuild or restore, every effect `requested` and not
@@ -2987,6 +3191,10 @@ run.returns({ events: [created(profile, { id: 'prof_01j9...', displayName: 'Jens
   `FeedHorizon { decidedAt, retainedSince }` (default `P7D`, the `transientRecords` rule), and a
   decision older than the horizon that read state is refused with `unsupported`,
   `core.replay_outside_horizon`. Folded rows hand back sealed values (`kwv1` text) as live reads do.
+  Amended 2026-11-19: the transient rule of retention covers only the stream types of
+  `transientPurgeTypes`, so a changes token over any other type is not cut by retention; a
+  re-decide inside the feed horizon (`P7D` at least) is never refused because retention removed a
+  record, and outside it may be refused as section 14.7.1 says.
 - A re-decide takes the runtime's `KeyService` in the recorded scope (`RedecideInput.keys`):
   `issue` is answered from the record, `verify` and `reveal` run live, and a destroyed key refuses
   with `unsupported`, `core.replay_key_destroyed` (`RedecideResult.refused`). The record keeps an
@@ -2997,6 +3205,8 @@ run.returns({ events: [created(profile, { id: 'prof_01j9...', displayName: 'Jens
   inline reactions with their recorded reads and compares their writes, compares effect ids,
   compares sealed values by presence (every sealing draws a fresh nonce) and instants at millisecond
   precision, the precision the stores keep.
+- Added 2026-11-18: a re-decide of a 0.1.0 decision that requested an effect with a key, or created
+  a row under a name-based UUID, reports a difference.
 
 **Determinism rules**, enforced by types and by the lint preset (section 13.9):
 
@@ -3285,6 +3495,14 @@ Fields and maskability:
   invoker, the write path always works with full rows (section 7.3).
 - Hidden fields (section 6.6) are outside the rule model: they never leave their module.
 
+Added 2026-11-12: the `read` scope of an API key (the selector rule `api-keys.read-only-key`, gap
+G13) covers queries and subscriptions in every module and no command, `live.ticket` included. A
+program opens a stream with its key in the `Authorization` header or in the socket's upgrade or
+`hello`; a stream ticket is for a browser's `EventSource` (section 15.4.6). A key with the `write`
+scope may issue one, and the key resolver's `fromRef` redeems it only on a transport the key names,
+when the key names any. `keyAllowsTransport(ctx)` in a rule's `when` cannot see the transport: the
+key resolver and its `fromRef` enforce the binding.
+
 ### 8.2 Decision algebra
 
 Rules from every module are one set; position in the tuple does not matter; toggling a module adds
@@ -3512,6 +3730,12 @@ composition-types spike found it in `docs/api-sketch.ts`). The subject itself is
 with that return type (`asSubject(profileId): SubjectId`), so the value fits `field.subject()`
 inputs without a cast.
 
+Amended 2026-11-12: a subject id is 128 bits, written in lower case (a UUID with hyphens or 32 hex
+digits). A principal's subject, like `field.subject()` (section 4.2), accepts any non-empty text
+that is no 128-bit value, but refuses a 128-bit value in upper or mixed case where an input or a
+draft is validated; a principal resolver that answers a user with such a subject is an `internal`
+error, at a request and when a job's reference is resolved again.
+
 Principal resolvers (an ordered extension point) turn the carrier into a principal and describe
 themselves (`describe(): { scheme: 'bearer' | 'cookie' | 'apiKey'; name?; description? }`) for the
 OpenAPI security schemes of section 16.5.5; principal enrichers (a set) add roles and memberships. Resolution happens once per session (section
@@ -3519,6 +3743,15 @@ OpenAPI security schemes of section 16.5.5; principal enrichers (a set) add role
 across invocations without an explicit, bounded cache that invalidates on the enricher's source
 events. Jobs and receipts store the principal's `ref`, and the kernel resolves it again when the
 job runs (section 7.4).
+
+Amended 2026-11-11: a principal resolver never answers a principal that only the kernel mints. An
+answer that is a system principal, or that names the kernel's module resolver `core.module` or a
+kernel resolver (`core.system`, `core.runtime`, `core.invoker`, `core.operator`,
+`core.operatorToken`) in `via` or `ref.resolver`, is an `internal` error, so a resolver's answer is
+never accepted or stored as a service, operator or system reference. Amended 2026-11-12: only the
+core's own resolvers answer an operator (section 8.8); a module's resolver that answers one is an
+`internal` error, and a job whose reference a module's `fromRef` resolves to an operator fails
+`unauthenticated`.
 
 ### 8.6 Explainability, logging, tests
 
@@ -3594,6 +3827,13 @@ suspended tenant `unavailable`, no entry `forbidden`, `core.tenant_not_entered`.
 `invocation` entity (command receipts, effects) are admitted for tenant, backend and deployment
 sessions, each in its own scope.
 
+Amended 2026-11-12: an operator principal comes only from the core's own principal resolvers
+(section 8.5), because an operator skips the backend and tenant checks of the gate.
+
+Amended 2026-11-18: the scope rule lives in one place, `scopeRefusal`, which refuses an action in
+a unit of a level its scope does not accept, and a deployment-scope action to any kind but
+`operator`. The gate and the reaction dispatcher both call it (section 7.7).
+
 No policy can widen a scope. Cross-tenant work happens only in kernel fan-out, one tenant-scope
 unit per tenant.
 
@@ -3622,7 +3862,7 @@ implementations behind the interfaces of this section; the interfaces themselves
 | `resolvePrincipal` | carrier, scope | `unauthenticated` for invalid bearer tokens and API keys; an invalid cookie session counts as absent (section 16.4.10) | `principalResolvers`, `principalEnrichers` |
 | `resolveVersion` | the request's version, else the credential's, the tenant's pin, the backend's default (section 18.3) | `validation` (`core.api_version_invalid`, `core.api_version_unknown`), `not_found` (`core.api_version_retired`); on an older process during a rollout, `unavailable` (`core.rollout_in_progress`) | |
 | `locate` | action ref (an older reference mapped to the head's), scope | `not_implemented` when the backend's app lacks the module or the action; `forbidden` when the action's scope level does not match; `unavailable` (`core.rollout_in_progress`) on an older process during a rollout | registry |
-| `admit` | tenant quotas, rate limits, kill switches and `core.suspension` rows (sections 12.2 and 20.7) | `rate_limited`, `unavailable` (`core.feature_suspended`) | `invocationMiddleware` (admission rules) |
+| `admit` | tenant quotas, rate limits, kill switches and `core.suspension` rows (sections 12.2 and 20.7); the request is counted for API usage (section 18.5, amended 2026-11-12) | `rate_limited`, `unavailable` (`core.feature_suspended`) | `invocationMiddleware` (admission rules) |
 | `validate` | input against the action's schema at the session's API version, in wire or in-process form | `validation` with Standard Schema issues | |
 | `translate` | input transforms of the version changes the session's version lacks, oldest first (section 18.2) | `internal` (`core.version_change_failed`) | version changes |
 | `authorize` | gate (section 8.4), including flag gates | `forbidden` with rule ids; `core.feature_disabled` for a gate | engine, `ruleSources` |
@@ -3630,7 +3870,7 @@ implementations behind the interfaces of this section; the interfaces themselves
 | `execute` | the interpreter, phases 3 to 7 of section 7.9.4: the unit (read-write for commands, read-only for queries), target selection, the handler driven and its requests answered, the drafts evolved and item-checked, the kernel effects performed and the external ones recorded with their effect jobs; every appended event records its writer, the flags read and its decision record | domain errors, `conflict` on version mismatch after the automatic retries | data layer, job queue |
 | `shape` | the row check against the caller's plan, output masks, output validation in development | `internal` | |
 | `translate` | output, error and item transforms, newest first | `internal` (`core.version_change_failed`) | version changes |
-| `complete` | telemetry, decision log, receipt; flushes API usage counters, flag counters and exposures; adds the ids of the deferred effects to the outcome | | `flagObservers` |
+| `complete` | telemetry, decision log, receipt; flushes flag counters and exposures; adds the ids of the deferred effects to the outcome | | `flagObservers` |
 
 `resolveScope`, `resolvePrincipal` and `resolveVersion` run once per transport request or
 connection, in `Invoker.open`, which returns an `InvocationSession` (section 16.3.4); invocations
@@ -3655,8 +3895,9 @@ interface Carrier {
   readonly scopeKey?: ScopeKey            // set by carrier enrichers, listeners and token parsers (gap G2)
   readonly receiver?: string              // webhook receivers (section 16.5.8)
   readonly local?: { readonly socket: string } | { readonly inProcess: true }   // the operator socket; the CLI's project mode and tests
+  readonly ticket?: { readonly value: string; readonly endpoint: 'subscribe'; readonly action: string | null; readonly spendOnly?: true }   // a stream ticket from the query of GET /_keelwerk/v1/subscribe, set by the HTTP host there only (section 15.4.6)
 }
-/** The core's opaque state token, `v1.<epoch>.<position>.<scope>.<check>` (section 15.2.6). */
+/** The core's opaque state token, `v2.<epoch>.<position>.<scope>.<check>` (section 15.2.6). */
 type StateToken = string & { readonly __stateToken: true }
 
 interface Invocation<I> {
@@ -3749,13 +3990,13 @@ interface JobSpec {
     | { readonly executor: string; readonly effect: string }  // an external effect: its executor and effect record (decision 50a)
   readonly scope: Scope
   readonly principal: PrincipalRef                            // re-resolved when the job runs (section 7.4)
-  readonly causation: { readonly eventId?: string; readonly commandId?: string; readonly actor?: ActorRef }   // actor: the causing actor (register entry 348)
+  readonly causation: { readonly eventId?: string; readonly commandId?: string; readonly actor?: ActorRef }   // actor: the causing actor (register entry 348); no effectId: a continuation's eventId is its effect's settled record (amended 2026-11-11)
   readonly build: { readonly id: string; readonly revision: number }   // the enqueuer's build (section 19.2)
   readonly apiVersion?: string                                // external callers: the input as sent, at this API version
   readonly runAt?: Temporal.Instant
   readonly priority?: 'high' | 'normal' | 'low'               // set by module code, never by input
   readonly cost?: number                                      // fair-share units; default 1
-  readonly key?: { readonly value: string; readonly onConflict: 'keep' | 'replace' | 'coalesce' }
+  readonly key?: { readonly value: string; readonly onConflict: 'keep' | 'replace' | 'coalesce' | 'append' }   // stored as <owner id>:<digest>, or a kernel key (below); 'append' added 2026-11-11
   readonly ordering?: 'none' | 'fifo-per-key'
   readonly group?: { readonly id: string; readonly concurrency?: number; readonly rate?: string; readonly scope?: 'namespace' | 'deployment' }
   readonly capability?: readonly string[]                     // effect jobs: the executor's (section 21.2)
@@ -3771,7 +4012,7 @@ interface JobQueue {
   work(queue: string, handler: (job: Job) => Promise<void>, options: { readonly slots: number; readonly capabilitySets: readonly string[]; readonly revision: number }): Promise<{ drain(deadline: Temporal.Instant): Promise<number> }>
   schedule(id: string, expression: string, job: Omit<JobSpec, 'runAt' | 'scope' | 'principal'>, fanOut: 'backend' | 'each-tenant'): Promise<void>
   stats(selector: { readonly queue?: string; readonly backendId?: string }): Promise<readonly WorkClassStats[]>   // section 21.4
-  explain(job: JobId): Promise<JobExplanation>                // why it waits: due time, cap, group, rate, key, capability, revision
+  explain(job: JobId): Promise<JobExplanation>                // a bare job id inside its namespace (amended 2026-11-19); why it waits: due time, cap, group, rate, key, capability, revision
 }
 
 // nodes.node.heartbeat (section 17.3.4), a kernel effect (section 7.9.5): the timer's job row commits in this
@@ -3794,6 +4035,34 @@ export const smtpDeliverExecutor = defineEffectExecutor(mailDeliveryBase, smtpDe
 ```
 
 Asynchronous actions and async reactions set the same job options, `capability` apart (section 7.3).
+
+Amended 2026-11-11: a job's causation has no `effectId`. A continuation job is caused by its
+effect's `settled` record (`causation.eventId`), and `JobCarrier.causationId` is the one channel
+that carries a job's causation into `meta.causationId` of the events its command writes.
+
+Added 2026-11-11: the key mode `append` looks no pending job up: the new job joins the key's FIFO
+as a follower (`ordering: 'fifo-per-key'`), so every job of the key runs, in order. `keep`,
+`replace` and `coalesce` act on a pending job of the same key and lane (section 9.5.2).
+
+Keys (added 2026-11-17, amended 2026-11-18): a job or reaction key is stored as `<module or reaction
+id>:<digest>`. The first half is the key's owner: the module that set a timer (`timerKey`) or
+enqueued a keyed job (`enqueueKey`), or the reaction whose job it is, so the same key in two modules
+names two jobs and a module reaches only its own. A principal resolver's keyed enqueue (auth's idle
+extension) is stored the same way under the module whose resolver returned it, and one without a
+module is refused. The digest is HMAC-SHA-256 under the job key secret of the scope
+(`HKDF(scope key, 'keelwerk/job-key/v1')`) over the length-prefixed owner and part; the key of an
+external effect is the digest alone (section 7.9.5). The kernel keys its own jobs: the deadline
+timer of an external effect under `core.deadline:<effect id>` and the continuation of a settled
+effect under `core.continuation:<effect id>` (section 7.9.5), the job of an `onTenantCreated` hook
+under `core.hook:<hook id>` (section 3.3), a schedule's tick under its command id (section 9.5.6).
+Neither the module prefix of a timer key nor the deadline key is in v0.1.0: a timer row written by
+0.1.0 holds the bare key.
+
+The digest keeps a key's part from whoever holds a dump or a backup without the master key; it does
+not survive an erasure as a secret. A holder of the master key and the control store can check a
+guessed part against every key that survives an erasure: after an erasure, that is the jobs of other
+principals and of the kernel, timers of other modules, reaction jobs, dead letters, and the stream
+id of a process instance forever. Build a job key from ids, never from a personal value.
 
 #### 9.5.2 Where jobs live
 
@@ -3918,7 +4187,7 @@ create table <root>.kw_job_history (
 - The spike built the columns the take, the lane counters and the completions use; the rest of
   `JobSpec` has the columns above, final from M1. Priority and capability set belong to the lane,
   so a job row stores neither, and `onConflict` acts at enqueue on a pending job of the same key
-  and lane and is not stored.
+  and lane (`append` looks none up, section 9.5.1) and is not stored.
 - A dead letter is a `kw_jobs` row in state `dead`, which keeps its input until an operator
   replays or discards it. Every other finished job leaves `kw_jobs` and writes one
   `kw_job_history` row (outcome, attempts, timings and error, without input), kept seven days.
@@ -3942,6 +4211,14 @@ create table <root>.kw_job_history (
   reads `keep`. Namespace groups are created with the namespace: `SchemaOperations.provision(...,
   { jobGroups? })` upserts the registry's declared namespace-wide groups inside the provisioning
   unit, and the runtime passes them whenever it provisions or migrates a namespace.
+- Added 2026-11-11: the secret members of a command job's input are sealed in the job row under
+  value keys, so the row and a dead letter hold no plaintext secret; the worker opens them before
+  it invokes the action.
+- Added 2026-11-19 (M2 plan S-121): a queue pause (`keelwerk jobs pause`) is a row of the control
+  store, `kw__control.kw_queue_pauses(namespace_id null, queue, scope_id null, paused_by jsonb,
+  reason, paused_at)`. A null `namespace_id` pauses the queue in every namespace of the deployment,
+  those provisioned later too (one row, no fan-out); a null `scope_id` pauses every scope of the
+  namespace. How a pause acts on the take is section 9.5.3.
 
 #### 9.5.3 The fair take
 
@@ -4018,6 +4295,13 @@ locked (entry 331).
   accepts the numeric share.
 - SQLite, PGlite and the in-memory adapter (the conformance oracle) run the same steps under their
   single writer.
+- Pauses (added 2026-11-19, M2 plan S-121 as amended by the WP-83 lead answers): a paused queue or
+  scope is skipped before the take, and a paused job is never taken. The take request gets one
+  optional member that lists the paused scopes of the taken source, and every adapter leaves the
+  lanes of those scopes out; absence or an empty list means that nothing is paused. A pause stops
+  takes: a job taken before the pause was read runs to its end, and a pause is in force at the
+  latest one sweep after it is stored. A paused job keeps its place, its attempt count and its
+  timers.
 
 #### 9.5.4 Retries, leases and failures
 
@@ -4026,6 +4310,10 @@ locked (entry 331).
   are retried by the job's policy, with full jitter; every other kind fails the job at once. Domain
   waits (an image that does not exist yet, a deferred mail delivery) are state machines with timers,
   not job retries (section 7.9.5, decision point 75).
+- Added 2026-11-11: a job without `retry` is attempted three times, with exponential delays from
+  one second up to 10 minutes, each drawn with full jitter. A policy that leaves a member out gets
+  the same defaults: `limit` (it counts attempts) is 3 unless `giveUpAfter` bounds the retries by
+  time, and `maxDelay` is 10 minutes.
 - The worker renews its running jobs' leases every `heartbeatSeconds`, one statement per namespace;
   a lease lasts three heartbeats. The next take reclaims an expired one: the job returns to
   `available`, the attempt counted as `unavailable`, `core.job_lease_lost`. Renewal and completion
@@ -4035,7 +4323,14 @@ locked (entry 331).
   one process at a time. `expireInSeconds` aborts an attempt through its abort signal with
   `core.timeout` (retryable).
 - Dead letters are a metric, an alert and a `keelwerk doctor` line; `keelwerk jobs
-  replay|discard` handles them.
+  replay|discard` handles them. Added 2026-11-19: dead jobs are to show in the job statistics
+  (`keelwerk jobs stats`), so that none waits unseen; `WorkClassStats` (section 21.4) has no member
+  for them yet. A dead job's receipt stays `accepted` until a discard completes it as `failed`; a
+  replay leaves it `accepted` until the job ends (section 7.5).
+- Added 2026-11-19: a reaction refused for its causation depth (section 7.7) becomes a dead letter
+  through the job store's `bury`, with a reason of its own (not retries used up) and its causation
+  lineage kept. A replay of it runs under the same bound, so it is buried again unless `maxDepth` was
+  raised.
 
 #### 9.5.5 Limits, priorities and backpressure
 
@@ -4055,6 +4350,9 @@ Without a cap the take is work-conserving: one tenant may fill idle slots, and t
 the next free one to the least-served lane. Tenants cannot raise their own weight or caps (gap G10
 configuration cannot reach them); `keelwerk jobs lanes` and `keelwerk doctor` show them.
 
+Added 2026-11-11: the job statistics (`JobQueue.stats`, section 21.4) carry a `queued` count, the
+available, scheduled and waiting jobs, never running or dead ones.
+
 #### 9.5.6 Workers, scopes and schedules
 
 - Workers run only in processes with the `work` role, for the queues their named process slots, and
@@ -4064,9 +4362,17 @@ configuration cannot reach them); `keelwerk jobs lanes` and `keelwerk doctor` sh
   skipped locked lanes is not "no work": a fetcher that saw skipped lanes takes again at once,
   after a short jitter, instead of waiting for the next wake-up or the poll (section 9.5.3). With
   per-tenant namespaces (M5), wake-ups pass through the control store, and each process sweeps the
-  namespaces that rendezvous hashing over the live registry gives it.
+  namespaces that rendezvous hashing over the live registry gives it. An executor's queue may not
+  carry the name of an action queue (`commands`, `reactions`, `schedules`, `timers`, `hooks`),
+  whose jobs a worker runs as actions: compose refuses it with `executorQueueReserved` (added
+  2026-11-11).
+- Added 2026-11-11: a worker takes no job from a namespace until step 0002 of the framework's
+  migration track (`keelwerk.framework`, the M2 framework tables) is recorded there; it warns once
+  that the jobs wait for `keelwerk db apply`.
 - An action job runs through the invoker after the worker sets the scope and resolves the principal,
-  so the gate and the item check run again against current state. An effect job runs its executor
+  so the gate and the item check run again against current state. It is judged under the transport
+  its accepted receipt records; work queued by an enqueue effect or a deferred invoke records none
+  (section 7.4, added 2026-11-12). An effect job runs its executor
   outside any unit; one short unit then records the outcome, enqueues the continuation (under the
   module's service principal) and completes the job.
 - `each-tenant` schedules enumerate the tenants of the backends whose app contains the module and
@@ -4074,11 +4380,26 @@ configuration cannot reach them); `keelwerk jobs lanes` and `keelwerk doctor` sh
   one run per tick and scope exists, however many processes run. Schedules run under the module's
   service principal with the schedule id as the reason. What a schedule invokes is an own command
   the app mounts: compose refuses another reference with `unknownScheduleActions` and a part the
-  app does not mount with `unresolvedPartReferences`.
+  app does not mount with `unresolvedPartReferences`. Added 2026-11-12: compose also refuses a
+  command that does not run at the level the schedule ticks at with `mismatchedScheduleScopes`, an
+  each-tenant schedule of a backend command included; an `every` or `jitter` that is no duration,
+  an `every` not above zero or a jitter not below `every` with `invalidScheduleDurations`; and a
+  command with a personal input member with `personalScheduleInput`, because a schedule's input is
+  the same for every tenant and names no subject.
+- A tick's identity is its grid floor together with its period (added 2026-11-12): the command id
+  and the job key of a tick are `kernel:schedule:<ref>:<scope id>:<period ms>:<tick ms>`. A retry
+  after a failed unit names the same tick and enqueues nothing new, and a row kept across a change
+  of `every` whose first tick of the new grid floors to an instant the old grid already ran makes a
+  new tick. The ticker deletes the row of a scope that the directory reports gone at both levels
+  (`ScheduleStore.remove(scheduleId, scopeId)`); a row whose scope it finds at the other level is
+  claimed an hour ahead without a job, so during a rolling deploy that changes a schedule's scope a
+  tick can come up to an hour late.
 - A queue that holds work while no process of the deployment slots it keeps its jobs: boot and
   `keelwerk doctor` list every such queue (section 13.12).
-- Timers that a principal resolver's effects set run under the core module's service principal
-  (`core.module`), since a resolver belongs to no command (added 2026-11-05, register entry 335).
+- Timers that a principal resolver's effects set run under a module's service principal, since a
+  resolver belongs to no command (added 2026-11-05, register entry 335): the one the kernel mints for
+  the module whose resolver set them (`<module>.system`), not the core module's (amended
+  2026-11-11).
 
 #### 9.5.7 Implementations and the upgrade path
 
@@ -4232,15 +4553,17 @@ kind unless the column says otherwise. The prose above stays the description of 
 | `core.token_scope_mismatch` | `validation` | kind | a state token of another scope | 15.2.6 |
 | `core.api_version_invalid` | `validation` | kind | a version that is not `YYYY-MM-DD` | 18.3 |
 | `core.api_version_unknown` | `validation` | kind | an undeclared version that is not retired (400) | 18.3 |
+| `core.command_id_reserved` | `validation` | kind | a caller-chosen command id with the `kernel:` prefix the kernel reserves for its own commands | 7.4 |
 | `core.unauthenticated` | `unauthenticated` | kind | the kind-level code; a principal is required, or a `kwo_` bearer away from an operator host (entry 402) | 3.5, 10 |
 | `core.forbidden` | `forbidden` | kind | the gate, the item check, a write outside the module boundary, a cross-scope nested unit | 8.4, 14.3.6 |
 | `core.csrf` | `forbidden` | kind | the cross-site request check failed (on REST a problem document, entry 443) | 16.4.10 |
 | `core.feature_disabled` | `forbidden` | kind | a flag-gated action or field is off for the caller | 18.8, 20.6 |
 | `core.tenant_not_entered` | `forbidden` | kind | an operator's tenant request over the socket without a `core.tenant.enter` by the same actor in the last 12 hours (entry 417) | 8.8, 16.8.3 |
 | `core.not_found` | `not_found` | kind | the kind-level code; a target outside the plan | 8.4 |
-| `core.api_version_retired` | `not_found` | kind | a version below the oldest declared or past its sunset (410) | 18.3, 18.5 |
+| `core.api_version_retired` | `not_found` | kind | a version below the oldest declared or past its sunset, named by the request (410); a retired pin is served under its target (section 18.3, amended 2026-11-12) | 18.3, 18.5 |
 | `core.protocol_retired` | `not_found` | kind | a protocol major no longer served | 18.7 |
 | `core.history_compacted` | `not_found` | kind | an `asOf` read before the compaction horizon | 14.7.1 |
+| `core.key_destroyed` | `not_found` | kind | a job whose personal key is destroyed: a command job and an effect fail without a retry | 7.9.5, 14.7.5 |
 | `core.conflict` | `conflict` | kind | the kind-level code; a unique violation (after one repeat inside a command, entry 427), a duplicate id or scope-key version | 7.9.4, 10 |
 | `core.version_mismatch` | `conflict` | kind | `ifVersion` or a stream version moved | 16.4.9, 15.1.4 |
 | `core.state_mismatch` | `conflict` | kind | `ifInState` no longer holds | 6.7 |
@@ -4265,6 +4588,7 @@ kind unless the column says otherwise. The prose above stays the description of 
 | `core.personal_operator` | `unsupported` | kind | an operator a personal field did not declare | 14.7.9 |
 | `core.personal_needle_short` | `unsupported` | kind | a search text below a personal field's minimum | 14.7.9 |
 | `core.scan_limit` | `unsupported` | kind | a bounded scan past its limit | 14.7.9.10 |
+| `core.effect_output_too_large` | `unsupported` | no | an effect output over 64 KiB, before blob references (M4); the effect settles `failed` | 7.9.6 |
 | `core.replay_outside_horizon` | `unsupported` | kind | a re-decide of a decision older than the feed horizon that read state (entry 445) | 7.9.6 |
 | `core.replay_key_destroyed` | `unsupported` | kind | a re-decide that needs a destroyed key (entry 447) | 7.9.6 |
 | `core.internal` | `internal` | kind | the kind-level code; anything undeclared, a definition refusal, kernel misuse of a unit, a malformed or oversized bucket charge (entry 388) | 4.7, 12.2 |
@@ -4289,8 +4613,9 @@ contract and are never reused.
 
 ## 11. Observability
 
-- Tracing and metrics through OpenTelemetry (`@opentelemetry/api` 1.10.0; SDK 3.x in the
-  deployment package). The invoker opens one span per invocation with attributes
+- Tracing and metrics through OpenTelemetry (`@opentelemetry/api` 1.10.0; SDK 3.x and the OTLP HTTP
+  exporters are dependencies of `@keelwerk/core`, loaded by dynamic import only when an endpoint is
+  set, as the Telemetry bullet below says). The invoker opens one span per invocation with attributes
   `keelwerk.app`, `.backend`, `.tenant`, `.module`, `.entity`, `.action`, `.kind`,
   `.transport`, `.execution`, `.outcome`, `.api_version`, `.build` (build id and revision) and
   `.flags` (the flags read, with variant and reason) and the matched rule ids; transports, the data layer and
@@ -4305,7 +4630,8 @@ contract and are never reused.
   subscriptions, per-tenant quota usage (section 12.2), and `keelwerk.flags.evaluations` by flag,
   variant and reason.
 - API usage counters: requests per day, backend, tenant, API version and transport, per action or
-  field for deprecated items, flushed at `complete` into `core.apiUsage` (section 18.5).
+  field for deprecated items, counted at admission and written into `core.apiUsage` by the
+  process's flushes (section 18.5, amended 2026-11-12).
 - Logs are structured, carry the scope ids and request id, and go through `ctx.log`; no module
   writes to `console`. `@keelwerk/cli` provides the pino logger (pino 10.4.0, JSON lines on
   standard output) that `keelwerk start` and `keelwerk dev` pass to `startRuntime` (section 3.3);
@@ -4325,10 +4651,15 @@ contract and are never reused.
   rules) when `KEELWERK_EXPLAIN=1`. (Amended 2026-11-05, register entry 359 and open point 450: in
   M1 the stream is on in development only, read through `RuntimeOptions.env`, and its line is
   `<transport> -> <action> <ok|code> <n> ms`, without stages, plan or matched rule ids; `subscribe`
-  writes none.)
+  writes none. Amended 2026-11-11: the line carries the matched rule ids and the failed stage,
+  `<transport> -> <action> <ok|code> <n> ms rules=<ids|->[ stage=<stage>][ kind=subscribe]`; only
+  the stage a failure stopped at is printed, with no per-stage timings and no plan, and a
+  subscription's line ends with `kind=subscribe`.)
 - Telemetry in M1 (added 2026-11-05, open point 460): the served host uses the OpenTelemetry API's
   global tracer and meter; nothing in the core yet reads the deployment's `telemetry.otlp` to
-  register an exporter or a global provider.
+  register an exporter or a global provider. Amended 2026-11-10: the runtime registers the OTLP
+  HTTP exporters from `telemetry.otlp` at startup, once per process; the OpenTelemetry SDK and the
+  exporters are loaded by dynamic import only when an endpoint is set.
 
 ## 12. Multi-tenancy and one deployment
 
@@ -4442,12 +4773,23 @@ export type AdmissionVerdict =
   that created the tenant has committed (section 3.3).
 - A tenant command reads backend-level entities in a separate read-only snapshot, never inside its
   own transaction, whether or not the backend's home namespace is co-located with the tenant's.
-  A command of another scope runs only after commit, through an `enqueue` effect; no receipt
-  returns to the decision, which names the command id (`enqueue(action, input, { commandId })`)
-  when someone must follow it (section 7.9.5). Snapshot and atomicity semantics are therefore the
-  same on every placement. (Amended 2026-11-05, register entry 345: in M1 an `enqueue`, `invoke` or
+  A command of another scope runs only after commit, through an `enqueue` or `invoke` effect, a
+  job committed with the decision (amended 2026-11-11); no receipt returns to the decision, which
+  names the command id (`enqueue(action, input, { commandId })`) when someone must follow it
+  (section 7.9.5). Snapshot and atomicity semantics are therefore the same on every placement.
+  (Amended 2026-11-05, register entry 345: in M1 an `enqueue`, `invoke` or
   timer effect for a command of another scope is refused with `core.request_not_allowed`; the
   post-commit enqueue in a short unit of the target scope arrives with the worker in M2.)
+  Amended 2026-11-11 (register entry 345): nothing is relayed after the commit. A cross-scope
+  `enqueue` or `invoke` effect is a job in the source scope, committed with the decision, whose
+  action runs in the unit of the tenant's own backend. The one pair allowed is a tenant to its own
+  backend, and a system principal never crosses scopes; every other pair is refused with
+  `core.request_not_allowed`. A timer does not cross scopes (amended 2026-11-12). The receipt of a
+  cross-scope job lasts at least the larger of 24 hours and the job's retry horizon, whatever the
+  action's idempotency window, and every such job belongs to the namespace group
+  `core.cross-scope:<backend>` (amended 2026-11-12). The timers that a principal resolver's effects
+  set run as the resolver module's own minted service principal (register entry 335, section
+  9.5.6).
 - Effect executors that connect to hosts named by tenants or by DNS (MX targets, MTA-STS policy
   hosts, outbound webhooks) use the core's egress service (`ctx.egress.fetch`, `ctx.egress.connect`
   of the executor context, section 7.9.5); handlers connect nowhere. The egress service resolves the
@@ -4504,9 +4846,12 @@ Node, always; the baseline follows each new major, and backfills or polyfills ex
 the baseline lacks, never as a lower target. Today the baseline is TypeScript 7 and Node 26. CI
 runs on Node 26 only (the matrix has one runtime entry), the deployment image (the `keelwerk`
 container of section 17.5.2) is built on a Node 26 base image, and `keelwerk doctor` checks for
-Node 26 or later (section 13.12). Packages carry no `engines` field while Dependabot's updater
-refuses `"node": ">=26"`; the published packages declare `"engines": { "node": ">=26" }` again
-before the first publish (roadmap M1, criterion 12). Node 26 ships `Temporal`, so instants are `Temporal.Instant` from the start
+Node 26 or later (section 13.12). The committed manifests carry no `engines` field while
+Dependabot's updater refuses `"node": ">=26"`; until Dependabot's updater runs Node 26, the
+published packages get `"engines": { "node": ">=26" }` at publish time (roadmap M1, criterion 12;
+M1 plan S-116): `scripts/release.sh` runs the publish inside `with_publish_engines`, which writes
+the field into the publishable manifests and restores them afterwards, so the field is in the
+tarballs and never in a commit (amended 2026-11-10). Node 26 ships `Temporal`, so instants are `Temporal.Instant` from the start
 with no polyfill (decision 19b, section 6.4). The checks this document records on Node 24.21.0
 (sections 13.4, 14.3.7, 14.7.9.3 and 17.2.2, Appendix B) were made again on Node 26.13.0 on
 2026-11-04 with the same results.
@@ -4644,7 +4989,10 @@ also states the single-purpose rule, the names and the tooling that keeps them.
    deleted part is mounted or unmounted within the same cycle. The probe writes only the artefacts
    whose content changed (atomic rename), so the type checker and the editor see new types within
    one cycle and no watch loop starts. Module definition files must be free of I/O at import time;
-   the probe has a 10-second limit and names the import that hung.
+   the probe has two stall limits, each restarted by every progress event: 10 seconds while a
+   project module import is in flight (it names the import and gives the advice on slow input and
+   output), 60 seconds while the probe does its own work (producers, migration checks, opening and
+   applying the dev database) (amended 2026-11-10, register entry 488).
 3. **The app**: one process with role `all`, the dev operator socket `.keelwerk/dev.sock`,
    `KEELWERK_EXPLAIN=1` and the source condition. Before it starts, the data layer synchronises
    the development database (expand steps at once, contract and rebuild steps after a confirmation
@@ -4665,9 +5013,15 @@ and verbose problem details.
 As built in M1 (amended 2026-11-05, register entry 435 and open point 459): the development
 database is one PGlite directory per entry (`control` and one per placement) rather than one
 directory for every root; the probe names a hanging import through a child hook, its 10-second
-limit being a default; the explain line is the shorter one of section 11. The 1-second restart
+limit being a default (amended 2026-11-10, register entry 488: the one limit became the two stall
+limits above); the explain line is the shorter one of section 11. The 1-second restart
 target was not met on a loaded machine (1.4 to 14 s measured) and is to be re-measured on a quiet
 one.
+
+Amended 2026-11-05 (M1 plan S-115): the project root is the directory that holds the deployment
+file's project (`examples/portal` in this repository), never the workspace root. `keelwerk dev`
+keeps its state under `<project root>/.keelwerk/`, and the project connection of section 16.9.1
+looks there, so the two agree.
 
 ### 13.7 Generated artefacts
 
@@ -4676,7 +5030,7 @@ one.
 | `src/module.generated.ts` (every module package) | core: the module literal from the directory conventions (section 23.5) | `dev` on change, `generate` | yes | `generate --check` | the package entry: the module value apps import |
 | `src/keelwerk.generated.ts` | core, plus type fragments from transports | `dev` on change, `generate` | yes | `generate --check` | not loaded (types only) |
 | `generated/api-surface/<app>/<api version>.json` | core | `dev`, `generate` | yes | `generate --check`, `surface diff` | recomputed in memory; the hash is compared at boot (warning in development, configurable in production) |
-| `generated/api-surface/<app>/ledger.json` | core | `surface version new` (explicit) | yes | `generate --check` against `defineApiVersions`; `surface diff` keeps released entries unchanged | read at `compose` for module version changes (section 18.2) |
+| `generated/api-surface/<app>/ledger.json` | core | `surface version new` (explicit) | yes | `generate --check` against `defineApiVersions`; `surface diff` keeps released entries unchanged | not read: the runtime takes the change ids from `defineApiVersions`, which mirrors them (section 18.2, amended 2026-11-11) |
 | `generated/openapi/<app>/<api version>.json` | `transport-rest` | `dev`, `generate` | yes | `generate --check`, OpenAPI schema validation | recomputed by the same function and served with per-backend `servers` |
 | `generated/graphql/<app>/<api version>.graphql` | `transport-graphql` | `dev`, `generate` | yes | `generate --check` | the schema object is built from the surface; its printed form equals the file |
 | `generated/cli/<app>/<api version>.json` | `@keelwerk/cli` | `dev`, `generate` | yes | `generate --check` | not used; the CLI builds from the surface |
@@ -4688,7 +5042,7 @@ The generated TypeScript file re-exports what application code needs, so the app
 instantiated once:
 
 ```ts
-// Generated by keelwerk 0.1.0 from src/app.ts. Do not edit. Format keelwerk.generated/1, API version 2027-01-12, surface sha256-3q2F...
+// Generated by keelwerk from src/app.ts. Do not edit. Format keelwerk.generated/1, API version 2027-01-12, surface sha256-3q2F...
 import type { ActionRef as ActionRefOf, AppActionTree, AppEntities, Row } from '@keelwerk/core'
 import type { AppClient } from '@keelwerk/client'
 import type { TrpcRouterOf } from '@keelwerk/transport-trpc'
@@ -4706,26 +5060,32 @@ export const apiVersion = '2027-01-12'                   // the head the types d
 
 Rules for every artefact: LF line endings, a trailing newline, sorted keys, two-space JSON
 indentation laid out as Biome formats JSON, no timestamps. A generated TypeScript file starts with
-a one-line header naming the producer and its version, the source, the format and, for the app's
-file, the API version and the surface hash (as above; `module.generated.ts` names its format
-`keelwerk.module/1`). JSON carries no comment, so a JSON artefact has no comment header: the API
-surface document is the surface itself (its `format`, `apiVersion` and `hash` are members), a
-module snapshot names its format in its `format` member (`keelwerk.snapshot/1`), and the OpenAPI
-document carries the header as the member `x-keelwerk-generated` (`format: 'keelwerk.openapi/1'`,
-`producer`, `producerVersion`, `apiVersion`, `surface`). Drift checks ignore the producer's version
-(the version on line 1 of a TypeScript header, `producerVersion` in JSON), so a release that
-changes nothing else reports no drift. Documents derived from the surface exist once per supported
-API version (section 18.2). Biome excludes the `generated/` directories from linting and formatting
-(`"!**/generated"`) but keeps them indexed for type-aware rules; `*.generated.ts` files stay under
-Biome's check, so the generators sort imports the way Biome's organizer does.
+a one-line header, `Generated by keelwerk from <source>. Do not edit. Format <format id>.`, which
+names the producer, the source and the format and, in the app's file, goes on with the API version
+and the surface hash (as above; `module.generated.ts` names its format `keelwerk.module/1`). JSON
+carries no comment, so a JSON artefact has no comment header: the API surface document is the
+surface itself (its `format`, `apiVersion` and `hash` are members), a module snapshot names its
+format in its `format` member (`keelwerk.snapshot/1`), and the OpenAPI document carries the header
+as the member `x-keelwerk-generated` (`format: 'keelwerk.openapi/1'`, `producer`, `apiVersion`,
+`surface`). No generated file names the generator's version, so drift checks have no version to
+ignore and a release changes version numbers only (amended 2026-11-11, register entry 268). The SDL
+file of an app, `generated/graphql/<app>/<api version>.graphql`, is the lexicographically sorted
+print with every keelwerk scalar declared and carries no header (added 2026-11-17). Documents
+derived from the surface exist once per supported API version (section 18.2). Biome excludes the
+`generated/` directories from linting and formatting (`"!**/generated"`) but keeps them indexed for
+type-aware rules; `*.generated.ts` files stay under Biome's check, so the generators sort imports
+the way Biome's organizer does.
 
 As built in M1 (added 2026-11-05, register entries 373, 374 and 425):
 
 - `ledger.json` (amended): a plain `generate` creates it when missing and otherwise brings only the
-  head entry's `surfaceHash` and `modules` to what the sources imply (`refreshHeadEntry`; the head is
-  the working entry until `surface version new` cuts it); released entries are never touched, and
-  `--check` reports head drift until `generate` runs again. `checkLedger` compares `surfaceHash` and
-  `modules` for the head entry only and checks released entries for presence and order.
+  head entry's `surfaceHash`, `modules` and `changes` (amended 2026-11-11) to what the sources
+  imply (`refreshHeadEntry`; the head is the working entry until `surface version new` cuts it);
+  released entries are never touched, and `--check` reports head drift until `generate` runs
+  again. `checkLedger` compares `surfaceHash` and `modules` for the head entry only and checks
+  released entries for presence and order; it also compares the `changes` of every declared
+  version with the change ids `defineApiVersions` lists and refuses an id that no module
+  registers (amended 2026-11-11).
 - The CLI manifest is `keelwerk.cli/1`, rendered by `render-cli-manifest.ts`, under
   `generated/cli/**`.
 - Migrations: `generate` writes a module's first migration only when its package has a
@@ -4733,11 +5093,17 @@ As built in M1 (added 2026-11-05, register entries 373, 374 and 425):
   check-only; a committed migration file is never edited, so a later change of a committed track is
   a new file (`0002-related-to` in the library fixture), while a track not yet committed is
   regenerated.
-- Transport type fragments are not wired (`Artifact.type-fragment` has no shape yet). The producers
-  run in a child `node --conditions=@keelwerk/source` unless the condition is already in
-  `execArgv`; the root scripts `manifests`, `surfaces` and `fixtures:migrations` are aliases of
-  `keelwerk generate --only ...`. Right after `keelwerk init`, `generate --check` exits 1 until
-  `pnpm install` has run.
+- Transport type fragments are not wired in M1 (`Artifact.type-fragment` has no shape yet; wired
+  on 2026-11-11, below). The producers run in a child `node --conditions=@keelwerk/source` unless
+  the condition is already in `execArgv`; the root scripts `manifests`, `surfaces` and
+  `fixtures:migrations` are aliases of `keelwerk generate --only ...`. Right after `keelwerk init`,
+  `generate --check` exits 1 until `pnpm install` has run.
+
+Amended 2026-11-11 (type fragments): `keelwerk generate` passes the head surface's `type-fragment`
+artefacts of each mounted transport to the renderer, which writes them into
+`keelwerk.generated.ts`. Two writers of one declaration name are refused, and the files of an older
+API version never carry fragments. The renderer does not format: a fragment's text is already
+formatted.
 
 ### 13.8 `keelwerk build` and CI
 
@@ -4770,6 +5136,13 @@ CI runs, in order, on Node 26 (the baseline of section 13.2):
    fails, whatever the changelog says; dangerous changes need a changelog acknowledgement. Each
    changed module package's own surface and declaration files must fit its semantic version bump.
 
+Besides the nine steps, the workflow has the job `exit-criteria` (M1 exit criteria), which runs
+after the other jobs, fails when one of them did not succeed, and runs `scripts/exit-criteria.ts`,
+which names for every exit criterion the job and step that prove it; the workflow can also be
+started by hand (`workflow_dispatch`), so a branch runs without a pull request (M1 plan S-116).
+CI also runs daily on `main` on a schedule, so a failure that depends on the calendar shows without
+a pull request (added 2026-11-10, register entry 491).
+
 `keelwerk build` runs steps 2 to 6 and 9 locally, the layout pass included, then emits JavaScript
 for production.
 
@@ -4778,7 +5151,12 @@ for production.
 `@keelwerk/biome-config` publishes a Biome 2.6.8 configuration that projects extend with
 `"extends": ["@keelwerk/biome-config/biome"]`. Biome stays the only formatter and linter, with
 its formatter with single quotes, two-space indentation and 100 columns (the style of
-`docs/api-sketch.ts`, fixed 2026-11-04). The preset enables these rules as errors:
+`docs/api-sketch.ts`, fixed 2026-11-04). The preset's peer `@biomejs/biome` is exact, so every
+Biome upgrade is a breaking change for the applications that extend the preset (pnpm refuses an
+unmet peer with `strictPeerDependencies`). Open (added 2026-11-18, register entry 495): before
+1.0.0 that peer needs a range or an explicit exemption in the register, together with the
+`keelwerk doctor` comparison of the preset's Biome with the installed one (section 13.12), which
+compares strings today. The preset enables these rules as errors:
 
 | Rule (group) | Why |
 |---|---|
@@ -4808,8 +5186,10 @@ with no relaxation in the preset. The type model needs the empty object type, so
 it once as `Empty` (`type Empty = Record<never, never>`) and uses that name instead of `{}`; the
 composition-types spike, which wrote `{}`, drew 67 warnings from the rule (2026-11-04).
 
-Overrides exempt the entry files of library packages from the barrel rules, migrations and
-generated paths from the naming rule, and scripts and tests from the import-effects plugin below.
+Overrides exempt the entry files of library packages from the barrel rules, and migrations and
+generated paths from the naming rule; the import-effects plugin below leaves scripts, tests and
+benchmark files (`**/*.bench.ts`) out through its own `includes` (amended 2026-11-10, register
+entry 489).
 
 Package-kind boundaries, as `overrides` with `includes`:
 
@@ -4828,7 +5208,7 @@ GritQL plugins shipped in the same package, each with tests:
 | Plugin | Flags |
 |---|---|
 | `no-selection-augmentation.grit` | `declare module '@keelwerk/...'` and `declare global` in module and app packages (principle 2) |
-| `named-module-types.grit` | an exported `defineModuleBase(...)`, `defineModule(...)` or `defineApp(...)` value without a named type annotation (section 4.1), in `base.ts`, `app.ts` and hand-written module literals of tests and spikes; the generator writes the named type into every `module.generated.ts` |
+| `named-module-types.grit` | an exported `defineModuleBase(...)`, `defineModule(...)` or `defineApp(...)` value without a named type annotation (section 4.1), in `base.ts`, `app.ts` and hand-written module literals of tests; the generator writes the named type into every `module.generated.ts` |
 | `no-null-in-conditions.grit` | a literal `null` as a comparison value in a rule's `where` or `check` (section 8.3) |
 | `as-system-reason.grit` | `system()` without a reason or with an empty string, as in `invoke(action, input, { as: system('') })` |
 | `pure-parts.grit` (replaces `pure-deciders.grit`) | `Temporal.Now.*`, `Date.now()`, `new Date()` without arguments, `Math.random()`, `performance.now()`, `crypto.*`, `setTimeout`, `setInterval`, `queueMicrotask`, `fetch` and a bare `yield` of a request, in module and app sources outside `src/executors/` (use `ctx.clock`, `ctx.newId`, `ctx.random`, `yield*` and effects; section 7.9.6) |
@@ -4836,13 +5216,18 @@ GritQL plugins shipped in the same package, each with tests:
 | `no-await-in-parts.grit` | `async` and `await` in pure parts outside `src/executors/`: handler types already exclude promises, and this rule says so readably |
 | `error-code-format.grit` | `defineError` codes that do not match `<module>.<snake_case>` |
 | `one-export.grit` | a second exported value in a source file, outside assembly files (`base.ts`, `app.ts`, `modules.ts`), generated files, library entries and tests (section 23.3) |
-| `no-import-effects.grit` | top-level expression statements, `await` and bare imports, outside tests and scripts |
+| `no-import-effects.grit` | top-level expression statements, `await` and bare imports, outside tests, scripts and benchmark files (`**/*.bench.ts`) |
 | `wiring-only-assembly.grit` | a function or arrow function in `base.ts`, `app.ts` or `modules.ts` |
 
 The last three, like `pure-parts`, `no-module-state` and `no-await-in-parts` (module and app sources: `**/packages/module-*/src/**`, `**/modules/*/src/**`
 and `**/apps/*/src/**`, minus `src/executors/` where the rule says so), are scoped with `includes`, because GritQL cannot read the
 file path; checks that need paths belong to the layout pass of `keelwerk doctor` (section 23.13).
 Modules are object literals (section 4.1), so no rule guards a chain of steps.
+
+Amended 2026-11-10 (register entry 489): since Biome 2.6.3 a repeated plugin entry adds its scope
+to the preset's instead of replacing its `includes`, so a file in both scopes is reported twice.
+The root `biome.json` therefore declares no plugins for `spikes/**`, where its override disables
+the linter.
 
 ```grit
 or {
@@ -4991,7 +5376,8 @@ Checks the environment and the project, then the running backends:
 
 - Node 26 or later (the baseline, section 13.2); TypeScript 7.0 for builds (and 6.0 only where
   attest runs); the pnpm version;
-  the Biome version the preset expects;
+  the Biome version the preset expects (compared as strings today, an open point of section 13.9,
+  register entry 495);
 - every `tsconfig.json`: the options of section 13.3, an explicit `rootDir`, `customConditions`
   with the source condition, `isolatedDeclarations` only where it can work;
 - project references complete: every workspace dependency of a package is referenced (computed
@@ -5165,7 +5551,7 @@ export interface EntityDescriptor {
   readonly module: string
   readonly name: string
   readonly history: 'chain' | 'state' | 'projection' | 'external'
-  readonly tenancy: 'tenant' | 'backend' | 'deployment' | 'invocation'   // 'invocation': core receipts and effect records only
+  readonly tenancy: 'tenant' | 'backend' | 'deployment' | 'invocation'   // 'invocation': core receipts and effect records, and an entity a module declares with it (amended 2026-11-11, section 3.1)
   readonly shape: ShapeRef                 // the active tracks and their versions; events record its id (section 15.1.9)
   readonly dataSubject: string | null      // 'id', a field, or a path through an immutable reference ('accountId.ownerSubject')
   readonly table: string                   // physical name inside the namespace root
@@ -5300,6 +5686,7 @@ export interface AdapterEnvironment {
   readonly tracer: Tracer                  // OpenTelemetry; adapters open child spans per statement batch
   readonly secrets: SecretResolver
   readonly signal: AbortSignal
+  readonly clock?: { now(): Temporal.Instant }   // the runtime's injected clock; an adapter takes its own option first, then this clock, then the system clock (added 2026-11-10, register entry 485)
 }
 
 /** OpenTelemetry's tracer (`@opentelemetry/api`, section 11), re-exported by the core. */
@@ -5437,11 +5824,14 @@ milestone M1 list the members each release carries).
 ```ts
 export interface ConsumerStore {
   checkpoint(consumer: string, scopeId: string): Promise<Position | null>
-  advance(consumer: string, scopeId: string, to: Position): Promise<void>       // in the unit of the effects
+  advance(consumer: string, scopeId: string, to: Position): Promise<void>       // in the unit of the effects; a position above the scope's head is `validation` (added 2026-11-11)
   acquireLease(consumer: string, owner: string, ttlMs: number): Promise<boolean>
   renewLease(consumer: string, owner: string, ttlMs: number): Promise<boolean>
   park(consumer: string, stream: StreamRef, from: Position, error: WireError): Promise<void>
   unpark(consumer: string, stream: StreamRef): Promise<Position | null>
+  /** The start of a `start: 'now'` consumer (section 15.2.3, added 2026-11-11), in one writing namespace-scope unit: records the
+      consumer's start and a checkpoint at the head of every scope with events; false, writing nothing, when it has started already. */
+  startAtHeads(consumer: string): Promise<boolean>
 }
 export interface TombstoneStore {
   add(stream: StreamRef, position: Position): Promise<void>
@@ -5707,6 +6097,8 @@ always admitted.
   (`tenant_id`, `backend_id`, `deployment_id`) apply by the entity's tenancy, never by column name,
   so a deployment-scoped entity may own a field column named `backend_id` (`core.tenant`). M1
   assumes a tenant and its backend are co-placed.
+- Added 2026-11-11: a unit that has ended refuses every statement, on every adapter, so work that
+  resumes after its deadline can write nothing.
 
 #### 14.3.7 How each adapter fits
 
@@ -5743,9 +6135,29 @@ only two policy sets admit: `take` on the queue tables (`kw_job_lanes`, `kw_job_
 `kw_job_groups`, `kw_jobs`, `kw_job_history`), for the fair take and the completions, and
 `maintenance` on every other scoped table and on entity tables, for migrations and rebuilds; module
 code never runs in them. The adapter's application role has no `BYPASSRLS` and owns nothing: it
-gets `select, insert` only on the append-only `kw_events` and `kw_shapes` (principle 8), `select,
-insert, update, delete` on the other framework tables (in the control root also `kw_scope_keys`),
-and `select` on `kw_migrations`; creating the role belongs to provisioning, not to the DDL.
+gets `select, insert` only on the append-only `kw_events` and `kw_shapes` (principle 8) and never
+deletes or updates them directly, `select, insert, update, delete` on the other framework tables
+(in the control root also `kw_scope_keys`), and `select` on `kw_migrations`; creating the role
+belongs to provisioning, not to the DDL. The kernel maintenance members of section 15.1.11 run
+through functions in the root that the owner role owns (`security definer`, `search_path` pinned
+to `pg_catalog, pg_temp`, every object schema-qualified, execute revoked from `public` and granted
+to the application role), each enforcing its own conditions. The first,
+`kw_purge_transient(before, max_rows, stream_types)` (framework step 0004), deletes in the unit's
+scope only, nothing in a namespace-scope unit or a unit that names no scope, only transient records
+that carry no hash and no previous hash, recorded before `before`, that are not their stream's
+newest record unless no receipt row with the stream's id exists in the scope, at most `max_rows` (1
+to 100,000, else it raises). It holds the one purgeable stream type, `core.commandReceipt`, as a
+literal and refuses a list that names any other with 42501. It answers `removed`, the rows it
+deleted, and `more`, whether a candidate is left, read by a statement of its own after the delete
+and never derived from `removed`: a delete that skipped rows another pass took removes fewer than
+`max_rows` while older candidates remain. `EventStore.purgeTransient` and `JobStore.purgeHistory`
+answer the same `PurgeBatch`. It repeats the policies' scope predicate, because an owner that
+bypasses row-level security (PGlite's superuser, a superuser in an operator's cluster) is not bound
+by them, and it does not check `before` against the database clock: the adapter's clock is the time
+authority. Framework step 0004 builds the index `kw_events_transient` inside the step, so the step
+stays atomic: every event append waits until the step commits, and the build reads the whole table;
+plan for minutes on tens of millions of rows. Building it without blocking writes needs a step
+runner that can run a statement outside the step's transaction, a later work package.
 Migrations and provisioning connect as the role that owns the tables, through
 `PostgresAdapterOptions.ownerUrl`; without it `schema.apply` and `schema.provision` refuse with
 `unsupported`. Row-level security protects against defects in the framework and the
@@ -5914,7 +6326,7 @@ export type JobOutcome =
 export interface JobStore {
   /** Creates or re-limits a group that spans the namespace (scope_id null); namespace-scope units only, refused elsewhere (section 9.5.2). */
   provisionGroup(group: JobGroup): Promise<void>
-  enqueue(job: StoredJobSpec): Promise<JobId>                 // upserts the lane; keys: keep, replace or coalesce a pending job with the same key and lane
+  enqueue(job: StoredJobSpec): Promise<JobId>                 // upserts the lane; keys: keep, replace or coalesce a pending job with the same key and lane, or append a follower (section 9.5.1)
   cancel(queue: string, key: string): Promise<number>
   /** Moves due `scheduled` jobs (timers, retries, delayed sends) to `available` and counts them on their lanes. */
   promote(queue: string, limit: number): Promise<number>
@@ -5927,6 +6339,9 @@ export interface JobStore {
   /** Conditional on (worker, attempt): succeeded (history written), retry at a time, or dead letter; false when the lease was lost. */
   complete(attempt: JobAttempt, worker: string, outcome: JobOutcome): Promise<boolean>
   stats(queue?: string): Promise<readonly WorkClassStats[]>  // per queue and capability set, from the lane tables (section 21.4)
+  /** Retention (section 14.7.1, added 2026-11-18): deletes `kw_job_history` rows of the unit's scope finished before `before`,
+      lowest job id first, at most `limit`; answers `{ removed, more }` (`PurgeBatch`, section 15.1.11). */
+  purgeHistory(before: Temporal.Instant, limit: number): Promise<PurgeBatch>
   schedules(): ScheduleStore                                  // one row per schedule and scope: last tick, next tick
 }
 ```
@@ -5935,6 +6350,12 @@ export interface JobStore {
   9.5.3), so any number of workers on any number of processes share a queue. On SQLite, PGlite and
   the in-memory adapter, the single writer serialises `take`; they serve `keelwerk dev`, tests and
   single-process deployments.
+- Added 2026-11-19: the take request gets one optional member that lists the paused scopes of the
+  taken source; every adapter leaves the lanes of those scopes out, and absence or an empty list
+  means that nothing is paused (section 9.5.3).
+- Added 2026-11-19: the job store gains the required members `inspect`, `lanes`, `replay`,
+  `discard` and `bury`, proven by conformance cases; adding them is a breaking change for custom
+  job stores.
 - Lane counters are split by writer: `kw_job_lanes` holds each lane's cap, weight, `taken` and
   virtual time, of which takes write only `taken` and the virtual time; `kw_job_lane_counts` holds
   its `enqueued` and `done` counters, which enqueue tails, promotions, FIFO releases and completions
@@ -5954,10 +6375,14 @@ export interface JobStore {
 - A lane's capability set is stored as text: the job's capabilities, distinct, sorted and joined by
   a comma (`docker,gpu`), and the empty string for none; workers name their sets the same way.
 - Keys act on a pending job (`scheduled`, `available` or `waiting`) with the same key in the same
-  lane: `keep` returns the existing job's id; `coalesce` keeps the existing job and moves its
+  lane (`append` looks none up: the new job joins the key's FIFO as a follower, section 9.5.1):
+  `keep` returns the existing job's id; `coalesce` keeps the existing job and moves its
   `runAt` to the earlier of the two times, making it `available` (and counting it) when that time is
   due; `replace` finishes the existing job as `cancelled`, with its history row, and enqueues the
   new one.
+- `cancel` (added 2026-11-12, amended 2026-11-18) also takes the attempt that is running, in the
+  `timers` and `hooks` queues only: such a job never crosses scopes, so its command commits in the
+  job's unit.
 - The conformance suite runs the same queue scenarios (keys, coalescing, FIFO under concurrency,
   groups with rates, retries, heartbeats, expiry, dead letters, schedules ticking once per scope,
   the fair-take order, lane caps, the queued cap with backpressure, lease loss and fencing, release
@@ -6019,7 +6444,9 @@ home namespace, chosen when the backend is created.
   `updated_at` and `version`, the scope column `scope_id` (the tenant, backend or deployment id of
   the unit that wrote the row), no `archived_at` and no `kw_*` framework columns. The storage layer
   carries the layout (`EntityTable.systemFields`, `archivable`, `scopeColumn: 'scope_id'`, and
-  layout-aware row queries). Stored format final from M1.
+  layout-aware row queries). Stored format final from M1. Amended 2026-11-11 (entry 398): having
+  no `kw_*` columns, an `invocation` entity reads its chain state from the last record of its
+  stream, in one bounded read.
 
 #### 14.4.3 The scope predicate
 
@@ -6331,7 +6758,9 @@ personal field without an `eq` capability cannot be indexed, a plan-time problem
 
 - `kw_migrations(track, id, checksum, applied_at, duration_ms, steps_applied)`, primary key
   `(track, id)`, in each namespace; the checksum is the SHA-256 of the canonical neutral steps as
-  lower-case hexadecimal text, and a changed applied file is drift.
+  lower-case hexadecimal text, and a changed applied file is drift. `applied_at` is written from the
+  adapter's clock (section 14.3.2), not from the database's `now()` (added 2026-11-10, register
+  entry 486).
 - Order: own tracks topologically by `requires` and `optional`, with tuple order as tie-break; a
   contribution track after the target's own track; a conditional track after the tracks of its
   `when` modules; files by id within a track. A file absent from the history but older than applied
@@ -6472,8 +6901,10 @@ export interface Catalogue { readonly tables: readonly TableSpec[] }
 
 Nothing in the chain is deleted until the operator adopts a rule. Rules are set per backend, with
 per-tenant overrides, stored in the control store and changed through operator actions
-(`core.retention.set`, `core.retention.list`); every run of the retention worker is recorded in the
-control store (the rule, who adopted it, what was removed, the new horizons). Modules may declare
+(`core.retention.set`, `core.retention.list`); every pass of the retention worker that removed
+anything or failed is recorded in the control store, one row per namespace and scope (the rules the
+scope began and, for an adopted rule, who adopted it, what was removed, the new horizons;
+`kw_retention_runs`, below). Modules may declare
 suggested rules on their entities (`retention: { suggest: [...] }`), which `keelwerk doctor` lists;
 a suggestion has no effect until adopted. Launchway's modules suggest none (decision 47c,
 2026-10-27): deployment records, logs, preview records and the attempt records of effects are kept
@@ -6489,7 +6920,9 @@ export type RetentionRule =   // durations are ISO 8601; `entity` accepts 'modul
   | { readonly kind: 'purgeRows'; readonly entity: string; readonly where: ConditionInput; readonly olderThan: string }  // history 'state' only
   | { readonly kind: 'shallowCrdt'; readonly entity: string; readonly field: string; readonly olderThan: string }          // M7
   | { readonly kind: 'transientRecords'; readonly olderThan: string }    // default P7D
-  | { readonly kind: 'receipts'; readonly olderThan: string }            // default: each action's idempotency window (PT24H unless declared)
+  | { readonly kind: 'receipts'; readonly olderThan: string | null }     // default null: each receipt's own expiresAt (its action's idempotency window, PT24H unless declared)
+  | { readonly kind: 'jobHistory'; readonly olderThan: string }          // default P7D
+  | { readonly kind: 'streamTickets'; readonly olderThan: string }       // default P1D after the ticket's expiresAt
   | { readonly kind: 'syncClients'; readonly inactiveFor: string }       // default P90D (M6)
   | { readonly kind: 'streamRecords'; readonly stream: string; readonly maxAge?: string; readonly maxPerKey?: number }  // gap G6
 ```
@@ -6516,6 +6949,63 @@ the operator configures a window.
 The `transientRecords` rule is also a re-decide's feed horizon (added 2026-11-05, register entry
 445): a re-decide answers state-entity loads from the transient records only within it (default
 `P7D`), and refuses an older decision that read state with `core.replay_outside_horizon`.
+
+Added 2026-11-18: the retention worker is the event worker `events.retention`
+(`runs: ['retention']`, roles `work`). Its options and their defaults: `intervalMs` 3,600,000;
+`batchSize` 1000, 1 to 100,000; `pageSize` 100; `window`, 'HH:MM' UTC, its start before its end or
+across midnight, a window whose start equals its end refused; `transientRecords` `P7D` and not less,
+a shorter one refused, because the feed horizon (`P7D`) is the window a re-decide counts as
+retained; `jobHistory` `P7D`; `streamTickets` `P1D` after the ticket's `expiresAt`.
+`RetentionOptions` carries no test seam. The worker purges expired receipts, failed ones included,
+which ends the keyed digest a failed command leaves; the purge takes only a receipt that names no
+client (`clientId` null) or whose client has acknowledged it (`acknowledgedAt` set, amended
+2026-11-19, section 7.5). It visits archived and held tenants, and it waits on
+`RuntimeServiceContext.timers`.
+
+Added 2026-11-19: the option `maxBatchesPerPass` (default 100, 1 to 1,000,000) bounds the batches of
+each buffer and each declared stream in one pass, so a backlog (the first pass after an upgrade) is
+spread over passes; a buffer cut off by the budget, the scheduled window or a lost lease ends
+undrained and gets no horizon. A scheduled pass ends, the buffer in hand undrained, when its window
+closes. A pass runs on a lease (`events.retention`, a consumer lease in a namespace-scope unit of
+the control store, five minutes, renewed every third of it between batches, released at the end of
+the pass): a process that does not get it skips the pass; every statement is idempotent, so two
+passes at once (a lost lease) remove each row once. Once the worker is stopping no unit begins, the
+renewal of the lease included.
+
+Amended 2026-11-19: the transient rule of retention covers the stream types of the kernel list
+`transientPurgeTypes` only (today `core.commandReceipt`, the change records of receipts);
+`RetentionHorizons.transientRecords` is compared with `recorded_at` and exists only for those types.
+For the change records of receipts the newest record of a stream stays only while a receipt row with
+that id exists in the scope; once the receipt is gone and the record is past the horizon it is
+purged, and when the same command id returns its stream starts again at version 1. Readers follow
+the event table by position, not by stream version: nothing may rely on a receipt stream's version
+being unique over time. For every other stream the newest record is kept as written.
+
+Added 2026-11-18 (M2 plan S-172): the runs are rows of the control table
+`kw__control.kw_retention_runs(run_id, started_at, ended_at, backend_id, tenant_id null, rule jsonb,
+removed jsonb, horizons jsonb)` (framework step 0002); framework step 0004 also adds `namespace_id`
+text, `outcome` text and `error` jsonb. There is one row per namespace, scope and pass that removed
+anything or failed; a pass the service signal or the guard halts writes none, and nothing may rely
+on one row per pass. `outcome` is 'complete' or 'failed' (any other value reads as not complete; no
+check constraint), and `error` is null or `{ kind, code }`, never a message. `rule` is `{ rules }`
+and lists only the rules the scope began in the pass (`RetentionRule` gains `jobHistory`,
+`streamTickets` and a null `receipts.olderThan` so that adopted rules carry the names the runs
+already store); `removed` holds counts for those buffers only; `horizons` has a member only for a
+buffer whose last batch said, from a read of committed data and not from its own size, that no
+candidate is left, and that ended with no failure, each an ISO instant with three digits, compared
+with `recorded_at` (`transientRecords`), the `expiresAt` of completed and failed receipts,
+`finished_at` (`jobHistory`) and the ticket's `expiresAt`. The deployment scope is written with
+`backend_id` = the deployment id and `tenant_id` null (null whenever the scope is not a tenant). A
+row whose `namespace_id` or `outcome` is null (only a row of 0.1.0 could be) reads back with null,
+never the text 'null' and never a failure: `RetentionRun.namespaceId` is `string | null` and
+`outcome` is `string | null`, read as stored, and only 'complete' is complete. The JSON members
+carry no version member; readers ignore unknown members.
+
+Known limit (added 2026-11-18): retention reaches archived tenants but not the scopes of an archived
+backend, because the scope directory does not know an archived backend. In an archived backend the
+buffers, receipts with their keyed fingerprints included, are kept until the backend is restored or
+deleted. WP-165 makes erasure and retention reach archived tenants and backends; the erasure worker
+is left as it is until then.
 
 #### 14.7.2 Tombstones
 
@@ -6551,6 +7041,19 @@ after it, and the stream is reported as changed.
   `.personal({ subject: '<field>' })`; such a field must be optional, because erasing that other
   subject clears it while the row lives on. A module that cannot express ownership as a path keeps
   a denormalised subject field and says so.
+  Added 2026-11-12: every event that creates a row (`created`) or adopts one (`imported`), or
+  changes the first segment of its data-subject path, takes the subject's data key
+  (`fenceDataSubject`, the fence), under the lock the shred takes: the key is created at its first
+  use and refused (`forbidden`) once the subject is shredded, so no row can be given to an erased
+  subject in any process. The fence refuses an upper or mixed case spelling of a 128-bit subject
+  only for a one-field data subject, whose text the event writes itself (a validation error); a
+  subject that comes from a stored row through a path is folded to its canonical form and the row
+  is written. A subject id is therefore never used again after its erasure (a replay of the ledger
+  would erase the new rows too): a returning person gets a new subject id. Composition warns
+  (`dataSubjectUnindexed`, section 4.7) when a field the owned-row lookup of an erasure filters on
+  has no plain index (section 14.7.5).
+  Known limit (added 2026-11-18): a personal member declared inside a `field.json()` value is not
+  sealed; WP-166 closes this.
 - **In the chain.** Personal values in `data` and `before` are encrypted with the subject's data
   key: AES-256-GCM from `node:crypto`, a random 96-bit nonce, and additional authenticated data
   `namespace ‖ stream id ‖ event id ‖ field`, encoded as
@@ -6559,6 +7062,8 @@ after it, and the stream is reported as changed.
   in this document, associated data and HKDF info alike, is encoded as length-prefixed parts: each
   part a 4-byte big-endian length followed by its bytes (UTF-8 for text), so no two part lists
   encode alike; parameters inside such a list are canonical JSON (RFC 8785).
+  Amended 2026-11-18: version 2 of the envelope (`"$kwe": 2`) pads the plaintext to a multiple of
+  32 bytes and appends the part `kwe2` to the associated data; version 1 is still read.
 - **In state tables.** Personal values are sealed in state columns and in every derived index too,
   queryable only through the capabilities a field declares (decision 7b, section 14.7.9).
 - **Credential material.** Values of `field.secret()` and `field.verifier()` are sealed with their
@@ -6569,6 +7074,16 @@ after it, and the stream is reported as changed.
   (crypto-shredding on overwrite). A sealed value is referenced in process by a `SecretRef` whose
   text is `kwv1.<key id>.<nonce>.<ciphertext>` (nonce and ciphertext with its tag in base64url). Hidden fields are left out of before-images unless they opt in
   with a reason, and `.stateOnly()` fields never enter events.
+  Added 2026-11-11: a secret a module hands to an effect is sealed for that effect under its own
+  value key, bound to `core.effect`, the effect id and the member path, so replacing the secret
+  does not reach effects already requested; WP-126 destroys these value keys when the effect
+  settles.
+  Added 2026-11-18: the kernel seals a credential only as a top-level member or as an element of a
+  list or set. Compose therefore refuses a `field.secret()` or `field.verifier()` inside a
+  `field.json()` member of a shape a module declares (`credentialInJson`) and a verifier anywhere
+  but as a top-level field of an entity (`verifierOutsideEntity`, both in section 4.7), and a job
+  whose generated write would store a credential or personal value unsealed is refused with
+  `internal`, `core.request_not_allowed`.
 - **Keys.** The key service is one component in the core, bound to scopes rather than to an
   invocation: `issue(scope, { prefix, bytes? })` returns `IssuedSecret { plain, publicId, verifier
   }`, `verify(scope, token, verifier)` compares in constant time, `reveal(unit, ref, reason)` opens a
@@ -6587,6 +7102,20 @@ after it, and the stream is reported as changed.
   service provides, backed by the scope's key, with the key id bound into the wrapping and its
   version stored as `kek_version` (the `keyWrapper` option of the PostgreSQL and PGlite adapters);
   without one, their key stores refuse.
+  Added 2026-11-11: the key of a scope's state tokens (section 15.2.6) is derived from the key of
+  the scope the token names, and a generated read derives it, creating the scope key on first use.
+  `ctx.secrets.verify` stays boolean, false for a wrong secret and for a destroyed key alike; only
+  the kernel's key service also has `verifyOutcome`, which tells a destroyed key from a wrong
+  secret, and the kernel's operator-token path logs `core.key_destroyed` once and answers
+  unauthenticated exactly as for a wrong token (open point 467).
+  Added 2026-11-12: a SQL store whose rows have a 128-bit data subject needs a key wrapper, for an
+  `imported` row as much as for a created one: without one the first such row is refused with
+  `unsupported` ("configure `keyWrapper`"), and an erasure fails at its shred step.
+  Added 2026-11-18: the job key secret of a scope is `HKDF(scope key, 'keelwerk/job-key/v1')`
+  (section 9.5.1). A holder of the master key and the control store can check a guessed part of a
+  job key against every key that survives an erasure: after an erasure, that is the jobs of other
+  principals and of the kernel, timers of other modules, reaction jobs, dead letters, and the
+  stream id of a process instance forever.
 - **Key tables.** In each namespace:
 
   ```sql
@@ -6705,7 +7234,9 @@ As built in M1 (added 2026-11-05; register entries 367 to 372, 382 and 401, open
 - Value keys are destroyed when a value is replaced or cleared and when its row is archived; purge
   and the keys of effect records are not wired, since M1 purges nothing. M1 refuses to seal lists
   or sets of secrets, event payloads that declare a credential, configuration shapes with such
-  members and personal or secret effect inputs.
+  members and personal or secret effect inputs (amended 2026-11-11, register entry 370: personal
+  effect inputs are sealed under the subject's key since WP-72, and secret ones are sealed for the
+  effect, as above).
 - The index root key is HKDF(scope key, `keelwerk/index-root/<v>`); there is no `kw_index_keys`
   table, rotation is a new version, and known-answer vectors pin the root key, the field key and
   the tag (a stored format final from M1).
@@ -6715,26 +7246,31 @@ As built in M1 (added 2026-11-05; register entries 367 to 372, 382 and 401, open
   (`ScopeKeyWrapper`, with `within?(store)`), and the in-memory adapter ignores it.
 - A dotted `dataSubject` path through a row the same decision creates fails ("needs its data
   subject") in M1, and a bare verifier cannot tell a destroyed scope key from a wrong secret; both
-  are open.
+  are open (amended 2026-11-11: the second is decided, `verifyOutcome` under Keys above).
 
 #### 14.7.5 Erasure
 
-`core.subjects.erase` is a command (asynchronous, tenant scope, input `{ subjectId, reason }`) with
-its own rules: the core ships one allowing operator principals (inside a tenant they entered through
-`core.tenant.enter`); modules contribute others (accounts can let a user erase their own subject,
-which is self-service account deletion; the platforms decide). The worker:
+`core.eraseSubject` (the flat name, not `core.subjects.erase`; amended 2026-11-11) is a command
+(asynchronous, tenant scope, input `{ subjectId, reason }`) with its own rules: the core ships one
+allowing operator principals (inside a tenant they entered through `core.tenant.enter`); modules
+contribute others only through their contribution to the core, and self-service account deletion is
+the core's rule `selfErase`, which a platform adds (amended 2026-11-12, below). The worker:
 
-1. Writes the erasure to the ledger in the control store and to the deployment's ledger sinks
-   (tenant, subject, time, requester, reason) first, so a crash later, or a restore, is repaired by
-   replaying the ledger (section 14.7.6).
-2. Shreds the subject's data keys and its subject index keys (section 14.7.9.8).
+1. Writes the erasure to the ledger in the control store (`Unit.ledger`, on deployment-scope
+   units; amended 2026-11-11) and to the deployment's ledger sinks (tenant, subject, time,
+   requester, reason) first, so a crash later, or a restore, is repaired by replaying the ledger
+   (section 14.7.6).
+2. Shreds the subject's data keys and its subject index keys (section 14.7.9.8); amended
+   2026-11-11: no per-subject index key and no search index exist yet, so it shreds data keys only.
 3. Appends an `erased` event to every stream in the subject references (actor: the module service
-   principal of the core, on behalf of the requester; command id: the erasure's). Its evolve clears
+   principal of the core, on behalf of the requester; command id: the erasure's), with the payload
+   `{ subjectId, fields, owned }`: the names of the cleared fields, never values, and `owned` where
+   the row's `dataSubject` (directly or through its reference path) is the subject, because evolve
+   depends on the event alone and cannot resolve a path (amended 2026-11-11). Its evolve clears
    the subject's personal fields in that row, including `.stateOnly()` personal fields such as
-   extracted message text, and, where the row's `dataSubject` (directly or through its reference
-   path) is the subject, sets `kw_erased_at` and archives it. In the same unit it clears each such
-   field's sealed column and index columns, its index-table rows and its tags and counts in every
-   search index (section 14.7.9.8).
+   extracted message text, and, where the event is `owned`, sets `kw_erased_at` and archives it.
+   In the same unit it clears each such field's sealed column and index columns, its index-table
+   rows and its tags and counts in every search index (section 14.7.9.8).
 4. Purges the stream records keyed by rows the subject owns.
 5. Projections, search indexes and CRDT documents follow from the events (a scrubbed CRDT field is
    replaced by an empty document); live subscribers and sync clients receive the scrubbed row or a
@@ -6745,6 +7281,68 @@ History reads after erasure (`ctx.load.<module>.<entity>.history`) return `{ red
 values whose key is gone, so a personal field in a history entry is typed `T | Redacted`. The same
 subject index can later serve access requests (an export action); that is not part of the first
 release.
+
+Added 2026-11-12: who may erase. Self-service deletion is off until the platform adds the rule: the
+core exports `selfErase` (the rule `core.eraseSubject.selfErase`, module `core`) and no module
+contributes it, because the tenant decides what a business tenant keeps, the action cannot be
+undone, and a rule on a core action cannot ask for a recent re-authentication; a platform adds it
+with `policies.add` (section 8.7). A module contributes a rule on `core.eraseSubject` only through
+its contribution to the core, under the policy key `eraseSubject`. A rule of the core or of the app
+grants the erasure of any subject of the tenant; a contributed rule grants it only for a subject the
+contributing module holds a live row of in the tenant (`checkErasureGrant`, `ownsSubject`). A
+contributed rule may also deny (a legal hold): it refuses every new erasure, the operator's
+included, until the platform disables that rule with `policies.disable`. An erasure that was
+accepted before runs to its end, because the rule is judged when the command is accepted; a
+re-check when the job runs belongs to WP-103.
+
+Added 2026-11-12: how an erasure starts. Only `acceptAsyncCommand` starts an erasure, the job needs
+the accepted receipt of its command id, and `core.eraseSubject` is refused as the target of enqueue,
+invoke, timer, schedule and resolver effects (section 7.9.5). The reason is one of the closed list
+`subjectRequest`, `consentWithdrawn`, `retention`, `legalObligation` and `operator`; a reader reads
+an unknown reason as `operator` and keeps the record. The subject is checked in the input as a
+string with a pattern, not a `field.subject()`: a lower-case UUID or the 32 lower-case hex digits
+that auth 0.1.0 writes.
+
+Added 2026-11-12: one identity for a subject. A subject is a 128-bit value. At a write it is spelt
+as a lower-case UUID or as 32 lower-case hex digits, and an upper or mixed case spelling is refused
+at every write point (sections 8.5 and 14.7.4); the lower-case hyphenated UUID (`canonicalSubject`)
+is the one canonical form of every comparison and every derived identity. Every comparison of
+subjects (`sameSubject`) and everything keyed by a subject uses it: the key stores and their lock,
+the sealing cache, and the erasure's identity `erasureKey` (tenant, command id and canonical
+subject). A lookup in a text column tries every stored spelling (`subjectSpellings`: the canonical
+form, the 32 hex digits, and the two upper-case forms of a value stored earlier, which is never
+rewritten).
+
+Added 2026-11-12: rows without a personal member. Rows a subject owns that hold no personal member
+(a session) have no subject reference, so the erasure finds them at erasure time by one lookup per
+entity (`ownedRows`: by `id`, by a data-subject field, or along a path read backwards hop by hop;
+erased and archived rows included), erases them, and purges the receipts, jobs, timers and tickets
+of their ids as principals. `ownsSubject` and the start's check that the subject is known in the
+tenant (`known`) use the same lookup, so a user with a passkey and no sealed value is erasable. The
+shred step gives the subject a key row before it shreds it (it shreds, creates the row where none
+exists and shreds again, under the subject's lock), so every erased subject keeps a shredded key
+row: the durable mark that the subject was erased.
+
+Added 2026-11-12: the purge. Before it completes the receipt, the worker purges, in one tenant unit
+(after step 5, before step 6), the receipts, jobs, timers and stream tickets of the subject and of
+the rows it owns as principals. Of the jobs it removes only the command jobs and timers whose
+principal is the subject or a row it owns: a job another principal runs is kept, whoever caused
+it. It destroys the value keys of the secret members of the purged jobs in the same unit and
+records a `keyTombstone` for each (section 14.7.6). A receipt the erasure keeps holds a failure
+only in its closed form (section 15.1.7).
+
+Added 2026-11-11 and 2026-11-12: the tenant scope. An erasure reaches the tenant scope only.
+Compose refuses (`personalOutsideTenant`, section 4.7) a personal field or a data subject on an
+entity whose tenancy is not `tenant`, a personal member in the input of an asynchronous command of
+a scope other than `tenant`, and a personal member in a record of a stream of a row that is not a
+tenant's. An asynchronous command of `invocation` scope counts, although its job is stored in the
+tenant scope when a tenant invokes it, because the same command can be invoked outside a tenant,
+where no erasure reaches its stored input. Sealing a personal member of a job, timer or effect
+outside a tenant unit is `internal`. A timer seals the personal members of its command, and a job
+whose personal key is destroyed ends without a retry: a timer succeeds without a receipt, a command
+job and an effect fail with `core.key_destroyed` (section 7.9.5).
+
+Added 2026-11-11: the erasure's dump test searches a dump made with `dumpDatabase` (section 14.10).
 
 #### 14.7.6 Backups and restore
 
@@ -6760,8 +7358,10 @@ positions from before and after the restore. Three mechanisms keep both true:
   only appends, and syncs the file to disk once per batch; readers skip types they do not know, so
   a new record type needs no format change. At `connect`, and after any restore, the kernel
   replays the union:
-  it shreds every key the ledger has erased before the namespace serves traffic and runs steps 3 to
-  5 of the erasure again, because a backup taken before an erasure lacks its `erased` events.
+  before the namespace serves traffic it shreds the keys of every unfinished erasure and destroys
+  the value keys of the tombstones in every tenant a restore touched (amended 2026-11-18, below),
+  and it runs steps 3 to 5 of the erasure again, because a backup taken before an erasure lacks its
+  `erased` events.
   `keelwerk doctor` warns when the control store and a placement share a database cluster and no
   ledger sink is configured, because restoring that cluster rewinds both.
 - **Epochs from what a restore changes.** The control store records, per namespace, the database
@@ -6781,6 +7381,9 @@ positions from before and after the restore. Three mechanisms keep both true:
   `settled`: external effects are at least once across restores as well, and their idempotency keys
   (the effect ids) absorb the repeats (section 7.9.6). Effects settled after the backup was taken
   run again unless their destination deduplicates; the operations guide states it.
+  Added 2026-11-18: the re-enqueue covers the effect's `runAt` and its deadline timer; an effect
+  whose job is alive in any state (running included, `JobStore.keyed`) gets no second job; the
+  jobs carry the actor, cause event and lineage of the `requested` event.
 - **Blobs outlive backups.** The blob collector removes bytes only after the deployment's declared
   backup retention, so a restored row never references bytes that are gone. A backup of a
   deployment is a database snapshot of the control store and the placements plus a snapshot of the
@@ -6795,6 +7398,33 @@ As built in M1 (added 2026-11-05, register entries 352 and 378): the rewind chec
 anchors at start so a transient head is not re-anchored, and the start and stop sweeps anchor the
 heads committed while no process ran; the in-memory adapter reports the real deployment id in its
 moved scopes, wake-ups and heads.
+
+Added 2026-11-18: the marks and the bump. A mark of a scope that moved or was removed stays (it
+keeps feeding the epoch cache) and is left out of the restore comparison when the scope has no
+counter row in the namespace and the directory places it elsewhere (`departedScopes`). The target
+epoch of a bump is above the mark's, the counter's and the epoch cache's, and a bump is also made
+when a counter's epoch is above its mark's (a control store restored from before an earlier bump,
+or a fresh one over a durable placement).
+
+Added 2026-11-18: the order at `connect`. The control namespace is checked before the first control
+command. Then the ledger sinks are read once; the union of the control ledger with the sinks, the
+destruction of the value keys in the tenants a restore touched and the re-enqueue of the effect jobs
+of the scopes decided to bump run; then the bumps are carried out; then the keys of the unfinished
+erasures are shredded. A failure of the union, of the destruction of the value keys or of the
+re-enqueue fails the start.
+
+Added 2026-11-18: the hold. Every process that starts holds each tenant with an erasure record that
+has no completion at the tenant's current epoch, whichever process copied the record, and refuses
+that tenant with `core.unavailable`; the hold ends when the completion is appended. Both ends are
+logged at warn, with the tenant id only. A refused job of a held tenant waits one second and keeps
+its attempt, and `keelwerk doctor` names the held tenants (check `held-tenants`).
+
+Added 2026-11-18: a restore under running processes. The minute loop detects it: a position below
+the last one seen, or a changed adapter identity. The process then logs at error, refuses with
+`core.unavailable`, leaves `ready` and exits through `Runtime.outOfService` (`keelwerk start` exits
+with a failure). The timeline of a PostgreSQL identity is the insert timeline (the WAL file name of
+the insert position), not the checkpoint's. A promotion of a standby counts as a restore, a planned
+one included.
 
 #### 14.7.7 Operator redaction (M5)
 
@@ -6811,6 +7441,13 @@ links of the chain hold. Inside CRDT documents, redaction of a range of history 
   scrub. A client that never reconnects cannot be reached; revocation is forward-looking.
 - Free text not marked `.personal()` is not covered; marking fields is the module author's duty.
 - Personal data already sent elsewhere (mail delivered, webhooks called) is out of reach.
+- Added 2026-11-18: an erasure sets the fingerprint of the receipts that touched the subject's
+  streams to `erased`; the fingerprint of any other receipt is keyed (section 15.1.7), also for a
+  generated `update` and `set`, and a failed command keeps its keyed fingerprint until the receipt
+  retention period ends.
+- Added 2026-11-18: a database written by 0.1.0 keeps after an erasure the plain input digests and
+  command ids in the meta of its events, the lengths of `$kwe` version 1 values and the text keys
+  of requested effects.
 
 #### 14.7.9 Encrypted personal data and queries
 
@@ -7067,6 +7704,9 @@ held (ciphertext, wrapped keys, tags), which only the master key opens; backup r
 As built in M1 (added 2026-11-05, register entry 383): a shredded value, or one whose subject
 moved, reads as absent.
 
+Amended 2026-11-11: no per-subject index key and no search index exist yet, so step 2 shreds data
+keys only (section 14.7.5).
+
 ##### 14.7.9.9 Full-text search over personal text
 
 A search index that contains a personal field is a keyed token index, maintained by the kernel and
@@ -7311,7 +7951,9 @@ contributions add to other modules' entities; fields that other modules contribu
 are not part of its view, because the module was compiled without them. At runtime the same rule
 holds for every reader: a contributed field reaches only its contributor's parts, whichever module
 loads the row, and hidden and verifier fields only their owning module's (the contributor's for a
-contributed field). The registry materialises only active contributions (their `when` modules
+contributed field). Event payloads follow the same rule (added 2026-11-11): of an event's `data`,
+`before` and `current` a reaction receives what its module would read of the row (sections 6.6
+and 7.7). The registry materialises only active contributions (their `when` modules
 selected), so reads apply no further `when` gating. App types
 (`Row<App, Ref>`, `Readable<App, Ref>` for client results) are instantiated once per app in
 `keelwerk.generated.ts` (section 13.1), so clients and transports never fold the module tuple
@@ -7425,7 +8067,9 @@ export const customer = defineEntity({
   the namespace, adds system and framework columns (the chosen tenant, version 1, timestamps from
   mapped columns or the adoption time), replaces non-UUID keys with UUIDv7 ids (keeping the old key
   as a unique `legacyId` field) and appends one `imported` event per row as the genesis of its
-  stream.
+  stream. Added 2026-11-12: the `imported` events pass the same data-subject fence as a created
+  row: each 128-bit subject gets its key (created at first use), the SQL adapters wrap it through
+  the key wrapper (section 14.7.4), and a row whose subject was erased is refused with `forbidden`.
 
 #### 14.8.5 Drift checks
 
@@ -7523,7 +8167,7 @@ suite (criterion 4) and accelerations-off run (criterion 10) pass on PostgreSQL 
 | Loro's format or API evolves; its WebAssembly weighs on server processes. | A codec id on every CRDT payload and converters in the codec module; the codec loads only when an app declares a collaborative field. |
 | The two condition interpreters drift apart. | One semantics table, binary collations, relation quantifiers always evaluated by the database, the dual-evaluation suite on every adapter. |
 | The disclosure rule costs reads, and plans built on relations cause resets. | Bounded by `maxChanges`; a reset is correct, only slower; measured on the proof apps. |
-| Storage grows: before-images, three indexes on `kw_events`, transient records. | Default expiry of transient records; compaction rules; table partitioning when measurements ask for it. |
+| Storage grows: before-images, three indexes on `kw_events`, transient records. | Default expiry of the change records of receipts (those of state entities grow without bound until before-images exist, accepted on 2026-11-19, section 15.1.10); compaction rules; table partitioning when measurements ask for it. |
 | Client clocks are wrong or hostile. | The skew bound, offset estimation, and server-authored writes always winning. |
 | Erasure is incomplete: unmarked free text, copies on clients and in old backups. | Documentation, the erasure ledger replayed at restore, scrub instructions in sync, backup retention stated in operations. |
 | Parked streams and dead-letter jobs hide failures. | Metrics, alerts and `keelwerk doctor` list them. |
@@ -7765,12 +8409,15 @@ index lookup. Tokens of a partitioned entity are per partition, and its generate
 so the `MODSEQ` of a message (the position of its last change) grows within every mailbox and
 account of the tenant.
 
-**Serials.** `field.serial({ per: ['mailboxId'] })` takes, at insert, the next value of a counter row
+**Serials.** `field.serial({ per: 'mailboxId' })` takes, at insert, the next value of a counter row
 in `kw_serials(scope_id, entity, field, partition, next)`, primary key `(scope_id, entity, field,
 partition)`, where `partition` is the canonical JSON (RFC 8785) of the `per` values. The row lock is
 held until commit, so values are strictly ascending in commit order within a partition and never
 reused (a value rolled back was never visible). Inserts into one partition serialise; a unit that
-allocates in several partitions locks them in key order.
+allocates in several partitions locks them in key order. Amended 2026-11-18: `per` is one field
+name of the entity, and compose refuses (`serialPartition`, section 4.7) a `per` that is personal,
+sealed, the entity's data subject or no field of the entity, because the ids kept in
+`kw_serials.partition` and `kw_scope_marks.serials` are plain text (WP-130).
 
 ```ts
 export interface SerialStore {
@@ -7792,7 +8439,7 @@ concurrency sampler counts only tuple and transaction-id waits (added 2026-11-05
 | `changed` | `ctx.write` update drafts, generated `set` updates, field operations in a decision | `FieldOps` | the generic evolve, with merge rules when the entity has merge state |
 | `archived` | archive through any action | `{ reason? }` | `archivedAt` set (an `lww` field ordered by clock) |
 | `restored` | restore | `{}` | `archivedAt` cleared |
-| `erased` | erasure (section 14.7.5) | `{ subject, fields, ledgerId }` | the subject's personal fields cleared; rows whose data subject is the subject itself become erased tombstones |
+| `erased` | erasure (section 14.7.5) | `{ subjectId, fields, owned }` (amended 2026-11-11) | the subject's personal fields cleared; rows whose data subject is the subject itself (`owned`) become erased tombstones |
 | `snapshot` | retention compaction (section 14.7.3) | `{ state, anchor }` | replaces the fold up to this version |
 | `imported` | adoption of an existing table (section 14.8.4) | `{ values }` | the row |
 | domain events | `decide` | the event's declared shape | the author's `evolve` |
@@ -7874,7 +8521,9 @@ Receipts are the core module's `commandReceipt` entity (`history: 'state'`; fiel
 `action`, `fingerprint`, `principal` (a reference, section 8.5), `status`, `outcome`, `apiVersion`
 (the API version the outcome is expressed in, which the fingerprint covers; section 19.2), request
 metadata (transport, remote address, user agent), `clientId`, `clientSeq`, `expiresAt`). Its tenancy
-is `invocation`, a mode only the core uses: a row carries the scope of its command in `scope_id`
+is `invocation`, a mode the core uses for its receipts (amended 2026-11-11: a module may also
+declare an invocation-tenancy entity, section 3.1): a row carries the scope of its command in
+`scope_id`
 (the tenant, backend or deployment id, as in the framework tables), so a tenant command's receipt
 is a tenant row in the tenant's namespace (`core__command_receipt`, primary key `(scope_id, id)`,
 unique on `(scope_id, command_id)`, with the entity's system columns `version`, `created_at` and
@@ -7897,10 +8546,11 @@ clients that hold only a command id (`keelwerk ... --wait`, a webhook delivery i
 - The outcome of an entity command is a reference (`{ entity, id, version }`): a replay re-reads the
   row at the receipt's API version and masks it for the caller. Other commands store their
   serialised output. The outcome of a command that requested deferred effects also lists their
-  ids, so a client can watch `core.effect` until they settle (section 7.9.5); a replay returns the
-  same ids.
-- Receipts expire after their action's idempotency window (default 24 hours, section 7.5). They are
-  operational records, outside the "nothing deleted" rule. Receipts of sync mutations are kept until
+  ids, so a client can follow their statuses through `core.effectStatusWatch` until they settle
+  (section 7.9.5); a replay returns the same ids.
+- Receipts expire after their action's idempotency window (default 24 hours, section 7.5), counted
+  from the receipt's completion when that is later (amended 2026-11-19). They are operational
+  records, outside the "nothing deleted" rule. Receipts of sync mutations are kept until
   the client acknowledges them (section 15.3.6); `acknowledge` sets `acknowledgedAt` and deletes
   nothing, so an acknowledged receipt stays until it expires.
 - Receipts of asynchronous commands write transient change records (section 15.1.10), so their progress
@@ -7909,13 +8559,25 @@ clients that hold only a command id (`keelwerk ... --wait`, a webhook delivery i
 - An asynchronous command's job is enqueued in the same unit as its `accepted` receipt, on every
   adapter, because the job store is part of the unit (section 14.3.9); no relay exists. The worker
   records `completed` or `failed` in its own unit.
+- Amended 2026-11-19: `ReceiptStore.complete(commandId, outcome, expiresAt?)` moves the expiry to
+  the later of its present value and `expiresAt`, never earlier. The kernel passes the new expiry:
+  when a job completes the receipt, the attempt's start plus the receipt's window (`receiptWindowMs`:
+  for a job in another scope's lane at least the default window and its retry horizon); when a job
+  fails it or the erasure worker completes it, the completion plus the action's idempotency window
+  (the default for an unknown action). A submitter then has a full window to read the outcome, a
+  retry inside it answers the recorded outcome, and retention does not remove a receipt the hour
+  after a late job finished. A custom receipt store that ignores the argument keeps the old expiry.
+- Death is not an end state of a receipt (added 2026-11-19): the receipt of a job that ends dead
+  stays `accepted`, a replay of the job leaves it `accepted` until the job ends, and only a discard
+  completes it as `failed` (section 7.5).
 
 ```ts
 export interface ReceiptStore {
   get(commandId: string): Promise<Receipt | undefined>
   /** Inserts the receipt; `conflict` when the id exists with another fingerprint. */
   put(receipt: Receipt): Promise<void>
-  complete(commandId: string, outcome: ReceiptOutcome): Promise<void>
+  /** Records the outcome; with `expiresAt` the expiry moves to the later of the two, never earlier. */
+  complete(commandId: string, outcome: ReceiptOutcome, expiresAt?: Temporal.Instant): Promise<void>
   /** Sync: outcomes of one client's mutations after a client sequence number (M6). */
   forClient(clientId: string, afterSeq: number, limit: number): Promise<readonly Receipt[]>
   acknowledge(clientId: string, uptoSeq: number): Promise<void>
@@ -7959,13 +8621,21 @@ open point 456). This settles register open point 322.
   read it, and a caller without `ref` matches no row. The `Location` and `receiptId` are written
   only when the receipt's scope is the session's, so a backend-scope async action called from a
   tenant session answers 202 without them. `watch` and `changes` on receipts need the transient
-  change records of section 15.1.10 and arrive in M2.
+  change records of section 15.1.10 and arrive in M2. Amended 2026-11-12: the submitter rule grants
+  `get` and `watch` (`allow get, watch where ...`), and `watch` on command receipts by id only: a
+  watch of an `invocation` entity without `ids` is `validation`, so a stolen session cannot list the
+  receipts of its principal.
 - Taking over an expired receipt and `acknowledge` take `version + 1` and set `updated_at`, so an
   ETag never answers a stale 304.
 - A non-retryable failure records a `failed` receipt in a short unit after the rollback (section
   7.5).
-- The fingerprint of an input with secret members is a keyed digest (HMAC-SHA-256 under
-  HKDF(control scope key, `keelwerk/fingerprint/v1`)), other inputs keep the plain SHA-256; a
+- The receipt fingerprint of every command is a keyed digest, `kwf1.` and the HMAC-SHA-256 under
+  HKDF(control scope key, `keelwerk/fingerprint/v1`) (amended 2026-11-18), over the input with its
+  secret and verifier members withheld by the marker `kw:withheld` and its personal members inside.
+  A retry with another secret replays; a retry with another personal value is
+  `core.idempotency_mismatch`; a backend create's `config` is withheld whole. A receipt of 0.1.0 is
+  compared with the 0.1.0 form. No bare 64-hex text is written by 0.2.0: an inline reaction's
+  decision digest is `kwr1.` (section 7.9.6). A
   control create fingerprints the client's input and, in replay mode, never runs the write path
   (`RunCommandInput.replayOnly`, the retryable `core.command_in_progress` when the receipt turns
   out inserted), so a takeover cannot store unsealed configuration.
@@ -8053,9 +8723,21 @@ stored formats final from M1):
 history:
 
 - `history: 'state'` entities append a `created`, `changed` or `archived` record with
-  `transient = true` and no hash on every write; versions follow the row's version. Records are
-  purged after the feed horizon (default 7 days, operator-configurable, section 14.7.1). An entity that
-  switches off `changes` and `queryChanges` and is read by no live source writes no records.
+  `transient = true` and no hash on every write; versions follow the row's version. Amended
+  2026-11-19: state records are not purged after the feed horizon (default 7 days,
+  operator-configurable, section 14.7.1); only the change records of receipts are (the stream types
+  of the kernel list `transientPurgeTypes`, today `core.commandReceipt`), except every record that
+  carries a hash or a previous hash, and the newest record of a stream while a receipt row with that
+  id exists in the scope: once the receipt is gone and the record is past the horizon it is purged,
+  and when the same command id returns its stream starts again at version 1. Readers follow the event
+  table by position, not by stream version: nothing may rely on a receipt stream's version being
+  unique over time. No record of any other stream type is purged, the entities of the kernel and its
+  modules included, because a transient record holds a patch and the state of a row at a decision is
+  folded from the first record of its stream. Bounding the change records of state entities needs
+  before-images (S-129, M5) or folded base rows; until before-images exist those records grow
+  without bound, which Jens accepted on 2026-11-19 ("Accept unboundedness"; nothing is brought
+  forward, register entry 496). An entity that switches off `changes` and `queryChanges` and is read
+  by no live source writes no records.
 - `history: 'projection'` entities (section 15.2.2) append transient records when their projector
   writes, so read models have live updates and `changes` too.
 - `history: 'external'` entities (section 14.8.4) append transient records for writes made through
@@ -8063,9 +8745,13 @@ history:
 
 Transient records carry only the new values. Since 2026-11-05 they also serve re-decide: a
 `history: 'state'` load in a recorded decision is answered by folding them back within the feed
-horizon (section 7.9.6, register entry 445); before-images (M2) would let rows older than the
+horizon (section 7.9.6, register entry 445); before-images (M5, S-129) would let rows older than the
 horizon re-decide. A folded row that was later hard-deleted is still answered, and the refusal
 should keep a margin at the horizon boundary; both wait for M2's purge (open point 468).
+
+Added 2026-11-18: compose refuses an asynchronous reaction, a process included, on an event of a
+`history: 'state'` entity (`asyncReactionTransient`, sections 4.7 and 7.7); `on: 'all'` is not
+refused.
 
 #### 15.1.11 The event store contract
 
@@ -8084,10 +8770,12 @@ export interface EventStore {
   committed(): readonly Position[]
   /** The scopes of this namespace whose head moved after the given marks (wake-up recovery and kernel fan-out). */
   movedScopes(since: ReadonlyMap<string, Position>, limit: number): Promise<readonly { readonly scopeId: string; readonly head: Position }[]>
-  // Kernel maintenance in the scope's unit:
+  // Kernel maintenance in the scope's unit (on PostgreSQL through owner-owned functions, section 14.3.7):
   compact(stream: StreamRef, uptoVersion: number, snapshot: NewEvent): Promise<void>
   purgeStream(stream: StreamRef): Promise<number>
-  purgeTransient(before: Temporal.Instant, limit: number): Promise<number>
+  /** Removes transient records of the listed stream types recorded before `before`, at most `limit`; answers the rows removed and
+      whether a candidate of a listed type is left (`{ removed, more }`). */
+  purgeTransient(before: Temporal.Instant, limit: number, streamTypes: readonly string[]): Promise<PurgeBatch>
   redact(eventId: string, replacement: { readonly data: unknown; readonly before: unknown }): Promise<void>
 }
 
@@ -8096,6 +8784,10 @@ export interface StreamAppend {
   readonly expectedVersion: number             // 0 creates the stream
   readonly partition: string | null
   readonly events: readonly NewEvent[]
+  /** Set only by the kernel, for a stream that belongs to no entity (a process's state stream, section 7.7) or to the
+      change records of a receipt (an invocation entity); the store then checks this tenancy against the unit's scope
+      without an entity descriptor. */
+  readonly tenancy?: 'tenant' | 'invocation'
 }
 
 export interface NewEvent {
@@ -8129,6 +8821,14 @@ answers `{ events, next }`, the events of one command id or causation id in posi
 `next` null on the last page; it reads the two `meta` indexes of section 15.1.2 and serves
 `explain --trace`, the boot's rewind check and re-decide.
 
+Amended 2026-11-19: `purgeTransient(before, limit, streamTypes)` takes the stream types and answers
+`{ removed, more }` (`PurgeBatch`). On PostgreSQL its function
+`kw_purge_transient(before, max_rows, stream_types)` takes the list of stream types, holds the one
+purgeable stream type (`core.commandReceipt`) as a literal and refuses a list that names any other
+with 42501; widening it is a new framework step that replaces the function. Framework step 0004
+builds the index `kw_events_transient` inside the step, so the step stays atomic: every event
+append waits until the step commits, and the build reads the whole table.
+
 #### 15.1.12 Streams of records (G6)
 
 Deployment logs and effect attempts are high-volume, append-only records keyed by an entity, kept
@@ -8144,6 +8844,11 @@ each, so reading the key from the start still returns every record and nothing i
 logs use it at 50,000 lines (decision 47c, section 17.3.6). Personal values in records are encrypted
 with the key of the subject that owns the keyed row, and erasure purges the records of every row the
 subject owns (section 14.7.5).
+
+Added 2026-11-11 (WP-85): a stream record's envelope is `{ record }` with an optional `v` (schema
+version); an effect attempt record's error is a closed projection without free text; a credential
+member in a stream record is refused at compose; a personal element inside a list or set seals the
+whole member.
 
 ### 15.2 Projections, consumers and the change feed
 
@@ -8203,14 +8908,20 @@ export interface ConsumerSpec {
   readonly id: string                            // stable: 'core.reactions', 'reports.stat'
   readonly selector: EventSelector
   readonly start: 'beginning' | 'now'            // projections: beginning; the reaction dispatcher: now for reactions added later
-  /** Kernel code: runs in one tenant-scope unit together with the checkpoint advance of that scope. */
-  readonly consume: (events: readonly EventEnvelope[], unit: Unit) => Promise<void>
+  /** Kernel code: runs in one tenant-scope unit together with the checkpoint advance of that scope;
+      `prepared` is what `beforeBatch` answered for the batch's scope (added 2026-11-18). */
+  readonly consume: (events: readonly EventEnvelope[], unit: Unit, prepared?: unknown) => Promise<void>
+  /** Optional (added 2026-11-18): runs before the unit of a batch opens, with the batch's scope, for work that needs
+      a second unit (such as creating a scope key); what it answers goes to `consume` of the same batch. */
+  readonly beforeBatch?: (scope: StorageScope) => Promise<unknown>
   readonly maxAttempts?: number                  // before the stream is parked; default 5
 }
 ```
 
 - State: `kw_consumers(consumer_id, scope_id, position, updated_at)`, one checkpoint per consumer
-  and scope, plus `kw_consumer_leases(consumer_id, lease_owner, lease_expires_at)` and
+  and scope and (added 2026-11-11) the consumer's start record at a reserved scope id, the nil UUID,
+  which is never shown as a scope and which `checkpoint`, `advance`, `park` and `unpark` refuse
+  (`validation`); plus `kw_consumer_leases(consumer_id, lease_owner, lease_expires_at)` and
   `kw_parked(consumer_id, scope_id, stream_type, stream_id, from_position, attempts, last_error,
   parked_at)`.
 - Leases: one active instance per consumer and namespace across all processes, acquired by a
@@ -8223,15 +8934,50 @@ export interface ConsumerSpec {
   happen effectively once.
 - Work: the reaction dispatcher only enqueues keyed jobs (section 9.5); decisions, retries and
   backoff happen in jobs and network calls in effect jobs, so a slow GitHub call or a failing
-  reaction never holds a checkpoint.
+  reaction never holds a checkpoint. An event of the deployment scope gets no job: the dispatcher
+  skips it silently (no job, no log line, no count) and still advances its checkpoint (section 7.7,
+  amended 2026-11-18).
   Projections evolve rows, which is short and local.
 - Ordering and failures: events of one stream are handled in order. A failing event is retried a few
   times; after `maxAttempts` its stream is parked for that consumer and scope, later events of that
   stream are skipped and recorded, and every other stream and every other scope continues.
-  `keelwerk consumers unpark` (or a redeploy with a fix) replays the parked stream from
-  `from_position`. Parked streams are a metric and an alert.
+  `keelwerk consumers unpark` (or a redeploy with a fix, unless the stream's replay attempts
+  reached the maximum, below) replays the parked stream from `from_position`. Parked streams are a
+  metric and an alert.
 - New reactions start at the head, so adding a reaction to a running system does not replay history
   into side effects (no welcome mail to every existing user); projections start at the beginning.
+
+Added 2026-11-11:
+
+- A consumer is new when it has no start record. The start of a `start: 'now'` consumer is one
+  writing namespace-scope unit (`ConsumerStore.startAtHeads`, section 14.3.2) that writes the start
+  record and a checkpoint at the head of every scope with events, and moves no existing checkpoint;
+  a scope without a checkpoint after the start is delivered from its beginning.
+- `advance` refuses a position above the scope's head (`validation`).
+- A batch and a replay run under a deadline of a third of the lease; a deadline that passes while
+  `consume` runs counts as that consume's failure. A unit that has ended refuses every statement
+  (section 14.3.6), so a `consume` that resumes after its deadline writes nothing.
+- A parked stream replays in chunks of the batch size, one unit each under the checkpoint lock: a
+  chunk that is not the last moves the parked row's start behind the events it delivered, so a
+  crash or a takeover resumes there; a failing chunk rolls back, and a second unit parks the stream
+  again at the row's start.
+- Attempts are counted durably in careful mode (WP-96 builds it, with a new framework step). An
+  instance enters careful mode when it acquires a lease that was not released (taken over after
+  expiry, the mark of a crash or of a stop that hung) and leaves it, per scope, after that scope's
+  first batch that commits. In careful mode it writes the attempt before `consume`; at the maximum
+  it delivers singly to find the event and parks its stream before delivering again. In normal
+  operation no delivery costs an extra writing unit. A replay always writes its attempt before
+  `consume`; the attempt record is keyed by consumer, scope and stream (a scope delivery uses the
+  empty stream type and the nil UUID as stream id). A parked stream whose replay attempts reached
+  the maximum is not replayed automatically when a lease is acquired: it stays parked until an
+  operator unparks it, which resets the count.
+- A coalescing reaction whose newer job already ran can still run an older event of a replayed
+  parked stream last (section 7.7).
+
+Added 2026-11-18: a scope that holds no event is known to the instance as read to position 0, and
+the consumers worker's `settled` (passes of every instance until a round commits no batch) yields to
+the event loop between rounds. A change feed that wakes after every writing unit would otherwise let
+an empty batch wake its own scope for ever.
 
 #### 15.2.4 Rebuilds
 
@@ -8276,12 +9022,16 @@ export interface ChangeFeedSource {
   serving process, outside consumer leases: after each wake-up it reads the log after its position
   up to the head and fans out in memory. Subscriptions are grouped by their resolved plan: each
   distinct plan is evaluated once per batch, field operators in memory and relation quantifiers
-  with one `rows.matching` query per distinct plan and batch, never one per subscriber. Masks are
+  with one `rows.matching` query per distinct plan and batch, never one per subscriber; readability
+  at the batch's start is decided once per plan group too, never per subscriber (added 2026-11-11).
+  Masks are
   applied per row. While a stream is connected, the hub's set of delivered ids decides `removed`
   items exactly; after a resume from a token, the disclosure rule of section 15.2.6 decides them for
   the replayed range.
 - Clients use poke-then-pull: the live module's pokes (section 15.4.2) carry the new
   token per entity type the principal may read, and the client calls `changes` or `sync.pull`.
+  Pokes follow only the session's own scope, so the backend entities of a tenant session are never
+  poked, and a resume behind the head sends one poke naming every readable type (added 2026-11-12).
   Server-side subscriptions built with `ctx.live` emit rows directly. A live source over a `state`
   entity with `from: 'beginning'` first emits the current rows, then the changes after the head taken
   before that scan.
@@ -8294,13 +9044,18 @@ the baseline; a wake-up may therefore repeat when poll and `notify` both name a 
 
 #### 15.2.6 Tokens and the disclosure rule
 
-A token is `v1.<epoch>.<position>.<scope>.<check>`: the scope's epoch in base 36; the position in
-decimal; `scope`, the first 8 hexadecimal characters of SHA-256 over the backend id and the scope
-id (independent of the namespace, so tokens survive a tenant move); and `check`, the first 8
-hexadecimal characters of SHA-256 over the rules that govern reads of the token's entity type for
-that principal (their ids and a hash of their conditions and field lists), the values of the flags
-those rules read, the principal's id, roles and memberships, the entity type, the partition and, for
-`queryState`, the filter and sort. A flag flip that changes visibility therefore resets tokens.
+A token is `v2.<epoch>.<position>.<scope>.<check>` (format 2, amended 2026-11-11): the scope's
+epoch in base 36; the position in decimal; `scope`, the first 8 hexadecimal characters of SHA-256
+over the backend id and the scope id (independent of the namespace, so tokens survive a tenant
+move); and `check`, a 128-bit HMAC-SHA-256 tag (32 hexadecimal characters) under a key derived from
+the key of the scope the token names (section 14.7.4), over the format version, the epoch, the
+position, the scope and the selector's check, so the check covers the whole token, its position
+included. The selector's check is the first 8 hexadecimal characters of SHA-256 over the rules that
+govern reads of the token's entity type for that principal (their ids and a hash of their
+conditions and field lists), the values of the flags those rules read, the principal's id, roles
+and memberships, the entity type, the partition, for `queryState` the filter and sort and, for a
+live stream token, its live member, whose ids and fields are each null (none named, which is not
+an empty list) or a sorted list. A flag flip that changes visibility therefore resets tokens.
 A deploy that changes rules for other entities, or rules that do not apply to the principal,
 leaves the token valid; one that changes what this principal may read of this type resets it. It is
 the core's opaque `StateToken`: JMAP `state` and `queryState`, live stream tokens (section
@@ -8320,7 +9075,8 @@ the core's opaque `StateToken`: JMAP `state` and `queryState`, live stream token
 - `cannotCalculateChanges` (JMAP) or `reset` (sync and live) is answered when the epoch differs;
   when the check differs (other roles, memberships, rules, principal or selector), so the client
   re-queries under its current visibility; or when the position is older than the entity type's
-  retention horizon (section 14.7.2).
+  retention horizon (section 14.7.2). A token of format 1 (`v1.`) always resynchronises (added
+  2026-11-11).
 
 `changes` since a token at position `p`, for principal `P`:
 
@@ -8450,7 +9206,7 @@ export interface ShapeSpec {
 }
 
 /** sync.register (command): a device registers, or replaces its shapes. */
-export interface RegisterInput { readonly clientId?: string; readonly label?: string; readonly shapes: readonly ShapeSpec[] }
+export interface RegisterInput { readonly clientId?: string; readonly label?: string; readonly shapes: readonly ShapeSpec[] }   // clientId: a UUID of version 4 or 7, or a ULID, as a command id (section 7.5, amended 2026-11-18)
 export interface RegisterOutput { readonly clientId: string; readonly lastClientSeq: number; readonly serverTime: string }
 
 /** sync.push (command): mutations in client order. */
@@ -8523,8 +9279,9 @@ Pull semantics:
   client rescans.
 - `outcomes` are the client's receipts after `knownClientSeq`. A pull is a query and writes
   nothing: the client acknowledges outcomes with `ackUpTo` on its next push (an empty push serves
-  when nothing is pending), and only acknowledged receipts may expire. This is the per-client inbox,
-  built on the receipts of section 7.5.
+  when nothing is pending), and only acknowledged receipts may expire: a receipt of a sync mutation
+  stays until it is acknowledged, whatever its expiry, and its keyed fingerprint with it (amended
+  2026-11-19). This is the per-client inbox, built on the receipts of section 7.5.
 - A client inactive beyond the `syncClients` rule (measured from its last push or registration) is
   retired and must register again; the receipt
   fingerprints of a retired client are kept for one more inactivity window, so a client returning
@@ -8641,12 +9398,18 @@ and `invoker.subscribe` on a custom subscription fails with `unavailable` (code
 |---|---|---|---|
 | entity changes | the generated `watch` of every entity (`history: 'state'` entities included, through transient change records, section 15.1.10); `ctx.live.entity(...)` inside custom sources | `EntityChange<Row>` | yes |
 | live query | `watch` with a `filter`: the same source, plus `removed` items when a row leaves the filter or the principal's view | `EntityChange<Row>` | yes |
-| pokes | `live.pokes` | `Poke`: the new state token of each readable entity type that moved, for clients that pull (section 15.2.5) | yes |
+| pokes | `live.pokes` | `Poke`: the new state token of each entity type with a changed row that is, or was, in the principal's plan (section 15.4.9, amended 2026-11-12), for clients that pull (section 15.2.5) | yes |
 | command receipts | the generated `watch` of the core's command receipt entity | receipt states until a terminal state | yes |
 | stream records | `ctx.live.stream(module, stream, { key, from })` in a subscription's source (G6, deployment logs) | the stream's records | yes, by the per-key serial |
 | topics | `ctx.live.topic(module, topic, { key })` (G6, container logs) | the topic's records; never stored | no; a `gap` frame marks dropped records |
 | pending effects | `ctx.live.effects(effect, { where })`: the unsettled effects of a `performer: 'external'` declaration, for its performer (section 7.9.5; Launchway's agent channel) | effect records with their inputs | yes, by position |
 | custom | a subscription action's `source(input, ctx, resume)` | the action's declared item | yes: module sources are descriptions only, built from the sources above with `mapItems` and pure or generator maps; custom iterables, and `unresumable` for those that cannot resume, exist only in kernel and listener code (section 7.3) |
+
+A `watch` of an `invocation` entity (command receipts, effects) names `ids`: one without them is
+`validation`, so a stolen session cannot list the receipts of its principal (added 2026-11-12,
+section 15.1.7). A generator map loads with the principal and the flag snapshot of the stream's
+last renewal (the revalidation of section 15.4.3, point 6), and its unit ends with the stream or
+the invocation (added 2026-11-12).
 
 The data layer's own sync protocol (`sync.register`, `sync.push`, `sync.pull`, `sync.poke` and
 `sync.crdt`, section 15.3.6) consists of ordinary actions of the `sync` module and travels over every
@@ -8679,7 +9442,8 @@ export interface Poke {
 
 `cause` names the domain event behind a change (`deactivated`) without its data, which may contain
 fields the subscriber cannot read. A client upserts on `created`, `changed` and `restored`, and drops
-the row on `removed` (and on `archived` unless it asked for archived rows).
+the row on `removed` (and on `archived` unless it asked for archived rows). The reason of a
+`removed` item is decided in the order `purged`, `left-view`, `erased` (added 2026-11-11).
 
 Two client patterns are gap-free: `watch` with `from: 'beginning'`, which emits the current rows,
 then a `head` frame, then changes; or `query` (or `get`) followed by `watch` with `after` set to the
@@ -8718,10 +9482,12 @@ head as the first statement of their unit, so their state is a valid `after` for
 
 #### 15.4.4 Stream tokens and resume
 
-- A stream token is the core's `StateToken` in the form `v1.<epoch>.<position>.<scope>.<check>`:
-  the namespace epoch, a commit-ordered position in the namespace's event log, a hash of the
-  namespace and scope, and a check over the rule set, the principal, its roles and memberships, the
-  entity type, the partition and the selector (section 15.1.4 and 15.2.6). Positions follow commit order
+- A stream token is the core's `StateToken` in the form `v2.<epoch>.<position>.<scope>.<check>`
+  (format 2, amended 2026-11-11): the namespace epoch, a commit-ordered position in the namespace's
+  event log, a hash of the namespace and scope, and a check, the keyed tag of section 15.2.6 over the
+  format version, the epoch, the position, the scope and the selector's check, which covers the rule
+  set, the principal, its roles and memberships, the entity type, the partition and the selector
+  (section 15.1.4 and 15.2.6). Positions follow commit order
   without gaps, so no high-water heuristics are needed. Stream records resume by their per-key
   serial instead.
 - Every item of a resumable source carries the token of its position. A client resumes with
@@ -8744,7 +9510,10 @@ head as the first statement of their unit, so their state is a valid `after` for
   replayed, drop records instead and send a `gap` frame. Memory never grows with a slow client.
 - A resumed stream, or one that starts from the beginning, sends a `head` frame once it has caught
   up with the head of the log, so a client (or the CLI without `--follow`) knows that everything up
-  to now has arrived.
+  to now has arrived. The batches a reader delivers while the snapshot or the replay is read are not
+  held one by one: the stream reads the range (position at the join, head] from the log, as a resume
+  does, and sends `head` after it, so the bound on held batches counts live batches only (added
+  2026-11-12).
 - Heartbeats: an SSE comment line every 15 seconds; a WebSocket ping every 30 seconds, and the
   connection is closed when no pong arrives within 10 seconds.
 - A stream lasts at most 24 hours, then ends with reason `max_duration`; the client reconnects with
@@ -8765,9 +9534,11 @@ id: <stream token>
 event: data
 data: {"type":"changed","id":"prof_01j9...","version":12,"row":{"id":"prof_01j9...","displayName":"Jens","version":12}}
 
+id: <stream token>
 event: head
 data: {"state":"<stream token>"}
 
+id: <stream token>
 event: reset
 data: {"reason":"overflow","state":"<stream token>"}
 
@@ -8787,17 +9558,30 @@ data: {"reason":"going_away"}
 ```
 
 The `welcome` event opens every stream; a client whose cached surface hash differs refetches its
-surface (section 19.5). `notice` carries deprecation notices from their `at` date (section 18.5).
+surface (section 19.5). `notice` carries deprecation notices from their `at` date (section 18.5);
+an action deprecated without `at` is announced from its declaration by a notice without `at`
+(amended 2026-11-12).
 `end` reasons are `complete`, `going_away`, `max_duration` and `version_retired`, the last sent
-when the floor passes the stream's API version.
+when the floor passes the stream's API version. A `reset` is the last frame of its stream, for
+every reason: no `end` follows it. `head` carries its token as the `id:` line, and so does a `reset`
+that has a state; a `reset` without one writes no `id:` line, so the browser keeps the last position
+it holds. The 24-hour maximum (section 15.4.5) ends the subscription with the stream (amended
+2026-11-11).
 
 - `GET` with query parameters serves browsers' `EventSource`; `POST` with a JSON body serves fetch
-  based clients and long inputs. Responses are `text/event-stream` with `Cache-Control: no-cache`.
+  based clients and long inputs. Responses are `text/event-stream` with `Cache-Control: no-store`
+  (amended 2026-11-11).
 - A browser `EventSource` cannot send an `Authorization` header. Cookies work; otherwise the client
   first calls `live.ticket` (authenticated) and gets `{ ticket, expiresAt }`: an opaque value, single
   use, valid for 60 seconds, bound to the session's scope and principal and optionally to one action
-  reference. The live module's principal resolver accepts `?ticket=` on SSE endpoints only, so
-  long-lived credentials never appear in URLs or access logs.
+  reference. The live module's principal resolver accepts `?ticket=` only on
+  `GET /_keelwerk/v1/subscribe` (amended 2026-11-11), so long-lived credentials never appear in URLs
+  or access logs; a well-formed ticket presented on another path or method is spent at once. A
+  ticket is a row of `live.streamTicket`, an invocation-tenancy entity (S-161), with `publicId`,
+  `verifier`, `endpoint`, `principalResolver` and `principalId` (amended 2026-11-11). A stream
+  opened with a ticket does not reconnect with it: the ticket is spent, so the browser's reconnect
+  is refused (401), and the client takes a new ticket and opens the stream with its last token as
+  `after`.
 - One SSE stream carries one subscription. Clients with many subscriptions use the WebSocket
   carrier or HTTP/2, which removes the per-host connection limit of HTTP/1.1.
 
@@ -8823,7 +9607,7 @@ export type ServerMessage =
   | { readonly type: 'presence'; readonly channel: string; readonly peers: readonly PresencePeer[] }
   | { readonly type: 'result'; readonly id: string; readonly response: InvokeResponse }
   | { readonly type: 'error'; readonly id?: string; readonly error: WireError }
-  | { readonly type: 'notice'; readonly notice: { readonly kind: 'deprecation'; readonly apiVersion?: string; readonly action?: string; readonly at: string; readonly sunset?: string } }
+  | { readonly type: 'notice'; readonly notice: { readonly kind: 'deprecation'; readonly apiVersion?: string; readonly action?: string; readonly at?: string; readonly sunset?: string } }   // `at` absent for an action deprecated without one (amended 2026-11-12, section 18.5)
   | { readonly type: 'end'; readonly id: string; readonly reason: 'complete' | 'going_away' | 'max_duration' | 'version_retired' }
   | { readonly type: 'pong' }
 
@@ -8835,19 +9619,28 @@ export interface PresencePeer {
 }
 ```
 
-- The upgrade request is checked like a cookie-authenticated state-changing request, because
-  browsers send cookies with WebSocket upgrades and WebSockets are not subject to CORS: its
-  `Origin` (or `Sec-Fetch-Site: same-origin`) must match an allowed origin of the tenant, otherwise
-  the host refuses the upgrade with `forbidden` and code `core.csrf` (section 16.4.10). The same
-  check applies to cookie-authenticated SSE requests.
+- Every upgrade request that carries a cookie is checked like a cookie-authenticated
+  state-changing request, because browsers send cookies with WebSocket upgrades and WebSockets are
+  not subject to CORS: its `Origin` (or `Sec-Fetch-Site: same-origin`) must match an allowed origin
+  of the tenant, otherwise the host refuses the upgrade with `forbidden` and code `core.csrf`
+  (section 16.4.10). An upgrade without a cookie carries no cookie session and is not checked
+  (amended 2026-11-12). The same check applies to cookie-authenticated SSE requests.
+- An upgrade that offers a malformed subprotocol name, or one name twice, is refused with 400
+  (added 2026-11-12).
 - The first frame must be `hello` within 10 seconds. Credentials come from `hello.token` or from the
   upgrade request's cookie or `Authorization` header; they open the connection's session, and
   `hello.apiVersion` selects its API version (section 18.3), which `welcome` confirms.
 - One connection multiplexes up to 100 subscriptions. `invoke` carries commands on the same
   connection, so collaborative clients (rich-text edits, flushes of an offline queue) do not open a
-  request per edit; results are the invocation protocol's responses.
+  request per edit; results are the invocation protocol's responses. Every action over the socket,
+  queries included, is checked for revocation as a request over HTTP is (added 2026-11-12).
 - Close codes: 1000 normal, 1001 going away, 1011 internal, 1013 try again later, 4000 protocol
-  violation, and the 44xx codes of section 16.4.6 for errors that end the connection.
+  violation, and the 44xx codes of section 16.4.6 for errors that end the connection. The codes the
+  WebSocket library itself uses belong to the list too: 1002 protocol error, 1007 invalid frame
+  payload data, 1008 policy violation and 1009 message too big (added 2026-11-12).
+- Ping and pong frames (added 2026-11-12): the server answers a client's ping itself (the
+  library's automatic pong is off) and counts ping and pong frames against the socket's message
+  window; its own ping carries a nonce, and only a pong that echoes that nonce answers it.
 - Presence (milestone M7) is ephemeral and never stored: a client joins a channel named by
   a row and a field (`mail-store.email:<id>:body`) only if it may `get` that row, publishes small
   states (a cursor, a selection), and receives the peers of the channel within its own scope.
@@ -8865,10 +9658,14 @@ export interface PresencePeer {
 | Transport | Carrier | Resume | Credentials |
 |---|---|---|---|
 | invocation protocol | SSE `/_keelwerk/v1/subscribe`; WebSocket `keelwerk.live.v1` | `Last-Event-ID` or `after` | header, cookie, ticket; `hello.token` |
-| REST | SSE on the subscription's own path | `Last-Event-ID` | header, cookie, ticket |
+| REST | SSE on the subscription's own path | `Last-Event-ID` | header, cookie (a ticket presented there is spent, section 15.4.6; amended 2026-11-11) |
 | GraphQL | GraphQL over SSE (Yoga); graphql-ws 6.4.2 | `after` argument, `state` field | header, cookie; `connectionParams` |
 | tRPC | `httpSubscriptionLink` (SSE); `wsLink` when enabled | `tracked()` ids as `lastEventId` | cookie, header through an `EventSource` ponyfill; `connectionParams` over WebSocket |
 | CLI | invocation protocol SSE | automatic, from the last token | profile credential |
+
+Amended 2026-11-17: graphql-ws runs through its `makeServer`, not `graphql-ws/use/ws` (section
+16.6.5). The `connectionParams` members `token`, `tenant`, `backend` and `apiVersion` are the
+`hello`'s credentials; any other member is ignored.
 
 The `sync` actions of section 15.3.6 map like any others: `sync.register`, `sync.push`, `sync.pull`
 and `sync.crdt` are commands and queries that every transport carries (REST `POST /sync/push`, a
@@ -8888,7 +9685,16 @@ raise `maxBodyBytes` for that action's transports.
   batch's post-images are loaded once and shared by every local subscription; a subscriber that
   resumes from an older token catches up with its own scoped reads and then joins the shared reader.
 - No sticky sessions are needed: a reconnect to another process resumes from the client's token.
-- Pokes are computed from the same batches without loading rows.
+- A hub closes with its runtime: the hub's streams then end without a frame and without an error,
+  and a carrier that is closing sends `going_away` (section 15.4.5; added 2026-11-11).
+- Pokes are computed from the same batches (amended 2026-11-12). A type is named only when a
+  changed row of it is, or was, in the principal's plan, decided in memory from the post-image and
+  the events' before-images. A purged row, a hidden or sealed field in the plan and a plan with a
+  relation quantifier name the type for every change, which still tells of activity in that type.
+  An event whose shape id (the `kw_shapes` id of its track versions, where a field rename is
+  recorded) or schema version is not the entity's current one counts as concerned: its stored
+  before-image is not upcast and may carry a field the plan names under its old name, so the
+  principal is poked. An `invocation` entity (command receipts, effects) is never poked.
 - Topic hooks (`onFirstSubscriber`, `onLastSubscriberLeft`, G6) must fire on the
   deployment-wide subscriber count, not per process, or two processes would both start a container
   log tail. The hub keeps a lease per (topic key, process) in the control store, renewed while it
@@ -8905,6 +9711,33 @@ raise `maxBodyBytes` for that action's transports.
   Subscription and connection limits are counted deployment-wide through leases in the control
   store, with per-process counters for the fast path (section 12.2); defaults are per backend with
   per-tenant overrides.
+- The hub has bounds of its own in each process (added 2026-11-11). A scope is counted per tenant,
+  so tenants of one backend that watch a backend entity are bounded and fail on their own. At most
+  200 plan groups (distinct read plans) per scope: a subscription with a new plan past them is
+  refused with `unavailable` ("Live updates are not available now."), and the bound is logged. At
+  most 1,000 earlier streams per pass, the streams whose earlier state a pass rebuilds for
+  subscriptions whose set of delivered ids does not decide (section 15.4.3), each distinct stream
+  charged once, in attach order: the subscriptions of a plan group past the budget get `reset` with
+  reason `resync`. At most 4 start units per scope and 32 per hub, the read-only units the starts
+  of subscriptions hold at once: a start past them waits for a slot.
+- The subscriptions of a graphql-ws socket take slots like those of `keelwerk.live.v1`:
+  `maxSubscriptionsPerSocket` first, then the tenant, process and anonymous-address bounds; a
+  subscribe with an id that is open is a protocol violation, which the library closes with 4409
+  before any slot is asked (added 2026-11-17).
+- A mounted route that streams (GraphQL over SSE) is a stream of the host (added 2026-11-17): a
+  request that asks for `text/event-stream` meets the stream origin check (section 16.4.10) and
+  holds a stream slot until its body ends, and the host answers 500 `core.internal` for a route that
+  streams to a request that did not ask for it. The slot of a mounted stream has no maximum
+  duration yet (`host.live.maxDurationMs`); that is open.
+- A forwarded entry, the address a trusted proxy names for the client (section 16.4.10), is read as
+  follows (added 2026-11-12). An entry with a port (`203.0.113.7:51234`) or in brackets
+  (`[2001:db8::1]`, `[2001:db8::1]:443`) is read as its address (a port of 1 to 5 digits, at most
+  65535; brackets hold IPv6 only). An IPv6 address that ends in a dotted quad and is followed by a
+  port (`::ffff:203.0.113.7:51234`, the form a dual-stack proxy writes) is read as its address; it
+  is the only unbracketed IPv6 form that is split, so a bare IPv6 address without a dotted quad is
+  never split at its last colon (`2001:db8::1:443` stays one address). Any other malformed entry
+  counts as no address, so the socket address is used.
+  `host.fetch` keeps accepting a bare address only.
 
 #### 15.4.11 Interfaces
 
@@ -8936,6 +9769,10 @@ export interface CarrierOptions {
   readonly maxBufferedItems: number
   readonly maxBufferedBytes: number
   readonly maxDurationMs: number
+  readonly clock?: Clock                                 // the bounds are read on it; absent: the system clock (added 2026-11-11)
+  readonly timers?: LiveTimers                           // heartbeat and maximum-duration waits on that clock; absent: liveTimersOf(clock) (added 2026-11-11)
+  readonly welcome?: { readonly apiVersion: string; readonly surfaceHash: string; readonly protocol: number }   // what the opening frame says (added 2026-11-11)
+  wireError?(error: unknown): WireError                  // the error that ends a stream as the host renders it; absent: public audience, empty request id (added 2026-11-11)
 }
 
 /** `ctx.live` in the sources of modules that require the `live` contract (or list it as optional, then possibly
@@ -8948,7 +9785,8 @@ export interface LiveQueries<M extends AnyModule> {
   ): LiveSource<EntityChange<ModuleRow<M, R>>>
   stream<S extends StreamRefsVisibleTo<M>>(module: ModuleOf<S>, stream: StreamOf<S>, options: { readonly key: StreamKeyOf<M, S>; readonly from: 'start' | 'now'; readonly after?: string }): LiveSource<StreamRecordOf<M, S>>
   topic<T extends TopicRefsVisibleTo<M>>(module: ModuleOf<T>, topic: TopicOf<T>, options: { readonly key: TopicKeyOf<M, T> }): LiveSource<TopicRecordOf<M, T>>
-  /** The pending effects of an own `performer: 'external'` effect, for its performer; resumable (section 7.9.5). */
+  /** The pending effects of an own `performer: 'external'` effect, for its performer; resumable (section 7.9.5). The same
+   *  `where` ties the performer's settle: `settle(effect, outcome, { effect, where })` (amended 2026-11-17). */
   effects<E extends OwnExternalEffect<M>>(effect: E, options?: { readonly where?: Where<EffectInputOf<E>>; readonly after?: StateToken }): LiveSource<PendingEffect<E>>
 }
 
@@ -8959,6 +9797,32 @@ export declare function mapItems<A, B>(source: LiveSource<A>, fn: (item: A) => B
  *  surface then reports `resumable: false`. Module code feeds such data through a topic instead. */
 export declare function unresumable<E>(items: AsyncIterable<E>): AsyncIterable<LiveFrame<E>>
 ```
+
+Added 2026-11-11: for version translation (section 18.2), the generated `watch` names its entity's
+fields at two positions, the item's `row` and the input's `fields`.
+
+Added 2026-11-12: `PendingEffect.id` is an `Id<'core.effect'>`, and `settle` takes it: a module
+declares the id as `field.ref(core, 'effect')`, and the wire carries `eff_...`; a malformed effect
+id answers the same on every adapter. The plain members of `PendingEffect.input` are decoded domain
+values (an instant, a wide integer, bytes and a set). `PendingEffect.state` is optional before
+`head`: an item before `head` carries the token the stream was opened with, or none, and `head`
+carries the covering token. Delivery is at least once, and a performer deduplicates by effect id.
+The effects a stream holds until `head` are bounded by the hub's `maxBufferedItems`: past the bound
+the held items are released with the opening state and the rest of the catch-up streams through,
+so an effect failed after its release may reach the performer, and its settle answers `conflict`.
+A failed settle never stores a kernel-only code: `core.effect_deadline`,
+`core.effect_outcome_unknown`, `core.job_lease_lost` and `core.key_destroyed` become
+`core.internal`.
+
+Added 2026-11-17: `settle(effect, outcome, { effect, where? })` ties a settle to its performer
+(section 7.9.5). The `where` is the `where` of `ctx.live.effects` over the plain input, decoded and
+evaluated over the stored input, which is read without a lock (it never changes after the
+request), while the status is decided under the row lock. Another effect type or a mismatch
+answers `not_found`, as an unknown id does. A `where` over a sealed member is refused at compose
+when a probe run of the command's `decide` reaches it, else at the settle (`internal`). The id
+stays the first parameter. A kernel live leaf is accepted only from its owner: the status leaf from
+`core.effectStatusWatch`, the effects leaf from the effect's module, a contribution counting as its
+contributor's.
 
 ## 16. Transports and CLI
 
@@ -9129,7 +9993,7 @@ merging:
 ```ts
 export interface TransportHints {
   readonly rest?: { readonly path?: string; readonly collection?: string; readonly expose?: boolean }
-  readonly graphql?: { readonly field?: string; readonly type?: string; readonly expose?: boolean }
+  readonly graphql?: { readonly field?: string; readonly type?: string; readonly expose?: boolean; readonly enums?: Readonly<Record<string, string>> }   // enums (added 2026-11-17): the enum type of a top-level output enum member, by member name; one name and the same values share one type (section 16.6.1)
   readonly trpc?: { readonly path?: string; readonly expose?: boolean }
   readonly cli?: { readonly route?: readonly string[]; readonly aliases?: readonly string[]; readonly positional?: readonly string[]; readonly login?: { readonly tokenField: string } }
   readonly http?: { readonly cookie?: CookieHint; readonly response?: ResponseHint }   // every HTTP transport, sections 16.4.10 and 16.5.8
@@ -9153,9 +10017,13 @@ carried (a cookie, a raw body, a redirect, a download). It never changes behavio
 validation.
 
 Added 2026-11-05 (register entries 399 and 444): `SurfaceAction.scope` (like `ActionEntry.scope`)
-can be `'invocation'`, derived from an `invocation` entity's tenancy for its generated reads (the DSL
-cannot declare it); a principal-resolver fill declares its `describe()` output statically, so the
-surface and the OpenAPI `securitySchemes` need no bound runtime.
+can be `'invocation'`, derived from an `invocation` entity's tenancy for its generated reads
+(amended 2026-11-11: a module may also declare an action of scope `invocation`); a
+principal-resolver fill declares its `describe()` output statically, so the surface and the OpenAPI
+`securitySchemes` need no bound runtime.
+
+Added 2026-11-11 (M2 plan S-153): whether a transport can project an action's input is decided by
+one predicate of the core, `hasProjectableInput` (section 16.3.2).
 
 #### 16.2.3 Field nodes
 
@@ -9308,7 +10176,7 @@ the surface instead of the registry, has a pure `check`, and separates static op
 artefacts) from per-backend configuration (which only shapes runtime behaviour):
 
 ```ts
-import type { ApiSurface, Carrier, Invoker, InvocationSession, Logger, Meter, Scope, Tracer } from '@keelwerk/core'
+import type { ApiSurface, Carrier, Clock, Invoker, InvocationSession, Logger, Meter, Scope, Tracer } from '@keelwerk/core'
 
 /** What the core hands transports and listeners for their spans and metrics (sections 11 and 16.11). */
 export interface Telemetry {
@@ -9343,7 +10211,7 @@ export interface TransportProblem {
 
 export type Artifact =
   | { readonly kind: 'file'; readonly path: string; readonly contentType: string; readonly content: string }
-  | { readonly kind: 'type-fragment'; readonly content: string }   // merged into keelwerk.generated.ts (section 13.7)
+  | { readonly kind: 'type-fragment'; readonly content: string; readonly module?: string; readonly names?: readonly string[] }   // merged into keelwerk.generated.ts (section 13.7): `content` is the declaration, `module` and `names` its type import (amended 2026-11-11)
 
 export interface MountContext<Config> {
   readonly app: string
@@ -9354,6 +10222,7 @@ export interface MountContext<Config> {
   readonly telemetry: Telemetry
   readonly log: Logger
   readonly development?: boolean                         // set by the runtime in development: the `development` error audience, the docs page
+  readonly clock?: Clock                                 // added 2026-11-10: the runtime's clock, for cookie lifetimes; absent, the system clock
 }
 
 export interface MountHandle {
@@ -9388,6 +10257,15 @@ id; `@keelwerk/core/http` exports the host's shared helpers and `clearedCookie` 
 `@keelwerk/testing` exports `describeTransportConformance` with `TransportCodec`, `TransportTarget`,
 `transportTargetOf` and `startTransportRuntime` (section 16.3.8).
 
+Added 2026-11-10: `MountContext.clock` and the host's dependencies (section 16.3.3) carry the
+runtime's clock, optional; transports take cookie lifetimes from it, and `applyCookieHint` of
+`@keelwerk/core/http` takes its reading as an optional `now` (absent, the system clock is read).
+
+Added 2026-11-11 (M2 plan S-153): `hasProjectableInput(action)` of `@keelwerk/core`, true for an
+input of kind `shape`, `foreign` or `void`, is the one predicate for the inputs a transport can
+project. Every projection (REST, GraphQL, tRPC, oRPC) refuses an action whose input it rejects
+with `unsupportedShape`, in `check` and at `mount`; the predicate does not decide exposure.
+
 #### 16.3.3 The HTTP host
 
 `@keelwerk/transport-http` is an infrastructure entry of the deployment: it fills the
@@ -9407,7 +10285,12 @@ export interface TransportHost {
   /** A WebSocket endpoint for one app, selected by path and subprotocol. */
   upgrade(spec: { readonly app: string; readonly transport: string; readonly path: string; readonly protocols: readonly string[] }, handler: WebSocketHandler): void
   /** Dispatches a request through the host's own routing, without a socket: `runtime.host.fetch` for tests and the local client (section 16.8.5). */
-  fetch(request: Request): Promise<Response>
+  fetch(request: Request, options?: HostFetchOptions): Promise<Response>
+}
+
+/** Added 2026-11-12: what an in-process `host.fetch` states that a socket would otherwise tell. */
+export interface HostFetchOptions {
+  readonly remoteAddress?: string                        // the client address of the request: an argument, never a header
 }
 
 export type HttpHandler = (request: Request, ctx: HttpContext) => Promise<Response>
@@ -9423,8 +10306,22 @@ export interface HttpContext {
 }
 
 export interface WebSocketHandler {
-  /** The upgrade request's session may be anonymous; protocols with first-message credentials open a new session. */
-  open(socket: WebSocket, ctx: HttpContext): void        // the web-standard WebSocket
+  /** Added 2026-11-17: asked before the handshake, after the host's retired-version and origin checks; an error refuses the upgrade with its status. For a transport's own reasons only (its WebSocket option is off). */
+  refuse?(ctx: HttpContext): KeelwerkError | undefined
+  /** The upgrade request's session may be anonymous; protocols with first-message credentials open a new session through `connection` (added 2026-11-17). */
+  open(socket: WebSocket, ctx: HttpContext, connection: SocketSession): void   // the web-standard WebSocket
+}
+
+/** Added 2026-11-17: what the host keeps for a transport's WebSocket, its session, its checks and its bounds; a transport adds none of its own. */
+export interface SocketSession {
+  session(): InvocationSession                           // the upgrade's until `open`, then the opened one, replaced by each revalidation
+  carrier(): Carrier                                     // credentials included, for resolvers only
+  /** First-message credentials, as the hello of `keelwerk.live.v1` (`ClientMessage`, section 15.4.7); once per socket. */
+  open(credentials: Omit<Extract<ClientMessage, { readonly type: 'hello' }>, 'type'>): Promise<Outcome<InvocationSession>>
+  /** One subscription slot under `id`: `maxSubscriptionsPerSocket`, then the tenant, process and anonymous-address bounds. */
+  subscription(id: string): { readonly signal: AbortSignal; release(): void }
+  check(): Promise<boolean>                              // runs the session check now; false when the session did not hold and the socket is closing
+  readonly signal: AbortSignal                           // aborted when the socket ends
 }
 ```
 
@@ -9472,7 +10369,8 @@ Rules for the host:
 - Cross-cutting HTTP behaviour lives in the host, not in transports: request ids, W3C trace
   context, body size limits, CORS (allowed origins are the tenant's domains plus the transport's
   `cors` setting), the origin checks of section 16.4.10 (state-changing cookie requests, WebSocket
-  upgrades and cookie-authenticated SSE), security headers, compression of non-streaming responses
+  upgrades that carry a cookie and cookie-authenticated SSE), security headers, compression of
+  non-streaming responses
   (from M2; M1 sends responses uncompressed), and graceful shutdown.
 - A tenant whose scope comes from the host name and a request whose carrier also names a scope key
   (a receiver path, a credential's public id) must agree; a mismatch is `not_found`, so a path can
@@ -9489,7 +10387,29 @@ invocation protocol alone is refused. The operator socket serves only the invoca
 REST mount for `core`), and `runtime.surface('core')` is the sole app's surface, else the core
 module's alone. Transports read backend configuration and domains from the control store through a
 cache of two seconds. `@keelwerk/core/http` exports the host's shared helpers and `clearedCookie`.
-`startRuntime` does not build the host in M1; the CLI's `bootApp` does (section 3.3).
+`startRuntime` does not build the host in M1; the CLI's `bootApp` does (section 3.3). Amended
+2026-11-10: the runtime owns the HTTP host. Its `listen` phase builds the `httpHost(...)` entry over
+the runtime's invoker and calls `listen()`, and `Runtime.port` and `Runtime.operatorSocket` name the
+TCP port and the operator socket path the host bound (section 3.3).
+
+What the runtime hands the host when it builds it (`HostDeps`) carries the runtime's clock as the
+optional `clock` (added 2026-11-10; absent, the system clock), from which the host takes cookie
+lifetimes, and the optional `liveCarrier(appId, name)`, the fill of `core.liveCarriers` named
+`name` of a served app (added 2026-11-11). Its `surface(appId, version?)` throws
+`AppNotServedError` for an app the process does not serve (added 2026-11-11); the host recognises it
+with `isAppNotServedError`, also when another copy of the core made it. Any other throw of the
+surface is an internal failure that answers 500 and is logged, and an answer never leaves without
+its wire encoding.
+
+Added 2026-11-17: an upgrade registration's `WebSocketHandler` gets the host's `SocketSession` as
+the third parameter of `open` and may answer `refuse(ctx)`. The session a first message opens must
+belong to the registered app and pass `refuse` again, so a backend that turned the transport off
+stays off. A refused first message closes the socket with `closeCodeOfError(kind)` and the error
+code as the reason, as `keelwerk.live.v1` does; a subscription that fails with kind
+`unauthenticated` asks the session check to run at once (`SocketSession.check()`).
+
+Added 2026-11-18: a response that appends the renewed session cookie is `Cache-Control: private,
+no-store` unless the handler already said `no-store` or `private`.
 
 #### 16.3.4 Sessions: scope and principal resolved once
 
@@ -9516,6 +10436,7 @@ export interface InvocationSession {
   readonly clearCookies?: readonly string[]              // cookie names the host clears on the response, copied from the principal resolution
   readonly resolvedBy: TenantResolver['kind'] | 'local'  // the tenant resolver that matched; the cookie hint applies under 'hostname' only (section 16.4.10)
   readonly expiresAt?: Temporal.Instant                              // when the presented credentials stop being valid
+  readonly dependsOn?: readonly { readonly entity: string; readonly id: string }[]   // added 2026-11-11: the rows whose change revalidates the session at once, the rows of the resolution's `cache`
   /** Runs resolvePrincipal again from the retained carrier; used by long-lived connections. */
   revalidate(): Promise<Outcome<InvocationSession>>
 }
@@ -9538,9 +10459,9 @@ Rules:
   host.
 - A session lives for one HTTP request. For SSE streams and WebSocket connections it lives as long
   as the connection, and the live module revalidates it at `expiresAt`, at least every 60 seconds
-  (configurable), and on revocation events of the session's credential, membership or tenant (the
-  principal resolver names the events it depends on). A failed revalidation ends the stream with
-  `unauthenticated`.
+  (configurable), and on a change of a row the session depends on (`dependsOn`, amended
+  2026-11-11). A failed revalidation ends the stream with `unauthenticated`. Every action over a
+  socket is checked for revocation (added 2026-11-12).
 - Listeners use a bound form of the same session (G1, `BoundSession` with `invoke` and
   `subscribe`), a convenience over `Invocation.session` with identical semantics.
 - Principal enrichment (roles, memberships) happens once per session; the plan memo of
@@ -9550,6 +10471,10 @@ As built in M1 (added 2026-11-05, register entries 333 and 442): the invoker kee
 a `WeakMap` keyed by the session. On a REST response the transport layer deduplicates every
 `Set-Cookie` by name across the route's own cookies and the session's clears, one line per cookie
 name, so a login's set wins over the stale-session clear.
+
+Added 2026-11-11: a `PrincipalResolution` may carry `redeem`, a single-use credential the resolver
+accepted (the stream ticket of section 15.4.6): the kernel spends it, then resolves the principal
+its reference names, and the resolution's own `principal` is ignored.
 
 #### 16.3.5 Static options and per-backend configuration
 
@@ -9694,6 +10619,11 @@ Every HTTP transport encodes values with the wire column of section 16.2.3. Furt
 TypeIDs in any transport input decode once, through `fromWire` over the action's input node; there
 is no separate decoder (added 2026-11-05, register entry 390).
 
+Added 2026-11-11: an id operand of a filter is a TypeID on the wire in every operator; the input's
+one decode reads it through `decodeFilter`, with the action's entity in the surface of the
+request's API version. A client encodes a filter like any other input (`encodeFilter` of
+`@keelwerk/core/wire`).
+
 #### 16.4.3 Pagination
 
 The core's model (section 3.1 and 6.7): cursor pagination with `first`/`after` and
@@ -9703,7 +10633,7 @@ total?, queryState? }`, `total` opt-in.
 | Transport | Arguments | Result |
 |---|---|---|
 | REST | query parameters `first`, `after`, `last`, `before`, `total` (or the same members in a `POST .../query` body) | the core page object, plus a `Link` header (RFC 8288) with `rel="next"` and `rel="prev"` |
-| GraphQL | Relay arguments `first`, `after`, `last`, `before` | `<Type>Connection { edges { cursor node } nodes pageInfo totalCount queryState }`; selecting `totalCount` sets `total: true` |
+| GraphQL | Relay arguments `first`, `after`, `last`, `before` | `<Type>Connection { nodes pageInfo totalCount queryState }`, no `edges` (amended 2026-11-11); selecting `totalCount` sets `total: true` |
 | tRPC, invocation protocol | the same members in the input | the core page object |
 | CLI | `--first`, `--after`, `--all` (follows pages) | a table, then the cursor to continue |
 
@@ -9754,6 +10684,15 @@ Filters on personal fields use `PersonalOps` instead of `FieldOps`, so only decl
 type-check; the GraphQL filter inputs and the OpenAPI document describe only those, and the CLI's
 `--where` equality needs `eq` (section 14.7.9.11).
 
+Added 2026-11-11: an id operand is a TypeID on the wire in every operator (section 16.4.2).
+`startsWith` on a field that holds ids (an id or reference, or a list or set of them), and
+`contains` on a scalar id or reference, are refused with `core.validation` at `[field, operator]`,
+not as `unsupported`. A filter deeper than 32 levels (an operand's depth and each segment of a
+dotted relation path count) or larger than 10,000 members is `core.malformed_request` (400). A bare
+`null` means "is absent" (`isNull: true`), and a `null` inside a list is refused. Open in this
+text: whether `eq` or `ne` on a whole list or set compares by value or is refused, and whether `in`
+or `nin` on a collection tests membership.
+
 #### 16.4.5 Field selection and masks
 
 - `get` and `query` take an optional `fields` list (REST `fields=displayName,email`, the GraphQL
@@ -9790,7 +10729,8 @@ The closed taxonomy of section 10, projected:
 
 CLI usage errors (unknown command, unparsable flag) exit with 2, and an interrupted command with
 130. Every HTTP response echoes `Keelwerk-Version`; at a deprecated API version or for a deprecated
-action, responses also carry `Deprecation` (RFC 9745), `Sunset` (RFC 8594) and a `Link` with
+action, responses also carry `Deprecation` (RFC 9745; none for an action deprecated without `at`,
+amended 2026-11-12), `Sunset` (RFC 8594) and a `Link` with
 `rel="deprecation"` (section 18.5). Each transport follows its ecosystem's conventions for the outer code (tRPC reports input
 validation as `BAD_REQUEST`); the error object inside is the same everywhere:
 
@@ -9817,6 +10757,9 @@ host adds.
 Error codes are part of the public contract; `keelwerk surface diff` (section 13.8) fails when
 a code disappears and reappears with another meaning.
 
+Added 2026-11-11: at an older API version, the paths of an error's issues name that version's
+fields, and a field that version lacks points at its parent (section 18.2).
+
 #### 16.4.7 Execution preference, receipts and waiting
 
 The effective execution mode is in the surface. For `either`, the caller's preference travels as
@@ -9837,9 +10780,9 @@ with the receipt. Without the live module, `wait` is ignored and not listed in
 A command's response never waits for the external effects it requested: it lists their ids
 (section 7.9.5), REST in the `Keelwerk-Effects` header (comma-separated) and every other transport
 in the outcome (the invocation protocol's `InvokeResponse.effects`, section 16.8.2).
-A client that needs an outcome follows `core.effect.watch` (or the entity the continuation
+A client that needs an outcome follows `core.effectStatusWatch` (or the entity the continuation
 changes): `--wait-effects[=<seconds>]` in the CLI and `waitForEffects` in the typed client do it for
-the caller.
+the caller and answer statuses, not outcomes (amended 2026-11-17).
 
 As built in M1 (added 2026-11-05, register entries 348, 396 and 399): the 202 answer of an accepted
 command skips the shape stage (it carries the receipt, no row); `Location` (REST) and `receiptId`
@@ -9857,8 +10800,17 @@ sends none and returns it (REST `Keelwerk-Command-Id`; the invocation protocol's
 the invoker marks it with `replayed: true` on the outcome, and REST adds `Idempotent-Replayed:
 true`; the same id with a different input is `conflict` with code
 `core.idempotency_mismatch`; a duplicate that arrives while the first is still running is
-`conflict` with code `core.command_in_progress`, retryable after one second. Client-chosen keys are
-accepted as opaque strings (section 7.5).
+`conflict` with code `core.command_in_progress`, retryable after one second. A client-chosen key
+follows the grammar of section 7.5 (amended 2026-11-18): the REST `Idempotency-Key` header and
+every `commandId` take a UUID of version 4 or 7 (either case) or a ULID.
+
+Added 2026-11-18: that grammar is the opaque id rule. Only UUIDs of versions 4 and 7 and ULIDs
+pass; versions 1 and 6 hold a MAC address, 3 and 5 hash a name and 8 is free-form, so all are
+refused. Widening the rule later is not a breaking change; narrowing it is. A row id a module names
+in `create({ id })` is a UUID of version 4 or 7, else the create fails with `internal`,
+`core.request_not_allowed`. The chain's `$kwe` envelope has a version 2: the plaintext is padded to
+a multiple of 32 bytes and `kwe2` is appended to the associated data; version 1 is still read
+(section 14.7.4).
 
 #### 16.4.9 Optimistic concurrency
 
@@ -9933,8 +10885,9 @@ Cookie rules:
   output and no cookie, so a REST client receives the token it sends back as a bearer token, and
   `keelwerk login` finds its `tokenField`.
 - Cookie-authenticated requests that can change state (every method except `GET` and `HEAD`, and
-  every GraphQL mutation), every WebSocket upgrade (browsers send cookies with it, and WebSockets are
-  not subject to CORS) and every cookie-authenticated SSE request must carry an `Origin` (or
+  every GraphQL mutation), every WebSocket upgrade that carries a cookie (browsers send cookies with
+  it, and WebSockets are not subject to CORS; a cookieless upgrade carries no session, amended
+  2026-11-12) and every cookie-authenticated SSE request must carry an `Origin` (or
   `Sec-Fetch-Site: same-origin`) that matches an allowed origin of the tenant; otherwise the host
   answers `forbidden` with code `core.csrf`. Only a bearer token exempts a request from the check;
   another `Authorization` scheme does not. An `Origin` matches when it is one of the tenant's
@@ -9952,6 +10905,19 @@ As built in M1 (added 2026-11-05, register entries 393, 428 and 442): CORS is co
 transport (section 16.3.3); the session cookie expires at the idle expiry (sliding is M2); a void
 (204) answer still carries the action's cookie hints, so logout clears the cookie, and `Set-Cookie`
 lines are deduplicated by name.
+
+Added 2026-11-12: a forwarded entry of a trusted proxy is read as section 15.4.10 says. An entry
+with a port (`203.0.113.7:51234`) or in brackets (`[2001:db8::1]`, `[2001:db8::1]:443`) is read as
+its address (a port of 1 to 5 digits, at most 65535; brackets hold IPv6 only). An IPv6 address
+that ends in a dotted quad and is followed by a port (`::ffff:203.0.113.7:51234`) is read as its
+address; it is the only unbracketed IPv6 form that is split, so a bare IPv6 address without a
+dotted quad is never split at its last colon (`2001:db8::1:443` stays one address). Any other
+malformed entry counts as no address, so the socket address is used. `host.fetch` keeps accepting
+a bare address only.
+
+Added 2026-11-17: the subscriptions of a graphql-ws socket take slots like those of
+`keelwerk.live.v1`: `maxSubscriptionsPerSocket` first, then the tenant, process and
+anonymous-address bounds (section 15.4.10).
 
 #### 16.4.11 Timeouts, cancellation and limits
 
@@ -9978,10 +10944,16 @@ checked before execution and configurable per backend (decision 37a, 2026-10-27)
   related data is selected at the highest level where it is needed, or in a separate query.
   Siblings of the same type at one level stay allowed (`deployment { node }` beside
   `preview { node }`). The rule is Jens's and the default; it may change once the implementation
-  goes deeper.
+  goes deeper. A relation back to the same entity type is in the schema, and the rule refuses it
+  under the default limits (added 2026-11-11).
 - **Depth, aliases, batch and cost.** Beside it: a maximum depth, a maximum number of aliases, a
   maximum number of operations per request, and a cost computed from the surface (1 per field, 10
-  per connection page), with the token limit of each wire format.
+  per connection page), with the token limit of each wire format. Amended 2026-11-11: every
+  selected field counts, introspection fields included; `nodes(ids)` and every get cost a connection
+  page, and a get takes at most the target's maximum page size of ids; the cost of a connection
+  below another connection is multiplied by the page size of every connection above it.
+- The depth rule has no case a subscription operation can reach: no event or watch item reaches an
+  entity type (added 2026-11-17).
 - GraphQL applies them to every selection set (section 16.6.6). REST has no relation expansion: a
   client reads related rows with separate requests, so no REST request has a path to check; an
   `include` parameter, should REST gain one, follows the same rules. tRPC, oRPC and the invocation
@@ -10101,7 +11073,8 @@ session opens included (register entry 443).
   host.
 - One tag per module; in 3.2 one nested tag per entity under its module.
 - `components.schemas` holds, per entity, the read schema (`AccountsProfile`), the create and patch
-  schemas, the filter schema (recursive through `and`, `or` and `not`), and per action the input
+  schemas (the patch schema, `AccountsProfilePatch`, names no default; amended 2026-11-12), the
+  filter schema (recursive through `and`, `or` and `not`), and per action the input
   and output schemas; plus `Problem`, one schema per declared error (`AccountsEmailTakenProblem`,
   whose `code` is a constant), `PageInfo` and `CommandReceipt`.
 - Every operation documents its declared errors as a `oneOf` over the declared problem schemas and
@@ -10222,6 +11195,10 @@ surface with graphql 17.1.0 and serves it with graphql-yoga 6.1.0 at `/graphql`.
 used: the schema is derived, not hand-written, so a builder whose value is static typing of
 hand-written resolvers adds a dependency without adding safety (ADR 0011).
 
+Amended 2026-11-18: Yoga 6 streams its bodies, so a JSON or GraphiQL answer carries a
+`content-length` only because keelwerk buffers it (`mount/sized-response.ts`, an internal helper of
+the transport); that buffering is the only way Yoga 6 changes the wire.
+
 #### 16.6.1 Schema derivation
 
 - Object types: one per entity (`AccountsProfile implements Node`), with the readable fields of the
@@ -10232,7 +11209,12 @@ hand-written resolvers adds a dependency without adding safety (ADR 0011).
 - Input types: `<Type>CreateInput`, `<Type>Patch`, `<Type>Filter`, `<Type>Sort`, and one
   `<Action>Input` per command.
 - Enums: one per enum field (`AuthCredentialKind`), plus `SortDirection`, `ExecutionPreference`
-  and `ArchivedFilter` (`EXCLUDE`, `INCLUDE`, `ONLY`).
+  and `ArchivedFilter` (`EXCLUDE`, `INCLUDE`, `ONLY`). The exception (added 2026-11-17): the enum
+  type of a top-level output enum member named by `TransportHints.graphql.enums`; members that name
+  one type with the same values share it. Amended 2026-11-11: enum values are upper case with
+  underscores on the wire, through one mapping for every enum of the schema (`shared-tables` is
+  `SHARED_TABLES`, `inProgress` is `IN_PROGRESS`); two values of one enum with one name, a name
+  starting with `__` and a name that is no GraphQL name are refused at check time.
 - Scalars: `ID` for TypeIDs, `Instant` (`@specifiedBy(url: "https://www.rfc-editor.org/rfc/rfc3339")`),
   `LocalDate`, `TimeZone`, `SafeInt` (integers up to 2^53 − 1), `BigInt`, `Decimal` (exact decimal
   strings), `Base64URL`, `RichText`
@@ -10253,6 +11235,7 @@ hand-written resolvers adds a dependency without adding safety (ADR 0011).
   AccountsProfileConnection!`, `accountsProfileChanges(sinceState: String!, maxChanges: Int)` and
   `accountsProfileQueryChanges(...)`. Custom queries take their input fields as arguments, or a
   single `input: JSON` argument for a free-form input.
+- A connection has `nodes` and `pageInfo` and no `edges` (amended 2026-11-11, section 16.4.3).
 - `node(id: ID!): Node` and `nodes(ids: [ID!]!): [Node]!` resolve the entity from the TypeID prefix
   (prefixes are unique per app, section 5.1) and call its `get`.
 - Every resolver that needs data calls the invoker under the request's session; there is no other
@@ -10285,6 +11268,7 @@ hand-written resolvers adds a dependency without adding safety (ADR 0011).
 - A masked field resolves to `null` without an error; `_masked` lists it. A field-level error
   appears only when the field's own invocation failed (a relation whose query was `forbidden` or
   `unsupported`).
+- Yoga's `maskError` gets the context as its fourth argument (graphql-yoga 6, added 2026-11-18).
 
 #### 16.6.5 Subscriptions
 
@@ -10293,11 +11277,26 @@ hand-written resolvers adds a dependency without adding safety (ADR 0011).
   `authSessionEvents(after): AuthSessionEventsEvent!`. Each returns a union of the item type and the
   shared control types `StreamHead { state }`, `StreamReset { reason, state }` and
   `StreamGap { missed }`, so control frames reach GraphQL clients typed. Every item type has a
-  `state: String` field (the stream token), and `after` resumes from one.
+  `state: String` field (the stream token), and `after` resumes from one. `StreamHead.state` is
+  nullable (`String`) as well, and every `state` field of the event types shares that nullability,
+  because GraphQL's OverlappingFieldsCanBeMerged rule refuses `... on StreamHead { state } ... on
+  <Item> { state }` when one is `String!` and the other `String` (added 2026-11-17).
 - Carriers: GraphQL over SSE as Yoga serves it on `/graphql` (the distinct-connections mode of the
-  GraphQL-over-SSE protocol), and graphql-ws 6.4.2 (`graphql-transport-ws` subprotocol, through
-  `graphql-ws/use/ws`) registered on the host's upgrade table when the backend enables WebSocket.
-  Both read `invoker.subscribe` under the connection's session.
+  GraphQL-over-SSE protocol), and graphql-ws 6.4.2 (`graphql-transport-ws` subprotocol) registered
+  on the host's upgrade table when the backend enables WebSocket. Both read `invoker.subscribe`
+  under the connection's session. Amended 2026-11-17: the graphql-ws endpoint runs on graphql-ws's
+  `makeServer` over the web WebSocket the host hands over, not on `graphql-ws/use/ws`, which needs
+  its own ws server's connection events and so cannot sit on the host's upgrade table.
+- A subscription over POST runs only as the one operation of a request whose `Accept` names
+  `text/event-stream` with a quality above zero (the host's reading, `q` respected); a batch that
+  holds a subscription, or a subscription without that `Accept`, is refused before execution with
+  `core.unsupported` (406). For a subscription that may run, the GraphQL handler forwards exactly
+  `accept: text/event-stream` to Yoga (added 2026-11-17).
+- No event or watch item reaches an entity type, so no subscription operation is deep enough for
+  the depth limit to refuse (added 2026-11-17, section 16.4.12).
+- GraphQL over SSE sends no `welcome`, so for the shared subscription cases of the conformance suite
+  (section 16.3.8) a codec states `streamWelcome`; the cross-site probe of those cases sends
+  `Accept: text/event-stream`, the `Accept` every mounted stream needs (added 2026-11-17).
 
 #### 16.6.6 Limits and production settings
 
@@ -10306,19 +11305,26 @@ hand-written resolvers adds a dependency without adding safety (ADR 0011).
   one selection path (section 16.4.12), depth 12, aliases 30, at most 20 operations per request,
   tokens 5,000 and a cost limit of 1,000 computed from the surface (1 per field, 10 per connection
   page), configurable per backend; field suggestions are blocked outside development.
+- For one shape graphql's own bound comes first (added 2026-11-18): graphql 17.1.0's merge check
+  of validation spends a complexity budget, so a document that repeats one field about a thousand
+  times (a thousand copies of one response name, no aliases) is refused with "Validation aborted."
+  (HTTP 422, `core.validation`) before keelwerk's cost limit applies, where 17.0.2 answered it. The
+  cost limit's numbers are therefore not the first limit such a document meets.
 - Introspection follows the backend's `introspection` setting of section 16.2.5. GraphiQL (built into
   Yoga) is served in development only.
-- Persisted operations are optional for user interfaces in production, through
-  `@graphql-yoga/plugin-persisted-operations` 3.24.4, with the manifest supplied by the client
-  project.
+- Persisted operations are refused, and `GET` never executes an operation (amended 2026-11-11).
 
 #### 16.6.7 What is generated when
 
 | What | When | Where |
 |---|---|---|
-| SDL | `keelwerk dev` on change, `keelwerk generate` | `generated/graphql/<app>/<api version>.graphql`, one per supported version (section 13.7), committed; `--check` in CI |
+| SDL | `keelwerk dev` on change, `keelwerk generate` | `generated/graphql/<app>/<api version>.graphql`, one per supported version (section 13.7), the lexicographically sorted print with every keelwerk scalar declared and no header (added 2026-11-17), committed; `--check` in CI |
 | `GraphQLSchema` | at `listen`, from the surface; its printed form must equal the committed SDL (a warning in development, a failure in CI) | memory |
 | client types | in client projects, from the committed SDL (gql.tada 1.11.4 or graphql-codegen) | the client's repository |
+
+Added 2026-11-17: no fixture app composes the GraphQL module, so the SDL golden of the conformance
+app lives under `packages/transport-graphql/test`
+(`generated/graphql/graphql-conformance/<api version>.graphql`).
 
 ### 16.7 tRPC and oRPC
 
@@ -10438,7 +11444,9 @@ so that the client's automatic `lastEventId` resumes the stream from the stream 
 (`wsLink`) is available when the backend enables it: the transport registers tRPC's WebSocket
 handler (`@trpc/server/adapters/ws`) on the host's upgrade table under `/trpc`. Authentication for
 SSE uses cookies or an `EventSource` ponyfill with headers; tRPC's URL `connectionParams` are not
-recommended, because they end up in logs, and stream tickets (section 15.4.6) cover browsers.
+recommended, because they end up in logs. A stream ticket is a credential only on
+`GET /_keelwerk/v1/subscribe`, so one presented on `/trpc` is spent (section 15.4.6, amended
+2026-11-11).
 
 #### 16.7.6 What is generated when
 
@@ -10538,7 +11546,8 @@ HTTP statuses follow the REST column of section 16.4.6, and the body is always t
 so a client never parses two error formats. Requests carry `authorization`, `traceparent`, and the
 backend and tenant selectors the deployment's resolvers read: the header resolver
 `byHeader(tenantHeader, { backendHeader? })` reads the tenant from one header and, when the tenant
-does not imply its backend, the backend from a second header; the typed client and the CLI send
+does not imply its backend, the backend from a second header, and decodes the TypeID a header
+carries (amended 2026-11-05, M1 plan S-115); the typed client and the CLI send
 `x-keelwerk-backend` and `x-keelwerk-tenant` (section 4.6), plus `Keelwerk-Version` (the API version, section
 18.3), `Keelwerk-Client: <name>/<version>` from the typed client, the CLI and the Launchway
 agent, and `Keelwerk-Client-Id`, a client-chosen device id that gives anonymous principals a flag
@@ -10548,6 +11557,11 @@ Added 2026-11-05 (register entries 418 and 422): an accepted answer carries `rec
 the receipt's scope is the session's, which `--wait` polls. The backend and tenant headers carry
 ids, never names; the CLI resolves a backend name to its id once per run before tenant-scoped
 requests.
+
+Added 2026-11-12: an action deprecated without `at` (`deprecated: { reason }`) is in force from its
+declaration, and `POST /invoke` announces it without a date: a `Link` with `rel="deprecation"` that
+points at `/_keelwerk/v1/surface`, `Sunset` when a sunset is declared, and no `Deprecation` header.
+A dated action also gets that `Link`; the capabilities link stays the API version's (section 18.5).
 
 #### 16.8.3 The operator socket
 
@@ -10592,9 +11606,10 @@ export interface AppClient<App> {
   subscribe<R extends SubscriptionRef<App>>(
     ref: R, input: InputOf<App, R>, options?: { readonly after?: StateToken; readonly signal?: AbortSignal },
   ): AsyncIterable<LiveFrame<EventOf<App, R>>>
-  /** Waits until the deferred effects an outcome listed have settled (through core.effect.watch), or the timeout passes.
+  /** Waits until the deferred effects an outcome listed have settled (through core.effectStatusWatch), or the timeout passes;
+      answers statuses, not outcomes (amended 2026-11-17: `EffectOutcome` with a value is withdrawn).
       Without a live module, it and `subscribe` reject with `unavailable`, `core.live_unavailable`. */
-  waitForEffects(effectIds: EffectReferences, options?: { readonly timeoutMs?: number; readonly signal?: AbortSignal }): Promise<readonly EffectOutcome[]>
+  waitForEffects(effectIds: EffectReferences, options?: { readonly timeoutMs?: number; readonly signal?: AbortSignal }): Promise<readonly EffectStatus[]>
   /** A client bound to another backend, tenant or credential. */
   as(selector: { readonly backend?: string; readonly tenant?: string; readonly token?: string }): AppClient<App>
   surface(): Promise<ApiSurface>
@@ -10656,7 +11671,21 @@ principals and a capturing `logger`; `TestRuntime` has `keys`, `clock`, `config(
 exports what a module's alone test needs, so a module package depends on `@keelwerk/core` and
 `@keelwerk/testing` only. `expectReproduces` re-decides with the runtime's keys, clock and
 configuration and its own compute pool, and accepts a core `Principal`. `startTestRuntime` cannot
-host a transport module, and the in-process host gives every request one address; both are open.
+host a transport module, and the in-process host gives every request one address; composing
+transports in the harness is open, and the address is decided below (register entry 464).
+
+Amended 2026-11-12 (register entry 464): the client address is an argument of `TransportHost.fetch`
+(`HostFetchOptions`, section 16.3.3), never a header; over a socket it is the peer's, and a
+forwarding header counts only from proxies the deployment trusts. The test runtime gives each
+request its own address from 198.18.0.0/15 unless a test names one. An invocation whose carrier
+has no connection, and a socket whose peer address is not known, count as one shared unknown
+address (`unknownClientAddress`, which the stream limits use too), never the loopback; `host.fetch`
+without an address is the loopback.
+
+Added 2026-11-12: the local client's `subscribe` checks every item against the head surface's
+output node by the encoding a carrier applies, and delivers it in its in-process form. The local
+client has no host, so it does not count streams against the per-address limits; a test of those
+limits goes through a carrier.
 
 ### 16.9 The CLI
 
@@ -10673,6 +11702,10 @@ packages/cli/src/bin/keelwerk.ts`.
 | project | inside a project: the file named by `--config <path>` or `KEELWERK_CONFIG`, else, from the working directory up through its ancestors, the nearest directory holding a `keelwerk.config.ts` (default-exporting `defineDeployment`) or a `.launchway/deployment.ts`, the former first within one directory (decision 90c) | framework commands run on the local definitions; action commands go to `.keelwerk/dev.sock` while `keelwerk dev` runs, otherwise to an in-process runtime (connect without listen) as the operator |
 | operator socket | `--socket <path>` or a profile whose URL is `unix://...` | operator, with logged tenant entry for tenant work |
 | remote | a profile with an `https://` URL (or `http://` to a loopback host) and a credential | whoever the credential resolves to |
+
+Amended 2026-11-05 (M1 plan S-115): the project root is the directory that holds the deployment
+file's project. The project connection looks for `.keelwerk/dev.sock` there, where `keelwerk dev`
+keeps its state (section 13.6), so the two agree.
 
 The action part of the command tree is built from the API surface: from the local registry in
 project mode, otherwise from `GET /_keelwerk/v1/surface`, cached by hash under
@@ -10733,8 +11766,10 @@ action's schema in the pipeline, like every other transport's input.
 Common flags on every action command: `--profile`, `--backend`, `--tenant`, `--output` (`text`,
 `table`, `json`, `yaml`, `ndjson`), `--fields`, `--async`, `--wait[=<seconds>]`,
 `--wait-effects[=<seconds>]` (waits until the deferred effects the command requested settle, section
-16.4.7; both take an optional value through Stricli's `inferEmpty`, and the bare flag waits without
-a limit), `--command-id`, `--if-version`, `--explain` (operator and development: prints the pipeline
+16.4.7, following `core.effectStatusWatch` and printing statuses, not outcomes (amended
+2026-11-17); both take an optional value through Stricli's `inferEmpty`, and the bare flag waits
+without a limit), `--command-id` (a UUID of version 4 or 7 or a ULID, the grammar of section 7.5;
+amended 2026-11-18), `--if-version`, `--explain` (operator and development: prints the pipeline
 stages, the plan and the matched rule ids) and `--trace` (prints the trace id).
 
 As built in M1 (added 2026-11-05, register entries 417, 418 and 420): `--wait` polls
@@ -10808,7 +11843,7 @@ the command's code after a completed stop, and on SIGINT with 130.
 | `keelwerk generate [--watch] [--check] [--only <producer>]` | project | writes or checks every artefact of section 13.7 |
 | `keelwerk migrate` | project or operator socket | applies pending migration files (an alias of `db apply`) |
 | `keelwerk db plan\|generate\|apply\|status\|check\|introspect\|retire\|rebuild\|verify\|restore\|reindex` | project or operator socket | the data layer's commands, with the semantics of sections 14.6.4, 15.2.4, 14.7.6, 14.7.9.7 and 14.8.4; `verify` also compares the chain heads with the anchors in the ledger sinks (section 15.1.8) |
-| `keelwerk consumers list\|unpark`, `keelwerk jobs stats\|lanes\|list\|explain\|replay\|discard\|pause\|resume`, `keelwerk keys rotate [--index]`, `keelwerk tenant move` | operator socket | consumers and parked streams (section 15.2.3); statistics per queue and capability set, the busiest lanes, why a job waits, dead-letter jobs and pausing a queue (sections 9.5 and 21.9); key rotation, with `--index` a reindex (sections 14.7.4 and 14.7.9.7); tenant moves (section 14.4.5) |
+| `keelwerk consumers list\|unpark`, `keelwerk jobs stats\|lanes\|list\|explain\|replay\|discard\|pause\|resume`, `keelwerk keys rotate [--index]`, `keelwerk tenant move` | operator socket | consumers and parked streams (section 15.2.3); statistics per queue and capability set, the busiest lanes, why a job waits, dead-letter jobs (`jobs list` shows dead letters by default; added 2026-11-19) and pausing a queue (sections 9.5 and 21.9); key rotation, with `--index` a reindex (sections 14.7.4 and 14.7.9.7); tenant moves (section 14.4.5) |
 | `keelwerk fleet [list\|show\|watch]`, `fleet cordon\|uncordon\|drain\|probe\|forget`, `fleet scale status\|explain\|history\|set\|pause\|resume` | operator socket or remote operator | nodes and processes with roles, capabilities, revision, state, slots and heartbeat; placement on nodes, drains with a deadline and probes; the scaler's plans, decisions and runtime limits within the deployment's (section 21.9) |
 | `keelwerk operator token issue\|revoke\|list` | operator socket | short-lived operator tokens for remote operator profiles (section 3.5) |
 | `keelwerk introspect [modules\|actions\|entity <ref>\|policies\|extensions\|diff]` | any | the surface and the composition report as a tree or JSON; `introspect diff` is an alias of `surface diff` |
@@ -10843,7 +11878,18 @@ As built in M1 (added 2026-11-05; register entries 359, 402, 415, 423, 425 and 4
 - `explain` carries the backend and the tenant in the request (an operator session is deployment
   scope), prints text on a terminal and JSON when piped, and is operator-only, remote operators in
   development only. `--as user:<id>` builds a principal without roles (`--roles` is an unlisted
-  flag); resolving it through the enricher chain is open.
+  flag); resolving it through the enricher chain is open. Amended 2026-11-11 (open point 451):
+  `--as` is resolved on the server through the enricher chain, and `explain` prints the roles the
+  decision used.
+
+Added 2026-11-19 (the WP-83 lead answers): job ids repeat per namespace root, so every action that
+names one job takes `{ namespace?, id }`, on the command line `<id> [--namespace <id>]`. Without a
+namespace the job resolves only when exactly one namespace the caller may act on holds the id;
+otherwise the call is refused as `validation` before anything changes (`replay` and `discard`
+too), and the refusal names only namespaces the caller may see. Listings print the namespace next
+to the id, and machine-readable output carries both as two members. A pause stops takes: a job
+taken before the pause was read runs to its end, and a pause is in force at the latest one sweep
+after it is stored (section 9.5.3).
 
 #### 16.9.8 Module scaffolding
 
@@ -11020,7 +12066,10 @@ serve orchestrators; `app.health` and `app.ready` serve per-backend checks throu
 `keelwerk doctor` runs all of them.
 
 In M1 (added 2026-11-05, open point 450) the explain line is `<transport> -> <action> <ok|code>
-<n> ms`, without stages, plan or matched rule ids, and `subscribe` writes none.
+<n> ms`, without stages, plan or matched rule ids, and `subscribe` writes none. Amended 2026-11-11:
+the line carries the matched rule ids and the failed stage, `<transport> -> <action> <ok|code> <n>
+ms rules=<ids|->[ stage=<stage>][ kind=subscribe]` (section 11), a subscription writes one line,
+ending with `kind=subscribe`, and the invoker has a decision hook, `InvokerOptions.onDecision`.
 
 ### 16.12 Multi-tenancy in the interface layer
 
@@ -11032,7 +12081,7 @@ interface layer:
 | Tenant resolution | only in the invoker (`open`), from the carrier the host or listener fills; no transport resolves a tenant |
 | Routing | the host routes by the resolved app; mounts are per app; a tenant path prefix consumed by a resolver is stripped before routing |
 | Documents | surface, OpenAPI and SDL are per app and served per backend with backend-specific server URLs; never per tenant |
-| Domains, CORS, cookies | allowed origins are the tenant's domains plus configuration; session cookies carry the `__Host-` prefix (host-only, `Path=/`, no `Domain`), so one tenant's cookie never reaches another tenant's domain and sibling subdomains cannot shadow it; under path-based tenant resolution cookies are not used at all, only bearer tokens (section 16.4.10); WebSocket upgrades and cookie SSE requests are origin-checked |
+| Domains, CORS, cookies | allowed origins are the tenant's domains plus configuration; session cookies carry the `__Host-` prefix (host-only, `Path=/`, no `Domain`), so one tenant's cookie never reaches another tenant's domain and sibling subdomains cannot shadow it; under path-based tenant resolution cookies are not used at all, only bearer tokens (section 16.4.10); WebSocket upgrades that carry a cookie and cookie SSE requests are origin-checked (amended 2026-11-12) |
 | Configuration | transport configuration per backend with per-tenant overrides, read through the session's scope |
 | Live | subscriptions bound to the session's scope; stream tokens bound to the principal and selector; the change feed filtered by scope in the data layer; admission limits per tenant |
 | Operator work | deployment-scope actions only on the operator endpoint; tenant entry explicit and logged |
@@ -11177,12 +12226,16 @@ principals that read `email`, deciding with `ctx.ability.canFilterBy('accounts.p
   `allowSelfRegistration` is off, sign-up fails with `forbidden` and nothing is written.
   (Amended 2026-11-05, register entries 427 and 440: `register-profile` never pre-checks
   profiles; it invokes `accounts.register` after the registration gate, so registration off answers
-  `forbidden` for every address, and a taken address answers `accounts.email_taken`, declared on
-  `auth.signUp`, because a failed `invoke` effect cannot be remapped to `auth.identifier_taken` yet.
+  `forbidden` for every address, and in M1 a taken address answered `accounts.email_taken`, declared
+  on `auth.signUp`, because a failed `invoke` effect could not be remapped to `auth.identifier_taken`.
   `link-profile` links only a profile the sign-up's own reaction created (an event whose actor is
   the system), never a stranger's unlinked credential, and joins on the indexed `profileId`. A
   concurrent sign-up of the same identifier fails the unique index; the unit repeats once and
-  answers `auth.identifier_taken`.)
+  answers `auth.identifier_taken`. Amended 2026-11-17 (open point 463): `link-profile` tests the
+  event's causation id (`event.causationId`) instead of its actor; the identifier and the
+  `linkPending` marker stay the guard. Amended 2026-11-18: a failed `invoke` can be remapped
+  (section 7.4), so the sign-up of an address that has a profile answers `auth.identifier_taken`:
+  `register-profile`'s invoke maps `accounts.email_taken` to it.)
 
 - **Tokens are not ids.** A session token is issued once by the key service, through the request
   `yield* ctx.secrets.issue({ prefix: 'pss' })`, which the decision record keeps without its
@@ -11213,8 +12266,12 @@ principals that read `email`, deciding with `ctx.ability.canFilterBy('accounts.p
   test holds the main thread's longest CPU burst under 5 ms during 32 concurrent verifications,
   measured as CPU bursts on the main thread rather than wall-clock event-loop lag, which load on the
   machine distorts. Verification
-  of an unknown identifier runs against a dummy hash, so timing does not reveal which identifiers
-  exist.
+  of an unknown identifier runs against a dummy hash, so the time of the hash does not reveal which
+  identifiers exist. Added 2026-11-18: a lookup by a personal value that finds no row reads one key
+  by the id `decoyKeyId` and does one failed decryption, as a found row reads its key, for every
+  verified lookup (login, sign-up and the reset request of section 17.2.5), so a known and an
+  unknown identifier make the same calls on the key store; the equality is claimed for those store
+  calls, not for time: the unwrap of a found key is not equalised.
 - **Passkeys** use `@simplewebauthn/server` (14.0.3) for registration and authentication ceremonies;
   the challenge lives in a short-lived row of the session or of the pending registration, never in
   process memory, so any process can finish a ceremony.
@@ -11225,7 +12282,12 @@ principals that read `email`, deciding with `ctx.ability.canFilterBy('accounts.p
 Added 2026-11-05 (register entry 403): `login` (`sessionToken`), `issueResetLink` (`token`) and
 `changePassword` (`sessionToken`) declare their tokens `shownOnce`, so a stored receipt never holds
 them and a replay of the command answers `conflict`. M1 sets no minimum password length (open point
-462).
+462). Amended 2026-11-18 (register entry 479): a new password has at least 15 code points by
+default when the password is the only factor, and 8 once a second factor is enrolled; it has at most
+256. `minPasswordLength` sets the minimum from 8 to 64, and no composition rule applies. The length
+is checked at sign-up, reset and change, never at login. The minimum of 8 is not checked yet: it
+comes with the first second factor, and until then every new password is checked against
+`minPasswordLength`.
 
 #### 17.2.3 Expiry, rotation and revocation
 
@@ -11244,18 +12306,29 @@ them and a replay of the command answers `conflict`. M1 sets no minimum password
   response.
 - `auth.logout` revokes the caller's session (the session id is the principal's credential
   reference) and clears the cookie. `auth.session.revoke` revokes one of the caller's sessions;
-  `auth.revokeSubject` revokes every credential and session of a subject and is invoked by auth's
-  own reactions (a deactivated profile, an erased subject) under `auth.system`.
+  `auth.revokeSubject` revokes every credential of a subject in the deactivating unit and sets the
+  keyed timer `revokeSessions:<subject>`, whose `auth.revokeSessions` revokes the subject's sessions
+  a page at a time (amended 2026-11-18); it is invoked by auth's own reactions (a deactivated
+  profile, an erased subject) under `auth.system`.
 - Revocation reaches live connections through revalidation: the session resolver names the events
-  it depends on (the session's own change records, its credential's `revoked`, the profile's
-  `deactivated`, membership changes), and a connection whose session they touch is revalidated at
-  once and closed when it fails (section 16.3.4).
+  it depends on (the session's own change records, its credential's `revoked` and erased records
+  (amended 2026-11-12, section 17.2.4), the profile's `deactivated`, membership changes), and a
+  connection whose session they touch is revalidated at once and closed when it fails (section
+  16.3.4).
 
 As built in M1 (added 2026-11-05, register entries 439 and 441): a password change marks every
 other unused reset token of the credential as used, revokes the subject's other sessions and
 rotates the current one, its new token shown once. Revoking a subject's other sessions and retiring
 a credential's reset tokens load at most 1,000 rows; a full page is refused with `conflict`,
 `auth.too_many_records`, rather than leaving live rows behind.
+
+Added 2026-11-12: the commands that change how a person signs in are for a principal of the session
+resolver only: its `ref.resolver` names that resolver, which the kernel checks.
+
+Added 2026-11-18: the extension job extends from the instant of the request (`seenAt`), never moves
+an expiry backwards, and decides nothing for an input with no `seenAt`. A pending 0.1.0 extension
+row runs once, extends nothing for a live session, and fails as `core.unauthenticated` (a failed
+job, no dead letter) for a session that no longer resolves.
 
 #### 17.2.4 The resolver's read path
 
@@ -11291,9 +12364,18 @@ An unknown, expired or revoked cookie session makes the request anonymous and cl
 (the resolution's `clearCookies`); an invalid bearer token fails with `unauthenticated` (section
 16.3.4).
 
-As built in M1 (amended 2026-11-05, register entry 428): the session cache of step 4 is keyed by a
-digest of the whole token, not by the public id, and its entry names a list of rows to drop on,
-the session and its credential, so a credential's change record drops it too.
+As built in M1 (amended 2026-11-05, register entry 428): the key of the resolution's `cache` (step
+4) is a digest of the whole token, not the public id, and the `cache` names a list of rows, the
+session and its credential.
+
+Amended 2026-11-12 (register entry 428): no resolution cache is built yet; `cache` only feeds
+`dependsOn`, the rows whose change revalidates a session at once (section 16.3.4). When a
+resolution cache is built it must drop on any change record, and the erased record is one. The
+resolver reads the session row without erased rows (the erased tombstones of section 14.7.2), so the
+session of an erased subject is stale: a cookie request is anonymous and the cookie is cleared, and
+a bearer request is unauthenticated with the message of a revoked session; nothing tells an erased
+account from a signed-out one. An open live stream revalidates on the erased record of the session
+or of the credential and ends.
 
 #### 17.2.5 Re-authentication and recovery
 
@@ -11320,6 +12402,18 @@ whether or not the identifier exists (the insert's timing still differs, a known
 keyed job); a reset or a password change marks every other unused reset token of the credential as
 used. The `auth.resetDelivery` contract's token member is a secret member; its fillers need sealed
 effect inputs, so none exists in M1 and `auth.issueResetLink` is the path.
+
+Added 2026-11-18: the decoy key read of the kernel's lookup path (section 17.2.2) is part of the
+specification. A lookup by a personal value that finds no row reads one key by the id `decoyKeyId`
+and does one failed decryption, as a found row reads its key, so the reset request makes the same
+calls on the key store for a known and an unknown identifier; the equality is claimed for those
+store calls, not for time. Issuing a token retires the unused tokens before it (a newer link retires
+the older ones), and the links delivered per credential are capped by `resetRequestsPerHour`
+(default 3) where they are issued, so the request answers the same whatever the cap. Deliveries
+that run at the same moment each read the same state before either commits, so each can leave a
+live link (both for the same credential and the same address), and the cap can be passed by the
+number of overlapping deliveries. The lead accepted this on 2026-11-18: closing it would cost a new
+event on the credential's stream and a change of the kernel's timers.
 
 #### 17.2.6 Rate limits and abuse
 
@@ -12038,14 +13132,14 @@ export const channel = defineSubscription(nodesBase, {
   },
 })
 
-// modules/nodes/src/actions/ack.ts: the agent settles a command
+// modules/nodes/src/actions/ack.ts: the agent settles a command; the id is an Id<'core.effect'>, so code written against 0.1.0 with a string id does not compile
 export const ack = defineCommand(nodesBase, {
-  input: shape({ effectId: field.string(), accepted: field.boolean(), message: field.string().optional() }),
+  input: shape({ effectId: field.ref(core, 'effect'), accepted: field.boolean(), message: field.string().optional() }),
   principal: 'service',
   execution: 'sync',
   decide: (input, ctx) => ({
-    effects: [settle({ effect: agentCommand, id: input.effectId, where: { nodeId: ctx.principal.idAs('nodes.node') } },   // only a pending command of this node
-      { ok: true, value: { accepted: input.accepted, message: input.message } })],
+    effects: [settle(input.effectId, { ok: true, value: { accepted: input.accepted, message: input.message } },
+      { effect: agentCommand, where: { nodeId: ctx.principal.idAs('nodes.node') } })],   // only a pending command of this node
   }),
 })
 
@@ -12432,7 +13526,7 @@ no submission types at all.
 How the protocols' requirements map onto the core model:
 
 - IMAP UIDs are a per-mailbox serial that never repeats while `uidValidity` stays the same:
-  `field.serial({ per: ['mailboxId'] })`, allocated by the data layer at insert (G7; section
+  `field.serial({ per: 'mailboxId' })`, allocated by the data layer at insert (G7; section
   15.1.4 specifies it). A restore that rewinds serials bumps the scope's epoch, and the mail
   server then announces a new `uidValidity` (section 14.7.6).
 - IMAP MODSEQ (RFC 7162) and JMAP state strings are positions of the tenant's event log. They are
@@ -12784,7 +13878,7 @@ export const mailboxEntry = defineEntity({
   fields: {
     mailboxId: field.ref.own('mailbox').index(),
     emailId: field.ref.own('email').index(),
-    uid: field.serial({ per: ['mailboxId'] }),       // G7: IMAP UID, never reused within a uidValidity
+    uid: field.serial({ per: 'mailboxId' }),         // G7: IMAP UID, never reused within a uidValidity
   },
 })
 
@@ -13307,7 +14401,7 @@ the roadmap schedules before the milestone that first needs them ([roadmap.md](r
 | G2 | Scope directory for keys other than host names | tokens, node credentials, webhook paths, mail domains | proposed, ADR before M4 | proposal below |
 | G16 | Extension values bound to their contributor's context | git providers, heartbeat observers, DKIM signers, inbound checks | specified (ADR 0003; pure values since ADR 0026) | sections 5.5 and 7.9.2 |
 | G3 | Jobs, durable timers and schedules | both platforms throughout | specified (ADRs 0015 and 0025) | sections 7.7, 9.5, 14.3.9 and 21 |
-| G4 | Secrets and a key hierarchy | Launchway environments and credentials; DKIM keys, relay password, certificates | key service and sealing specified; the `ctx.secrets` interface proposed, ADR before M3 | sections 6.6 and 14.7.4; proposal below |
+| G4 | Secrets and a key hierarchy | Launchway environments and credentials; DKIM keys, relay password, certificates | key service and sealing specified; the `ctx.secrets` interface proposed, ADR 0017 before M3 | sections 6.6 and 14.7.4; proposal below |
 | G5 | Blob storage | deployment logs past their offload threshold (decision 47c); messages, attachments, uploads | proposed, ADR before M4 | section 5.2 (the `blobs` contract); proposal below |
 | G6 | Streams, topics and a live feed for state entities | deployment logs, container logs, the agent channel, delivery attempts | storage and live delivery specified; the DSL lands in M2 | sections 15.1.10, 15.1.12 and 15.4 |
 | G7 | Change positions and data capabilities | IMAP and JMAP synchronisation, mail search, UIDs, Launchway's one-running-deployment rule | specified | sections 14.3.3, 14.3.5, 14.5.1, 14.7.9 and 15.1.4 |
@@ -13385,8 +14479,8 @@ interface BoundSession {
 - A listener can present its own service principal for protocol steps without client
   authentication (the MX), so actions that only a listener may call are never public. The carrier
   is produced in-process, so this principal cannot be forged from the network.
-- Revalidation (section 16.3.4: at `expiresAt` and at least every 60 seconds) also runs on
-  revocation events of the session's credential, membership and tenant, so a revoked app password
+- Revalidation (section 16.3.4: at `expiresAt`, at least every 60 seconds and on a change of a row
+  the session depends on, `dependsOn`) also holds for listener sessions, so a revoked app password
   or node credential ends its IMAP or agent connection within seconds; the listener then closes
   with its protocol's goodbye (SMTP `421`, IMAP `BYE`, WebSocket close).
 - Open and close hooks map to actions for presence (`nodes.node.connected`, `.disconnected`).
@@ -13471,7 +14565,7 @@ delivery for up to 5 days), heartbeats for long jobs, cancellation by key and de
 every adapter the proof apps run on.
 
 Status: specified in sections 7.7, 9.5, 14.3.9 and 21 and ADRs 0015 and 0025. The kernel job queue
-runs over the data adapters' job store with keys (keep, replace, coalesce), fair lanes with caps
+runs over the data adapters' job store with keys (keep, replace, coalesce, append), fair lanes with caps
 and weights per tenant and queue, a queued cap with backpressure, groups with concurrency and
 rates, priority classes, FIFO per key, retry schedules driven by the error taxonomy, leases fenced
 by (worker, attempt), expiry, dead letters and schedules (`backend` or `each-tenant`). Jobs store
@@ -13491,7 +14585,8 @@ keys.
 Status: the key service (master key, deployment, backend and tenant keys, subject and value keys),
 sealing of credential material with per-value keys destroyed on overwrite, and the rule that only
 the owning module reads its secrets are specified in sections 6.6 and 14.7.4. The `ctx.secrets`
-interface below is a proposal; its ADR lands before M3 (roadmap).
+interface below and the executors' reveal are recorded in ADR 0017 (`Proposed`, 2026-11-19), which
+the roadmap has due before M3.
 
 ```ts
 interface SecretRequests {                         // ctx.secrets in handlers: requests the key service answers (section 7.9.3)
@@ -13525,7 +14620,14 @@ interface ExecutorSecrets {                        // ctx.secrets in effect exec
   for a secret, which a reveal resolves (this settles the two forms of register open point 321); a
   configuration secret is `kwc1.<backend>.<module>.<field>.<keyVersion>.<nonce>.<ct>`, sealed under
   the backend key only in M1; personal and secret effect inputs and secret effect outputs have no
-  sealing rule yet (open point 456).
+  sealing rule yet (open point 456). Amended 2026-11-11 (open point 456, ADR 0017): an effect's
+  input and output carry secrets only as references the effect's module loaded or as fresh plain
+  values; a foreign or client-sent reference is refused with `validation`. A secret the module
+  hands to an effect is sealed for that effect under its own value key, bound to `core.effect`, the
+  effect id and the member path, and opens only against that binding, outputs included; the
+  module's own `kwc1` configuration secret keeps its text and opens only for its module and the
+  backend of the job. Executors and external performers get references through the same check.
+  Personal effect inputs are sealed under the subject's key since WP-72 (register entry 370).
 
 #### G5. Blob storage
 
@@ -13706,6 +14808,13 @@ export const readOnlyKey = defineRule(apiKeysBase, { kinds: ['command'] }, { eff
 export const appPassword = defineRule(apiKeysBase, { transports: ['imap', 'smtp-submission'] }, { effect: 'allow', when: (ctx) => keyAllowsTransport(ctx) })
 ```
 
+Added 2026-11-12 (section 8.1): the `read` scope covers queries and subscriptions in every module
+and no command, `live.ticket` included. A program opens a stream with its key in the
+`Authorization` header or in the socket's upgrade or `hello`; a stream ticket is for a browser's
+`EventSource`. A key with the `write` scope may issue one, and the key resolver's `fromRef` redeems
+it only on a transport the key names, when the key names any. `keyAllowsTransport(ctx)` cannot see
+the transport: the key resolver and its `fromRef` enforce the binding.
+
 #### G14. Extension-point cardinality and carrier coverage checks
 
 Status: specified in sections 5.2 and 5.5. `extensionPoint.set<T>({ min: 1 })` turns an
@@ -13740,7 +14849,7 @@ request without a version header still resolves one, through pins that always ex
 | API surface | `format`; hash per API version | per-version artefacts, `ETag` of `/surface` |
 | Action input and output | `since`, `changedIn`, schema hashes | surface |
 | Entity schemas and events | track versions, shape ids | snapshots, `kw_shapes`, envelope `shape` |
-| Protocols, stream tokens, cursors | integer major | path, subprotocol, `v1.` prefix, `hello.protocol` |
+| Protocols, stream tokens, cursors | integer major | path, subprotocol, `v2.` prefix, `hello.protocol` |
 | Module configuration | configuration version | each stored value |
 | Generated artefacts | producer version, format, API version, surface hash | file header |
 | Clients and the CLI | semantic version, API version spoken | `Keelwerk-Client`, `Keelwerk-Version`, `sync.client` |
@@ -13771,14 +14880,14 @@ export const displayName = defineVersionChange({
   fixtures: [{ ref: 'accounts.profile.update', older: { id: 'prof_1', name: 'J' }, newer: { id: 'prof_1', displayName: 'J' } }],
 })
 // modules/accounts/src/module.generated.ts: the generated module literal lists its changes (src/versions/) beside the
-// parts they refer to, which checks them; the keys, from the file names, are the change ids the ledger records and never
-// change once released.
+// parts they refer to, which checks them; the keys, from the file names, give the change ids the ledger records
+// ('<module>.<key>', here 'accounts.displayName') and never change once released.
 const accountsDef = defineModule(accountsBase, { entityActions: { profile: { update } }, changes: { displayName } })
 
 // apps/portal/src/api-versions.ts
 export const portalApi = defineApiVersions({
   '2026-10-23': { deprecated: { at: '2027-01-12', sunset: '2028-01-12' } },   // deprecated the day the newer version exists, retired 12 months later (decision 53)
-  '2027-01-12': { changes: [healthDetails] },            // app-level changes; module changes come from the ledger
+  '2027-01-12': { changes: ['accounts.displayName', healthDetails] },   // a module change by its id, mirrored from the ledger; an app-level change
 })
 // apps/portal/src/app.ts
 const portalDef = defineApp({ id: 'portal', modules, api: portalApi })   // modules: the tuple of src/modules.ts
@@ -13786,7 +14895,10 @@ const portalDef = defineApp({ id: 'portal', modules, api: portalApi })   // modu
 
 `keelwerk surface version new <date>` appends to `generated/api-surface/<app>/ledger.json` the
 module versions in force, the changes the version adopts and its surface hash, and prints the entry
-for `defineApiVersions`; `generate --check` fails while the two disagree.
+for `defineApiVersions`; `generate --check` fails while the two disagree. Amended 2026-11-11: the
+runtime never reads the ledger. The ids of the module changes a version adopts (`'<module>.<key>'`)
+are mirrored into its `defineApiVersions` entry, and `generate --check` compares them with the
+ledger.
 
 A request at version D runs with the changes D lacks: `locate` maps an older reference to the head
 reference, `validate` checks the input against D's schema, and `translate` applies input transforms
@@ -13794,6 +14906,20 @@ oldest first, filters, sorts and selections included. Handlers, rules and masks 
 only. After `shape`, `translate` applies output and error transforms newest first, per item for
 subscriptions; stream tokens are unaffected. Tests check translated inputs against the head schema
 (`internal`, `core.version_change_failed`) and run every module's fixtures.
+
+Added 2026-11-11: a change of a field of entity E applies to E, to its domain events' data and to
+every action whose entity or `entityOutput` is E, and also to an action whose filter reaches E
+through a relation, directly or through other entities. Open: for a declared action mounted on one
+entity whose `entityOutput` names another, only the output entity's positions apply, so a change of
+the entity it is mounted on does not reach its input; this case is not settled. The keys of a
+change's `input` and `output` transforms and of its `fixtures` name each action as it is on the
+newer side of that change (the ref its author saw), and are resolved through the action renames of
+later changes. Changes adopted at one date apply in the order of their `since` and then their id.
+At a version, `changedIn` lists only the adopting dates up to that version, so a released surface
+and its hash never change. Compose walks the changes from the head, newest first, and refuses an
+older name that is already taken at that point. Amended 2026-11-12: for a declared action, an
+`addedRequired` field takes the entity's default in version translation only in a member that the
+action's own input requires.
 
 Transports project the session's version, one projection per supported version per mount, built
 at first use; surface, OpenAPI and SDL documents are committed per version
@@ -13837,6 +14963,13 @@ the request, and the re-pin event of section 18.5 is M2. `openSession` passes th
 `resolveVersion`, and the deployment-level core app serves `coreApiVersions`.) The typed client, the CLI and the Launchway agent also send
 `Keelwerk-Client: <name>/<version>`.
 
+Amended 2026-11-12: a retired pin no longer fails the request. A request that names no version,
+whose pin (the credential's, the tenant's or the backend's default) is retired, is served under the
+target of that pin, the oldest served version newer than it (the head when there is none), and its
+`Keelwerk-Version` header says so; a retired version the request names itself is
+`core.api_version_retired` (410). So there is no outage between a sunset and the operator's
+`surface retire`, which still writes the re-pin and its events (section 18.5).
+
 ### 18.4 Compatibility per transport
 
 | Contract | Compatible | Breaking |
@@ -13859,15 +14992,26 @@ breaking.
 
 - `deprecated: { at, sunset? }` marks a version entry (`sunset` is `at` plus 12 months unless it
   says otherwise, and never earlier), and the action option `deprecated` gains `at` and `sunset`.
-  From `at`, responses carry `Deprecation: @<seconds>` (RFC 9745, a structured-field date: the Unix
-  seconds of `at`), `Sunset: <HTTP-date>` (RFC 8594, never before `at`) and a `Link` with
+  From `at` (from its UTC day, amended 2026-11-12), responses carry `Deprecation: @<seconds>` (RFC
+  9745, a structured-field date: the Unix seconds of `at`), `Sunset: <HTTP-date>` (RFC 8594, never
+  before `at`; amended 2026-11-12: the first instant at which the version or the action is no
+  longer served, 00:00:00 GMT of the day after the sunset date, because the sunset date is the last
+  day served, and a sunset text that carries a time counts by its UTC day) and a `Link` with
   `rel="deprecation"`, appended to any other `Link` the response carries: the host's link for a
   deprecated API version points at `</_keelwerk/v1/capabilities>`, and REST's link for a deprecated
   action at the mount's `/docs` page; GraphQL adds
-  `extensions.keelwerk.deprecations`, the CLI warns on standard error, live connections get a
+  `extensions.keelwerk.deprecations` (amended 2026-11-17: on a plain answer once and on the first
+  result of a stream only, with the action notices and the session's version notice of one request
+  in one list), the CLI warns on standard error, live connections get a
   `notice` frame.
 - Processes count requests per day, backend, tenant, version and transport (per action or field
-  for deprecated items) into `core.apiUsage`, read by `keelwerk surface usage`.
+  for deprecated items) into `core.apiUsage`, read by `keelwerk surface usage`. Added 2026-11-12, a
+  known limit (M2 plan S-144): the counts include unauthenticated calls, because a request is
+  counted at admission, before it is authorised, so anyone who can reach a tenant's host can add to
+  that tenant's count of a declared version, until a later split of the counts by authenticated or
+  not. The counts are information only: a flush whose acknowledgement is lost counts twice, the
+  last minute before a crash is lost, and the requests answered after the final flush of a shutdown
+  are lost.
 - Support window (decision 53, 2026-10-28): a version is deprecated the day a newer one exists, its
   sunset is 12 months later, and after the sunset it is retired regardless of use; there is no
   zero-use gate and no `--force`. The floor rises when entries leave `defineApiVersions`, which CI
@@ -13875,10 +15019,36 @@ breaking.
   check is unchanged). `keelwerk surface retire <version>` records the retirement and refuses only
   before the sunset. Usage counters stay as information: `keelwerk surface usage` shows who still
   calls a version, so that they can be told before the sunset. A retired version is then
-  `not_found`, `core.api_version_retired` (REST 410); tenants and credentials pinned below the
-  floor are re-pinned to it by an event.
+  `not_found`, `core.api_version_retired` (REST 410; amended 2026-11-12: only a retired version
+  the request names itself, while a retired pin is served under its target, section 18.3); tenants
+  and credentials pinned below the floor are re-pinned to it by an event.
 - A module or core major never ends a pinned version: the app's next version adopts its changes,
   and new protocol majors run beside the old.
+
+Added 2026-11-12: an action's `deprecated.at` and `sunset` are a calendar date (`YYYY-MM-DD`, that
+UTC day) or an instant with an offset (`2026-12-01T10:00:00Z`, `+01:00`); any other text, a
+date-time without an offset or `Dec 1, 2026`, is refused when the action is defined (composition
+problem `invalidDeprecationDate`), with the same check as the dates of an API version
+(`isCalendarDate`, `declaredInstantOf`). The deprecation counts from the UTC day of the instant;
+`Deprecation` is `@<seconds>` of that instant (a calendar date is the start of its UTC day), and
+`Sunset` is 00:00:00 GMT of the day after its UTC day. Nothing depends on the time zone of the
+process. This is a breaking change for an action that declared another form.
+
+Added 2026-11-12: an action deprecated without `at` (`deprecated: { reason }`) is in force from its
+declaration, and every path announces it without a date. REST and `POST /invoke` answer a `Link`
+with `rel="deprecation"` (REST's points at its docs, `/invoke`'s at `/_keelwerk/v1/surface`,
+section 16.8.2; the capabilities link stays the API version's) and `Sunset` when a sunset is
+declared, and no `Deprecation` header; a stream sends a `notice` whose `at` is absent, which is why
+`DeprecationNotice.at` is optional; the CLI warns `action <ref> is deprecated` (with `and retired
+after <date>` when a sunset is declared); the usage counts include the action from its first
+request. A dated action also gets the `/invoke` `Link`.
+
+Added 2026-11-12: `keelwerk surface retire` runs the operator command `core.retireApiVersion`. Two
+overlapping calls with one command id can both run, because the first pass of the runner only
+looks for a receipt and is rolled back, so two calls that overlap both find none and both retire.
+Each retirement that runs passed its own check and is one an operator could have asked for on its
+own. When the inputs differ, the receipt of the second call is the idempotency mismatch, not its
+effect: its retirement took effect, and its re-pin and events stay.
 
 ### 18.6 `keelwerk surface diff`
 
@@ -13918,16 +15088,17 @@ runtime at every scope level.
 ### 18.8 Pipeline stages and errors
 
 The pipeline of section 9.2 runs `resolveVersion` in `open` after `resolvePrincipal`, and
-`translate` after `validate` and after `shape`; `admit` also checks kill switches and suspensions,
+`translate` after `validate` and after `shape`; `admit` also checks kill switches and suspensions
+and counts the request for API usage (amended 2026-11-12, section 18.5),
 `authorize` flag gates, `execute` records writer and flags per event, and `complete` flushes
-counters and exposures.
+flag counters and exposures.
 Every failure fits an existing kind of section 10:
 
 | Code | Kind | REST | When |
 |---|---|---|---|
 | `core.api_version_invalid` | `validation` | 400 | not `YYYY-MM-DD` |
 | `core.api_version_unknown` | `validation` | 400 | not a version of the app |
-| `core.api_version_retired` | `not_found` | 410 | below the floor |
+| `core.api_version_retired` | `not_found` | 410 | below the floor, named by the request (a retired pin is served under its target, section 18.3; amended 2026-11-12) |
 | `core.protocol_retired` | `not_found` | 410; WebSocket 4404 | a major no longer served |
 | `core.rollout_in_progress` | `unavailable` | 503, `Retry-After` | an older process meets a version, action or protocol it does not know while a target exists |
 | `core.version_change_failed` | `internal` | 500 | a transform failed |
@@ -14112,7 +15283,8 @@ export const placeOrder = defineCommand(checkoutBase, { gate: 'newFlow' /* ... *
 export const exportAll = defineCommand(checkoutBase, { gate: 'exportsEnabled' /* ... */ })   // false: unavailable, core.feature_suspended
 ```
 
-`json` flags take a `schema` (a `shape`) and `number` flags optional bounds; `tenantEditable: true`
+`json` flags take a `schema` (a `shape`) and `number` flags optional bounds (`min`, `max`; the
+registry's flag entry carries the bounds and the schema, amended 2026-11-11); `tenantEditable: true`
 lets tenants override a flag that drives no experiment, through generated actions as for
 configuration (section 5.7); `defineApp({ flags })` declares app-level flags. Flags belong to the
 base, so every part is typed against them. A runtime without flag providers and targeting rows
@@ -14120,6 +15292,9 @@ answers every flag request with the declared default and reason `DEFAULT` (provi
 recorded in the envelope's `flags` like any other read (section 20.5). Reasons are the upper-case
 OpenFeature reasons of section 20.3 everywhere: in `FlagResolution`, in `meta.flags` and in
 `explain`.
+
+Added 2026-11-11: a json flag's value must come out of its shape unchanged: the shape must give
+back exactly the plain JSON it gets (no dates, no defaults, no transforms).
 
 ### 20.3 Evaluation
 
@@ -14162,12 +15337,22 @@ export interface FlagProvider {             // deployment-level ordered extensio
   on first use, and with an asynchronous one the kernel resolves every flag the invoked module can
   read before `authorize`. One invocation sees one snapshot; `core.targeting` keeps all targeting in
   memory, refreshed from the control store's change feed within about a second.
+- Added 2026-11-11: with the change feed down or behind, `core.targeting` reloads the rows by age,
+  so a flag turned off is served as on for at most one second plus one read of the control store,
+  also right after the change feed was subscribed again. One read of the rows may take 5 s, in the
+  store and in the cache, before it counts as failed, and at most two reads are outstanding at
+  once. While the control store is unreadable, the last rows loaded serve for 30 s after the last
+  successful load; then every flag with targeting serves its declared default with `STALE`.
 - An error never fails an invocation: the default is served with `ERROR` and counted, so the
   default must keep established behaviour.
 - An anonymous principal has a targeting key only when the client sends `Keelwerk-Client-Id`;
-  otherwise principal-level flags give the default with `TARGETING_KEY_MISSING`.
+  otherwise principal-level flags give the default with `TARGETING_KEY_MISSING`. Amended
+  2026-11-11: by the flag's level, the targeting key is the backend id, the tenant id or the
+  principal's id, and for an anonymous principal the `Keelwerk-Client-Id` its client sends. The
+  caller chooses that header, so a flag is never an access rule.
 - `flagContextEnrichers` (app level, mode `set`) add attributes once per session. Clients read
-  `client: true` flags with `core.flag.evaluate` (query, tenant scope).
+  `client: true` flags with `core.flag.evaluate` (query, tenant scope), which the runtime answers,
+  as it does `core.me` (amended 2026-11-11).
 
 ### 20.4 Targeting, assignment and history
 
@@ -14176,12 +15361,23 @@ export interface FlagProvider {             // deployment-level ordered extensio
   with `DISABLED`), ordered rules that match listed tenants or principals and a condition over
   attributes (the condition AST of section 8.3, interpreted in memory) and serve a variant or a
   split, and a fallthrough; values are validated on write.
-- Splits hash `SHA-256(salt ‖ ':' ‖ targetingKey)`; the first four bytes over 2^32 give a number
-  in [0, 1), and variants own cumulative ranges in declared order, so raising a rollout's
-  percentage never removes a key. The salt is the flag key, or `exp:<id>:<phase>` for an
-  experiment, whose weights are frozen while it runs.
+- Added 2026-11-11: each `core.flag` row has a unique `slot`, derived by the kernel: the flag key
+  for the deployment-wide row, `<key>@<backendId>` for a backend's row (no flag key holds `@`). A
+  rule's `when` is stored in the authoring form, the object form of section 8.3; the write runs the
+  cache's compile, and a stored row that does not compile is an error of that key only. Bounds: at
+  most 100 rules, 1,000 ids per list and 20 shares per split, a condition of at most 65,536
+  characters and depth 32, a document of at most 1 MiB, and a salt or variant of 1 to 200
+  characters.
+- Splits hash `SHA-256(salt ‖ ':' ‖ targetingKey)`; the first four bytes give an unsigned 32-bit
+  integer (amended 2026-11-11; the golden vectors of `flags/split-hash.test.ts` fix the bytes),
+  split weights are basis points that sum to 10,000, and variants own cumulative integer ranges
+  over that hash in declared order, so raising a rollout's percentage never removes a key. Splits
+  of string, number and json flags keep no declared order, so reordering their shares moves keys
+  (added 2026-11-11). The salt is the flag key, or `exp:<id>:<phase>` for an experiment, whose
+  weights are frozen while it runs.
 - Every change is an event with an actor and a required reason; the stream version is the
-  `ruleVersion`, and `core.flag.restoreRules` goes back.
+  `ruleVersion`, and `core.flag.restoreRules` goes back; it requires `ifVersion` (added
+  2026-11-11).
 
 ### 20.5 Exposure and provenance
 
@@ -14201,7 +15397,8 @@ every variant.
   It compiles to a deny rule `<action ref>.gate` at `authorize` (`forbidden`,
   `core.feature_disabled`), explained by `keelwerk explain` and visible through `core.me`; on a
   `kill-switch` flag it runs at `admit` instead (`unavailable`, `core.feature_suspended`). Gated
-  actions stay in the surface.
+  actions stay in the surface. Added 2026-11-11: gates apply to invoke effects and inline reactions
+  too, with the caller's snapshot; asynchronous work takes a fresh snapshot when it runs.
 - Policies: `where`, `check` and `when` read `ctx.flags`; the plan records the flags its rules
   read, and the token check of section 15.2.6 includes their values, so a flip that changes
   visibility resets tokens.
@@ -14259,6 +15456,11 @@ Targeting addresses the tenants and principals of one backend and is written onl
 core-generated actions; a tenant principal changes only its own tenant's overrides. Evaluation runs
 inside the session's scope, so no rule serves one tenant's value to another; exposures and tallies
 stay in the tenant's namespace, and only counts reach backend scope.
+
+Added 2026-11-11: a rule of a deployment-wide row may not list principals, and a tenant id in a
+rule must belong to the row's backend; a restore does not check that listed tenants still exist. A
+deployment-wide row is checked against the apps the writing process serves, and an app served only
+by another process reports a mismatch at load.
 
 ## 21. Nodes, capacity and autoscaling
 
@@ -14353,6 +15555,7 @@ export interface WorkClassStats {                     // JobQueue.stats per queu
   readonly arrivalsPerSecond: number                  // smoothed over a minute
   readonly meanRunSeconds: number
   readonly running: number
+  readonly queued: number                             // available, scheduled and waiting, never running or dead (added 2026-11-11, section 9.5.5)
   readonly nextDueAt: Temporal.Instant | null
   readonly sloSeconds: number                         // queues.<q>.slo (an ISO 8601 duration, default 'PT30S') in seconds: target wait from due to start
 }
@@ -14470,11 +15673,23 @@ and anchoring stops within it.
 | `keelwerk fleet [list\|show\|watch]` | nodes and processes with roles, capabilities, revision, state, slots and heartbeat |
 | `keelwerk fleet cordon\|uncordon\|drain\|probe\|forget` | stop placing on a node, drain with `--deadline`, rerun probes, remove a gone node |
 | `keelwerk fleet scale status\|explain\|history\|set\|pause\|resume` | desired and current per named process, the last plan, decisions, runtime limits within the deployment's |
-| `keelwerk jobs stats\|lanes\|list\|explain\|replay\|discard\|pause\|resume` | statistics per queue and capability set, the busiest lanes, why a job waits, dead letters, pausing a queue |
+| `keelwerk jobs stats\|lanes\|list\|explain\|replay\|discard\|pause\|resume` | statistics per queue and capability set, the busiest lanes, why a job waits, dead letters (`jobs list` shows dead letters by default; added 2026-11-19), pausing a queue |
 
 `fleet` is the name of the framework's command group (decision 62a); because action commands sit
 under `keelwerk call` (decision 16b), it reserves no module id, and Launchway's `nodes` module
 keeps its id (section 16.9.3).
+
+Added 2026-11-19: behind `keelwerk jobs` stand the core's operator actions `jobStats`, `jobLanes`,
+`jobList`, `jobExplanation`, `pauseQueue`, `resumeQueue`, `replayJob` and `discardJob`, flat names
+because a module action ref has no third part (compare `core.eraseSubject`). A pause stops takes: a
+job taken before the pause was read runs to its end, and a pause is in force at the latest one
+sweep after it is stored (section 9.5.3). Job ids repeat per namespace root, so every action that
+names one job takes `{ namespace?, id }`, on the command line `<id> [--namespace <id>]`. Without a
+namespace the job resolves only when exactly one namespace the caller may act on holds the id;
+otherwise the call is refused as `validation` before anything changes (`replay` and `discard`
+too), and the refusal names only namespaces the caller may see. Listings print the namespace next
+to the id, and machine-readable output carries both as two members. `JobQueue.explain` stays a
+bare job id inside its namespace.
 
 ```
 $ keelwerk fleet scale explain worker
@@ -14608,8 +15823,9 @@ Rules:
 - Every exported module and app value has a named type (section 13.11).
 - The baseline is the latest major of TypeScript and of Node (decision 28a): CI runs on Node 26
   only, the deployment image is built on a Node 26 base image, and `keelwerk doctor` checks Node 26
-  or later; the published packages declare `"engines": { "node": ">=26" }` from the first publish
-  on, and until then no package carries the field (section 13.2).
+  or later; the sources carry no `engines` field, and until Dependabot's updater runs Node 26 the
+  published manifests get `"engines": { "node": ">=26" }` written at publish time
+  (`scripts/release.sh`; section 13.2).
 - Publication (decisions 20, 83 and 85): the code and the design documents may be public on GitHub
   (JensPenneman/keelwerk) from the start, at a moment Jens chooses, with the licence in every
   commit (the history is rewritten so that `LICENSE.md` exists from the first commit). Every commit
@@ -14623,6 +15839,13 @@ Rules:
 - All `@keelwerk/*` packages share one version (lockstep) and one root `CHANGELOG.md`, kept by the
   release tooling (decided 2026-11-04 during M0); no package has a changelog of its own; semantic
   versions; the `core` package's public types are a compatibility contract.
+- Publishing (lead decision 2026-11-10, register entry 494): every release is staged
+  (`npm stage publish`, with provenance) and approved by Jens with his second factor; the first
+  release is staged with a short-lived stage-only token, later ones through trusted publishing with
+  `--allow-stage-publish`; a release that adds a package stages that package with a stage-only token
+  again, because a trusted publisher can only be configured for a package that exists on the
+  registry. Scaffolded packages stay private until they are filled, and every published manifest
+  carries `repository`.
 - The example is the integration test here: CI boots the portal app against PostgreSQL (and the
   in-memory adapter for fast suites; MySQL and SQLite from M5), runs the adversarial isolation
   suite, the transport conformance suite, the dual-evaluation authorization suite, `generate
@@ -14653,7 +15876,8 @@ acyclic:
   `moduleVersionBump`, `refreshHeadEntry` and the ledger functions); the sealing layer
   (`sealingAdapter`, `sealingUnit`, `planEncryption`, `normalizerRegistry`); and `exportCaslRules`,
   `CaslRule`, `MeDocument`, `createOperatorTokenResolver`, `runtimeOperator` and
-  `presumedGoneAfterMs`. `staticScopeDirectory` left the entry (test support only).
+  `presumedGoneAfterMs`. `staticScopeDirectory` left the entry (test support only). Since WP-142
+  (2026-11-17) the entry and `/wire` also export `errorKinds` and `isErrorKind`.
 
 ## 23. Project layout and the single-purpose rule
 
@@ -14673,7 +15897,7 @@ my-platform/
   .launchway/                       the deployment configuration (decision 90c, section 4.6)
     deployment.ts                   the deployment: defineDeployment, the only default export
     launchway.ts                    what only Launchway needs: domains and routes, previews, environment, node
-    compose.yaml                    until Launchway's rebuild (M4): runs keelwerk start --config .launchway/deployment.ts
+    compose.yaml                    until Launchway's rebuild (M4): installs pnpm via npm, then runs keelwerk start --config .launchway/deployment.ts
   apps/<app-id>/                    one package per app, named <scope>/app-<app-id>
     src/modules.ts                  the selection: export const modules = [accounts, auth, rest] as const
     src/app.ts                      defineApp({ id, modules, actions, ... }) with its named type
@@ -14905,7 +16129,7 @@ export const revoke = defineCommand(authBase, credential, {
 
 ```ts
 // modules/auth/src/module.generated.ts (excerpt), as the generator writes it
-// Generated by keelwerk 0.1.0 from the directories of src/. Do not edit. Format keelwerk.module/1.
+// Generated by keelwerk from the directories of src/. Do not edit. Format keelwerk.module/1.
 import { defineModule, type ModuleType } from '@keelwerk/core'
 import { revoke } from './actions/credential/revoke.ts'
 import { login } from './actions/login.ts'
@@ -15240,7 +16464,7 @@ layout pass.
 | `noExcessiveLinesPerFile` (style), 300 non-blank lines, warning | a file long enough to hold two purposes | source files except tests |
 | `noRestrictedImports` (style), per directory | declaration files importing `base.ts`, the manifest or parts; `lib/` importing parts; any file but a test importing `module.generated.ts` | preset overrides, finalised against fixtures |
 | `one-export.grit` | a second exported value | `**/src/**/*.ts` minus assembly files, generated files, library entries and tests |
-| `no-import-effects.grit` | top-level expression statements, `await`, bare imports | `**/src/**/*.ts` minus tests |
+| `no-import-effects.grit` | top-level expression statements, `await`, bare imports | `**/src/**/*.ts` minus tests and benchmark files (`**/*.bench.ts`) |
 | `wiring-only-assembly.grit` | a function or arrow function | `**/src/{base,app,modules}.ts`, and the `module.ts` of a transport or listener module declared with sugar |
 | `pure-parts.grit`, `no-await-in-parts.grit` | clocks, randomness, timers, `fetch` and a bare `yield` in parts; `async` and `await` in parts (section 7.9.6) | module sources minus `src/executors/` |
 | `no-module-state.grit` | top-level `let` and `var`, mutation of a top-level binding | module sources |
@@ -15383,7 +16607,7 @@ module-facing sketch of this document rewritten to the strict forms.
 | CQRS-like execution; requests handled asynchronously | 7.1, 7.4, 9.5 | |
 | Choose which requests are handled synchronously | 7.4, 16.4.7 | Declared per action; the app's map decides how external callers are answered. |
 | Live updates on everything, delivered by a module | 6.7, 9.6, 15.4 | |
-| Nothing truly deleted, everything appended to a chain | 6.6, 15.1, 14.7 | Chain entities are append-only; `state` entities, transient records, receipts and sync clients are operational data that retention purges, with defaults for the operational buffers, which Jens accepted on 2026-10-24 (decision 8a). History is removed only by rules the operator adopts; Launchway's modules suggest none and keep deployment records, logs, previews and effect attempts, reclaiming only runtime artefacts (decision 47c). |
+| Nothing truly deleted, everything appended to a chain | 6.6, 15.1, 14.7 | Chain entities are append-only; `state` entities, transient records, receipts and sync clients are operational data that retention purges (of transient records only the change records of receipts, `transientPurgeTypes`; those of every other stream type are kept, section 15.1.10), with defaults for the operational buffers, which Jens accepted on 2026-10-24 (decision 8a). History is removed only by rules the operator adopts; Launchway's modules suggest none and keep deployment records, logs, previews and effect attempts, reclaiming only runtime artefacts (decision 47c). |
 | Multiple actors online and offline at the same time, handled gracefully | 15.3, 15.4.7 | Offline authorship ships in M6 and collaborative fields in M7 (decisions 9a and 11a; numbers of the roadmap since 2026-10-28). |
 | Database types always live, generated by a TypeScript server or an equivalent, whatever the connection | 13.1, 14.8 | Row types are inferred from definitions and never generated; the generated TypeScript in the type path, the module manifests, mounts parts without defining a type, is rewritten by the dev server on every change and is checked for drift in CI (decision 59b). Tables the framework does not own are described by introspected definitions, checked against the live catalogue at `connect`, in `keelwerk dev` and in CI (decision 14a). |
 | Compiler, linter and toolchain always know what to do | 13.2 to 13.12 | |
@@ -15545,7 +16769,7 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 118 | The take runs unmodified on PostgreSQL 18 | 2026-11-04 | 9.5.3 |
 | 119 | Webhook receivers grant one fixed service principal; `verify` may attach typed claims declared by the receiver, and rules may condition on them | 2026-11-04 | 16.5.8 |
 | 120 | The purity plugins `pure-parts`, `no-module-state` and `no-await-in-parts` also run on app sources (`**/apps/*/src/**`), since an app's `src/actions/` and `src/policies/` hold parts like a module's | 2026-11-04 | 13.9 |
-| 121 | Packages carry no `engines` field in M1, because Dependabot's updater refuses `"node": ">=26"`; `keelwerk doctor` checks Node 26 or later, and the lead decides between the field and Dependabot's version updates before the first publish (roadmap M1, criterion 12) (M1 plan S-01) | 2026-11-04 | 13.2, 22, roadmap M1 |
+| 121 | Packages carry no `engines` field in M1, because Dependabot's updater refuses `"node": ">=26"`; `keelwerk doctor` checks Node 26 or later, and the lead decides between the field and Dependabot's version updates before the first publish (roadmap M1, criterion 12) (M1 plan S-01). Amended 2026-11-05: the committed manifests stay without `engines`; the release step writes `"engines": { "node": ">=26" }` into every published `package.json` at publish time (`with_publish_engines` in `scripts/release.sh`) until Dependabot's updater runs Node 26 (M1 plan S-116, WP-65). | 2026-11-04 | 13.2, 22, roadmap M1 |
 | 122 | The undefined types of the code blocks are defined where they are used; `Scope` is `StorageScope` without its namespace level, a principal's `scope` stays `{ backend, tenant }` (M1 plan S-02) | 2026-11-04 | 7.7, 8.5, 9.2, 14.3.2, 14.3.9, 14.6.2, 14.6.7, 14.7.4, 15.1.7, 16.3.2 |
 | 123 | The adapter contract grows by members with their users; M1's `Unit`, `JobStore` and `EventStore` carry only what M1 implements, M2 adds the rest (M1 plan S-03) | 2026-11-04 | 14.3.2, roadmap 1 and 3 (M1, M2) |
 | 124 | Ported fixtures and the generator follow section 23: entity actions under `actions/<entity>/`, import aliases only on a clash, fills named `<point>Fill`, and the generated header of section 23.5 (M1 plan S-04) | 2026-11-04 | no text change (sections 23.2 to 23.5 already state it) |
@@ -15633,18 +16857,18 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 206 | A deployment-scope unit sets `keelwerk.deployment_id`, which admits control-root rows and `kw_scope_keys`; app roots admit `scope_id = coalesce(<tenant>, <backend>)`; namespace-scope units reach the queue tables through the `take` policy set and every other scoped table through the `maintenance` set. | 2026-11-04 | 14.3.7 |
 | 207 | `kw_job_lanes` has `unique (id, scope_id)`, and `kw_jobs` and `kw_job_lane_counts` link to it by `foreign key (lane_id, scope_id)`, because foreign-key checks bypass row-level security; this departs from the DDL of entry 116 by these constraints only. | 2026-11-04 | 9.5.2 |
 | 208 | `kw_serials` keys on `(scope_id, entity, field, partition)` with `partition` the canonical JSON of the `per` values; `kw_subject_keys` has `key_id text`, `purpose` `data` or `index` and the key `(scope_id, key_id)`; `kw_value_keys` keys on `(scope_id, key_id)`; `kw_usage(scope_id, dimension, value)`; `kw_migrations.checksum` is hex text; the non-key columns of `kw_rate_buckets` and `kw_scope_keys` are `not null`. Stored format final from M1. | 2026-11-04 | 12.2, 14.6.3, 14.7.4, 15.1.4 |
-| 209 | The application role gets `select, insert` only on the append-only `kw_events` and `kw_shapes`, `select, insert, update, delete` on the other framework tables and `select` on `kw_migrations`; creating the role belongs to provisioning, not to the DDL. | 2026-11-04 | 14.3.7 |
+| 209 | The application role gets `select, insert` only on the append-only `kw_events` and `kw_shapes`, `select, insert, update, delete` on the other framework tables and `select` on `kw_migrations`; creating the role belongs to provisioning, not to the DDL. Amended 2026-11-18: kernel maintenance on `kw_events` and `kw_shapes` runs through owner-owned `security definer` functions that the application role may only execute (first: `kw_purge_transient`, framework step 0004). The role keeps `select, insert` only. | 2026-11-04 | 14.3.7, 15.1.11 |
 | 210 | A read's position is `kw_positions.next - 1`, the last position committed in the scope, and 0 for a scope that never appended (with entry 139). | 2026-11-04 | 15.1.4 |
 | 211 | In a relation descriptor `by` is the field on the related rows and `to` the field of the owning row it matches, for to-one and to-many relations alike. | 2026-11-04 | 6.3, 14.3.2 |
 | 212 | Relation quantifiers (`some`, `none`, `every`, `is`) do not count archived related rows, in both interpreters. | 2026-11-04 | 14.3.4 |
 | 213 | An `insert ... select` into a scoped table must list the scope column and select the unit's value as a bound value, else `forbidden`; its inner query and an upsert's update branch carry the scope predicate. | 2026-11-04 | 14.4.3 |
 | 214 | `Logger` methods take `(message, fields?)`, the message first, and `child(bindings)` returns a logger that adds the bindings to every line; the CLI's pino logger is adapted to it. | 2026-11-04 | 11 |
-| 215 | `core.placement`, `core.namespace`, `core.operatorToken`, `core.process`, `core.commandReceipt` and `core.effect` have the fields of the table in section 3.1, backend and tenant `status` is `active` or `suspended`, and `core.commandReceipt` and `core.effect` use the core-only tenancy `invocation`, riding in the scope of the unit that writes them. | 2026-11-04 | 3.1, 4.2, 14.3.2, 16.2.2 |
+| 215 | `core.placement`, `core.namespace`, `core.operatorToken`, `core.process`, `core.commandReceipt` and `core.effect` have the fields of the table in section 3.1, backend and tenant `status` is `active` or `suspended`, and `core.commandReceipt` and `core.effect` use the core-only tenancy `invocation`, riding in the scope of the unit that writes them. Amended 2026-11-11: `invocation` is no longer core-only; a module may declare an invocation-tenancy entity (WP-94, entry 399). | 2026-11-04 | 3.1, 4.2, 14.3.2, 16.2.2 |
 | 216 | `processes.<name>` is a `ProcessDefinition` (`roles`, `capabilities?`, `slots?`, `placements?`, `provider?`, `scale?: { min?, max?, maxPerNode? }`, `drainSeconds?`), and `scaling` is `DeploymentScaling` (`maxProcesses?`, `maxCostPerHour?`, `providers?: { [name]: { max? } }`). | 2026-11-04 | 4.6 |
 | 217 | Contributions to `core` are always active and need no dependency: `contributionsOutsideDependencies` exempts `core`; `defineTransportModule`'s `requires` is optional, and an `extensionPoints` mount takes a list of values as well as a `defineFill` part. | 2026-11-04 | 5.6 |
 | 218 | The app value carries `kind`, `id`, `modules` (core first), `execution`, `appActions`, `authorization`, `policies`, `api`, `flags` and `registry`, the composed `Registry` built once at definition, with the derived types under the optional type-only key `'~types'`. | 2026-11-04 | 4.5 |
 | 219 | `output: typedOutput<T>()` types a result by `T` alone; the registry holds a permissive schema marked as typed output and the surface describes it as an open object (`core.introspect` and `core.capabilities` use it). | 2026-11-04 | 4.3 |
-| 220 | `*.generated.ts` files stay under Biome's check (only `generated/` directories are excluded), so generators sort imports as Biome's organizer does, and drift checks ignore the producer's version. | 2026-11-04 | 13.7 |
+| 220 | `*.generated.ts` files stay under Biome's check (only `generated/` directories are excluded), so generators sort imports as Biome's organizer does, and drift checks ignore the producer's version. Amended 2026-11-11: generated files name no generator version (entry 268), so drift checks have none to ignore (lead decision, F-13 change note before the first publish). | 2026-11-04 | 13.7 |
 | 221 | Import aliases are the camel case of scope, target and export (`credentialSelf`, `accountsProfileSelf`), a part with neither adding its kind (`postEffect`); a contributed part's reference is `<module>.<target module>.<entity>.<name>`; the literal gets `migrations` only when the package has the directory; the Node-only generator entry points are on `@keelwerk/core/manifest`. | 2026-11-04 | 13.7, 22, 23.5 |
 | 222 | A deny rule that lists `fields` hides those fields from the rows it matches, or forbids writes that change them (tested on the pre-image), and never denies the row or the action. | 2026-11-04 | 8.1 |
 | 223 | `auth: { public: true }` removes the need for an allow rule, never the deny rules: a deny whose `when` holds, or whose `where` covers every row, stops a public action at the gate. | 2026-11-04 | 7.3, 8.2 |
@@ -15654,13 +16878,13 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 227 | `RelationOps` follows cardinality: `some`, `none` and `every` over a to-many relation, `is` over a to-one relation. | 2026-11-04 | 8.3 |
 | 228 | A lane's capability set is stored as the job's capabilities, distinct, sorted and joined by a comma, and the empty string for none. | 2026-11-04 | 14.3.9 |
 | 229 | A job made dead also writes its `kw_job_history` row (outcome `dead`), beside keeping its input in `kw_jobs` until replayed or discarded. | 2026-11-04 | 14.3.9 |
-| 230 | Keys act on a pending job of the same key and lane: `keep` returns it, `coalesce` keeps it and moves its `runAt` to the earlier time (available at once when due), and `replace` finishes it as `cancelled`, with history, and enqueues the new job. | 2026-11-04 | 14.3.9 |
+| 230 | Keys act on a pending job of the same key and lane: `keep` returns it, `coalesce` keeps it and moves its `runAt` to the earlier time (available at once when due), and `replace` finishes it as `cancelled`, with history, and enqueues the new job. Amended 2026-11-11: the key mode `append` looks no pending job up; the new job joins the key's FIFO as a follower (`ordering: 'fifo-per-key'`), so every job of the key runs, in order (WP-92). | 2026-11-04 | 9.5.1, 9.5.2, 14.3.9 |
 | 231 | `EventStore.readAll(after)` returns `next` as the position of the last event returned, or `after` when none was. | 2026-11-04 | 15.1.11 |
 | 232 | `NewEvent` carries `shape`, the shape id of its payload, and the envelope's `scope` is the appending unit's `Scope`, the deployment form included, never a fake id. | 2026-11-04 | 15.1.3, 15.1.11 |
 | 233 | `RowStore.count` and `RowStore.exists` agree with `find`: archived rows are left out. | 2026-11-04 | 14.3.2 |
 | 234 | `ReceiptStore.acknowledge` sets `acknowledgedAt` and deletes nothing; an acknowledged receipt stays until it expires. | 2026-11-04 | 15.1.7 |
 | 235 | The in-memory adapter runs one read-write unit per namespace at a time, and a unit that waits longer than its `timeoutMs` fails with `unavailable`, `core.timeout`. | 2026-11-04 | 10, 14.3.6, 14.3.7 |
-| 236 | `defineApp` names the runtime problems `invalidModuleIds`, `invalidAppId`, `camelCaseCollisions`, `dependencyCycles`, `duplicateNames`, `duplicateActions`, `duplicateReactions`, `reservedActionNames`, `reservedEventNames`, `reservedFieldNames`, `invalidActionName`, `invalidRelationName`, `invalidEventName`, `columnCollisions`, `tableCollisions`, `offlineCommands`, `prepareNeedsSyncExecution`, `readRuleFields`, `unknownExtensionPoints`, `singleExtensionPointFillers`, `unknownScheduleActions`, `unresolvedPartReferences`, `inlineExecutorCapabilities`, `unknownHooks` and `asyncReactionsUnavailable`; `emptyExtensionPoints` is a compose warning and a boot error; the app is refused with the first error. | 2026-11-04 | 3.3, 4.7, 5.1, 5.5, 7.3, 7.9.6, 8.1, 9.5.6, 14.4.2 |
+| 236 | `defineApp` names the runtime problems `invalidModuleIds`, `invalidAppId`, `camelCaseCollisions`, `dependencyCycles`, `duplicateNames`, `duplicateActions`, `duplicateReactions`, `reservedActionNames`, `reservedEventNames`, `reservedFieldNames`, `invalidActionName`, `invalidRelationName`, `invalidEventName`, `columnCollisions`, `tableCollisions`, `offlineCommands`, `prepareNeedsSyncExecution`, `readRuleFields`, `unknownExtensionPoints`, `singleExtensionPointFillers`, `unknownScheduleActions`, `unresolvedPartReferences`, `inlineExecutorCapabilities`, `unknownHooks` and `asyncReactionsUnavailable`; `emptyExtensionPoints` is a compose warning and a boot error; the app is refused with the first error. Amended 2026-11-11: `asyncReactionsUnavailable` is a boot check that reads the event worker's `runs` (WP-92). Amended 2026-11-12: the runtime problems gain `mismatchedScheduleScopes` and `invalidScheduleDurations` (WP-82). | 2026-11-04 | 3.3, 4.7, 5.1, 5.5, 7.3, 7.9.6, 8.1, 9.5.6, 14.4.2 |
 | 237 | `TrackRef.track` is the 14.6.1 track id: the owner module's id for its own fields, the contributor's track for contributed ones. | 2026-11-04 | 14.6.1 |
 | 238 | An omitted `.tag(n)` is allocated per track, from 1 in declaration order and skipping declared tags, so switching a contribution or conditional part off never shifts another track's tags. | 2026-11-04 | 4.2 |
 | 239 | PGlite runs Kysely's PostgreSQL dialect over an own driver (the stock one wraps `begin` in `pglite.transaction()` and destroys the instance), which refuses transactions the unit does not own; one session means one unit at a time, `jobs: 'single-writer'`, and no enforced `statement_timeout`. | 2026-11-04 | 14.3.6, 14.3.7 |
@@ -15692,7 +16916,7 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 265 | `kw_rate_buckets.bucket` holds the UTF-8 bytes of the HMAC text the kernel passes to `BucketStore.take` (refines entry 156). | 2026-11-04 | 12.2 |
 | 266 | A personal field's derived columns are named `<field column>__<query>` (`__eq`, `__prefix`, `__contains`, `__order`). | 2026-11-04 | 14.7.9.6 |
 | 267 | A track's directory derives from its id (`own`, `to-<target>`, `when-<module>`, `to-<target>.when-<module>`, several `when` modules joined with `+` in sorted order), and a change with contract steps is split into `NNNN-<name>` and `NNNN-<name>-contract`. | 2026-11-04 | 14.6.1 |
-| 268 | JSON artefacts carry no comment header: the API surface document is the surface itself (sorted keys, two-space indentation), a snapshot names its format in `format`, and the OpenAPI document carries the header as `x-keelwerk-generated` with `producerVersion`, which drift checks ignore. | 2026-11-04 | 13.7 |
+| 268 | JSON artefacts carry no comment header: the API surface document is the surface itself (sorted keys, two-space indentation), a snapshot names its format in `format`, and the OpenAPI document carries the header as `x-keelwerk-generated` with `producerVersion`, which drift checks ignore. Amended 2026-11-11: generated files no longer name the generator's version; the header is `Generated by keelwerk from <source>. Do not edit. Format <format id>.`, the OpenAPI member `x-keelwerk-generated` carries no `producerVersion`, and a release changes version numbers only (lead decision, F-13 change note before the first publish). | 2026-11-04 | 13.7, 23.5 |
 | 269 | A required column added to an existing table is added nullable and tightened by an `alterColumn` in the contract file, instead of carrying a database default until a contract step. | 2026-11-04 | 14.6.4 |
 | 270 | The planner writes one `dropColumn` step per column. | 2026-11-04 | 14.6.2 |
 | 271 | Migrations and provisioning connect as the owner role through `PostgresAdapterOptions.ownerUrl`; without it `schema.apply` and `schema.provision` refuse with `unsupported`. | 2026-11-04 | 14.3.7, 14.6.6 |
@@ -15747,7 +16971,7 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 332 | `SchemaOperations.provision` takes a third argument `{ jobGroups? }`; the SQL schema operations upsert the namespace-wide groups inside the provisioning unit, and the runtime passes the registry's declared namespace groups when it provisions or migrates a namespace; `postgresSchemaOperations` takes a clock, and the job-store conformance cases (`jobStoreCases`, exported by `@keelwerk/testing`) take time from the adapter's injected clock, never from sleeps. | 2026-11-04 | 9.5.2, 14.3.7, 14.10 |
 | 333 | An action entry records the entity its output returns (`ActionEntry.entityOutput { entity, shape: 'row' \| 'page' }`), which the shape stage reads instead of guessing from the output's keys; a relation quantifier met at the shape stage fails closed with `internal`, `core.request_not_allowed`; `runRead` honours `RunReadInput.signal`; `createInvoker` requires the core app; carrier enrichers are accepted and not used in M1; the invoker's sessions registry is a `WeakMap` keyed by the session; a tenant and its backend are assumed co-placed in M1. | 2026-11-04 | 5.6, 8.4, 9.2, 14.3.6, 16.3.4 |
 | 334 | A command's timeout aborts its signal and then waits for the runner to finish; a commit that races the timer is reported as committed, never as `core.timeout`. | 2026-11-04 | 16.4.11 |
-| 335 | Timers that a principal resolver's effects set run under the core module's service principal (`core.module`), since a resolver belongs to no command. | 2026-11-04 | 9.5.6 |
+| 335 | Timers that a principal resolver's effects set run under the core module's service principal (`core.module`), since a resolver belongs to no command. Amended 2026-11-11: the timers of a resolver's effects run as the resolver module's own minted service principal, not as `core.module` (WP-82). | 2026-11-04 | 9.5.6, 12.3 |
 | 336 | The same command id under another principal is `conflict`, `core.idempotency_mismatch`; a `claim` that finds a pending receipt waits up to one second for it, then answers `conflict`, `core.command_in_progress` (retryable). | 2026-11-04 | 7.5 |
 | 337 | `core.commandReceipt` declares what the stores write: `commandId` (unique), `action`, `fingerprint`, `principal` (json), `status` (`pending`, `accepted`, `completed` or `failed`), `outcome`, `apiVersion`, `transport`, `remoteAddress`, `userAgent`, `clientId`, `clientSeq`, `expiresAt` and `acknowledgedAt` (and, since entry 396, `principalResolver` and `principalId`), with `history: 'state'`, tenancy `invocation` and generated set operations off; its table is rendered from that descriptor, and `ReceiptStore.claim(commandId, ...)` answers `'inserted'` or `'exists'`. Stored format final from M1. | 2026-11-04 | 3.1, 15.1.7 |
 | 338 | A `perform` request yielded by `decide` fails with `internal`, `core.effect_in_unit`. | 2026-11-04 | 7.9.4 |
@@ -15757,7 +16981,7 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 342 | The stream type is not part of the chain content; the stream id, globally unique, is. | 2026-11-04 | 15.1.8 |
 | 343 | Domain events carry `schemaVersion` 1 until a module declares another; the value is stored (`kw_events.schema_version`) and hashed. | 2026-11-04 | 15.1.8, 15.1.9 |
 | 344 | Without an anchor no first `prevHash` is trusted, and a transient record among a stream's chained events counts as a missing event; `writer.build` is the build id (the SHA-256 of the canonical build manifest, whose `apiVersions` are per app), written as `development` only before the runtime computed it (WP-43). | 2026-11-04 | 15.1.8, 15.1.9, 19.1 |
-| 345 | An `enqueue`, `invoke` or timer effect for a command of another scope is refused with `internal`, `core.request_not_allowed` in M1; the post-commit enqueue in a short unit of the target scope (like S-24's resolver effects) arrives with the worker in M2. | 2026-11-04 | 7.9.5, 12.3 |
+| 345 | An `enqueue`, `invoke` or timer effect for a command of another scope is refused with `internal`, `core.request_not_allowed` in M1; the post-commit enqueue in a short unit of the target scope (like S-24's resolver effects) arrives with the worker in M2. Amended 2026-11-11: a cross-scope effect is a job in the source scope, committed with the decision, whose action runs in the tenant's own backend unit (no post-commit relay); only a tenant to its own backend is allowed, and a system principal never crosses scopes (WP-82). Amended 2026-11-12: a timer never crosses scopes (WP-82). | 2026-11-04 | 7.9.5, 12.3 |
 | 346 | A command that fails with a non-retryable error after its pending receipt was claimed records a `failed` receipt (kind, code and message in `outcome`) in a short unit after the rollback, so a retry with the same id answers the same error. Nothing is recorded for retryable failures, `unavailable`, `internal`, `core.idempotency_mismatch`, `core.command_in_progress`, a `core.version_mismatch` that did not come from `ifVersion`, or a call without a client command id; a non-retryable failure in `prepare` is recorded like one of the unit. | 2026-11-04 | 7.5, 15.1.7 |
 | 347 | The `prepare` stage no longer refuses commands that declare `prepare`; a `perform` request in `prepare` still fails with `internal`, `core.request_not_allowed` (S-05). `prepare` runs in one read-only unit of the scope; since no effect can run in M1, no effect runs with it open; M2 opens one read-only unit per load and none across a `perform`, as phase 2 of 7.9.4 says. The decision record lists the requested effect ids; `prepare`'s reads and result are not recorded in M1 (open point 470). | 2026-11-04 | 7.9.4, 7.9.6, 15.1.3 |
 | 348 | The `state` a reaction receives is the row right after the reacted-to event; a job's `causation.actor` is the causing actor; the 202 answer of an accepted command skips the shape stage (it carries the receipt, no row); the job inputs and the `core.effect` stream are pinned by golden tests. | 2026-11-04 | 7.7, 9.5.1, 16.4.7 |
@@ -15782,10 +17006,10 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 367 | The value key of a `field.secret()` or `field.verifier()` is `kwv1.<key id>.<nonce>.<ciphertext>` everywhere; loaded rows carry `{ ref }` for secrets and the text for verifiers; a reveal derives with `create: false`; verifiers are opened through `keys.openValue` before `argon2idVerify`. | 2026-11-05 | 14.7.4, 14.8.1, 17.7 (G4) |
 | 368 | A sealed configuration secret is stored as `kwc1.<backend>.<module>.<field>.<keyVersion>.<nonce>.<ct>` (golden vector committed); a reveal refuses a text of another backend or module. Stored format final from M1. | 2026-11-05 | 5.7, 14.7.4 |
 | 369 | The decision record keeps an issued token's verifier in its sealed `kwv1` form under the row's value key, never in plaintext: destroying the key makes the former verifier unreadable, while a live key lets a re-decide reproduce it. | 2026-11-05 | 7.9.6, 14.7.4 |
-| 370 | Lists or sets of secrets, event payloads that declare a credential and configuration shapes with such members are refused rather than sealed; effect inputs with personal or secret fields are refused until they are sealed under the subject's key; a non-entity command whose output has a personal field is refused at compose until receipts seal outputs; effect outputs that carry secrets have no sealing rule yet (open point 456). | 2026-11-05 | 7.9.5, 14.7.4, 15.1.7 |
+| 370 | Lists or sets of secrets, event payloads that declare a credential and configuration shapes with such members are refused rather than sealed; effect inputs with personal or secret fields are refused until they are sealed under the subject's key; a non-entity command whose output has a personal field is refused at compose until receipts seal outputs; effect outputs that carry secrets have no sealing rule yet (open point 456). Amended 2026-11-11: personal effect inputs are sealed under the subject's key (WP-72), and effect inputs and outputs that carry secrets follow the rule of open point 456 (WP-72, WP-93; ADR 0017); a non-entity command's personal output stays refused. | 2026-11-05 | 7.9.5, 14.7.4, 15.1.7, gap G4, ADR 0017 |
 | 371 | The draft type of a `field.secret()` member is `string \| SecretRef`; the decide context has `ctx.secrets.issue`; a command's `trace: { input: 'sealed', retention? }` makes the decision record keep its sealed input; `createKeyService` gains `fork()` (`ForkableKeyService`), so the dry run holds new value keys in memory; the replay answerers answer `secret`. | 2026-11-05 | 6.6, 7.9.3, 7.9.10 |
 | 372 | A value key is destroyed when its value is replaced or cleared and when its row is archived; purge and the keys of effect records are not wired (no purge in M1); configuration is sealed under the backend key only (no tenant override in M1), and `createBackend` validates, then checks the name, then seals. | 2026-11-05 | 5.7, 14.7.4 |
-| 373 | `checkLedger` compares `surfaceHash` and `modules` for the head entry only; released entries are checked for presence and order (additive changes reach every version, released entries are never edited). A version is retired below the oldest declared version or past its entry's sunset (410); any other undeclared date is unknown (400); pins follow the same rules, so a retired or unknown pin fails the request (the re-pin event of 18.5 is M2). `openSession` passes the principal to `resolveVersion`. | 2026-11-05 | 13.7, 18.2, 18.3 |
+| 373 | `checkLedger` compares `surfaceHash` and `modules` for the head entry only; released entries are checked for presence and order (additive changes reach every version, released entries are never edited). A version is retired below the oldest declared version or past its entry's sunset (410); any other undeclared date is unknown (400); pins follow the same rules, so a retired or unknown pin fails the request (the re-pin event of 18.5 is M2). `openSession` passes the principal to `resolveVersion`. Amended 2026-11-12: a retired pin is served under its target, the oldest served version newer than it (the head when there is none); only a retired version the request names is 410 (section 18.3). | 2026-11-05 | 13.7, 18.2, 18.3 |
 | 374 | A plain `generate-surfaces` run creates `ledger.json` when missing and otherwise brings only the head entry's `surfaceHash` and `modules` to what the sources imply (`refreshHeadEntry`; the head is the working entry until `surface version new` cuts it); released entries are never touched; `--check` reports head drift until the run is repeated. The version travels in the `Keelwerk-Version` header only: the HTTP host copies a GET's query parameter into it, and the WebSocket hello is M2. | 2026-11-05 | 13.7, 18.3, 18.6 |
 | 375 | The breaking classes gain `authChanged`, `scopeChanged` and `instanceChanged`; `inputFieldRemoved` is breaking; a change of a `wide` integer is a type change; a removed default is `inputMadeRequired`; a change to a `json` or `foreign` schema is breaking unless an output union grew; a removed error code is neutral and a removed event breaking; widening a scope to `invocation` from a scope it still accepts is not breaking. | 2026-11-05 | 18.4, 18.6 |
 | 376 | In M1 the layout pass compares the sources with the generated manifests and the `base.ts` and `app.ts` files, enough for every drift kind of 23.13; comparing with a registry a probe composes is M2. The core module is a sugar root for the pass; fixture modules without a migrations folder are exempt from the "adds data" check (S-13); doctor opens each placement's adapter without migrating to list the fallbacks. | 2026-11-05 | 13.12, 23.13 |
@@ -15810,8 +17034,8 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 395 | `HttpContext.path` (required) is relative to the mount: the host strips the tenant prefix and the mount's base path; `basePath` is the tenant prefix plus the mount prefix, for links; transports never strip. This amends entry 280. | 2026-11-05 | 16.3.3 |
 | 396 | The 202 `Location` is followable by the submitter: `core.commandReceipt` has the flat optional columns `principalResolver` and `principalId` (copies of the principal reference, written by the kernel), a core rule `allow get where principalResolver = caller.ref.resolver and principalId = caller.ref.principalId` lets the receipt's own principal read it, a caller without `ref` matches no row, and the json `principal` document is hidden from reads. The receipt fields grow by these additive columns. | 2026-11-05 | 3.1, 15.1.7, 16.4.7 |
 | 397 | Taking over an expired receipt and `acknowledge` take `version + 1` and set `updated_at` on both adapters, so the ETag never answers a stale 304. | 2026-11-05 | 15.1.7, 16.4.9 |
-| 398 | An `invocation` entity has its own table layout: system columns `id`, `created_at`, `updated_at` and `version`, the scope column `scope_id`, no `archived_at` and no `kw_*` columns, carried by the storage layer (`EntityTable.systemFields`, `archivable`, `scopeColumn`, layout-aware row queries) with the scope predicate `scope_id = <tenant, backend or deployment id>`; `core.commandReceipt` and `core.effect` share it (as built); the memory adapter stores receipts as rows of the entity store. Stored format final from M1. | 2026-11-05 | 14.3.7, 14.4.2, 14.4.3, 15.1.7 |
-| 399 | Neither adapter's `put` takes over an expired receipt; `claim` does, on both. Reads of an `invocation` entity accept tenant, backend and deployment sessions, each in its own scope: `ActionEntry.scope` and `SurfaceAction.scope` gain `'invocation'`, from the tenancy only (the DSL cannot declare it). The 202 `Location` is written only when the receipt's scope is the session's, so a backend-scope async action called from a tenant session answers 202 without `Location`; `watch` and `changes` on receipts need the transient change records of 15.1.10 (M2). | 2026-11-05 | 8.8, 15.1.7, 16.4.7 |
+| 398 | An `invocation` entity has its own table layout: system columns `id`, `created_at`, `updated_at` and `version`, the scope column `scope_id`, no `archived_at` and no `kw_*` columns, carried by the storage layer (`EntityTable.systemFields`, `archivable`, `scopeColumn`, layout-aware row queries) with the scope predicate `scope_id = <tenant, backend or deployment id>`; `core.commandReceipt` and `core.effect` share it (as built); the memory adapter stores receipts as rows of the entity store. Stored format final from M1. Amended 2026-11-11: an `invocation` entity without `kw_*` columns reads its chain state from the last record of its stream, in one bounded read (the lead's binding for WP-93). | 2026-11-05 | 14.3.7, 14.4.2, 14.4.3, 15.1.7 |
+| 399 | Neither adapter's `put` takes over an expired receipt; `claim` does, on both. Reads of an `invocation` entity accept tenant, backend and deployment sessions, each in its own scope: `ActionEntry.scope` and `SurfaceAction.scope` gain `'invocation'`, from the tenancy only (the DSL cannot declare it). The 202 `Location` is written only when the receipt's scope is the session's, so a backend-scope async action called from a tenant session answers 202 without `Location`; `watch` and `changes` on receipts need the transient change records of 15.1.10 (M2). Amended 2026-11-11: `invocation` is no longer the core's own: a module may declare an invocation-scope action and an invocation-tenancy entity (S-161: the ticket, with `publicId`, `verifier`, `endpoint`, `principalResolver` and `principalId`); this replaces "from the tenancy only (the DSL cannot declare it)" (WP-94). | 2026-11-05 | 3.1, 4.2, 8.8, 14.3.2, 15.1.7, 15.4.6, 16.4.7 |
 | 400 | `MountContext.deploymentId`; `@keelwerk/core/http` exports the host's shared helpers and `clearedCookie`; `@keelwerk/testing` exports `describeTransportConformance`, `TransportCodec`, `TransportTarget`, `transportTargetOf` and `startTransportRuntime`, with the REST codec in transport-rest's tests and the protocol codec in transport-http's (testing imports no transport); the streaming and selection-limit scenarios are written and skipped as `m2`. | 2026-11-05 | 16.3.2, 16.3.8 |
 | 401 | A key derivation requested inside a deployment-scope command uses the command's open unit (single-unit adapters cannot open a second deployment unit); the key service reaches the command's unit through an explicit unit-bound view (`ForkableKeyService.within(store)`, `ScopeKeyWrapper.within?(store)` bound by the SQL unit, the write path handing `run.keys.within(unit.scopeKeys)` to decide, sealing and effects), never an ambient channel; adapters receive the wrapper as `AdapterEnvironment.keyWrapper` (the memory adapter ignores it). | 2026-11-05 | 7.9.10, 14.7.4 |
 | 402 | Operator tokens carry the prefix `kwo`; they are issued only over the socket or by an operator who did not sign in with a token (a token never mints another), live 12 hours by default and at most 30 days; `core.operatorToken` gains `publicId` (unique; keeps the tags); a `kwo_` bearer is deployment scope only on the deployment's `operator.hosts` (`InvokerOptions.operatorHosts`) and `unauthenticated` elsewhere; the CLI has `operator token issue\|revoke\|list`. | 2026-11-05 | 3.1, 3.5, 16.8.3, 16.9.7 |
@@ -15830,34 +17054,34 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 415 | The core module defines the deployment-scope operator commands `core.backend.create` and `core.tenant.create` (`creates: true`, principal `operator`), served by the kernel through the runtime's control path (catalogue, placement and version checks, configuration check and sealing under a pinned id, the write, the directory refresh and, unless replayed, the tenant hooks), so the CLI creates backends and tenants over the operator socket; `Runtime.control` delegates to the same path; an existing receipt skips the checks and replays. | 2026-11-05 | 3.1, 5.1, 16.9.7 |
 | 416 | `generated: { create: false }` leaves an entity's generated `create` off, and the batch `set` fails its create items with `unsupported`, `core.unsupported`; `core.backend` and `core.tenant` set it. | 2026-11-05 | 4.2, 6.7 |
 | 417 | Tenant work over the operator socket names the tenant in the `x-keelwerk-tenant` header on each request; between `resolvePrincipal` and `resolveVersion`, for operator carriers only, the invoker requires an entry: the latest `core.tenant.entered` by the same actor (via and id) within 12 hours, read from a bounded tail and only for `actor.kind === 'operator'`. A malformed or unknown tenant or a wrong backend is `not_found`, a suspended one `unavailable`, no entry `forbidden`, `core.tenant_not_entered`. The CLI has `tenant enter <name\|id> --reason [--backend]` and `--tenant` on action calls (deployment-level groups refuse it, exit 2). | 2026-11-05 | 8.8, 10, 16.8.3 |
-| 418 | An accepted answer carries `receiptId` (`Outcome.receiptId`, `InvokeResponse.receiptId`) only when the receipt's scope is the session's; `--wait` polls `core.commandReceipt.get` on the same link every 250 ms, doubling to 2 s, and on `completed` or `failed` re-sends with the same command id so the replay prints the value or the error; a missing receipt is `cli.receipt_not_found` (exit 6), a timeout prints the receipt and `cli.wait_timeout` (10), an answer without `receiptId` `cli.wait_unavailable` (11), and a bare `--wait` waits until interrupted (130); with no worker in M1 an accepted command's `--wait` ends at its timeout; `--wait-effects` stays `core.live_unavailable`; operators may read `core.effect`. | 2026-11-05 | 16.8.2, 16.9.4, 16.9.5 |
+| 418 | An accepted answer carries `receiptId` (`Outcome.receiptId`, `InvokeResponse.receiptId`) only when the receipt's scope is the session's; `--wait` polls `core.commandReceipt.get` on the same link every 250 ms, doubling to 2 s, and on `completed` or `failed` re-sends with the same command id so the replay prints the value or the error; a missing receipt is `cli.receipt_not_found` (exit 6), a timeout prints the receipt and `cli.wait_timeout` (10), an answer without `receiptId` `cli.wait_unavailable` (11), and a bare `--wait` waits until interrupted (130); with no worker in M1 an accepted command's `--wait` ends at its timeout; `--wait-effects` stays `core.live_unavailable`; operators may read `core.effect`. Amended 2026-11-17: the submitter reads the status views `core.effectStatus` (one id) and `core.effectStatusWatch` (ids), and `--wait-effects` and `waitForEffects` follow the watch and answer statuses, not outcomes; "operators may read `core.effect`" no longer holds, since no core rule lets anyone read it through the API (WP-141, WP-105). | 2026-11-05 | 7.9.5, 16.4.7, 16.8.2, 16.8.4, 16.9.4, 16.9.5 |
 | 419 | The validate stage turns `undefined` into `{}` when the action's input is an empty shape and accepts `undefined` for a `void` input; `null` stays refused. | 2026-11-05 | 9.2 |
 | 420 | `--settings` replaces `--config` on `backend create` (`--config` is the global flag); project mode picks the app by looking the backend up by name or id. | 2026-11-05 | 16.9.2, 16.9.4 |
-| 421 | A control create's fingerprint covers the client's input (`RunCommandInput.fingerprintInput`), so sealed values never reach it; the fingerprint of a command whose input carries secret members is a keyed digest (HMAC-SHA-256 under HKDF(control scope key, `keelwerk/fingerprint/v1`)), so receipts and `inputDigest`s never let a reader check guesses of a plaintext secret, while inputs without secret members keep the plain SHA-256; a control create in replay mode never runs the write path (`RunCommandInput.replayOnly` answers the retryable `core.command_in_progress` when the receipt turns out inserted), so an expired-receipt takeover cannot store unsealed configuration. Stored format final from M1. | 2026-11-05 | 7.5, 15.1.7 |
+| 421 | A control create's fingerprint covers the client's input (`RunCommandInput.fingerprintInput`), so sealed values never reach it; the fingerprint of a command whose input carries secret members is a keyed digest (HMAC-SHA-256 under HKDF(control scope key, `keelwerk/fingerprint/v1`)), so receipts and `inputDigest`s never let a reader check guesses of a plaintext secret, while inputs without secret members keep the plain SHA-256; a control create in replay mode never runs the write path (`RunCommandInput.replayOnly` answers the retryable `core.command_in_progress` when the receipt turns out inserted), so an expired-receipt takeover cannot store unsealed configuration. Stored format final from M1. Amended 2026-11-18: "Stored format final from M1" is superseded by the two digests, `kwf1.` for the receipt fingerprint and `kwb1.` or `kwd1.` for the event meta's `inputDigest`; the 0.1.0 form is kept only for comparison (WP-158). | 2026-11-05 | 7.5, 15.1.7 |
 | 422 | The backend and tenant headers carry ids; the CLI resolves a backend name to its id once per run before tenant-scoped requests. | 2026-11-05 | 16.8.2 |
 | 423 | `db apply`, `db status` and `db verify` run against the deployment file only (a profile or the socket is refused with a message: no core action applies migrations or reads chains); namespaces are built as shared tables (`schema-per-tenant` is not handled); `db verify` resolves its scope targets from the `core.backend` and `core.tenant` rows and checks them with `verifyAnchors`. | 2026-11-05 | 14.6.4, 16.9.7 |
 | 424 | `surface diff` reports dangerous changes without failing (there is no changelog acknowledgement yet); the per-module check that a package bump fits the surface waits for a module-alone surface at the base; a removed version fails unless it is below the oldest declared one. | 2026-11-05 | 18.6 |
 | 425 | `generate` writes a module's first migration only when its package has a `migrations/` directory (later changes go through `db generate`), and the migrations producer is check-only; transport type fragments are not wired; the workspace walk also finds `apps/*` and `modules/*`; the producers run in a child `node --conditions=@keelwerk/ source` unless the condition is already in `execArgv`; the build id, the namespace root, the control namespace and the recorded deployment id are core functions shared by runtime and CLI; the CLI manifest `keelwerk.cli/1` is a generated artefact; the root scripts `manifests`, `surfaces` and `fixtures:migrations` are aliases of `keelwerk generate --only ...`. A committed migration file is never edited: a later change of a committed track is a new file (`0002-related-to` in the library fixture, `0002` of module-accounts; S-96, S-110), while tracks not yet committed are regenerated rather than extended (S-112). | 2026-11-05 | 13.7, 14.6.3, 16.9.7, 23.1 |
 | 426 | A declared index on a personal (sealed) field maps to its blind-index `__eq` column, because the ciphertext carries a fresh nonce per row and an index on it never sees a duplicate; a personal field without an `eq` index cannot be indexed (a plan-time problem). | 2026-11-05 | 14.6.2, 14.7.9.6 |
 | 427 | A unique-index violation raised in a command's unit repeats the unit once, so `decide` sees the committed row and answers the module's declared error (`auth.identifier_taken`, `accounts.email_taken`); a second violation is `conflict`; outside a command a unique violation stays `conflict`. | 2026-11-05 | 7.9.4, 14.3.6 |
-| 428 | The session cache is keyed by a digest of the whole token and dropped by the session's and the credential's change records (a resolver cache entry names a list of rows); IPv6 addresses are bucketed by their /64 prefix; one rule per action (decision 60b) with ids `auth.<action>.<name>`, no rule arrays; the session cookie expires at the idle expiry in M1 (sliding is M2). | 2026-11-05 | 16.4.10, 17.2.4, 17.2.6, 17.2.8 |
+| 428 | The session cache is keyed by a digest of the whole token and dropped by the session's and the credential's change records (a resolver cache entry names a list of rows); IPv6 addresses are bucketed by their /64 prefix; one rule per action (decision 60b) with ids `auth.<action>.<name>`, no rule arrays; the session cookie expires at the idle expiry in M1 (sliding is M2). Amended 2026-11-12: no resolution cache is built yet (`cache` only feeds `dependsOn`); when one is built it must drop on any change record, the erased record included (WP-100). | 2026-11-05 | 16.4.10, 17.2.4, 17.2.6, 17.2.8 |
 | 429 | `ContributionsTo<Ms, I>` filters a module's contributions once per module (fold at 25 modules 510,100 to 213,162), and the synthetic budgets are the measured figures plus 15 %: fold 246,000 and 412,000, whole program 1,500,000 and 2,327,000 at 25 and 40 modules; `module-auth` has a per-package override of 11,776 manifest and 56,064 package bytes; the portal app's budget is 65,355 and the conformance app's 342,968 instantiations; the budget file lives in `scripts/type-budgets` with per-package overrides, and its test fixture carries the app entries. This replaces the figures of entry 283. | 2026-11-05 | 13.11 |
 | 430 | A root under `test/fixtures` never shadows a workspace module with the same id; two workspace roots sharing an id are a failure; the migrations producer checks every module package that has a `migrations/` directory. | 2026-11-05 | 23.5 |
 | 431 | `@keelwerk/testing` imports no transport, and `@keelwerk/transport-rest` has a one-way dev dependency on `@keelwerk/transport-http`; module packages may carry `@keelwerk/adapter-postgres` as a dev-only dependency for their PostgreSQL tests; `@keelwerk/cli` depends on `@opentelemetry/api` (the core's version) and has the dev-only dependencies `@keelwerk/testing` and `@keelwerk/transport-http`; the portal may carry `pg` and `@types/pg` as dev dependencies; the graph stays acyclic. | 2026-11-05 | 22 |
 | 432 | The CLI writes its own completion scripts: `keelwerk completion bash\|zsh\|fish` prints a script that calls back `keelwerk __complete`, which answers from the cached surface without a network call; `@stricli/auto-complete` is unused (still declared, ignored by knip). | 2026-11-05 | 16.9.9 |
 | 433 | `keelwerk new module` writes `test/alone.test.ts` against `startTestRuntime` and `createLocalClient`, beside the type test that composes with `defineApp`. | 2026-11-05 | 16.9.8 |
-| 434 | `defineDeployment` throws on infrastructure entries without `provides` (adapter factories, ledger sinks), so the `init` template default-exports a `DeploymentDefinition` literal; `startRuntime` neither builds the `httpHost(...)` entry nor calls `listen()`: the CLI's `bootApp` builds the host over the runtime's invoker and opens it after startup. Both are interim (open point 458). | 2026-11-05 | 3.3, 4.6 |
-| 435 | The dev PGlite directory holds one database per entry (`control`, `<placement>`); the probe names a hanging import through a child hook, with a default limit of 10 seconds; right after `init`, `generate --check` exits 1 until `pnpm install` has run, and `init`'s next line says `pnpm install && pnpm exec keelwerk generate && pnpm exec keelwerk dev`; `init` writes `.launchway/tsconfig.json`; the served host gets the deployment's `telemetry.otlp` through `@opentelemetry/api`; the 1-second restart target was not met on a loaded machine (1.4 to 14 s, open point 459). | 2026-11-05 | 13.6, 16.9.7 |
+| 434 | `defineDeployment` throws on infrastructure entries without `provides` (adapter factories, ledger sinks), so the `init` template default-exports a `DeploymentDefinition` literal; `startRuntime` neither builds the `httpHost(...)` entry nor calls `listen()`: the CLI's `bootApp` builds the host over the runtime's invoker and opens it after startup. Both are interim (open point 458). Amended 2026-11-10: the runtime owns the HTTP host; its `listen` phase builds the `httpHost(...)` entry and calls `listen()`, `Runtime` gains `port?` and `operatorSocket?`, and `bootApp` builds no host of its own (WP-74). | 2026-11-05 | 3.3, 4.6 |
+| 435 | The dev PGlite directory holds one database per entry (`control`, `<placement>`); the probe names a hanging import through a child hook, with a default limit of 10 seconds; right after `init`, `generate --check` exits 1 until `pnpm install` has run, and `init`'s next line says `pnpm install && pnpm exec keelwerk generate && pnpm exec keelwerk dev`; `init` writes `.launchway/tsconfig.json`; the served host gets the deployment's `telemetry.otlp` through `@opentelemetry/api`; the 1-second restart target was not met on a loaded machine (1.4 to 14 s, open point 459). Amended 2026-11-10: the probe's single default limit of 10 seconds is replaced by the two stall limits of entry 488, restarted by every progress event: 10 seconds while a project module import is in flight, 60 seconds while the probe does its own work. | 2026-11-05 | 13.6, 16.9.7 |
 | 436 | `CliHost` gains `promptLine(label)` (echoing; `promptSecret` stays for secrets) and `spawn`, `schedule` and `watchTree`; `keelwerk` exits on SIGTERM with the command's code after a completed stop and on SIGINT with 130. | 2026-11-05 | 16.9.5, 16.9.10 |
 | 437 | Whether a migration track is active is decided per app from its selected modules by one predicate of `@keelwerk/data` (exposed on `SchemaPlanner`), applied by the runtime's namespace preparation and the CLI's track list alike, so `db apply` and the build id agree; a process serving two apps filters per namespace. | 2026-11-05 | 14.6.1 |
 | 438 | Under `within()`, the optional module's loads and services sit beside `ifPresent` when the module is selected. | 2026-11-05 | 5.4 |
 | 439 | `accounts.profile.changePassword` shares `reauthenticate`'s per-subject failure bucket (charged only when a current password was given); a reset request issues the id and the secret in both branches (the insert's timing difference is a known gap until M2's keyed job); a reset or a password change marks every other unused reset token of the credential as used; a password change rotates the current session (17.2.3), its new token shown once. | 2026-11-05 | 17.2.3, 17.2.5 |
-| 440 | `register-profile` never pre-checks profiles: it invokes `accounts.register` after the registration gate, so registration off answers `forbidden` for every address; in M1 a taken address answers `accounts.email_taken` (declared on `auth.signUp`) because a failed `invoke` effect cannot be remapped yet (open point 463); `link-profile` links only a profile the sign-up reaction created (`actor.kind === 'system'`), never a stranger's unlinked credential; the credential-to-profile relation joins on the explicit, indexed `profileId` column, not `subject`; the reset delivery contract's token member is secret, and fillers arrive with sealed effect inputs in M2 (S-43). | 2026-11-05 | 5.3, 17.2.2, 17.2.5 |
+| 440 | `register-profile` never pre-checks profiles: it invokes `accounts.register` after the registration gate, so registration off answers `forbidden` for every address; in M1 a taken address answers `accounts.email_taken` (declared on `auth.signUp`) because a failed `invoke` effect cannot be remapped yet (open point 463); `link-profile` links only a profile the sign-up reaction created (`actor.kind === 'system'`), never a stranger's unlinked credential; the credential-to-profile relation joins on the explicit, indexed `profileId` column, not `subject`; the reset delivery contract's token member is secret, and fillers arrive with sealed effect inputs in M2 (S-43). Amended 2026-11-11: a failed `invoke` can be remapped (open point 463, WP-92). Amended 2026-11-17: `link-profile` tests the event's causation id (`event.causationId`) instead of `actor.kind`; the identifier and the `linkPending` marker stay the guard (open point 463, WP-103). Amended 2026-11-18: the sign-up of an address that has a profile answers `auth.identifier_taken` (WP-103). | 2026-11-05 | 5.3, 17.2.2, 17.2.5 |
 | 441 | Revoking a subject's other sessions and retiring a credential's reset tokens load at most 1,000 rows; a full page is refused with `conflict`, `auth.too_many_records`, rather than leaving live rows behind. | 2026-11-05 | 10, 17.2.3 |
 | 442 | On a REST response the transport layer deduplicates every `Set-Cookie` by name across the route's own cookies and the session's clears (a login's set wins over the stale-session clear), and a void (204) answer still carries the action's cookie hints, so logout clears the cookie. | 2026-11-05 | 16.3.4, 16.4.10 |
 | 443 | Every error on a REST path, CSRF refusals and errors before the session opens included, is `application/problem+json` with its code; the protocol path keeps its envelope. | 2026-11-05 | 16.5.3, 16.5.4 |
 | 444 | A principal-resolver fill declares its `describe()` output statically, so surfaces and OpenAPI `securitySchemes` need no bound runtime. | 2026-11-05 | 16.2.2, 16.5.5 |
-| 445 | A re-decide answers `history: 'state'` loads from the transient `kw_events` records (`replay/read-state-as-of-position.ts`): a stream with records after the position folds back from `readStream(ref, { toVersion: first.version - 1 })` (unbroken from version 1, else refused), a stream whose first later record is `created` did not exist, any other is the current table row (archived included); projections and externals stay refused. `AsOfContext` carries a `FeedHorizon { decidedAt, retainedSince }` (default `P7D`, the `transientRecords` rule), and a state read in a decision older than the horizon is refused with `unsupported`, `core.replay_outside_horizon`. The folded row hands back sealed values (`kwv1` text) as live reads do. Transient records carry only the new values; before-images (M2) would let rows older than the horizon re-decide. | 2026-11-05 | 7.9.6, 14.7.1, 15.1.10 |
+| 445 | A re-decide answers `history: 'state'` loads from the transient `kw_events` records (`replay/read-state-as-of-position.ts`): a stream with records after the position folds back from `readStream(ref, { toVersion: first.version - 1 })` (unbroken from version 1, else refused), a stream whose first later record is `created` did not exist, any other is the current table row (archived included); projections and externals stay refused. `AsOfContext` carries a `FeedHorizon { decidedAt, retainedSince }` (default `P7D`, the `transientRecords` rule), and a state read in a decision older than the horizon is refused with `unsupported`, `core.replay_outside_horizon`. The folded row hands back sealed values (`kwv1` text) as live reads do. Transient records carry only the new values; before-images (M2) would let rows older than the horizon re-decide. Amended 2026-11-10: the before-images of transient records are deferred to M5 (M2 plan S-129, entry 496). | 2026-11-05 | 7.9.6, 14.7.1, 15.1.10 |
 | 446 | `ctx.compute.argon2idNeedsRehash(verifier)` is a compute request: the kernel opens the sealed verifier and compares its parameters with the current ones; it is reproducible and not recorded. A login rehashes only when the parameters differ (passing the sealed text to a plain check made every login rehash and destroy the previous key). | 2026-11-05 | 7.9.3, 17.2.2 |
 | 447 | A re-decide takes the runtime's `KeyService` in the recorded scope (`RedecideInput.keys`): `issue` is answered from the record, `verify` and `reveal` live; a destroyed key refuses with `unsupported`, `core.replay_key_destroyed`, reported as `RedecideResult.refused`. | 2026-11-05 | 7.9.6, 10 |
 | 448 | `RedecideInput` gains `clock`, `feedHorizon?`, `keys` and `request` (the unrecorded request information, user agent and address, supplied like `--input` in M1); a re-decide also re-runs the inline reactions with their recorded reads and compares their writes; instants compare at millisecond precision because stores keep `timestamptz(3)`; `expectReproduces` uses the test runtime's keys, clock and configuration, its own compute pool and accepts a core `Principal`, so exit criterion 8 covers login, logout and reset. | 2026-11-05 | 7.9.6, 16.8.5 |
@@ -15962,7 +17186,8 @@ Data:
   (section 20.8); gap G12 may need a dispatch-time event-type filter held as data, because module
   code may not run inside consumers (section 15.2.3).
 - Should the chain's `$kwe` envelope also pad values to 16-byte buckets, so that events and state
-  tables reveal the same length class (section 14.7.9.6)?
+  tables reveal the same length class (section 14.7.9.6)? (Amended 2026-11-18: version 2 of the
+  envelope pads to a multiple of 32 bytes, section 14.7.4.)
 - Can the migration role on the home PostgreSQL create an operator class for order tokens?
   `CREATE OPERATOR CLASS` needs a superuser, and CipherStash reports the same. Is an own TypeScript
   implementation of Lewi-Wu block ORE acceptable, or must `order` (M5, decision 69a) wait for an
@@ -16293,8 +17518,8 @@ registry on 2026-11-18. Licences not re-checked.
 | `eventsource` | 5.1.5 | 2026-11-08 | the server-sent events client of the tests |
 | pnpm | 11.28.12 (the `packageManager` pin; 12 follows on its own) | 2026-11-13 | the workspace |
 | npm | 11.21.2 (release workflow) | 2026-11-04 | the release job that stages packages |
-| Node.js image | `node:26.13.1-trixie` (the Debian variant: the root `prepare` script needs git) | 2026-11-11 | the container of `.launchway/compose.yaml` |
-| PostgreSQL image | `postgres:18.7-alpine` | not recorded | the tests of `@keelwerk/testing` |
+| Node.js image | the tag in `pins/node.Dockerfile`, its source (the Debian variant: the root `prepare` script needs git) | 2026-11-11 (the date of `node:26.13.1-trixie`, the pin on 2026-11-18) | the container of `.launchway/compose.yaml` |
+| PostgreSQL image | the tag in `pins/postgres.Dockerfile`, its source | not recorded | the tests of `@keelwerk/testing` |
 
 ## Appendix B. Verified typing listing
 
