@@ -34,7 +34,7 @@ export interface RuntimeOptions {
    * @internal
    */
   readonly keyCache?: { readonly ttlMs?: number };
-  /** The waits of live carriers and of the usage flusher (heartbeat, maximum duration, the minute between flushes); default: timers on the runtime's clock (change note, WP-94). */
+  /** The waits of live carriers, of the usage flusher and of the runtime services (heartbeat, maximum duration, the minute between flushes, the interval of the retention worker); default: timers on the runtime's clock (change note, WP-94). */
   readonly timers?: LiveTimers;
   /** What a process with the `work` role works: slots, capabilities and the drain (section 21.1). */
   readonly work?: WorkOptions;

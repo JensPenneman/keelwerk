@@ -310,7 +310,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   });
   run.signal?.throwIfAborted();
   const sealedOutcome = await sealCommandOutput(unit, commandId, action, outcome);
-  await unit.receipts.complete(commandId, sealedOutcome);
+  await unit.receipts.complete(commandId, sealedOutcome, receipt.expiresAt);
   if (job !== undefined) {
     if (pending.kind === 'taken') {
       await appendReceiptChange(unit, {

@@ -8,6 +8,7 @@ import { quoteIdentifier } from './postgres/quote-identifier.ts';
 import { runSql } from './run-sql.ts';
 import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
 import { sqlGuard } from './sql-guard.ts';
+import { sqlPurgeTransient } from './sql-purge-transient.ts';
 import { sqlStreamKey } from './sql-stream-key.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
 import { storedEventOfRow } from './stored-event-of-row.ts';
@@ -283,6 +284,8 @@ export function sqlEventStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): Eve
 
     committed: () => [...buffer.assigned],
 
+    purgeTransient: (before, limit, streamTypes) =>
+      sqlPurgeTransient(ctx, before, limit, streamTypes),
     movedScopes: async (since, limit) => {
       const ids = [...since.keys()];
       const rows = await sqlGuard(async () =>

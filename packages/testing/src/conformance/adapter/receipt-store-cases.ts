@@ -8,6 +8,7 @@ import {
 import { describe, expect, test } from 'vitest';
 import { conformanceReceipt } from './conformance-receipt.ts';
 import { failureOf } from './failure-of.ts';
+import { liveReceiptExpiry } from './live-receipt-expiry.ts';
 import type { ReceiptStoreSubject } from './receipt-store-subject.ts';
 
 const { tenantA, backend, deployment } = conformanceScopes;
@@ -34,6 +35,27 @@ export function receiptStoreCases(subject: ReceiptStoreSubject): void {
         unit.receipts.complete('nope', { ok: true, value: 1, effects: [] }),
       );
       expect((await failureOf(unknown)).kind).toBe('not_found');
+    });
+
+    test('complete with an expiry moves the expiry to the later of its value and the one given', async () => {
+      const day = Temporal.Duration.from({ hours: 24 });
+      const first = liveReceiptExpiry;
+      const expiryOf = async (commandId: string) =>
+        (await subject.read(tenantA, (unit) => unit.receipts.get(commandId)))?.expiresAt;
+      await subject.run(tenantA, async (unit) => {
+        await unit.receipts.put(conformanceReceipt('later', { status: 'accepted' }));
+        await unit.receipts.put(conformanceReceipt('earlier', { status: 'accepted' }));
+        await unit.receipts.put(conformanceReceipt('plain', { status: 'accepted' }));
+      });
+      const done = { ok: true, value: 1, effects: [] } as const;
+      await subject.run(tenantA, (unit) => unit.receipts.complete('later', done, first.add(day)));
+      await subject.run(tenantA, (unit) =>
+        unit.receipts.complete('earlier', done, first.subtract(day)),
+      );
+      await subject.run(tenantA, (unit) => unit.receipts.complete('plain', done));
+      expect((await expiryOf('later'))?.toString()).toBe(first.add(day).toString());
+      expect((await expiryOf('earlier'))?.toString()).toBe(first.toString());
+      expect((await expiryOf('plain'))?.toString()).toBe(first.toString());
     });
 
     test('a claim takes over a receipt whose expiry has passed, a put does not, and both keep a live one', async () => {

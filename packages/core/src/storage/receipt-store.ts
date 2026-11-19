@@ -13,7 +13,12 @@ export interface ReceiptStore {
    * in-progress). It never changes an existing receipt.
    */
   claim(receipt: Receipt): Promise<'inserted' | 'exists'>;
-  complete(commandId: string, outcome: ReceiptOutcome): Promise<void>;
+  /**
+   * Records the outcome and the final status. With `expiresAt`, the receipt's expiry moves to the
+   * later of its present value and `expiresAt`, never earlier: an asynchronous command's receipt
+   * then answers a retry for a full window after the outcome exists (section 15.1.7).
+   */
+  complete(commandId: string, outcome: ReceiptOutcome, expiresAt?: Temporal.Instant): Promise<void>;
   /** Sync: outcomes of one client's mutations after a client sequence number (M6). */
   forClient(clientId: string, afterSeq: number, limit: number): Promise<readonly Receipt[]>;
   acknowledge(clientId: string, uptoSeq: number): Promise<void>;

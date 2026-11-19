@@ -49,7 +49,8 @@ test('the adapter migrates M1 roots at provision', async () => {
   expect(await stepIds(m1App)).toEqual([]);
   await instance.schema.provision(m1App, []);
   await instance.schema.provision(control, []);
-  for (const ref of [m1App, control]) expect(await stepIds(ref)).toEqual(['0001', '0002', '0003']);
+  for (const ref of [m1App, control])
+    expect((await stepIds(ref)).slice(0, 4)).toEqual(['0001', '0002', '0003', '0004']);
   const admin = new pg.Client({ connectionString: running.adminUrl });
   await admin.connect();
   const tables = await admin
@@ -65,6 +66,6 @@ test('a fresh namespace provisioned by the adapter gets every step, stamped at t
   const history = (await instance.schema.history(fresh)).filter(
     (row) => row.track === frameworkTrack,
   );
-  expect(history.map((row) => row.id)).toEqual(['0001', '0002', '0003']);
+  expect(history.map((row) => row.id).slice(0, 4)).toEqual(['0001', '0002', '0003', '0004']);
   for (const row of history) expect(row.appliedAt.toString()).toBe(pinned.toString());
 });

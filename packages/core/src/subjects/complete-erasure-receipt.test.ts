@@ -17,6 +17,7 @@ const record: ErasureRecord = {
 };
 const registry = {
   entities: new Map([['core.commandReceipt', { descriptor: { shape: { id: 'shape-1' } } }]]),
+  actions: new Map([['core.eraseSubject', { idempotencyWindowMs: 3_600_000 }]]),
 } as unknown as Registry;
 const context = {
   registry,
@@ -42,6 +43,7 @@ function receipt(status: Receipt['status'], code?: string, action = 'core.eraseS
 /** A unit that records the order of the receipt's lock, its read and its writes. */
 function setup(found: Receipt | undefined) {
   const calls: string[] = [];
+  const expiries: (Temporal.Instant | undefined)[] = [];
   const unit = {
     scope: { level: 'tenant', backendId: 'b1', tenantId },
     rows: {
@@ -55,8 +57,9 @@ function setup(found: Receipt | undefined) {
         calls.push('get');
         return found;
       },
-      complete: async () => {
+      complete: async (_commandId: string, _outcome: unknown, expiresAt?: Temporal.Instant) => {
         calls.push('complete');
+        expiries.push(expiresAt);
       },
     },
     events: {
@@ -66,7 +69,7 @@ function setup(found: Receipt | undefined) {
       },
     },
   } as unknown as Unit;
-  return { unit, calls };
+  return { unit, calls, expiries };
 }
 
 describe('completing the receipt of an erasure is a conditional transition', () => {
@@ -74,6 +77,12 @@ describe('completing the receipt of an erasure is a conditional transition', () 
     const { unit, calls } = setup(receipt('accepted'));
     await completeErasureReceipt(unit, record, 3, context);
     expect(calls).toEqual(['lock', 'get', 'complete', 'change']);
+  });
+
+  test('completing moves the expiry to the completion plus the action window', async () => {
+    const { unit, expiries } = setup(receipt('accepted'));
+    await completeErasureReceipt(unit, record, 3, context);
+    expect(expiries.map(String)).toEqual(['2026-11-12T10:00:00Z']);
   });
 
   test('a receipt that is completed already, by the other worker, is left: no second change record', async () => {

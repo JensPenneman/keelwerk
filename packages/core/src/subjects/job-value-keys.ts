@@ -1,16 +1,9 @@
 import type { AnyField } from '../fields/field-def.ts';
 import { parseSealedValueText } from '../keys/parse-sealed-value-text.ts';
+import { sealedTextsOf } from '../keys/sealed-texts-of.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { PurgedJob } from '../storage/purged-job.ts';
 import type { Unit } from '../storage/unit.ts';
-
-/** The `kwv1` texts a secret member holds: the text itself, or each element of a list or set of them. */
-function sealedTextsOf(field: AnyField, value: unknown): readonly string[] {
-  if (field.kind === 'secret') return typeof value === 'string' ? [value] : [];
-  const { inner } = field;
-  if (inner === null || !Array.isArray(value)) return [];
-  return value.flatMap((member) => sealedTextsOf(inner, member));
-}
 
 /**
  * The ids of the value keys that the secret members of purged command jobs were sealed under

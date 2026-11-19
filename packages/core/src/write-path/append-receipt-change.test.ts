@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { hybridClock } from '../clock/hybrid-clock.ts';
 import type { StreamAppend } from '../events/stream-append.ts';
 import type { Registry } from '../registry/registry.ts';
+import { transientPurgeTypes } from '../replay/transient-purge-types.ts';
 import type { Unit } from '../storage/unit.ts';
 import { appendReceiptChange } from './append-receipt-change.ts';
 import { commandReceiptUuid } from './command-receipt-uuid.ts';
@@ -87,6 +88,8 @@ describe('appendReceiptChange', () => {
       schemaVersion: 1,
       shape: 'shape-1',
     });
+    // Retention purges the stream type of this record: the two must not drift apart.
+    expect(transientPurgeTypes).toContain(created?.stream.type);
     const later = unitOf(2);
     await appendReceiptChange(later.unit, change('accepted', tenant));
     expect(later.appended[0]?.expectedVersion).toBe(2);

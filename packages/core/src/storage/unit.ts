@@ -10,6 +10,7 @@ import type { JobStore } from './job-store.ts';
 import type { NamespaceRef } from './namespace-ref.ts';
 import type { NestedUnitOptions } from './nested-unit-options.ts';
 import type { ReceiptStore } from './receipt-store.ts';
+import type { RetentionRunStore } from './retention-run-store.ts';
 import type { RowStore } from './row-store.ts';
 import type { ScopeKeyStore } from './scope-key-store.ts';
 import type { SerialStore } from './serial-store.ts';
@@ -49,6 +50,8 @@ export interface Unit {
   readonly scopeKeys?: ScopeKeyStore;
   /** kw_api_usage; deployment-scope units only, S-144. */
   readonly apiUsage?: ApiUsageStore;
+  /** kw_retention_runs (14.7.1); deployment-scope units only. */
+  readonly retentionRuns?: RetentionRunStore;
   /** The deployment's ledger in the control root (S-125); present on deployment-scope units only, like `scopeKeys`. */
   readonly ledger?: ControlLedger;
   /** The counters of every scope of the namespace (14.7.6); namespace-scope units only. */

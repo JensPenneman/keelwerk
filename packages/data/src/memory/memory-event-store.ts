@@ -6,6 +6,7 @@ import { memoryEnvelope } from './memory-envelope.ts';
 import type { MemoryLoggedEvent } from './memory-logged-event.ts';
 import { memoryMatchesSelector } from './memory-matches-selector.ts';
 import type { MemoryPendingEvent } from './memory-pending-event.ts';
+import { memoryPurgeTransient } from './memory-purge-transient.ts';
 import { memoryStreamKey } from './memory-stream-key.ts';
 import type { MemoryUnitContext } from './memory-unit-context.ts';
 
@@ -147,6 +148,8 @@ export function memoryEventStore(ctx: MemoryUnitContext): EventStore {
       return head;
     },
     committed: () => [...ctx.assigned],
+    purgeTransient: async (before, limit, streamTypes) =>
+      memoryPurgeTransient(ctx, before, limit, streamTypes),
     movedScopes: async (since, limit) => {
       const names =
         ctx.scope.level === 'namespace'

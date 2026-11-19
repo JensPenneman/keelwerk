@@ -9,6 +9,8 @@ const setting = (name: string): string =>
 export const rlsParts: {
   /** `scope_id` against the unit's scope: the deployment id in the control root; tenant, else backend, else deployment in an application root. */
   unitScope(control: boolean): string;
+  /** The value `unitScope` compares `scope_id` with: null when the unit names no scope. */
+  unitScopeValue(control: boolean): string;
   /** `current_setting('keelwerk.scope', true) = 'namespace'`: the `take` and `maintenance` sets. */
   readonly inNamespaceScope: string;
   /** A unit that sets `keelwerk.deployment_id`: the `deployment` set. */
@@ -24,10 +26,11 @@ export const rlsParts: {
    * log and counters live in the application root too), so a unit never spans two scopes. The
    * control root belongs to the deployment and admits its id only.
    */
-  unitScope: (control) =>
+  unitScope: (control) => `scope_id = ${rlsParts.unitScopeValue(control)}`,
+  unitScopeValue: (control) =>
     control
-      ? `scope_id = ${setting('deployment_id')}`
-      : `scope_id = coalesce(${setting('tenant_id')}, ${setting('backend_id')}, ${setting('deployment_id')})`,
+      ? setting('deployment_id')
+      : `coalesce(${setting('tenant_id')}, ${setting('backend_id')}, ${setting('deployment_id')})`,
   inNamespaceScope: `current_setting('keelwerk.scope', true) = 'namespace'`,
   inDeploymentScope: `nullif(current_setting('keelwerk.deployment_id', true), '') is not null`,
   enable: (root, table) => [

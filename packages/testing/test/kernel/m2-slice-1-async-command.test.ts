@@ -104,4 +104,21 @@ describe('SLICE M2-1: an async command runs in a worker of the test runtime', ()
     expect(await openLoans()).toBe(1);
     expect(await runtime.drainJobs()).toBe(0);
   });
+
+  test('a job that fails late moves the expiry of its receipt to the failure plus the window', async () => {
+    const third = testOperator('quin');
+    const commandId = '00000000-0000-7000-8000-000000000003';
+    const accepted = runtime.clock.now();
+    await askCloseAll(commandId, third);
+    runtime.revoke('quin');
+    // The job runs 23 hours in, an hour before the first window ends, and fails the receipt.
+    await runtime.advanceTo(accepted.add({ hours: 23 }));
+    const failed = await runtime.adapter.unit(runtime.namespace, tenantScope, (unit) =>
+      unit.receipts.get(commandId),
+    );
+    expect(failed?.status).toBe('failed');
+    // The clock follows the wall clock between advances: compare to the minute.
+    const expected = accepted.add({ hours: 23 + 24 }).epochMilliseconds;
+    expect(Math.abs((failed?.expiresAt.epochMilliseconds ?? 0) - expected)).toBeLessThan(60_000);
+  });
 });

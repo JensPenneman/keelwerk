@@ -30,6 +30,11 @@ export async function prepareNamespaces(adminUrl: string): Promise<void> {
       if (second !== undefined) {
         statements.push(...second.ddl(root, options), ...second.grants(root, 'kw_app', options));
       }
+      // Step 0004 adds kw_purge_transient, the one way the application role purges event records.
+      const fourth = frameworkSteps.find((step) => step.id === '0004');
+      if (fourth !== undefined) {
+        statements.push(...fourth.ddl(root, options), ...fourth.grants(root, 'kw_app', options));
+      }
       for (const statement of statements) await admin.query(statement);
     }
   } finally {

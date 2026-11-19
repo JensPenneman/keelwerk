@@ -15,7 +15,7 @@ import { withinSignal } from './within-signal.ts';
 export async function scheduleScopeOf(
   directory: ScopeLookup,
   source: QueueSource,
-  entry: ScheduleEntry,
+  entry: Pick<ScheduleEntry, 'scope'>,
   scopeId: string,
   signal: AbortSignal,
 ): Promise<ScheduleScope | 'gone' | 'elsewhere'> {

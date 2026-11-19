@@ -24,6 +24,8 @@ export function recordingUnit(
     head: (selector) => events.head(selector),
     committed: () => events.committed(),
     movedScopes: (since, limit) => events.movedScopes(since, limit),
+    purgeTransient: (before, limit, streamTypes) =>
+      events.purgeTransient(before, limit, streamTypes),
   };
   return {
     namespace: unit.namespace,

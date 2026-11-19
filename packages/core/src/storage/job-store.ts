@@ -2,6 +2,7 @@ import type { JobGroup } from '../jobs/job-group.ts';
 import type { JobAttempt } from './job-attempt.ts';
 import type { JobId } from './job-id.ts';
 import type { JobOutcome } from './job-outcome.ts';
+import type { PurgeBatch } from './purge-batch.ts';
 import type { PurgedJob } from './purged-job.ts';
 import type { ScheduleStore } from './schedule-store.ts';
 import type { StoredJob } from './stored-job.ts';
@@ -81,6 +82,14 @@ export interface JobStore {
    * `limit` that is no integer from 0 to 2,147,483,646.
    */
   queued(queue: string, limit: number): Promise<number>;
+  /**
+   * Retention (14.7.1): deletes `kw_job_history` rows of the unit's scope finished before `before`,
+   * lowest job id first, at most `limit`; answers how many it deleted and whether a row finished
+   * before `before` is left (`PurgeBatch`). Reads no key and no input. `internal` in a read-only
+   * unit and in a namespace-scope unit (it has no job history of one scope; the same refusal as
+   * `EventStore.purgeTransient`); `validation` for a limit outside 1..100000.
+   */
+  purgeHistory(before: Temporal.Instant, limit: number): Promise<PurgeBatch>;
   /** One row per schedule and scope: last tick, next tick (S-118). */
   schedules(): ScheduleStore;
 }

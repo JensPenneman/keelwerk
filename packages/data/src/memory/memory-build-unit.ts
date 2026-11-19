@@ -10,6 +10,7 @@ import { memoryLedgerStore } from './memory-ledger-store.ts';
 import { memoryNamespaceIdentities } from './memory-namespace-identities.ts';
 import { memoryNestedContext } from './memory-nested-context.ts';
 import { memoryReceiptStore } from './memory-receipt-store.ts';
+import { memoryRetentionRunStore } from './memory-retention-run-store.ts';
 import { memoryRowStore } from './memory-row-store.ts';
 import { memoryScopeKeyStore } from './memory-scope-key-store.ts';
 import { memoryScopeMarks } from './memory-scope-marks.ts';
@@ -46,6 +47,7 @@ export function memoryBuildUnit(ctx: MemoryUnitContext, hooks: (() => void)[]): 
           ledger: memoryLedgerStore(ctx),
           identities: memoryNamespaceIdentities(ctx),
           marks: memoryScopeMarks(ctx),
+          retentionRuns: memoryRetentionRunStore(ctx),
         }
       : {}),
     ...(ctx.scope.level === 'namespace' ? { counters: memoryCounterStore(ctx) } : {}),

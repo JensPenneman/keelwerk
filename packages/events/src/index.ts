@@ -8,4 +8,7 @@ export type { ReactionDispatcherOptions } from './dispatcher/reaction-dispatcher
 export { erasure } from './erasure/erasure.ts';
 export type { ErasureOptions } from './erasure/erasure-options.ts';
 export type { ErasureWorker } from './erasure/erasure-worker.ts';
+export { retention } from './retention/retention.ts';
+export type { RetentionOptions } from './retention/retention-options.ts';
+export type { RetentionWorker } from './retention/retention-worker.ts';
 export { version } from './version.ts';

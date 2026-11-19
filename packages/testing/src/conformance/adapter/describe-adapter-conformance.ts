@@ -26,6 +26,7 @@ import { migrationCases } from './migration-cases.ts';
 import { paginationCases } from './pagination-cases.ts';
 import { processStreamCases } from './process-stream-cases.ts';
 import { restoreDetectionCases } from './restore-detection-cases.ts';
+import { retentionCases } from './retention-cases.ts';
 import { rowCases } from './row-cases.ts';
 import { rowIsolationCases } from './row-isolation-cases.ts';
 import { scheduleCases } from './schedule-cases.ts';
@@ -118,6 +119,7 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('restore detection', () => restoreDetectionCases(subject));
     describe('serials', () => serialCases(subject));
     describe('api usage', () => apiUsageCases(subject, { table: subject.name === 'memory' }));
+    describe('retention', () => retentionCases(subject));
     describe('stream records', () => streamRecordCases(subject));
     describe('migrations', () => migrationCases(subject));
     describe('toggle then rebuild', () => toggleRebuildCases(subject));

@@ -1,0 +1,33 @@
+{
+  "rule": {
+    "rules": [
+      {
+        "kind": "receipts",
+        "olderThan": null
+      },
+      {
+        "kind": "transientRecords",
+        "olderThan": "P7D"
+      }
+    ]
+  },
+  "error": {
+    "code": "core.lock_timeout",
+    "kind": "unavailable"
+  },
+  "run_id": "01952f3e-7c1a-7b2d-8e4f-3a5b6c7d8ea0",
+  "outcome": "failed",
+  "removed": {
+    "receipts": 0,
+    "valueKeys": 0,
+    "transientRecords": 12
+  },
+  "ended_at": "2026-11-18T03:00:02.5+00:00",
+  "horizons": {
+    "receipts": "2026-11-18T03:00:00.000Z"
+  },
+  "tenant_id": null,
+  "backend_id": "00000000-0000-4000-8000-0000000000d1",
+  "started_at": "2026-11-18T03:00:00+00:00",
+  "namespace_id": "ns-app"
+}

@@ -14,6 +14,7 @@ import { createControlFlags } from './create-control-flags.ts';
 import { createControlIdentities } from './create-control-identities.ts';
 import { createControlLedger } from './create-control-ledger.ts';
 import { createControlMarks } from './create-control-marks.ts';
+import { createControlRetention } from './create-control-retention.ts';
 
 /** What the control store is built from. */
 export interface ControlStoreOptions {
@@ -53,6 +54,7 @@ export function createControlStore(options: ControlStoreOptions): ControlStore {
       deploymentId: options.deploymentId,
     }),
     ledger: createControlLedger(adapter, namespace),
+    retention: createControlRetention(adapter, namespace),
     identities: createControlIdentities(adapter, namespace),
     marks: createControlMarks(adapter, namespace, epochs),
     epochs: () => epochs,

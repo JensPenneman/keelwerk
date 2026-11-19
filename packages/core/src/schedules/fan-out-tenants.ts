@@ -17,12 +17,14 @@ async function pageOf(
   where: Readonly<Record<string, unknown>>,
   pageSize: number,
   after: string | undefined,
+  includeArchived: boolean,
 ): Promise<{ readonly rows: readonly StorageRow[]; readonly next: string | undefined }> {
   const entity = control.entity(ref);
   const condition = normalizeCondition(where);
   const page = await control.read((unit) =>
     unit.rows.find(entity, {
       where: condition,
+      ...(includeArchived ? { includeArchived: true } : {}),
       sort: [{ field: 'id', direction: 'asc' }],
       page: { first: pageSize, ...(after === undefined ? {} : { after }) },
     }),
@@ -42,16 +44,20 @@ async function pageOf(
  * row and its backend's record, which is read once per backend, so a tenant costs no read of its
  * own. The backends of one page of backends are interleaved a page of tenants at a time, so a
  * backend with thousands of tenants does not come before the others. Holds one page of rows and
- * one cursor per backend of the page. Directory reads stop waiting when `signal` aborts.
+ * one cursor per backend of the page. Directory reads stop waiting when `signal` aborts. With
+ * `includeArchived` the pages of backends and tenants also hold archived rows; a backend the
+ * directory does not know (an archived one) still has no scopes.
  */
 export async function* fanOutTenants(
   control: ControlStore,
   directory: ScopeLookup,
   source: QueueSource,
-  entry: ScheduleEntry,
+  entry: Pick<ScheduleEntry, 'scope'>,
   pageSize: number,
   signal: AbortSignal,
+  options: { readonly includeArchived?: boolean } = {},
 ): AsyncGenerator<ScheduleScope> {
+  const includeArchived = options.includeArchived === true;
   let afterBackend: string | undefined;
   do {
     const backends = await pageOf(
@@ -60,6 +66,7 @@ export async function* fanOutTenants(
       { app: source.namespace.appId },
       pageSize,
       afterBackend,
+      includeArchived,
     );
     afterBackend = backends.next;
     const open: { readonly backendId: string; after: string | undefined }[] = [];
@@ -89,6 +96,7 @@ export async function* fanOutTenants(
           { backendId: cursor.backendId },
           pageSize,
           cursor.after,
+          includeArchived,
         );
         for (const row of tenants.rows) {
           const found = tenantScheduleScope(source, record, row);

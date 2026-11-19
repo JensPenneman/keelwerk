@@ -1,0 +1,51 @@
+{
+  "rule": {
+    "rules": [
+      {
+        "kind": "receipts",
+        "olderThan": null
+      },
+      {
+        "kind": "transientRecords",
+        "olderThan": "P7D"
+      },
+      {
+        "kind": "jobHistory",
+        "olderThan": "P7D"
+      },
+      {
+        "kind": "streamTickets",
+        "olderThan": "P1D"
+      },
+      {
+        "kind": "streamRecords",
+        "maxAge": "P1D",
+        "stream": "library.book"
+      }
+    ]
+  },
+  "error": null,
+  "run_id": "01952f3e-7c1a-7b2d-8e4f-3a5b6c7d8e9f",
+  "outcome": "complete",
+  "removed": {
+    "receipts": 3,
+    "valueKeys": 1,
+    "jobHistory": 40,
+    "streamRecords": {
+      "library.book": 5
+    },
+    "streamTickets": 2,
+    "transientRecords": 12
+  },
+  "ended_at": "2026-11-18T03:00:02.5+00:00",
+  "horizons": {
+    "receipts": "2026-11-18T03:00:00.000Z",
+    "jobHistory": "2026-11-11T03:00:00.000Z",
+    "streamTickets": "2026-11-17T03:00:00.000Z",
+    "transientRecords": "2026-11-11T03:00:00.000Z"
+  },
+  "tenant_id": "00000000-0000-4000-8000-0000000000a1",
+  "backend_id": "00000000-0000-4000-8000-0000000000b1",
+  "started_at": "2026-11-18T03:00:00+00:00",
+  "namespace_id": "ns-app"
+}

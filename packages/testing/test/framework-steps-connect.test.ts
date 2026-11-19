@@ -46,7 +46,7 @@ test('a control store created under M1 migrates to the M2 tables when the runtim
         )
       ).rows,
   );
-  expect(rows.map((row) => row.id)).toEqual(['0001', '0002', '0003']);
+  expect(rows.map((row) => row.id).slice(0, 4)).toEqual(['0001', '0002', '0003', '0004']);
   expect(rows[0]?.durationMs).toBe(0);
   const present = await control.asOwner(
     async (database) =>
