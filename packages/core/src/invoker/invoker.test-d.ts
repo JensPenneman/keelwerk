@@ -21,6 +21,7 @@ import type { Artifact } from '../transport/artifact.ts';
 import type { HostFetchOptions } from '../transport/host-fetch-options.ts';
 import type { HttpContext } from '../transport/http-context.ts';
 import type { HttpHandler } from '../transport/http-handler.ts';
+import type { RouteSpec } from '../transport/route-spec.ts';
 import type { TransportHost } from '../transport/transport-host.ts';
 import type { WebSocketHandler } from '../transport/web-socket-handler.ts';
 import type { CapabilitiesDocument } from './capabilities-document.ts';
@@ -230,4 +231,9 @@ test('the contract carries the resolved-by, input, cookie and upgrade members', 
     'current' | 'deprecated' | 'retired'
   >();
   expectTypeOf<DeploymentDefinition['apps']>().toEqualTypeOf<readonly { readonly id: string }[]>();
+});
+
+test('TransportHost.route takes a RouteSpec whose streams predicate may ignore the path', () => {
+  expectTypeOf<Parameters<TransportHost['route']>[0]>().toEqualTypeOf<RouteSpec>();
+  expectTypeOf<(request: Request) => boolean>().toExtend<NonNullable<RouteSpec['streams']>>();
 });

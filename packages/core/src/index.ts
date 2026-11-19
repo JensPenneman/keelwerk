@@ -1049,6 +1049,7 @@ export type { HttpContext } from './transport/http-context.ts';
 export type { HttpHandler } from './transport/http-handler.ts';
 export type { MountContext } from './transport/mount-context.ts';
 export type { MountHandle } from './transport/mount-handle.ts';
+export type { RouteSpec } from './transport/route-spec.ts';
 export type { SocketSession } from './transport/socket-session.ts';
 export type { TransportAdapter } from './transport/transport-adapter.ts';
 export type { TransportCapabilities } from './transport/transport-capabilities.ts';

@@ -57,7 +57,12 @@ export function createMountTable(app: string): MountTable {
           `'${prefix}' of transport '${spec.transport}' overlaps '${clash.prefix}' of transport '${clash.transport}' (app '${app}').`,
         );
       }
-      mounts.push({ transport: spec.transport, prefix, handler });
+      mounts.push({
+        transport: spec.transport,
+        prefix,
+        handler,
+        ...(spec.streams !== undefined && { streams: spec.streams }),
+      });
     },
     match(path) {
       let best: Mount | undefined;

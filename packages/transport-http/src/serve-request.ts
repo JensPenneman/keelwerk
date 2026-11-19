@@ -14,7 +14,9 @@ import type { HostContext } from './host-context.ts';
 import { invokeEndpoint } from './invoke-endpoint.ts';
 import { isAllowedOrigin } from './is-allowed-origin.ts';
 import { isStreamRequest } from './is-stream-request.ts';
+import { isStreamResponse } from './is-stream-response.ts';
 import { jsonResponse } from './json-response.ts';
+import { mountPathOf } from './mount-path-of.ts';
 import { originCheck } from './origin-check.ts';
 import { socketFacts } from './socket-facts.ts';
 import { spendRefusedTickets } from './spend-refused-tickets.ts';
@@ -76,7 +78,7 @@ async function protocolEndpoint(call: EndpointCall, path: string): Promise<Respo
   }
 }
 
-async function mounted(call: EndpointCall, path: string): Promise<Response> {
+async function mounted(call: EndpointCall, path: string, streams: boolean): Promise<Response> {
   const { host, state, session, carrier, request } = call;
   const match = host.mounts.get(session.app)?.match(path);
   if (match === undefined) {
@@ -98,7 +100,7 @@ async function mounted(call: EndpointCall, path: string): Promise<Response> {
           signal: request.signal,
         });
   // The one rule of path handling: the host strips the mount's prefix, the transport never does.
-  const stripped = match.prefix === '/' ? '' : match.prefix;
+  const relative = mountPathOf(match.prefix, path);
   const run = (): Promise<Response> =>
     match.handler(forwarded, {
       session,
@@ -106,20 +108,23 @@ async function mounted(call: EndpointCall, path: string): Promise<Response> {
       requestId: state.requestId,
       ...(state.traceparent !== undefined && { traceparent: state.traceparent }),
       signal: request.signal,
-      path: path.slice(stripped.length) || '/',
-      basePath: stripped,
+      path: relative.path,
+      basePath: relative.basePath,
     });
-  // The stream gate is the host's: a request that asks for an event stream passed the stream origin
+  // The stream gate is the host's: a request its route counts as a stream passed the stream origin
   // check and holds a stream slot until the body ends; a route that streams without it is refused.
-  if (asksForEventStream(request)) return withStreamSlot(call, run);
+  if (streams) {
+    state.stream = true;
+    return withStreamSlot(call, run);
+  }
   const response = await run();
-  if ((response.headers.get('content-type') ?? '').toLowerCase().startsWith('text/event-stream')) {
+  if (isStreamResponse(response)) {
     void response.body?.cancel().catch(() => undefined);
     return errorResponse(
       host,
       state,
       coreError('core.internal', {
-        message: 'A route answered an event stream to a request that did not ask for one.',
+        message: 'A route answered a stream to a request it did not count as one.',
       }),
     );
   }
@@ -215,12 +220,20 @@ export async function serveRequest(
   if (request.method === 'OPTIONS' && headers['access-control-request-method'] !== undefined) {
     return new Response(null, { status: 204 });
   }
+  // The route's predicate decides once per request; its answer feeds the origin check and the stream slot.
+  const routeStreams =
+    matched === undefined
+      ? undefined
+      : (matched.streams ?? asksForEventStream)(
+          request,
+          mountPathOf(matched.prefix, pathname).path,
+        );
   const csrf = originCheck(
     request.method,
     carrier,
     allowed,
     plain,
-    isStreamRequest(request, pathname),
+    isStreamRequest(request, pathname, routeStreams),
   );
   if (csrf !== null) {
     return errorResponse(host, state, csrf);
@@ -249,7 +262,7 @@ export async function serveRequest(
         coreError('core.not_found', { message: 'There is no such endpoint.' }),
       );
     }
-    return await mounted(call, pathname);
+    return await mounted(call, pathname, routeStreams === true);
   } catch (failure) {
     return errorResponse(host, state, asKeelwerkError(failure));
   }
