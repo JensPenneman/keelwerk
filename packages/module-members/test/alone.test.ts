@@ -74,13 +74,13 @@ describe.each(['memory', 'pglite'] as const)('members alone on %s', (kind: Membe
     if (!owners.ok) throw owners.error;
     const [owner] = owners.value.items;
     if (owner === undefined) throw new Error('no owner row');
-    const archived = await app.as(founder).attempt('members.membership.archive', { id: owner.id });
-    expect(refusalOfAttempt(archived)?.kind).toBe('not_found');
-    const demoted = await app.as(founder).attempt('members.membership.update', {
-      id: owner.id,
-      ifVersion: owner.version,
-      patch: { role: 'member' },
-    });
+    const removed = await app
+      .as(founder)
+      .attempt('members.membership.removeMember', { id: owner.id });
+    expect(refusalOfAttempt(removed)?.kind).toBe('not_found');
+    const demoted = await app
+      .as(founder)
+      .attempt('members.membership.changeRole', { id: owner.id, role: 'member' });
     expect(refusalOfAttempt(demoted)?.kind).toBe('not_found');
     expect(await app.row('membership', owner.id)).toMatchObject({ role: 'owner' });
     expect((await app.row('membership', owner.id))?.archivedAt ?? null).toBeNull();

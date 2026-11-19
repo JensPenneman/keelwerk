@@ -7,8 +7,12 @@ import { issueInvitation } from '../../lib/issue-invitation.ts';
 /**
  * Brings up a tenant: an operator invites its first owner (17.5.4). A tenant that has an owner
  * refuses. A repeat withdraws the pending owner invitations and the pending invitation of the
- * address before it issues the new one, so one owner invitation is live at a time. The token is
- * shown once, as `invite` does.
+ * address before it issues the new one, so one owner invitation is live at a time. When two calls
+ * run at the same moment on PostgreSQL, both can read no pending owner invitation: the partial
+ * unique index on a pending owner invitation (`members__invitation__role_uq`) lets one write win,
+ * the other unit repeats once, sees it and withdraws it; and the owner index of the membership
+ * (`members__membership__role_uq`) lets one owner exist, whatever invitations were issued. The
+ * withdrawn rows end through `settleEndedInvitation`. The token is shown once, as `invite` does.
  */
 const createOwnerDef = defineCommand(membersBase, invitation, {
   creates: true,

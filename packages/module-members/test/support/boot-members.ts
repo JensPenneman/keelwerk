@@ -1,4 +1,5 @@
 import type { Logger, Scope } from '@keelwerk/core';
+import { erasure } from '@keelwerk/events';
 import {
   createLocalClient,
   dumpDatabase,
@@ -50,6 +51,31 @@ export interface BootedMembers {
   dumpOf(): Promise<string>;
   /** Destroys the data keys of a subject of acme, as the erasure worker does at its end. */
   shred(subject: string): Promise<void>;
+  /**
+   * Lets the kernel's job workers and the erasure worker run every step of the erasures requested
+   * so far (section 14.7.5): the request job, the steps, and the jobs those leave.
+   */
+  settle(): Promise<void>;
+  /** The records of the control ledger, oldest first: every erasure with its subject and requester. */
+  ledger(): Promise<readonly { readonly record: Record<string, unknown> }[]>;
+  /** What a subject's keys are in acme: whether a live key exists and how many were destroyed. */
+  keysOf(subject: string): Promise<{ readonly live: boolean; readonly shredded: number }>;
+  /**
+   * The sealed values in the change records of an invitation or membership of acme, each with the
+   * type of its record and whether its key can still be fetched, which is what opening it takes.
+   */
+  sealsOf(
+    entity: 'invitation' | 'membership',
+    id: string,
+  ): Promise<readonly { readonly record: string; readonly openable: boolean }[]>;
+  /** The invitations of a tenant as stored (acme unless named), erased ones left out. */
+  invitations(
+    tenant?: Tenant,
+  ): Promise<readonly { readonly id: string; readonly status: string; readonly role: string }[]>;
+  /** The keyed digest the store keeps of an invitation's address, as stored; PGlite only, undefined when none is kept. */
+  digestOf(id: string): Promise<string | undefined>;
+  /** The live memberships of a tenant with the owner role (acme unless named). */
+  ownerCount(tenant?: Tenant): Promise<number>;
 }
 
 /** Boots the app with one backend and two tenants, acme and globex, on a clock the test moves. */
@@ -58,15 +84,19 @@ export async function bootMembers(
   options: Pick<TestRuntimeOptions, 'logger' | 'external'> & { readonly delivery?: boolean } = {},
 ): Promise<BootedMembers> {
   const app = options.delivery === true ? deliveryApp : membersApp;
+  // The erasure worker runs its steps when a test asks (`settle`), never on a timer.
+  const worker = erasure({ pollMs: 3_600_000 });
+  // Both apps hold the members module and nothing a test reads of the other module, so the
+  // runtime is typed as the one of `membersApp`.
   const runtime = (await startTestRuntime(app, {
     adapter: kind,
     tenants: ['acme', 'globex'],
     clock: { now: () => bootInstant },
     workers: true,
+    eventWorkers: [worker],
     operators: true,
     ...(options.logger === undefined ? {} : { logger: options.logger as Logger }),
     ...(options.external === undefined ? {} : { external: options.external }),
-    // Both apps hold the members module and nothing a test reads of the other module.
   })) as unknown as TestRuntime<typeof membersApp, Tenant>;
   const scope = {
     level: 'tenant',
@@ -122,5 +152,104 @@ export async function bootMembers(
         await unit.keys.shred(subject);
       });
     },
+    settle: async () => {
+      await runtime.drainJobs();
+      await worker.pass();
+      await runtime.drainJobs();
+    },
+    ledger: () =>
+      runtime.control.adapter.unit(
+        runtime.control.namespace,
+        { level: 'deployment' },
+        (unit) => unit.ledger?.since(0n, 1000) ?? Promise.resolve([]),
+        { readOnly: true },
+      ) as Promise<readonly { readonly record: Record<string, unknown> }[]>,
+    keysOf: (subject) =>
+      runtime.adapter.unit(
+        runtime.namespace,
+        scope,
+        async (unit) => ({
+          live: (await unit.keys.dataKey(subject, { create: false })) !== undefined,
+          shredded: (await unit.keys.shreddedKeys(subject)).length,
+        }),
+        { readOnly: true },
+      ),
+    sealsOf: (entity, id) =>
+      runtime.adapter.unit(
+        runtime.namespace,
+        scope,
+        async (unit) => {
+          const events = await unit.events.readStream({ type: `members.${entity}`, id });
+          const seals: { record: string; openable: boolean }[] = [];
+          const walk = async (record: string, value: unknown): Promise<void> => {
+            if (typeof value !== 'object' || value === null) return;
+            if ('$kwe' in value && 'k' in value && typeof value.k === 'string') {
+              seals.push({
+                record,
+                openable: (await unit.keys.keyById(value.k)) !== undefined,
+              });
+              return;
+            }
+            for (const member of Object.values(value)) await walk(record, member);
+          };
+          for (const event of events) await walk(event.type, event.data);
+          return seals;
+        },
+        { readOnly: true },
+      ),
+    invitations: (tenant = 'acme') =>
+      runtime.adapter.unit(
+        runtime.namespace,
+        { level: 'tenant', backendId: runtime.backendId, tenantId: runtime.tenants[tenant].id },
+        async (unit) => {
+          const descriptor = runtime.app.registry.entities.get('members.invitation')?.descriptor;
+          if (descriptor === undefined) throw new Error('no members.invitation');
+          const page = await unit.rows.find(descriptor, { includeArchived: true });
+          return page.rows.map((row) => ({
+            id: String(row.id),
+            status: String(row.status),
+            role: String(row.role),
+          }));
+        },
+        { readOnly: true },
+      ),
+    digestOf: async (id) => {
+      const owner = runtime.adapter as unknown as {
+        asOwner?: <T>(
+          fn: (database: {
+            query(sql: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
+          }) => Promise<T>,
+        ) => Promise<T>;
+      };
+      if (typeof owner.asOwner !== 'function') return undefined;
+      const digest = await owner.asOwner<string | undefined>(async (database) => {
+        const tables = await database.query(
+          "select schemaname from pg_tables where tablename = 'members__invitation'",
+        );
+        for (const { schemaname } of tables.rows) {
+          const found = await database.query(
+            `select email__eq as digest from "${String(schemaname)}".members__invitation where id = $1`,
+            [id],
+          );
+          const digest = found.rows[0]?.digest;
+          if (digest !== null && digest !== undefined) return String(digest);
+        }
+        return undefined;
+      });
+      return digest;
+    },
+    ownerCount: (tenant = 'acme') =>
+      runtime.sealed.unit(
+        runtime.namespace,
+        { level: 'tenant', backendId: runtime.backendId, tenantId: runtime.tenants[tenant].id },
+        async (unit) => {
+          const descriptor = runtime.app.registry.entities.get('members.membership')?.descriptor;
+          if (descriptor === undefined) throw new Error('no members.membership');
+          const page = await unit.rows.find(descriptor, {
+            where: { op: 'eq', field: 'role', value: 'owner' },
+          });
+          return page.rows.length;
+        },
+      ),
   };
 }

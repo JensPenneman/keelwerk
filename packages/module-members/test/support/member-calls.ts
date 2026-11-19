@@ -1,5 +1,5 @@
-import type { Id } from '@keelwerk/core';
-import { type TestPrincipal, testPrincipal } from '@keelwerk/testing';
+import type { Id, InvocationSession, Outcome } from '@keelwerk/core';
+import { type TestPrincipal, testCarrier, testPrincipal } from '@keelwerk/testing';
 import type { BootedMembers } from './boot-members.ts';
 
 /** The subjects of the test people: lower-case UUIDs, as subject columns hold. */
@@ -81,4 +81,37 @@ export async function joinAs(
   const accepted = await acceptAs(app, person, invited.token ?? '');
   if (!accepted.ok) throw accepted.error;
   return (accepted.value as { membershipId: string }).membershipId;
+}
+
+/** A session opened now: it keeps what it was opened with, whatever happens to the person's membership afterwards. */
+export async function sessionOpenedNow(
+  app: BootedMembers,
+  principal: TestPrincipal,
+): Promise<InvocationSession> {
+  const opened = await app.runtime.invoker.open(testCarrier(app.runtime.tenants.acme, principal));
+  if (!opened.ok) throw opened.error;
+  return opened.value;
+}
+
+/** Calls an action on a session opened earlier, as a long-lived connection does. */
+export function callOnSession(
+  app: BootedMembers,
+  session: InvocationSession,
+  principal: TestPrincipal,
+  action: string,
+  input: unknown,
+): Promise<Outcome<unknown>> {
+  return app.runtime.invoker.invoke({
+    action,
+    input,
+    carrier: testCarrier(app.runtime.tenants.acme, principal),
+    session,
+    requestId: crypto.randomUUID(),
+    signal: new AbortController().signal,
+  });
+}
+
+/** The records of the control ledger that erase a subject, oldest first. */
+export async function erasuresOf(app: BootedMembers): Promise<readonly Record<string, unknown>[]> {
+  return (await app.ledger()).map((entry) => entry.record).filter((rec) => rec.type === 'erasure');
 }

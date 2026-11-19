@@ -11,6 +11,11 @@ const membershipDef = defineEntity({
     /** The invitation the member accepted, absent for a membership made another way. */
     invitationId: field.ref.own('invitation').optional(),
   },
+  // One owner per tenant, held by the store: two accepts of owner invitations at once cannot both
+  // win. An archived (erased) owner releases the slot.
+  indexes: [
+    { fields: ['role'], unique: true, where: { role: 'owner', archivedAt: { isNull: true } } },
+  ],
   generated: { create: false },
 });
 

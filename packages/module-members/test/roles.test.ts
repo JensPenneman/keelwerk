@@ -29,11 +29,9 @@ describe('roles', () => {
     expect(opened.value.principal.memberships).toEqual([
       { kind: 'members.membership', id: membershipId, role: 'member' },
     ]);
-    const changed = await app.as(founder).attempt('members.membership.update', {
-      id: membershipId as never,
-      ifVersion: 1,
-      patch: { role: 'admin' },
-    });
+    const changed = await app
+      .as(founder)
+      .attempt('members.membership.changeRole', { id: membershipId as never, role: 'admin' });
     if (!changed.ok) throw changed.error;
     // The open session keeps what it was opened with, a revalidation reads the new role.
     expect(opened.value.principal.roles).toEqual(['member']);
@@ -82,31 +80,24 @@ describe('roles', () => {
     );
     if (owner === undefined) throw new Error('no owner');
     // An admin changes a role, but not to owner, and cannot touch the owner row.
-    const toViewer = await app.as(admin).attempt('members.membership.update', {
-      id: memberId as never,
-      ifVersion: 1,
-      patch: { role: 'viewer' },
-    });
+    const toViewer = await app
+      .as(admin)
+      .attempt('members.membership.changeRole', { id: memberId as never, role: 'viewer' });
     expect(toViewer.ok).toBe(true);
-    const toOwner = await app.as(admin).attempt('members.membership.update', {
-      id: memberId as never,
-      ifVersion: 2,
-      patch: { role: 'owner' },
-    });
-    expect(refusalOfAttempt(toOwner)?.kind).toBe('forbidden');
+    // The input cannot name the owner role.
+    const toOwner = await app
+      .as(admin)
+      .attempt('members.membership.changeRole', { id: memberId as never, role: 'owner' as never });
+    expect(refusalOfAttempt(toOwner)?.kind).toBe('validation');
     expect((await app.row('membership', memberId))?.role).toBe('viewer');
-    const onOwner = await app.as(admin).attempt('members.membership.update', {
-      id: owner.id,
-      ifVersion: owner.version,
-      patch: { role: 'member' },
-    });
+    const onOwner = await app
+      .as(admin)
+      .attempt('members.membership.changeRole', { id: owner.id, role: 'member' });
     expect(refusalOfAttempt(onOwner)?.kind).toBe('not_found');
     // A member cannot change roles, and an admin cannot move ownership.
-    const byMember = await app.as(invitee).attempt('members.membership.update', {
-      id: adminId as never,
-      ifVersion: 1,
-      patch: { role: 'viewer' },
-    });
+    const byMember = await app
+      .as(invitee)
+      .attempt('members.membership.changeRole', { id: adminId as never, role: 'viewer' });
     expect(refusalOfAttempt(byMember)?.kind).toBe('forbidden');
     const byAdmin = await app
       .as(admin)
@@ -133,7 +124,7 @@ describe('roles', () => {
     expect(refusalOfAttempt(again)?.kind).toBe('forbidden');
     const removed = await app
       .as(founder)
-      .attempt('members.membership.archive', { id: adminId as never });
+      .attempt('members.membership.removeMember', { id: adminId as never });
     expect(refusalOfAttempt(removed)?.kind).toBe('not_found');
   });
 });

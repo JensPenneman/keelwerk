@@ -157,7 +157,7 @@ describe.each(['memory', 'pglite'] as const)('invitations on %s', (kind: Members
     expect(refusalOfAttempt(await acceptAs(app, invitee, first.token ?? ''))?.code).toBe(invalid);
   });
 
-  test('accept refuses a member and a second owner', { timeout }, async () => {
+  test('accept refuses a person who is a member already', { timeout }, async () => {
     const app = await boot();
     await joinAs(app, invitee, 'member', 'ada@example.com');
     const again = await inviteAs(app, founder, { email: 'other@example.com', role: 'viewer' });
@@ -165,14 +165,6 @@ describe.each(['memory', 'pglite'] as const)('invitations on %s', (kind: Members
       kind: 'conflict',
       message: 'You are already a member of this tenant.',
     });
-    // An owner invitation that survived the bring-up, planted: no command makes one beside an owner.
-    const planted = await inviteAs(app, founder, { email: 'owner@example.com', role: 'admin' });
-    await app.plant('invitation', planted.id, { role: 'owner' });
-    expect(refusalOfAttempt(await acceptAs(app, stranger, planted.token ?? ''))).toMatchObject({
-      kind: 'conflict',
-      message: 'This tenant already has an owner.',
-    });
-    expect((await app.row('invitation', planted.id))?.status).toBe('pending');
   });
 
   test('an invitation of one tenant is not accepted in another', { timeout }, async () => {

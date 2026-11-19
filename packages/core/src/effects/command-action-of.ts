@@ -6,8 +6,9 @@ import { erasureAction } from '../subjects/erasure-action.ts';
 /**
  * The command an `invoke`, `enqueue` or timer names (a principal resolver's effects too); anything
  * else is not allowed. `core.eraseSubject` is never a target: an effect is not judged by the
- * target's rules, and only the rules and the ownership check of `acceptAsyncCommand` may start an
- * erasure (section 14.7.5).
+ * target's rules, and only the rules and the ownership check of `acceptAsyncCommand`, or the
+ * own-subject request of `eraseOwnSubject`, after `checkOwnSubjectErasure`, may start an erasure
+ * (section 14.7.5).
  */
 export function commandActionOf(registry: Registry, ref: string, effect: string): ActionEntry {
   const action = registry.actions.get(ref);

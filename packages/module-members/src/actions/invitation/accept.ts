@@ -51,7 +51,7 @@ const acceptDef = defineCommand(membersBase, invitation, {
           status: 'accepted',
           acceptedAt: now,
           subject,
-          email: row.email,
+          ...(row.email === undefined ? {} : { email: row.email }),
         }),
         ctx.write.members.membership.create({
           id: membershipId,

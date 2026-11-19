@@ -311,6 +311,7 @@ export type { EnqueueOptions } from './dsl/enqueue.ts';
 export { enqueue } from './dsl/enqueue.ts';
 export type { EnvRef } from './dsl/env.ts';
 export { env } from './dsl/env.ts';
+export { eraseOwnSubject } from './dsl/erase-own-subject.ts';
 export type {
   ExtensionMode,
   ExtensionPoint,
@@ -817,6 +818,7 @@ export type { Decision } from './protocol/decision.ts';
 export type { Draft } from './protocol/draft.ts';
 export type { EffectDraft } from './protocol/effect-draft.ts';
 export type { EnqueueEffect } from './protocol/enqueue-effect.ts';
+export type { EraseOwnSubjectEffect } from './protocol/erase-own-subject-effect.ts';
 export type { EventDraft } from './protocol/event-draft.ts';
 export type { ExternalEffect } from './protocol/external-effect.ts';
 export type { FlagRequest } from './protocol/flag-request.ts';

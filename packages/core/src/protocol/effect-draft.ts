@@ -3,7 +3,14 @@
  * `kind` names the effect variant (S-50).
  */
 export interface EffectDraft<O = unknown> {
-  readonly kind: 'invoke' | 'enqueue' | 'setTimer' | 'cancelTimer' | 'settle' | 'external';
+  readonly kind:
+    | 'invoke'
+    | 'enqueue'
+    | 'setTimer'
+    | 'cancelTimer'
+    | 'settle'
+    | 'external'
+    | 'eraseOwnSubject';
   readonly type: string;
   readonly '~output'?: O;
 }

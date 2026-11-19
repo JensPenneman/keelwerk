@@ -203,9 +203,45 @@ export const migration: MigrationFile = {
             name: 'members__invitation__email_uq',
             unique: true,
             where: {
-              field: 'status',
-              op: 'eq',
-              value: 'pending',
+              conditions: [
+                {
+                  field: 'status',
+                  op: 'eq',
+                  value: 'pending',
+                },
+                {
+                  field: 'archivedAt',
+                  op: 'isNull',
+                  value: true,
+                },
+              ],
+              op: 'and',
+            },
+          },
+          {
+            columns: ['tenant_id', 'role'],
+            method: 'btree',
+            name: 'members__invitation__role_uq',
+            unique: true,
+            where: {
+              conditions: [
+                {
+                  field: 'role',
+                  op: 'eq',
+                  value: 'owner',
+                },
+                {
+                  field: 'status',
+                  op: 'eq',
+                  value: 'pending',
+                },
+                {
+                  field: 'archivedAt',
+                  op: 'isNull',
+                  value: true,
+                },
+              ],
+              op: 'and',
             },
           },
         ],
@@ -329,6 +365,27 @@ export const migration: MigrationFile = {
               field: 'archivedAt',
               op: 'isNull',
               value: true,
+            },
+          },
+          {
+            columns: ['tenant_id', 'role'],
+            method: 'btree',
+            name: 'members__membership__role_uq',
+            unique: true,
+            where: {
+              conditions: [
+                {
+                  field: 'role',
+                  op: 'eq',
+                  value: 'owner',
+                },
+                {
+                  field: 'archivedAt',
+                  op: 'isNull',
+                  value: true,
+                },
+              ],
+              op: 'and',
             },
           },
         ],

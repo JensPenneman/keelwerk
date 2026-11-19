@@ -56,7 +56,7 @@ test('AnyDraft narrows on kind and every draft is a Draft', () => {
 
 test('AnyEffect narrows on kind and every effect is an EffectDraft', () => {
   expectTypeOf<AnyEffect['kind']>().toEqualTypeOf<
-    'invoke' | 'enqueue' | 'setTimer' | 'cancelTimer' | 'settle' | 'external'
+    'invoke' | 'enqueue' | 'setTimer' | 'cancelTimer' | 'settle' | 'external' | 'eraseOwnSubject'
   >();
   expectTypeOf<AnyEffect>().toExtend<EffectDraft>();
   expectTypeOf<Extract<AnyEffect, { kind: 'cancelTimer' }>['key']>().toBeString();

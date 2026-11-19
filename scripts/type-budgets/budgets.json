@@ -49,8 +49,8 @@
       },
       "packages/module-members": {
         "manifestBytes": 6144,
-        "packageBytes": 22784,
-        "reason": "members with its membership and invitation entities, the invite, createOwner, accept, transferOwnership and expireInvitation actions, the ten rules, the role enricher and the delivery extension point (2,720 B manifest and 19,745 B package measured on 2026-11-19 plus 15 %, rounded up to 256 B)"
+        "packageBytes": 28416,
+        "reason": "members with its membership and invitation entities, the invite, createOwner, accept, transferOwnership, changeRole, removeMember and expireInvitation actions, the settleEndedInvitation reaction, the ten rules, the role enricher and the delivery extension point (2,720 B manifest measured on 2026-11-19, 24,545 B package measured on 2026-11-19 after the hardening pass, plus 15 %, rounded up to 256 B; raised from 22,784 B for the lead to confirm)"
       },
       "packages/testing/src/fixtures/modules/loans": {
         "manifestBytes": 8448,

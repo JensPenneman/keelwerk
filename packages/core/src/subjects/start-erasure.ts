@@ -18,7 +18,7 @@ const kernelActor = { kind: 'system', id: null, via: 'core.runtime' } as const;
  * control ledger already (an attempt that lost its lease after the append, or ran again after the
  * worker shredded) completes at once: nothing else is looked at, because the subject's keys may be
  * gone by then. Otherwise the job must hold the accepted receipt of its command id in its tenant
- * (only `acceptAsyncCommand` writes one, after the rules and the ownership check): without it, or
+ * (only `acceptAsyncCommand` writes one, after the rules and the ownership check, or the own-subject request of `eraseOwnSubject`, after `checkOwnSubjectErasure`): without it, or
  * with one that expired before the job ran, the job fails without a retry and the requester asks
  * again. Then it refuses (`not_found`, nothing written) a subject that has no key row, no
  * reference, no shredded key and no owned row in the job's tenant (a row that holds no personal value counts), so no answer tells another tenant's subject from an unknown one;
