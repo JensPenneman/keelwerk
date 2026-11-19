@@ -1,4 +1,5 @@
 import { errors } from '../errors/errors.ts';
+import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { Shape } from '../fields/shape.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import { configSecrets } from '../keys/config-secrets.ts';
@@ -29,17 +30,45 @@ function shapeOf(moduleId: string, module: ConfigurableModule | undefined): Shap
 }
 
 /**
+ * The core's quota values of a configuration that passed its shape, each checked by `check` and
+ * replaced by the canonical text it answers. A refusal of the checker is a `validation` error with
+ * the member's path; members and no checker is `internal` (it fails closed).
+ */
+function checkedQuotas(
+  quotas: Readonly<Record<string, string>>,
+  check: BackendCreateOptions['checkQuotaValue'],
+): Record<string, string> {
+  if (check === undefined) {
+    throw errors.internal('A backend configures quota values but no check of them was given.');
+  }
+  const canonical: Record<string, string> = {};
+  for (const [dimension, limit] of Object.entries(quotas)) {
+    try {
+      canonical[dimension] = check(dimension, limit);
+    } catch (error) {
+      if (!(error instanceof KeelwerkError) || error.kind !== 'validation') throw error;
+      throw errors.validation('The configuration of "core" is not valid.', {
+        issues: [{ path: ['core', 'quotas', dimension], message: error.message }],
+      });
+    }
+  }
+  return canonical;
+}
+
+/**
  * Validates `config[moduleId]` against each module's config shape (5.7) and collects the values
  * of `field.secret()` fields, to be sealed under the backend key once everything else is known to
  * hold (S-70): sealing creates the backend's scope key, which no rollback can take back. A module
  * the app does not select, a module without a config shape, a value the shape rejects and a
  * secret held in a list or set are `validation` errors; the validated values (defaults filled)
  * are what is stored. Every module of the app is checked, the core included: a module given no
- * values is checked as `{}`, so a missing required field refuses the backend (S-107).
+ * values is checked as `{}`, so a missing required field refuses the backend (S-107). The core's
+ * quota values are checked as soon as they pass the shape and are stored in their canonical form.
  */
 function checkedConfig(
   config: Readonly<Record<string, unknown>>,
   modules: readonly ConfigurableModule[],
+  checkQuotaValue: BackendCreateOptions['checkQuotaValue'],
 ): CheckedConfig {
   const stored: Record<string, Record<string, unknown>> = {};
   const pending: PendingSecret[] = [];
@@ -82,6 +111,10 @@ function checkedConfig(
       });
     }
     const checked: Record<string, unknown> = { ...(result.value as Record<string, unknown>) };
+    const quotas = moduleId === 'core' ? checked.quotas : undefined;
+    if (quotas !== undefined) {
+      checked.quotas = checkedQuotas(quotas as Record<string, string>, checkQuotaValue);
+    }
     const nested = nestedCredentialField(schema.fields);
     if (nested !== undefined) {
       throw errors.validation(`${moduleId}.${nested} holds secrets in a list or set.`, {
@@ -128,12 +161,18 @@ export interface BackendCreateOptions {
   readonly modules?: readonly ConfigurableModule[];
   /** The command id has a receipt: nothing is checked or sealed, and the write path replays it. */
   readonly replay?: boolean;
+  /**
+   * Checks one member of `config.core.quotas` against the backend's app and answers the text to
+   * store; it throws a `validation` error to refuse it. Needed whenever the configuration has
+   * members.
+   */
+  readonly checkQuotaValue?: (dimension: string, limit: string) => string;
 }
 
 /**
  * Creates a backend row through `core.backend.create` (S-26, S-109); the name is unique. The
- * backend's `config` is checked against the selected modules' config shapes and the name is checked
- * free before its secrets are sealed, then the command runs with the sealed values; the receipt's
+ * backend's `config` is checked against the selected modules' config shapes (its quota values by
+ * `options.checkQuotaValue`) and the name is checked free before its secrets are sealed, then the command runs with the sealed values; the receipt's
  * fingerprint covers the client's input, never the sealed values, and withholds every value of
  * `config` (`maskConfigValues`).
  */
@@ -162,7 +201,7 @@ export async function createBackend(
   // leaves a scope key no row refers to. The key holds no data and the receipt still lets one
   // create win; claiming the receipt before sealing needs the claim split from the unit.
   const id = newUuidV7();
-  const checked = checkedConfig(input.config ?? {}, options.modules ?? []);
+  const checked = checkedConfig(input.config ?? {}, options.modules ?? [], options.checkQuotaValue);
   // Everything that can refuse the backend is checked before a secret creates the backend's key.
   if ((await findControlRows(store, 'core.backend', { name: input.name })).length > 0) {
     throw errors.conflict(`A backend named "${input.name}" already exists.`);

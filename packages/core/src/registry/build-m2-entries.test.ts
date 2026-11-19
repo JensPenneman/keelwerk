@@ -24,11 +24,16 @@ describe('the M2 entries of the registry', () => {
     expect([...registry.topics.keys()]).toEqual(['m2-parts.progress']);
     expect([...registry.versionChanges.keys()]).toEqual(['m2-parts.displayName']);
     expect(
-      [...registry.quotas.entries()].map(([ref, quota]) => [ref, quota.kind, quota.level]),
+      [...registry.quotas.entries()]
+        .filter(([, quota]) => quota.module !== 'core')
+        .map(([ref, quota]) => [ref, quota.kind, quota.level]),
     ).toEqual([
       ['m2-parts.calls', 'rate', 'backend'],
       ['m2-parts.storageBytes', 'bytes', 'tenant'],
     ]);
+    expect([...registry.quotas.keys()]).toEqual(
+      expect.arrayContaining(['core.rows', 'core.requestRate', 'core.liveConnections']),
+    );
     expect(registry.quotas.get('m2-parts.storageBytes')?.default).toBe('1GiB');
   });
 

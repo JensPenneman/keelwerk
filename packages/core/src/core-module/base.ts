@@ -7,6 +7,7 @@ import type { LiveCarrier } from '../live/live-carrier.ts';
 import type { LiveHub } from '../live/live-hub.ts';
 import type { TransportAdapter } from '../transport/transport-adapter.ts';
 import type { CoreBase } from './core-base-type.ts';
+import { coreQuotas } from './core-quotas.ts';
 import { backend } from './entities/backend.ts';
 import { commandReceipt } from './entities/command-receipt.ts';
 import { domain } from './entities/domain.ts';
@@ -16,6 +17,7 @@ import { namespace } from './entities/namespace.ts';
 import { operatorToken } from './entities/operator-token.ts';
 import { placement } from './entities/placement.ts';
 import { process } from './entities/process.ts';
+import { quota } from './entities/quota.ts';
 import { tenant } from './entities/tenant.ts';
 import { effectAttempt } from './streams/effect-attempt.ts';
 
@@ -42,6 +44,8 @@ export const coreBase: CoreBase = defineModuleBase({
     effect,
     process,
     flag,
+    quota,
   },
   streams: { effectAttempt },
+  quotas: coreQuotas,
 });

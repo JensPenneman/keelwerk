@@ -1,6 +1,5 @@
 import { startAnchoring } from '../anchors/start-anchoring.ts';
 import { type VersionProjection, versionProjection } from '../api-versions/version-projection.ts';
-import { latestTenantEntry } from '../control/latest-tenant-entry.ts';
 import { setProcessState } from '../control/set-process-state.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
 import { defineApp } from '../dsl/define-app.ts';
@@ -11,10 +10,8 @@ import { createFlagChain } from '../flags/create-flag-chain.ts';
 import { startFlagProviders } from '../flags/start-flag-providers.ts';
 import { createTargetingCache } from '../flags/targeting-cache.ts';
 import { createInvoker } from '../invoker/create-invoker.ts';
-import type { InvokerOptions } from '../invoker/invoker-options.ts';
 import { liveTimersOf } from '../live/live-timers-of.ts';
 import type { RuntimeLiveHub } from '../live/runtime-live-hub.ts';
-import { createOperatorTokenResolver } from '../principals/operator-token-resolver.ts';
 import type { ApiSurface } from '../surface/api-surface.ts';
 import { deriveSurface } from '../surface/derive-surface.ts';
 import type { SurfaceSource } from '../surface/surface-source.ts';
@@ -22,7 +19,6 @@ import { answerRuntimeQueries } from './answer-runtime-queries.ts';
 import { AppNotServedError } from './app-not-served-error.ts';
 import { composePhase } from './compose-phase.ts';
 import { connectPhase } from './connect-phase.ts';
-import { controlCommandsOf } from './control-commands-of.ts';
 import { createControlPath } from './create-control-path.ts';
 import { createRuntimeControl } from './create-runtime-control.ts';
 import { createServiceGate } from './create-service-gate.ts';
@@ -30,6 +26,7 @@ import { defaultLogger } from './default-logger.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
 import { drainingInvoker } from './draining-invoker.ts';
 import { invokerAppsOf } from './invoker-apps-of.ts';
+import { invokerOptionsOf } from './invoker-options-of.ts';
 import { listenPhase } from './listen-phase.ts';
 import type { Listening } from './listening.ts';
 import { migratePhase } from './migrate-phase.ts';
@@ -124,38 +121,21 @@ export async function startRuntime(
       targeting: targeting.provider,
     });
     startFlagProviders(flagProviders, connected.signal, log);
-    const invokerOptions: InvokerOptions = {
+    const invokerOptions = invokerOptionsOf({
+      deployment,
+      connected,
+      migrated,
+      served,
       apps,
-      directory: migrated.directory.lookup,
-      placement: (name) => connected.placements.get(name),
-      control: {
-        scope: { level: 'deployment' },
-        namespace: connected.control.namespace,
-        handle: {
-          adapter: connected.control.adapter,
-          capabilities: connected.control.capabilities,
-        },
-      },
-      ...(deployment.tenantResolution === undefined
-        ? {}
-        : { tenantResolution: deployment.tenantResolution }),
-      clock,
-      epochOf: (scope) => connected.control.epochOf(scope),
+      controlPath,
       restoreHold: restore.hold,
-      operatorTokens: createOperatorTokenResolver(connected.control),
-      tenantEntry: (tenantId, actor) => latestTenantEntry(connected.control, tenantId, actor),
-      operatorHosts: deployment.operator?.hosts ?? [],
-      ...(decisions === undefined ? {} : { onDecision: decisions.onDecision }),
-      keys: connected.keys,
-      compute: connected.compute,
-      log,
-      apiUsage: connected.control.apiUsage,
-      environment,
+      decisions,
       flagProviders,
       targeting,
-      build: connected.build,
-      commands: controlCommandsOf({ connected, controlPath, served, clock }),
-    };
+      environment,
+      clock,
+      log,
+    });
     const inner = createInvoker(invokerOptions);
     const servedById = new Map(served.map((app) => [app.id, app]));
     const answering = answerRuntimeQueries(

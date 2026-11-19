@@ -45,6 +45,63 @@ describe('writes only the control path makes', () => {
     }
   });
 
+  it('refuses core.quota.set that the routing did not check, and names the operator socket', () => {
+    const run = runOf('core.quota.set', 'core.quota', undefined, { tenantId: 't' });
+    expect(() => refuseGeneratedWrite(run)).toThrowError(
+      expect.objectContaining({
+        kind: 'forbidden',
+        message: expect.stringContaining('operator socket'),
+      }),
+    );
+    expect(() => refuseGeneratedWrite({ ...run, controlPath: true })).toThrowError(
+      expect.objectContaining({ kind: 'forbidden' }),
+    );
+  });
+
+  it('lets core.quota.set through once the routing checked it', () => {
+    expect(() =>
+      refuseGeneratedWrite({
+        ...runOf('core.quota.set', 'core.quota', undefined, { tenantId: 't' }),
+        quotaChecked: true,
+      }),
+    ).not.toThrow();
+  });
+
+  it.each([
+    ['core.tenant.create', 'core.tenant'],
+    ['core.backend.create', 'core.backend'],
+  ])('the quota mark does not open %s', (ref, entity) => {
+    expect(() =>
+      refuseGeneratedWrite({
+        ...runOf(ref, entity, undefined, { name: 'x' }),
+        quotaChecked: true,
+      }),
+    ).toThrowError(expect.objectContaining({ kind: 'forbidden' }));
+  });
+
+  it('refuses a nested core.quota.set whatever its marks say', async () => {
+    const attempt = attemptCommand(
+      {
+        run: {
+          ...runOf('core.quota.set', 'core.quota', undefined, { tenantId: 't' }),
+          quotaChecked: true,
+        },
+        commandId: 'c1',
+        fingerprint: 'f',
+        decisionBase: 'b',
+        legacyFingerprint: () => 'l',
+        clock: { now: () => Temporal.Now.instant() },
+        prepared: undefined,
+        nested: { depth: 1, causationId: 'c0' },
+      },
+      {} as Unit,
+    );
+    await expect(attempt).rejects.toMatchObject({
+      kind: 'forbidden',
+      message: expect.stringContaining('operator socket'),
+    });
+  });
+
   it('refuses a placement change and a pin on a nested attempt, before any unit work', async () => {
     const attempt = (run: RunCommandInput) =>
       attemptCommand(

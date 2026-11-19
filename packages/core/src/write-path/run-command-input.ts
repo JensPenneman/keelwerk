@@ -38,6 +38,8 @@ export interface RunCommandInput {
   readonly fingerprintMask?: (input: unknown) => unknown;
   /** Set by the runtime's control path only: it alone may run `core.backend.create` and `core.tenant.create` (S-109). */
   readonly controlPath?: boolean;
+  /** Set from `CommandRun.quotaChecked` (the runtime's routing checked `core.quota.set`); it opens no other command and a nested command carries none. */
+  readonly quotaChecked?: boolean;
   /** Set by the control path when it saw a live receipt and skipped its checks: the command must replay, never run. If the receipt turns out to be gone (it expired before the claim), the unit rolls back with a retryable `core.command_in_progress` and the retry takes the full path (S-111). */
   readonly replayOnly?: boolean;
   readonly principal: Principal;

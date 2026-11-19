@@ -13,6 +13,7 @@ import type { Unit } from '../storage/unit.ts';
 import type { ControlApiUsage } from './control-api-usage.ts';
 import type { ControlFlags } from './control-flags.ts';
 import type { ControlLedger } from './control-ledger.ts';
+import type { ControlQuotas } from './control-quotas.ts';
 import type { ControlRetention } from './control-retention.ts';
 import type { NamespaceIdentities } from './namespace-identities.ts';
 import type { ScopeMarks } from './scope-marks.ts';
@@ -59,6 +60,8 @@ export interface ControlStore {
   readonly apiUsage: ControlApiUsage;
   /** The deployment's ledger in the control root: erasure and key tombstone records (WP-100, S-125). */
   readonly ledger: ControlLedger;
+  /** The core.quota rows and their change subscription (WP-108, S-142). */
+  readonly quotas: ControlQuotas;
   /** The runs of the retention worker (14.7.1): kw_retention_runs, each call in its own deployment unit. */
   readonly retention: ControlRetention;
   /** Runs `fn` in a read-only deployment-scope unit. */

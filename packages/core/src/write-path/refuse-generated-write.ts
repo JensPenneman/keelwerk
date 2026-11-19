@@ -8,16 +8,23 @@ import type { RunCommandInput } from './run-command-input.ts';
 
 /**
  * Refuses the writes of `core.tenant` and `core.backend` that only the control path may make: the
- * explicit create commands outside that path, a change of backend, app or placement (14.4.5), a pin
- * of the API version, a change of a backend's configuration. Every way into a unit (a request, a
- * nested `invoke`, a replay) runs it.
+ * explicit create commands outside that path; `core.quota.set` that the runtime's routing has not
+ * checked, or that runs nested (a nested `invoke` of it would store a limit nobody checked, so its
+ * marks do not matter); a change of backend, app or placement (14.4.5), a pin of the API version, a
+ * change of a backend's configuration. Every way into a unit (a request, a nested `invoke`, a
+ * replay) runs it; `nested` is set by the nested path only.
  */
-export function refuseGeneratedWrite(run: RunCommandInput): void {
+export function refuseGeneratedWrite(run: RunCommandInput, nested?: object): void {
   const { action } = run;
   const created = refusedControlCommand(action.ref, run.controlPath);
   if (created !== undefined) {
     throw errors.forbidden(
       `"${action.ref}" runs only through the control path, not nested or on its own; use Runtime.${created} or the operator socket, which checks the catalogue, the placement and the API version and runs the hooks.`,
+    );
+  }
+  if (action.ref === 'core.quota.set' && (nested !== undefined || run.quotaChecked !== true)) {
+    throw errors.forbidden(
+      `"${action.ref}" runs only as a top-level command of an operator, which checks the dimension, the tenant and the bound and stores the canonical limit; use the operator socket, not a nested invoke.`,
     );
   }
   const moved = refusedPlacementChange(action.module, action.entity, action.generated, run.input);

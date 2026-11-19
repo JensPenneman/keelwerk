@@ -1,0 +1,22 @@
+{
+  "bytes": {
+    "values": {
+      "slot": "notes.noteBytes@<backend id>@<tenant id>",
+      "dimension": "notes.noteBytes",
+      "backendId": "<backend id>",
+      "tenantId": "<tenant id>",
+      "limit": "524288",
+      "reason": "a trial tenant"
+    }
+  },
+  "rate": {
+    "values": {
+      "slot": "core.requestRate@<backend id>@<tenant id>",
+      "dimension": "core.requestRate",
+      "backendId": "<backend id>",
+      "tenantId": "<tenant id>",
+      "limit": "10/60000ms",
+      "reason": "a slow tenant"
+    }
+  }
+}

@@ -90,6 +90,7 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
       ...(run.epochOf === undefined ? {} : { epochOf: run.epochOf }),
       ...(run.concurrentUnits === undefined ? {} : { concurrentUnits: run.concurrentUnits }),
       ...(run.namespaceOf === undefined ? {} : { namespaceOf: run.namespaceOf }),
+      ...(run.quotaChecked === true ? { quotaChecked: true } : {}),
       hybridClock: processClock,
       ...(options.retry === undefined ? {} : { retry: options.retry }),
       ...(options.replace === undefined ? {} : { replace: options.replace }),

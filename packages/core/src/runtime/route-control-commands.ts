@@ -3,12 +3,15 @@ import { checkCallerCommandId } from '../ids/check-caller-command-id.ts';
 import type { CommandResult, CommandRunner } from '../invoker/command-runner.ts';
 import type { ControlPath } from './control-path.ts';
 import type { FlagTargetingCheck } from './flag-targeting-check.ts';
+import type { QuotaCheck } from './quota-check.ts';
 
 /**
  * The command runner with the control commands routed to the runtime's control path (S-109):
  * `core.backend.create` and `core.tenant.create` run there under the session's principal and the
  * request's command id. `core.flag.set` and `core.flag.restoreRules` are checked against the flag's
- * declaration first and then written as any command; every other command goes to `runner`.
+ * declaration first and then written as any command, and so is `core.quota.set` against the
+ * backend's quota declarations (it stores the canonical limit the check answers); every other
+ * command goes to `runner`.
  */
 export function routeControlCommands(runner: CommandRunner, path: ControlPath): CommandRunner {
   return async (run) => {
@@ -20,6 +23,13 @@ export function routeControlCommands(runner: CommandRunner, path: ControlPath): 
       const { id, ifVersion } = run.input as { readonly id: string; readonly ifVersion: number };
       await path.checkFlagRestore(id, ifVersion);
       return runner(run);
+    }
+    if (run.action.ref === 'core.quota.set') {
+      const input = run.input as QuotaCheck;
+      const limit = await path.checkQuota(input);
+      // The row keeps the limit in its canonical form, never the friendly text the operator typed.
+      // The mark tells the write path that the check ran: a nested invoke carries none.
+      return runner({ ...run, input: { ...input, limit }, quotaChecked: true });
     }
     if (!isControlCommand(run.action.ref)) return runner(run);
     checkCallerCommandId(run.invocation.commandId);

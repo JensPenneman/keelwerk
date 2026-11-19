@@ -18,18 +18,25 @@ function run(ref: string, input: unknown): CommandRun {
 function rig(refuse: boolean) {
   const checked: [string, number][] = [];
   const ran: string[] = [];
+  const inputs: unknown[] = [];
   const path = {
     checkFlagTargeting: async () => undefined,
     checkFlagRestore: async (id: string, ifVersion: number) => {
       checked.push([id, ifVersion]);
       if (refuse) throw new Error('the earlier rule set no longer fits the declaration');
     },
+    checkQuota: async (input: { readonly dimension: string }) => {
+      checked.push([input.dimension, 0]);
+      if (refuse) throw new Error('the dimension is not declared');
+      return '10485760';
+    },
   } as unknown as ControlPath;
   const routed = routeControlCommands(async (given) => {
     ran.push(given.action.ref);
+    inputs.push(given.input);
     return { output: {} };
   }, path);
-  return { checked, ran, routed };
+  return { checked, ran, inputs, routed };
 }
 
 describe('routeControlCommands', () => {
@@ -45,6 +52,33 @@ describe('routeControlCommands', () => {
       run('core.flag.restoreRules', { id: 'flg-1', ifVersion: 2, reason: 'undo' }),
     );
     expect(passing.ran).toEqual(['core.flag.restoreRules']);
+  });
+});
+
+describe('routeControlCommands, quotas', () => {
+  const input = {
+    dimension: 'notes.rows',
+    backendId: 'bkd-1',
+    tenantId: 'tnt-1',
+    limit: '10MiB',
+    reason: 'trial',
+  };
+
+  test('core.quota.set is checked by the control path before it runs; a refused check runs nothing', async () => {
+    const refusing = rig(true);
+    await expect(refusing.routed(run('core.quota.set', input))).rejects.toThrow('not declared');
+    expect(refusing.checked).toEqual([['notes.rows', 0]]);
+    expect(refusing.ran).toEqual([]);
+    const passing = rig(false);
+    await passing.routed(run('core.quota.set', input));
+    expect(passing.checked).toEqual([['notes.rows', 0]]);
+    expect(passing.ran).toEqual(['core.quota.set']);
+  });
+
+  test('core.quota.set runs with the canonical limit the check answers, never the typed text', async () => {
+    const passing = rig(false);
+    await passing.routed(run('core.quota.set', input));
+    expect(passing.inputs).toEqual([{ ...input, limit: '10485760' }]);
   });
 });
 

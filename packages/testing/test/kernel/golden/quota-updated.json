@@ -1,0 +1,37 @@
+{
+  "rowAfterChange": {
+    "id": "<row id>",
+    "createdAt": "2026-11-19T08:00:00Z",
+    "updatedAt": "2026-11-19T08:00:00Z",
+    "version": 2,
+    "slot": "notes.noteBytes@<backend id>@<tenant id>",
+    "dimension": "notes.noteBytes",
+    "backendId": "<backend id>",
+    "tenantId": "<tenant id>",
+    "limit": "524288",
+    "reason": "a smaller plan"
+  },
+  "rowAfterDefault": {
+    "id": "<row id>",
+    "createdAt": "2026-11-19T08:00:00Z",
+    "updatedAt": "2026-11-19T08:00:00Z",
+    "version": 3,
+    "slot": "notes.noteBytes@<backend id>@<tenant id>",
+    "dimension": "notes.noteBytes",
+    "backendId": "<backend id>",
+    "tenantId": "<tenant id>",
+    "reason": "the plan ended"
+  },
+  "changeEventData": {
+    "set": {
+      "limit": "524288",
+      "reason": "a smaller plan"
+    }
+  },
+  "defaultEventData": {
+    "set": {
+      "limit": null,
+      "reason": "the plan ended"
+    }
+  }
+}

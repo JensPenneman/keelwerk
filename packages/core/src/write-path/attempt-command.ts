@@ -75,7 +75,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   const run = runInUnitKeys(input.run, unit);
   const { action, registry } = run;
   const authority = action.contributedBy ?? action.module;
-  refuseGeneratedWrite(run);
+  refuseGeneratedWrite(run, input.nested);
   const now = clock.now();
 
   const job = input.nested === undefined ? run.job : undefined;

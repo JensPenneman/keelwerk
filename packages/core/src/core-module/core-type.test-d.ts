@@ -22,6 +22,7 @@ import { introspect } from './actions/introspect.ts';
 import { me } from './actions/me.ts';
 import { issue } from './actions/operator-token/issue.ts';
 import { revoke } from './actions/operator-token/revoke.ts';
+import { set as setQuota } from './actions/quota/set.ts';
 import { retireApiVersion } from './actions/retire-api-version.ts';
 import { create as createTenant } from './actions/tenant/create.ts';
 import { enter } from './actions/tenant/enter.ts';
@@ -41,6 +42,7 @@ import { operators as subjectOperators } from './policies/erase-subject/operator
 import { operators as flagOperators } from './policies/flag/operators.ts';
 import { signedIn as introspectSignedIn } from './policies/introspect/signed-in.ts';
 import { operators as operatorTokenOperators } from './policies/operator-token/operators.ts';
+import { operators as quotaOperators } from './policies/quota/operators.ts';
 import { operators as retireOperators } from './policies/retire-api-version/operators.ts';
 import { operators as tenantOperators } from './policies/tenant/operators.ts';
 import { syncDomains } from './reactions/sync-domains.ts';
@@ -64,6 +66,7 @@ const derivedCore = defineModule(coreBase, {
     tenant: { create: createTenant, enter, setApiVersion },
     operatorToken: { issue, revoke },
     flag: { set: setFlag, restoreRules, evaluate: evaluateFlag },
+    quota: { set: setQuota },
   },
   policies: {
     introspect: { signedIn: introspectSignedIn },
@@ -75,6 +78,7 @@ const derivedCore = defineModule(coreBase, {
     tenant: { operators: tenantOperators },
     domain: { operators: domainOperators },
     flag: { operators: flagOperators },
+    quota: { operators: quotaOperators },
     commandReceipt: { submitter },
     effectStatus: { signedIn: effectStatusSignedIn },
     effectStatusWatch: { signedIn: effectStatusWatchSignedIn },
@@ -112,6 +116,7 @@ describe('the hand-written core module types (decision 104, S-11, S-26)', () => 
       | 'effect'
       | 'process'
       | 'flag'
+      | 'quota'
     >();
     expectTypeOf<Row<OnlyCore, 'core.backend'>['name']>().toEqualTypeOf<string>();
     expectTypeOf<Row<OnlyCore, 'core.backend'>['status']>().toEqualTypeOf<'active' | 'suspended'>();
@@ -162,6 +167,10 @@ describe('the hand-written core module types (decision 104, S-11, S-26)', () => 
       | 'core.flag.get'
       | 'core.flag.query'
       | 'core.flag.history'
+      | 'core.quota.set'
+      | 'core.quota.get'
+      | 'core.quota.query'
+      | 'core.quota.history'
       | 'core.eraseSubject'
     >().toExtend<ActionRef<OnlyCore>>();
     expectTypeOf<
@@ -174,6 +183,8 @@ describe('the hand-written core module types (decision 104, S-11, S-26)', () => 
       | 'core.operatorToken.create'
       | 'core.flag.create'
       | 'core.flag.update'
+      | 'core.quota.create'
+      | 'core.quota.update'
     >().not.toExtend<ActionRef<OnlyCore>>();
   });
 });

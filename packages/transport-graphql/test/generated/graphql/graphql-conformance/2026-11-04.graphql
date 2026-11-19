@@ -1619,6 +1619,165 @@ enum CoreProcessWatchItemType {
   RESTORED
 }
 
+type CoreQuota implements Node {
+  """The fields a rule hides from the caller on this row."""
+  _masked: [String!]!
+  archivedAt: Instant
+  backend: CoreBackend
+  backendId: ID
+  createdAt: Instant
+  dimension: String
+  id: ID!
+  limit: String
+  reason: String
+  slot: String
+  updatedAt: Instant
+  version: SafeInt!
+}
+
+type CoreQuotaChangesOutput {
+  archived: [ID!]
+  changed: [ID!]
+  created: [ID!]
+  hasMoreChanges: Boolean
+  newState: String
+  oldState: String
+}
+
+type CoreQuotaConnection {
+  nodes: [CoreQuota!]!
+  pageInfo: PageInfo!
+  queryState: String
+  totalCount: SafeInt
+}
+
+input CoreQuotaFilter {
+  and: [CoreQuotaFilter!]
+  archivedAt: InstantFilter
+  backendId: IdFilter
+  createdAt: InstantFilter
+  dimension: StringFilter
+  id: IdFilter
+  limit: StringFilter
+  not: CoreQuotaFilter
+  or: [CoreQuotaFilter!]
+  reason: StringFilter
+  slot: StringFilter
+  updatedAt: InstantFilter
+  version: SafeIntFilter
+}
+
+type CoreQuotaGetResult {
+  list: [CoreQuota!]!
+  notFound: [ID!]!
+  state: String
+}
+
+type CoreQuotaHistoryOutput {
+  entries: [CoreQuotaHistoryOutputEntries!]
+}
+
+type CoreQuotaHistoryOutputEntries {
+  actor: JSON
+  at: Instant
+  changes: JSON
+  event: String
+  version: SafeInt
+}
+
+type CoreQuotaQueryChangesOutput {
+  added: [CoreQuotaQueryChangesOutputAdded!]
+  newQueryState: String
+  oldQueryState: String
+  removed: [ID!]
+}
+
+type CoreQuotaQueryChangesOutputAdded {
+  id: ID
+  index: SafeInt
+}
+
+input CoreQuotaSetInput {
+  backendId: ID!
+
+  """The idempotency key of the command."""
+  commandId: String
+  dimension: String!
+  limit: String!
+  reason: String!
+  tenantId: ID!
+}
+
+type CoreQuotaSetOutput {
+  id: ID
+  version: SafeInt
+}
+
+union CoreQuotaSetResult = CoreQuotaSetSuccess
+
+type CoreQuotaSetSuccess {
+  commandId: String!
+  result: CoreQuotaSetOutput
+}
+
+input CoreQuotaSort {
+  direction: SortDirection
+  field: CoreQuotaSortField!
+}
+
+enum CoreQuotaSortField {
+  CREATED_AT
+  ID
+  SLOT
+  UPDATED_AT
+}
+
+union CoreQuotaWatchEvent = CoreQuotaWatchItem | StreamGap | StreamHead | StreamReset
+
+enum CoreQuotaWatchFrom {
+  BEGINNING
+  NOW
+}
+
+type CoreQuotaWatchItem {
+  cause: String
+  id: ID
+  reason: CoreQuotaWatchItemReason
+  row: CoreQuotaWatchItemRow
+
+  """The state of the stream after this item."""
+  state: String
+  type: CoreQuotaWatchItemType
+  version: SafeInt
+}
+
+enum CoreQuotaWatchItemReason {
+  ERASED
+  LEFT_VIEW
+  PURGED
+}
+
+type CoreQuotaWatchItemRow {
+  archivedAt: Instant
+  backendId: ID
+  createdAt: Instant
+  dimension: String
+  id: ID
+  limit: String
+  reason: String
+  slot: String
+  updatedAt: Instant
+  version: SafeInt
+}
+
+enum CoreQuotaWatchItemType {
+  ARCHIVED
+  CHANGED
+  CREATED
+  REMOVED
+  RESTORED
+}
+
 input CoreRetireApiVersionInput {
   app: String!
 
@@ -2658,6 +2817,7 @@ type Mutation {
   coreFlagSet(input: CoreFlagSetInput!): CoreFlagSetResult
   coreOperatorTokenIssue(input: CoreOperatorTokenIssueInput!): CoreOperatorTokenIssueResult
   coreOperatorTokenRevoke(input: CoreOperatorTokenRevokeInput!): CoreOperatorTokenRevokeResult
+  coreQuotaSet(input: CoreQuotaSetInput!): CoreQuotaSetResult
   coreRetireApiVersion(input: CoreRetireApiVersionInput!): CoreRetireApiVersionResult
   coreTenantArchive(input: CoreTenantArchiveInput!): CoreTenantArchiveResult
   coreTenantCreate(input: CoreTenantCreateInput!): CoreTenantCreateResult
@@ -2749,6 +2909,12 @@ type Query {
   coreProcessGet(ids: [ID!]!, includeArchived: Boolean): CoreProcessGetResult!
   coreProcessQueryChanges(filter: CoreProcessFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [CoreProcessSort!]): CoreProcessQueryChangesOutput
   coreProcesses(after: String, before: String, filter: CoreProcessFilter, first: Int, includeArchived: Boolean, last: Int, sort: [CoreProcessSort!]): CoreProcessConnection!
+  coreQuota(id: ID!): CoreQuota
+  coreQuotaChanges(max: SafeInt, partition: String, since: String!): CoreQuotaChangesOutput
+  coreQuotaGet(asOf: Instant, ids: [ID!]!, includeArchived: Boolean): CoreQuotaGetResult!
+  coreQuotaHistory(asOf: Instant, fromVersion: SafeInt, id: ID!, limit: SafeInt): CoreQuotaHistoryOutput
+  coreQuotaQueryChanges(filter: CoreQuotaFilter, maxChanges: SafeInt, sinceQueryState: String!, sort: [CoreQuotaSort!]): CoreQuotaQueryChangesOutput
+  coreQuotas(after: String, before: String, filter: CoreQuotaFilter, first: Int, includeArchived: Boolean, last: Int, sort: [CoreQuotaSort!]): CoreQuotaConnection!
   coreTenant(id: ID!): CoreTenant
   coreTenantChanges(max: SafeInt, partition: String, since: String!): CoreTenantChangesOutput
   coreTenantGet(asOf: Instant, ids: [ID!]!, includeArchived: Boolean): CoreTenantGetResult!
@@ -2937,6 +3103,16 @@ type Subscription {
     includeArchived: Boolean
     partition: String
   ): CoreProcessWatchEvent!
+  coreQuotaWatch(
+    """The state of an item or a head to resume after."""
+    after: String
+    fields: [String!]
+    filter: JSON
+    from: CoreQuotaWatchFrom
+    ids: [ID!]
+    includeArchived: Boolean
+    partition: String
+  ): CoreQuotaWatchEvent!
   coreTenantWatch(
     """The state of an item or a head to resume after."""
     after: String

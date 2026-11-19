@@ -14,6 +14,7 @@ import { checkPersonalOutsideTenant } from './check-personal-outside-tenant.ts';
 import { checkPersonalScheduleInput } from './check-personal-schedule-input.ts';
 import { checkPrincipalFromRef } from './check-principal-from-ref.ts';
 import { checkProcessEvents } from './check-process-events.ts';
+import { checkQuotaDefaults } from './check-quota-defaults.ts';
 import { checkSerialPartitions } from './check-serial-partitions.ts';
 import { checkSettleWhere } from './check-settle-where.ts';
 import { checkStreamDeclarations } from './check-stream-declarations.ts';
@@ -34,6 +35,7 @@ export const m2ComposeChecks: readonly ((
   checkDeploymentGroups,
   checkObservesAll,
   checkJsonFlagDefaults,
+  checkQuotaDefaults,
   checkStreamOffload,
   checkVersionChanges,
   (_app, registry) => checkDataSubjectIndexes(registry.entities),

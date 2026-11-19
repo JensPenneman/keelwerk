@@ -123,6 +123,34 @@ describe('deriveSurface (section 16.2)', () => {
     expect(JSON.stringify(surface)).not.toContain('"digest"');
   });
 
+  test('the deployment rows of the core that name a tenant publish no tenantId, as released', () => {
+    const surface = surfaceOf([stash]);
+    for (const ref of ['core.domain', 'core.namespace', 'core.quota']) {
+      const entity = surface.entities.find((candidate) => candidate.ref === ref);
+      expect(entity, ref).toBeDefined();
+      // No member, no relation from it, no filter and no watch row member: every action and event of
+      // the entity is searched, and a shape of any of them naming the field fails the test.
+      expect(Object.keys(entity?.fields ?? {}), ref).not.toContain('tenantId');
+      expect(Object.keys(entity?.relations ?? {}), ref).not.toContain('tenant');
+      expect(JSON.stringify(entity?.relations), ref).not.toContain('tenantId');
+      for (const action of surface.actions.filter((candidate) => candidate.entity === ref)) {
+        const nodes =
+          action.ref === 'core.quota.set' ? [action.output] : [action.input, action.output];
+        for (const node of nodes.flatMap(nodesOf)) {
+          if (node.kind === 'shape')
+            expect(Object.keys(node.fields), action.ref).not.toContain('tenantId');
+        }
+      }
+      expect(
+        JSON.stringify(surface.events.filter((event) => event.entity === ref)),
+        ref,
+      ).not.toContain('tenantId');
+    }
+    // The action input is not an entity field: the operator names the tenant there.
+    const set = surface.actions.find((candidate) => candidate.ref === 'core.quota.set');
+    expect(set?.input.kind === 'shape' ? Object.keys(set.input.fields) : []).toContain('tenantId');
+  });
+
   test('field nodes carry access, description, decimal limits and tags', () => {
     const entity = surfaceOf([stash]).entities.find((candidate) => candidate.ref === 'stash.vault');
     expect(entity?.fields.label).toMatchObject({

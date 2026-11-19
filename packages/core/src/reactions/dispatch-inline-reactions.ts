@@ -41,7 +41,9 @@ export async function dispatchInlineReactions(
 ): Promise<readonly ReactionEffects[]> {
   const reactions = inlineReactionsOf(scene.run.registry);
   if (reactions.length === 0) return [];
-  const { run, unit } = scene;
+  const { run: sceneRun, unit } = scene;
+  // A reaction acts under its own principal: the quota mark of a routed command is not its own.
+  const { quotaChecked: _quotaChecked, ...run } = sceneRun;
   const performed: ReactionEffects[] = [];
   // Every module sees the same events in the same order, so one index runs through all of them:
   // event-major, and for each event the reactions in module order.

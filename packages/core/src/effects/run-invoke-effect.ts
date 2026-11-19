@@ -101,11 +101,12 @@ export async function runInvokeEffect(
     );
   }
   if (scene.depth >= maxReactionDepth) throw reactionDepthError(`The command "${action.ref}"`);
-  // A nested command is no control path and has its own input to fingerprint.
+  // A nested command is no control path, has no quota check of its own yet and has its own input to fingerprint.
   const {
     client: _client,
     commandId: _commandId,
     controlPath: _controlPath,
+    quotaChecked: _quotaChecked,
     fingerprintInput: _fingerprintInput,
     fingerprintMask: _fingerprintMask,
     replayOnly: _replayOnly,

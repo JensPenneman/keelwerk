@@ -4,6 +4,7 @@ import { openAsyncReaction } from '../reactions/open-async-reaction.ts';
 import type { Unit } from '../storage/unit.ts';
 import { createCommandRunner } from './create-command-runner.ts';
 import { openReactionJob } from './open-reaction-job.ts';
+import { refuseGeneratedWrite } from './refuse-generated-write.ts';
 import { runCommand } from './run-command.ts';
 
 vi.mock('./run-command.ts', () => ({ runCommand: vi.fn(() => Promise.resolve({ output: {} })) }));
@@ -56,5 +57,48 @@ describe('the boot nonce the command runner passes on', () => {
   test('a run without a nonce folds with the build id alone', async () => {
     expect(await foldBuildOf({})).toBe('build-1');
     expect(vi.mocked(runCommand).mock.calls.at(-1)?.[0]).not.toHaveProperty('bootNonce');
+  });
+});
+
+describe('the marks the command runner passes on', () => {
+  beforeEach(() => {
+    vi.mocked(runCommand).mockClear();
+  });
+
+  /** What the runner hands the write path for a run, then what the write path's refusal makes of it. */
+  async function refusalOf(ref: string, marks: object): Promise<unknown> {
+    await createCommandRunner({ deploymentId: 'dep-1', behaviours: () => ({}) as never })(
+      runOf({
+        action: { ref, kind: 'command', execution: 'sync', module: 'core' },
+        invocation: { requestId: 'req-1', carrier: {} },
+        ...marks,
+      }),
+    );
+    const input = vi.mocked(runCommand).mock.calls.at(-1)?.[0];
+    if (input === undefined) throw new Error('the runner did not run the command');
+    try {
+      refuseGeneratedWrite(input);
+    } catch (error) {
+      return error;
+    }
+    return undefined;
+  }
+
+  test.each(['core.tenant.create', 'core.backend.create'])(
+    'a run of %s that carries controlPath or quotaChecked is still refused',
+    async (ref) => {
+      for (const marks of [{ controlPath: true }, { quotaChecked: true }]) {
+        expect(await refusalOf(ref, marks)).toMatchObject({ kind: 'forbidden' });
+      }
+    },
+  );
+
+  test('core.quota.set runs only with the quota mark', async () => {
+    expect(await refusalOf('core.quota.set', {})).toMatchObject({ kind: 'forbidden' });
+    expect(await refusalOf('core.quota.set', { controlPath: true })).toMatchObject({
+      kind: 'forbidden',
+    });
+    expect(await refusalOf('core.quota.set', { quotaChecked: true })).toBeUndefined();
+    expect(vi.mocked(runCommand).mock.calls.at(-1)?.[0]).not.toHaveProperty('controlPath');
   });
 });

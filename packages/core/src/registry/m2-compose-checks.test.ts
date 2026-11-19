@@ -15,6 +15,7 @@ import { checkDeploymentGroups } from './check-deployment-groups.ts';
 import { checkJsonFlagDefaults } from './check-json-flag-defaults.ts';
 import { checkObservesAll } from './check-observes-all.ts';
 import { checkProcessEvents } from './check-process-events.ts';
+import { checkQuotaDefaults } from './check-quota-defaults.ts';
 import { checkStreamDeclarations } from './check-stream-declarations.ts';
 import { checkStreamOffload } from './check-stream-offload.ts';
 import { m2ComposeChecks } from './m2-compose-checks.ts';
@@ -185,5 +186,37 @@ describe('the M2 compose checks', () => {
     expect(checkJsonFlagDefaults(app, buildRegistry(app))).toEqual([
       expect.objectContaining({ code: 'jsonFlagDefaultInvalid', ref: 'shop.opens' }),
     ]);
+  });
+
+  test('refuses a quota whose declared default does not parse for its kind, and names the ref', () => {
+    const app = appOf([
+      makeModule({
+        id: 'shop',
+        quotas: { size: { kind: 'bytes', default: 'ten', level: 'tenant' } },
+      }),
+    ]);
+    expect(checkQuotaDefaults(app, buildRegistry(app))).toEqual([
+      expect.objectContaining({
+        code: 'quotaDefaultInvalid',
+        severity: 'error',
+        module: 'shop',
+        ref: 'shop.size',
+        message: expect.stringContaining("'shop.size'"),
+      }),
+    ]);
+    // The compose list runs it, so defineApp refuses the app.
+    expect(m2ComposeChecks.flatMap((check) => check(app, buildRegistry(app)))).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'quotaDefaultInvalid' })]),
+    );
+    const sound = appOf([
+      makeModule({
+        id: 'shop',
+        quotas: {
+          size: { kind: 'bytes', default: '10GiB', level: 'tenant' },
+          rate: { kind: 'rate', default: '100/1m', level: 'tenant' },
+        },
+      }),
+    ]);
+    expect(checkQuotaDefaults(sound, buildRegistry(sound))).toEqual([]);
   });
 });

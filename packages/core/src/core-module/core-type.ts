@@ -65,6 +65,13 @@ type FlagCreate<In, Out> = ActionPart<
   'sync',
   PartTypes<Prettify<In & {}>, Out, never, never>
 >;
+type QuotaCreate<In, Out> = ActionPart<
+  'command',
+  CoreBase,
+  'quota',
+  'sync',
+  PartTypes<Prettify<In & {}>, Out, never, never>
+>;
 type FlagCommand<In> = ActionPart<
   'command',
   CoreBase,
@@ -178,6 +185,7 @@ export interface CoreLiteral {
     readonly tenant: { readonly operators: RulePart<CoreBase, 'tenant', readonly ['*']> };
     readonly domain: { readonly operators: RulePart<CoreBase, 'domain', readonly ['*']> };
     readonly flag: { readonly operators: RulePart<CoreBase, 'flag', readonly ['*']> };
+    readonly quota: { readonly operators: RulePart<CoreBase, 'quota', readonly ['*']> };
     readonly commandReceipt: {
       readonly submitter: RulePart<CoreBase, 'commandReceipt', readonly ['get', 'watch']>;
     };
@@ -260,6 +268,18 @@ export interface CoreLiteral {
       >;
       readonly restoreRules: FlagCommand<{ readonly reason: string; readonly ifVersion: number }>;
       readonly evaluate: FlagQuery<{ readonly key: string }, ClientFlagDocument>;
+    };
+    readonly quota: {
+      readonly set: QuotaCreate<
+        {
+          readonly dimension: string;
+          readonly backendId: Id<'core.backend'>;
+          readonly tenantId: Id<'core.tenant'>;
+          readonly limit: string;
+          readonly reason: string;
+        },
+        { readonly id: Id<'core.quota'>; readonly version: number }
+      >;
     };
   };
 }

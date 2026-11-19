@@ -14,7 +14,9 @@ import { flagSpecOf } from '../flags/flag-spec-of.ts';
 import { moduleConfigOf } from '../invoker/module-config-of.ts';
 import { moduleConfigShapes } from '../invoker/module-config-shapes.ts';
 import type { ScopeTarget } from '../invoker/scope-target.ts';
+import { checkedQuotaValue } from '../quotas/checked-quota-value.ts';
 import { checkListedTenants } from './check-listed-tenants.ts';
+import { checkQuotaInput } from './check-quota-input.ts';
 import type { Connected } from './connected.ts';
 import type { ControlPath } from './control-path.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
@@ -158,6 +160,18 @@ export function createControlPath(input: {
       const created = await createBackend(control, backend, who, {
         modules: app?.source.modules ?? [],
         replay,
+        ...(replay || app === undefined
+          ? {}
+          : {
+              checkQuotaValue: (dimension: string, limit: string) =>
+                checkedQuotaValue({
+                  dimension,
+                  limit,
+                  appId: app.id,
+                  registry: app.registry,
+                  queues: deployment.queues,
+                }).canonical,
+            }),
       });
       migrated.directory.invalidate();
       if (created.replayed) return created;
@@ -227,5 +241,6 @@ export function createControlPath(input: {
       });
       return created;
     },
+    checkQuota: (check) => checkQuotaInput({ check, deployment, served, control, lookup }),
   };
 }

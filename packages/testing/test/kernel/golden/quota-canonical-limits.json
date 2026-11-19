@@ -1,0 +1,10 @@
+{
+  "notes.noteBytes 1.5KiB": "1536",
+  "notes.noteBytes 12B": "12",
+  "core.rows 007": "7",
+  "core.rows 1000": "1000",
+  "core.requestRate 10/PT1M": "10/60000ms",
+  "core.requestRate 100/1m": "100/60000ms",
+  "core.requestRate 5/250ms": "5/250ms",
+  "core.requestRate 1/2h": "1/7200000ms"
+}

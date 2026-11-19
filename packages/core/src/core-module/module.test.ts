@@ -18,6 +18,7 @@ describe('the core module (S-11, S-26)', () => {
     expect(core.entities.backend.tenancy).toBe('deployment');
     expect(core.entities.tenant.tenancy).toBe('deployment');
     expect(core.entities.domain.tenancy).toBe('deployment');
+    expect(core.entities.quota.tenancy).toBe('deployment');
     expect(core.entities.commandReceipt.tenancy).toBe('invocation');
     expect(core.entities.effect.tenancy).toBe('invocation');
   });
@@ -39,6 +40,7 @@ describe('the core module (S-11, S-26)', () => {
     expect(Object.keys(core.entities.flag.actions)).toEqual(
       expect.arrayContaining(['set', 'restoreRules', 'evaluate']),
     );
+    expect(Object.keys(core.entities.quota.actions)).toContain('set');
     expect(core.actions.introspect.ref).toBe('core.introspect');
     expect(core.entities.tenant.actions.enter.ref).toBe('core.tenant.enter');
   });

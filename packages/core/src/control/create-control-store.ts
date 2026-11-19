@@ -14,6 +14,7 @@ import { createControlFlags } from './create-control-flags.ts';
 import { createControlIdentities } from './create-control-identities.ts';
 import { createControlLedger } from './create-control-ledger.ts';
 import { createControlMarks } from './create-control-marks.ts';
+import { createControlQuotas } from './create-control-quotas.ts';
 import { createControlRetention } from './create-control-retention.ts';
 
 /** What the control store is built from. */
@@ -47,6 +48,7 @@ export function createControlStore(options: ControlStoreOptions): ControlStore {
     log: options.log,
     writer: { hybridClock: options.hybridClock, build: options.build },
     flags: createControlFlags({ adapter, namespace, registry }),
+    quotas: createControlQuotas({ adapter, namespace, registry }),
     apiUsage: createControlApiUsage({
       adapter,
       namespace,

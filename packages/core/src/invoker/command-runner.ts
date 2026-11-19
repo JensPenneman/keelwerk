@@ -53,6 +53,8 @@ export interface CommandRun {
   readonly concurrentUnits?: boolean;
   /** The namespace of another scope's data, for a backend read. */
   readonly namespaceOf?: (scope: StorageScope) => NamespaceRef;
+  /** Set by the runtime's command routing only, for `core.quota.set` after its check ran: the write path refuses that command without it. It opens no other command. */
+  readonly quotaChecked?: boolean;
 }
 
 /** What a command answered. */

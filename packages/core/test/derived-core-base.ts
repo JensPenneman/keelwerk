@@ -1,6 +1,7 @@
 import { defineEntity } from '../src/dsl/define-entity.ts';
 import { defineModuleBase } from '../src/dsl/define-module-base.ts';
 import { extensionPoint } from '../src/dsl/extension-point.ts';
+import { quota } from '../src/dsl/quota.ts';
 import type { AdmissionRule } from '../src/edge/admission-rule.ts';
 import type { PrincipalEnricher } from '../src/edge/principal-enricher.ts';
 import type { PrincipalResolver } from '../src/edge/principal-resolver.ts';
@@ -189,6 +190,31 @@ export const derivedCoreBase = defineModuleBase({
       tenancy: 'deployment',
       generated: { set: false, history: true },
     }),
+    quota: defineEntity({
+      prefix: 'qta',
+      fields: {
+        slot: field.string().unique(),
+        dimension: field.string(),
+        backendId: field.ref.own('backend'),
+        tenantId: field.ref.own('tenant'),
+        limit: field.string().optional(),
+        reason: field.string(),
+      },
+      tenancy: 'deployment',
+      generated: { set: false, history: true },
+    }),
   },
   streams: { effectAttempt: derivedEffectAttempt },
+  quotas: {
+    rows: quota.count().default(10_000_000),
+    eventBytes: quota.bytes().default('10GiB'),
+    requestRate: quota.rate().default('6000/1m'),
+    principalRequestRate: quota.rate().default('1200/1m'),
+    commandRate: quota.rate().default('3000/1m'),
+    queryRate: quota.rate().default('6000/1m'),
+    subscribeRate: quota.rate().default('600/1m'),
+    concurrentInvocations: quota.count().default(100),
+    liveSubscriptions: quota.count().default(1000),
+    liveConnections: quota.count().default(1000),
+  },
 });

@@ -1,0 +1,26 @@
+{
+  "bytes": {
+    "id": "<bytes row id>",
+    "createdAt": "2026-11-19T08:00:00Z",
+    "updatedAt": "2026-11-19T08:00:00Z",
+    "version": 1,
+    "slot": "notes.noteBytes@<backend id>@<tenant id>",
+    "dimension": "notes.noteBytes",
+    "backendId": "<backend id>",
+    "tenantId": "<tenant id>",
+    "limit": "524288",
+    "reason": "a trial tenant"
+  },
+  "rate": {
+    "id": "<rate row id>",
+    "createdAt": "2026-11-19T08:00:00Z",
+    "updatedAt": "2026-11-19T08:00:00Z",
+    "version": 1,
+    "slot": "core.requestRate@<backend id>@<tenant id>",
+    "dimension": "core.requestRate",
+    "backendId": "<backend id>",
+    "tenantId": "<tenant id>",
+    "limit": "10/60000ms",
+    "reason": "a slow tenant"
+  }
+}
