@@ -1,3 +1,4 @@
+import type { SocketFrame } from './socket-frame.ts';
 import type { SocketSubscribeAnswer } from './socket-subscribe-answer.ts';
 import type { TestSocket } from './test-socket.ts';
 
@@ -18,4 +19,12 @@ export interface SocketDialect {
   open(socket: TestSocket): Promise<void>;
   /** Subscribes under `id` to `loans.loanTicker` and reads the first answer to it. */
   subscribe(socket: TestSocket, id: string): Promise<SocketSubscribeAnswer>;
+  /** Subscribes under `id` to `loans.loanTitles` (no input) and reads the first answer to it. */
+  subscribeTitles(socket: TestSocket, id: string): Promise<SocketSubscribeAnswer>;
+  /**
+   * The next frame of the subscription `id`, classified as this protocol's client reads it; frames
+   * of other subscriptions, notices and pongs are skipped; rejects after `ms` (default 10,000) or
+   * when the socket closes.
+   */
+  frame(socket: TestSocket, id: string, ms?: number): Promise<SocketFrame>;
 }

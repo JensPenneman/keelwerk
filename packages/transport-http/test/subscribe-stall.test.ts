@@ -68,7 +68,7 @@ describe('a client that does not read', () => {
     expect(made.timers.pending()).toBe(0);
   });
 
-  test('a write that drains before stallMs leaves no stall wait pending (the deadline and the heartbeat remain)', async () => {
+  test('a write that drains before stallMs leaves no stall wait pending (the deadline, the heartbeat and the session check remain)', async () => {
     const made = started();
     const response = await made.open();
     await made.at(0);
@@ -78,7 +78,8 @@ describe('a client that does not read', () => {
     const first = await reader?.read();
     expect(first?.done).toBe(false);
     await made.at(stallMs - 1);
-    expect(made.timers.pending()).toBe(2);
+    // The deadline, the heartbeat and the session check remain.
+    expect(made.timers.pending()).toBe(3);
     await reader?.cancel();
   });
 

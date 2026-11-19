@@ -5,6 +5,8 @@ export interface TestPrincipal {
   readonly claims: Readonly<Record<string, unknown>>;
   /** The id the principal is stored and re-resolved by (a session's id); the subject when absent. */
   readonly principalId?: string;
+  /** When the credentials stop being valid, an ISO instant: the principal's `expiresAt`. */
+  readonly expiresAt?: string;
 }
 
 /**

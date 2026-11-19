@@ -101,7 +101,7 @@ export function createHttpHost(options: HttpHostOptions, deps: HttpHostDeps): Ht
     connectionIds: new WeakMap(),
     lifecycle: createLifecycle(),
     errorCounter,
-    streams: new Set<OpenSseStream>(),
+    streams: new Set<Pick<OpenSseStream, 'goAway'>>(),
     limits: createStreamLimits({
       perPrincipal: live.maxStreamsPerPrincipal,
       perTenant: live.maxStreamsPerTenant,

@@ -127,3 +127,7 @@ export const tickerQuery =
 /** The subscription of the signed-in loan stream. */
 export const loanEventsQuery =
   'subscription { loansLoanEvents { __typename ... on StreamHead { state } ... on LoansLoanEventsItem { kind } } }';
+
+/** The subscription of the loan titles, every control member and the item's members selected. */
+export const titlesQuery =
+  'subscription { loansLoanTitles { __typename ... on StreamHead { state } ... on StreamReset { reason state } ... on StreamGap { missed } ... on LoansLoanTitlesItem { loanId control state } } }';

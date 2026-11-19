@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import type { Caller } from './call.ts';
 import { freshName } from './fresh-name.ts';
 import { lendCall } from './lend-call.ts';
 import { liveSocketCases } from './live-socket-cases.ts';
@@ -183,6 +184,42 @@ export function subscriptionCases(target: TransportTarget): void {
         await Promise.all(held.map((entry) => entry.close()));
       }
     },
+  );
+
+  test.skipIf(skip)(
+    'an item whose event has its own member control is an item for every subscriber: nobody resets and no stream ends',
+    async () => {
+      const tenant = Object.keys(target.tenants)[0];
+      const [adaName, bobName] = [freshName('ada'), freshName('bob')];
+      const caller = (subject: string): Caller => ({
+        subject,
+        roles: ['auditor'],
+        ...(tenant === undefined ? {} : { tenant }),
+      });
+      const ada = await open({ action: 'loans.loanTitles', input: {}, caller: caller(adaName) });
+      const bob = await open({ action: 'loans.loanTitles', input: {}, caller: caller(bobName) });
+      try {
+        await ada.until((frame) => frame.event === 'head', 30_000);
+        await bob.until((frame) => frame.event === 'head', 30_000);
+        const controls = ['reset', 'head', 'gap', 'later'];
+        for (const control of controls) {
+          await sendCall(target, lendCall(adaName, control, { caller: caller(adaName) }));
+        }
+        for (const stream of [ada, bob]) {
+          const frames = await stream.until(
+            (frame) => (frame.data as { control?: string } | undefined)?.control === 'later',
+            30_000,
+          );
+          expect(frames.map((frame) => frame.event)).toEqual(['data', 'data', 'data', 'data']);
+          expect(frames.map((frame) => (frame.data as { control: string }).control)).toEqual(
+            controls,
+          );
+        }
+      } finally {
+        await Promise.all([ada.close(), bob.close()]);
+      }
+    },
+    120_000,
   );
 
   liveSocketCases(target);

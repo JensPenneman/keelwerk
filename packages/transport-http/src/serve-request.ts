@@ -90,24 +90,24 @@ async function mounted(call: EndpointCall, path: string, streams: boolean): Prom
   }
   state.route = match.prefix === '/' ? '/*' : `${match.prefix}/*`;
   state.transport = match.transport;
-  const forwarded =
-    call.bytes.byteLength === 0
+  const forwardedFor = (signal: AbortSignal): Request =>
+    signal === request.signal && call.bytes.byteLength === 0
       ? request
       : new Request(request.url, {
           method: request.method,
           headers: request.headers,
-          body: call.bytes,
-          signal: request.signal,
+          ...(call.bytes.byteLength !== 0 && { body: call.bytes }),
+          signal,
         });
   // The one rule of path handling: the host strips the mount's prefix, the transport never does.
   const relative = mountPathOf(match.prefix, path);
-  const run = (): Promise<Response> =>
-    match.handler(forwarded, {
+  const run = (signal: AbortSignal): Promise<Response> =>
+    match.handler(forwardedFor(signal), {
       session,
       carrier,
       requestId: state.requestId,
       ...(state.traceparent !== undefined && { traceparent: state.traceparent }),
-      signal: request.signal,
+      signal,
       path: relative.path,
       basePath: relative.basePath,
     });
@@ -117,7 +117,7 @@ async function mounted(call: EndpointCall, path: string, streams: boolean): Prom
     state.stream = true;
     return withStreamSlot(call, run);
   }
-  const response = await run();
+  const response = await run(request.signal);
   if (isStreamResponse(response)) {
     void response.body?.cancel().catch(() => undefined);
     return errorResponse(
