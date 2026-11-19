@@ -335,8 +335,10 @@ Packages and modules:
   `prepare`, the `core.effectAttempt` stream (kept until a rule is adopted, decision 47c), external
   performers (`ctx.live.effects`, `settle`, deadlines), `keelwerk explain --redecide`, and the
   re-enqueue of unsettled effects after a restore.
+- `@keelwerk/data`: the public PGlite adapter factory for deployment files (`pgliteAdapterFactory`
+  from `@keelwerk/data/pglite`; the M1 plan's specification gap S-115).
 - `@keelwerk/events`: consumers with per-scope checkpoints and parking, the retention worker for
-  operational buffers, erasure (`core.subjects.erase`) with ledger sinks and restore detection at
+  operational buffers, erasure (`core.eraseSubject`) with ledger sinks and restore detection at
   `connect`.
 - `@keelwerk/live`: the hub, SSE and WebSocket carriers, the `watch` generator, pokes, stream
   tickets, revalidation on revocation events, streams and topics (`defineStream`, `defineTopic`,
@@ -663,7 +665,6 @@ form of such fields is final from that moment.
 | ADR | Decision | Due before |
 |---|---|---|
 | 0016 | Scope directory: claims, release quarantine, atomicity between the control store and the owning row (gap G2; decision 50a makes claims kernel effects whose records are the outbox, architecture.md section 7.9.5) | M4 |
-| 0017 | The `ctx.secrets` requests and the executors' reveal: reveal, issue, verify, sealing at append (gap G4) | M3 |
 | 0018 | Singleton leases with fencing epochs (gap G9); process capabilities moved to ADR 0025 | M4 |
 | 0019 | Listener contract, connection sessions, port bindings and the certificate directory (gap G1) | the mail foundations (parked) |
 | 0020 | Blob storage: field kind, stores, staging, keys, collection and resumable uploads (gap G5, decision 38a); deployment logs offload into it (decision 47c) | M4 |
@@ -686,13 +687,19 @@ ADRs written on 2026-10-25 (status `Proposed`), and the milestone each must be d
 | 0026 | Pure handlers and the effect interpreter (decision 50a; amends ADR 0004, gives ADRs 0015 and 0025 their effect contract; architecture.md section 7.9) | M1 (the interpreter, decision records, the `core.effect` format), M2 (effect jobs, continuations, external performers) |
 | 0027 | Encrypted personal data and queries: sealed state columns, declared capabilities (amends ADR 0009) | M1 |
 
+ADR written on 2026-11-19 (status `Proposed`), and the milestone it must be decided before:
+
+| ADR | Decision | Due before |
+|---|---|---|
+| 0017 | The `ctx.secrets` requests and the executors' reveal: reveal, issue, verify, sealing at append (gap G4) | M3 |
+
 ADRs 0002 to 0015 and 0021 to 0027 exist and become `Accepted` at the architecture approval
 gate. On 2026-10-28 they were edited in place for the decisions taken since they were written, as
 ADR 0001 allows during the architecture phase: 0006 (datastore agnosticism, 12a), 0007 (anchors,
 35b), 0011 (oRPC and own operation limits, 15b and 37a), 0013 (`keelwerk call` and no reserved
 module ids, 16b and 81a), 0021 (the support window, 53), 0022 (renames, 55b) and 0024 (the
 generated manifest and one rule per file, 59b and 60b), with notes in the ADRs that mention the
-changed forms.
+changed forms. ADR 0017 exists since 2026-11-19, with status `Proposed`.
 
 ## 6. Where the earlier plans went
 
