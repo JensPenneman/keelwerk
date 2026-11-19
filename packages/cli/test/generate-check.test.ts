@@ -1,17 +1,15 @@
-import { execFile } from 'node:child_process';
 import { readdir, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 import { describe, expect, test } from 'vitest';
+import { clearGitEnvironment } from './support/clear-git-environment.ts';
+import { initScratchRepository } from './support/init-scratch-repository.ts';
 import { demoBase, useScratchProject } from './support/scratch-project.ts';
 import { shopSources } from './support/shop-project.ts';
 
 const repository = fileURLToPath(new URL('../../..', import.meta.url));
 
 const newProject = useScratchProject();
-
-const git = promisify(execFile);
 
 /** An app that mounts the module `demo`, so a moved part file reaches the app's surface. */
 const mountingApp = `import { type AppType, defineApiVersions, defineApp } from '@keelwerk/core';
@@ -105,28 +103,13 @@ describe('generate --check', () => {
   }, 60_000);
 
   test('a moved part file changes its reference, and surface diff against the committed base reports it breaking', async () => {
+    clearGitEnvironment();
     const project = await newProject();
     await project.write(sources);
     expect((await project.run('generate')).code).toBe(0);
-    const inRepository = (...args: string[]) =>
-      git(
-        'git',
-        [
-          '-c',
-          'commit.gpgsign=false',
-          '-c',
-          'user.name=t',
-          '-c',
-          'user.email=t@example.com',
-          ...args,
-        ],
-        {
-          cwd: project.root,
-        },
-      );
-    await inRepository('init', '--quiet');
-    await inRepository('add', '--all');
-    await inRepository('commit', '--quiet', '-m', 'base');
+    const git = await initScratchRepository(project.root);
+    await git('add', '--all');
+    await git('commit', '--quiet', '-m', 'base');
 
     const moved = await project.fork();
     await rm(join(moved.root, 'packages/module-demo/src/actions/ping.ts'));
