@@ -1,9 +1,10 @@
 import { createComputePool, entityBehavioursOf, normalizeRule } from '@keelwerk/core';
 import { readAsOfPosition, redecide } from '@keelwerk/core/replay';
+import { retention } from '@keelwerk/events';
 import { afterEach, describe, expect, test } from 'vitest';
 import { expectReproduces } from '../../src/replay/expect-reproduces.ts';
 import { tenantAddress } from '../../src/replay/tenant-address.ts';
-import { type BootedKeep, bootKeep } from './support/replay-kit.ts';
+import { type BootedKeep, bootKeep, reissueAcrossRetention } from './support/replay-kit.ts';
 
 const password = 'a long enough pass phrase';
 const next = 'another long pass phrase';
@@ -64,6 +65,19 @@ describe.each(['memory', 'pglite'] as const)(
       });
       expect(result.reproduced).toBe(true);
       expect(result.recorded.events).toHaveLength(1);
+    });
+
+    test('a decision inside the window re-decides after retention ran over the row it read', {
+      timeout,
+    }, async () => {
+      const worker = retention();
+      const keep = await bootKeep(kind, { eventWorkers: [worker] });
+      booted.push(keep);
+      const { commandId, input } = await reissueAcrossRetention(keep, worker);
+      const result = await redecided(keep, commandId, input);
+      expect(result.refused).toBeUndefined();
+      expect(result.differences).toEqual([]);
+      expect(result.reproduced).toBe(true);
     });
 
     test('a decision older than the feed horizon is refused for its state reads', {

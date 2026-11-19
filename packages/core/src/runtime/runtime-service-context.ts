@@ -3,6 +3,7 @@ import type { ScopeLookup } from '../invoker/scope-lookup.ts';
 import type { JobQueue } from '../jobs/job-queue.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { LedgerSink } from '../kernel/ledger-sink.ts';
+import type { LiveTimers } from '../live/live-timers.ts';
 import type { QueueSource } from '../worker/queue-source.ts';
 import type { Connected } from './connected.ts';
 import type { ServedApp } from './served-app.ts';
@@ -29,4 +30,10 @@ export interface RuntimeServiceContext
   readonly ledgers: readonly LedgerSink[];
   /** The runtime clock; every timer of a service reads it (plan rule 13). */
   readonly clock: Clock;
+  /**
+   * The waits of a service on that clock: `RuntimeOptions.timers`, else timers on `clock`. A
+   * service that waits between passes or for a deadline waits here, not on a wall-clock timer, so
+   * a test that pins the timers decides when a wait ends.
+   */
+  readonly timers: LiveTimers;
 }

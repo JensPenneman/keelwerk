@@ -71,7 +71,7 @@ describe('tenant isolation on PGlite', () => {
     },
   );
 
-  test('kw_events is append-only for the application role', async () => {
+  test('kw_events is append-only for the application role under the M1 grants alone', async () => {
     await expect(
       inUnit(adapter, storageTenant(tenantA), async (u) =>
         runStatement(u, `update ${ns}.kw_events set scope_id = scope_id`),

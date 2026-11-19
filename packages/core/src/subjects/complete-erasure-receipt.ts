@@ -7,6 +7,7 @@ import type { Unit } from '../storage/unit.ts';
 import type { RunJobContext } from '../worker/run-job.ts';
 import { appendReceiptChange } from '../write-path/append-receipt-change.ts';
 import { commandReceiptUuid } from '../write-path/command-receipt-uuid.ts';
+import { receiptExpiryAfter } from '../write-path/receipt-expiry-after.ts';
 
 const receiptRef = 'core.commandReceipt';
 
@@ -56,7 +57,11 @@ export async function completeErasureReceipt(
   const receipt = await unit.receipts.get(record.commandId);
   if (receipt === undefined || !completable(receipt)) return;
   const outcome: ReceiptOutcome = { ok: true, value: { streams }, effects: [] };
-  await unit.receipts.complete(record.commandId, outcome);
+  await unit.receipts.complete(
+    record.commandId,
+    outcome,
+    receiptExpiryAfter(context.registry.actions.get(receipt.action), context.clock.now()),
+  );
   await appendReceiptChange(unit, {
     registry: context.registry,
     scope,

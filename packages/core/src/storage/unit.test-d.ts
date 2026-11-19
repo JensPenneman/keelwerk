@@ -11,6 +11,7 @@ import type { JobOutcome } from './job-outcome.ts';
 import type { JobStore } from './job-store.ts';
 import type { MigrationStep } from './migration-step.ts';
 import type { ReceiptOutcome } from './receipt-outcome.ts';
+import type { RetentionRunStore } from './retention-run-store.ts';
 import type { RowPage } from './row-page.ts';
 import type { RowQuery } from './row-query.ts';
 import type { RowStore } from './row-store.ts';
@@ -39,11 +40,13 @@ test('Unit has exactly the members of S-03', () => {
     | 'counters'
     | 'identities'
     | 'marks'
+    | 'retentionRuns'
     | 'nested'
     | 'afterCommit'
   >();
   expectTypeOf<Unit['scopeKeys']>().toEqualTypeOf<ScopeKeyStore | undefined>();
   expectTypeOf<Unit['apiUsage']>().toEqualTypeOf<ApiUsageStore | undefined>();
+  expectTypeOf<Unit['retentionRuns']>().toEqualTypeOf<RetentionRunStore | undefined>();
   expectTypeOf<Unit['counters']>().toEqualTypeOf<CounterStore | undefined>();
   expectTypeOf<Unit['identities']>().toEqualTypeOf<NamespaceIdentities | undefined>();
   expectTypeOf<Unit['marks']>().toEqualTypeOf<ScopeMarks | undefined>();
@@ -66,6 +69,7 @@ test('JobStore has the members of S-03, the schedules (M2) and the erasure purge
     | 'keyed'
     | 'schedules'
     | 'purgeForPrincipals'
+    | 'purgeHistory'
   >();
 });
 

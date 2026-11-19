@@ -38,10 +38,10 @@ describe('the duration the framework track records for a step', () => {
       fresh: true,
       now: Temporal.Instant.from('2026-11-18T10:00:00Z'),
     });
-    const [last] = kit.recorded.slice(-1);
-    expect(frameworkSteps.at(-1)?.id).toBe(last?.id);
-    expect(frameworkSteps.at(-1)?.ddl('example', {})).toEqual([]);
-    expect(last?.duration).toBe(0);
+    // Step 0003 has no statement for a namespace root.
+    const empty = frameworkSteps.find((step) => step.id === '0003');
+    expect(empty?.ddl('example', {})).toEqual([]);
+    expect(kit.recorded.find((entry) => entry.id === '0003')?.duration).toBe(0);
     // A step that runs statements records the time it took.
     expect(kit.recorded[0]?.duration).toBeGreaterThan(0);
   });

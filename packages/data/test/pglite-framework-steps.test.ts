@@ -91,7 +91,7 @@ describe('the framework track on PGlite', { timeout: 30_000 }, () => {
     }
   });
 
-  test('the M1 dump migrates: 0001 is recognised, 0002 adds the tables and 0003 the ledger indexes', async () => {
+  test('the M1 dump migrates: 0001 is recognised, 0002 adds the tables, 0003 the ledger indexes and 0004 the transient purge', async () => {
     const adapter = await open();
     await adapter.asOwner(async (database) => database.exec(dump));
     const before = await counts(adapter);
@@ -131,7 +131,9 @@ describe('the framework track on PGlite', { timeout: 30_000 }, () => {
     expect(positions).toEqual([{ next: 8 }]);
     const after = await counts(adapter);
     expect(after.map(Number)).toEqual(
-      before.map(Number).map((n, index) => (index === 0 || index === 2 ? n + 3 : n)),
+      before
+        .map(Number)
+        .map((n, index) => (index === 0 || index === 2 ? n + frameworkSteps.length : n)),
     );
   });
 
@@ -206,9 +208,10 @@ describe('the framework track on PGlite', { timeout: 30_000 }, () => {
     ).rejects.toMatchObject({ kind: 'conflict' });
   });
 
-  test('steps 0002 and 0003 are in the track, in order, with their markers', () => {
+  test('steps 0002 to 0004 are in the track, in order, with their markers', () => {
     const ids = frameworkSteps.map((step) => step.id);
-    expect(ids.slice(0, 3)).toEqual(['0001', '0002', '0003']);
+    expect(ids.slice(0, 4)).toEqual(['0001', '0002', '0003', '0004']);
+    expect(stepOf('0004').marker).toBe('kw_events_transient');
     expect(stepOf('0002').marker).toBe('kw_consumers');
     expect(stepOf('0003').marker).toBe('kw_ledger_erasure_identity');
   });

@@ -27,6 +27,8 @@ export interface StoreHarness {
   readonly read: <T>(scope: StorageScope, fn: (u: Unit) => Promise<T>) => Promise<T>;
   /** A unit with the raw handle, for statements that skip the stores. */
   readonly runSql: <T>(scope: StorageScope, fn: (u: SqlUnit) => Promise<T>) => Promise<T>;
+  /** One statement as the owner role, which the application role's rules do not bind. */
+  readonly asOwner: (sql: string, parameters?: readonly unknown[]) => Promise<void>;
   readonly failure: (work: Promise<unknown>) => Promise<{ kind: string; code: string }>;
   readonly setNow: (instant: Temporal.Instant) => void;
 }
@@ -105,6 +107,15 @@ export function storeHarness(databaseName: string): StoreHarness {
             }),
           ),
       ),
+    asOwner: async (sql, parameters = []) => {
+      const admin = new pg.Client({ connectionString: database?.adminUrl });
+      await admin.connect();
+      try {
+        await admin.query(sql, [...parameters]);
+      } finally {
+        await admin.end();
+      }
+    },
     failure: async (work) => {
       try {
         await work;

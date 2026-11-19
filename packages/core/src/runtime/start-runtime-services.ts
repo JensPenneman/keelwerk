@@ -1,4 +1,5 @@
 import type { JobQueue } from '../jobs/job-queue.ts';
+import { liveTimersOf } from '../live/live-timers-of.ts';
 import { createKernelQueue } from '../worker/create-kernel-queue.ts';
 import { queueSources } from '../worker/queue-sources.ts';
 import { kernelServices } from './kernel-services.ts';
@@ -73,6 +74,7 @@ export function startRuntimeServices(
       directory: input.migrated.directory.lookup,
       ledgers: input.composed.infrastructure.ledgers,
       clock: input.clock,
+      timers: options.timers ?? liveTimersOf(input.clock),
     };
     // A service stops its work when `signal` aborts: at teardown, or when the process gate closes
     // (a restore was found under it). Only the services of `staysInService` keep the plain one.

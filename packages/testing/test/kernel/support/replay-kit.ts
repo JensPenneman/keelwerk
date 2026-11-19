@@ -1,11 +1,13 @@
 import {
   type AppType,
+  type DataAdapterFactory,
   defineApp,
   defineCommand,
   defineEntity,
   defineModule,
   defineModuleBase,
   type EntityType,
+  type EventWorker,
   field,
   type ModuleBaseType,
   type ModuleType,
@@ -123,12 +125,50 @@ const redeem = defineCommand(keepBase, {
   },
 });
 
-const keepDef = defineModule(keepBase, { actions: { enrol, use, rotate, issue, redeem } });
+const reissue = defineCommand(keepBase, {
+  input: shape({ token: field.secret() }),
+  output: shape({ id: field.string(), token: field.string() }),
+  shownOnce: ['token'],
+  auth: { public: true },
+  execution: 'sync',
+  *decide(input, ctx) {
+    const parsed = parseToken(input.token);
+    if (parsed === undefined) throw new Error('not a token');
+    const row = yield* ctx.load.keep.ticket.one({ where: { publicId: parsed.publicId } });
+    const ok =
+      row === undefined ? false : yield* ctx.secrets.verify(input.token, row.tokenVerifier);
+    if (row === undefined || !ok || row.usedAt !== undefined) throw new Error('not reissuable');
+    const id = yield* ctx.newId(ticket);
+    const issued = yield* ctx.secrets.issue({ prefix: tokenPrefix });
+    return {
+      events: [
+        ctx.write.keep.ticket.create({
+          id,
+          publicId: issued.publicId,
+          tokenVerifier: issued.verifier,
+        }),
+      ],
+      result: { id, token: issued.plain },
+    };
+  },
+});
+
+const keepDef = defineModule(keepBase, {
+  actions: { enrol, use, rotate, issue, redeem, reissue },
+});
 interface Keep extends ModuleType<typeof keepDef> {}
 const keep: Keep = keepDef;
 
 const keepAppDef = defineApp({ id: 'keep-app', modules: [keep] as const });
 interface KeepApp extends AppType<typeof keepAppDef> {}
+
+/** What `bootKeep` takes besides the adapter kind. */
+interface BootKeepOptions {
+  /** Event workers that run with the kernel's, such as `retention()` of `@keelwerk/events`. */
+  readonly eventWorkers?: readonly EventWorker[];
+  /** A PostgreSQL the test started, instead of the kind's own storage. */
+  readonly external?: { readonly factory: DataAdapterFactory; readonly url: string };
+}
 
 /** An app of two entities holding verifiers: a vault on a chain, and a ticket whose history is state. */
 export const keepApp: KeepApp = keepAppDef;
@@ -160,9 +200,17 @@ export interface BootedKeep {
   ): Promise<{ readonly commandId: string; readonly value: T }>;
 }
 
-export async function bootKeep(kind: 'memory' | 'pglite'): Promise<BootedKeep> {
+export async function bootKeep(
+  kind: 'memory' | 'pglite',
+  options: BootKeepOptions = {},
+): Promise<BootedKeep> {
   const clock = movableClock();
-  const runtime = await startTestRuntime(keepApp, { adapter: kind, tenants: ['acme'], clock });
+  const runtime = await startTestRuntime(keepApp, {
+    ...(options.external === undefined ? { adapter: kind } : { external: options.external }),
+    tenants: ['acme'],
+    clock,
+    ...(options.eventWorkers === undefined ? {} : { eventWorkers: options.eventWorkers }),
+  });
   const tenant = runtime.tenants.acme;
   return {
     runtime,
@@ -181,4 +229,24 @@ export async function bootKeep(kind: 'memory' | 'pglite'): Promise<BootedKeep> {
       return { commandId, value: done.value as never };
     },
   };
+}
+
+/**
+ * A ticket is reissued eight days after it was issued, then redeemed a day later, and retention
+ * runs a day after that: the reissue is a decision of two days ago that read the ticket at its
+ * first version, whose record the pass must keep. Answers the reissue's command id and input.
+ */
+export async function reissueAcrossRetention(
+  keep: BootedKeep,
+  retention: { pass(): Promise<unknown> },
+): Promise<{ readonly commandId: string; readonly input: { readonly token: string } }> {
+  const issued = (await keep.call<{ token: string }>('keep.issue', {})).value;
+  keep.clock.advance(24 * 8);
+  const input = { token: issued.token };
+  const reissued = await keep.call('keep.reissue', input);
+  keep.clock.advance(24);
+  await keep.call('keep.redeem', input);
+  keep.clock.advance(24);
+  await retention.pass();
+  return { commandId: reissued.commandId, input };
 }

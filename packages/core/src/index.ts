@@ -154,8 +154,10 @@ export type { ControlLease } from './control/control-lease.ts';
 export type { ControlLeaseStore } from './control/control-lease-store.ts';
 export type { ControlLedger } from './control/control-ledger.ts';
 export { controlNamespace } from './control/control-namespace.ts';
+export type { ControlRetention } from './control/control-retention.ts';
 export type { BackendInput, ConfigurableModule } from './control/create-backend.ts';
 export { createControlLedger } from './control/create-control-ledger.ts';
+export { createControlRetention } from './control/create-control-retention.ts';
 export type { TenantInput } from './control/create-tenant.ts';
 export type { EpochBump } from './control/epoch-bump.ts';
 export { epochBumpsOf } from './control/epoch-bumps-of.ts';
@@ -167,6 +169,12 @@ export { presumedGoneAfterMs } from './control/presumed-gone-after-ms.ts';
 export { recordScopeMarks } from './control/record-scope-marks.ts';
 export { recordedDeploymentId } from './control/recorded-deployment-id.ts';
 export type { RestoreHold } from './control/restore-hold.ts';
+export type {
+  RetentionHorizons,
+  RetentionRemoved,
+  RetentionRun,
+  RetentionRunRule,
+} from './control/retention-run.ts';
 export type { ScopeMark } from './control/scope-mark.ts';
 export type { ScopeMarks } from './control/scope-marks.ts';
 export type { UnfinishedErasure } from './control/unfinished-erasure.ts';
@@ -870,6 +878,8 @@ export type { StreamEntry } from './registry/stream-entry.ts';
 export type { TopicEntry } from './registry/topic-entry.ts';
 export type { TrackRef } from './registry/track-ref.ts';
 export type { VersionChangeEntry } from './registry/version-change-entry.ts';
+export { defaultFeedHorizon } from './replay/default-feed-horizon.ts';
+export { transientPurgeTypes } from './replay/transient-purge-types.ts';
 export { AppNotServedError } from './runtime/app-not-served-error.ts';
 export type { BuildIdApp } from './runtime/build-manifest-of.ts';
 export { buildManifestOf } from './runtime/build-manifest-of.ts';
@@ -885,6 +895,7 @@ export type { RuntimeServiceContext } from './runtime/runtime-service-context.ts
 export type { SchemaPlanner, SchemaTrack } from './runtime/schema-planner.ts';
 export { startRuntime } from './runtime/start-runtime.ts';
 export type { WorkOptions } from './runtime/work-options.ts';
+export { fanOutTenants } from './schedules/fan-out-tenants.ts';
 export { nextTick } from './schedules/next-tick.ts';
 export { scheduleCommandId } from './schedules/schedule-command-id.ts';
 export { scheduleJitter } from './schedules/schedule-jitter.ts';
@@ -940,11 +951,13 @@ export { physicalColumnName } from './storage/physical-column-name.ts';
 export { physicalTableName } from './storage/physical-table-name.ts';
 export type { PlacementConfig } from './storage/placement-config.ts';
 export type { Position } from './storage/position.ts';
+export type { PurgeBatch } from './storage/purge-batch.ts';
 export type { PurgedJob } from './storage/purged-job.ts';
 export type { Receipt } from './storage/receipt.ts';
 export type { ReceiptOutcome } from './storage/receipt-outcome.ts';
 export type { ReceiptStore } from './storage/receipt-store.ts';
 export type { RelationDescriptor } from './storage/relation-descriptor.ts';
+export type { RetentionRunQuery, RetentionRunStore } from './storage/retention-run-store.ts';
 export { RetryableUnitError } from './storage/retryable-unit-error.ts';
 export type { RowPage } from './storage/row-page.ts';
 export type { RowQuery } from './storage/row-query.ts';
@@ -988,6 +1001,7 @@ export { flagScrubCommandId } from './subjects/flag-scrub-command-id.ts';
 export type { OwnedRowsCursor, OwnedRowsInput, OwnedRowsPage } from './subjects/owned-rows.ts';
 export { ownedRows } from './subjects/owned-rows.ts';
 export { ownedValueKeys } from './subjects/owned-value-keys.ts';
+export { receiptValueKeys } from './subjects/receipt-value-keys.ts';
 export { sameSubject } from './subjects/same-subject.ts';
 export { scrubFlagPrincipals } from './subjects/scrub-flag-principals.ts';
 export { scrubReceiptFingerprints } from './subjects/scrub-receipt-fingerprints.ts';

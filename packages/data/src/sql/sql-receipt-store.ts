@@ -180,7 +180,7 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
       ctx.writable();
       return (await insertWithin(receipt)) === undefined ? 'exists' : 'inserted';
     },
-    complete: async (commandId, outcome) => {
+    complete: async (commandId, outcome, expiresAt) => {
       ctx.writable();
       const result = await sqlGuard(async () =>
         ctx
@@ -189,6 +189,11 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
           .set({
             outcome: JSON.stringify(outcome),
             status: outcome.ok ? 'completed' : 'failed',
+            ...(expiresAt === undefined
+              ? {}
+              : {
+                  expires_at: sql`greatest(expires_at, ${encodeInstant(expiresAt)}::timestamptz)`,
+                }),
             version: sql`version + 1`,
             updated_at: encodeInstant(ctx.clock.now()),
           })

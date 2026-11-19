@@ -8,6 +8,10 @@ import { memoryReceiptRow } from './memory-receipt-row.ts';
 import { memoryRowsName } from './memory-rows-name.ts';
 import type { MemoryUnitContext } from './memory-unit-context.ts';
 
+function laterOf(a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant {
+  return Temporal.Instant.compare(a, b) >= 0 ? a : b;
+}
+
 /**
  * The command receipts of the unit's scope (15.1.7), stored as rows of the `core.commandReceipt`
  * entity in the unit's scope collection of its table, so the generated reads find them. The row's
@@ -63,7 +67,7 @@ export function memoryReceiptStore(ctx: MemoryUnitContext): ReceiptStore {
       store(receipt, existing);
       return 'inserted';
     },
-    complete: async (commandId, outcome) => {
+    complete: async (commandId, outcome, expiresAt) => {
       ctx.writable();
       const existing = read(commandId);
       if (existing === undefined) throw errors.not_found(`no receipt for command ${commandId}`);
@@ -71,6 +75,11 @@ export function memoryReceiptStore(ctx: MemoryUnitContext): ReceiptStore {
         ...existing,
         outcome: memoryCloneValue(outcome),
         status: outcome.ok ? 'completed' : 'failed',
+        ...(expiresAt === undefined
+          ? {}
+          : {
+              expiresAt: laterOf(existing.expiresAt as Temporal.Instant, floorInstant(expiresAt)),
+            }),
         version: Number(existing.version) + 1,
         updatedAt: floorInstant(ctx.clock.now()),
       });

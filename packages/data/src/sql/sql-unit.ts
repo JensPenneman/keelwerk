@@ -10,6 +10,7 @@ import type {
   NamespaceRef,
   NestedUnitOptions,
   ReceiptStore,
+  RetentionRunStore,
   RowStore,
   ScopeKeyStore,
   ScopeMarks,
@@ -40,6 +41,7 @@ import type { SqlKeyWrapper } from './sql-key-wrapper.ts';
 import { sqlLedgerStore } from './sql-ledger-store.ts';
 import { sqlNamespaceIdentities } from './sql-namespace-identities.ts';
 import { sqlReceiptStore } from './sql-receipt-store.ts';
+import { sqlRetentionRunStore } from './sql-retention-run-store.ts';
 import { sqlRowStore } from './sql-row-store.ts';
 import { sqlScopeKeyStore } from './sql-scope-key-store.ts';
 import { sqlScopeMarks } from './sql-scope-marks.ts';
@@ -96,6 +98,8 @@ export interface SqlUnit {
   readonly identities?: NamespaceIdentities;
   /** `kw_scope_marks`; deployment-scope units only (S-119). */
   readonly marks?: ScopeMarks;
+  /** `kw_retention_runs`; deployment-scope units only (14.7.1). */
+  readonly retentionRuns?: RetentionRunStore;
   /** The counters of every scope of the namespace; namespace-scope units only (14.7.6). */
   readonly counters?: CounterStore;
   nested<T>(fn: (u: SqlUnit) => Promise<T>, options?: NestedUnitOptions): Promise<T>;
@@ -167,6 +171,7 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
             ledger: sqlLedgerStore(ctx),
             identities: sqlNamespaceIdentities(ctx),
             marks: sqlScopeMarks(ctx),
+            retentionRuns: sqlRetentionRunStore(ctx),
           }
         : {}),
       ...(current.scope.level === 'namespace' ? { counters: sqlCounterStore(ctx) } : {}),

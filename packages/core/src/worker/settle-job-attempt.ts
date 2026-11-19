@@ -7,6 +7,7 @@ import { scheduleQueue } from '../schedules/schedule-queue.ts';
 import type { JobOutcome } from '../storage/job-outcome.ts';
 import type { StoredJob } from '../storage/stored-job.ts';
 import { appendReceiptChange } from '../write-path/append-receipt-change.ts';
+import { receiptExpiryAfter } from '../write-path/receipt-expiry-after.ts';
 import { commandJobError } from './command-job-error.ts';
 import { completeJob } from './complete-job.ts';
 import { kernelJobError } from './kernel-job-error.ts';
@@ -82,7 +83,11 @@ export async function settleJobAttempt(
       const lineage = reactionLineageOf(stored.causation.lineage);
       if (receipt?.status === 'accepted') {
         const failure = { ok: false, error: outcome.error } as const;
-        await unit.receipts.complete(commandId, failure);
+        await unit.receipts.complete(
+          commandId,
+          failure,
+          receiptExpiryAfter(source.registry.actions.get(action), context.clock.now()),
+        );
         await appendReceiptChange(unit, {
           registry: source.registry,
           scope: stored.scope,
