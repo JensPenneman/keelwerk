@@ -43,6 +43,7 @@ export function commonFlags(): Readonly<Record<string, FlagParameter>> {
       optional: true,
     } as unknown as FlagParameter,
     fields: parsed('The fields to print, comma separated.', 'a,b'),
+    follow: toggle('Keeps a subscription open after head and prints every change.'),
     input: parsed('The whole input as JSON, @file or - for standard input.', 'json|@file|-'),
     async: toggle('Accept the command and return its receipt.'),
     wait: parsed(
@@ -52,7 +53,7 @@ export function commonFlags(): Readonly<Record<string, FlagParameter>> {
       true,
     ),
     'wait-effects': parsed(
-      'Refused in this release: live updates are not served.',
+      'Waits until the effects the command requested settle; no limit without seconds.',
       'seconds',
       waitSeconds,
       true,

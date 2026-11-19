@@ -15,6 +15,10 @@ export interface RemoteClientOptions {
   readonly surface?: ApiSurface;
   /** Replaces members of the default retry policy. */
   readonly retry?: Partial<RetryPolicy>;
+  /** The carrier of subscriptions: `'sse'` (the default, which works over `fetch` and `unix://`) or `'websocket'`. */
+  readonly live?: 'sse' | 'websocket';
+  /** Opens the socket of `live: 'websocket'`, for a runtime whose `WebSocket` needs headers or another constructor; default the platform `WebSocket`. */
+  readonly webSocket?: (url: string, protocols: readonly string[]) => WebSocket;
   /** A client-chosen device id, sent as `Keelwerk-Client-Id`. */
   readonly deviceId?: string;
 }

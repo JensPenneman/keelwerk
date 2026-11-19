@@ -66,14 +66,14 @@ describe('the remote client against the running host', () => {
     expect(receipt).toMatchObject({ status: 'accepted' });
   });
 
-  it('is unauthenticated without a principal, and waiting for effects is refused in M1', async () => {
+  it('is unauthenticated without a principal, and a deployment without the live module refuses waiting for effects', async () => {
     const anonymous = await clientFor(JSON.stringify(testPrincipal(null))).attempt('loans.lend', {
       bookTitle: 'x',
       dueAt: due,
     });
     expect(anonymous.ok).toBe(false);
     if (!anonymous.ok) expect(anonymous.error).toMatchObject({ kind: 'unauthenticated' });
-    await expect(clientFor().waitForEffects(['effect'])).rejects.toMatchObject({
+    await expect(clientFor().waitForEffects([crypto.randomUUID()])).rejects.toMatchObject({
       code: 'core.live_unavailable',
     });
   });

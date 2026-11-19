@@ -12,7 +12,7 @@ export type RouteMode =
   | 'body'
   /** An instance operation: `id` from the path, `ifVersion` from `If-Match`, the rest from the body. */
   | 'instance'
-  /** Subscriptions and `watch`: need the live module (S-62). */
+  /** Subscriptions and `watch`: server-sent events on the route's own path, which need the live module (15.4.8). */
   | 'stream';
 
 /** One method and path of the route table (section 16.5.1). */

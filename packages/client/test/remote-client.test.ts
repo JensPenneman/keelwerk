@@ -255,34 +255,6 @@ describe('the remote client', () => {
     expect(server.requests.some((r) => r.path.endsWith('/invoke'))).toBe(false);
   });
 
-  it('rejects subscribe, waitForEffects and waitEffects with core.live_unavailable', async () => {
-    const { client, server } = setup({
-      'shop.ping': () => ({ effects: ['eff-1'] }),
-      'shop.cancelAll': () => ({ value: { cancelled: 0 } }),
-    });
-    const frames = client.subscribe('shop.feed', {})[Symbol.asyncIterator]();
-    await expect(frames.next()).rejects.toMatchObject({
-      kind: 'unavailable',
-      code: 'core.live_unavailable',
-    });
-    await expect(client.waitForEffects(['eff-1'])).rejects.toMatchObject({
-      kind: 'unavailable',
-      code: 'core.live_unavailable',
-    });
-    const before = server.requests.length;
-    await expect(
-      client.invoke('shop.ping', undefined, { waitEffects: true }),
-    ).rejects.toMatchObject({
-      code: 'core.live_unavailable',
-    });
-    await expect(client.invoke('shop.cancelAll', {}, { waitEffects: true })).rejects.toMatchObject({
-      code: 'core.live_unavailable',
-    });
-    expect(server.requests).toHaveLength(before);
-    expect(server.requests.some((r) => r.path.endsWith('/invoke'))).toBe(false);
-    await expect(client.invoke('shop.ping', undefined)).resolves.toBeUndefined();
-  });
-
   it('checks the url', () => {
     const fetchStub = protocolFetch({ surface: probeSurface(), handlers: {} }).fetch;
     expect(() =>

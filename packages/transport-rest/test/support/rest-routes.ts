@@ -7,10 +7,18 @@ export interface RestRoute {
   readonly query?: true;
   /** The body is the input's `patch` (merge patch); `id` is the path's and `ifVersion` is `If-Match`. */
   readonly patch?: true;
+  /** A subscription: server-sent events on this path, the input in the query. */
+  readonly stream?: true;
 }
 
 export const restRoutes: Readonly<Record<string, RestRoute>> = {
   'core.capabilities': { method: 'GET', path: '/api/core/capabilities', query: true },
+  'core.effectStatusWatch': {
+    method: 'GET',
+    path: '/api/core/effect-status-watch',
+    query: true,
+    stream: true,
+  },
   'core.me': { method: 'GET', path: '/api/core/me', query: true },
   'library.addBook': { method: 'POST', path: '/api/library/add-book' },
   'library.book.archive': { method: 'DELETE', path: '/api/library/books/:id' },
@@ -23,6 +31,9 @@ export const restRoutes: Readonly<Record<string, RestRoute>> = {
   'loans.about': { method: 'GET', path: '/api/loans/about', query: true },
   'loans.closeAll': { method: 'POST', path: '/api/loans/close-all' },
   'loans.lend': { method: 'POST', path: '/api/loans/lend' },
+  'loans.loan.watch': { method: 'GET', path: '/api/loans/loans/watch', query: true, stream: true },
+  'loans.loanEvents': { method: 'GET', path: '/api/loans/loan-events', query: true, stream: true },
+  'loans.loanTicker': { method: 'GET', path: '/api/loans/loan-ticker', query: true, stream: true },
   'loans.openDesk': { method: 'POST', path: '/api/loans/open-desk' },
   'loans.loan.query': { method: 'POST', path: '/api/loans/loans/query' },
 };

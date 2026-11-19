@@ -1,4 +1,4 @@
-import type { ApiSurface, EffectOutcome, LiveFrame, StateToken } from '@keelwerk/core';
+import type { ApiSurface, EffectStatus, LiveFrame, StateToken } from '@keelwerk/core';
 import type { DeclaredErrorOf } from './declared-error-of.ts';
 import type { EffectReferences } from './effect-references.ts';
 import type { EventOf } from './event-of.ts';
@@ -32,17 +32,27 @@ export interface AppClient<App> {
       }
     | { readonly ok: false; readonly error: DeclaredErrorOf<App, R> | TaxonomyError }
   >;
-  /** Subscribes; yields items and control frames. Without a live module it rejects with `unavailable`, `core.live_unavailable`. */
+  /**
+   * Subscribes; yields items and control frames, in their in-process form. It resumes from the last token
+   * by itself when the connection drops, on the carrier the client was created with (server-sent events by
+   * default). A server without the live module rejects with `unavailable`, `core.live_unavailable`; a ref
+   * the surface does not have as a subscription rejects with `core.not_found`.
+   */
   subscribe<R extends SubscriptionRef<App>>(
     ref: R,
     input: InputOf<App, R>,
     options?: { readonly after?: StateToken; readonly signal?: AbortSignal },
   ): AsyncIterable<LiveFrame<EventOf<App, R>>>;
-  /** Waits until the deferred effects an outcome listed have settled; without a live module it rejects with `unavailable`, `core.live_unavailable`. */
+  /**
+   * Waits until the deferred effects an outcome listed have settled, watching `core.effectStatusWatch`, and
+   * answers their statuses in the order given. An id the caller never requested rejects with `core.not_found`;
+   * the timeout resolves the statuses as they stand (some may still be `requested`); without a live module it
+   * rejects with `unavailable`, `core.live_unavailable`.
+   */
   waitForEffects(
     effectIds: EffectReferences,
     options?: { readonly timeoutMs?: number; readonly signal?: AbortSignal },
-  ): Promise<readonly EffectOutcome<unknown>[]>;
+  ): Promise<readonly EffectStatus[]>;
   /** A client bound to another backend, tenant or credential. */
   as(selector: {
     readonly backend?: string;

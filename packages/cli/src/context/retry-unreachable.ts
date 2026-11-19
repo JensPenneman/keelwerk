@@ -1,18 +1,10 @@
 import { CliFailure } from './cli-failure.ts';
 import type { CliHost } from './cli-host.ts';
+import { isUnreachable } from './is-unreachable.ts';
 import { localFailure } from './local-failure.ts';
 
 /** Attempts per request; a network failure is retried. */
 const attempts = 3;
-
-/** Whether a failure is the one the link raises when the deployment cannot be reached. */
-function isUnreachable(failure: unknown): failure is CliFailure {
-  return (
-    failure instanceof CliFailure &&
-    typeof failure.outcome === 'object' &&
-    failure.outcome.code === 'cli.unreachable'
-  );
-}
 
 /**
  * Runs `attempt` up to three times while it fails with `cli.unreachable`, sleeping between tries;

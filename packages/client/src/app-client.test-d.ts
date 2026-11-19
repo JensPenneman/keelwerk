@@ -2,6 +2,7 @@ import {
   type AppType,
   type CommandReceipt,
   defineApp,
+  type EffectStatus,
   type InstanceInput,
   type LiveFrame,
 } from '@keelwerk/core';
@@ -113,6 +114,9 @@ describe('the derived client types', () => {
     }
     expectTypeOf<EffectReferences>().toEqualTypeOf<readonly string[]>();
     expectTypeOf(conformance.waitForEffects).parameter(0).toEqualTypeOf<EffectReferences>();
+    expectTypeOf(conformance.waitForEffects).returns.resolves.toEqualTypeOf<
+      readonly EffectStatus[]
+    >();
   });
 
   test('subscriptions are apart from invokable actions', () => {

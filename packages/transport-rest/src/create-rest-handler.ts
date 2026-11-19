@@ -6,13 +6,7 @@ import {
   type KeelwerkError,
   newUuidV7,
 } from '@keelwerk/core';
-import {
-  asKeelwerkError,
-  audienceOf,
-  coreError,
-  decodeActionInput,
-  signalOf,
-} from '@keelwerk/core/http';
+import { asKeelwerkError, audienceOf, decodeActionInput, signalOf } from '@keelwerk/core/http';
 import { decodeRequest } from './decode-request.ts';
 import { encodeResponse } from './encode-response.ts';
 import { idempotencyKey } from './idempotency-key.ts';
@@ -25,6 +19,7 @@ import { referencePage } from './reference-page.ts';
 import type { RestHandlerDeps } from './rest-handler-deps.ts';
 import type { RestVersionMount } from './rest-version-mount.ts';
 import type { RouteMatch } from './route-table.ts';
+import { serveSubscription } from './subscriptions/serve-subscription.ts';
 
 async function serveRoute(
   deps: RestHandlerDeps,
@@ -38,7 +33,7 @@ async function serveRoute(
   const { route, params } = match;
   const { action } = route;
   if (route.mode === 'stream') {
-    throw coreError('core.live_unavailable');
+    return serveSubscription(deps, surface, request, ctx, route);
   }
   const config = deps.config(ctx.session.scope);
   const preconditions = readPreconditions(request.headers);

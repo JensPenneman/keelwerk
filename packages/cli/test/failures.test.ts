@@ -49,14 +49,14 @@ test('the invoke names the API version of the surface its flags came from', asyn
   expect(surface?.request.headers).not.toHaveProperty('keelwerk-version');
 });
 
-test('--wait without a value is accepted; --wait-effects fails with core.live_unavailable (10)', async () => {
+test('--wait and --wait-effects are accepted; an answer that lists no effects waits for nothing', async () => {
   const fake = createFakeHost({ files: remoteProfileFiles, handler: portalServer() });
   expect((await runCliWith(['call', 'app.health', '--wait'], fake.host)).code).toBe(0);
   expect((await runCliWith(['call', 'app.health', '--wait', '5'], fake.host)).code).toBe(0);
-  const refused = await runCliWith(['call', 'app.health', '--wait-effects', '5'], fake.host);
-  expect(refused.code).toBe(10);
-  expect(refused.stderr).toContain('core.live_unavailable');
-  expect(fake.sent.filter((sent) => sent.url.endsWith('/invoke'))).toHaveLength(2);
+  const waited = await runCliWith(['call', 'app.health', '--wait-effects', '5'], fake.host);
+  expect(waited.code).toBe(0);
+  expect(fake.sent.filter((sent) => sent.url.endsWith('/invoke'))).toHaveLength(3);
+  expect(fake.sent.some((sent) => sent.url.endsWith('/subscribe'))).toBe(false);
 });
 
 test('call list takes the connection and output flags', async () => {

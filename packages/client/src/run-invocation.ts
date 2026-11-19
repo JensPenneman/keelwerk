@@ -7,12 +7,12 @@ import { errorOfEnvelope } from './error-of-envelope.ts';
 import type { InvocationResult } from './invocation-result.ts';
 import type { InvokeOptions } from './invoke-options.ts';
 import { isRecord } from './is-record.ts';
-import { liveUnavailable } from './live-unavailable.ts';
 import { newCommandId } from './new-command-id.ts';
 import type { Prefer } from './prefer.ts';
 import type { RemoteClientState } from './remote-client-state.ts';
 import { requestHeaders } from './request-headers.ts';
 import { sendWithRetry } from './send-with-retry.ts';
+import { waitForEffects } from './wait-for-effects.ts';
 
 type Invoked = {
   readonly value: unknown;
@@ -26,10 +26,6 @@ async function invoke(
   input: unknown,
   options: InvokeOptions<Prefer>,
 ): Promise<Invoked> {
-  if (options.waitEffects) {
-    // Nothing is sent: the command would commit and the caller would lose its outcome (16.4.7).
-    throw liveUnavailable('Waiting for effects');
-  }
   const loaded = await state.surfaces.get();
   const action = loaded.actions.get(ref);
   if (action === undefined) {
@@ -64,13 +60,18 @@ async function invoke(
     ...(commandId !== undefined && { commandId }),
     ...(effects !== undefined && { effects }),
   };
-  if (answer.receipt !== undefined) {
-    return { value: answer.receipt, ...reported };
+  const value =
+    answer.receipt !== undefined
+      ? answer.receipt
+      : decodeWithSurface(action.output, answer.value, `the output of ${ref}`);
+  // The command has committed: a wait that fails is the call's error, and its command id is the caller's own.
+  if (options.waitEffects !== undefined && options.waitEffects !== false && effects !== undefined) {
+    await waitForEffects(state, effects, {
+      ...(typeof options.waitEffects === 'object' && { timeoutMs: options.waitEffects.timeoutMs }),
+      ...(options.signal !== undefined && { signal: options.signal }),
+    });
   }
-  return {
-    value: decodeWithSurface(action.output, answer.value, `the output of ${ref}`),
-    ...reported,
-  };
+  return { value, ...reported };
 }
 
 /** Runs one invocation; a failure of the taxonomy is the result, anything else (an abort) is thrown. */

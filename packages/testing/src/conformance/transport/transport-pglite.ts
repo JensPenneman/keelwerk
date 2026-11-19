@@ -1,7 +1,7 @@
 import type { DataAdapter, DataAdapterFactory, EntityDescriptor } from '@keelwerk/core';
 import { errors } from '@keelwerk/core';
-import { commandReceiptDdl } from '@keelwerk/data/conformance';
-import { pgliteAdapter } from '@keelwerk/data/pglite';
+import { withCommandReceipts } from '@keelwerk/data';
+import { pgliteAdapter, pgliteSchemaConnection } from '@keelwerk/data/pglite';
 
 const role = 'kw_app';
 
@@ -14,7 +14,8 @@ export interface PgliteTransportOptions {
 /**
  * PGlite as a deployment's data adapter 'pglite' (one in-memory database per placement): creates
  * the application role the units drop to, hands the adapter the runtime's key wrapper, and creates
- * the receipt table of each namespace the runtime provisions (the core's provisioning of S-22).
+ * the receipt table and the effect table of each namespace the runtime provisions (the core's
+ * provisioning of S-22 and 7.9.6): the status watch of an effect reads the latter.
  */
 export function transportPglite(options: PgliteTransportOptions = {}): DataAdapterFactory {
   return {
@@ -61,20 +62,7 @@ export function transportPglite(options: PgliteTransportOptions = {}): DataAdapt
         identity: () => inner.identity(),
         unit: (namespace, scope, fn, unitOptions) =>
           (inner as unknown as DataAdapter).unit(namespace, scope, fn, unitOptions),
-        schema: {
-          ...inner.schema,
-          provision: async (namespace, snapshots, provisionOptions) => {
-            await inner.schema.provision(namespace, snapshots, provisionOptions);
-            await inner.asOwner(async (database) => {
-              const table = `"${namespace.root}".core__command_receipt`;
-              const present = await database.query('select to_regclass($1) as found', [table]);
-              if ((present.rows[0] as { found: string | null } | undefined)?.found != null) return;
-              for (const statement of commandReceiptDdl(namespace.root))
-                await database.query(statement);
-              await database.query(`grant select, insert, update, delete on ${table} to "${role}"`);
-            });
-          },
-        },
+        schema: withCommandReceipts(inner.schema, pgliteSchemaConnection(inner.asOwner), role),
       };
       return adapter;
     },

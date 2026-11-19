@@ -18,6 +18,7 @@ import { isStreamResponse } from './is-stream-response.ts';
 import { jsonResponse } from './json-response.ts';
 import { mountPathOf } from './mount-path-of.ts';
 import { originCheck } from './origin-check.ts';
+import { serveSseStream } from './serve-sse-stream.ts';
 import { socketFacts } from './socket-facts.ts';
 import { spendRefusedTickets } from './spend-refused-tickets.ts';
 import { subscribeEndpoint } from './subscribe-endpoint.ts';
@@ -101,6 +102,11 @@ async function mounted(call: EndpointCall, path: string, streams: boolean): Prom
         });
   // The one rule of path handling: the host strips the mount's prefix, the transport never does.
   const relative = mountPathOf(match.prefix, path);
+  // Only a request the host counts as a stream (it holds its slot) may be answered on the carrier.
+  const live =
+    streams && asksForEventStream(request)
+      ? host.deps.liveCarrier?.(session.app, 'sse')
+      : undefined;
   const run = (): Promise<Response> =>
     match.handler(forwarded, {
       session,
@@ -110,6 +116,9 @@ async function mounted(call: EndpointCall, path: string, streams: boolean): Prom
       signal: request.signal,
       path: relative.path,
       basePath: relative.basePath,
+      ...(live !== undefined && {
+        serveStream: (frames, options) => serveSseStream(call, frames, { live, ...options }),
+      }),
     });
   // The stream gate is the host's: a request its route counts as a stream passed the stream origin
   // check and holds a stream slot until the body ends; a route that streams without it is refused.

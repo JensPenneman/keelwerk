@@ -1,6 +1,14 @@
-import type { ApiSurface, InvokeResponse, Outcome, Runtime } from '@keelwerk/core';
+import type { LiveLegEvent } from '@keelwerk/client';
+import type {
+  ApiSurface,
+  InvokeResponse,
+  LiveFrame,
+  Outcome,
+  Runtime,
+  StateToken,
+} from '@keelwerk/core';
 import { toWire as errorToWire, newUuidV7 } from '@keelwerk/core';
-import { asKeelwerkError, decodeActionInput } from '@keelwerk/core/http';
+import { asKeelwerkError, coreError, decodeActionInput, encodeFrames } from '@keelwerk/core/http';
 import { toWire } from '@keelwerk/core/wire';
 import { CliFailure } from '../context/cli-failure.ts';
 import type { DeploymentLink } from '../context/deployment-link.ts';
@@ -63,6 +71,83 @@ export function inProcessLink(
         if (options?.signal?.aborted === true) throw new CliFailure('interrupted', 'Interrupted.');
         return failed(failure, requestId);
       }
+    },
+    async subscribe(request, options) {
+      const requestId = newUuidV7();
+      const surface = surfaceOf();
+      const action = surface.actions.find((candidate) => candidate.ref === request.action);
+      const abort = new AbortController();
+      const onInterrupt = (): void => abort.abort();
+      if (options?.signal?.aborted === true) abort.abort();
+      else options?.signal?.addEventListener('abort', onInterrupt, { once: true });
+      const refusal = (failure: unknown): CliFailure => {
+        if (options?.signal?.aborted === true) return new CliFailure('interrupted', 'Interrupted.');
+        const answer = failed(failure, requestId);
+        return answer.ok
+          ? new CliFailure('usage', 'Not a failure.')
+          : new CliFailure(answer.error, answer.error.message);
+      };
+      let iterator: AsyncIterator<LiveFrame<unknown>>;
+      let first: IteratorResult<LiveFrame<unknown>>;
+      try {
+        if (action === undefined) {
+          throw coreError('core.not_found', { message: 'There is no such subscription.' });
+        }
+        const frames = encodeFrames(
+          runtime.invoker.subscribe<unknown, unknown>(
+            {
+              action: request.action,
+              input: decodeActionInput(surface, action, request.input),
+              carrier: { transport: 'cli', local: { inProcess: true }, headers },
+              requestId,
+              ...(options?.traceparent !== undefined && { traceparent: options.traceparent }),
+              signal: abort.signal,
+            },
+            request.after === undefined ? undefined : { after: request.after as StateToken },
+          ),
+          action,
+        );
+        iterator = frames[Symbol.asyncIterator]();
+        first = await iterator.next();
+      } catch (failure) {
+        abort.abort();
+        options?.signal?.removeEventListener('abort', onInterrupt);
+        throw refusal(failure);
+      }
+      let waiting: IteratorResult<LiveFrame<unknown>> | undefined = first;
+      let finished = false;
+      const stop = async (): Promise<void> => {
+        finished = true;
+        abort.abort();
+        options?.signal?.removeEventListener('abort', onInterrupt);
+        await iterator.return?.(undefined)?.catch(() => undefined);
+      };
+      const events: AsyncIterator<LiveLegEvent> = {
+        async next() {
+          if (finished) return { done: true, value: undefined };
+          try {
+            const step = waiting ?? (await iterator.next());
+            waiting = undefined;
+            if (step.done === true) {
+              await stop();
+              return { done: false, value: { kind: 'end', reason: 'complete' } };
+            }
+            return { done: false, value: { kind: 'frame', frame: step.value } };
+          } catch (failure) {
+            await stop();
+            if (options?.signal?.aborted === true) return { done: true, value: undefined };
+            const answer = failed(failure, requestId);
+            return answer.ok
+              ? { done: true, value: undefined }
+              : { done: false, value: { kind: 'error', error: answer.error } };
+          }
+        },
+        async return() {
+          await stop();
+          return { done: true, value: undefined };
+        },
+      };
+      return { [Symbol.asyncIterator]: () => events };
     },
     async surface(hash) {
       const surface = surfaceOf();
