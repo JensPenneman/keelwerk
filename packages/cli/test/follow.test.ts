@@ -1,41 +1,17 @@
 import { describe, expect, test } from 'vitest';
 import { exitCodeFor } from '../src/exit-code-for.ts';
-import { createFakeHost, type SentRequest } from './support/fake-host.ts';
-import { json, portalServer } from './support/portal-server.ts';
-import { remoteProfileFiles } from './support/profile-files.ts';
+import {
+  followDeployment as deployment,
+  end,
+  followHead as head,
+  followItem as item,
+  outputLines as lines,
+  sse,
+  token,
+  welcome,
+} from './support/follow-deployment.ts';
+import { json } from './support/portal-server.ts';
 import { runCliWith } from './support/run-cli-with.ts';
-
-const token = (n: number): string => `v2.0.${n}.00000000.${'0'.repeat(32)}`;
-
-function sse(...events: readonly string[]): Response {
-  return new Response(events.join(''), {
-    status: 200,
-    headers: { 'content-type': 'text/event-stream' },
-  });
-}
-const welcome = 'event: welcome\ndata: {"protocol":1}\n\n';
-const item = (n: number, value: unknown): string =>
-  `id: ${token(n)}\nevent: data\ndata: ${JSON.stringify(value)}\n\n`;
-const head = (n: number): string =>
-  `id: ${token(n)}\nevent: head\ndata: {"state":"${token(n)}"}\n\n`;
-const end = 'event: end\ndata: {"reason":"complete"}\n\n';
-
-/** A deployment whose `/subscribe` answers the scripted streams in turn; the requests it got are kept. */
-function deployment(streams: readonly (() => Response)[]) {
-  const opened: Record<string, unknown>[] = [];
-  const handler = portalServer({
-    invoke: (body, sent: SentRequest) => {
-      if (!sent.url.endsWith('/subscribe')) return json({ ok: true, value: null });
-      opened.push(body);
-      const next = streams[opened.length - 1];
-      if (next === undefined) throw new Error(`The test opened subscription ${opened.length}.`);
-      return next();
-    },
-  });
-  return { fake: createFakeHost({ files: remoteProfileFiles, handler }), opened };
-}
-
-const lines = (text: string): string[] => text.split('\n').filter((line) => line !== '');
 
 describe('call <subscription>', () => {
   test('stops at head without --follow: the changes up to now are printed as NDJSON, exit 0', async () => {

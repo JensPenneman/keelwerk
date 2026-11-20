@@ -107,6 +107,54 @@ describe('call --wait-effects', () => {
     expect(run.stderr).toContain('cli.wait_timeout');
   });
 
+  test('a watch that fails with core.timeout after the commit is cli.wait_failed, with the command id on standard error', async () => {
+    const timeout =
+      'event: error\ndata: {"kind":"unavailable","code":"core.timeout","message":"Too slow.","retryable":true,"requestId":"r"}\n\n';
+    const fake = createFakeHost({
+      files: remoteProfileFiles,
+      handler: portalServer({
+        invoke: (_body, sent: SentRequest) =>
+          sent.url.endsWith('/subscribe')
+            ? new Response(`event: welcome\ndata: {"protocol":1}\n\n${timeout}`, {
+                status: 200,
+                headers: { 'content-type': 'text/event-stream' },
+              })
+            : json({ ok: true, value: null, effects: [newUuidV7()] }),
+      }),
+    });
+    const run = await runCliWith(
+      ['call', 'app.health', '--wait-effects', '--command-id', 'cmd-77'],
+      fake.host,
+    );
+    expect(run.code).toBe(10);
+    expect(run.stderr).toContain(
+      'note: command cmd-77 committed; its effects are not known to have settled',
+    );
+    expect(run.stderr).toContain('cli.wait_failed');
+    expect(run.stderr).not.toContain('core.timeout"');
+    expect(run.stderr).not.toContain('cli.unreachable');
+  });
+
+  test('a watch that cannot be reached after the commit is cli.wait_failed, not cli.unreachable, and names the command id minted by the CLI', async () => {
+    let minted: unknown;
+    const fake = createFakeHost({
+      files: remoteProfileFiles,
+      handler: portalServer({
+        invoke: (body, sent: SentRequest) => {
+          if (sent.url.endsWith('/subscribe')) throw new Error('connection refused');
+          minted = body.commandId;
+          return json({ ok: true, value: null, effects: [newUuidV7()] });
+        },
+      }),
+    });
+    const run = await runCliWith(['call', 'app.health', '--wait-effects'], fake.host);
+    expect(minted).toEqual(expect.any(String));
+    expect(run.code).toBe(10);
+    expect(run.stderr).toContain(`note: command ${minted} committed`);
+    expect(run.stderr).toContain('cli.wait_failed');
+    expect(run.stderr).not.toContain('cli.unreachable');
+  });
+
   test('an answer that lists no effects waits for nothing', async () => {
     const { fake, watched } = deployment({ effects: false });
     const run = await runCliWith(['call', 'app.health', '--wait-effects'], fake.host);

@@ -30,21 +30,53 @@ const sse = (text: string): Response =>
   new Response(text, { status: 200, headers: { 'content-type': 'text/event-stream' } });
 
 describe('invoke with waitEffects when the effects did not settle', () => {
-  it('a watch that closes complete before the head is core.timeout, not a result', async () => {
+  it('a watch that closes complete before the head is client.effects_unsettled, not a result and never core.timeout', async () => {
     const client = deployment(() => sse(`${welcome}event: end\ndata: {"reason":"complete"}\n\n`));
     const attempted = await client.attempt('shop.ping', undefined, { waitEffects: true });
     expect(attempted).toMatchObject({
       ok: false,
-      error: { kind: 'unavailable', code: 'core.timeout', retryable: false },
+      error: {
+        kind: 'unavailable',
+        code: 'client.effects_unsettled',
+        retryable: false,
+        details: { committed: true, effects: ['eff-1'] },
+      },
       effects: ['eff-1'],
     });
     expect(attempted.commandId).toEqual(expect.any(String));
     await expect(
       client.invoke('shop.ping', undefined, { waitEffects: true }),
     ).rejects.toMatchObject({
-      code: 'core.timeout',
+      kind: 'unavailable',
+      code: 'client.effects_unsettled',
       retryable: false,
-      details: { committed: true, effects: ['eff-1'] },
+      details: { committed: true, commandId: expect.any(String), effects: ['eff-1'] },
+    });
+  });
+
+  it('an error event of the watch that says core.timeout is client.effects_unsettled too, with the original as cause', async () => {
+    const timeout =
+      'event: error\ndata: {"kind":"unavailable","code":"core.timeout","message":"Too slow.","retryable":true,"requestId":"r"}\n\n';
+    const client = deployment(() => sse(`${welcome}${timeout}`));
+    const attempted = await client.attempt('shop.ping', undefined, { waitEffects: true });
+    expect(attempted).toMatchObject({
+      ok: false,
+      error: {
+        kind: 'unavailable',
+        code: 'client.effects_unsettled',
+        retryable: false,
+        details: { committed: true, effects: ['eff-1'] },
+        cause: { code: 'core.timeout' },
+      },
+      effects: ['eff-1'],
+    });
+    expect(attempted.commandId).toEqual(expect.any(String));
+    await expect(
+      client.invoke('shop.ping', undefined, { waitEffects: true }),
+    ).rejects.toMatchObject({
+      code: 'client.effects_unsettled',
+      retryable: false,
+      details: { committed: true },
     });
   });
 });

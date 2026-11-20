@@ -4,6 +4,7 @@ import { ClientError } from './client-error.ts';
 type ClientFailureCode =
   | 'core.unavailable'
   | 'core.timeout'
+  | 'client.effects_unsettled'
   | 'core.live_unavailable'
   | 'core.internal'
   | 'core.not_found'
@@ -13,6 +14,7 @@ type ClientFailureCode =
 const kinds: Readonly<Record<ClientFailureCode, ErrorKind>> = {
   'core.unavailable': 'unavailable',
   'core.timeout': 'unavailable',
+  'client.effects_unsettled': 'unavailable',
   'core.live_unavailable': 'unavailable',
   'core.internal': 'internal',
   'core.not_found': 'not_found',

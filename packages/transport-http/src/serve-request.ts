@@ -202,14 +202,24 @@ export async function serveRequest(
   const opened = await open(host, carrier, request.signal);
   if ('error' in opened) {
     // A ticket refused on the one request that carries it is spent as well, with its binding not
-    // checked, so a ticket offered for another subscription is dead for its own. Only the refusal
-    // of the ticket itself spends: scope, version, rate and availability failures never judge it.
-    if (carriesTicket(request, requestUrl) && opened.error.code === 'core.ticket_invalid') {
+    // checked, so a ticket offered for another subscription is dead for its own. The refusal of the
+    // ticket itself spends, and so does a failure of the server (internal, unavailable): another
+    // resolver's error on the same request is kept and thrown in place of `core.ticket_invalid`, and
+    // would leave a ticket that a log has seen redeemable. A matching ticket returns at its redemption
+    // before any kept error is thrown, so none that opened is spent here. Version, rate, scope and the
+    // other refusals do not judge it.
+    const { error } = opened;
+    if (
+      carriesTicket(request, requestUrl) &&
+      (error.code === 'core.ticket_invalid' ||
+        error.kind === 'internal' ||
+        error.kind === 'unavailable')
+    ) {
       await spendRefusedTickets(request, requestUrl, facts, (spent) =>
         open(host, spent, request.signal),
       );
     }
-    return errorResponse(host, state, opened.error);
+    return errorResponse(host, state, error);
   }
   const { session } = opened;
   state.session = session;

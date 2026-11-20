@@ -67,7 +67,7 @@ describe('waitForEffects against a running deployment', () => {
     expect(endpoint.requests).toHaveLength(1);
   });
 
-  it('invoke with waitEffects that times out before the effect settles is core.timeout with the command id', async () => {
+  it('invoke with waitEffects that times out before the effect settles is client.effects_unsettled with the command id', async () => {
     const { client } = await boot(() => 'hang');
     const attempted = await client.attempt(
       'hooks.notify',
@@ -76,11 +76,24 @@ describe('waitForEffects against a running deployment', () => {
     );
     expect(attempted).toMatchObject({
       ok: false,
-      error: { kind: 'unavailable', code: 'core.timeout', retryable: false },
+      error: {
+        kind: 'unavailable',
+        code: 'client.effects_unsettled',
+        retryable: false,
+        details: { committed: true },
+      },
     });
     if (attempted.ok) return;
     expect(attempted.commandId).toEqual(expect.any(String));
     expect(attempted.effects).toHaveLength(1);
+    await expect(
+      client.invoke('hooks.notify', { payload: 'slow' }, { waitEffects: { timeoutMs: 500 } }),
+    ).rejects.toMatchObject({
+      kind: 'unavailable',
+      code: 'client.effects_unsettled',
+      retryable: false,
+      details: { committed: true, commandId: expect.any(String) },
+    });
   });
 
   it('rejects an id the caller never requested with core.not_found', async () => {

@@ -18,8 +18,9 @@ function isRateLimited(failure: unknown): boolean {
 
 /**
  * The deployment says it cannot answer now: a server that stops or restarts (`core.unavailable`), a
- * proxy in front of one (`cli.bad_response` on a 5xx), or any failure it marks retryable. A deployment
- * without the live module (`core.live_unavailable`) is final.
+ * proxy in front of one (`cli.bad_response` on a 408 or a 5xx), or any failure it marks retryable. A
+ * gate's refusal (a 401, 403 or 404 without an error code, a 200 that is no event stream) is final, and
+ * so is a deployment without the live module (`core.live_unavailable`).
  */
 function isUnavailable(failure: unknown): boolean {
   if (!(failure instanceof CliFailure) || typeof failure.outcome !== 'object') return false;

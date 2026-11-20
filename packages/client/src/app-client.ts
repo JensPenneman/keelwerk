@@ -50,8 +50,9 @@ export interface AppClient<App> {
     options?: { readonly after?: StateToken; readonly signal?: AbortSignal },
   ): AsyncIterable<LiveFrame<EventOf<App, R>>>;
   /**
-   * Waits until the deferred effects an outcome listed have settled, watching `core.effectStatusWatch`, and
-   * answers their statuses in the order given. An id the caller never requested rejects with `core.not_found`;
+   * Waits until the deferred effects an outcome listed have settled (section 16.8.4), watching
+   * `core.effectStatusWatch`, and answers their statuses in the order given. Ids that no watch has a
+   * status for (not requested by the caller, or unknown) reject with `core.not_found`, naming how many;
    * the timeout resolves the statuses as they stand (some may still be `requested`); without a live module it
    * rejects with `unavailable`, `core.live_unavailable`.
    */

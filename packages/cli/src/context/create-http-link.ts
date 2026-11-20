@@ -10,6 +10,7 @@ import { CliFailure } from './cli-failure.ts';
 import type { CliHost, HostRequest } from './cli-host.ts';
 import type { DeploymentLink, LinkOptions } from './deployment-link.ts';
 import { deprecationOfHeaders } from './deprecation-of-headers.ts';
+import { kindOfStatus } from './kind-of-status.ts';
 import { localFailure } from './local-failure.ts';
 import type { ResolvedProfile } from './resolved-profile.ts';
 
@@ -21,7 +22,7 @@ async function readJson(response: Response): Promise<unknown> {
     return JSON.parse(text);
   } catch {
     throw localFailure(
-      response.status >= 500 ? 'unavailable' : 'internal',
+      kindOfStatus(response.status),
       'cli.bad_response',
       `The deployment answered ${response.status} with a body that is not JSON.`,
     );
@@ -37,7 +38,11 @@ function failureOf(body: unknown, status: number): CliFailure {
   if (error !== undefined && typeof error.code === 'string') {
     return new CliFailure(error, error.message);
   }
-  return localFailure('unavailable', 'cli.bad_response', `The deployment answered ${status}.`);
+  return localFailure(
+    kindOfStatus(status),
+    'cli.bad_response',
+    `The deployment answered ${status}.`,
+  );
 }
 
 /** A malformed stream event is a failure of the deployment's answer: the CLI renders it, not rethrows it. */
@@ -164,6 +169,17 @@ export function createHttpLink(host: CliHost, profile: ResolvedProfile): Deploym
           );
         }
         throw failureOf(body, response.status);
+      }
+      if (
+        !(response.headers.get('content-type') ?? '').toLowerCase().startsWith('text/event-stream')
+      ) {
+        // A gate's login page after a redirect: no frame would come, and a follow would reopen for ever.
+        await response.body.cancel().catch(() => undefined);
+        throw localFailure(
+          'internal',
+          'cli.bad_response',
+          'The deployment answered 200 with something that is not an event stream.',
+        );
       }
       return renderedFailures(
         liveLegEventsOf(response.body, (data) => {

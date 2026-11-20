@@ -58,9 +58,12 @@ export async function runAction(
     output.note(`trace id: ${trace.traceId}`);
   }
   const prefer = flags.async === true ? ('async' as const) : undefined;
+  // Minted here, not inside the client: a wait that fails after the commit names it on standard error.
+  const commandId =
+    typeof flags['command-id'] === 'string' ? flags['command-id'] : context.host.newId();
   const first = await context.client.invoke(action.ref, input, {
     signal: context.signal,
-    ...(typeof flags['command-id'] === 'string' && { commandId: flags['command-id'] }),
+    commandId,
     ...(prefer !== undefined && { prefer }),
     ...(trace !== undefined && { traceparent: trace.traceparent }),
     onDeprecation: (notice) => output.note(deprecationWarning(notice)),
@@ -98,6 +101,7 @@ export async function runAction(
       context,
       response.effects ?? [],
       typeof flags['wait-effects'] === 'number' ? flags['wait-effects'] : null,
+      commandId,
     );
   }
 }

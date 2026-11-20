@@ -57,7 +57,14 @@ describe('a ticket on GET /_keelwerk/v1/subscribe', () => {
     new Request(`https://library.example/_keelwerk/v1/subscribe?action=a.b&ticket=${ticket}`, {
       headers: { cookie: '__Host-kw=x', authorization: 'Bearer kwo_token' },
     });
-  function refusing(code: 'core.ticket_invalid' | 'core.unavailable') {
+  function refusing(
+    code:
+      | 'core.ticket_invalid'
+      | 'core.unavailable'
+      | 'core.internal'
+      | 'core.api_version_unknown'
+      | 'core.rate_limited',
+  ) {
     return setup({}, createFakeInvoker({ open: () => ({ ok: false, error: coreError(code) }) }));
   }
 
@@ -79,14 +86,28 @@ describe('a ticket on GET /_keelwerk/v1/subscribe', () => {
     expect(spent?.headers?.authorization).toBeUndefined();
   });
 
-  it('costs one open when the open fails for any other reason', async () => {
-    const { host, invoker } = refusing('core.unavailable');
-    const response = await host.fetch(subscribe());
-    expect(((await response.json()) as { error: { code: string } }).error.code).toBe(
-      'core.unavailable',
-    );
-    expect(invoker.opened).toHaveLength(1);
-  });
+  it.each(['core.unavailable', 'core.internal'] as const)(
+    'is spent after %s refused the open, as another resolver of the request may have hidden the ticket',
+    async (code) => {
+      const { host, invoker } = refusing(code);
+      const response = await host.fetch(subscribe());
+      expect(((await response.json()) as { error: { code: string } }).error.code).toBe(code);
+      expect(invoker.opened.map((carrier) => carrier.ticket?.spendOnly ?? false)).toEqual([
+        false,
+        true,
+      ]);
+    },
+  );
+
+  it.each(['core.api_version_unknown', 'core.rate_limited'] as const)(
+    'costs one open when the open fails with %s, which does not judge the ticket',
+    async (code) => {
+      const { host, invoker } = refusing(code);
+      const response = await host.fetch(subscribe());
+      expect(((await response.json()) as { error: { code: string } }).error.code).toBe(code);
+      expect(invoker.opened).toHaveLength(1);
+    },
+  );
 
   it('costs one open when it succeeds', async () => {
     const made = setup(

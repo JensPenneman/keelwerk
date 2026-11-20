@@ -3,7 +3,10 @@ import type { EffectReferences } from './effect-references.ts';
 import type { RemoteClientState } from './remote-client-state.ts';
 import { settleRemoteEffects } from './settle-remote-effects.ts';
 
-/** `AppClient.waitForEffects`: a timeout resolves the statuses as they stand, some of them still `requested`. */
+/**
+ * `AppClient.waitForEffects` (16.8.4): a timeout resolves the statuses as they stand, some of them still
+ * `requested`. Ids that no watch has a status for reject with `core.not_found`, naming how many.
+ */
 export async function waitForEffects(
   state: RemoteClientState,
   ids: EffectReferences,

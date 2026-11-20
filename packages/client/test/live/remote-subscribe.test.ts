@@ -38,6 +38,30 @@ function clientOver(
   });
 }
 
+/** The response with its body ended after the first `head`: a connection that ends cleanly without `end`. */
+function cutAfterHead(response: Response): Response {
+  if (response.body === null) return response;
+  const reader = response.body.getReader();
+  let sawHead = false;
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      if (sawHead) {
+        await reader.cancel().catch(() => undefined);
+        controller.close();
+        return;
+      }
+      const chunk = await reader.read();
+      if (chunk.done) {
+        controller.close();
+        return;
+      }
+      if (new TextDecoder().decode(chunk.value).includes('event: head')) sawHead = true;
+      controller.enqueue(chunk.value);
+    },
+  });
+  return new Response(body, { status: response.status, headers: response.headers });
+}
+
 function containsInstant(value: unknown): boolean {
   if (value instanceof Temporal.Instant) return true;
   if (typeof value !== 'object' || value === null) return false;
@@ -153,6 +177,73 @@ describe('the remote client subscribes over server-sent events', () => {
       expect((await old.next()).value).toMatchObject({ control: 'head' });
     } finally {
       await old.return?.();
+    }
+  });
+
+  it('a 200 that is not an event stream (a gate login page) is core.internal and ends the subscription', async () => {
+    const ada = freshName('ada');
+    let opened = 0;
+    const send = async (request: Request): Promise<Response> => {
+      if (!new URL(request.url).pathname.endsWith('/subscribe')) return runtime.fetch(request);
+      opened += 1;
+      return new Response('<html>sign in</html>', {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      });
+    };
+    const client = clientOver(send, ada);
+    const frames = client.subscribe('loans.loanEvents', {})[Symbol.asyncIterator]();
+    await expect(frames.next()).rejects.toMatchObject({ kind: 'internal', code: 'core.internal' });
+    expect(opened).toBe(1);
+  });
+
+  it('a 200 that is not an event stream after a frame ends the subscription instead of reopening for ever', async () => {
+    const ada = freshName('ada');
+    let opened = 0;
+    const send = async (request: Request): Promise<Response> => {
+      const response = await runtime.fetch(request);
+      if (!new URL(request.url).pathname.endsWith('/subscribe')) return response;
+      opened += 1;
+      // The first connection delivers its frames and then ends, as a restart does.
+      if (opened === 1) return cutAfterHead(response);
+      return new Response('<html>sign in</html>', {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      });
+    };
+    const client = clientOver(send, ada);
+    const frames = client.subscribe('loans.loanEvents', {})[Symbol.asyncIterator]();
+    expect((await frames.next()).value).toMatchObject({ control: 'head' });
+    await expect(frames.next()).rejects.toMatchObject({ code: 'core.internal' });
+    expect(opened).toBe(2);
+  });
+
+  it('a 502 without an envelope after a frame resumes from the last token, as a proxy over a restarting server', async () => {
+    const ada = freshName('ada');
+    let opened = 0;
+    const send = async (request: Request): Promise<Response> => {
+      const response = await runtime.fetch(request);
+      if (!new URL(request.url).pathname.endsWith('/subscribe')) return response;
+      opened += 1;
+      if (opened === 1) return cutAfterHead(response);
+      if (opened === 2) {
+        return new Response('<html>bad gateway</html>', {
+          status: 502,
+          headers: { 'content-type': 'text/html' },
+        });
+      }
+      return response;
+    };
+    const client = clientOver(send, ada);
+    const frames = client.subscribe('loans.loanEvents', {})[Symbol.asyncIterator]();
+    try {
+      expect((await frames.next()).value).toMatchObject({ control: 'head' });
+      await client.invoke('loans.lend', { bookTitle: freshName('Dune'), dueAt: due });
+      const step = await frames.next();
+      expect(step.value).toMatchObject({ event: { kind: 'created' } });
+      expect(opened).toBe(3);
+    } finally {
+      await frames.return?.();
     }
   });
 

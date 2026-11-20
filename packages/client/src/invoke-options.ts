@@ -12,8 +12,9 @@ export interface InvokeOptions<P extends Prefer> {
    * is an error that is not retryable (`attempt` also returns its `commandId` and `effects`):
    * send it again only under that command id, or wait for its effects with waitForEffects.
    * So is a wait that ends before every effect settled (`timeoutMs` reached, or the watch closed):
-   * `unavailable`, `core.timeout`. An abort is thrown as it is, also after the command committed, so a
-   * caller that may abort passes its own `commandId`.
+   * `unavailable`, `client.effects_unsettled` (never `core.timeout`, which means rolled back and safe to
+   * send again; a `core.timeout` of the watch is reported as this code too). An abort is thrown as it
+   * is, also after the command committed, so a caller that may abort passes its own `commandId`.
    */
   readonly waitEffects?: boolean | { readonly timeoutMs: number };
   readonly signal?: AbortSignal;

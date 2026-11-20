@@ -29,13 +29,16 @@ type Reported = { readonly commandId?: string; readonly effects?: EffectReferenc
 /**
  * The error of a wait that failed after the command committed: the same kind and code, but never
  * retryable, because a retry sends the command again. It names the command id and the effects, so the
- * caller waits again with `waitForEffects` instead.
+ * caller waits again with `waitForEffects` instead. `core.timeout` means rolled back and safe to send
+ * again (16.4.11), which a committed command never is: a wait that ends with it is reported as
+ * `client.effects_unsettled`, the original as its cause.
  */
 function committedFailure(failure: ClientError, reported: Reported): ClientError {
   const named = reported.commandId === undefined ? '' : ` (command id ${reported.commandId})`;
+  const unsettled = failure.code === 'core.timeout';
   const error = new ClientError({
-    kind: failure.kind,
-    code: failure.code,
+    kind: unsettled ? 'unavailable' : failure.kind,
+    code: unsettled ? 'client.effects_unsettled' : failure.code,
     message: `The command committed${named} but waiting for its effects failed: ${failure.message} Send it again only under that command id, or wait for its effects with waitForEffects.`,
     retryable: false,
     details: { committed: true, ...reported },
@@ -111,7 +114,7 @@ async function invoke(
       });
       if (!settling.settled) {
         throw clientFailure(
-          'core.timeout',
+          'client.effects_unsettled',
           'The effects had not settled when the wait ended (timeoutMs reached or the watch closed).',
         );
       }

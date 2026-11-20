@@ -1,3 +1,4 @@
+import type { TestApp } from '@keelwerk/testing';
 import { afterEach, expect } from 'vitest';
 import { type StreamRuntime, startStreamRuntime } from './stream-runtime.ts';
 
@@ -31,7 +32,7 @@ export interface TicketKit extends StreamRuntime {
  * adapter named; `closers` collects what the test has to close before the deployments stop.
  */
 export function useTicketKit(): {
-  boot(adapter: 'memory' | 'pglite', clock?: AdvancingClock): Promise<TicketKit>;
+  boot(adapter: 'memory' | 'pglite', clock?: AdvancingClock, app?: TestApp): Promise<TicketKit>;
   closers: (() => Promise<void>)[];
 } {
   const running: StreamRuntime[] = [];
@@ -42,10 +43,10 @@ export function useTicketKit(): {
   });
   return {
     closers,
-    async boot(adapter, clock = advancingClock()) {
+    async boot(adapter, clock = advancingClock(), app) {
       const made = await startStreamRuntime(
         {},
-        { pglite: adapter === 'pglite', clock: clock.clock },
+        { pglite: adapter === 'pglite', clock: clock.clock, ...(app !== undefined && { app }) },
       );
       running.push(made);
       const issue = async (subject: string, action?: string): Promise<string> => {

@@ -1,12 +1,54 @@
-import type { LiveFrame } from '@keelwerk/core';
+import { KeelwerkError, type LiveFrame } from '@keelwerk/core';
 import { readEventStream } from '@keelwerk/testing';
 import { describe, expect, test, vi } from 'vitest';
 import { fakeAction, stringNode } from './support/fake-surface.ts';
+import { streamApp } from './support/stream-runtime.ts';
 import { useTicketKit } from './support/use-ticket-kit.ts';
 
 vi.setConfig({ testTimeout: 60_000 });
 
 const { boot, closers } = useTicketKit();
+
+/**
+ * The stream app with a second principal resolver, a session store that is down whenever a request
+ * carries the header `x-store-down`: it throws an internal error, which a ticket's request keeps.
+ */
+const unstableSessions: typeof streamApp = {
+  ...streamApp,
+  registry: {
+    ...streamApp.registry,
+    fills: new Map([
+      ...streamApp.registry.fills,
+      [
+        'core.principalResolvers',
+        [
+          ...(streamApp.registry.fills.get('core.principalResolvers') ?? []),
+          {
+            point: 'core.principalResolvers',
+            module: 'core',
+            bound: false,
+            fill: {
+              id: 'flaky.sessions',
+              describe: () => ({ scheme: 'apiKey' }),
+              // biome-ignore lint/correctness/useYield: a resolver is a generator by contract; this one asks for nothing
+              *resolve(carrier: { readonly headers?: Readonly<Record<string, string>> }) {
+                if (carrier.headers?.['x-store-down'] === undefined) return null;
+                throw new KeelwerkError({
+                  kind: 'internal',
+                  code: 'core.internal',
+                  message: 'The session store is down.',
+                });
+              },
+            },
+          },
+        ],
+      ],
+    ]),
+  },
+};
+
+const codeOf = async (response: Response): Promise<string> =>
+  ((await response.json()) as { error: { code: string } }).error.code;
 
 describe.each(['memory', 'pglite'] as const)(
   'a ticket offered where it is no credential on %s',
@@ -99,6 +141,31 @@ describe.each(['memory', 'pglite'] as const)(
       expect(((await again.json()) as { error: { code: string } }).error.code).toBe(
         'core.ticket_invalid',
       );
+    });
+
+    test('a ticket offered for another action while another resolver fails is spent, not left redeemable', async () => {
+      const kit = await boot(adapter, undefined, unstableSessions);
+      const ticket = await kit.issue('ada', 'loans.loanEvents');
+      // The binding mismatch is dropped as a client error and the store's internal error is kept: the
+      // open fails with 500, and the ticket in the logged URL must be dead all the same.
+      const wrong = await kit.open(ticket, { 'x-store-down': '1' }, 'loans.loanTicker');
+      expect(wrong.status).toBe(500);
+      expect(await codeOf(wrong)).toBe('core.internal');
+      const own = await kit.open(ticket);
+      expect(own.status).toBe(401);
+      expect(await codeOf(own)).toBe('core.ticket_invalid');
+    });
+
+    test('a correct ticket still opens while another resolver fails, and a correct one without the failure opens', async () => {
+      const kit = await boot(adapter, undefined, unstableSessions);
+      const withFailure = await kit.issue('ada', 'loans.loanEvents');
+      const failing = await kit.open(withFailure, { 'x-store-down': '1' });
+      expect(failing.status).toBe(200);
+      closers.push(async () => void (await failing.body?.cancel()));
+      const control = await kit.issue('ada', 'loans.loanEvents');
+      const plain = await kit.open(control);
+      expect(plain.status).toBe(200);
+      closers.push(async () => void (await plain.body?.cancel()));
     });
 
     test('a value that is no ticket on a mount path is no credential and the request goes on', async () => {
