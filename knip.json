@@ -113,16 +113,7 @@
     "packages/transport-orpc": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": [
-        "@keelwerk/core",
-        "@keelwerk/live",
-        "@keelwerk/testing",
-        "@keelwerk/transport-http",
-        "@keelwerk/transport-rest",
-        "@orpc/client",
-        "@orpc/openapi",
-        "@orpc/server"
-      ]
+      "ignoreDependencies": ["@keelwerk/live"]
     },
     "packages/module-api-keys": {
       "entry": ["src/**/*.test-d.ts"],

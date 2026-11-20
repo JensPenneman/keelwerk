@@ -1,0 +1,75 @@
+{
+  "format": "keelwerk.orpc-comparison/1",
+  "app": "orpc-conformance",
+  "apiVersion": "2026-11-11",
+  "surface": "sha256-Ne7-6eT-OnwrGR7x6LuU84uxw1OZ22G40YUk8n-DajU",
+  "actions": 112,
+  "own": {
+    "producer": "@keelwerk/transport-rest",
+    "openapi": "3.1.1",
+    "operations": 138,
+    "schemas": 277,
+    "problemDetails": {
+      "errorMediaTypes": [
+        "application/problem+json"
+      ],
+      "operationsWithDeclaredErrors": 3,
+      "declaredCodesDocumented": 2
+    },
+    "pagination": {
+      "pagedOperations": 26,
+      "linkHeader": true
+    },
+    "executionModes": {
+      "acceptedResponses": 3,
+      "preferHeader": 1,
+      "idempotencyKeyHeader": 31,
+      "receiptSchema": true
+    },
+    "versionHeaders": {
+      "responseHeaders": [
+        "keelwerk-version",
+        "link"
+      ]
+    }
+  },
+  "orpc": {
+    "producer": "@orpc/openapi",
+    "openapi": "3.1.1",
+    "operations": 112,
+    "schemas": 0,
+    "problemDetails": {
+      "errorMediaTypes": [
+        "application/json"
+      ],
+      "operationsWithDeclaredErrors": 3,
+      "declaredCodesDocumented": 2
+    },
+    "pagination": {
+      "pagedOperations": 13,
+      "linkHeader": false
+    },
+    "executionModes": {
+      "acceptedResponses": 0,
+      "preferHeader": 0,
+      "idempotencyKeyHeader": 0,
+      "receiptSchema": false
+    },
+    "versionHeaders": {
+      "responseHeaders": []
+    }
+  },
+  "differences": [
+    "producer: own \"@keelwerk/transport-rest\", orpc \"@orpc/openapi\"",
+    "operations: own 138, orpc 112",
+    "schemas: own 277, orpc 0",
+    "problemDetails.errorMediaTypes: own [\"application/problem+json\"], orpc [\"application/json\"]",
+    "pagination.pagedOperations: own 26, orpc 13",
+    "pagination.linkHeader: own true, orpc false",
+    "executionModes.acceptedResponses: own 3, orpc 0",
+    "executionModes.preferHeader: own 1, orpc 0",
+    "executionModes.idempotencyKeyHeader: own 31, orpc 0",
+    "executionModes.receiptSchema: own true, orpc false",
+    "versionHeaders.responseHeaders: own [\"keelwerk-version\",\"link\"], orpc []"
+  ]
+}

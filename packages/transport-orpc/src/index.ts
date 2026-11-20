@@ -1,1 +1,12 @@
+export { checkOrpcSurface } from './check/check-orpc-surface.ts';
+export { createOrpcAdapter } from './create-orpc-adapter.ts';
+export { orpc } from './module.ts';
+export { orpcOpenapiDocument } from './openapi/orpc-openapi-document.ts';
+export type { OrpcConfig } from './orpc-config.ts';
+export type { OrpcModule } from './orpc-module.ts';
+export type { OrpcRouterOf } from './orpc-router-of.ts';
+export type { OrpcStaticOptions } from './orpc-static-options.ts';
+export type { OrpcStreamItem } from './orpc-stream-item.ts';
+export { orpcTransport } from './orpc-transport.ts';
 export { version } from './version.ts';
+export { orpcJsonSerializers } from './wire/orpc-json-serializers.ts';

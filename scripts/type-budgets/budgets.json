@@ -87,6 +87,12 @@
       "recorded": 12767,
       "budget": 14700,
       "reason": "the instantiations that createTRPCClient<TrpcRouterOf<SyntheticApp>> with one query, one mutation and one subscription add to the fold of the 25-module synthetic app with the live module (scripts/type-budgets/measure-trpc-router.ts), measured on 2026-11-19 by WP-115 after the router type stopped checking the whole record against TRPCRouterRecord at each use and after the subscription frame envelope, plus 15 %, rounded up to the next hundred (lead approval). The default-checker figure reads about 85,400 more when the client file falls to a checker that has not used core's action tree (98,018 in an earlier run of the same type); the one-checker figure is 10,178, and such a shift is re-based with this reason"
+    },
+    "orpc-client": {
+      "include": ["packages/transport-orpc/test/orpc-client-cost.ts"],
+      "recorded": 96452,
+      "budget": 111000,
+      "reason": "the oRPC client type over the oRPC conformance app (OrpcRouterOf, one call of each kind) measured on 2026-11-20 on main 94abb1f with WP-108 and WP-181 under it plus 15 %, rounded up to the next hundred (approved)"
     }
   }
 }
