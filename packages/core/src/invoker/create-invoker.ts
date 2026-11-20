@@ -110,6 +110,7 @@ async function run(
     principal: session.principal,
     clientId: flagClientIdOf(inv.carrier),
     providers: env.options.flagProviders ?? [],
+    rules,
     log,
     targeting: env.options.targeting,
     telemetry: env.flagTelemetry,

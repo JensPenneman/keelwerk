@@ -31,6 +31,20 @@ describe.each(['memory', 'pglite'] as const)('members erasure on %s', (kind: Mem
     return created.some((seal) => seal.openable);
   }
 
+  /** What the operator's repair leaves: the row, its address under the person, and the membership. */
+  async function expectKeptUnderPerson(
+    app: BootedMembers,
+    id: string,
+    membershipId: string,
+  ): Promise<void> {
+    expect(await app.row('invitation', id)).toMatchObject({
+      status: 'accepted',
+      subject: inviteeSubject,
+      email: address,
+    });
+    expect(await app.row('membership', membershipId)).toMatchObject({ role: 'member' });
+  }
+
   test('M1: accepting ends the invitation: its key is shredded, the address stays under the person', {
     timeout,
   }, async () => {
@@ -157,6 +171,7 @@ describe.each(['memory', 'pglite'] as const)('members erasure on %s', (kind: Mem
     const invited = await inviteAs(app, founder, { email: address, role: 'member' });
     const accepted = await acceptAs(app, invitee, invited.token ?? '');
     if (!accepted.ok) throw accepted.error;
+    const { membershipId } = accepted.value as { membershipId: string };
     // The accept requested the erasure of the invitation's id; the erasure worker has not run yet.
     expect((await app.keysOf(invited.id)).live).toBe(true);
     const repair = await app.operator().attempt(
@@ -170,6 +185,7 @@ describe.each(['memory', 'pglite'] as const)('members erasure on %s', (kind: Mem
     await app.settle();
     expect((await app.keysOf(invited.id)).live).toBe(false);
     expect(await creationOpens(app, invited.id)).toBe(false);
+    await expectKeptUnderPerson(app, invited.id, membershipId);
   });
 
   test('an operator repairs an erasure after accept: once the members erasure completed', {
@@ -179,6 +195,7 @@ describe.each(['memory', 'pglite'] as const)('members erasure on %s', (kind: Mem
     const invited = await inviteAs(app, founder, { email: address, role: 'member' });
     const accepted = await acceptAs(app, invitee, invited.token ?? '');
     if (!accepted.ok) throw accepted.error;
+    const { membershipId } = accepted.value as { membershipId: string };
     await app.settle();
     expect((await app.keysOf(invited.id)).live).toBe(false);
     // The subject is erased already: the request is answered as 14.7.5 answers it for a known
@@ -194,5 +211,6 @@ describe.each(['memory', 'pglite'] as const)('members erasure on %s', (kind: Mem
     await app.settle();
     expect((await app.keysOf(invited.id)).live).toBe(false);
     expect(await creationOpens(app, invited.id)).toBe(false);
+    await expectKeptUnderPerson(app, invited.id, membershipId);
   });
 });

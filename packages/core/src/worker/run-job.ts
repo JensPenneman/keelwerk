@@ -48,6 +48,8 @@ export interface RunJobContext {
   readonly ledgers: readonly LedgerSink[];
   /** The process's ordered flag providers: a hold on an own-subject erasure reads its flags through them. */
   readonly flagProviders?: readonly FlagProvider[];
+  /** The process's targeting cache, awaited before the flags of a hold are read. */
+  readonly targeting?: { fresh(): Promise<void> };
   /** The tenants a restore holds (14.7.6); absent in a bare start, where none is held. */
   readonly restoreHold?: RestoreHold;
 }

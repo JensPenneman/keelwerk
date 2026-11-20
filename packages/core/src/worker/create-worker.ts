@@ -48,6 +48,7 @@ export function createWorker(input: StartPhaseInput): RuntimeService {
                 ...(input.flagProviders === undefined
                   ? {}
                   : { flagProviders: input.flagProviders }),
+                ...(input.targeting === undefined ? {} : { targeting: input.targeting }),
                 ...(input.restoreHold === undefined ? {} : { restoreHold: input.restoreHold }),
               }),
             { slots, capabilitySets: role.capabilitySets, revision: role.revision },

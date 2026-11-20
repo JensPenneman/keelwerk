@@ -1,7 +1,7 @@
 import type { PrincipalKind } from '../principals/principal-kind.ts';
-import { actionMatches } from './action-matches.ts';
 import type { AuthorizedAction } from './authorized-action.ts';
 import type { NormalizedRule } from './normalized-rule.ts';
+import { ruleCovers } from './rule-covers.ts';
 
 /**
  * Whether a rule covers an action for a principal kind: its target (the entity, the module's own
@@ -15,20 +15,11 @@ export function ruleApplies(
   principalKind: PrincipalKind,
   transport: string | null,
 ): boolean {
-  if (rule.entry.disabled) return false;
+  if (!ruleCovers(rule, action)) return false;
   if (rule.principals !== null && !rule.principals.has(principalKind)) return false;
   const { target } = rule;
-  if (target.kind === 'entity') {
-    if (action.entity !== target.ref) return false;
-  } else if (target.kind === 'module') {
-    if (action.entity !== undefined || action.module !== target.module) return false;
-  } else {
-    if (target.kinds !== null && !target.kinds.includes(action.kind)) return false;
-    if (target.transports !== null) {
-      const matches =
-        transport === null ? rule.effect === 'deny' : target.transports.includes(transport);
-      if (!matches) return false;
-    }
+  if (target.kind === 'selector' && target.transports !== null) {
+    return transport === null ? rule.effect === 'deny' : target.transports.includes(transport);
   }
-  return actionMatches(rule.actions, action);
+  return true;
 }

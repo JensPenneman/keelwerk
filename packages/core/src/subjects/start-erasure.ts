@@ -111,6 +111,7 @@ export async function startErasure(
         namespace: source.namespace,
         adapter,
         providers: context.flagProviders ?? [],
+        targeting: context.targeting,
         log: context.log,
       },
       scope,

@@ -21,15 +21,27 @@ const erasureHold = { on: false };
 /** Whether the flag `oes.legalHold` is on for every tenant: the provider below answers it. */
 const legalHold = { on: false };
 
+/** The answer of the providers below: `oes.legalHold` on while `legalHold.on`, every other flag passed on. */
+function legalHoldAnswer(flag: { readonly key: string }, id: string): never | undefined {
+  return flag.key === 'oes.legalHold' && legalHold.on
+    ? ({ value: true, variant: 'true', reason: 'STATIC', provider: id } as never)
+    : undefined;
+}
+
 /** A flag provider of the process that turns `oes.legalHold` on while `legalHold.on`, and passes every other flag on. */
 const legalHoldProvider: FlagProvider = {
   id: 'legal-hold',
   sync: true,
   start: () => Promise.resolve(),
-  resolve: (flag) =>
-    flag.key === 'oes.legalHold' && legalHold.on
-      ? ({ value: true, variant: 'true', reason: 'STATIC', provider: 'legal-hold' } as never)
-      : undefined,
+  resolve: (flag) => legalHoldAnswer(flag, 'legal-hold'),
+};
+
+/** The same provider declared asynchronous: it answers with a promise, so the kernel resolves flags before authorize. */
+const legalHoldAsyncProvider: FlagProvider = {
+  id: 'legal-hold-async',
+  sync: false,
+  start: () => Promise.resolve(),
+  resolve: (flag) => Promise.resolve(legalHoldAnswer(flag, 'legal-hold-async')),
 };
 
 /** A row whose data subject starts as its own id, as an invitation's does, and moves to a person. */
@@ -160,6 +172,14 @@ const holdByFlag = defineRule(within(oesBaseDef, toCore), core.actions.eraseSubj
   reason: 'A legal hold is on.',
 });
 
+/** The same hold on the operator's own call of the action. */
+const holdOperatorsByFlag = defineRule(within(oesBaseDef, toCore), core.actions.eraseSubject, {
+  effect: 'deny',
+  principal: 'operator',
+  when: (ctx) => ctx.flags.oes?.legalHold === true,
+  reason: 'A legal hold is on.',
+});
+
 const oesDef = defineModule(oesBaseDef, {
   actions: {
     make: makeCommand,
@@ -167,7 +187,9 @@ const oesDef = defineModule(oesBaseDef, {
     hold: holdCommand,
     speak: mentionCommand,
   },
-  contributes: { toCore: { policies: { eraseSubject: { holdErasures, holdByFlag } } } },
+  contributes: {
+    toCore: { policies: { eraseSubject: { holdErasures, holdByFlag, holdOperatorsByFlag } } },
+  },
   policies: {
     make: {
       operators: defineRule(oesBaseDef, makeCommand, { effect: 'allow', principal: 'operator' }),
@@ -224,4 +246,4 @@ interface OwnErasureApp extends AppType<typeof ownErasureAppDef> {}
 /** An app of two modules: one whose rows end by erasing their own id, and one that tries it on a row that is not its own. */
 const ownErasureApp: OwnErasureApp = ownErasureAppDef;
 
-export { erasureHold, legalHold, legalHoldProvider, ownErasureApp };
+export { erasureHold, legalHold, legalHoldAsyncProvider, legalHoldProvider, ownErasureApp };

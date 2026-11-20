@@ -16,7 +16,7 @@ export const withdraw = defineRule(membersBase, invitation, {
     ({
       status: 'pending',
       invitedBy: ctx.principal.subject,
-      // A person with no membership matches no row, so the call answers `not_found`, as another admin's does.
+      // A person with no membership matches no row, so the call answers `not_found`.
       ...(hasRole(ctx, 'viewer', 'member', 'admin', 'owner') ? {} : { id: { in: [] } }),
     }) as const,
   check: () => ({ status: 'withdrawn' }) as const,

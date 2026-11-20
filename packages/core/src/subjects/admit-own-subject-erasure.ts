@@ -22,9 +22,10 @@ import { erasureAction } from './erasure-action.ts';
  * request the rules or the rows hold back ends with a retryable `unavailable` error, so the job
  * tries again (`ownErasureRetry`) and the erasure starts once nothing holds it. Two things hold a
  * request back: a rule that denies `core.eraseSubject` for the module's service principal (a hold
- * the operator lifts; its flags are read through the process's providers), and a row of any module that holds the subject besides the row itself
- * (`checkOwnSubjectErasure`). A request that names no tenant entity of a module with a data
- * subject is refused for good. The messages name neither the rule nor the subject.
+ * the operator lifts; its flags are read through the process's providers), and a row of any module
+ * that holds the subject besides the row itself (`checkOwnSubjectErasure`). A request that names
+ * no tenant entity of a module with a data subject is refused for good. The messages name neither
+ * the rule nor the subject.
  */
 export async function admitOwnSubjectErasure(
   source: {
@@ -33,6 +34,8 @@ export async function admitOwnSubjectErasure(
     readonly adapter: DataAdapter;
     /** The process's flag providers: the hold's `when` reads its flags through them. */
     readonly providers: readonly FlagProvider[];
+    /** The process's targeting cache, awaited first so the hold reads rows no older than an invocation's. */
+    readonly targeting?: { fresh(): Promise<void> } | undefined;
     readonly log: Logger;
   },
   scope: Extract<Scope, { readonly level: 'tenant' }>,
@@ -64,6 +67,7 @@ export async function admitOwnSubjectErasure(
     principal,
     clientId: null,
     providers: source.providers,
+    targeting: source.targeting,
     log: source.log,
   });
   const verdict = evaluateGate({

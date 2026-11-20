@@ -1,4 +1,4 @@
-import type { Scope, StorageRow } from '@keelwerk/core';
+import type { FlagProvider, Scope, StorageRow } from '@keelwerk/core';
 import { erasure } from '@keelwerk/events';
 import { afterEach, describe, expect, test } from 'vitest';
 import { createLocalClient } from '../../src/harness/create-local-client.ts';
@@ -8,9 +8,11 @@ import type { TestRuntime } from '../../src/harness/test-runtime.ts';
 import {
   erasureHold,
   legalHold,
+  legalHoldAsyncProvider,
   legalHoldProvider,
   ownErasureApp,
 } from './support/own-erasure-module.ts';
+import { setFlag } from './support/targeting-kit.ts';
 
 type Runtime = TestRuntime<typeof ownErasureApp>;
 type Caller = {
@@ -29,14 +31,14 @@ afterEach(async () => {
   current = undefined;
 });
 
-async function boot(adapter: 'memory' | 'pglite') {
+async function boot(adapter: 'memory' | 'pglite', provider: FlagProvider = legalHoldProvider) {
   const worker = erasure({ pollMs: 3_600_000 });
   const runtime = await startTestRuntime(ownErasureApp, {
     adapter,
     operators: true,
     workers: true,
     eventWorkers: [worker],
-    flagProviders: [legalHoldProvider],
+    flagProviders: [provider],
   });
   current = runtime;
   const operator = createLocalClient(runtime, {
@@ -83,6 +85,11 @@ async function boot(adapter: 'memory' | 'pglite') {
     );
   return { runtime, operator, settle, rows, keyLive, ledger };
 }
+
+const providers = [
+  ['synchronous', legalHoldProvider],
+  ['asynchronous', legalHoldAsyncProvider],
+] as const;
 
 const person = () => crypto.randomUUID();
 const erasures = (entries: readonly { readonly record: unknown }[]) =>
@@ -208,27 +215,90 @@ describe.each(['memory', 'pglite'] as const)(
       expect(await rows('oes.item', true)).toEqual([]);
     });
 
-    test('C6b: a hold that reads a flag a provider turns on keeps the key until the provider turns it off', {
-      timeout,
-    }, async () => {
-      const { operator, ledger, settle, keyLive } = await boot(adapter);
-      const itemId = String((await operator.invoke('oes.make', { note: 'mine' })).itemId);
-      legalHold.on = true;
-      expect((await operator.attempt('oes.end', { itemId })).ok).toBe(true);
-      await settle();
-      // The job asks again twice, and the flag holds each time: the key is not shredded.
-      for (let retry = 0; retry < 2; retry += 1) {
+    test.each(providers)(
+      'C6b: a hold that reads a flag a provider turns on keeps the key until the provider turns it off (%s provider)',
+      { timeout },
+      async (_label, provider) => {
+        const { operator, ledger, settle, keyLive } = await boot(adapter, provider);
+        const itemId = String((await operator.invoke('oes.make', { note: 'mine' })).itemId);
+        legalHold.on = true;
+        expect((await operator.attempt('oes.end', { itemId })).ok).toBe(true);
+        await settle();
+        // The job asks again twice, and the flag holds each time: the key is not shredded.
+        for (let retry = 0; retry < 2; retry += 1) {
+          await current?.advanceTo(current.clock.now().add({ hours: 2 }));
+          await settle();
+          expect(erasures(await ledger())).toEqual([]);
+          expect(await keyLive(itemId)).toBe(true);
+        }
+        legalHold.on = false;
         await current?.advanceTo(current.clock.now().add({ hours: 2 }));
+        await settle();
+        expect(erasures(await ledger())).toHaveLength(1);
+        expect(await keyLive(itemId)).toBe(false);
+      },
+    );
+
+    test.each(providers)(
+      "C6c: the operator's own erasure call is refused while the flag holds and succeeds after (%s provider)",
+      { timeout },
+      async (_label, provider) => {
+        const { operator, ledger, settle, keyLive } = await boot(adapter, provider);
+        const itemId = String((await operator.invoke('oes.make', { note: 'mine' })).itemId);
+        legalHold.on = true;
+        const refused = await operator.attempt('core.eraseSubject', {
+          subjectId: itemId,
+          reason: 'subjectRequest',
+        });
+        expect(refused.ok).toBe(false);
+        expect(refused.error?.kind).toBe('forbidden');
         await settle();
         expect(erasures(await ledger())).toEqual([]);
         expect(await keyLive(itemId)).toBe(true);
-      }
-      legalHold.on = false;
-      await current?.advanceTo(current.clock.now().add({ hours: 2 }));
-      await settle();
-      expect(erasures(await ledger())).toHaveLength(1);
-      expect(await keyLive(itemId)).toBe(false);
-    });
+        legalHold.on = false;
+        const allowed = await operator.attempt('core.eraseSubject', {
+          subjectId: itemId,
+          reason: 'subjectRequest',
+        });
+        expect(allowed.ok).toBe(true);
+        await settle();
+        expect(await keyLive(itemId)).toBe(false);
+      },
+    );
+
+    // The memory store answers the targeting read at once. The cache does not wait for a load that
+    // is still in flight (`fresh`), and on PGlite one is, so there the rows may serve STALE (WP-100).
+    test.runIf(adapter === 'memory')(
+      'C6d: a hold turned on by a targeting row keeps the key when the job asks again long after the row was loaded',
+      {
+        timeout,
+      },
+      async () => {
+        const { runtime, operator, ledger, settle, keyLive } = await boot(adapter);
+        const itemId = String((await operator.invoke('oes.make', { note: 'mine' })).itemId);
+        const targeting = (value: boolean) => ({
+          key: 'oes.legalHold',
+          targeting: { enabled: true, rules: [], fallthrough: { value } },
+          reason: 'legal hold',
+        });
+        expect((await setFlag(runtime, targeting(true))).ok).toBe(true);
+        expect((await operator.attempt('oes.end', { itemId })).ok).toBe(true);
+        await settle();
+        expect(await keyLive(itemId)).toBe(true);
+        // No call of an invocation refreshes the rows meanwhile: only the job's own admission can.
+        for (let retry = 0; retry < 2; retry += 1) {
+          await current?.advanceTo(current.clock.now().add({ hours: 2 }));
+          await settle();
+          expect(erasures(await ledger())).toEqual([]);
+          expect(await keyLive(itemId)).toBe(true);
+        }
+        expect((await setFlag(runtime, targeting(false))).ok).toBe(true);
+        await current?.advanceTo(current.clock.now().add({ hours: 2 }));
+        await settle();
+        expect(erasures(await ledger())).toHaveLength(1);
+        expect(await keyLive(itemId)).toBe(false);
+      },
+    );
 
     test('C7: a job that first starts more than a day after its request still erases', {
       timeout,

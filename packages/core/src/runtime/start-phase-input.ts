@@ -24,6 +24,8 @@ export interface StartPhaseInput {
   readonly clock: Clock;
   /** The ordered flag providers of the process (the invoker's), which the workers read a hold's flags through. */
   readonly flagProviders?: readonly FlagProvider[];
+  /** The process's targeting cache: a job that reads a hold's flags awaits its `fresh` first, as an invocation does. */
+  readonly targeting?: { fresh(): Promise<void> };
   /** Closed by a service that finds a restore under the running process; absent in a bare start. */
   readonly gate?: ServiceGate;
   /** The tenants a restore holds: the workers give their effect and deadline jobs back. */
