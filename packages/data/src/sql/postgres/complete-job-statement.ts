@@ -24,7 +24,7 @@ export interface CompleteJobInput {
  * keeps it in state `dead` with its input, a retry sets it back to `scheduled` at the given time with
  * its lost leases cleared (and, when uncounted, its attempt given back). All but the retry write the history row (outcome, attempts, timings
  * and error, never the input; a dead letter replayed and finished again replaces its row). The
- * statement answers the job's lane, key and group, or nothing when the lease was lost.
+ * statement answers the job's lane, queue, key and group, or nothing when the lease was lost.
  */
 export function completeJobStatement(input: CompleteJobInput): PostgresStatement {
   const root = quoteIdentifier(input.root);
@@ -65,7 +65,7 @@ where ${fenced} returning ${returned}`;
     sql: `with done as (
   ${change}
 )${history}
-select id::text as id, scope_id::text as scope_id, lane_id::text as lane_id, ordering, key, group_id, group_scope from done`,
+select id::text as id, scope_id::text as scope_id, lane_id::text as lane_id, queue, ordering, key, group_id, group_scope from done`,
     parameters,
   };
 }

@@ -57,11 +57,13 @@ export function memoryBuildUnit(ctx: MemoryUnitContext, hooks: (() => void)[]): 
       const view = memoryNestedContext(ctx, options);
       const rollback = ctx.tx.savepoint();
       const registered = hooks.length;
+      const readied = ctx.readied.mark();
       try {
         return await fn(view === ctx ? unit : memoryBuildUnit(view, hooks));
       } catch (error) {
         rollback();
         hooks.length = registered;
+        ctx.readied.restore(readied);
         throw error;
       }
     },

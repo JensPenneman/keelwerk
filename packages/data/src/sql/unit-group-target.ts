@@ -8,7 +8,7 @@ export function unitGroupTarget(ctx: SqlUnitContext): JobGroupTarget {
     root: ctx.namespace.root,
     now: ctx.clock.now(),
     run: async (sql, parameters) => {
-      await runSql(ctx.db, { sql, parameters });
+      return (await runSql(ctx.db, { sql, parameters })).length;
     },
   };
 }

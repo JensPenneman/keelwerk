@@ -65,6 +65,8 @@ export function memoryJobComplete(
           lostLeases: 0,
         });
         memoryAdjustLane(tables, job.laneKey, (lane) => ({ ...lane, done: lane.done + 1 }));
+        if (job.spec.group === undefined) ctx.readied.ready(job.spec.queue);
+        else ctx.readied.readyAnywhere();
         break;
     }
     return true;

@@ -1,4 +1,5 @@
 import type { ChangeFeedSource } from '@keelwerk/core';
+import { jobWakeStream } from '../job-wake/job-wake-stream.ts';
 import type { MemoryDatabase } from './memory-database.ts';
 
 /**
@@ -46,6 +47,18 @@ export function memoryChangeFeed(database: MemoryDatabase): ChangeFeedSource {
           signal.removeEventListener('abort', onAbort);
         }
       })();
+    },
+    async *jobs(namespaces, signal) {
+      const stream = jobWakeStream(
+        namespaces.map((namespace) => namespace.id),
+        signal,
+      );
+      const stop = database.listenJobs(stream.push);
+      try {
+        yield* stream.wakes;
+      } finally {
+        stop();
+      }
     },
   };
 }

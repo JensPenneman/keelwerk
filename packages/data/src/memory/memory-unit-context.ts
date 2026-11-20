@@ -7,6 +7,8 @@ import type {
   StorageScope,
 } from '@keelwerk/core';
 import { errors, KeelwerkError } from '@keelwerk/core';
+import type { ReadiedQueues } from '../job-wake/readied-queues.ts';
+import { readiedQueues } from '../job-wake/readied-queues.ts';
 import type { MemoryNamespace } from './memory-namespace.ts';
 import { memoryRowsName } from './memory-rows-name.ts';
 import type { MemoryTransaction } from './memory-transaction.ts';
@@ -43,6 +45,8 @@ export interface MemoryUnitContext {
   readonly deploymentId: string;
   /** Positions this unit assigned at its commit tail. */
   readonly assigned: Position[];
+  /** The queues this unit made takeable; savepoints and their views share it. */
+  readonly readied: ReadiedQueues;
   /** The id the unit's scope has in collection names; refuses a namespace-scope unit. */
   scopeId(): string;
   /** Refuses writes of a read-only unit. */
@@ -68,7 +72,8 @@ export function memoryUnitContext(
   parts: Pick<
     MemoryUnitContext,
     'namespace' | 'scope' | 'readOnly' | 'tx' | 'clock' | 'state' | 'deploymentId'
-  >,
+  > &
+    Partial<Pick<MemoryUnitContext, 'readied'>>,
   lookup: ((ref: string) => EntityDescriptor | undefined) | undefined,
 ): MemoryUnitContext {
   const { scope, state } = parts;
@@ -100,6 +105,7 @@ export function memoryUnitContext(
   return {
     ...parts,
     assigned: [],
+    readied: parts.readied ?? readiedQueues(),
     scopeId,
     writable: () => {
       parts.tx.check();

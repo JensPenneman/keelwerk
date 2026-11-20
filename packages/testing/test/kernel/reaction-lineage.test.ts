@@ -93,7 +93,10 @@ describe.each(['memory', 'pglite'] as const)(
     const drive = async (via: (typeof vias)[number]) => {
       if (via !== 'deadline') return loopKit.settle();
       await loopKit.settle();
-      for (let round = 0; round < 8; round += 1) {
+      // One deadline of the chain falls due per step, so the chain needs `maxDepth` steps; each step
+      // settles (the kit's advanceTo), and a settle runs every job that is due when it starts and every
+      // job those make takeable, so no step is spent on proof of rest.
+      for (let round = 0; round < maxDepth; round += 1) {
         await loopKit.advanceTo(loopKit.now().add({ seconds: 2 }));
       }
     };
@@ -151,7 +154,9 @@ describe.each(['memory', 'pglite'] as const)(
 
         // Nothing is left to run: another round queues no job and logs nothing.
         const queued = loopKit.spy?.enqueued.length;
-        await loopKit.settle();
+        // For the deadline way the clock passes one more deadline (the step settles), so a job left scheduled at the bound would run here.
+        if (via === 'deadline') await loopKit.advanceTo(loopKit.now().add({ seconds: 2 }));
+        else await loopKit.settle();
         expect(loopKit.spy?.enqueued.length).toBe(queued);
         expect(bound()).toHaveLength(refused.length);
       },

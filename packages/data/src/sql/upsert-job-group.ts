@@ -9,15 +9,20 @@ export interface JobGroupTarget {
   /** The namespace root, unquoted. */
   readonly root: string;
   readonly now: Temporal.Instant;
-  run(sql: string, parameters: readonly unknown[]): Promise<void>;
+  /** Runs a statement and answers how many rows it returned. */
+  run(sql: string, parameters: readonly unknown[]): Promise<number>;
 }
 
-/** Inserts the group's counter row with a full bucket, or re-limits an existing one; `scopeId` null spans the namespace. */
+/**
+ * Inserts the group's counter row with a full bucket, or re-limits an existing one; `scopeId` null
+ * spans the namespace. `changed` is true when an existing row took other limits, which can make
+ * waiting jobs of the group takeable in any queue.
+ */
 export async function upsertJobGroup(
   target: JobGroupTarget,
   group: JobGroup,
   scopeId: string | null,
-): Promise<string> {
+): Promise<{ readonly key: string; readonly changed: boolean }> {
   const root = quoteIdentifier(target.root);
   const key = sqlJobGroupKey(group);
   const rate = group.rate === undefined ? null : parseGroupRate(group.rate);
@@ -35,11 +40,12 @@ values ($1, $2::uuid, $3::integer, $4, $5::double precision, $6::timestamptz)
 on conflict (scope_id, id) do nothing`,
     parameters,
   );
-  await target.run(
+  const relimited = await target.run(
     `update ${root}.kw_job_groups set concurrency = $2::integer, rate = $3
 where id = $1 and scope_id is not distinct from $4::uuid
-  and (concurrency is distinct from $2::integer or rate is distinct from $3)`,
+  and (concurrency is distinct from $2::integer or rate is distinct from $3)
+returning 1 as changed`,
     [key, parameters[2], parameters[3], scopeId],
   );
-  return key;
+  return { key, changed: relimited > 0 };
 }

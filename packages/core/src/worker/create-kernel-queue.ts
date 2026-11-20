@@ -39,7 +39,8 @@ export interface KernelQueueOptions {
  * fetcher for the queue. One ticker drives every fetcher and the attempts they hold (D1, D3): it
  * renews the leases that are due, one statement per namespace, aborts the attempts past
  * `expireInSeconds` with `core.timeout`, and sweeps the fetchers that have a wake pending. Wake-ups
- * come from the adapters' change feeds, from `probe.wake()`, from `Job.heartbeat()` and from a
+ * come from the adapters' job feeds, which name the queues a commit made takeable (a wake-up that names
+ * none sweeps every fetcher of its namespace), from `probe.wake()`, from `Job.heartbeat()` and from a
  * freed slot; the wall timer only re-checks, at most once a second, and never starts before `work`.
  * The queue is stopped when every fetcher has drained.
  */
@@ -127,6 +128,13 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
     for (const fetcher of fetchers) fetcher.wake();
     if (started && !stopped.signal.aborted) tick();
   };
+  /** A commit made jobs takeable in `queues` of `namespace`; without `queues` in every queue of it. */
+  const wakeQueues = (namespace: string, queues: readonly string[] | undefined): void => {
+    for (const fetcher of fetchers) {
+      if (queues === undefined || queues.includes(fetcher.queue)) fetcher.wake(namespace);
+    }
+    if (started && !stopped.signal.aborted) tick();
+  };
 
   const follow = (): void => {
     const adapters = new Map(sources.map((source) => [source.handle.adapter, [] as QueueSource[]]));
@@ -134,11 +142,11 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
     for (const [adapter, own] of adapters) {
       void (async () => {
         try {
-          for await (const _ of adapter.feed.wake(
+          for await (const wake of adapter.feed.jobs(
             own.map((source) => source.namespace),
             stopped.signal,
           )) {
-            wakeAll();
+            wakeQueues(wake.namespace, wake.queues);
           }
         } catch (error) {
           if (!stopped.signal.aborted)
@@ -151,27 +159,27 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
   const unsupported = (what: string, wp: string): KeelwerkError =>
     errors.not_implemented(`${what} of the kernel queue arrives with ${wp}.`);
 
-  /** Starts every attended run; each settles with a wake of the fetchers and a check for quiet. */
+  /** Starts every attended run; once all have settled the fetchers are woken, and a check for quiet follows. */
   const runAttended = (): void => {
-    for (const run of attended) {
-      const running: Promise<void> = run()
-        .catch((error: unknown) => {
-          log.error('an attended run failed', { cause: error });
-        })
-        .finally(() => {
-          attending.delete(running);
-          wakeAll();
-          changed();
-        });
+    const runs = attended.map((run) => {
+      const running: Promise<void> = run().catch((error: unknown) => {
+        log.error('an attended run failed', { cause: error });
+      });
       attending.add(running);
-    }
+      return running;
+    });
+    void Promise.all(runs).then(() => {
+      for (const running of runs) attending.delete(running);
+      wakeAll();
+      changed();
+    });
   };
 
   const probe = {
     wake: () => {
       readiness.recheck();
-      wakeAll();
-      runAttended();
+      if (attended.length === 0) wakeAll();
+      else runAttended();
     },
     idle: () =>
       new Promise<void>((resolve) => {

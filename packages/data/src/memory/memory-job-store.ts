@@ -49,7 +49,9 @@ export function memoryJobStore(ctx: MemoryUnitContext): MemoryJobStore {
         refilledAt: before?.refilledAt ?? ctx.clock.now(),
         blockedUntil: before?.blockedUntil ?? null,
       });
+      ctx.readied.readyAnywhere();
     },
+    readied: () => ctx.readied.queues(),
     enqueue: async (job) => memoryJobEnqueue(ctx, job),
     cancel: async (queue, key) => {
       ctx.writable();
@@ -94,6 +96,7 @@ export function memoryJobStore(ctx: MemoryUnitContext): MemoryJobStore {
         tables.putJob({ ...job, state: 'available' });
         memoryAdjustLane(tables, job.laneKey, (lane) => ({ ...lane, enqueued: lane.enqueued + 1 }));
       }
+      if (due.length > 0) ctx.readied.ready(queue);
       return due.length;
     },
     take: async (queue, worker, request) => memoryJobTake(ctx, queue, worker, request),

@@ -217,7 +217,7 @@ export function pgliteAdapter(
         ...(unitOptions.isolation === undefined ? {} : { isolation: unitOptions.isolation }),
         ...(unitOptions.timeoutMs === undefined ? {} : { timeoutMs: unitOptions.timeoutMs }),
       });
-      const { result, afterCommit } = await serialised(
+      const { result, afterCommit, readied } = await serialised(
         async () =>
           runInSpan(
             env.tracer,
@@ -246,7 +246,11 @@ export function pgliteAdapter(
                 unitOptions.signal?.throwIfAborted();
                 await opened.runBeforeCommit();
                 await db.query('commit');
-                return { result: value, afterCommit: opened.takeAfterCommit() };
+                return {
+                  result: value,
+                  afterCommit: opened.takeAfterCommit(),
+                  readied: opened.unit.jobs.readied(),
+                };
               } catch (error) {
                 await db.query('rollback');
                 throw mapSqlError(error);
@@ -261,6 +265,9 @@ export function pgliteAdapter(
       );
       const scopeId = scopeIdOf(scope, env.deploymentId);
       if (!readOnly && scopeId !== undefined) feed.publish(namespace.id, [scopeId]);
+      if (!readOnly && (readied === undefined || readied.length > 0)) {
+        feed.readied(namespace.id, readied);
+      }
       // The unit has committed: a callback that throws is reported, never allowed to reject the
       // call (a caller would retry a command that already committed) or to stop the others.
       for (const callback of afterCommit) {

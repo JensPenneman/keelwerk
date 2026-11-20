@@ -72,6 +72,8 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
     tables.putLane(laneKey, lane);
   } else {
     tables.putLane(laneKey, { ...existingLane, cap: spec.laneCap });
+    // A new cap can make waiting jobs of the lane takeable, whatever this job's own time.
+    if (existingLane.cap !== spec.laneCap) ctx.readied.ready(spec.queue);
   }
 
   const runAt = spec.runAt ?? now;
@@ -88,8 +90,10 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
         const earliest = Temporal.Instant.compare(runAt, found.runAt) < 0 ? runAt : found.runAt;
         const due = found.state === 'scheduled' && Temporal.Instant.compare(earliest, now) <= 0;
         tables.putJob({ ...found, runAt: earliest, state: due ? 'available' : found.state });
-        if (due)
+        if (due) {
           memoryAdjustLane(tables, laneKey, (lane) => ({ ...lane, enqueued: lane.enqueued + 1 }));
+          ctx.readied.ready(spec.queue);
+        }
         return String(found.id);
       }
       // Only a reaction job's input holds a position of the log: a module's own input is no order.
@@ -112,9 +116,19 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
     const spans = spec.group.scope === 'namespace';
     const before = groups.get(scopeId, spec.group.id, spans);
     const rate = spec.group.rate === undefined ? null : memoryParseRate(spec.group.rate);
+    const concurrency = spec.group.concurrency ?? null;
+    // New limits can free jobs of the group waiting in any queue.
+    if (
+      before !== undefined &&
+      (before.concurrency !== concurrency ||
+        before.rate?.count !== rate?.count ||
+        before.rate?.periodMs !== rate?.periodMs)
+    ) {
+      ctx.readied.readyAnywhere();
+    }
     groups.put(scopeId, spans, {
       id: spec.group.id,
-      concurrency: spec.group.concurrency ?? null,
+      concurrency,
       running: before?.running ?? 0,
       rate,
       tokens: before?.tokens ?? rate?.count ?? 0,
@@ -148,6 +162,7 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
   });
   if (state === 'available') {
     memoryAdjustLane(tables, laneKey, (lane) => ({ ...lane, enqueued: lane.enqueued + 1 }));
+    ctx.readied.ready(spec.queue);
   }
   return String(id);
 }

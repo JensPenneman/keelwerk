@@ -57,14 +57,16 @@ export function createRestoreHold(
     check: async (tenantId) => {
       if (!held.has(tenantId)) return;
       const last = readAt.get(tenantId);
-      if (last === undefined || clock.now().epochMilliseconds - last >= rereadMs) {
-        let running = reading.get(tenantId);
-        if (running === undefined) {
-          running = read(tenantId).finally(() => reading.delete(tenantId));
-          reading.set(tenantId, running);
-        }
-        await running;
+      let running = reading.get(tenantId);
+      if (
+        running === undefined &&
+        (last === undefined || clock.now().epochMilliseconds - last >= rereadMs)
+      ) {
+        running = read(tenantId).finally(() => reading.delete(tenantId));
+        reading.set(tenantId, running);
       }
+      // A request that comes while the read is in flight waits for its answer: it may end the hold.
+      await running;
       if (held.has(tenantId)) {
         throw new RestoreHoldRefusal();
       }

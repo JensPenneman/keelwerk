@@ -16,7 +16,10 @@ import { upsertJobGroup } from './upsert-job-group.ts';
  * writing its row would make tenants wait on each other (15.1.4), and enqueueing into one that is
  * not provisioned fails with `internal`.
  */
-export async function sqlJobGroup(ctx: SqlUnitContext, group: JobGroup): Promise<string> {
+export async function sqlJobGroup(
+  ctx: SqlUnitContext,
+  group: JobGroup,
+): Promise<{ readonly key: string; readonly changed: boolean }> {
   const root = quoteIdentifier(ctx.namespace.root);
   const key = sqlJobGroupKey(group);
   if (group.scope === 'namespace' && ctx.scope.level !== 'namespace') {
@@ -27,7 +30,7 @@ export async function sqlJobGroup(ctx: SqlUnitContext, group: JobGroup): Promise
     if (found === undefined) {
       throw errors.internal(`the namespace job group ${key} is not provisioned`);
     }
-    return key;
+    return { key, changed: false };
   }
   return upsertJobGroup(
     unitGroupTarget(ctx),

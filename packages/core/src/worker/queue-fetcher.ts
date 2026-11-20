@@ -24,8 +24,12 @@ const pacingMs = 25;
 
 /** What a kernel queue drives for each queue it works. */
 export interface QueueFetcher {
-  /** Something may be waiting: the next tick sweeps. */
-  wake(): void;
+  readonly queue: string;
+  /**
+   * Something may be waiting: the next tick sweeps at least `namespaceId` (every namespace when the
+   * poll is due or a wake without one is pending), or every namespace without one.
+   */
+  wake(namespaceId?: string): void;
   /** Sweeps when a wake is pending or the poll is due. Settles when the sweep ends. */
   tick(now: Temporal.Instant): Promise<void>;
   /**
@@ -40,8 +44,10 @@ export interface QueueFetcher {
 /**
  * The fetcher of one queue (9.5.6, D1): a sweep promotes due jobs and takes batches for the free
  * slots from every ready namespace in turn, again and again until a take finds nothing; a take that
- * skipped locked lanes is retaken after a short jittered pause, at most three times in a row. A
- * wake that arrives during a sweep is not lost: the sweep repeats once when it ends. An attempt
+ * promoted jobs is work too, because a SQL store counts them only when its unit commits, and a take
+ * that skipped locked lanes is retaken after a short jittered pause, at most three times in a row. A
+ * wake that names a namespace sweeps that namespace; the poll and a wake that names none sweep them
+ * all. A wake that arrives during a sweep is not lost: the sweep repeats once when it ends. An attempt
  * whose handler rejects is completed by the error taxonomy in a short unit of the job's scope,
  * which also fails the job's own accepted receipt when the job gives up (`settleJobAttempt`).
  */
@@ -64,7 +70,9 @@ export function queueFetcher(input: {
   const shutdown = coreError('core.unavailable', {
     message: 'The worker stopped before the attempt finished.',
   });
-  let wakePending = true;
+  // What the next sweep covers: every namespace, or only those a wake named.
+  let wakeEverywhere = true;
+  const wakeNamespaces = new Set<string>();
   let sweeping: Promise<void> | undefined;
   let draining = false;
   let saturated = false;
@@ -135,7 +143,7 @@ export function queueFetcher(input: {
         slots.release();
         hooks.settled();
         if (saturated) {
-          wakePending = true;
+          wakeEverywhere = true;
           hooks.wake();
         }
       }
@@ -144,7 +152,10 @@ export function queueFetcher(input: {
     void attempt.finally(() => running.delete(attempt));
   };
 
-  const sweep = async (): Promise<void> => {
+  const wakePending = (): boolean => wakeEverywhere || wakeNamespaces.size > 0;
+
+  const sweep = async (only: ReadonlySet<string> | undefined): Promise<void> => {
+    const swept = only === undefined ? sources : sources.filter((s) => only.has(s.namespace.id));
     let retakes = 0;
     for (;;) {
       if (draining) return;
@@ -154,8 +165,8 @@ export function queueFetcher(input: {
       let skipped = false;
       const first = rotation;
       rotation += 1;
-      for (let i = 0; i < sources.length && slots.free() > 0 && !draining; i += 1) {
-        const source = sources[(first + i) % sources.length];
+      for (let i = 0; i < swept.length && slots.free() > 0 && !draining; i += 1) {
+        const source = swept[(first + i) % swept.length];
         if (source === undefined || !(await readiness.ready(source))) continue;
         const free = slots.free();
         const batch = await takeBatch(source, queue, worker, {
@@ -170,7 +181,7 @@ export function queueFetcher(input: {
         if (draining) return;
         slots.hold(batch.jobs.length);
         for (const stored of batch.jobs) start(stored, source);
-        took ||= batch.jobs.length > 0;
+        took ||= batch.jobs.length > 0 || batch.promoted > 0;
         skipped ||= batch.skippedLanes > 0;
       }
       if (took) {
@@ -184,23 +195,33 @@ export function queueFetcher(input: {
   };
 
   return {
-    wake: () => {
-      wakePending = true;
+    queue,
+    wake: (namespaceId) => {
+      if (namespaceId === undefined) wakeEverywhere = true;
+      else wakeNamespaces.add(namespaceId);
     },
     tick: async (now) => {
       if (draining || sweeping !== undefined) return;
       const pollDue = nextPollAt === undefined || Temporal.Instant.compare(now, nextPollAt) >= 0;
-      if (!wakePending && !pollDue) return;
+      if (!wakePending() && !pollDue) return;
       const gate = Promise.withResolvers<void>();
       sweeping = gate.promise;
       try {
+        let polled = pollDue;
         do {
-          wakePending = false;
-          nextPollAt = now.add({
-            milliseconds: Math.round(pollMs * (1 - pollJitter + 2 * pollJitter * random())),
-          });
-          await sweep();
-        } while (wakePending && !draining);
+          // A poll covers every namespace, as a wake without a name does; a sweep of some namespaces
+          // leaves the next poll where it is, so a busy namespace never defers the poll of the others.
+          const only = wakeEverywhere || polled ? undefined : new Set(wakeNamespaces);
+          polled = false;
+          wakeEverywhere = false;
+          wakeNamespaces.clear();
+          if (only === undefined) {
+            nextPollAt = now.add({
+              milliseconds: Math.round(pollMs * (1 - pollJitter + 2 * pollJitter * random())),
+            });
+          }
+          await sweep(only);
+        } while (wakePending() && !draining);
       } catch (error) {
         log.error('a sweep of the queue failed', { queue, cause: error });
       } finally {
@@ -243,7 +264,7 @@ export function queueFetcher(input: {
       return left;
     },
     get idle() {
-      return draining || (sweeping === undefined && !wakePending);
+      return draining || (sweeping === undefined && !wakePending());
     },
   };
 }

@@ -18,7 +18,10 @@ export interface SqlJobLaneKey {
  * while an enqueue burst lasts (9.5.2). A changed cap is written; a lane another unit creates at
  * the same time is found again after the insert loses.
  */
-export async function sqlJobLane(ctx: SqlUnitContext, key: SqlJobLaneKey): Promise<string> {
+export async function sqlJobLane(
+  ctx: SqlUnitContext,
+  key: SqlJobLaneKey,
+): Promise<{ readonly id: string; readonly capChanged: boolean }> {
   const root = quoteIdentifier(ctx.namespace.root);
   const scopeId = ctx.scopeId();
   const find = async (): Promise<{ id: string; cap: number } | undefined> => {
@@ -37,7 +40,7 @@ where scope_id = $1::uuid and queue = $2 and capability_set = $3 and priority = 
         parameters: [found.id, String(key.cap), scopeId],
       });
     }
-    return found.id;
+    return { id: found.id, capChanged: found.cap !== key.cap };
   }
   const [created] = await runSql(ctx.db, {
     sql: `insert into ${root}.kw_job_lanes (scope_id, queue, capability_set, priority, cap, weight)
@@ -49,7 +52,7 @@ returning id::text as id`,
   if (created === undefined) {
     const raced = await find();
     if (raced === undefined) throw new Error('a lane vanished between two reads');
-    return raced.id;
+    return { id: raced.id, capChanged: false };
   }
   const id = String(created.id);
   await runSql(ctx.db, {
@@ -58,5 +61,5 @@ values ($1::bigint, 'enqueued', $2::uuid), ($1::bigint, 'done', $2::uuid)
 on conflict (lane_id, kind) do nothing`,
     parameters: [id, scopeId],
   });
-  return id;
+  return { id, capChanged: false };
 }

@@ -1,4 +1,6 @@
 import type { ChangeFeedSource, NamespaceRef } from '@keelwerk/core';
+import type { JobWakeStream } from '../job-wake/job-wake-stream.ts';
+import { jobWakeStream } from '../job-wake/job-wake-stream.ts';
 
 interface Reader {
   readonly namespaces: ReadonlySet<string>;
@@ -11,6 +13,8 @@ export interface PgliteChangeFeed {
   readonly source: ChangeFeedSource;
   /** Wakes every reader of `namespace`; the adapter calls it after a unit committed. */
   publish(namespace: string, scopeIds: readonly string[]): void;
+  /** Wakes the readers of the workers' feed after a unit committed; no `queues` means every queue. */
+  readied(namespace: string, queues: readonly string[] | undefined): void;
 }
 
 /**
@@ -20,6 +24,7 @@ export interface PgliteChangeFeed {
  */
 export function pgliteChangeFeed(): PgliteChangeFeed {
   const readers = new Set<Reader>();
+  const jobReaders = new Set<JobWakeStream>();
   const source: ChangeFeedSource = {
     level: 'notify',
     async *wake(
@@ -54,6 +59,18 @@ export function pgliteChangeFeed(): PgliteChangeFeed {
         readers.delete(reader);
       }
     },
+    async *jobs(namespaces, signal) {
+      const stream = jobWakeStream(
+        namespaces.map((namespace) => namespace.id),
+        signal,
+      );
+      jobReaders.add(stream);
+      try {
+        yield* stream.wakes;
+      } finally {
+        jobReaders.delete(stream);
+      }
+    },
   };
   return {
     source,
@@ -65,6 +82,9 @@ export function pgliteChangeFeed(): PgliteChangeFeed {
         reader.pending.set(namespace, known);
         reader.notify?.();
       }
+    },
+    readied(namespace: string, queues: readonly string[] | undefined): void {
+      for (const reader of jobReaders) reader.push(namespace, queues);
     },
   };
 }

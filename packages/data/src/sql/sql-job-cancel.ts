@@ -68,7 +68,7 @@ export async function sqlJobCancel(
   insert into ${root}.kw_job_history (scope_id, job_id, queue, kind, outcome, attempts, started_at, finished_at, error)
   select scope_id, id, queue, kind, 'cancelled', attempt, started_at, ${finished}, null from gone
 )
-select id::text as id, scope_id::text as scope_id, lane_id::text as lane_id, state, ordering, key, group_id, group_scope from gone order by id`,
+select id::text as id, scope_id::text as scope_id, lane_id::text as lane_id, queue, state, ordering, key, group_id, group_scope from gone order by id`,
     parameters,
   });
   const cancelled = rows.map((row) => ({
@@ -83,6 +83,10 @@ select id::text as id, scope_id::text as scope_id, lane_id::text as lane_id, sta
   }
   const running = rows.filter((row) => row.state === 'running');
   if (running.length > 0) {
+    for (const row of running) {
+      if (row.group_id === null) buffer.ready(String(row.queue));
+      else buffer.readyAnywhere();
+    }
     buffer.defer(async () => {
       const lanes = sqlLaneChanges();
       for (const row of running) lanes.done(String(row.lane_id), 1);

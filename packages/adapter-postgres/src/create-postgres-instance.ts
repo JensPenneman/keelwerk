@@ -54,6 +54,9 @@ const changeFeed: ChangeFeedSource = {
   wake: () => {
     throw postgresNotWired('feed.wake');
   },
+  jobs: () => {
+    throw postgresNotWired('feed.jobs');
+  },
 };
 
 interface Connection {

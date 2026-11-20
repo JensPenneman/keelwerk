@@ -71,6 +71,14 @@ describe('the restore hold', () => {
     expect(reads).toHaveLength(2);
   });
 
+  test('a request that comes while a read is in flight waits for it and sees the lifted hold', async () => {
+    const { hold, reads } = setup(() => 0);
+    // The second request arrives after the read began and before it answered.
+    await Promise.all([hold.check(tenant), hold.check(tenant)]);
+    expect(reads).toEqual([[tenant]]);
+    expect([...hold.held()]).toEqual([]);
+  });
+
   test('the hold lifts once no unfinished erasure is left', async () => {
     let left = 1;
     const { hold, advance, warned } = setup(() => left);

@@ -4392,6 +4392,18 @@ available, scheduled and waiting jobs, never running or dead ones.
   carry the name of an action queue (`commands`, `reactions`, `schedules`, `timers`, `hooks`),
   whose jobs a worker runs as actions: compose refuses it with `executorQueueReserved` (added
   2026-11-11).
+- Added 2026-11-20 (breaking): a wake-up of the workers names the queues in which a commit made a
+  job takeable (`ChangeFeedSource.jobs`, section 15.2.5; `JobStore.readied`, section 14.3.9), and
+  only the fetchers of those queues sweep, in that wake-up's namespace. When in doubt every
+  fetcher of the namespace sweeps: a wake-up that names no queue (a writer that could not name
+  them, a list that did not fit the payload, an overflow) and the first wake-up of each reader.
+  The one-second poll is the net under every wake-up and keeps its interval (a sweep that only job
+  wake-ups asked for, each of which names its namespace, leaves the next poll where it is; the
+  poll, `probe.wake()`, a heartbeat and a freed slot sweep every namespace and set it again), so a
+  lost or late wake-up costs latency and never a job. A take whose promotion moved jobs is work,
+  not "no work": a SQL store (PGlite, PostgreSQL) counts promoted jobs on their lanes only when the
+  unit commits, so the take of the same unit cannot see them (the memory store counts them at
+  once), and the fetcher takes again at once.
 - Added 2026-11-11: a worker takes no job from a namespace until step 0002 of the framework's
   migration track (`keelwerk.framework`, the M2 framework tables) is recorded there; it warns once
   that the jobs wait for `keelwerk db apply`.
@@ -6140,6 +6152,13 @@ always admitted.
 Positions use the same commit-tail counter per scope on every adapter (section 15.1.4), and every
 adapter implements the job store (section 14.3.9). Milestones refer to [roadmap.md](roadmap.md).
 
+Added 2026-11-20: on PostgreSQL the workers' wake-ups ride `NOTIFY kw_jobs, '<namespace>:<queue>,<queue>'`
+from a second notifier over the same sender (queue names percent-encoded, `<namespace>:*` for every
+queue, which a list past the payload limit also becomes). The first reader of `jobs` opens a `LISTEN
+kw_jobs` session of its own, so a process that serves requests only holds none, and each time that
+session listens (first and reopen) every reader gets a wake-up that names no queue. Nothing about a
+tenant goes into the payload: the namespace id and the app's queue names only.
+
 **PostgreSQL.** The reference adapter. `connect` refuses a server older than PostgreSQL 18, the
 only major verified. Units set `keelwerk.tenant_id` (or `keelwerk.backend_id`)
 with `set_config(..., true)` at their start, and every scoped table has row-level security enabled
@@ -6369,6 +6388,7 @@ export interface JobStore {
       lowest job id first, at most `limit`; answers `{ removed, more }` (`PurgeBatch`, section 15.1.11). */
   purgeHistory(before: Temporal.Instant, limit: number): Promise<PurgeBatch>
   schedules(): ScheduleStore                                  // one row per schedule and scope: last tick, next tick
+  readied(): readonly string[] | undefined                    // after the commit: the queues the unit made takeable
 }
 ```
 
@@ -6414,6 +6434,16 @@ export interface JobStore {
   the fair-take order, lane caps, the queued cap with backpressure, lease loss and fencing, release
   at a drain, split lane counters and the promotion of scheduled jobs) on every adapter (section
   14.10).
+- Added 2026-11-20: `readied()` answers, once the unit has committed, the queues in which it made a
+  job takeable: a job put in `available` (a due enqueue, a coalesce that became due, a promotion, a
+  key's next job, a reclaimed lease) or a lane slot given back (a completion of any outcome, retry
+  included, or a running attempt that was cancelled), or a lane whose cap an enqueue changed (the
+  lane's queue, also when the job itself is scheduled for later). It answers `undefined` when it
+  cannot name them (a group's slot given back, a group provisioned, a group whose limit an enqueue
+  changed: a group spans queues) and `[]` for a unit that made nothing takeable. A savepoint that
+  fails takes back what it recorded. The adapters
+  publish it after the commit, for every write unit including a namespace-scope one (a take's
+  promotion), beside their events (section 15.2.5).
 
 ### 14.4 Placements, namespaces and tenancy
 
@@ -9031,8 +9061,17 @@ export interface ChangeFeedSource {
   readonly level: 'poll' | 'notify' | 'stream'
   /** Wake-ups, never data: something may have been committed in these scopes. */
   wake(namespaces: readonly NamespaceRef[], signal: AbortSignal): AsyncIterable<{ readonly namespace: string; readonly scopeIds: readonly string[] }>
+  /** Wake-ups for the workers, never data (added 2026-11-20): the queues a commit made takeable; none named: every queue. */
+  jobs(namespaces: readonly NamespaceRef[], signal: AbortSignal): AsyncIterable<{ readonly namespace: string; readonly queues?: readonly string[] }>
 }
 ```
+
+- `jobs` serves the workers of section 9.5.6 and leaves `wake` and its readers (consumers, caches,
+  anchoring) as they are, because a commit that only made jobs takeable would otherwise run every
+  one of them. The first wake-up of each namespace names no queues, since the reader cannot know
+  what committed before it listened; wake-ups of one namespace that are pending together merge (the
+  union of the queues, and one without queues absorbs the rest). A feed that only polls yields
+  nothing from `jobs`: the workers' own poll is the net.
 
 - The core's `ChangeFeed` (section 9.6) is implemented once: `read(scope, after, selector)` loops
   over `unit.events.readAll` in read-only units of the scope, and `wake(scope)` filters the

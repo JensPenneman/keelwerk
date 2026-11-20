@@ -122,9 +122,14 @@ export function postgresAdapter(options: PostgresAdapterOptions = {}): DataAdapt
             scope,
             async (u) => {
               const scopeId = unitScopeId(scope, env.deploymentId);
-              if (!u.readOnly && scopeId !== undefined) {
+              if (!u.readOnly) {
                 u.afterCommit(() => {
-                  if (u.events.committed().length > 0) feed.committed(namespace.id, scopeId);
+                  if (scopeId !== undefined && u.events.committed().length > 0) {
+                    feed.committed(namespace.id, scopeId);
+                  }
+                  const readied = u.jobs.readied();
+                  if (readied === undefined || readied.length > 0)
+                    feed.readied(namespace.id, readied);
                 });
               }
               return fn(maskUnit(u, off));

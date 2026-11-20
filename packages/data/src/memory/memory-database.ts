@@ -17,6 +17,12 @@ export interface MemoryDatabase {
   committed(namespaceId: string, scopeId: string): void;
   /** Registers a feed listener; the returned function removes it. */
   listen(listener: (namespaceId: string, scopeId: string) => void): () => void;
+  /** Called after a write unit made jobs takeable: wakes the workers' feed; no `queues` means every queue. */
+  readied(namespaceId: string, queues: readonly string[] | undefined): void;
+  /** Registers a listener of the workers' feed; the returned function removes it. */
+  listenJobs(
+    listener: (namespaceId: string, queues: readonly string[] | undefined) => void,
+  ): () => void;
   isClosed(): boolean;
   close(): void;
 }
@@ -33,6 +39,9 @@ export function memoryDatabase(
   const namespaces = new Map<string, MemoryNamespace>();
   const tails = new Map<string, Promise<void>>();
   const listeners = new Set<(namespaceId: string, scopeId: string) => void>();
+  const jobListeners = new Set<
+    (namespaceId: string, queues: readonly string[] | undefined) => void
+  >();
   let closed = false;
   return {
     clock,
@@ -68,6 +77,15 @@ export function memoryDatabase(
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
+      };
+    },
+    readied: (namespaceId, queues) => {
+      for (const listener of jobListeners) listener(namespaceId, queues);
+    },
+    listenJobs: (listener) => {
+      jobListeners.add(listener);
+      return () => {
+        jobListeners.delete(listener);
       };
     },
     isClosed: () => closed,

@@ -21,6 +21,7 @@ import { jobPurgeCases } from './job-purge-cases.ts';
 import { jobStoreCases } from './job-store-cases.ts';
 import { jobStoreKeyedCases } from './job-store-keyed-cases.ts';
 import { jobStoreQueuedCases } from './job-store-queued-cases.ts';
+import { jobWakeCases } from './job-wake-cases.ts';
 import { leaseCases } from './lease-cases.ts';
 import { ledgerCases } from './ledger-cases.ts';
 import { migrationCases } from './migration-cases.ts';
@@ -38,6 +39,7 @@ import { streamRecordCases } from './stream-record-cases.ts';
 import { timeoutCases } from './timeout-cases.ts';
 import { toggleRebuildCases } from './toggle-rebuild-cases.ts';
 import { unitCases } from './unit-cases.ts';
+import { workerWakeCases } from './worker-wake-cases.ts';
 
 /**
  * Registers the adapter conformance suites (14.10) for one adapter: opens it once through the
@@ -114,6 +116,8 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('job purge', () => jobPurgeCases(subject));
     describe('job store: queued', () => jobStoreQueuedCases(subject));
     describe('job store: keyed', () => jobStoreKeyedCases(subject));
+    describe('job wake-ups', () => jobWakeCases(subject));
+    describe('worker wake-ups', () => workerWakeCases(subject));
     describe('consumers', () => consumerCases(subject));
     describe('schedules', () => scheduleCases(subject));
     describe('ledger', () => ledgerCases(subject));

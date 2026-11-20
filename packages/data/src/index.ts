@@ -5,6 +5,10 @@ export { maskCapabilities } from './fallbacks/mask-capabilities.ts';
 export type { MaskableCapability } from './fallbacks/maskable-capability.ts';
 export { pollChangeFeed } from './fallbacks/poll-change-feed.ts';
 export type { PollChangeFeedOptions } from './fallbacks/poll-change-feed-options.ts';
+export type { JobWakeStream } from './job-wake/job-wake-stream.ts';
+export { jobWakeStream } from './job-wake/job-wake-stream.ts';
+export type { WakePayload } from './job-wake/parse-wake-payload.ts';
+export { parseWakePayload } from './job-wake/parse-wake-payload.ts';
 export { memoryAdapter } from './memory/memory-adapter.ts';
 export type { MemoryAdapterOptions } from './memory/memory-adapter-options.ts';
 export type {

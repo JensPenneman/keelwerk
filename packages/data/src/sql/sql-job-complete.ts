@@ -50,6 +50,9 @@ export async function sqlJobComplete(
     outcome.kind === 'retry' && outcome.error.kind === 'rate_limited'
       ? outcome.error.retryAfter
       : undefined;
+  // The slot of the lane, and of the job's group, comes back at the tail: a group spans queues.
+  if (group === undefined) buffer.ready(String(row.queue));
+  else buffer.readyAnywhere();
   buffer.defer(async () => {
     const lanes = sqlLaneChanges();
     lanes.done(laneId, 1);
@@ -67,7 +70,7 @@ export async function sqlJobComplete(
     }
   });
   if (outcome.kind !== 'retry' && row.ordering === 'fifo-per-key' && row.key !== null) {
-    await sqlJobRelease(ctx, buffer, laneId, String(row.key));
+    await sqlJobRelease(ctx, buffer, String(row.queue), laneId, String(row.key));
   }
   return true;
 }

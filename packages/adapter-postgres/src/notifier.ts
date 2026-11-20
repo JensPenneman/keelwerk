@@ -12,7 +12,10 @@ export interface NotifierOptions {
 
 /** The process's notifier of 14.3.7. */
 export interface Notifier {
-  /** Something committed in this scope of this namespace; call it after the commit, never inside the transaction. */
+  /**
+   * Something committed in this scope of this namespace; call it after the commit, never inside the
+   * transaction. The item `*` stands for the whole namespace: the payload is `<namespace>:*`.
+   */
   committed(namespace: string, scopeId: string): void;
   /** Sends what is still pending and ends the notifier. */
   stop(): Promise<void>;
@@ -21,7 +24,7 @@ export interface Notifier {
 /**
  * The coalescing notifier (14.3.7, 15.2.5): scopes reported after commit collect for one window and
  * leave as one `<namespace>:<scope>,<scope>` payload per namespace, or `<namespace>:*` when the list
- * would pass the payload limit. The window opens at the first report, so an idle process holds no
+ * would pass the payload limit (or names `*`). The window opens at the first report, so an idle process holds no
  * timer and a burst of commits costs one `NOTIFY`.
  */
 export function createNotifier(options: NotifierOptions): Notifier {
@@ -39,7 +42,9 @@ export function createNotifier(options: NotifierOptions): Notifier {
     for (const [namespace, scopes] of batches) {
       const listed = `${namespace}:${[...scopes].join(',')}`;
       const payload =
-        encoder.encode(listed).byteLength <= maxPayloadBytes ? listed : `${namespace}:*`;
+        !scopes.has('*') && encoder.encode(listed).byteLength <= maxPayloadBytes
+          ? listed
+          : `${namespace}:*`;
       try {
         await options.send(payload);
       } catch (error) {

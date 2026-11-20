@@ -92,4 +92,14 @@ export interface JobStore {
   purgeHistory(before: Temporal.Instant, limit: number): Promise<PurgeBatch>;
   /** One row per schedule and scope: last tick, next tick (S-118). */
   schedules(): ScheduleStore;
+  /**
+   * The queues in which this unit made a job takeable, read after the commit like `events.committed()`:
+   * a job put in `available` (a due enqueue, a promotion, a key's next job, a reclaimed lease) or a lane
+   * slot given back (a completion of any outcome, a cancelled running attempt), or a lane whose cap an
+   * enqueue changed (that queue, also when its own job is scheduled for later). `undefined` when the
+   * unit cannot name them (a group's slot given back, a group provisioned or a group whose limit an
+   * enqueue changed: a group spans queues); `[]` when it made nothing takeable. What a savepoint that
+   * failed recorded is taken back.
+   */
+  readied(): readonly string[] | undefined;
 }

@@ -62,7 +62,7 @@ select id::text as id, lane_id::text as lane_id, queue, state, ordering, key, in
   }
   for (const job of purged) {
     if (job.state !== 'waiting' && job.ordering === 'fifo-per-key' && job.key !== null) {
-      await sqlJobRelease(ctx, buffer, job.laneId, job.key);
+      await sqlJobRelease(ctx, buffer, job.queue, job.laneId, job.key);
     }
   }
   return purged;

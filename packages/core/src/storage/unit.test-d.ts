@@ -77,6 +77,7 @@ test('JobStore has the members of S-03, the schedules (M2) and the erasure purge
     | 'schedules'
     | 'purgeForPrincipals'
     | 'purgeHistory'
+    | 'readied'
   >();
 });
 

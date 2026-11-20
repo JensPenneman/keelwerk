@@ -8,5 +8,7 @@ export function memoryReleaseJobGroup(ctx: MemoryUnitContext, job: MemoryJob): v
   const groups = memoryJobGroups(ctx);
   const spans = job.spec.group.scope === 'namespace';
   const group = groups.get(job.scopeId, job.spec.group.id, spans);
-  if (group !== undefined) groups.put(job.scopeId, spans, { ...group, running: group.running - 1 });
+  if (group === undefined) return;
+  groups.put(job.scopeId, spans, { ...group, running: group.running - 1 });
+  ctx.readied.readyAnywhere();
 }

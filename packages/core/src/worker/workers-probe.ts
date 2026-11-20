@@ -1,6 +1,11 @@
 /** What a test sees of the workers of a process: a tick on demand and the moment they have nothing left to do. */
 export interface WorkersProbe {
-  /** Runs a tick now (renewals, expiries, a sweep of every fetcher), as a commit wake-up would. */
+  /**
+   * Runs a tick (renewals, expiries, a sweep of every fetcher once, in every namespace).
+   * A commit's job wake-up sweeps the queues it names (all of them when it names none) in its own
+   * namespace; this sweeps every fetcher in every namespace. The sweep comes after the attended runs
+   * have settled, so what they enqueue is swept with it.
+   */
   wake(): void;
   /**
    * Settles when no fetcher has a wake pending or a sweep running, each one's last sweep took no job

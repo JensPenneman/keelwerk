@@ -23,6 +23,9 @@ export function memoryJobFinish(
   else tables.deleteJob(job.id);
   if (wasRunning) {
     memoryAdjustLane(tables, job.laneKey, (lane) => ({ ...lane, done: lane.done + 1 }));
+    // The lane's slot comes back, and a group spans queues.
+    if (job.spec.group === undefined) ctx.readied.ready(job.spec.queue);
+    else ctx.readied.readyAnywhere();
   } else if (job.state === 'available') {
     memoryAdjustLane(tables, job.laneKey, (lane) => ({ ...lane, enqueued: lane.enqueued - 1 }));
   }

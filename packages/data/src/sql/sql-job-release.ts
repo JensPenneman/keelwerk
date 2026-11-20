@@ -7,11 +7,12 @@ import type { SqlUnitContext } from './sql-unit-context.ts';
 /**
  * FIFO per key (9.1.2, 9.5.2): when the head of a key leaves the queue, the key's next `waiting`
  * job becomes `available` (or `scheduled`, when its time has not come) and, when available, is
- * counted on its lane at the commit tail.
+ * counted on its lane at the commit tail; `queue` is the queue of the lane, recorded as takeable.
  */
 export async function sqlJobRelease(
   ctx: SqlUnitContext,
   buffer: SqlCommitBuffer,
+  queue: string,
   laneId: string,
   key: string,
 ): Promise<void> {
@@ -31,5 +32,8 @@ where id = (
 returning state`,
     parameters,
   });
-  if (released?.state === 'available') buffer.moveLane(laneId, 1);
+  if (released?.state === 'available') {
+    buffer.moveLane(laneId, 1);
+    buffer.ready(queue);
+  }
 }

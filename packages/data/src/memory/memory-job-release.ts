@@ -24,6 +24,8 @@ export function memoryJobRelease(
   if (next === undefined) return;
   const due = Temporal.Instant.compare(next.runAt, ctx.clock.now()) <= 0;
   tables.putJob({ ...next, state: due ? 'available' : 'scheduled' });
-  if (due)
+  if (due) {
     memoryAdjustLane(tables, next.laneKey, (lane) => ({ ...lane, enqueued: lane.enqueued + 1 }));
+    ctx.readied.ready(next.spec.queue);
+  }
 }

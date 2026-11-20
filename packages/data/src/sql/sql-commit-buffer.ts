@@ -1,4 +1,5 @@
 import type { Position } from '@keelwerk/core';
+import { readiedQueues } from '../job-wake/readied-queues.ts';
 import type { CommitTailLane } from './postgres/commit-tail-lane.ts';
 import type { SqlPendingEvent } from './sql-pending-event.ts';
 import { sqlStreamKey } from './sql-stream-key.ts';
@@ -7,6 +8,7 @@ import { sqlStreamKey } from './sql-stream-key.ts';
 interface SqlCommitMark {
   readonly events: number;
   readonly lanes: number;
+  readonly readied: number;
   readonly work: number;
 }
 
@@ -14,7 +16,8 @@ interface SqlCommitMark {
  * What a unit owes its commit tail (15.1.4): the events appended so far, the changes of the lanes'
  * `enqueued` counters and, once the tail has run, the positions it assigned. The events and the
  * lane changes are shared by the unit and its savepoints; a savepoint that fails takes back what it
- * added (`restore`), exactly as the database takes back its rows.
+ * added (`restore`), exactly as the database takes back its rows. It also records the queues in which
+ * the unit made a job takeable, which the adapter reads after the commit (`JobStore.readied`).
  */
 export interface SqlCommitBuffer {
   /** Appended events in order; read only, `push` and `restore` change it. */
@@ -32,6 +35,12 @@ export interface SqlCommitBuffer {
   takeWork(): readonly (() => Promise<void>)[];
   /** A lane's `enqueued` counter changes by `delta` at the tail. */
   moveLane(laneId: string, delta: number): void;
+  /** A job of `queue` became takeable, or a lane slot of `queue` came back. */
+  ready(queue: string): void;
+  /** Something became takeable in queues the unit cannot name (a group's slot). */
+  readyAnywhere(): void;
+  /** The queues recorded so far, or `undefined` when one entry names none. */
+  readied(): readonly string[] | undefined;
   mark(): SqlCommitMark;
   restore(mark: SqlCommitMark): void;
 }
@@ -45,6 +54,7 @@ export function sqlCommitBuffer(guard: () => void = () => undefined): SqlCommitB
   const lanes: CommitTailLane[] = [];
   const work: (() => Promise<void>)[] = [];
   const versions = new Map<string, number>();
+  const readied = readiedQueues();
   return {
     events,
     lanes,
@@ -64,7 +74,21 @@ export function sqlCommitBuffer(guard: () => void = () => undefined): SqlCommitB
       guard();
       lanes.push({ laneId, delta });
     },
-    mark: () => ({ events: events.length, lanes: lanes.length, work: work.length }),
+    ready: (queue) => {
+      guard();
+      readied.ready(queue);
+    },
+    readyAnywhere: () => {
+      guard();
+      readied.readyAnywhere();
+    },
+    readied: () => readied.queues(),
+    mark: () => ({
+      events: events.length,
+      lanes: lanes.length,
+      readied: readied.mark(),
+      work: work.length,
+    }),
     restore: (mark) => {
       guard();
       if (events.length > mark.events) {
@@ -73,6 +97,7 @@ export function sqlCommitBuffer(guard: () => void = () => undefined): SqlCommitB
         for (const event of events) versions.set(sqlStreamKey(event.stream), event.version);
       }
       lanes.length = mark.lanes;
+      readied.restore(mark.readied);
       work.length = mark.work;
     },
   };

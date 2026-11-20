@@ -50,5 +50,9 @@ export function pollChangeFeed(options: PollChangeFeedOptions): ChangeFeedSource
         await options.sleep(intervalMs, signal);
       }
     },
+    // The workers' own poll is the net: this feed names no queue.
+    jobs: () => ({
+      [Symbol.asyncIterator]: () => ({ next: async () => ({ done: true, value: undefined }) }),
+    }),
   };
 }

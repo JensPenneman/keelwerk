@@ -140,7 +140,7 @@ export function postgresSchemaOperations(
               root,
               now: (options.clock ?? systemClock).now(),
               run: async (sql, parameters) => {
-                await session.query(sql, parameters);
+                return (await session.query(sql, parameters)).rows.length;
               },
             },
             group,

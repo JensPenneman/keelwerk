@@ -10,6 +10,8 @@ interface State {
   checkedAt: Temporal.Instant | undefined;
   warned: boolean;
   again: boolean;
+  /** The check that is under way: a sweep that asks meanwhile waits for it. */
+  checking: Promise<boolean> | undefined;
 }
 
 /** Which sources have the framework tables (D8); a source that is ready stays ready. */
@@ -23,8 +25,10 @@ export interface SourceReadiness {
 /**
  * The framework check of the fetchers (D8): a source that is behind takes no jobs, is logged once as
  * a warning, and is checked again at every explicit wake and otherwise at most once per minute of
- * clock time. An adapter without SQL tables is always ready. `waiting` names what waits (the
- * warning reads "<waiting> wait for keelwerk db apply").
+ * clock time. A sweep that asks while a check is under way waits for its answer (unless an explicit
+ * wake came after the check began: that sweep checks afresh), so no fetcher skips its first sweep on
+ * a source that is about to turn out ready. An adapter without SQL tables is always ready. `waiting`
+ * names what waits (the warning reads "<waiting> wait for keelwerk db apply").
  */
 export function sourceReadiness(
   clock: Clock,
@@ -43,9 +47,11 @@ export function sourceReadiness(
         checkedAt: undefined,
         warned: false,
         again: false,
+        checking: undefined,
       };
       states.set(source, state);
       if (state.ready) return true;
+      if (state.checking !== undefined && !state.again) return state.checking;
       const now = clock.now();
       if (
         state.checkedAt !== undefined &&
@@ -56,23 +62,30 @@ export function sourceReadiness(
       }
       state.checkedAt = now;
       state.again = false;
-      try {
-        state.ready = await frameworkReady(source);
-      } catch (error) {
-        log.warn('the framework track of a namespace could not be read', {
-          namespace: source.namespace.id,
-          cause: error,
-        });
-        return false;
-      }
-      if (!state.ready && !state.warned) {
-        state.warned = true;
-        log.warn(
-          `namespace ${source.namespace.id} misses framework step 0002; ${waiting} wait for \`keelwerk db apply\``,
-          { namespace: source.namespace.id },
-        );
-      }
-      return state.ready;
+      const checking = (async (): Promise<boolean> => {
+        try {
+          // A check that began before an explicit wake can answer after a fresher one: it never turns a ready source back.
+          if (await frameworkReady(source)) state.ready = true;
+        } catch (error) {
+          log.warn('the framework track of a namespace could not be read', {
+            namespace: source.namespace.id,
+            cause: error,
+          });
+          return false;
+        }
+        if (!state.ready && !state.warned) {
+          state.warned = true;
+          log.warn(
+            `namespace ${source.namespace.id} misses framework step 0002; ${waiting} wait for \`keelwerk db apply\``,
+            { namespace: source.namespace.id },
+          );
+        }
+        return state.ready;
+      })().finally(() => {
+        if (state.checking === checking) state.checking = undefined;
+      });
+      state.checking = checking;
+      return checking;
     },
   };
 }

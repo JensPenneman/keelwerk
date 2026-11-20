@@ -49,10 +49,12 @@ export async function sqlJobReclaim(
     );
     if (group !== undefined) releases.push({ ...group, by: 1 });
   }
+  if (releases.length > 0) buffer.readyAnywhere();
+  else buffer.ready(queue);
   await sqlSettleLanes(ctx, lanes);
   for (const row of rows) {
     if (row.state === 'dead' && row.ordering === 'fifo-per-key' && row.key !== null) {
-      await sqlJobRelease(ctx, buffer, String(row.lane_id), String(row.key));
+      await sqlJobRelease(ctx, buffer, queue, String(row.lane_id), String(row.key));
     }
   }
   return releases;

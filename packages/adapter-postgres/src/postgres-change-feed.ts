@@ -1,6 +1,17 @@
 import { setTimeout as delay } from 'node:timers/promises';
-import type { ChangeFeedSource, DataAdapter, Logger, NamespaceRef, Position } from '@keelwerk/core';
-import { pollChangeFeed } from '@keelwerk/data';
+import type {
+  ChangeFeedSource,
+  DataAdapter,
+  JobWake,
+  Logger,
+  NamespaceRef,
+  Position,
+} from '@keelwerk/core';
+import type { JobWakeStream } from '@keelwerk/data';
+import { jobWakeStream, parseWakePayload, pollChangeFeed } from '@keelwerk/data';
+import { decodeJobQueues } from './decode-job-queues.ts';
+import { encodeJobQueue } from './encode-job-queue.ts';
+import { everyQueue } from './every-queue.ts';
 import type { ListenConnection } from './listen-connection.ts';
 import { openListenConnection } from './listen-connection.ts';
 import type { Notifier } from './notifier.ts';
@@ -33,6 +44,8 @@ export interface PostgresChangeFeed {
   readonly source: ChangeFeedSource;
   /** A unit appended events in this scope; sends nothing when `notify` is off. */
   committed(namespace: string, scopeId: string): void;
+  /** A unit made jobs takeable in `queues` (every queue when `undefined`); sends nothing when `notify` is off. */
+  readied(namespace: string, queues: readonly string[] | undefined): void;
   /** Ends the readers and both connections; gives up waiting on them after `deadlineMs`. */
   close(deadlineMs: number): Promise<void>;
 }
@@ -43,6 +56,13 @@ export interface PostgresChangeFeed {
  * the heads every second, so a notification that is lost costs one interval of latency and never
  * an event. A namespace-wide payload (`<namespace>:*`) wakes with every scope that has events. A
  * wake-up may repeat: the poll reports a scope the notification already named.
+ *
+ * The workers' wake-ups (`jobs`) ride `NOTIFY kw_jobs` on a `LISTEN` session of their own, opened by
+ * the first reader, because a process that serves requests only has no use for them. The payload is
+ * `<namespace>:<queue>,<queue>` with percent-encoded names, or `<namespace>:*` for every queue, which
+ * is also what a list past the payload limit becomes. Nothing is polled: the workers' own poll is the
+ * net, and a session that opens or reopens wakes every reader for every queue, since it cannot know
+ * what it missed.
  */
 export function createPostgresChangeFeed(settings: PostgresChangeFeedSettings): PostgresChangeFeed {
   const moved = pollHeads(settings.adapter);
@@ -61,8 +81,14 @@ export function createPostgresChangeFeed(settings: PostgresChangeFeedSettings): 
     },
   });
   const listeners = new Set<(payload: string) => void>();
+  const jobStreams = new Set<{
+    readonly stream: JobWakeStream;
+    readonly namespaces: readonly string[];
+  }>();
   let listening: Promise<ListenConnection> | undefined;
+  let listeningJobs: Promise<ListenConnection> | undefined;
   let notifier: Notifier | undefined;
+  let jobNotifier: Notifier | undefined;
   let sender: ReturnType<typeof notifySender> | undefined;
   let closed = false;
   const closing = new AbortController();
@@ -81,6 +107,30 @@ export function createPostgresChangeFeed(settings: PostgresChangeFeedSettings): 
     await listening;
   };
 
+  const listenJobs = async (): Promise<void> => {
+    if (closed) return;
+    listeningJobs ??= openListenConnection({
+      url: settings.url,
+      applicationName: settings.applicationName,
+      connectionTimeoutMs: settings.connectionTimeoutMs ?? 10_000,
+      log: settings.log,
+      channel: 'kw_jobs',
+      onNotification: (payload) => {
+        const parsed = parseWakePayload(payload);
+        if (parsed === undefined) return;
+        const queues = decodeJobQueues(parsed.items);
+        for (const { stream } of jobStreams) stream.push(parsed.namespace, queues);
+      },
+      // The session knows nothing of what committed before it listened.
+      onListening: () => {
+        for (const { stream, namespaces } of jobStreams) {
+          for (const namespace of namespaces) stream.push(namespace, undefined);
+        }
+      },
+    });
+    await listeningJobs;
+  };
+
   const everyScope = async (namespace: NamespaceRef): Promise<readonly string[]> => {
     const marks = new Map<string, Position>();
     for (;;) {
@@ -88,6 +138,16 @@ export function createPostgresChangeFeed(settings: PostgresChangeFeedSettings): 
       for (const entry of page) marks.set(entry.scopeId, entry.head);
       if (page.length < pageSize) return [...marks.keys()];
     }
+  };
+
+  const sending = (): ReturnType<typeof notifySender> => {
+    sender ??= notifySender(settings);
+    return sender;
+  };
+  const notifyFailed = (error: unknown): void => {
+    settings.log.warn('postgres notifier: a wake-up was not sent', {
+      message: error instanceof Error ? error.message : String(error),
+    });
   };
 
   const source: ChangeFeedSource = {
@@ -112,16 +172,12 @@ export function createPostgresChangeFeed(settings: PostgresChangeFeedSettings): 
       };
       const byId = new Map(namespaces.map((namespace) => [namespace.id, namespace]));
       const listener = (payload: string): void => {
-        const cut = payload.lastIndexOf(':');
-        if (cut < 0) return;
-        const namespace = byId.get(payload.slice(0, cut));
+        const parsed = parseWakePayload(payload);
+        if (parsed === undefined) return;
+        const namespace = byId.get(parsed.namespace);
         if (namespace === undefined) return;
-        const rest = payload.slice(cut + 1);
-        if (rest !== '*') {
-          add(
-            namespace.id,
-            rest.split(',').filter((id) => id !== ''),
-          );
+        if (parsed.items !== undefined) {
+          add(namespace.id, parsed.items);
           return;
         }
         everyScope(namespace).then(
@@ -177,42 +233,65 @@ export function createPostgresChangeFeed(settings: PostgresChangeFeedSettings): 
         await pump;
       }
     },
+    async *jobs(namespaces: readonly NamespaceRef[], caller: AbortSignal): AsyncGenerator<JobWake> {
+      const signal = AbortSignal.any([caller, closing.signal]);
+      if (signal.aborted || !settings.notify) return;
+      const ids = namespaces.map((namespace) => namespace.id);
+      const reader = { stream: jobWakeStream(ids, signal), namespaces: ids };
+      jobStreams.add(reader);
+      try {
+        listenJobs().catch((error: unknown) => {
+          settings.log.warn(
+            'postgres feed: the listen connection of the workers could not be opened',
+            {
+              message: error instanceof Error ? error.message : String(error),
+            },
+          );
+        });
+        yield* reader.stream.wakes;
+      } finally {
+        jobStreams.delete(reader);
+      }
+    },
   };
 
   return {
     source,
     committed: (namespace, scopeId) => {
       if (!settings.notify || closed) return;
-      if (notifier === undefined) {
-        sender = notifySender(settings);
-        const active = sender;
-        notifier = createNotifier({
-          send: active.send,
-          onError: (error) => {
-            settings.log.warn('postgres notifier: a wake-up was not sent', {
-              message: error instanceof Error ? error.message : String(error),
-            });
-          },
-        });
-      }
+      notifier ??= createNotifier({ send: sending().send, onError: notifyFailed });
       notifier.committed(namespace, scopeId);
+    },
+    readied: (namespace, queues) => {
+      if (!settings.notify || closed) return;
+      const send = sending().send;
+      jobNotifier ??= createNotifier({
+        send: (payload) => send(payload, 'kw_jobs'),
+        onError: notifyFailed,
+      });
+      for (const queue of queues === undefined ? [everyQueue] : queues.map(encodeJobQueue)) {
+        jobNotifier.committed(namespace, queue);
+      }
     },
     close: async (deadlineMs) => {
       closed = true;
       closing.abort();
       const endsAt = Date.now() + deadlineMs;
       const left = (): number => endsAt - Date.now();
-      const stopped = notifier?.stop();
-      if (stopped !== undefined && (await withinDeadline(stopped, left()))) {
+      const stopped = Promise.all([notifier?.stop(), jobNotifier?.stop()]);
+      if (await withinDeadline(stopped, left())) {
         settings.log.warn('postgres feed: the notifier did not stop before its deadline');
       }
-      const open = listening;
+      const open = [listening, listeningJobs];
       listening = undefined;
+      listeningJobs = undefined;
       const ended = Promise.all([
         sender?.close(),
-        open?.then(
-          (connection) => connection.close(),
-          () => undefined,
+        ...open.map((connection) =>
+          connection?.then(
+            (opened) => opened.close(),
+            () => undefined,
+          ),
         ),
       ]);
       if (await withinDeadline(ended, left())) {

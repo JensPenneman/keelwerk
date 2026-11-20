@@ -56,6 +56,7 @@ export interface SqlJobStore
     | 'purgeForPrincipals'
     | 'purgeHistory'
     | 'queued'
+    | 'readied'
     | 'schedules'
     | 'stats'
     | 'take'
@@ -83,7 +84,12 @@ export interface SqlJobStore
 export function sqlJobStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): SqlJobStore {
   const root = quoteIdentifier(ctx.namespace.root);
   return {
-    provisionGroup: async (group) => sqlGuard(async () => provisionJobGroup(ctx, group)),
+    provisionGroup: async (group) =>
+      sqlGuard(async () => {
+        await provisionJobGroup(ctx, group);
+        buffer.readyAnywhere();
+      }),
+    readied: () => buffer.readied(),
     enqueue: async (spec: StoredJobSpec): Promise<JobId> => {
       ctx.writable();
       const scopeId = ctx.scopeId();
@@ -98,12 +104,15 @@ export function sqlJobStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): SqlJo
       }
       return sqlGuard(async () => {
         const now = ctx.clock.now();
-        const laneId = await sqlJobLane(ctx, {
+        const lane = await sqlJobLane(ctx, {
           queue: spec.queue,
           capabilitySet: jobCapabilitySet(spec.capability),
           priority: jobPriority(spec.priority),
           cap: spec.laneCap,
         });
+        const laneId = lane.id;
+        // A new cap can make waiting jobs of the lane takeable, whatever this job's own time.
+        if (lane.capChanged) buffer.ready(spec.queue);
         const runAt = spec.runAt ?? now;
         const due = Temporal.Instant.compare(runAt, now) <= 0;
         const key = spec.key;
@@ -135,7 +144,10 @@ order by id limit 1 for update`,
 where id = $1::bigint and scope_id = $4::uuid`,
                 parameters: [foundId, encodeInstant(earliest), String(becomesDue), scopeId],
               });
-              if (becomesDue) buffer.moveLane(laneId, 1);
+              if (becomesDue) {
+                buffer.moveLane(laneId, 1);
+                buffer.ready(spec.queue);
+              }
               return foundId;
             }
             // Only a reaction job's input holds a position of the log: a module's own input is no order.
@@ -148,11 +160,17 @@ where id = $1::bigint and scope_id = $4::uuid`,
             }
             await sqlJobCancel(ctx, buffer, { ids: [foundId] });
             if (found.state !== 'waiting' && found.ordering === 'fifo-per-key') {
-              await sqlJobRelease(ctx, buffer, laneId, key.value);
+              await sqlJobRelease(ctx, buffer, spec.queue, laneId, key.value);
             }
           }
         }
-        const groupKey = spec.group === undefined ? null : await sqlJobGroup(ctx, spec.group);
+        let groupKey: string | null = null;
+        if (spec.group !== undefined) {
+          const group = await sqlJobGroup(ctx, spec.group);
+          groupKey = group.key;
+          // New limits can free jobs of the group waiting in any queue.
+          if (group.changed) buffer.readyAnywhere();
+        }
         let follower = false;
         if (spec.ordering === 'fifo-per-key' && key !== undefined) {
           const [ahead] = await runSql(ctx.db, {
@@ -196,7 +214,10 @@ returning id::text as id`,
           ],
         });
         if (inserted === undefined) throw errors.internal('the job insert answered nothing');
-        if (state === 'available') buffer.moveLane(laneId, 1);
+        if (state === 'available') {
+          buffer.moveLane(laneId, 1);
+          buffer.ready(spec.queue);
+        }
         return String(inserted.id);
       });
     },

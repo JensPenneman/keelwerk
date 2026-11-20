@@ -8,6 +8,7 @@ import type {
 } from '@keelwerk/core';
 import { consumers, reactionDispatcher } from '@keelwerk/events';
 import { pgliteFactory } from '../../../src/harness/pglite-factory.ts';
+import { settleReactions } from '../../../src/harness/settle-reactions.ts';
 import { startTestRuntime } from '../../../src/harness/start-test-runtime.ts';
 import { testCarrier } from '../../../src/harness/test-carrier.ts';
 import { testPrincipal } from '../../../src/harness/test-principal.ts';
@@ -166,18 +167,7 @@ export async function bootReactions(
       requestId: crypto.randomUUID(),
       signal: new AbortController().signal,
     });
-  // A round that did nothing is not proof of rest on every adapter (a retry that just became due is
-  // promoted by the wake the drain gives), so two quiet rounds in a row end the settling.
-  const settle = async (): Promise<void> => {
-    let quiet = 0;
-    for (let round = 0; round < 40; round += 1) {
-      const dispatched = await dispatcher.settled();
-      const ran = await runtime.drainJobs();
-      quiet = dispatched === 0 && ran === 0 ? quiet + 1 : 0;
-      if (quiet >= 2) return;
-    }
-    throw new Error('the reactions did not settle in 40 rounds');
-  };
+  const settle = (): Promise<void> => settleReactions(dispatcher, () => runtime.drainJobs());
   return {
     runtime,
     spy: watched?.spy,

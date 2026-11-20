@@ -67,6 +67,10 @@ export async function memoryUnit<T>(
         for (const [name, collection] of ctx.tx.changes()) state.collections.set(name, collection);
       }
       if (ctx.assigned.length > 0) database.committed(namespace.id, ctx.scopeId());
+      const readied = ctx.readied.queues();
+      if (!readOnly && (readied === undefined || readied.length > 0)) {
+        database.readied(namespace.id, readied);
+      }
     } finally {
       // Settled: work of the unit that is still running (a consumer raced against a deadline) can
       // no longer read or change what the unit saw or committed.
