@@ -1,5 +1,4 @@
 import type { InvocationSession, Outcome } from '@keelwerk/core';
-import { coreError } from '@keelwerk/core/http';
 import { type LoggedLine, recordingLogger } from '@keelwerk/testing';
 import { describe, expect, test, vi } from 'vitest';
 import { drained } from './support/drained.ts';
@@ -15,22 +14,6 @@ const waitMs = 30_000;
 const { start } = pinnedTime();
 
 describe('the host ends a mounted stream at the edges', () => {
-  test('a session already expired when the stream opens ends it at once, before any wait elapses', async () => {
-    const { open, ended, record } = mounted(
-      setup,
-      fakeSession({
-        expiresAt: start.subtract({ milliseconds: 1 }),
-        revalidate: async () => ({ ok: false, error: coreError('core.unauthenticated') }),
-      }),
-      { maxDurationMs: 86_400_000 },
-    );
-    const body = drained(await open());
-    await body;
-    expect(ended()).toHaveLength(1);
-    expect(ended()[0]).toMatchObject({ fields: { reason: 'core.unauthenticated' } });
-    await vi.waitFor(() => expect(record.cancelled).toBe(1), { timeout: waitMs });
-  }, 120_000);
-
   test('a renewal that never answers ends the stream at its expiry', async () => {
     let calls = 0;
     const session: InvocationSession = fakeSession({

@@ -86,10 +86,12 @@ describe('the host ends a mounted stream', () => {
         return { ok: true, value: session };
       },
     });
-    const { open, move, ended } = mounted(setup, session, {
-      maxDurationMs: 86_400_000,
-      revalidateMs: 3_600_000,
-    });
+    // The stream that follows is of a session without an expiry: the slot of the first is free again.
+    const { open, move, ended } = mounted(
+      setup,
+      (opened) => (opened === 0 ? session : fakeSession()),
+      { maxDurationMs: 86_400_000, revalidateMs: 3_600_000 },
+    );
     const body = drained(await open());
     await move(8_999);
     expect(calls).toBe(0);

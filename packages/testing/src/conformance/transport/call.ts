@@ -6,8 +6,6 @@ export interface Caller {
   readonly subject?: string | null;
   /** The roles of the signed-in subject. */
   readonly roles?: readonly string[];
-  /** The claims of the signed-in subject; `operator: true` makes it an operator, which the transport runtime allows. */
-  readonly claims?: Readonly<Record<string, unknown>>;
   /** When the test principal's session expires, an ISO instant; absent: never. */
   readonly expiresAt?: string;
   /** The raw value of the test session cookie (`__Host-kw-test`), as a browser sends it. */

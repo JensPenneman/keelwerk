@@ -1,27 +1,47 @@
 import { liveTimersOf, unknownClientAddress } from '@keelwerk/core';
-import { asKeelwerkError } from '@keelwerk/core/http';
+import { asKeelwerkError, coreError } from '@keelwerk/core/http';
 import type { EndpointCall } from './endpoint-call.ts';
 import { errorResponse } from './error-response.ts';
+import { isEventStreamResponse } from './is-event-stream-response.ts';
 import { keepStreamSession } from './keep-stream-session.ts';
 
 /**
  * Runs `respond` holding one stream slot of the caller (`host.limits.take`, 15.4.10): past a bound
- * the answer is `429 core.quota_exceeded` and `respond` is not called. `respond` gets the signal the
- * route stops on: it aborts when the client leaves and when the host ends the stream. A response with
- * a body is ended by the host, cleanly for the client (the body closes after what was already
- * enqueued; it never errors), at the first of: `host.live.maxDurationMs` after the response arrived
- * (reason `max_duration`); the host's stop (`host.streams`, reason `going_away`); a session check
- * (`keepStreamSession` every `host.liveSocket.revalidateMs` and at `expiresAt`) that fails (reason: the
- * error's code). Ending aborts the signal, cancels the route's body without awaiting it, and logs one
- * `info` line 'stream ended by the host' with `reason`. The slot is released once: when the body
- * ends, errors or is cancelled, when the request aborts, when `respond` throws, when the host ends the
- * stream, or at once for a response without a body; every wait and the `host.streams` entry go with it.
+ * the answer is `429 core.quota_exceeded` and `respond` is not called. A session that has expired
+ * already (`expiresAt` at or before the clock's now) is answered `401 core.unauthenticated` ('The
+ * session expired.') before the slot is taken: `respond` is not called and nothing is logged.
+ * `respond` gets the signal the route stops on: it aborts when the client leaves and when the host
+ * ends the stream. A response with a body is ended by the host, cleanly for the client (the body
+ * closes after what was already enqueued; it never errors), at the first of: `host.live.maxDurationMs`
+ * after the response arrived (reason `max_duration`); a session check (`keepStreamSession` every
+ * `host.liveSocket.revalidateMs` and at `expiresAt`) that fails (reason: the error's code); the first
+ * chunk that comes after the expiry of the session the stream holds, which is dropped, however late
+ * the timer of the expiry runs (reason `core.unauthenticated`); and, for an event stream only
+ * (`content-type` media type `text/event-stream`), the host's stop (`host.streams`, reason
+ * `going_away`), also one that began while `respond` ran. Any other counted body (a JSON-lines batch
+ * that may carry a command that has committed) stays in `host.streams` so that stop does not wait on
+ * it and drains until the deadline, where the listener closes the connection. Ending aborts the
+ * signal, cancels the route's body without awaiting it, and logs one `info` line 'stream ended by
+ * the host' with `reason`. The slot is released once: when the body ends, errors or is cancelled,
+ * when the request aborts, when `respond` throws, when the host ends the stream, or at once for a
+ * response without a body; every wait and the `host.streams` entry go with it.
  */
 export async function withStreamSlot(
   call: EndpointCall,
   respond: (signal: AbortSignal) => Promise<Response>,
 ): Promise<Response> {
   const { host, state, session, carrier, request } = call;
+  const clock = host.deps.clock ?? { now: () => Temporal.Now.instant() };
+  if (
+    session.expiresAt !== undefined &&
+    Temporal.Instant.compare(session.expiresAt, clock.now()) <= 0
+  ) {
+    return errorResponse(
+      host,
+      state,
+      coreError('core.unauthenticated', { message: 'The session expired.' }),
+    );
+  }
   let give: () => void;
   try {
     give = host.limits.take(session, carrier.connection?.remote.address ?? unknownClientAddress);
@@ -30,18 +50,20 @@ export async function withStreamSlot(
   }
   const ending = new AbortController();
   const signal = AbortSignal.any([request.signal, ending.signal]);
-  const clock = host.deps.clock ?? { now: () => Temporal.Now.instant() };
   const timers = host.deps.timers ?? liveTimersOf(clock);
   const log = host.deps.log.child({ requestId: state.requestId });
+  // Only an event stream ends at the host's stop; the entry of any other counted body is a no-op.
+  let eventStream = false;
   const entry = {
     goAway: async (): Promise<void> => {
-      end('going_away');
+      if (eventStream) end('going_away');
     },
   };
   let released = false;
   let finished = false;
   let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let held: ReturnType<typeof keepStreamSession> | undefined;
   const release = (): void => {
     if (released) return;
     released = true;
@@ -102,9 +124,15 @@ export async function withStreamSlot(
           finished = true;
           release();
           opened.close();
-        } else {
-          opened.enqueue(chunk.value);
+          return;
         }
+        // Nothing passes after the expiry, however late the timer of the expiry runs.
+        const expiresAt = held?.expiresAt();
+        if (expiresAt !== undefined && Temporal.Instant.compare(expiresAt, clock.now()) <= 0) {
+          end('core.unauthenticated');
+          return;
+        }
+        opened.enqueue(chunk.value);
       } catch (failure) {
         if (finished) return;
         finished = true;
@@ -118,10 +146,11 @@ export async function withStreamSlot(
       await inner.cancel(reason);
     },
   });
+  eventStream = isEventStreamResponse(response);
   host.streams.add(entry);
   // A stop that began while `respond` ran has already taken its list of streams.
-  if (host.lifecycle.stopping) end('going_away');
-  keepStreamSession({
+  if (host.lifecycle.stopping && eventStream) end('going_away');
+  held = keepStreamSession({
     session,
     revalidateMs: host.liveSocket.revalidateMs,
     clock,

@@ -25,7 +25,10 @@ const later = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
 const expiredError = (): KeelwerkError =>
   coreError('core.unauthenticated', { message: 'The session expired.' });
 
-/** Whether a renewal holds the credentials the checked session held: same kind, same stored reference, same scope. */
+/**
+ * Whether a renewal holds the credentials the checked session held: same kind, same subject, same
+ * stored reference, same scope.
+ */
 function holdsSameCredentials(held: InvocationSession, renewed: InvocationSession): boolean {
   const [a, b] = [held.principal, renewed.principal];
   if (a.kind !== b.kind) return false;
@@ -55,7 +58,9 @@ function holdsSameCredentials(held: InvocationSession, renewed: InvocationSessio
  * nothing continues the stream past `expiresAt` except a renewal answered before it with a strictly
  * later `expiresAt` (or none). A session already expired when the function is called ends at once.
  * The first wait is registered before the function returns; aborting `signal` ends every wait and
- * returns the loop at once, also from a check that never answers.
+ * returns the loop at once, also from a check that never answers. It returns the `expiresAt` of the
+ * session the stream holds now (the latest renewal accepted), so a caller can refuse a chunk that
+ * comes after it before the timer of the expiry has run.
  */
 export function keepStreamSession(input: {
   readonly session: InvocationSession;
@@ -64,8 +69,9 @@ export function keepStreamSession(input: {
   readonly timers: LiveTimers;
   readonly signal: AbortSignal;
   readonly end: (error: KeelwerkError) => void;
-}): void {
+}): { readonly expiresAt: () => Temporal.Instant | undefined } {
   const { clock, timers, signal } = input;
+  let held = input.session;
   const isPast = (instant: Temporal.Instant | undefined): boolean =>
     instant !== undefined && Temporal.Instant.compare(instant, clock.now()) <= 0;
   // The check races its own ends: the expiry, the bound of one interval and the abort of the stream.
@@ -101,7 +107,7 @@ export function keepStreamSession(input: {
     }
   };
   void (async () => {
-    let session = input.session;
+    let session = held;
     // The caller resolved the session just before, which is as good as a check.
     let previous = clock.now();
     while (!signal.aborted) {
@@ -132,7 +138,8 @@ export function keepStreamSession(input: {
       previous = clock.now();
       const outcome = await checked(session, previous);
       if (signal.aborted) return;
-      // An answer seen at or after the expiry never continues the stream, even when its timer has not fired yet.
+      // An answer seen at or after the expiry never continues the stream, even when the timer of the
+      // expiry has not fired yet.
       if (isPast(expiresAt)) {
         input.end(expiredError());
         return;
@@ -150,6 +157,8 @@ export function keepStreamSession(input: {
         return;
       }
       session = outcome.value;
+      held = session;
     }
   })();
+  return { expiresAt: () => held.expiresAt };
 }

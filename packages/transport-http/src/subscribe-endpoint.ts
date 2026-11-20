@@ -26,10 +26,13 @@ const protocolVersion = 1;
  * decoded like any input; the open streams of the principal, the tenant and the process are within
  * their bounds; the invoker subscribes (it translates each item once for this version); the frames are
  * wire encoded; the carrier serves them on a connection the host owns. The stream ends `going_away` at
- * stop. When its session no longer holds (`keepStreamSession`: a failed check, an expiry, credentials
- * that changed) it ends with an `error` event that carries the check's own error code
- * (`core.unauthenticated` for an expiry), or with `end` `version_retired` for a retired version. A
- * failure of the setup after the subscription started is an `error` event, not a status.
+ * stop. When its session no longer holds (`keepStreamSession`) it ends with an `error` event that
+ * carries the cause: the check's own error code, `core.unauthenticated` at `expiresAt` and for a
+ * renewal that holds other credentials than the stream opened with, `core.unavailable` for a check
+ * that does not answer within one revalidation interval; or with `end` `version_retired` for a
+ * retired version. A session that is already expired when the stream opens gets that one `error`
+ * event too (the stream is set up first), unlike a mounted route, which answers `401`. A failure of
+ * the setup after the subscription started is an `error` event, not a status.
  */
 export async function subscribeEndpoint(call: EndpointCall): Promise<Response> {
   const { host, state, session, carrier, request } = call;

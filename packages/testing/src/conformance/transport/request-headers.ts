@@ -11,7 +11,7 @@ export function requestHeaders(caller: Caller): Headers {
       JSON.stringify({
         subject: caller.subject,
         roles: caller.roles ?? [],
-        claims: caller.claims ?? {},
+        claims: {},
         ...(caller.expiresAt === undefined ? {} : { expiresAt: caller.expiresAt }),
       }),
     );

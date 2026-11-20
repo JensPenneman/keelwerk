@@ -1,7 +1,6 @@
 import type { LiveServerMessage } from '@keelwerk/core';
 import { expect, test, vi } from 'vitest';
 import type { Caller } from './call.ts';
-import { closeLoansOf } from './close-loans-of.ts';
 import type { EventStreamReader } from './event-stream-reader.ts';
 import { freshName } from './fresh-name.ts';
 import { lendTitles } from './lend-titles.ts';
@@ -275,6 +274,8 @@ export function liveSocketCases(target: TransportTarget): void {
     },
   );
 
+  // Lends its titles once per deployment, in the second tenant (the SSE case lends in the first);
+  // every runner boots its own deployment, so a second run on one deployment fails at once on the lend.
   test.skipIf(skip || Object.keys(target.tenants).length < 2)(
     'over a socket too, an item whose event has its own member control stays an item for every subscriber',
     async () => {
@@ -307,7 +308,6 @@ export function liveSocketCases(target: TransportTarget): void {
         }
       } finally {
         await Promise.all(sockets.map((socket) => socket.close()));
-        await closeLoansOf(target, adaName, tenant);
       }
     },
     120_000,

@@ -1,6 +1,5 @@
 import { expect, test } from 'vitest';
 import type { Caller } from './call.ts';
-import { closeLoansOf } from './close-loans-of.ts';
 import { freshName } from './fresh-name.ts';
 import { lendCall } from './lend-call.ts';
 import { lendTitles } from './lend-titles.ts';
@@ -188,6 +187,8 @@ export function subscriptionCases(target: TransportTarget): void {
     },
   );
 
+  // Lends its titles once per deployment, in the first tenant (the socket case lends in the second);
+  // every runner boots its own deployment, so a second run on one deployment fails at once on the lend.
   test.skipIf(skip)(
     'an item whose event has its own member control is an item for every subscriber: nobody resets and no stream ends',
     async () => {
@@ -217,7 +218,6 @@ export function subscriptionCases(target: TransportTarget): void {
         }
       } finally {
         await Promise.all([ada.close(), bob.close()]);
-        await closeLoansOf(target, adaName, tenant);
       }
     },
     120_000,

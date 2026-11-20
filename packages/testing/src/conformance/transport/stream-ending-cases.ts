@@ -14,6 +14,7 @@ interface Context {
 }
 
 const waitMs = 30_000;
+const settleMs = 10_000;
 const day = 86_400_000;
 const hour = 3_600_000;
 
@@ -25,10 +26,11 @@ const isItem = (frame: StreamFrame): boolean => frame.event === 'data';
  * on real time and none shares a host: a revoked session within one revalidation interval (a key,
  * and a cookie session that its resolver answers as anonymous), an expired session, the maximum
  * duration, the host's stop. Each case subscribes to `loans.loanTitles` through `codec.subscribe`
- * (skipped without one), as an auditor who reads every loan of the tenant, and proves that the
- * stream ended, that a title lent only after the ending is seen reaches the other subscriber (the
- * positive control) and the ended stream not at all, and that the slot is free again (`maxStreams`
- * 2: a third stream is 429 before the ending and 200 after it).
+ * (skipped without one), as an auditor who reads every loan of the tenant (the cookie case in the
+ * role form of the test cookie, `user+auditor:<subject>`), and proves that the stream ended, that a
+ * title lent only after the ending is seen reaches the other subscriber (the positive control) and
+ * the ended stream not at all, and that the slot is free again (`maxStreams` 2: a third stream is
+ * 429 before the ending and 200 after it).
  */
 export function streamEndingCases(
   codec: TransportCodec,
@@ -106,7 +108,25 @@ export function streamEndingCases(
     return status;
   };
 
-  /** The common proof of one ending: ada's stream ended with no item, bob's still serves, the slot is free. */
+  /**
+   * Whether the slot of the ended stream is free again within `settleMs` of real time. The host
+   * releases the slot as it closes the body, so a free slot is the sign that the ending is enacted;
+   * a probe stream that is admitted is closed at once.
+   */
+  const slotFreed = async (ctx: Context): Promise<boolean> => {
+    const deadline = Date.now() + settleMs;
+    while (Date.now() < deadline) {
+      if ((await slotStatus(ctx, freshName('probe'))) === 200) return true;
+      await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    }
+    return false;
+  };
+
+  /**
+   * The common proof of one ending: the slot of ada's stream is free, so the ending is enacted; only
+   * then a title is lent, which must reach bob and never ada (an auditor, entitled to it). A stream
+   * that did not end shows itself by that item, and the case fails on it, not on a read timeout.
+   */
   const proveEnded = async (
     run: StreamEndingRun,
     ctx: Context,
@@ -114,11 +134,11 @@ export function streamEndingCases(
     bob: EventStreamReader,
     bobSubject: string,
   ): Promise<void> => {
-    const ending = await drainedToItem(ada);
-    expect(ending.filter(isItem)).toEqual([]);
-    // Only now, with the ending seen, a title is lent: it must reach bob and never ada.
+    await slotFreed(ctx);
     const title = freshName('Dune');
     await lendTitles(run.target, bobSubject, { subject: bobSubject, roles: ['auditor'] }, [title]);
+    const ending = await drainedToItem(ada);
+    expect(ending.filter(isItem)).toEqual([]);
     const served = await bob.until(isItem, waitMs);
     expect(served.at(-1)).toMatchObject({ event: 'data', data: { control: title } });
     expect(await ada.next(waitMs)).toBeUndefined();
@@ -155,7 +175,7 @@ export function streamEndingCases(
             const ada = freshName('ada');
             const bob = freshName('bob');
             const adaStream = await headed(ctx, {
-              cookie: `user:${ada}`,
+              cookie: `user+auditor:${ada}`,
               fetchSite: 'same-origin',
             });
             const bobStream = await headed(ctx, { subject: bob });
