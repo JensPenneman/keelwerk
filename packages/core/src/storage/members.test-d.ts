@@ -11,6 +11,7 @@ import type { EventStore } from '../events/event-store.ts';
 import type { FlagRead } from '../events/flag-read.ts';
 import type { MergeReport } from '../events/merge-report.ts';
 import type { NewEvent } from '../events/new-event.ts';
+import type { PrepareRecord } from '../events/prepare-record.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
 import type { StreamAppend } from '../events/stream-append.ts';
 import type { StreamRef } from '../events/stream-ref.ts';
@@ -181,6 +182,7 @@ type Interfaces =
   | PerformRequest
   | PersonalParams
   | PlacementConfig
+  | PrepareRecord
   | PrincipalBase
   | PrincipalRef
   | QueryDescription

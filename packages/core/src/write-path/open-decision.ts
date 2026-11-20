@@ -10,6 +10,7 @@ import { driveHandler } from '../interpreter/drive-handler.ts';
 import type { RequestAuthorities } from '../interpreter/request-authorities.ts';
 import type { AnswerContext } from '../kernel/answer-context.ts';
 import type { Clock } from '../kernel/clock.ts';
+import type { AnyRequest } from '../protocol/any-request.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 import type { Unit } from '../storage/unit.ts';
 import { buildDecideContext } from './build-decide-context.ts';
@@ -24,6 +25,13 @@ export interface OpenDecisionInput {
   /** The invocation's clock: one instant for the whole command. */
   readonly clock: Clock;
   readonly prepared?: unknown;
+  /**
+   * Prepare only (7.9.4 phase 2): opens the read-only unit one top-level request is answered in, so each
+   * load has its own unit and none is open while a `perform` runs; `unit` is then `closedUnit`, which a
+   * top-level `perform` receives. A `perform` nested in `all` or in a Maybe body is refused with
+   * `refuseEffectInUnit`. Absent: every request is answered in `unit`.
+   */
+  readonly openUnit?: <T>(fn: (unit: Unit) => Promise<T>) => Promise<T>;
   readonly target?: {
     readonly entry: EntityEntry;
     readonly row: Readonly<Record<string, unknown>>;
@@ -89,31 +97,45 @@ export function openDecision(input: OpenDecisionInput): OpenedDecision {
       ...(input.form === 'decide' ? { perform: refuseEffectInUnit } : {}),
     },
   });
-  const context: AnswerContext = {
-    registry,
-    unit,
-    scope: run.scope,
-    principal: run.principal,
-    module: authority,
-    form: input.form,
-    clock: input.clock,
-    keys: run.keys,
-    compute: run.compute,
-    log: run.log,
-    flags,
-    flagSnapshot: run.flags,
-    answer: (request) => dispatchRequest(answerer, request, context),
-    record: {
-      read: (read) => {
-        reads.push(read);
+  const contextOf = (unit: Unit, refusePerform: boolean): AnswerContext => {
+    const context: AnswerContext = {
+      registry,
+      unit,
+      scope: run.scope,
+      principal: run.principal,
+      module: authority,
+      form: input.form,
+      clock: input.clock,
+      keys: run.keys,
+      compute: run.compute,
+      log: run.log,
+      flags,
+      flagSnapshot: run.flags,
+      answer: (request) =>
+        refusePerform && request.kind === 'perform'
+          ? refuseEffectInUnit()
+          : dispatchRequest(answerer, request, context),
+      record: {
+        read: (read) => {
+          reads.push(read);
+        },
+        answer: (answer) => {
+          answers.push(answer);
+        },
+        flag: (read) => {
+          flags.set(read.key, read);
+        },
       },
-      answer: (answer) => {
-        answers.push(answer);
-      },
-      flag: (read) => {
-        flags.set(read.key, read);
-      },
-    },
+    };
+    return context;
+  };
+  const { openUnit } = input;
+  const context = contextOf(unit, false);
+  // With `openUnit`, a top-level request is answered in a unit of its own, and a `perform` in none.
+  const answerTopLevel = (request: AnyRequest): Promise<unknown> => {
+    if (openUnit === undefined) return context.answer(request);
+    if (request.kind === 'perform') return context.answer(request);
+    return openUnit((opened) => contextOf(opened, true).answer(request));
   };
   const ctx = buildDecideContext({
     base: contexts.forModule(authority),
@@ -130,5 +152,5 @@ export function openDecision(input: OpenDecisionInput): OpenedDecision {
       return value;
     },
   });
-  return { ctx, reads, answers, flags, drive: (result) => driveHandler(result, context.answer) };
+  return { ctx, reads, answers, flags, drive: (result) => driveHandler(result, answerTopLevel) };
 }

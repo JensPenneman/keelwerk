@@ -8,6 +8,11 @@ export interface EncodedDecisionRecord {
   readonly reads: readonly { readonly scope?: 'backend'; readonly at: string }[];
   readonly answers: DecisionRecord['answers'];
   readonly effects: readonly string[];
+  readonly prepare?: {
+    readonly reads: readonly { readonly scope?: 'backend'; readonly at: string }[];
+    readonly answers: DecisionRecord['answers'];
+    readonly effects: readonly string[];
+  };
 }
 
 /**
@@ -33,5 +38,17 @@ export function encodeDecisionRecord(record: DecisionRecord): EncodedDecisionRec
     })),
     answers: record.answers,
     effects: record.effects,
+    ...(record.prepare === undefined
+      ? {}
+      : {
+          prepare: {
+            reads: record.prepare.reads.map((read) => ({
+              ...(read.scope === undefined ? {} : { scope: read.scope }),
+              at: read.at.toString(),
+            })),
+            answers: record.prepare.answers,
+            effects: record.prepare.effects,
+          },
+        }),
   };
 }

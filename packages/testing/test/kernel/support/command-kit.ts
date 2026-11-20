@@ -145,6 +145,8 @@ export function runDirect(over: {
   readonly principal?: Principal;
   readonly behaviours?: EntityBehaviours;
   readonly signal?: AbortSignal;
+  /** The instant of the run; default: the fixed fixture instant. */
+  readonly clock?: Clock;
   readonly concurrentUnits?: boolean;
   /** Default: `deriveOnlyKeys`. */
   readonly keys?: KeyService;
@@ -161,7 +163,7 @@ export function runDirect(over: {
     input: over.input,
     principal: over.principal ?? userOf('ada'),
     request: { transport: 'test', requestId: 'req-1' },
-    clock,
+    clock: over.clock ?? clock,
     keys: over.keys ?? deriveOnlyKeys,
     compute: {} as never,
     log: silent,

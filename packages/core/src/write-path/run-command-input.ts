@@ -1,5 +1,6 @@
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import type { HybridClock } from '../clock/hybrid-clock.ts';
+import type { EgressPolicy } from '../executors/egress-policy.ts';
 import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import type { JobCarrier } from '../invoker/job-carrier.ts';
 import type { RequestInfo } from '../invoker/request-info.ts';
@@ -99,6 +100,8 @@ export interface RunCommandInput {
   readonly concurrentUnits?: boolean;
   /** The namespace of another scope's data, for a backend read; default: `namespace`. */
   readonly namespaceOf?: (scope: StorageScope) => NamespaceRef;
+  /** The outbound policy of the inline executors (12.3); absent: no special-purpose address is allowlisted. */
+  readonly egress?: EgressPolicy;
   /** A module's configuration (section 3.4); default: none. */
   readonly config?: (module: string) => unknown;
   /** Replaces the answerer of a kind (the seam of later packages). */

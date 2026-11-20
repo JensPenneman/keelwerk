@@ -3,6 +3,7 @@ import type { Job } from '../jobs/job.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Span } from '../observability/span.ts';
 import type { RunJobContext } from '../worker/run-job.ts';
+import { abortRace } from './abort-race.ts';
 import { attemptEnded } from './attempt-ended.ts';
 import { attemptErrorOf } from './attempt-error-of.ts';
 import { declaredErrorCodesOf } from './declared-error-codes-of.ts';
@@ -12,24 +13,6 @@ import type { AttemptResult } from './end-effect-attempt.ts';
 import { executorContextOf } from './executor-context-of.ts';
 import { executorEgress } from './executor-egress.ts';
 import { executorSecrets } from './executor-secrets.ts';
-
-/** A promise that rejects with the signal's reason when it aborts, and a way to stop listening. */
-function abortion(signal: AbortSignal): { readonly promise: Promise<never>; stop(): void } {
-  let stop = (): void => undefined;
-  const promise = new Promise<never>((_resolve, reject) => {
-    const onAbort = (): void => {
-      reject(signal.reason);
-    };
-    if (signal.aborted) onAbort();
-    signal.addEventListener('abort', onAbort, { once: true });
-    stop = () => {
-      signal.removeEventListener('abort', onAbort);
-    };
-  });
-  // Nobody awaits it when the executor wins the race.
-  promise.catch(() => undefined);
-  return { promise, stop };
-}
 
 /**
  * Runs the executor of one attempt outside any unit (7.9.5): with the context of `executorContextOf`
@@ -61,7 +44,7 @@ export async function performExecutor(
   }
   if (job.signal.aborted) return { ok: false, error: job.signal.reason };
   const { source } = context;
-  const abort = abortion(job.signal);
+  const abort = abortRace(job.signal);
   const ended = new AbortController();
   const signal = AbortSignal.any([job.signal, ended.signal]);
   let answer: unknown;

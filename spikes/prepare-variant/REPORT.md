@@ -201,7 +201,8 @@ M3 repeats the comparison on Trail's own code (register entry 150); the spike's 
 1. Section 7.9.4, phase 2 ("snapshots, never open while an inline effect runs"): WP-38's `runPrepare`
    deviates. It holds one read-only unit for all of `prepare`, so in both forms an effect runs with a
    unit open (a test measures one open unit at the effect). WP-41 must open one read-only unit per load
-   and keep none open across a `perform`.
+   and keep none open across a `perform`. WP-104 closed this gap: `runPrepare` opens one read-only unit per
+   load and none across a perform, and `github-connect.test.ts` now measures no open unit at the effect.
 2. Sections 7.9.6 and 15.1.3: `DecisionRecord.effects` is documented as listing inline effect ids and is
    always empty in M1; `prepare`'s reads are discarded. Needed before replay is complete in either form.
 3. Section 7.9.5: effect outputs that carry secrets (the token above) have no sealing rule; inputs do.

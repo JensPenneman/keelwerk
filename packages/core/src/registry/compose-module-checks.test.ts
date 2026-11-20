@@ -23,6 +23,22 @@ import { shape } from '../fields/shape.ts';
 import type { AnyModule } from '../model/any-module.ts';
 import { buildRegistry } from './build-registry.ts';
 
+/** An app whose only effect has an inline executor with `timeout`. */
+function inlineWithTimeout(timeout: string): ReturnType<typeof appOf> {
+  const effect = defineEffect(shopBase as never, { input: shape({}) } as never);
+  const executor = defineEffectExecutor(
+    shopBase as never,
+    effect as never,
+    { inline: true, timeout, run: async () => ({}) } as never,
+  );
+  return appOf([
+    makeModule(
+      { id: 'shop', entities: { widget } },
+      { effects: { post: effect }, executors: { post: executor } },
+    ),
+  ]);
+}
+
 const moduleLevel: readonly Case[] = [
   {
     name: 'a reference outside the requirements',
@@ -114,6 +130,18 @@ const moduleLevel: readonly Case[] = [
         ),
       ]);
     },
+  },
+  {
+    name: 'an inline executor over the 30s limit',
+    code: 'inlineExecutorTimeout',
+    ref: 'shop.post',
+    app: () => inlineWithTimeout('31s'),
+  },
+  {
+    name: 'an inline executor with a timeout that is no duration',
+    code: 'inlineExecutorTimeout',
+    ref: 'shop.post',
+    app: () => inlineWithTimeout('soon'),
   },
   {
     name: 'a shownOnce name its output does not have',
@@ -238,6 +266,11 @@ describe('the module-level checks, mirrored at compose (section 4.7)', () => {
     expect(
       problems.filter((problem) => problem.code === 'contributionsOutsideDependencies'),
     ).toEqual([]);
+  });
+
+  test('an inline executor with a timeout of exactly 30s is sound', () => {
+    const { problems } = buildRegistry(inlineWithTimeout('30s'));
+    expect(problems.filter((problem) => problem.code === 'inlineExecutorTimeout')).toEqual([]);
   });
 
   test('an executor mounted for its own effect is sound', () => {

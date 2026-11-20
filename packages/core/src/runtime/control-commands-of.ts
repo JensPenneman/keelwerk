@@ -24,6 +24,7 @@ export function controlCommandsOf(input: {
         deploymentId: connected.control.deploymentId,
         nodeId: connected.nodeId,
         hybridClock: connected.hybridClock,
+        ...(connected.egress === undefined ? {} : { egress: connected.egress }),
       }),
       controlPath,
     ),

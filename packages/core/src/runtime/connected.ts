@@ -1,6 +1,7 @@
 import type { HybridClock } from '../clock/hybrid-clock.ts';
 import type { ControlStore } from '../control/control-store.ts';
 import type { BuildIdentity } from '../events/build-identity.ts';
+import type { EgressPolicy } from '../executors/egress-policy.ts';
 import type { PlacementHandle } from '../invoker/placement-handle.ts';
 import type { ScopeLookup } from '../invoker/scope-lookup.ts';
 import type { ComputePool } from '../kernel/compute-pool.ts';
@@ -30,6 +31,8 @@ export interface Connected {
   /** The row id of this process in `core.process`. */
   readonly processId: string;
   readonly log: Logger;
+  /** The outbound policy of this process's executors, inline ones included (`RuntimeOptions.work.egress`, 12.3). */
+  readonly egress?: EgressPolicy;
   /** Aborts when the process stops: the adapters' environment signal. */
   readonly signal: AbortSignal;
   /** Called once the key service exists, so the wrapper handed to the adapters can reach it. */

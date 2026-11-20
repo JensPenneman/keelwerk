@@ -1,4 +1,5 @@
 import type { SealedValue } from '../storage/sealed-value.ts';
+import type { PrepareRecord } from './prepare-record.ts';
 import type { RecordedAnswer } from './recorded-answer.ts';
 import type { RecordedRead } from './recorded-read.ts';
 
@@ -14,6 +15,8 @@ export interface DecisionRecord {
   readonly reads: readonly RecordedRead[];
   /** Ids, random values, issued secrets' public parts. */
   readonly answers: readonly RecordedAnswer[];
-  /** Requested effect ids, inline ones included. */
+  /** Requested deferred effect ids; the inline ones `prepare` performed are in `prepare.effects`. */
   readonly effects: readonly string[];
+  /** What `prepare` read, was answered and performed; absent for a command without `prepare` (S-126). */
+  readonly prepare?: PrepareRecord;
 }

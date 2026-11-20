@@ -10,6 +10,7 @@ import type { Invoker } from '../invoker/invoker.ts';
 import type { InvokerEnv } from '../invoker/invoker-env.ts';
 import { createInvokerEnv } from '../invoker/invoker-env.ts';
 import { mapUnknownError } from '../invoker/map-unknown-error.ts';
+import { moduleConfigOf } from '../invoker/module-config-of.ts';
 import type { Outcome } from '../invoker/outcome.ts';
 import { authorize } from '../invoker/stages/authorize.ts';
 import { locate } from '../invoker/stages/locate.ts';
@@ -171,6 +172,7 @@ export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker 
             apiVersion: session.apiVersion,
             build: options.build ?? { id: 'development', revision: 1 },
             behaviours: registryBehaviours(registry),
+            config: moduleConfigOf(app.configShapes, explained.backendConfig),
             hybridClock: env.hybridClock,
             signal,
             namespaceOf: (scope) =>

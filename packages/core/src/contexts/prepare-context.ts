@@ -6,8 +6,8 @@ import type { PerformRequest } from '../protocol/perform-request.ts';
 import type { DecideContext } from './decide-context.ts';
 
 /**
- * The context of `prepare`: the decide context plus inline effects (section 7.9.4). Typed in M1;
- * the M1 runtime runs `prepare` with loads only and fails a `perform` request (S-05).
+ * The context of `prepare`: the decide context plus inline effects (section 7.9.4): each
+ * `ctx.perform` runs the effect's inline executor outside any unit and answers its outcome.
  */
 export interface PrepareContext<
   B extends AnyModuleBase,

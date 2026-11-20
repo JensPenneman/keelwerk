@@ -2,15 +2,17 @@
 import { defineModule, type ModuleType } from '@keelwerk/core';
 import { recordOutcome } from './actions/delivery/record-outcome.ts';
 import { notify } from './actions/notify.ts';
+import { testEndpoint } from './actions/test-endpoint.ts';
 import { hooksBase } from './base.ts';
 import { post as postEffect } from './effects/post.ts';
 import { post as postExecutor } from './executors/post.ts';
 import { signedIn } from './policies/notify/signed-in.ts';
+import { operator } from './policies/test-endpoint/operator.ts';
 
 const hooksDef = defineModule(hooksBase, {
-  actions: { notify },
+  actions: { notify, testEndpoint },
   entityActions: { delivery: { recordOutcome } },
-  policies: { notify: { signedIn } },
+  policies: { notify: { signedIn }, testEndpoint: { operator } },
   effects: { post: postEffect },
   executors: { post: postExecutor },
 });

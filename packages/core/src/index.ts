@@ -425,6 +425,7 @@ export type { FlagRead } from './events/flag-read.ts';
 export type { Hlc } from './events/hlc.ts';
 export type { MergeReport } from './events/merge-report.ts';
 export type { NewEvent } from './events/new-event.ts';
+export type { PrepareRecord } from './events/prepare-record.ts';
 export type { RecordedAnswer } from './events/recorded-answer.ts';
 export type { RecordedRead } from './events/recorded-read.ts';
 export type { StateToken } from './events/state-token.ts';

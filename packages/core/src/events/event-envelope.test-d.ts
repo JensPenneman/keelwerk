@@ -67,7 +67,7 @@ test('the type and data of an envelope are parameters, a stored event is open', 
 
 test('the decision record keeps reads, answers and effects in order', () => {
   expectTypeOf<keyof DecisionRecord>().toEqualTypeOf<
-    'part' | 'inputDigest' | 'input' | 'reads' | 'answers' | 'effects'
+    'part' | 'inputDigest' | 'input' | 'reads' | 'answers' | 'effects' | 'prepare'
   >();
   expectTypeOf<DecisionRecord['reads'][number]['at']>().toEqualTypeOf<bigint>();
 });

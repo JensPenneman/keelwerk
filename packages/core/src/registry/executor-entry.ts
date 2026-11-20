@@ -13,7 +13,7 @@ export interface ExecutorEntry {
   readonly capability: readonly string[];
   /** A capability computed from the configuration and the input. */
   capabilityOf?(context: { readonly config: unknown; readonly input: unknown }): readonly string[];
-  /** Runs in the caller's unit instead of a queue. */
+  /** May run in `prepare` through `ctx.perform`, outside any unit; never with a capability. */
   readonly inline: boolean;
   /** A duration such as '30s'. */
   readonly timeout?: string;

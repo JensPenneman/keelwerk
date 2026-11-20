@@ -1,5 +1,6 @@
 import type { SealedValue } from '../storage/sealed-value.ts';
 import type { DecisionRecord } from './decision-record.ts';
+import type { PrepareRecord } from './prepare-record.ts';
 import type { RecordedAnswer } from './recorded-answer.ts';
 import type { RecordedRead } from './recorded-read.ts';
 
@@ -14,8 +15,10 @@ export interface DecisionRecordInput {
   /** Loads in yield order: the target's first, then the handler's. */
   readonly reads: readonly RecordedRead[];
   readonly answers: readonly RecordedAnswer[];
-  /** Requested effect ids, inline ones included, in request order. */
+  /** Requested deferred effect ids, in request order. */
   readonly effects: readonly string[];
+  /** What `prepare` recorded; absent for a command without `prepare`. */
+  readonly prepare?: PrepareRecord;
 }
 
 /**
@@ -34,5 +37,17 @@ export function buildDecisionRecord(input: DecisionRecordInput): DecisionRecord 
     })),
     answers: input.answers.map((answer) => ({ ...answer })),
     effects: [...input.effects],
+    ...(input.prepare === undefined
+      ? {}
+      : {
+          prepare: {
+            reads: input.prepare.reads.map((read) => ({
+              ...(read.scope === undefined ? {} : { scope: read.scope }),
+              at: read.at,
+            })),
+            answers: input.prepare.answers.map((answer) => ({ ...answer })),
+            effects: [...input.prepare.effects],
+          },
+        }),
   };
 }

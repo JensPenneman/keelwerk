@@ -1,14 +1,12 @@
 import { defineStream } from '../../dsl/define-stream.ts';
 import type { EffectAttemptError } from '../../effects/effect-attempt-error.ts';
+import { requestIdPattern } from '../../effects/request-id-pattern.ts';
 import { isErrorCode } from '../../errors/is-error-code.ts';
 import { isErrorKind } from '../../errors/is-error-kind.ts';
 import { field } from '../../fields/field.ts';
 import { shape } from '../../fields/shape.ts';
 import type { StandardSchemaV1 } from '../../fields/standard-schema-v1.ts';
 import type { CoreBase } from '../core-base-type.ts';
-
-/** A request id as the invoker mints it: a UUID in its canonical lower-case form. */
-const requestIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const members = new Set(['kind', 'code', 'retryable', 'retryAfter', 'requestId']);
 

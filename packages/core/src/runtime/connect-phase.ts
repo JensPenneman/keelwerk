@@ -298,6 +298,7 @@ export async function connectPhase(input: ConnectInput): Promise<Connected> {
       tracks,
       processId,
       log,
+      ...(input.options.work?.egress === undefined ? {} : { egress: input.options.work.egress }),
       signal: input.signal,
       adapters: opened,
       bindDirectory: (bound) => {

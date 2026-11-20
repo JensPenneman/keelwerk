@@ -24,6 +24,8 @@ export interface CommandRunnerOptions {
   readonly nodeId?: string;
   /** The process clock (section 14.5.3); default: one clock for this runner, with `nodeId`. */
   readonly hybridClock?: HybridClock;
+  /** The outbound policy of the inline executors (12.3); default: none allowlisted. */
+  readonly egress?: RunCommandInput['egress'];
   readonly retry?: RunCommandInput['retry'];
   readonly replace?: RunCommandInput['replace'];
 }
@@ -31,7 +33,9 @@ export interface CommandRunnerOptions {
 /**
  * The `CommandRunner` the invoker's execute stage calls for a command (`InvokerOptions.commands`):
  * it maps what the stage hands over to `runCommand`, or, for an asynchronous command (an `async`
- * one, or an `either` one the caller prefers to run asynchronously), to `acceptAsyncCommand`.
+ * one, or an `either` one the caller prefers to run asynchronously), to `acceptAsyncCommand`. A host that runs commands
+ * with `prepare` through it must enforce the action's `timeoutMs` through the run's `signal`, as the
+ * invoker's execute stage does with `withDeadline`: see `runCommand`.
  */
 export function createCommandRunner(options: CommandRunnerOptions): CommandRunner {
   const processClock = options.hybridClock ?? hybridClock(options.nodeId ?? defaultNodeId);
@@ -92,6 +96,7 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
       ...(run.namespaceOf === undefined ? {} : { namespaceOf: run.namespaceOf }),
       ...(run.quotaChecked === true ? { quotaChecked: true } : {}),
       hybridClock: processClock,
+      ...(options.egress === undefined ? {} : { egress: options.egress }),
       ...(options.retry === undefined ? {} : { retry: options.retry }),
       ...(options.replace === undefined ? {} : { replace: options.replace }),
     };

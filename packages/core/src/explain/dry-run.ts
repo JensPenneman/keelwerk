@@ -4,6 +4,7 @@ import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import { attemptCommand } from '../write-path/attempt-command.ts';
 import { commandDigests } from '../write-path/command-digests.ts';
+import type { PreparedRun } from '../write-path/prepared-run.ts';
 import type { RunCommandInput } from '../write-path/run-command-input.ts';
 import { runPrepare } from '../write-path/run-prepare.ts';
 import { withoutShownOnce } from '../write-path/without-shown-once.ts';
@@ -59,9 +60,15 @@ export async function dryRun(input: DryRunInput): Promise<DryRunReport> {
     clock,
     replace: { ...base.replace, perform: dryRunPerform(answers) },
   };
-  let prepared: unknown;
+  const digests = commandDigests({ ...run, fingerprintKey });
+  let preparedRun: PreparedRun | undefined;
   try {
-    prepared = action.prepare === undefined ? undefined : await runPrepare(run, base.input);
+    preparedRun = await runPrepare(run, base.input, {
+      commandId,
+      clock: base.clock,
+      fingerprint: digests.fingerprint,
+      legacyFingerprint: digests.legacyFingerprint,
+    });
   } catch (error) {
     if (!(error instanceof DryRunStop)) throw error;
     return {
@@ -71,7 +78,6 @@ export async function dryRun(input: DryRunInput): Promise<DryRunReport> {
       input: redactEffectInput(registry.effects.get(error.effect)?.input, error.effectInput),
     };
   }
-  const digests = commandDigests({ ...run, fingerprintKey });
   const batches: StreamAppend[] = [];
   const valueKeys = dryRunValueKeys();
   const held: { result?: CommandResult } = {};
@@ -81,7 +87,14 @@ export async function dryRun(input: DryRunInput): Promise<DryRunReport> {
       base.scope,
       async (unit) => {
         held.result = await attemptCommand(
-          { run, commandId, ...digests, clock, prepared },
+          {
+            run,
+            commandId,
+            ...digests,
+            clock,
+            prepared: preparedRun?.value,
+            ...(preparedRun === undefined ? {} : { preparedRun }),
+          },
           recordingUnit(
             unit,
             (batch) => {

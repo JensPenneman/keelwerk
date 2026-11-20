@@ -18,12 +18,15 @@ function carriesState(kind: string | undefined, input: unknown): boolean {
 
 /**
  * Runs a command below the pipeline (section 7.9.4, phases 2 to 7): `prepare` once outside any
- * unit, then the read-write unit of the scope, repeated up to three times on a version conflict,
+ * unit (a read-only unit per load, and inline effects in none), then the read-write unit of the scope, repeated up to three times on a version conflict,
  * a serialization failure or a deadlock. The unit's first statement inserts the pending receipt; a
  * retry with the same command id and input answers the recorded outcome (`replayed`), another
  * input is `core.idempotency_mismatch`, and a command still running is `core.command_in_progress`.
  * One instant, taken when execution begins, is the clock of every attempt. An abort of
- * `signal` (the action's timeout) rolls the unit back and rejects with its reason.
+ * `signal` (the action's timeout) rolls the unit back and rejects with its reason. A host that runs
+ * commands with `prepare` must enforce the action's `timeoutMs` through that signal, as the invoker's
+ * execute stage does with `withDeadline` (`invoker/stages/execute.ts`): the bound of `answerInlineRow`
+ * assumes that no run with `prepare` outlives `timeoutMs` plus `inlineGuardGraceMs`.
  */
 export async function runCommand(input: RunCommandInput): Promise<CommandResult> {
   const { action } = input;
@@ -58,13 +61,29 @@ export async function runCommand(input: RunCommandInput): Promise<CommandResult>
   };
   // Pure: the same two texts serve every retry of the unit, and no key is read or created.
   const digests = commandDigests({ ...run, fingerprintKey: secrets.fingerprintKey });
-  const prepared = action.prepare === undefined ? undefined : await runPrepare(run, input.input);
+  const preparedRun = await runPrepare(run, input.input, {
+    commandId,
+    clock: input.clock,
+    fingerprint: digests.fingerprint,
+    legacyFingerprint: digests.legacyFingerprint,
+  });
   return retryUnit(
     () =>
       input.adapter.unit(
         input.namespace,
         input.scope,
-        async (unit) => attemptCommand({ run, commandId, ...digests, clock, prepared }, unit),
+        async (unit) =>
+          attemptCommand(
+            {
+              run,
+              commandId,
+              ...digests,
+              clock,
+              prepared: preparedRun?.value,
+              ...(preparedRun === undefined ? {} : { preparedRun }),
+            },
+            unit,
+          ),
         {
           ...(input.signal === undefined ? {} : { signal: input.signal }),
           ...(carriesState(action.generated, input.input) ? { isolation: 'serializable' } : {}),

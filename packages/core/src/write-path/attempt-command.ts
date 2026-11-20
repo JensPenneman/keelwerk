@@ -6,7 +6,6 @@ import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { buildDecisionRecord } from '../events/build-decision-record.ts';
 import { buildEventMeta } from '../events/build-event-meta.ts';
 import type { EventMeta } from '../events/event-meta.ts';
-import type { RecordedAnswer } from '../events/recorded-answer.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
 import { sealDecisionInput } from '../events/seal-decision-input.ts';
 import { generatedEntity } from '../generated-actions/generated-entity.ts';
@@ -15,7 +14,6 @@ import { generatedSet } from '../generated-actions/generated-set.ts';
 import { setResultWithState } from '../generated-actions/set-result-with-state.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import type { Clock } from '../kernel/clock.ts';
-import { sealedValueText } from '../keys/sealed-value-text.ts';
 import { appendReactionProcessEvents } from '../reactions/append-reaction-process-events.ts';
 import { processDraftsOf } from '../reactions/process-drafts-of.ts';
 import { decodeRow } from '../repositories/decode-row.ts';
@@ -32,10 +30,12 @@ import { defaultNodeId } from './default-node-id.ts';
 import { draftsToEvents } from './drafts-to-events.ts';
 import { insertPendingReceipt } from './insert-pending-receipt.ts';
 import { loadTarget } from './load-target.ts';
+import { mergedFlagReads } from './merged-flag-reads.ts';
 import { nestedFingerprint } from './nested-fingerprint.ts';
 import { normalizeDecision } from './normalize-decision.ts';
 import { openDecision } from './open-decision.ts';
 import { openReactionJob } from './open-reaction-job.ts';
+import type { PreparedRun } from './prepared-run.ts';
 import { receiptRow } from './receipt-row.ts';
 import { receiptWindowMs } from './receipt-window-ms.ts';
 import { refuseGeneratedWrite } from './refuse-generated-write.ts';
@@ -44,6 +44,7 @@ import type { RunCommandInput } from './run-command-input.ts';
 import { runInUnitKeys } from './run-in-unit-keys.ts';
 import { sealCommandOutput } from './seal-command-output.ts';
 import { sealDrafts } from './seal-drafts.ts';
+import { sealedAnswers } from './sealed-answers.ts';
 import { stateSealKeyOf } from './state-seal-key-of.ts';
 import { writeStateRows } from './write-state-rows.ts';
 
@@ -60,6 +61,8 @@ export interface AttemptInput {
   /** The invocation's clock: one instant for every attempt. */
   readonly clock: Clock;
   readonly prepared: unknown;
+  /** What `prepare` produced: its record joins the decision record, its flags `meta.flags`. */
+  readonly preparedRun?: PreparedRun;
   /** An `invoke` runs the command nested: how deep, and the command that invoked it. */
   readonly nested?: { readonly depth: number; readonly causationId: string };
 }
@@ -172,7 +175,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   run.signal?.throwIfAborted();
 
   const reads = [...targetReads, ...decision.reads];
-  const flags = [...decision.flags.values()];
+  const flags = mergedFlagReads(input.preparedRun, decision.flags);
   const plannedEffects = plannedEffectIds(run.scope, commandId, decided.effects);
   const processClock = run.hybridClock ?? hybridClock(run.nodeId ?? defaultNodeId);
   let meta: EventMeta | undefined;
@@ -183,22 +186,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   const drafts = await sealDrafts({ registry, unit, drafts: split.entities, sealedVerifiers });
   // The record keeps an issued verifier sealed, never plain: the row's own sealed text, or a value
   // of its own under the decision when no row took it (7.9.3, 14.7.4).
-  const answers: RecordedAnswer[] = [];
-  for (const answer of decision.answers) {
-    if (answer.kind !== 'secret') {
-      answers.push(answer);
-      continue;
-    }
-    const text =
-      sealedVerifiers.get(answer.verifier) ??
-      sealedValueText(
-        await unit.keys.sealValue(
-          { entity: 'core.decision', id: commandId, field: `verifier.${answer.publicId}` },
-          new TextEncoder().encode(answer.verifier),
-        ),
-      );
-    answers.push({ ...answer, verifier: text });
-  }
+  const answers = await sealedAnswers(unit, commandId, decision.answers, sealedVerifiers);
   const sealedInput =
     action.trace?.input === 'sealed'
       ? await sealDecisionInput(unit, commandId, action.input, run.input)
@@ -234,6 +222,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
           answers,
           ...(sealedInput === undefined ? {} : { input: sealedInput }),
           effects: plannedEffects,
+          ...(input.preparedRun === undefined ? {} : { prepare: input.preparedRun.record }),
         }),
       });
       return meta;

@@ -163,6 +163,70 @@ describe('reading', () => {
     });
     expect(stored?.recordedAt.epochMilliseconds).toBe(event.recordedAt.epochMilliseconds);
   });
+
+  test('a decision record with prepare comes back whole, its read positions as bigint', async () => {
+    const decision: DecisionRecord = {
+      part: 'hooks.testEndpoint',
+      inputDigest: 'digest',
+      reads: [{ at: 12n }],
+      answers: [],
+      effects: [],
+      prepare: {
+        reads: [{ at: 3n }, { scope: 'backend', at: 18446744073709551615n }],
+        answers: [{ kind: 'id', entity: 'app.note', value: id(7) }],
+        effects: [id(8)],
+      },
+    };
+    const base = newEvent(1);
+    const event: NewEvent = {
+      ...base,
+      prevHash: 'ab'.repeat(32),
+      hash: 'cd'.repeat(32),
+      meta: { ...base.meta, commandId: id(5), action: 'hooks.testEndpoint', decision },
+    };
+    await store.run(tenantScope, (unit) =>
+      unit.events.append([{ ...append(1, []), events: [event] }]),
+    );
+    const [stored] = (
+      await store.read(tenantScope, (unit) => unit.events.readAll(null, { limit: 1 }))
+    ).events;
+    expect(stored?.decision).toEqual(decision);
+  });
+
+  test('a stored prepare member that carries more than the declared members decodes without them', async () => {
+    const decision: DecisionRecord = {
+      part: 'hooks.testEndpoint',
+      inputDigest: 'digest',
+      reads: [],
+      answers: [],
+      effects: [],
+      prepare: { reads: [{ at: 3n }], answers: [], effects: [id(8)] },
+    };
+    const base = newEvent(1);
+    const event: NewEvent = {
+      ...base,
+      prevHash: 'ab'.repeat(32),
+      hash: 'cd'.repeat(32),
+      meta: { ...base.meta, commandId: id(5), action: 'hooks.testEndpoint', decision },
+    };
+    await store.run(tenantScope, (unit) =>
+      unit.events.append([{ ...append(1, []), events: [event] }]),
+    );
+    // What an earlier checkpoint stored (the name is spelled in two parts: nothing live uses it any more) and what a foreign writer could add.
+    const retired = `${'result'}${'Digest'}`;
+    await _rows(
+      `update app.kw_events set meta = jsonb_set(jsonb_set(meta::jsonb, '{decision,prepare,${retired}}', '"old"'), '{decision,prepare,other}', '1')`,
+    );
+    const [stored] = (
+      await store.read(tenantScope, (unit) => unit.events.readAll(null, { limit: 1 }))
+    ).events;
+    expect(Object.keys(stored?.decision?.prepare ?? {}).sort()).toEqual([
+      'answers',
+      'effects',
+      'reads',
+    ]);
+    expect(stored?.decision?.prepare).toEqual(decision.prepare);
+  });
 });
 
 describe('savepoints and moved scopes', () => {

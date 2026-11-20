@@ -46,7 +46,7 @@ describe.each(forms)('GitHub connection, $form form', ({ form, action }) => {
     expect(kit.trace.filter((entry) => entry === 'effect')).toHaveLength(1);
   });
 
-  test('M1 holds one read-only unit open across the effect (WP-41 must close it before perform)', async () => {
+  test('no unit is open across the effect: every load of prepare closes its own read-only unit', async () => {
     const state = `open-${form}`;
     await kit.call('separate', 'github.startConnect', { state });
     kit.trace.length = 0;
@@ -55,8 +55,8 @@ describe.each(forms)('GitHub connection, $form form', ({ form, action }) => {
     const before = kit.trace.slice(0, effectAt);
     const opened = before.filter((entry) => entry.startsWith('unit:') && entry !== 'unit:end');
     const closed = before.filter((entry) => entry === 'unit:end');
-    // Gap 1 of REPORT.md: section 7.9.4 wants none open; WP-38 keeps one for all of prepare.
-    expect(opened.length - closed.length).toBe(1);
+    // Section 7.9.4: a load has a read-only unit of its own, and a perform runs outside any unit.
+    expect(opened.length - closed.length).toBe(0);
   });
 
   test('a code GitHub refuses is github.exchange_failed and nothing is stored', async () => {
