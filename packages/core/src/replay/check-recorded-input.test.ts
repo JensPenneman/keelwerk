@@ -31,7 +31,8 @@ const check = (given: object, recorded: string) =>
   checkRecordedInput(unit, sourceOf(given), [], recorded);
 const refused = { kind: 'validation' };
 const base = commandDigests(sourceOf(input)).decisionBase;
-const notTheOne = 'The input is not the one the decision recorded.';
+const notTheOne =
+  'The input is not the one the decision recorded \\(checked with API version "2026-01-01"; --api-version sets it\\)\\.';
 
 describe('checkRecordedInput', () => {
   test('a decision base passes with another secret or personal value', async () => {
@@ -40,7 +41,7 @@ describe('checkRecordedInput', () => {
     await expect(check({ ...input, address: 'bea@example.org' }, base)).resolves.toBeUndefined();
   });
 
-  test('a decision base is validation with another plain value, with the short message', async () => {
+  test('a decision base is validation with another plain value, naming the API version used', async () => {
     const promise = check({ ...input, title: 'other' }, base);
     await expect(promise).rejects.toMatchObject(refused);
     await expect(promise).rejects.toThrowError(new RegExp(`^${notTheOne}$`));
@@ -56,6 +57,7 @@ describe('checkRecordedInput', () => {
     const promise = check({ ...input, password: 'other' }, legacy);
     await expect(promise).rejects.toMatchObject(refused);
     await expect(promise).rejects.toThrowError(/0\.1\.0 form covers every member/);
+    await expect(promise).rejects.toThrowError(/API version "2026-01-01"/);
   });
 
   test('an untagged digest that is not the 0.1.0 form of the input gets the explained message', async () => {

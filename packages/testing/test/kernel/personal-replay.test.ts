@@ -180,12 +180,12 @@ describe('the decision record of a decision that sealed personal values (7.9.6, 
     expect(effectEvent?.decision?.inputDigest).toMatch(/^kwd1\.[0-9a-f]{64}$/);
     // The requested event sealed the personal input, so its record is keyed under that key.
     expect(effectEvent?.decision?.inputDigest).not.toBe(await receiptFingerprint(run));
-    // The input is accepted against the rekeyed record. The events of the effect's own record
-    // are the kernel's and are not re-decided, so they are the only difference.
+    // The input is accepted against the rekeyed record. The effect's own record is compared by
+    // its id in the decision record, not as an event, so the decision reproduces.
     const input = { ownerId: owner, to: 'ada@decision.example.org' };
     const result = await redecideOver(run, run.runtime.adapter, input);
     expect(result.refused).toBeUndefined();
-    expect(result.differences).toEqual(['1 events were recorded and 0 were re-decided']);
+    expect(result.differences).toEqual([]);
     await expect(
       redecideOver(run, run.runtime.adapter, { ...input, to: 'someone@decision.example.org' }),
     ).rejects.toMatchObject({ code: 'core.validation' });
@@ -210,8 +210,8 @@ describe('the decision record of a decision that sealed personal values (7.9.6, 
     expect(entityDigest).not.toBe(await receiptFingerprint(run));
     const result = await redecideOver(run, run.runtime.adapter, input);
     expect(result.refused).toBeUndefined();
-    // The row event reproduces; the effect's own record is the kernel's and is not re-decided.
-    expect(result.differences).toEqual(['2 events were recorded and 1 were re-decided']);
+    // The row event reproduces; the effect's own record is compared by its id, not as an event.
+    expect(result.differences).toEqual([]);
     await expect(
       redecideOver(run, run.runtime.adapter, { ...input, email: 'someone@mixed.example.org' }),
     ).rejects.toMatchObject({ code: 'core.validation' });

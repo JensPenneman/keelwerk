@@ -9,6 +9,7 @@ import { redactEffectInput } from './redact-effect-input.ts';
 import { redactEventData } from './redact-event-data.ts';
 import { redactKeys } from './redact-keys.ts';
 import { redactResult } from './redact-result.ts';
+import { redactVerifiers } from './redact-verifiers.ts';
 
 const effectStream = 'core.effect';
 
@@ -35,12 +36,7 @@ function effectOf(registry: Registry, id: string, data: unknown): DryRunEffect {
 /** The record without what a dry run's uncommitted keys sealed: the sealed input, and an issued verifier's sealed text. */
 function redactedRecord(record: EncodedDecisionRecord): EncodedDecisionRecord {
   const { input: _input, ...rest } = record;
-  return {
-    ...rest,
-    answers: record.answers.map((answer) =>
-      answer.kind === 'secret' ? { ...answer, verifier: '[redacted]' } : answer,
-    ),
-  };
+  return redactVerifiers(rest);
 }
 
 /**

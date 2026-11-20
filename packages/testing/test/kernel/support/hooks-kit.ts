@@ -31,7 +31,7 @@ export async function bootHooks(
     readonly capabilities?: readonly string[];
     /** Starts no workers: this runtime only requests. */
     readonly serveOnly?: boolean;
-  } & Pick<TestRuntimeOptions<'acme'>, 'external' | 'join' | 'clock' | 'logger'>,
+  } & Pick<TestRuntimeOptions<'acme'>, 'external' | 'join' | 'clock' | 'logger' | 'operators'>,
 ) {
   const { adapter, endpoint, capabilities, serveOnly, ...rest } = options;
   const runtime = await startTestRuntime(hooksApp, {

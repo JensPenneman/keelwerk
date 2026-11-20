@@ -1,3 +1,4 @@
+import type { DecisionRequest } from '../events/decision-request.ts';
 import type { FlagRead } from '../events/flag-read.ts';
 import type { PrepareRecord } from '../events/prepare-record.ts';
 
@@ -8,4 +9,6 @@ export interface PreparedRun {
   readonly record: PrepareRecord;
   /** The flag answers `prepare` read; they join `meta.flags`. */
   readonly flags: readonly FlagRead[];
+  /** What `prepare` read of the request; it joins what `decide` read in the decision record (S-126). */
+  readonly request?: DecisionRequest;
 }

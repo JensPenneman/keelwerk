@@ -9,6 +9,7 @@ import type {
   Principal,
   Receipt,
   Registry,
+  RequestInfo,
   RuleEntry,
   StorageRow,
   StoredEvent,
@@ -143,6 +144,8 @@ export function runDirect(over: {
   readonly input: unknown;
   readonly commandId?: string;
   readonly principal?: Principal;
+  /** What the handler sees as `ctx.request`; default: transport `test`, no user agent. */
+  readonly request?: RequestInfo;
   readonly behaviours?: EntityBehaviours;
   readonly signal?: AbortSignal;
   /** The instant of the run; default: the fixed fixture instant. */
@@ -162,7 +165,7 @@ export function runDirect(over: {
     action,
     input: over.input,
     principal: over.principal ?? userOf('ada'),
-    request: { transport: 'test', requestId: 'req-1' },
+    request: over.request ?? { transport: 'test', requestId: 'req-1' },
     clock: over.clock ?? clock,
     keys: over.keys ?? deriveOnlyKeys,
     compute: {} as never,

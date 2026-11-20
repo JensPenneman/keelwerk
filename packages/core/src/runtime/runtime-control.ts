@@ -1,6 +1,7 @@
 import type { AnchorSinkStatus } from '../anchors/anchor-sink-status.ts';
 import type { BackendInput } from '../control/create-backend.ts';
 import type { TenantInput } from '../control/create-tenant.ts';
+import type { RebuildReport } from './rebuild-report.ts';
 
 /**
  * What an operator does to a running process (section 12.3): the programmatic form of the
@@ -24,4 +25,6 @@ export interface RuntimeControl {
    * `core.tenant.hookCompleted`, one that fails again as `hookFailed`. Answers the failed hook ids.
    */
   rerunTenantHooks(tenantId: string): Promise<readonly string[]>;
+  /** Rebuilds a backend's or tenant's chain entities from their streams (7.9.6, 15.2.4) and enqueues again every effect left requested (14.7.6). */
+  rebuild(scopeId: string): Promise<RebuildReport>;
 }

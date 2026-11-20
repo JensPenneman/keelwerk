@@ -16,6 +16,7 @@ import {
   eraseStream,
   errors,
   guardUnits,
+  isPrincipalValueKeyId,
   ownedRows,
   ownedValueKeys,
   recordScopeMarks,
@@ -64,6 +65,13 @@ export type RunErasureOptions = Required<Pick<ErasureOptions, 'pageSize'>> &
  * appends the completion record to the control ledger (never to a sink). Every step is idempotent
  * and the record stays in the ledger, so a crash after any step is repaired by running the record
  * again. `afterStep` runs after each committed step.
+ *
+ * The value key a command's request record is sealed under when the command has no principal id is
+ * destroyed, tombstone first, when the command wrote in a stream the erasure visited and owns, on
+ * whichever page: the keys are collected for the whole run and destroyed in the last unit, never in
+ * the call of a page. They grow with the distinct such commands visited, which `touched` does too.
+ * The long-lived key of a principal id is destroyed with the receipts of the id, in the call that
+ * purges it (`erasePrincipals`).
  */
 export async function runErasure(
   context: RuntimeServiceContext,
@@ -159,6 +167,8 @@ export async function runErasure(
   // values belong to someone else, and so do their commands.
   const ids = new Set<string>(subjectSpellings(record.subjectId));
   const commandIds = new Set<string>();
+  // The value key each request record of a command with no principal id is sealed under.
+  const requestKeys = new Set<string>();
   // The commands that wrote an event in ANY stream this run visits, `core.effect` ones included,
   // whoever ran them and whether or not the stream is owned: their receipts that the purge below
   // keeps get an erased fingerprint (D5).
@@ -191,7 +201,19 @@ export async function runErasure(
       // The erasure's own receipt is completed last, by step 6.
       if (event.commandId === null || event.commandId === record.commandId) continue;
       touched.add(event.commandId);
-      if (result.owned || ownedByLookup) into.commandIds.add(event.commandId);
+      if (result.owned || ownedByLookup) {
+        into.commandIds.add(event.commandId);
+        // A request record under the subject's data key goes with the shred, one under a
+        // principal id's key with the id; one under a key of its own is destroyed below.
+        const request = event.decision?.request;
+        if (
+          request !== undefined &&
+          !('$kwe' in request) &&
+          !isPrincipalValueKeyId(request.keyId)
+        ) {
+          requestKeys.add(request.keyId);
+        }
+      }
     }
     if (result.owned || ownedByLookup) into.ids.add(stream.id);
     if (result.outcome !== 'skipped') erased.add(`${stream.type}\u0000${stream.id}`);
@@ -236,7 +258,10 @@ export async function runErasure(
   }
 
   await unit(false, async (u) => {
-    await erasePrincipals(u, registry, [...ids], [...commandIds], purgeOptions);
+    await erasePrincipals(u, registry, [...ids], [...commandIds], {
+      ...purgeOptions,
+      commandRequestKeys: [...requestKeys],
+    });
     // The receipts the purge kept (another principal ran the command): the fingerprint of an input
     // that may have held a value of the subject goes (D5).
     await scrubReceiptFingerprints(u, registry, [...touched]);

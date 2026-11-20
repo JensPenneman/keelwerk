@@ -8,7 +8,7 @@ export function decodeEventMeta(value: unknown): EventMeta {
   > & { readonly decision: EncodedDecisionRecord | null };
   const decision = stored.decision;
   if (decision === null) return { ...stored, decision: null };
-  const { input, reads, prepare, ...rest } = decision;
+  const { input, reads, prepare, request, ...rest } = decision;
   return {
     ...stored,
     decision: {
@@ -36,6 +36,18 @@ export function decodeEventMeta(value: unknown): EventMeta {
               nonce: Uint8Array.from(Buffer.from(input.nonce, 'base64url')),
               ciphertext: Uint8Array.from(Buffer.from(input.ciphertext, 'base64url')),
             },
+          }),
+      ...(request === undefined
+        ? {}
+        : {
+            request:
+              '$kwe' in request
+                ? request
+                : {
+                    keyId: request.keyId,
+                    nonce: Uint8Array.from(Buffer.from(request.nonce, 'base64url')),
+                    ciphertext: Uint8Array.from(Buffer.from(request.ciphertext, 'base64url')),
+                  },
           }),
     },
   };

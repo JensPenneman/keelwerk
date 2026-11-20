@@ -1,22 +1,9 @@
 import { describe, expect, test } from 'vitest';
+import { explainHost } from './support/explain-host.ts';
 import { createFakeHost } from './support/fake-host.ts';
 import { json, portalServer } from './support/portal-server.ts';
 import { remoteProfileFiles } from './support/profile-files.ts';
 import { runCliWith } from './support/run-cli-with.ts';
-
-function setup(answer: Record<string, unknown>, extra: Record<string, string> = {}) {
-  const bodies: Record<string, unknown>[] = [];
-  const fake = createFakeHost({
-    files: { ...remoteProfileFiles, ...extra },
-    handler: portalServer({
-      invoke: (body) => {
-        bodies.push(body);
-        return json({ ok: true, value: answer });
-      },
-    }),
-  });
-  return { fake, bodies };
-}
 
 const decision = {
   mode: 'decision',
@@ -69,7 +56,7 @@ const dryRun = {
 
 describe('explain', { timeout: 60_000 }, () => {
   test('a reference asks for the decision and prints the rules with their files', async () => {
-    const { fake, bodies } = setup(decision);
+    const { fake, bodies } = explainHost(decision);
     const run = await runCliWith(
       [
         'explain',
@@ -102,7 +89,7 @@ describe('explain', { timeout: 60_000 }, () => {
   });
 
   test('--dry-run prints events with before-images, effects with ids and the decision record', async () => {
-    const { fake, bodies } = setup(dryRun);
+    const { fake, bodies } = explainHost(dryRun);
     const run = await runCliWith(
       [
         'explain',
@@ -140,7 +127,7 @@ describe('explain', { timeout: 60_000 }, () => {
   });
 
   test('a dry run that stops at an inline effect says which one', async () => {
-    const { fake } = setup({
+    const { fake } = explainHost({
       mode: 'dry-run',
       authorization: decision,
       report: {
@@ -158,7 +145,7 @@ describe('explain', { timeout: 60_000 }, () => {
   });
 
   test('--trace prints the tree and sends only the id', async () => {
-    const { fake, bodies } = setup({
+    const { fake, bodies } = explainHost({
       mode: 'trace',
       requested: { kind: 'effect', id: 'f-1' },
       command: {
@@ -200,7 +187,7 @@ describe('explain', { timeout: 60_000 }, () => {
   });
 
   test('--output json prints the answer as it came', async () => {
-    const { fake } = setup(decision);
+    const { fake } = explainHost(decision);
     const run = await runCliWith(['explain', 'library.addBook', '--output', 'json'], fake.host);
     expect(JSON.parse(run.stdout)).toMatchObject({ mode: 'decision', allowed: true });
   });
@@ -227,8 +214,65 @@ describe('explain', { timeout: 60_000 }, () => {
     expect(run.stderr).toContain('core.forbidden');
   });
 
+  const redecided = {
+    mode: 'redecide',
+    commandId: 'c-9',
+    part: 'library.book.update',
+    reproduced: true,
+    differences: [],
+  };
+
+  test('explain --redecide sends mode redecide with the command id', async () => {
+    const { fake, bodies } = explainHost(redecided);
+    const run = await runCliWith(
+      ['explain', '--redecide', 'c-9', '--input', '{"id":"b-1"}', '--output', 'text'],
+      fake.host,
+    );
+    expect(run.code).toBe(0);
+    expect(bodies[0]).toMatchObject({
+      action: 'core.explain',
+      input: {
+        mode: 'redecide',
+        commandId: 'c-9',
+        backend: 'launchway',
+        tenant: 'jens',
+        input: { id: 'b-1' },
+      },
+    });
+  });
+
+  test('explain --redecide --api-version sends the version, and without it sends none', async () => {
+    const given = explainHost(redecided);
+    const run = await runCliWith(
+      ['explain', '--redecide', 'c-9', '--api-version', '2026-01-01', '--output', 'text'],
+      given.fake.host,
+    );
+    expect(run.code).toBe(0);
+    expect(given.bodies[0]).toMatchObject({
+      input: { mode: 'redecide', commandId: 'c-9', apiVersion: '2026-01-01' },
+    });
+    const without = explainHost(redecided);
+    await runCliWith(['explain', '--redecide', 'c-9', '--output', 'text'], without.fake.host);
+    expect(without.bodies[0]?.input).not.toHaveProperty('apiVersion');
+    const misplaced = await runCliWith(
+      ['explain', 'library.addBook', '--api-version', '2026-01-01'],
+      explainHost(redecided).fake.host,
+    );
+    expect(misplaced.code).toBe(2);
+  });
+
+  test("explain --redecide --api-version '' sends the empty version", async () => {
+    const { fake, bodies } = explainHost(redecided);
+    const run = await runCliWith(
+      ['explain', '--redecide', 'c-9', '--api-version', '', '--output', 'text'],
+      fake.host,
+    );
+    expect(run.code).toBe(0);
+    expect(bodies[0]?.input).toMatchObject({ mode: 'redecide', commandId: 'c-9', apiVersion: '' });
+  });
+
   test('usage mistakes are refused before any request', async () => {
-    const { fake } = setup(decision);
+    const { fake } = explainHost(decision);
     for (const argv of [
       ['explain'],
       ['explain', 'library.addBook', '--trace', 'x'],

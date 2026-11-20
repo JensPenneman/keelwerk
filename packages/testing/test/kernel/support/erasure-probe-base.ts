@@ -56,6 +56,17 @@ interface Session extends EntityType<typeof sessionDef> {}
 const session: Session = sessionDef;
 
 /**
+ * A row that belongs to no data subject, written by a command that read the request: nothing walks
+ * from the subject to it, so only the request record of the decision could lead there.
+ */
+const memoDef = defineEntity({
+  prefix: 'pmm',
+  fields: { text: field.string({ maxLength: 100 }) },
+});
+interface Memo extends EntityType<typeof memoDef> {}
+const memo: Memo = memoDef;
+
+/**
  * An entity whose two counters are partitioned by a plain field and by a reference, for the test
  * that plants a counter in a unit (no command allocates a serial yet). The values of both
  * partitions are kept in plain text in `kw_serials` and in the marks of the control store.
@@ -86,7 +97,7 @@ const probeBaseDef = defineModuleBase({
   id: 'probe',
   version: '0.1.0',
   contributions: { toCore },
-  entities: { person, thread, session, counted },
+  entities: { person, thread, session, counted, memo },
   streams: { notes: notesDef },
   flags: {
     beta: defineFlag({
@@ -104,6 +115,7 @@ const probeBase: ProbeBase = probeBaseDef;
 /** The entities, the contribution and the base of the probe module, which the commands of the module build on. */
 export {
   counted as probeCounted,
+  memo as probeMemo,
   person as probePerson,
   probeBase,
   session as probeSession,

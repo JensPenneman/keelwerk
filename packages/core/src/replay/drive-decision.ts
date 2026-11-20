@@ -1,6 +1,8 @@
 import { effectiveRules } from '../authorization/effective-rules.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import { errors } from '../errors/errors.ts';
+import { generatedEntity } from '../generated-actions/generated-entity.ts';
+import { generatedHandlerOf } from '../generated-actions/generated-handler-of.ts';
 import { assertLoadVisible } from '../interpreter/assert-load-visible.ts';
 import { buildReadContext } from '../interpreter/build-read-context.ts';
 import { driveHandler } from '../interpreter/drive-handler.ts';
@@ -61,8 +63,10 @@ export interface DriveDecisionInput {
 }
 
 /**
- * Runs a command's `decide` with no storage at all: the handler gets the real decide context,
- * and every request it yields goes to `answer`, which is data the test holds (section 7.9.6).
+ * Runs a command's `prepare` (when it has one) and then its `decide`, generated ones included, with
+ * no storage at all: the handler gets the real context, and every request it yields goes to
+ * `answer`, which is data the test holds (section 7.9.6); `prepare`'s requests come first.
+ * A generated set reads its rows from storage and cannot be driven.
  * A `create` without an id cannot be driven: the id would be minted behind the test's back.
  */
 export async function driveDecision(input: DriveDecisionInput): Promise<NormalizedDecision> {
@@ -70,9 +74,9 @@ export async function driveDecision(input: DriveDecisionInput): Promise<Normaliz
   if (action.kind !== 'command') {
     throw errors.validation(`"${action.ref}" is not a command; only commands are driven.`);
   }
-  if (action.prepare !== undefined || action.generated !== undefined) {
+  if (action.generated === 'set') {
     throw errors.not_implemented(
-      `"${action.ref}" has a generated handler or a prepare; this release drives decide only.`,
+      `"${action.ref}" is a generated set: it reads its rows from storage, so it cannot be driven with data.`,
     );
   }
   const authority = action.contributedBy ?? action.module;
@@ -97,35 +101,47 @@ export async function driveDecision(input: DriveDecisionInput): Promise<Normaliz
   if (action.instance && (entry === undefined || input.target === undefined)) {
     throw errors.validation(`"${action.ref}" is an entity command: pass the target row.`);
   }
-  const ctx = buildDecideContext({
-    base: contexts.forModule(authority),
-    registry,
-    authorities,
-    module: authority,
-    prepared: undefined,
-    ...(entry === undefined || input.target === undefined
-      ? {}
-      : { target: { entry, row: input.target } }),
-    newId: (entity) => {
-      throw refuseRequest(
-        'newId',
-        `a create of ${entity} without an id mints one behind the test's back: name the id, or take it from ctx.newId`,
-      );
-    },
-  });
+  const contextOf = (form: 'prepare' | 'decide', prepared: unknown) =>
+    buildDecideContext({
+      base: contexts.forModule(authority),
+      registry,
+      authorities,
+      module: authority,
+      prepared,
+      ...(entry === undefined || input.target === undefined
+        ? {}
+        : { target: { entry, row: input.target } }),
+      withPerform: form === 'prepare',
+      newId: (entity) => {
+        throw refuseRequest(
+          'newId',
+          `a create of ${entity} without an id mints one behind the test's back: name the id, or take it from ctx.newId`,
+        );
+      },
+    });
+  const answerAs = (form: 'prepare' | 'decide') => async (request: AnyRequest) => {
+    if (request.kind === 'load') {
+      assertLoadVisible(request, { registry, module: authority, form }, authorities);
+    }
+    return input.answer(request);
+  };
+  // `prepare` runs first, its requests answered before decide's; its value is `ctx.prepared`.
+  const prepared =
+    action.prepare === undefined
+      ? undefined
+      : await driveHandler(
+          action.prepare(input.input, contextOf('prepare', undefined)),
+          answerAs('prepare'),
+        );
+  const ctx = contextOf('decide', prepared);
+  const generated = action.generated === undefined ? undefined : generatedEntity(registry, action);
+  const handler = generated === undefined ? action.handler : generatedHandlerOf(action, generated);
   let handled: unknown;
   if (entry !== undefined && input.target !== undefined) {
     const { id: _id, ifVersion: _ifVersion, ...rest } = input.input as Record<string, unknown>;
-    handled = action.handler(rest, decodeRow(entry, input.target, authority), ctx);
+    handled = handler(rest, decodeRow(entry, input.target, authority), ctx);
   } else {
-    handled = action.handler(input.input, ctx);
+    handled = handler(input.input, ctx);
   }
-  return normalizeDecision(
-    await driveHandler(handled, async (request) => {
-      if (request.kind === 'load') {
-        assertLoadVisible(request, { registry, module: authority, form: 'decide' }, authorities);
-      }
-      return input.answer(request);
-    }),
-  );
+  return normalizeDecision(await driveHandler(handled, answerAs('decide')));
 }

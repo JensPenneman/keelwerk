@@ -1,6 +1,7 @@
 import { openStoredEvents } from '../encryption/open-stored-events.ts';
 import type { StoredEvent } from '../events/stored-event.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
+import { currentRows } from './current-rows.ts';
 import { foldStoredEvent } from './fold-stored-event.ts';
 import type { AsOfInput } from './read-as-of-position.ts';
 import { replayOutsideHorizon } from './replay-outside-horizon.ts';
@@ -28,23 +29,6 @@ async function firstLaterRecords(input: AsOfInput): Promise<ReadonlyMap<string, 
   }
 }
 
-/** The rows of the entity as they are now, archived ones included. */
-async function currentRows(input: AsOfInput): Promise<StorageRow[]> {
-  const { unit, entry } = input;
-  const rows: StorageRow[] = [];
-  let after: string | undefined;
-  for (;;) {
-    const page = await unit.rows.find(entry.descriptor, {
-      sort: [{ field: 'id', direction: 'asc' }],
-      page: { first: pageSize, ...(after === undefined ? {} : { after }) },
-      includeArchived: true,
-    });
-    rows.push(...page.rows);
-    if (!page.pageInfo.hasNextPage || page.pageInfo.endCursor === null) return rows;
-    after = page.pageInfo.endCursor;
-  }
-}
-
 /**
  * Every row of a `history: 'state'` entity as it was at a position of its scope (section 7.9.6).
  * A state entity keeps no chain, only transient change records within the feed horizon
@@ -62,7 +46,7 @@ export async function readStateAsOfPosition(input: AsOfInput): Promise<readonly 
     throw replayOutsideHorizon(entry.ref);
   }
   const later = await firstLaterRecords(input);
-  const rows = await currentRows(input);
+  const rows = await currentRows(unit, entry);
   if (later.size === 0) return rows;
   const folded = new Map<string, StorageRow | undefined>();
   for (const [id, record] of later) {

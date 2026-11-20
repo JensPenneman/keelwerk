@@ -1,3 +1,4 @@
+import type { DecisionRequest } from '../events/decision-request.ts';
 import type { FlagRead } from '../events/flag-read.ts';
 import type { RecordedAnswer } from '../events/recorded-answer.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
@@ -16,6 +17,7 @@ import type { Unit } from '../storage/unit.ts';
 import { buildDecideContext } from './build-decide-context.ts';
 import { refuseEffectInUnit } from './refuse-effect-in-unit.ts';
 import type { RunCommandInput } from './run-command-input.ts';
+import { trackedRequest } from './tracked-request.ts';
 
 /** What one decision is opened with. */
 export interface OpenDecisionInput {
@@ -50,6 +52,8 @@ export interface OpenedDecision {
   readonly reads: RecordedRead[];
   readonly answers: RecordedAnswer[];
   readonly flags: Map<string, FlagRead>;
+  /** What the handler read of the request (its transport, user agent or connection), as the decision record keeps it; undefined when it read neither (S-126). */
+  request(): DecisionRequest | undefined;
   /** Drives what the handler returned, answering each request in the unit. */
   drive(result: unknown): Promise<unknown>;
 }
@@ -68,6 +72,7 @@ export function openDecision(input: OpenDecisionInput): OpenedDecision {
   const answers: RecordedAnswer[] = [];
   const flags = new Map<string, FlagRead>();
   const authorities: RequestAuthorities = new WeakMap();
+  const tracked = trackedRequest(run.request);
   const contexts = buildReadContext({
     registry,
     authorities,
@@ -75,7 +80,7 @@ export function openDecision(input: OpenDecisionInput): OpenedDecision {
     principal: run.principal,
     scope: run.scope,
     clock: input.clock,
-    request: run.request,
+    request: tracked.request,
     config: run.config ?? (() => undefined),
     log: run.log,
     trace: run.trace,
@@ -152,5 +157,12 @@ export function openDecision(input: OpenDecisionInput): OpenedDecision {
       return value;
     },
   });
-  return { ctx, reads, answers, flags, drive: (result) => driveHandler(result, answerTopLevel) };
+  return {
+    ctx,
+    reads,
+    answers,
+    flags,
+    request: tracked.read,
+    drive: (result) => driveHandler(result, answerTopLevel),
+  };
 }

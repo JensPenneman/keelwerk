@@ -1,3 +1,5 @@
+import { renderRedecide } from './render-redecide.ts';
+
 function json(value: unknown): string {
   return JSON.stringify(value) ?? 'null';
 }
@@ -103,6 +105,8 @@ export function renderExplanation(value: Readonly<Record<string, unknown>>): str
       return decisionLines(value).join('\n');
     case 'dry-run':
       return dryRunLines(value).join('\n');
+    case 'redecide':
+      return renderRedecide(value);
     case 'trace': {
       const requested = value.requested as { kind: string; id: string };
       return [

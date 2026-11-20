@@ -4,6 +4,8 @@ export { driveDecision } from './drive-decision.ts';
 export type { FeedHorizon } from './feed-horizon.ts';
 export type { AsOfInput } from './read-as-of-position.ts';
 export { readAsOfPosition } from './read-as-of-position.ts';
+export type { RebuildFromChainInput } from './rebuild-from-chain.ts';
+export { rebuildFromChain } from './rebuild-from-chain.ts';
 export { redecide } from './redecide.ts';
 export type { RedecideInput } from './redecide-input.ts';
 export type { RedecideResult } from './redecide-result.ts';

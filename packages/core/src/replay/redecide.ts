@@ -1,5 +1,6 @@
 import { hybridClock } from '../clock/hybrid-clock.ts';
 import { durationMs } from '../effects/duration-ms.ts';
+import { plannedEffectIds } from '../effects/planned-effect-ids.ts';
 import { personalSealerOf } from '../encryption/personal-sealer-of.ts';
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
@@ -12,12 +13,13 @@ import { recordedFlagSnapshot } from '../flags/recorded-flag-snapshot.ts';
 import { canonicalizeJson } from '../json/canonicalize-json.ts';
 import { deriveScopeSecrets } from '../keys/derive-scope-secrets.ts';
 import type { ScopeSecrets } from '../keys/scope-secrets.ts';
-import { decodeRow } from '../repositories/decode-row.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
 import { defaultNodeId } from '../write-path/default-node-id.ts';
 import { draftsToEvents } from '../write-path/drafts-to-events.ts';
-import { loadTarget } from '../write-path/load-target.ts';
+import { handleDecision } from '../write-path/handle-decision.ts';
+import { mergedFlagReads } from '../write-path/merged-flag-reads.ts';
+import { mergedRequestReads } from '../write-path/merged-request-reads.ts';
 import { normalizeDecision } from '../write-path/normalize-decision.ts';
 import { openDecision } from '../write-path/open-decision.ts';
 import type { RunCommandInput } from '../write-path/run-command-input.ts';
@@ -28,31 +30,25 @@ import { createAsOfReads } from './as-of-reads.ts';
 import { asOfUnit } from './as-of-unit.ts';
 import { checkRecordedInput } from './check-recorded-input.ts';
 import { commandEvents } from './command-events.ts';
-import type { ComparableEvent } from './comparable-event.ts';
 import { comparableOfStored } from './comparable-of-stored.ts';
 import { comparableOfWritten } from './comparable-of-written.ts';
 import { compareEvents } from './compare-events.ts';
+import { decisionEvents } from './decision-events.ts';
+import { decisionRecordDifferences } from './decision-record-differences.ts';
 import { defaultFeedHorizon } from './default-feed-horizon.ts';
+import { deferredEffectDifferences } from './deferred-effect-differences.ts';
 import { principalOfActor } from './principal-of-actor.ts';
+import { recordedInputOf } from './recorded-input-of.ts';
+import { recordedRequestOf } from './recorded-request-of.ts';
 import type { RedecideInput } from './redecide-input.ts';
 import type { RedecideResult } from './redecide-result.ts';
 import { replayAnswerers } from './replay-answerers.ts';
+import { replayDeclaredPrepare } from './replay-declared-prepare.ts';
+import { replayFailure } from './replay-failure.ts';
 import { replayReactions } from './replay-reactions.ts';
+import { replayTarget } from './replay-target.ts';
 import { resolveReplayedDrafts } from './resolve-replayed-drafts.ts';
-
-const refusals: ReadonlySet<string> = new Set([
-  'core.replay_outside_horizon',
-  'core.replay_key_destroyed',
-]);
-
-function isReplay(error: KeelwerkError, kind: 'mismatch' | 'unsupported'): boolean {
-  return (
-    typeof error.details === 'object' &&
-    error.details !== null &&
-    'replay' in error.details &&
-    error.details.replay === kind
-  );
-}
+import { withoutPersonalBefore } from './without-personal-before.ts';
 
 async function replayIn(
   unit: Unit,
@@ -60,27 +56,34 @@ async function replayIn(
   secrets: ScopeSecrets,
 ): Promise<RedecideResult> {
   const { registry, commandId } = input;
-  const events = await commandEvents(unit, commandId);
+  const all = await commandEvents(unit, commandId);
+  if (all.length === 0) throw errors.not_found(`No events were recorded for command ${commandId}.`);
+  // Only the events that carry the decision record belong to the decision: receipt change records,
+  // inline effect records and settled records carry none (7.9.6; their versions may restart).
+  const events = decisionEvents(all);
   const first = events[0];
-  if (first === undefined)
-    throw errors.not_found(`No events were recorded for command ${commandId}.`);
-  const record = first.decision;
-  if (record === null) {
-    throw errors.validation(`Command ${commandId} left no decision record: it was kernel work.`);
+  const record = first?.decision;
+  if (first === undefined || record === null || record === undefined) {
+    throw errors.validation(
+      `Command ${commandId} wrote no events with a decision record (7.9.6); its inline effects are in core.effect.`,
+    );
   }
   const action = registry.actions.get(first.action ?? '');
   if (action === undefined || action.kind !== 'command') {
     throw errors.not_found(`"${first.action ?? ''}" is not a command of this app.`);
   }
-  if (action.generated !== undefined || action.prepare !== undefined) {
-    throw errors.not_implemented(
-      `"${action.ref}" has a generated handler or a prepare; this release re-decides decide only.`,
-    );
-  }
-  const source = { ...input, action, fingerprintKey: secrets.fingerprintKey };
+  const given = await recordedInputOf(unit, record, commandId, input.input);
+  const source = { ...input, input: given, action, fingerprintKey: secrets.fingerprintKey };
   await checkRecordedInput(unit, source, events, record.inputDigest);
   const authority = action.contributedBy ?? action.module;
   const principal = input.principal ?? principalOfActor(first.actor, input.scope);
+  const recordedRequest = await recordedRequestOf(
+    unit,
+    record,
+    commandId,
+    first.correlationId,
+    input.request,
+  );
   const context: AsOfContext = {
     registry,
     behaviours: input.behaviours,
@@ -101,9 +104,9 @@ async function replayIn(
     namespace: input.namespace,
     scope: input.scope,
     action,
-    input: input.input,
+    input: given,
     principal,
-    request: { transport: 'replay', requestId: first.correlationId, ...input.request },
+    request: recordedRequest.request,
     clock,
     keys: input.keys,
     jobKeySecret: secrets.jobKey,
@@ -124,12 +127,20 @@ async function replayIn(
     ...(input.namespaceOf === undefined ? {} : { namespaceOf: input.namespaceOf }),
   };
 
-  const own = events.filter((event) => event.action === first.action);
-  const recordedEvents = events.map(comparableOfStored);
-  // Compared opened (personal values readable) and aligned on what stays sealed (S-82); shown as stored.
+  // The effects a decision requested are compared by their ids in the record, not as events.
+  const compared = events.filter((event) => event.stream.type !== 'core.effect');
+  const own = compared.filter((event) => event.action === first.action);
+  const recordedEvents = compared.map(comparableOfStored);
+  // Compared opened (personal values readable) and aligned on what stays sealed (S-82); shown as
+  // stored. By presence the sealed events stand in for the opened ones and the personal fields of
+  // every before-image are left out of the compared events and of the re-decided events shown: no
+  // guess is told apart.
   const sealer = personalSealerOf(unit);
-  const openedEvents = sealer === undefined ? events : await sealer.openEvents(events);
-  const recordedOpened = openedEvents.map(comparableOfStored);
+  const byPresence = input.personalByPresence === true;
+  const recordedBase =
+    sealer === undefined || byPresence
+      ? recordedEvents
+      : (await sealer.openEvents(compared)).map(comparableOfStored);
   const recordedRecord = encodeDecisionRecord(record);
   const failed = (message: string, refused?: string): RedecideResult => ({
     commandId,
@@ -148,42 +159,34 @@ async function replayIn(
   try {
     const targetReads: RecordedRead[] = [];
     const loaded = new Map<string, StorageRow>();
-    const entry =
-      action.instance && action.entity !== undefined
-        ? registry.entities.get(action.entity)
-        : undefined;
-    let target: StorageRow | undefined;
-    if (action.instance) {
-      if (entry === undefined)
-        throw errors.internal(`"${action.ref}" is an entity command without an entity.`);
-      target = await loadTarget({
-        unit: view,
-        registry,
-        rules: input.rules,
-        action,
-        entry,
-        principal,
-        scope: input.scope,
-        input: input.input,
-        reads: targetReads,
-        flags: run.flags,
-      });
-      loaded.set(`${entry.ref}/${String(target.id)}`, target);
-    }
+    const target = await replayTarget(view, run, targetReads);
+    if (target !== undefined)
+      loaded.set(`${target.entry.ref}/${String(target.row.id)}`, target.row);
+    // A recorded prepare is replayed first (D3): its value is what decide sees as `ctx.prepared`.
+    const { prepared, difference } = await replayDeclaredPrepare({
+      run: { ...run, adapter: input.adapter },
+      unit,
+      context,
+      record,
+      commandId,
+      input: given,
+      ...(byPresence ? { personalByPresence: true } : {}),
+    });
+    const differences: string[] = difference === undefined ? [] : [difference];
     const decision = openDecision({
       run,
       unit: view,
       form: 'decide',
       clock,
-      ...(entry === undefined || target === undefined ? {} : { target: { entry, row: target } }),
+      prepared: prepared?.value,
+      ...(target === undefined ? {} : { target }),
     });
-    let handled: unknown;
-    if (entry !== undefined && target !== undefined) {
-      const { id: _id, ifVersion: _ifVersion, ...rest } = input.input as Record<string, unknown>;
-      handled = action.handler(rest, decodeRow(entry, target, authority), decision.ctx);
-    } else {
-      handled = action.handler(input.input, decision.ctx);
-    }
+    const handled = await handleDecision({
+      run,
+      unit: view,
+      decision,
+      ...(target === undefined ? {} : { target }),
+    });
     const decided = normalizeDecision(await decision.drive(handled));
 
     const reads = [...targetReads, ...decision.reads];
@@ -198,14 +201,19 @@ async function replayIn(
       ceiling: context.reads.ceiling(),
       horizon: context.feedHorizon,
     });
-    const sameEffectCount = decided.effects.length === record.effects.length;
-    const flags = [...decision.flags.values()];
+    const flags = mergedFlagReads(prepared, decision.flags);
+    const requestRead = mergedRequestReads(prepared?.request, decision.request());
     const redecidedRecord = buildDecisionRecord({
       part: action.ref,
       inputDigest: record.inputDigest,
       reads,
       answers: decision.answers,
-      effects: sameEffectCount ? record.effects : [],
+      effects: plannedEffectIds(input.scope, commandId, decided.effects),
+      ...(prepared === undefined ? {} : { prepare: prepared.record }),
+      // Compared by presence: the sealed value of the record stands in for the read one.
+      ...(requestRead === undefined || record.request === undefined
+        ? {}
+        : { request: record.request }),
     });
     const meta = buildEventMeta({
       principal,
@@ -241,26 +249,31 @@ async function replayIn(
       correlationId: first.correlationId,
       written,
       own,
-      recorded: events.filter((event) => event.action !== first.action),
-      latest: events.at(-1)?.position ?? 0n,
+      recorded: compared.filter((event) => event.action !== first.action),
+      latest: compared.at(-1)?.position ?? 0n,
     });
     const redecidedEvents = [...comparableOfWritten(written), ...reactions.events];
-    const alignedTo = (base: readonly ComparableEvent[]) => alignEvents(redecidedEvents, base);
-    const differences = [
-      ...compareEvents(recordedOpened, alignedTo(recordedOpened)),
+    const shownOf = withoutPersonalBefore(registry, byPresence);
+    const alignedTo = (base: typeof recordedEvents) => shownOf(alignEvents(redecidedEvents, base));
+    differences.push(
+      ...compareEvents(shownOf(recordedBase), alignedTo(recordedBase)),
       ...reactions.differences,
-    ];
-    if (!sameEffectCount) {
-      differences.push(
-        `${record.effects.length} effects were recorded and ${decided.effects.length} were re-decided`,
-      );
-    }
+    );
+    differences.push(
+      ...(await deferredEffectDifferences({
+        unit,
+        registry,
+        scope: input.scope,
+        commandId,
+        effects: decided.effects,
+        recorded: record.effects,
+        ...(byPresence ? { personalByPresence: true } : {}),
+      })),
+    );
     const encoded = encodeDecisionRecord(redecidedRecord);
-    for (const member of ['reads', 'answers', 'effects'] as const) {
-      if (canonicalizeJson(encoded[member]) !== canonicalizeJson(recordedRecord[member])) {
-        differences.push(`the decision record's ${member} differ`);
-      }
-    }
+    differences.push(
+      ...decisionRecordDifferences(encoded, recordedRecord, recordedRequest, requestRead),
+    );
     if (canonicalizeJson(meta.flags) !== canonicalizeJson(first.flags)) {
       differences.push('the flags the decision read differ');
     }
@@ -283,14 +296,8 @@ async function replayIn(
     };
   } catch (error) {
     if (!(error instanceof KeelwerkError)) throw error;
-    if (isReplay(error, 'mismatch')) return failed(error.message);
-    if (isReplay(error, 'unsupported')) {
-      return failed(
-        `cannot re-decide: ${error.message}`,
-        refusals.has(error.code) ? error.code : undefined,
-      );
-    }
-    return failed(`the handler now fails with ${error.code}: ${error.message}`);
+    const failure = replayFailure(error);
+    return failed(failure.message, failure.refused);
   }
 }
 

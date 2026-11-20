@@ -38,3 +38,30 @@ test('buildDecisionRecord copies the prepare lists and leaves the member out whe
   expect(record.prepare?.effects).toEqual(['x']);
   expect('prepare' in buildDecisionRecord(base)).toBe(false);
 });
+
+test('the request member encodes its sealed bytes as base64url after prepare', () => {
+  const request = {
+    keyId: 'vk_1',
+    nonce: new Uint8Array(12),
+    ciphertext: Uint8Array.from([1, 2, 3, 4]),
+  };
+  expect(
+    JSON.stringify(encodeDecisionRecord(buildDecisionRecord({ ...base, prepare, request }))),
+  ).toBe(
+    '{"part":"hooks.testEndpoint","inputDigest":"kwb1.abc","reads":[{"at":"7"}],"answers":[],"effects":["0192a3b4-c5d6-7000-8000-0000000000ee"],"prepare":{"reads":[{"scope":"backend","at":"18446744073709551615"}],"answers":[{"kind":"id","entity":"library.book","value":"0192a3b4-c5d6-7000-8000-0000000000aa"}],"effects":["0192a3b4-c5d6-7000-8000-0000000000bb"]},"request":{"keyId":"vk_1","nonce":"AAAAAAAAAAAAAAAA","ciphertext":"AQIDBA"}}',
+  );
+});
+
+test('a request that is a $kwe envelope encodes unchanged as { $kwe, k, n, c }', () => {
+  const request = { $kwe: 2, k: 'dk_1', n: 'AAAAAAAAAAAAAAAA', c: 'AQIDBA' } as const;
+  expect(
+    JSON.stringify(encodeDecisionRecord(buildDecisionRecord({ ...base, prepare, request }))),
+  ).toBe(
+    '{"part":"hooks.testEndpoint","inputDigest":"kwb1.abc","reads":[{"at":"7"}],"answers":[],"effects":["0192a3b4-c5d6-7000-8000-0000000000ee"],"prepare":{"reads":[{"scope":"backend","at":"18446744073709551615"}],"answers":[{"kind":"id","entity":"library.book","value":"0192a3b4-c5d6-7000-8000-0000000000aa"}],"effects":["0192a3b4-c5d6-7000-8000-0000000000bb"]},"request":{"$kwe":2,"k":"dk_1","n":"AAAAAAAAAAAAAAAA","c":"AQIDBA"}}',
+  );
+});
+
+test('buildDecisionRecord leaves request out when absent', () => {
+  expect('request' in buildDecisionRecord(base)).toBe(false);
+  expect('request' in encodeDecisionRecord(buildDecisionRecord(base))).toBe(false);
+});

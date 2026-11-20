@@ -5,7 +5,10 @@ function same(a: unknown, b: unknown): boolean {
   return canonicalizeJson(a ?? null) === canonicalizeJson(b ?? null);
 }
 
-/** One line for every way the re-decided events differ from the recorded ones, in event order. */
+/**
+ * One line for every way the re-decided events differ from the recorded ones, in event order.
+ * A comparison by presence passes both sides through `withoutPersonalBefore` first.
+ */
 export function compareEvents(
   recorded: readonly ComparableEvent[],
   redecided: readonly ComparableEvent[],

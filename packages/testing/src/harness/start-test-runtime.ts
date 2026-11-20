@@ -288,6 +288,13 @@ export async function startTestRuntime<
         },
         at,
       ),
+    rebuild: async (name) => {
+      const tenant = name === undefined ? tenants[0] : tenants.find((one) => one.name === name);
+      if (tenant === undefined) {
+        throw new Error(`The test runtime has no tenant ${name ?? '(any)'}.`);
+      }
+      return runtime.control.rebuild(tenant.id);
+    },
     revoke: (subject) => {
       book.revoked.add(subject);
     },

@@ -35,4 +35,13 @@ export type ExplainRequest =
       /** A command's tree from the chain. */
       readonly mode: 'trace';
       readonly id: string;
+    })
+  | (ExplainScope & {
+      /** A recorded command decided again with this build and compared (7.9.6). */
+      readonly mode: 'redecide';
+      readonly commandId: string;
+      /** Absent: the input the decision record kept sealed. */
+      readonly input?: unknown;
+      /** The API version the command was expressed in. Absent: the receipt's, else the session's. */
+      readonly apiVersion?: string;
     });

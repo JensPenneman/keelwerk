@@ -60,6 +60,12 @@ const unseal = defineEffect(probesBase, {
   output: shape({ text: field.text() }),
 });
 
+/** An effect an inline executor performs while a command is prepared (7.9.4). */
+const ping = defineEffect(probesBase, {
+  input: shape({ agent: field.string() }),
+  output: shape({ status: field.integer() }),
+});
+
 const hang = (signal: AbortSignal): Promise<never> =>
   new Promise((_resolve, reject) => {
     signal.addEventListener(
@@ -135,6 +141,14 @@ const actExecutor = defineEffectExecutor(probesBase, act, {
   },
 });
 
+const pingExecutor = defineEffectExecutor(probesBase, ping, {
+  queue: 'probes',
+  inline: true,
+  timeout: '5s',
+  group: () => ({ id: 'ping', concurrency: 1 }),
+  run: async () => ({ status: 200 }),
+});
+
 const unsealExecutor = defineEffectExecutor(probesBase, unseal, {
   queue: 'probes',
   run: async (input, ctx) => ({
@@ -181,6 +195,24 @@ const run = defineCommand(probesBase, {
   },
 });
 
+/** Reads the user agent and performs an inline effect in `prepare`, then writes a target holding what the effect answered. */
+const look = defineCommand(probesBase, {
+  input: shape({ owner: field.subject() }),
+  output: shape({ targetId: field.ref.own('target') }),
+  principal: 'user',
+  *prepare(_input, ctx) {
+    return yield* ctx.perform(ping({ agent: ctx.request.userAgent ?? 'none' }));
+  },
+  *decide(input, ctx) {
+    const id = yield* ctx.newId(target);
+    const result = ctx.prepared.ok ? `status ${ctx.prepared.value.status}` : 'failed';
+    return {
+      events: [ctx.write.probes.target.create({ id, owner: input.owner, result })],
+      result: { targetId: id },
+    };
+  },
+});
+
 const record = defineCommand(probesBase, target, {
   input: outcomeOf(act),
   decide: (input, _current, ctx) => [
@@ -193,13 +225,14 @@ const record = defineCommand(probesBase, target, {
 });
 
 const probesDef = defineModule(probesBase, {
-  actions: { run, plant },
+  actions: { run, plant, look },
   entityActions: { target: { record, sign } },
-  effects: { act, unseal },
-  executors: { act: actExecutor, unseal: unsealExecutor },
+  effects: { act, ping, unseal },
+  executors: { act: actExecutor, ping: pingExecutor, unseal: unsealExecutor },
   policies: {
     run: { signedIn: defineRule(probesBase, run, { effect: 'allow', principal: 'user' }) },
     plant: { signedIn: defineRule(probesBase, plant, { effect: 'allow', principal: 'user' }) },
+    look: { signedIn: defineRule(probesBase, look, { effect: 'allow', principal: 'user' }) },
     target: {
       writers: defineRule(probesBase, target, {
         effect: 'allow',

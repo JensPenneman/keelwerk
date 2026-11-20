@@ -8,6 +8,7 @@ import { runtimeOperator } from '../principals/runtime-operator.ts';
 import type { Connected } from './connected.ts';
 import type { ControlPath } from './control-path.ts';
 import type { Migrated } from './migrate-phase.ts';
+import { rebuildScope } from './rebuild-scope.ts';
 import type { RuntimeControl } from './runtime-control.ts';
 import type { ServedApp } from './served-app.ts';
 
@@ -35,6 +36,7 @@ export function createRuntimeControl(input: {
       const config = (await lookup.backend(id))?.config;
       return { id, ...(config === undefined ? {} : { config }) };
     },
+    rebuild: (scopeId) => rebuildScope({ connected, migrated, served, scopeId }),
     createTenant: async (tenant) => {
       const { id } = await path.createTenant(tenant, { principal: runtimeOperator });
       return { id };

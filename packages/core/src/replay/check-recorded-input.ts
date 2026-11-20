@@ -23,6 +23,8 @@ export async function checkRecordedInput(
   recorded: string,
 ): Promise<void> {
   const digests = commandDigests(source);
+  // The digest covers the API version, so a refusal names the one this re-decide used.
+  const versionNote = ` (checked with API version "${source.apiVersion}"; --api-version sets it)`;
   if (recorded.startsWith(decisionBasePrefix) || recorded.startsWith(decisionDigestPrefix)) {
     const expected = await recordedDecisionDigest(
       unit,
@@ -31,12 +33,12 @@ export async function checkRecordedInput(
       digests.decisionBase,
     );
     if (expected !== recorded) {
-      throw errors.validation('The input is not the one the decision recorded.');
+      throw errors.validation(`The input is not the one the decision recorded${versionNote}.`);
     }
     return;
   }
   if (isLegacyDigest(recorded) && digests.legacyFingerprint() === recorded) return;
   throw errors.validation(
-    'The input is not the one the decision recorded. A digest in the 0.1.0 form covers every member, secrets included; a digest written by a build between 0.1.0 and 0.2.0 that keyed a personal member cannot be checked.',
+    `The input is not the one the decision recorded${versionNote}. A digest in the 0.1.0 form covers every member, secrets included; a digest written by a build between 0.1.0 and 0.2.0 that keyed a personal member cannot be checked.`,
   );
 }

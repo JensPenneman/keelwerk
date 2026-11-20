@@ -11,7 +11,9 @@ import type { ScopeTarget } from '../scope-target.ts';
  * change record (the use of a credential is not a fact of the domain). A row that is missing, spent
  * or at another version, and a lost race (the update is a conditional one, so of two requests with
  * one credential only one matches), is `unauthenticated` `core.ticket_invalid`; an entity that is
- * not in the app or has no `usedAt` is `internal`.
+ * not in the app, has no `usedAt` or keeps its history in the chain is `internal`: a row-only write
+ * would leave the chain without the use, and a rebuild from the chain would make a spent credential
+ * look unspent again.
  */
 export async function spendCredential(
   env: InvokerEnv,
@@ -24,6 +26,11 @@ export async function spendCredential(
     throw errors.internal(`"${redemption.entity}" cannot hold a single-use credential.`);
   }
   const { descriptor } = entry;
+  if (descriptor.history === 'chain') {
+    throw errors.internal(
+      `"${redemption.entity}" keeps its history in the chain, so the use of a credential in it cannot be recorded as a row write.`,
+    );
+  }
   const now = env.options.clock.now();
   try {
     await target.handle.adapter.unit(target.namespace, target.scope, async (unit) => {

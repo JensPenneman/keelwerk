@@ -25,6 +25,7 @@ import { explainAction } from './explain-action.ts';
 import { explainDecision } from './explain-decision.ts';
 import type { ExplainEnvironment } from './explain-environment.ts';
 import { explainPrincipal } from './explain-principal.ts';
+import { explainRedecide } from './explain-redecide.ts';
 import type { ExplainRequest } from './explain-request.ts';
 import { explainTarget } from './explain-target.ts';
 import { parseExplainRequest } from './parse-explain-request.ts';
@@ -72,6 +73,25 @@ export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker 
         id: request.id,
       });
       return { mode: 'trace', ...found };
+    }
+    if (request.mode === 'redecide') {
+      const span = trace.getTracer('keelwerk').startSpan('keelwerk.explain.redecide');
+      try {
+        return {
+          mode: 'redecide',
+          ...(await explainRedecide({
+            env,
+            app,
+            explained,
+            request,
+            rules: rulesOf(registry),
+            apiVersion: session.apiVersion,
+            trace: span,
+          })),
+        };
+      } finally {
+        span.end();
+      }
     }
     const action = locate(registry, request.ref, scope);
     state.declared = action.errors;

@@ -26,6 +26,7 @@ export const explainCommand: Command<CliContext> = buildCommand<
       'explain <ref> --dry-run [--input json] [--as kind:id] [--answer effect=json]',
       '                                              events, effects and the decision record, rolled back',
       'explain --trace <command, event or effect id>  the tree the chain holds',
+      'explain --redecide <command id> [--input json] [--api-version v]\n                                              decide a recorded command again with this build and compare',
       '`--as` evaluates anywhere and runs a dry run only in development.',
     ].join('\n'),
   },

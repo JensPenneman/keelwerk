@@ -1,140 +1,16 @@
-import { erasure } from '@keelwerk/events';
-import type pg from 'pg';
 import { describe, expect, test } from 'vitest';
 import { createLocalClient } from '../../src/harness/create-local-client.ts';
-import { startTestRuntime } from '../../src/harness/start-test-runtime.ts';
+import { testCarrier } from '../../src/harness/test-carrier.ts';
 import { testOperator } from '../../src/harness/test-operator.ts';
+import { testPrincipal } from '../../src/harness/test-principal.ts';
 import { erasureDumpApp } from './support/erasure-probe-module.ts';
-import { memorySink } from './support/memory-sink.ts';
-import {
-  insertUnfencedThread,
-  kernelRows,
-  type RestartRuntime as Runtime,
-  useRestartDatabase,
-} from './support/restart-kit.ts';
-
-/** The SQLSTATE of a deadlock; the transaction is rolled back and can run again. */
-const deadlockDetected = '40P01';
-const maxRestoreAttempts = 5;
-/** The deadline a stop gets: it waits for the services to finish and closes the adapters. */
-const stopMs = 10_000;
+import { insertUnfencedThread, kernelRows } from './support/restart-kit.ts';
+import { stopMs, useRestoreKit } from './support/restore-kit.ts';
+import { serviceHeader, withServiceResolver } from './support/service-resolver.ts';
 
 describe('a placement restored from a backup on PostgreSQL (14.7.5 step 6, 14.7.6)', () => {
-  const { stops, external, dispatcher, owner, seedAda, inTenant, joined } = useRestartDatabase();
+  const { seedAda, inTenant, startAgain, eraseAfterBackup, completionEpochs } = useRestoreKit();
 
-  /**
-   * A copy of every table of the namespace's schema, taken now: the backup. `restore` puts the
-   * copies back, all of them or the tables a filter keeps (the control store is another schema and
-   * is never restored: it is what the restore leaves behind).
-   */
-  async function backUp(runtime: Runtime, client: pg.Client) {
-    const schema = runtime.namespace.root;
-    const tables = (
-      await client.query(`select tablename from pg_tables where schemaname = $1 order by 1`, [
-        schema,
-      ])
-    ).rows.map((row: { tablename: string }) => row.tablename);
-    const copy = `backup_${schema.replace(/\W/g, '_')}`;
-    await client.query(`create schema if not exists "${copy}"`);
-    for (const [index, table] of tables.entries()) {
-      await client.query(`create table "${copy}".t${index} as table "${schema}"."${table}"`);
-    }
-    return {
-      tables,
-      restore: async (keep: (table: string) => boolean = () => true): Promise<void> => {
-        const kept = tables.filter(keep);
-        // The runtime was stopped with a deadline, so it has finished its work. A session that still
-        // held a lock would end the truncate in a deadlock, which rolls the transaction back as a
-        // whole: the restore is one transaction and runs again.
-        for (let attempt = 1; ; attempt += 1) {
-          try {
-            await client.query('begin');
-            await client.query('set local session_replication_role = replica');
-            await client.query(
-              `truncate ${kept.map((table) => `"${schema}"."${table}"`).join(', ')}`,
-            );
-            for (const table of kept) {
-              const index = tables.indexOf(table);
-              await client.query(
-                `insert into "${schema}"."${table}" overriding system value select * from "${copy}".t${index}`,
-              );
-            }
-            await client.query('commit');
-            return;
-          } catch (error) {
-            await client.query('rollback');
-            const code = (error as { readonly code?: string }).code;
-            if (code !== deadlockDetected || attempt === maxRestoreAttempts) throw error;
-          }
-        }
-      },
-    };
-  }
-
-  const completionEpochs = async (runtime: Runtime): Promise<number[]> =>
-    (
-      await runtime.control.adapter.unit(
-        runtime.control.namespace,
-        { level: 'deployment' },
-        (unit) => unit.ledger?.since(0n, 1000) ?? Promise.resolve([]),
-        { readOnly: true },
-      )
-    ).flatMap((entry) => (entry.record.type === 'erasureCompleted' ? [entry.record.epoch] : []));
-
-  /** A runtime on the database of `first`, with an erasure worker whose steps are collected. */
-  async function startAgain(first: Runtime, sink: ReturnType<typeof memorySink>) {
-    const steps: string[] = [];
-    const runtime = await startTestRuntime(erasureDumpApp, {
-      external: external(),
-      operators: true,
-      workers: true,
-      ledgers: [sink],
-      join: joined(first),
-      eventWorkers: [
-        dispatcher(),
-        erasure({
-          pollMs: 3_600_000,
-          afterStep: async (step) => {
-            steps.push(step);
-          },
-        }),
-      ],
-    });
-    stops.push(() => runtime.stop());
-    return { runtime, steps };
-  }
-
-  /** Runs one erasure of `subject` to its end on a fresh runtime that was backed up first. */
-  async function eraseAfterBackup(
-    subject: (runtime: Runtime) => Promise<string>,
-    afterErase: (runtime: Runtime) => Promise<void>,
-  ) {
-    const sink = memorySink();
-    const worker = erasure({ pollMs: 3_600_000 });
-    const first = await startTestRuntime(erasureDumpApp, {
-      external: external(),
-      operators: true,
-      workers: true,
-      ledgers: [sink],
-      eventWorkers: [dispatcher(), worker],
-    });
-    stops.push(() => first.stop());
-    const client = await owner();
-    const id = await subject(first);
-    const backup = await backUp(first, client);
-    const operator = createLocalClient(first, { principal: testOperator(), tenant: 'acme' });
-    await operator.invoke(
-      'core.eraseSubject',
-      { subjectId: id as never, reason: 'subjectRequest' },
-      { prefer: 'async' },
-    );
-    await first.drainJobs();
-    await worker.pass();
-    expect(await completionEpochs(first)).toEqual([0]);
-    await afterErase(first);
-    await first.stop(stopMs);
-    return { sink, first, id, backup, client };
-  }
   test('a placement restored from before the erasure erases the rows again and appends a second completion', {
     timeout: 240_000,
   }, async () => {
@@ -230,5 +106,139 @@ describe('a placement restored from a backup on PostgreSQL (14.7.5 step 6, 14.7.
     const outcome = await operator.attempt('probe.open', { ownerId: id as never, title: 'new' });
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) expect(outcome.error).toMatchObject({ kind: 'forbidden' });
+  });
+
+  test('a placement restored from before the erasure leaves the request record of an anonymous login unopenable once the tombstone is replayed', {
+    timeout: 240_000,
+  }, async () => {
+    const subject = crypto.randomUUID();
+    const agent = 'agent-of-the-restored-subject/1.0';
+    let request: { keyId: string; nonce: Uint8Array; ciphertext: Uint8Array } | undefined;
+    const { sink, first, backup } = await eraseAfterBackup(
+      async (runtime) => {
+        const { acme } = runtime.tenants;
+        if (acme === undefined) throw new Error('no tenant acme');
+        const base = testCarrier(acme, testPrincipal(null));
+        const outcome = await runtime.invoker.invoke({
+          action: 'probe.arrive',
+          input: { ownerId: subject },
+          carrier: { ...base, headers: { ...base.headers, 'user-agent': agent } },
+          requestId: crypto.randomUUID(),
+          signal: new AbortController().signal,
+          commandId: crypto.randomUUID(),
+        });
+        if (!outcome.ok) throw outcome.error;
+        const { sessionId } = outcome.value as { sessionId: string };
+        const [event] = await inTenant(runtime, (unit) =>
+          unit.events.readStream({ type: 'probe.session', id: sessionId }),
+        );
+        const sealed = event?.decision?.request;
+        if (sealed === undefined || '$kwe' in sealed) throw new Error('no sealed request');
+        request = sealed;
+        // The login holds the user agent under a key of its own, which opens now.
+        expect(await inTenant(runtime, (unit) => unit.keys.openValue(sealed))).toBeDefined();
+        return subject;
+      },
+      async (runtime) => {
+        if (request === undefined) throw new Error('no request');
+        const sealed = request;
+        expect(await inTenant(runtime, (unit) => unit.keys.openValue(sealed))).toBeUndefined();
+      },
+    );
+    // Every table of the namespace comes back as it was before the erasure, the value key included;
+    // the control store keeps the tombstone the erasure recorded before it destroyed the key.
+    await backup.restore();
+    const { runtime: again } = await startAgain(first, sink);
+    if (request === undefined) throw new Error('no request');
+    const sealed = request;
+    expect(await inTenant(again, (unit) => unit.keys.openValue(sealed))).toBeUndefined();
+  });
+});
+
+describe('the request record of a service principal restored from a backup on PostgreSQL (14.7.5 step 5a, 14.7.6)', () => {
+  const { inTenant, startAgain, eraseAfterBackup } = useRestoreKit(
+    withServiceResolver(erasureDumpApp),
+  );
+
+  test('a service whose reference is a row the subject owns writes only in another row; its key stays destroyed after the restore and the tombstone replay, with one tombstone', {
+    timeout: 240_000,
+  }, async () => {
+    const subject = crypto.randomUUID();
+    let request: { keyId: string; nonce: Uint8Array; ciphertext: Uint8Array } | undefined;
+    let principalKey = '';
+    const { sink, first, backup } = await eraseAfterBackup(
+      async (runtime) => {
+        const { acme } = runtime.tenants;
+        if (acme === undefined) throw new Error('no tenant acme');
+        const send = async (
+          action: string,
+          input: unknown,
+          headers: Readonly<Record<string, string>>,
+          commandId: string = crypto.randomUUID(),
+        ) => {
+          const base = testCarrier(acme, testPrincipal(null));
+          const outcome = await runtime.invoker.invoke({
+            action,
+            input,
+            carrier: { ...base, headers: { 'x-tenant': acme.id, ...headers } },
+            requestId: crypto.randomUUID(),
+            signal: new AbortController().signal,
+            commandId,
+          });
+          if (!outcome.ok) throw outcome.error;
+          return outcome.value as { threadId: string };
+        };
+        const asOperator = testCarrier(acme, testOperator()).headers ?? {};
+        const ownedByS = await send('probe.open', { ownerId: subject, title: 'S' }, asOperator);
+        const ownedByT = await send(
+          'probe.open',
+          { ownerId: crypto.randomUUID(), title: 'T' },
+          asOperator,
+        );
+        principalKey = `principal:${ownedByS.threadId}`;
+        const commandId = crypto.randomUUID();
+        await send(
+          'probe.stampThread',
+          { threadId: ownedByT.threadId },
+          {
+            [serviceHeader]: JSON.stringify({ id: 'svc.node', principalId: ownedByS.threadId }),
+            'user-agent': 'agent-of-the-service/1.0',
+          },
+          commandId,
+        );
+        const events = await inTenant(runtime, (unit) =>
+          unit.events.readStream({ type: 'probe.thread', id: ownedByT.threadId }),
+        );
+        const sealed = events.find((event) => event.commandId === commandId)?.decision?.request;
+        if (sealed === undefined || '$kwe' in sealed) throw new Error('no sealed request');
+        request = sealed;
+        // The request sits under the long-lived key of the principal id and opens now.
+        expect(sealed.keyId).toBe(principalKey);
+        expect(await inTenant(runtime, (unit) => unit.keys.openValue(sealed))).toBeDefined();
+        return subject;
+      },
+      async (runtime) => {
+        if (request === undefined) throw new Error('no request');
+        const sealed = request;
+        expect(await inTenant(runtime, (unit) => unit.keys.openValue(sealed))).toBeUndefined();
+      },
+    );
+    await backup.restore();
+    const { runtime: again } = await startAgain(first, sink);
+    if (request === undefined) throw new Error('no request');
+    const sealed = request;
+    expect(await inTenant(again, (unit) => unit.keys.openValue(sealed))).toBeUndefined();
+    expect(await inTenant(again, (unit) => unit.keys.liveValueKeys([principalKey]))).toEqual([]);
+    const ledger = await again.control.adapter.unit(
+      again.control.namespace,
+      { level: 'deployment' },
+      (unit) => unit.ledger?.since(0n, 1000) ?? Promise.resolve([]),
+      { readOnly: true },
+    );
+    expect(
+      ledger.filter(
+        (entry) => entry.record.type === 'keyTombstone' && entry.record.keyId === principalKey,
+      ),
+    ).toHaveLength(1);
   });
 });

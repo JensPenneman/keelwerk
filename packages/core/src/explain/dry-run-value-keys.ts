@@ -20,13 +20,19 @@ export function dryRunValueKeys(): (inner: SubjectKeyStore) => SubjectKeyStore {
     // The decoy key of the scope is a stored key: a dry run reads it and never creates it.
     dataKey: (subjectId, options) =>
       inner.dataKey(subjectId, subjectId === decoySubject ? { create: false } : options),
-    sealValue: async (binding, plain) => {
-      const keyId = newUuidV7();
-      const material = defaultRandomSource(32);
-      const aad = encodeAad([binding.entity, binding.id, binding.field]);
-      const sealed = sealAesGcm(material, plain, aad, defaultRandomSource);
-      held.set(keyId, { material, aad });
+    sealValue: async (binding, plain, options) => {
+      const keyId = options?.keyId ?? newUuidV7();
+      const key = held.get(keyId) ?? {
+        material: defaultRandomSource(32),
+        aad: encodeAad([binding.entity, binding.id, binding.field]),
+      };
+      const sealed = sealAesGcm(key.material, plain, key.aad, defaultRandomSource);
+      held.set(keyId, key);
       return { keyId, nonce: sealed.nonce, ciphertext: sealed.ciphertext };
+    },
+    liveValueKeys: async (keyIds) => {
+      const stored = new Set(await inner.liveValueKeys(keyIds.filter((keyId) => !held.has(keyId))));
+      return keyIds.filter((keyId) => held.has(keyId) || stored.has(keyId));
     },
     openValue: async (sealed, expected) => {
       const key = held.get(sealed.keyId);

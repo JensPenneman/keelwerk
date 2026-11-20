@@ -22,11 +22,20 @@ export interface SubjectKeyStore {
   /** Wraps other keys (per-blob keys) under the subject's data key. */
   wrap(subjectId: string, key: Uint8Array): Promise<Uint8Array>;
   unwrap(subjectId: string, wrapped: Uint8Array): Promise<Uint8Array | undefined>;
-  /** Value keys of credential material: one per sealed value, destroyed when the value is replaced. */
+  /**
+   * Value keys: one per sealed value. The key of credential material is destroyed when the value
+   * is replaced; the key of a command's request record is never replaced and goes at erasure. With
+   * `keyId` the value is sealed under the key of that id, created on first use, so one long-lived
+   * key serves many values (the binding is the one the key was created with) and destroying it
+   * makes all of them unreadable.
+   */
   sealValue(
     binding: { readonly entity: string; readonly id: string; readonly field: string },
     plain: Uint8Array,
+    options?: { readonly keyId: string },
   ): Promise<SealedValue>;
+  /** Which of these value keys exist (not destroyed), in the order given. */
+  liveValueKeys(keyIds: readonly string[]): Promise<readonly string[]>;
   /**
    * The value of a sealed text; undefined once its key is destroyed. With `expected`, also
    * undefined when the key was sealed for another binding (entity, row id and field), so a text

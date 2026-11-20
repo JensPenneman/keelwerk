@@ -42,6 +42,14 @@ export function explainFlags(): Readonly<Record<string, FlagParameter>> {
       withNegated: false,
     } as unknown as FlagParameter,
     trace: text('Print the tree of a command, event or effect id.', 'id'),
+    redecide: text(
+      'Re-decide a recorded command with this build and compare: its command id.',
+      'command id',
+    ),
+    'api-version': text(
+      "With --redecide: the API version the command was expressed in. Default: the receipt's, else the session's.",
+      'version',
+    ),
     answer: text(
       'The outcome of an inline effect for a dry run: <effect>=<json>; repeatable.',
       'effect=json',

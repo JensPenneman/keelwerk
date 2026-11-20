@@ -12,6 +12,18 @@ import { conformanceApp, libraryApp } from '../src/fixtures/index.ts';
 import { addBook } from '../src/fixtures/modules/library/src/actions/add-book.ts';
 import { book } from '../src/fixtures/modules/library/src/entities/book.ts';
 import { testPrincipal } from '../src/harness/test-principal.ts';
+import { withCommand } from './kernel/support/command-kit.ts';
+
+interface PreparedContext {
+  readonly load: {
+    readonly library: { readonly book: { count(): Generator<never, number, unknown> } };
+  };
+  readonly write: {
+    readonly library: { readonly book: { create(values: Record<string, unknown>): unknown } };
+  };
+  readonly prepared: unknown;
+  perform(effect: unknown): Generator<never, { readonly ok: boolean }, unknown>;
+}
 
 const library = load.library as { readonly book: EntityLoadMatchers };
 const input = { title: 'Dune', isbn: '978-0441172719' };
@@ -126,6 +138,80 @@ describe('driveDecision: a load the runtime would refuse', () => {
       (caught: unknown) => caught,
     );
     expect(isKeelwerkError(error) && error.code).toBe('core.request_not_allowed');
+  });
+});
+
+describe('driveDecision: generated commands and prepare', () => {
+  const scope = {
+    level: 'tenant',
+    backendId: '00000000-0000-4000-8000-0000000000b1',
+    tenantId: '00000000-0000-4000-8000-0000000000a1',
+  } as const;
+  const principal = drivePrincipal({ subject: 'tester', roles: [], claims: {} }, scope);
+  const clock = { now: () => Temporal.Instant.from('2026-01-01T00:00:00Z') };
+
+  test('drive runs a generated update', async () => {
+    const { registry } = conformanceApp;
+    const action = registry.actions.get('library.book.update');
+    if (action === undefined) throw new Error('the fixture lost library.book.update');
+    const decided = await driveDecision({
+      registry,
+      action,
+      input: { id: bookId, patch: { title: 'Dune Messiah' }, ifVersion: 1 },
+      principal,
+      scope,
+      clock,
+      target: { id: bookId, version: 1, title: 'Dune', isbn: input.isbn, addedBy: 'ada' },
+      answer: () => expect.fail('a generated update asks for nothing'),
+    });
+    expect(decided.drafts).toMatchObject([
+      { kind: 'update', entity: 'library.book', id: bookId, values: { title: 'Dune Messiah' } },
+    ]);
+  });
+
+  test("drive answers prepare's requests, then decide's with ctx.prepared", async () => {
+    const asked: string[] = [];
+    const { registry, ref } = withCommand(
+      'prepared',
+      (_input: unknown, ctx: PreparedContext) => ({
+        events: [
+          ctx.write.library.book.create({
+            id: bookId,
+            title: `after ${String((ctx.prepared as { count: number }).count)}`,
+            isbn: 'i-1',
+            addedBy: 'ada',
+          }),
+        ],
+      }),
+      'library.addBook',
+      {
+        prepare: function* (_input: unknown, ctx: PreparedContext) {
+          const count = yield* ctx.load.library.book.count();
+          const answer = yield* ctx.perform({
+            kind: 'external',
+            type: 'library.ping',
+            input: { to: 'ada@example.org' },
+          });
+          return { count, ok: answer.ok };
+        } as never,
+      } as never,
+    );
+    const action = registry.actions.get(ref);
+    if (action === undefined) throw new Error('the probe is missing');
+    const decided = await driveDecision({
+      registry,
+      action,
+      input: {},
+      principal,
+      scope,
+      clock,
+      answer: (request) => {
+        asked.push(request.kind);
+        return request.kind === 'load' ? 3 : { ok: true, value: { ok: true } };
+      },
+    });
+    expect(asked).toEqual(['load', 'perform']);
+    expect(decided.drafts).toMatchObject([{ kind: 'create', values: { title: 'after 3' } }]);
   });
 });
 

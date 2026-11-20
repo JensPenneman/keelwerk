@@ -13,6 +13,14 @@ function text(body: Readonly<Record<string, unknown>>, name: string): string | u
   return value;
 }
 
+/** The API version a re-decide checks with: any string, the empty one included (a reaction or hook job is digested with it). */
+function apiVersionOf(body: Readonly<Record<string, unknown>>): string | undefined {
+  const value = body.apiVersion;
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') throw errors.validation('"apiVersion" must be a string.');
+  return value;
+}
+
 function asOf(body: Readonly<Record<string, unknown>>): ExplainAs | undefined {
   const given = text(body, 'as');
   if (given === undefined) return undefined;
@@ -64,8 +72,21 @@ export function parseExplainRequest(input: unknown): ExplainRequest {
       throw errors.validation('A trace needs the "id" of a command, event or effect.');
     return { mode, id, ...scope };
   }
+  if (mode === 'redecide') {
+    const commandId = text(body, 'commandId');
+    if (commandId === undefined)
+      throw errors.validation('A redecide needs the "commandId" of a recorded command.');
+    const apiVersion = apiVersionOf(body);
+    return {
+      mode,
+      commandId,
+      ...scope,
+      ...(body.input === undefined ? {} : { input: body.input }),
+      ...(apiVersion === undefined ? {} : { apiVersion }),
+    };
+  }
   if (mode !== 'decision' && mode !== 'dry-run') {
-    throw errors.validation('"mode" is decision, dry-run or trace.');
+    throw errors.validation('"mode" is decision, dry-run, trace or redecide.');
   }
   const ref = text(body, 'ref');
   if (ref === undefined) throw errors.validation('An action reference ("ref") is required.');

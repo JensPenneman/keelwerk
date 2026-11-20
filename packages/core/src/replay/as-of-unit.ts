@@ -4,7 +4,9 @@ import type { Position } from '../storage/position.ts';
 import type { Unit } from '../storage/unit.ts';
 import type { AsOfContext } from './as-of-context.ts';
 import { readAsOfPosition } from './read-as-of-position.ts';
+import { replayUnsupported } from './replay-unsupported.ts';
 import { selectRows } from './select-rows.ts';
+import { transientPurgeTypes } from './transient-purge-types.ts';
 
 /**
  * A read-only view of a unit in which the rows are the rows of a recorded position (S-25). Each
@@ -12,7 +14,9 @@ import { selectRows } from './select-rows.ts';
  * position, so the interpreter's loads, the target of an entity command and the position they
  * record come out as they did when the decision was made. `lock` and `search` do not exist here,
  * which sends a locked read the way of `find` followed by `EventStore.head`, answered with the
- * position of that `find`. Savepoints open the same view on the inner unit.
+ * position of that `find`. Savepoints open the same view on the inner unit. An entity whose change
+ * records retention purges (`transientPurgeTypes`, the receipts) is refused: a fold of its stream
+ * may be broken or may have restarted at version 1, so no read of it is answered as of a position.
  */
 export function asOfUnit(unit: Unit, context: AsOfContext): Unit {
   let latest: Position | undefined;
@@ -22,14 +26,18 @@ export function asOfUnit(unit: Unit, context: AsOfContext): Unit {
       throw errors.internal(`${descriptor.ref} is not an entity of this app`);
     return entry;
   };
-  const rowsAt = (descriptor: EntityDescriptor, at: Position) =>
-    readAsOfPosition({
+  const rowsAt = (descriptor: EntityDescriptor, at: Position) => {
+    if (transientPurgeTypes.includes(descriptor.ref)) {
+      throw replayUnsupported(`a decision that read ${descriptor.ref} cannot be re-decided`);
+    }
+    return readAsOfPosition({
       unit,
       entry: entryOf(descriptor),
       behaviours: context.behaviours,
       at,
       horizon: context.feedHorizon,
     });
+  };
   const rowsNow = (descriptor: EntityDescriptor) =>
     rowsAt(descriptor, latest ?? context.reads.ceiling());
   const { lock: _lock, search: _search, countBefore: _countBefore, ...rows } = unit.rows;

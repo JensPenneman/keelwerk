@@ -25,6 +25,7 @@ import { jobWakeCases } from './job-wake-cases.ts';
 import { leaseCases } from './lease-cases.ts';
 import { ledgerCases } from './ledger-cases.ts';
 import { migrationCases } from './migration-cases.ts';
+import { namedValueKeyCases } from './named-value-key-cases.ts';
 import { paginationCases } from './pagination-cases.ts';
 import { processStreamCases } from './process-stream-cases.ts';
 import { restoreDetectionCases } from './restore-detection-cases.ts';
@@ -107,7 +108,10 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('units', () => unitCases(subject));
     describe('timeouts', () => timeoutCases(subject));
     describe('rows', () => rowCases(subject));
-    describe('stores', () => storeCases(subject));
+    describe('stores', () => {
+      storeCases(subject);
+      namedValueKeyCases(subject);
+    });
     describe('row isolation', () => rowIsolationCases(subject));
     describe('store isolation', () => storeIsolationCases(subject));
     describe('event store', () => eventStoreCases(subject));

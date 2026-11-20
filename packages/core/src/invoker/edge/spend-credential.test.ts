@@ -11,6 +11,11 @@ import { spendCredential } from './spend-credential.ts';
 
 const now = Temporal.Instant.from('2026-11-11T12:00:00Z');
 const descriptor = { ref: 'doc.ticket', fields: { usedAt: {} } } as unknown as EntityDescriptor;
+const chained = {
+  ref: 'doc.invitation',
+  history: 'chain',
+  fields: { usedAt: {} },
+} as unknown as EntityDescriptor;
 const bare = { ref: 'doc.bare', fields: {} } as unknown as EntityDescriptor;
 
 function envOf(): ReturnType<typeof createInvokerEnv> {
@@ -18,6 +23,7 @@ function envOf(): ReturnType<typeof createInvokerEnv> {
     entities: new Map([
       ['doc.ticket', { descriptor }],
       ['doc.bare', { descriptor: bare }],
+      ['doc.invitation', { descriptor: chained }],
     ]),
   } as unknown as Registry;
   const app = { registry, head: '2026-11-01' };
@@ -130,5 +136,15 @@ describe('spendCredential', () => {
       );
       expect(error.kind).toBe('internal');
     }
+  });
+
+  test('an entity that keeps its history in the chain is internal, naming it, and is not written', async () => {
+    const rows = new Map<string, StorageRow>([['tk1', { id: 'tk1', version: 1 }]]);
+    const error = await refusal(
+      spendCredential(envOf(), targetOf(rows), 'doc', redemption({ entity: 'doc.invitation' })),
+    );
+    expect(error).toMatchObject({ kind: 'internal' });
+    expect(error.message).toContain('doc.invitation');
+    expect(rows.get('tk1')).toEqual({ id: 'tk1', version: 1 });
   });
 });

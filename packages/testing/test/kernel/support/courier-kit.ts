@@ -81,6 +81,29 @@ const send = defineCommand(courierBase, {
   },
 });
 
+/** The address of the delivery arrives as a personal member of the command's input. */
+const sendTo = defineCommand(courierBase, {
+  input: shape({
+    owner: field.subject(),
+    subject: field.string(),
+    to: field.string().personal({ subject: 'owner' }),
+  }),
+  output: shape({ messageId: field.ref.own('message') }),
+  principal: 'user',
+  *decide(input, ctx) {
+    const accountId = yield* ctx.newId(account);
+    const messageId = yield* ctx.newId(message);
+    return {
+      events: [
+        ctx.write.courier.account.create({ id: accountId, owner: input.owner }),
+        ctx.write.courier.message.create({ id: messageId, accountId, subject: input.subject }),
+      ],
+      effects: [deliver({ messageId, to: input.to })],
+      result: { messageId },
+    };
+  },
+});
+
 const open = defineCommand(courierBase, {
   input: shape({ owner: field.subject(), subject: field.string() }),
   output: shape({ messageId: field.ref.own('message') }),
@@ -164,11 +187,12 @@ const chain = defineCommand(courierBase, {
 });
 
 const courierDef = defineModule(courierBase, {
-  actions: { send, open, sendReversed, issue, lodge, forward, chain, afterPost },
+  actions: { send, sendTo, open, sendReversed, issue, lodge, forward, chain, afterPost },
   effects: { post, deliver },
   executors: { post: postExecutor },
   policies: {
     send: { signedIn: defineRule(courierBase, send, { effect: 'allow', principal: 'user' }) },
+    sendTo: { signedIn: defineRule(courierBase, sendTo, { effect: 'allow', principal: 'user' }) },
     open: { signedIn: defineRule(courierBase, open, { effect: 'allow', principal: 'user' }) },
     sendReversed: {
       signedIn: defineRule(courierBase, sendReversed, { effect: 'allow', principal: 'user' }),

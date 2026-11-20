@@ -1,3 +1,4 @@
+import type { KweEnvelope } from '../keys/kwe-envelope.ts';
 import type { DecisionRecord } from './decision-record.ts';
 
 /** A decision record as `kw_events.meta` stores it (section 7.9.6): positions are decimal text, a sealed input's bytes are base64url. */
@@ -13,6 +14,10 @@ export interface EncodedDecisionRecord {
     readonly answers: DecisionRecord['answers'];
     readonly effects: readonly string[];
   };
+  /** A `$kwe` envelope is stored as it is; a sealed value's bytes are base64url. */
+  readonly request?:
+    | { readonly keyId: string; readonly nonce: string; readonly ciphertext: string }
+    | KweEnvelope;
 }
 
 /**
@@ -49,6 +54,18 @@ export function encodeDecisionRecord(record: DecisionRecord): EncodedDecisionRec
             answers: record.prepare.answers,
             effects: record.prepare.effects,
           },
+        }),
+    ...(record.request === undefined
+      ? {}
+      : {
+          request:
+            '$kwe' in record.request
+              ? record.request
+              : {
+                  keyId: record.request.keyId,
+                  nonce: Buffer.from(record.request.nonce).toString('base64url'),
+                  ciphertext: Buffer.from(record.request.ciphertext).toString('base64url'),
+                },
         }),
   };
 }

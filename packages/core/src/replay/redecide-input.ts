@@ -23,11 +23,21 @@ export interface RedecideInput {
   readonly commandId: string;
   /**
    * The command's input, given by the caller (section 7.9.6); refused unless it matches the
-   * recorded digest.
+   * recorded digest. Absent: the input the decision record kept sealed; a decision that kept none
+   * needs it given.
    */
-  readonly input: unknown;
+  readonly input?: unknown;
   /** The API version the command was expressed in; the digest covers it. */
   readonly apiVersion: string;
+  /**
+   * Compare the personal members of the events and of the effect inputs by presence, never by
+   * value: the personal fields of before-images are left out of the compared events and of the
+   * re-decided events shown, and the answer says nothing about what a personal member holds
+   * (set when the input came from a caller who must not learn a stored value by guessing it, as
+   * `core.explain` does).
+   * Absent: by value, as an in-process re-decide does.
+   */
+  readonly personalByPresence?: boolean;
   readonly behaviours: EntityBehaviours;
   readonly rules: readonly NormalizedRule[];
   /** The runtime's key service, in the recorded scope: verifications and reveals run on it for real (section 7.9.6). */
@@ -41,7 +51,7 @@ export interface RedecideInput {
    * duration (section 15.1.10); a state read in an older decision is refused. Default `P7D`.
    */
   readonly feedHorizon?: string;
-  /** What the record does not hold of the request (user agent, address), as `--input` supplies the input (section 7.9.6). */
+  /** What the record does not hold of the request: its address, and the user agent of a record without a `request` member (section 7.9.6, S-126). */
   readonly request?: Pick<RequestInfo, 'userAgent' | 'connection'>;
   readonly log: Logger;
   readonly trace: Span;

@@ -152,15 +152,22 @@ export function memoryKeyStore(ctx: MemoryUnitContext): SubjectKeyStore {
         encoder.encode(keyId),
       );
     },
-    sealValue: async (binding, plain) => {
+    sealValue: async (binding, plain, options) => {
       ctx.writable();
-      const keyId = newUuidV7();
+      const keyId = options?.keyId ?? newUuidV7();
+      const stored = ctx.tx.read<ValueKey>(values()).get(keyId);
+      if (stored !== undefined) {
+        const sealed = await memorySeal(stored.material, plain, stored.aad);
+        return { keyId, nonce: sealed.nonce, ciphertext: sealed.ciphertext };
+      }
       const material = crypto.getRandomValues(new Uint8Array(32));
       const aad = encoder.encode([binding.entity, binding.id, binding.field].join('\u0000'));
       const sealed = await memorySeal(material, plain, aad);
       ctx.tx.write<ValueKey>(values()).set(keyId, { keyId, material, aad });
       return { keyId, nonce: sealed.nonce, ciphertext: sealed.ciphertext };
     },
+    liveValueKeys: async (keyIds) =>
+      keyIds.filter((keyId) => ctx.tx.read<ValueKey>(values()).has(keyId)),
     openValue: async (sealed, expected) => {
       const record = ctx.tx.read<ValueKey>(values()).get(sealed.keyId);
       if (record === undefined) return undefined;

@@ -9,14 +9,11 @@ import type { EventMeta } from '../events/event-meta.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
 import { sealDecisionInput } from '../events/seal-decision-input.ts';
 import { generatedEntity } from '../generated-actions/generated-entity.ts';
-import { generatedHandlerOf } from '../generated-actions/generated-handler-of.ts';
-import { generatedSet } from '../generated-actions/generated-set.ts';
 import { setResultWithState } from '../generated-actions/set-result-with-state.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import type { Clock } from '../kernel/clock.ts';
 import { appendReactionProcessEvents } from '../reactions/append-reaction-process-events.ts';
 import { processDraftsOf } from '../reactions/process-drafts-of.ts';
-import { decodeRow } from '../repositories/decode-row.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
 import { completeJobHere } from '../worker/complete-job-here.ts';
@@ -28,9 +25,11 @@ import { commandOutput } from './command-output.ts';
 import { decisionDigest } from './decision-digest.ts';
 import { defaultNodeId } from './default-node-id.ts';
 import { draftsToEvents } from './drafts-to-events.ts';
+import { handleDecision } from './handle-decision.ts';
 import { insertPendingReceipt } from './insert-pending-receipt.ts';
 import { loadTarget } from './load-target.ts';
 import { mergedFlagReads } from './merged-flag-reads.ts';
+import { mergedRequestReads } from './merged-request-reads.ts';
 import { nestedFingerprint } from './nested-fingerprint.ts';
 import { normalizeDecision } from './normalize-decision.ts';
 import { openDecision } from './open-decision.ts';
@@ -38,6 +37,7 @@ import { openReactionJob } from './open-reaction-job.ts';
 import type { PreparedRun } from './prepared-run.ts';
 import { receiptRow } from './receipt-row.ts';
 import { receiptWindowMs } from './receipt-window-ms.ts';
+import { recordRequestInfo } from './record-request-info.ts';
 import { refuseGeneratedWrite } from './refuse-generated-write.ts';
 import { replayReceipt } from './replay-receipt.ts';
 import type { RunCommandInput } from './run-command-input.ts';
@@ -155,22 +155,18 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     ...(entry === undefined || target === undefined ? {} : { target: { entry, row: target } }),
     ...(opened?.decisionProcess === undefined ? {} : { process: opened.decisionProcess }),
   });
-  let handled: unknown;
   const generated = action.generated === undefined ? undefined : generatedEntity(registry, action);
-  if (opened !== undefined) {
-    handled = opened.decide(decision.ctx);
-  } else if (action.generated === 'set' && generated !== undefined) {
-    handled = await generatedSet({ run, unit, entry: generated, decision });
-  } else {
-    const handler =
-      generated === undefined ? action.handler : generatedHandlerOf(action, generated);
-    if (entry !== undefined && target !== undefined) {
-      const { id: _id, ifVersion: _ifVersion, ...rest } = run.input as Record<string, unknown>;
-      handled = handler(rest, decodeRow(entry, target, authority), decision.ctx);
-    } else {
-      handled = handler(run.input, decision.ctx);
-    }
-  }
+  const handled =
+    opened === undefined
+      ? await handleDecision({
+          run,
+          unit,
+          decision,
+          ...(entry === undefined || target === undefined
+            ? {}
+            : { target: { entry, row: target } }),
+        })
+      : opened.decide(decision.ctx);
   const decided = normalizeDecision(await decision.drive(handled));
   run.signal?.throwIfAborted();
 
@@ -187,6 +183,11 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   // The record keeps an issued verifier sealed, never plain: the row's own sealed text, or a value
   // of its own under the decision when no row took it (7.9.3, 14.7.4).
   const answers = await sealedAnswers(unit, commandId, decision.answers, sealedVerifiers);
+  const requestRead = mergedRequestReads(input.preparedRun?.request, decision.request());
+  const sealedRequest =
+    requestRead === undefined
+      ? undefined
+      : await recordRequestInfo(unit, commandId, run.principal, requestRead);
   const sealedInput =
     action.trace?.input === 'sealed'
       ? await sealDecisionInput(unit, commandId, action.input, run.input)
@@ -223,6 +224,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
           ...(sealedInput === undefined ? {} : { input: sealedInput }),
           effects: plannedEffects,
           ...(input.preparedRun === undefined ? {} : { prepare: input.preparedRun.record }),
+          ...(sealedRequest === undefined ? {} : { request: sealedRequest }),
         }),
       });
       return meta;

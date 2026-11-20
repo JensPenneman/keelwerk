@@ -1,4 +1,4 @@
-/** `kw_value_keys`: one wrapped key per sealed credential value, deleted when the value is replaced (section 14.7.4). */
+/** `kw_value_keys`: one wrapped key per sealed credential value, deleted when the value is replaced, per request record of a command without a principal id, or one long-lived key per principal id for the request records of its commands (section 14.7.4). */
 export function kwValueKeys(root: string): readonly string[] {
   return [
     `create table "${root}".kw_value_keys (

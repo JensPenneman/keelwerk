@@ -31,6 +31,7 @@ import {
   refuse,
   remind,
 } from './erasure-probe-proof.ts';
+import { arrive, note, requestRules, stampThread } from './erasure-probe-request.ts';
 import { relay } from './relay-module.ts';
 
 const person = probePerson;
@@ -285,6 +286,9 @@ const probeDef = defineModule(probeBase, {
     enrol,
     open,
     signIn,
+    arrive,
+    note,
+    stampThread,
     answer,
     jot,
     claim,
@@ -305,6 +309,9 @@ const probeDef = defineModule(probeBase, {
     enrol: { operators: rules.enrol },
     open: { operators: rules.open },
     signIn: { operators: rules.signIn },
+    arrive: { anonymous: requestRules.arrive },
+    note: { users: requestRules.note },
+    stampThread: { operators: requestRules.stampThread },
     answer: { operators: rules.answer },
     jot: { operators: rules.jot },
     claim: { operators: rules.claim },

@@ -4,6 +4,7 @@ import type { ErrorSpec } from '../errors/error-spec.ts';
 import type { RuleMatch } from '../errors/rule-match.ts';
 import type { WireError } from '../errors/wire-error.ts';
 import type { DecisionRecord } from '../events/decision-record.ts';
+import type { DecisionRequest } from '../events/decision-request.ts';
 import type { EventEnvelope } from '../events/event-envelope.ts';
 import type { EventMeta } from '../events/event-meta.ts';
 import type { EventSelector } from '../events/event-selector.ts';
@@ -139,6 +140,7 @@ type Interfaces =
   | DataAdapterFactory
   | DataKey
   | DecisionRecord
+  | DecisionRequest
   | DerivedIndexField
   | Draft
   | EffectDraft

@@ -24,7 +24,7 @@ function answersOf(flags: Readonly<Record<string, unknown>>): Record<string, unk
 }
 
 /**
- * The input of `core.explain` from the command line: `--trace <id>` prints a tree; a reference
+ * The input of `core.explain` from the command line: `--trace <id>` prints a tree; `--redecide <id>` decides a recorded command again and compares it; a reference
  * evaluates the decision, and with `--dry-run` runs the command in a unit that rolls back. The
  * backend and tenant come from the connection (`--backend`, `--tenant` or the profile).
  */
@@ -39,12 +39,44 @@ export async function buildExplainRequest(
     ...(tenant === undefined ? {} : { tenant }),
   };
   const id = flag(flags, 'trace');
+  const redecide = flag(flags, 'redecide');
+  if (redecide !== undefined) {
+    if (ref !== undefined)
+      throw usageFailure('--redecide takes a command id, not an action reference.');
+    if (id !== undefined || flags['dry-run'] === true) {
+      throw usageFailure('--redecide cannot be combined with --trace or --dry-run.');
+    }
+    if (
+      flag(flags, 'as') !== undefined ||
+      flag(flags, 'roles') !== undefined ||
+      flag(flags, 'command-id') !== undefined ||
+      flags.answer !== undefined
+    ) {
+      throw usageFailure(
+        '--redecide cannot be combined with --as, --roles, --command-id or --answer.',
+      );
+    }
+    const given = flag(flags, 'input');
+    const apiVersion = flag(flags, 'api-version');
+    return {
+      mode: 'redecide',
+      commandId: redecide,
+      ...scope,
+      ...(given === undefined ? {} : { input: await readInputArgument(context, given) }),
+      ...(apiVersion === undefined ? {} : { apiVersion }),
+    };
+  }
+  if (flag(flags, 'api-version') !== undefined) {
+    throw usageFailure('--api-version belongs to --redecide.');
+  }
   if (id !== undefined) {
     if (ref !== undefined) throw usageFailure('--trace takes an id, not an action reference.');
     return { mode: 'trace', id, ...scope };
   }
   if (ref === undefined) {
-    throw usageFailure('Name an action reference to explain, or use --trace <id>.');
+    throw usageFailure(
+      'Name an action reference to explain, or use --trace <id> or --redecide <id>.',
+    );
   }
   const dryRun = flags['dry-run'] === true;
   if (!dryRun && (flag(flags, 'command-id') !== undefined || flags.answer !== undefined)) {

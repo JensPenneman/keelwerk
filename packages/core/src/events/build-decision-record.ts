@@ -19,6 +19,8 @@ export interface DecisionRecordInput {
   readonly effects: readonly string[];
   /** What `prepare` recorded; absent for a command without `prepare`. */
   readonly prepare?: PrepareRecord;
+  /** The request information the decision read, sealed; absent when it read none. */
+  readonly request?: DecisionRecord['request'];
 }
 
 /**
@@ -49,5 +51,6 @@ export function buildDecisionRecord(input: DecisionRecordInput): DecisionRecord 
             effects: [...input.prepare.effects],
           },
         }),
+    ...(input.request === undefined ? {} : { request: input.request }),
   };
 }

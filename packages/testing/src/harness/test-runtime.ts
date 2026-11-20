@@ -7,6 +7,7 @@ import type {
   KeyService,
   Logger,
   NamespaceRef,
+  RebuildReport,
   RuntimeControl,
 } from '@keelwerk/core';
 import type { TestTenant } from './test-tenant.ts';
@@ -60,6 +61,8 @@ export interface TestRuntime<App, Name extends string = string> {
    * run, else answers 0.
    */
   advanceTo(at: Temporal.Instant): Promise<number>;
+  /** `runtime.control.rebuild` of the tenant's id; default the first tenant. */
+  rebuild(tenant?: Name): Promise<RebuildReport>;
   /** Every later re-resolution of the subject answers null (a revoked credential). */
   revoke(subject: string): void;
   /** Stops the runtime: running jobs may finish for `deadlineMs` (default 0), then the adapter closes. */

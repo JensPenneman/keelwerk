@@ -1,5 +1,6 @@
 import { commandQueue } from '../effects/command-queue.ts';
 import { timerQueue } from '../effects/timer-queue.ts';
+import { principalValueKeyId } from '../keys/principal-value-key-id.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
@@ -48,6 +49,16 @@ async function purgeMatching(
   }
 }
 
+async function destroyValueKeys(
+  unit: Unit,
+  options: ErasePrincipalsOptions,
+  keyIds: readonly string[],
+): Promise<void> {
+  if (keyIds.length === 0) return;
+  await options.onValueKeys?.(keyIds);
+  for (const keyId of keyIds) await unit.keys.destroyValueKey(keyId);
+}
+
 /** What `erasePrincipals` reports to its caller before it commits. */
 export interface ErasePrincipalsOptions {
   /**
@@ -56,6 +67,14 @@ export interface ErasePrincipalsOptions {
    * failure rolls the unit back and a crash after the commit finds the tombstones recorded.
    */
   readonly onValueKeys?: (keyIds: readonly string[]) => Promise<void>;
+  /**
+   * The value keys the decision records of the commands the caller visited sealed their request
+   * under (the user agent and transport a decision read), for the commands that have no principal
+   * id: they are destroyed, tombstone first (`onValueKeys`). The request records of a command with
+   * a principal id are sealed under the long-lived key of that id and go with `ids` below; those of
+   * a user principal in a tenant are sealed under the subject's data key and are not listed.
+   */
+  readonly commandRequestKeys?: readonly string[];
 }
 
 /**
@@ -63,7 +82,9 @@ export interface ErasePrincipalsOptions {
  * `core.commandReceipt`, which hold the principal's document, remote address and user agent), the
  * command jobs and timers the principals run as (`unit.jobs.purgeForPrincipals`; a job another
  * principal runs is kept, whoever caused it, and so are reaction and effect jobs), destroys the
- * value keys of the secret members of the jobs it purged (`options.onValueKeys` first) and, when
+ * value keys of the secret members of the jobs it purged, the long-lived value key of every id in
+ * `ids` that has one (the key its request records are sealed under) and the keys in
+ * `options.commandRequestKeys` (`options.onValueKeys` first) and, when
  * the app has `live.streamTicket`, purges its rows, each by the `principalId` that is among `ids`. `ids` are the
  * subject id and the ids of the rows the subject OWNS (never the ids of rows that only hold one
  * of its values), which are the principal ids a user or a session resolves to. `commandIds` are
@@ -98,6 +119,7 @@ export async function erasePrincipals(
       );
     }
   }
+  await destroyValueKeys(unit, options, options.commandRequestKeys ?? []);
   for (const chunk of chunks(ids)) {
     if (receipts?.descriptor.fields.principalId !== undefined) {
       purged += await purgeMatching(
@@ -114,11 +136,10 @@ export async function erasePrincipals(
     }
     const jobs = await unit.jobs.purgeForPrincipals(chunk, [commandQueue, timerQueue]);
     purged += jobs.length;
-    const keyIds = await jobValueKeys(unit, registry, jobs);
-    if (keyIds.length > 0) {
-      await options.onValueKeys?.(keyIds);
-      for (const keyId of keyIds) await unit.keys.destroyValueKey(keyId);
-    }
+    await destroyValueKeys(unit, options, await jobValueKeys(unit, registry, jobs));
+    // One long-lived value key per principal id seals the request records of its commands.
+    const live = await unit.keys.liveValueKeys(chunk.map(principalValueKeyId));
+    await destroyValueKeys(unit, options, live);
   }
   return purged;
 }

@@ -64,5 +64,11 @@ export async function runPrepare(
     answers: decision.answers,
     effects,
   };
-  return { value, record, flags: [...decision.flags.values()] };
+  const read = decision.request();
+  return {
+    value,
+    record,
+    flags: [...decision.flags.values()],
+    ...(read === undefined ? {} : { request: read }),
+  };
 }

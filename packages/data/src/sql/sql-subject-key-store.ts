@@ -53,6 +53,25 @@ export function sqlSubjectKeyStore(ctx: SqlUnitContext): SubjectKeyStore {
       );
     });
   };
+  const readValueKey = async (
+    keyId: string,
+  ): Promise<{ readonly material: Uint8Array; readonly aad: Uint8Array } | undefined> => {
+    const record = await sqlGuard(async () =>
+      ctx
+        .scopedDb()
+        .selectFrom(valueKeys)
+        .select('wrapped')
+        .where('key_id', '=', keyId)
+        .executeTakeFirst(),
+    );
+    if (record === undefined) return undefined;
+    const bundle = await wrapper().unwrap(
+      ctx.scopeId(),
+      decodeBytes(record.wrapped),
+      encoder.encode(keyId),
+    );
+    return { material: bundle.subarray(0, 32), aad: bundle.subarray(32) };
+  };
   // A writing unit reads the key `for share`: a shred of the subject waits for the unit to finish,
   // so a value sealed under the key is committed, with its reference, before the shred is (D7).
   const records = async (subjectId: string, lock = false) =>
@@ -221,9 +240,14 @@ export function sqlSubjectKeyStore(ctx: SqlUnitContext): SubjectKeyStore {
         encoder.encode(keyId),
       );
     },
-    sealValue: async (binding, plain) => {
+    sealValue: async (binding, plain, options) => {
       ctx.writable();
-      const keyId = newUuidV7();
+      const keyId = options?.keyId ?? newUuidV7();
+      const stored = options === undefined ? undefined : await readValueKey(keyId);
+      if (stored !== undefined) {
+        const sealed = await sqlSeal(stored.material, plain, stored.aad);
+        return { keyId, nonce: sealed.nonce, ciphertext: sealed.ciphertext };
+      }
       const material = crypto.getRandomValues(new Uint8Array(32));
       const aad = encodeAad([binding.entity, binding.id, binding.field]);
       // The associated data is not in the sealed value, so it travels inside the wrapped key.
@@ -232,8 +256,8 @@ export function sqlSubjectKeyStore(ctx: SqlUnitContext): SubjectKeyStore {
         new Uint8Array([...material, ...aad]),
         encoder.encode(keyId),
       );
-      await sqlGuard(async () => {
-        await ctx
+      const inserted = await sqlGuard(async () =>
+        ctx
           .scopedDb()
           .insertInto(valueKeys)
           .values({
@@ -242,34 +266,43 @@ export function sqlSubjectKeyStore(ctx: SqlUnitContext): SubjectKeyStore {
             kek_version: wrapper().version,
             created_at: encodeInstant(ctx.clock.now()),
           })
-          .execute();
-      });
+          .onConflict((conflict) => conflict.doNothing())
+          .returning('key_id')
+          .executeTakeFirst(),
+      );
+      if (inserted === undefined) {
+        // A unit that committed first created the key of this id: seal under that one.
+        const winner = await readValueKey(keyId);
+        if (winner === undefined) throw errors.internal(`value key ${keyId} vanished`);
+        const sealed = await sqlSeal(winner.material, plain, winner.aad);
+        return { keyId, nonce: sealed.nonce, ciphertext: sealed.ciphertext };
+      }
       const sealed = await sqlSeal(material, plain, aad);
       return { keyId, nonce: sealed.nonce, ciphertext: sealed.ciphertext };
     },
-    openValue: async (sealed, expected) => {
-      const record = await sqlGuard(async () =>
+    liveValueKeys: async (keyIds) => {
+      if (keyIds.length === 0) return [];
+      const found = await sqlGuard(async () =>
         ctx
           .scopedDb()
           .selectFrom(valueKeys)
-          .select('wrapped')
-          .where('key_id', '=', sealed.keyId)
-          .executeTakeFirst(),
+          .select('key_id')
+          .where('key_id', 'in', keyIds)
+          .execute(),
       );
-      if (record === undefined) return undefined;
-      const bundle = await wrapper().unwrap(
-        ctx.scopeId(),
-        decodeBytes(record.wrapped),
-        encoder.encode(sealed.keyId),
-      );
-      const aad = bundle.subarray(32);
+      const live = new Set(found.map((row) => String(row.key_id)));
+      return keyIds.filter((keyId) => live.has(keyId));
+    },
+    openValue: async (sealed, expected) => {
+      const stored = await readValueKey(sealed.keyId);
+      if (stored === undefined) return undefined;
       if (
         expected !== undefined &&
-        !Buffer.from(aad).equals(encodeAad([expected.entity, expected.id, expected.field]))
+        !Buffer.from(stored.aad).equals(encodeAad([expected.entity, expected.id, expected.field]))
       ) {
         return undefined;
       }
-      return sqlOpen(bundle.subarray(0, 32), sealed.nonce, sealed.ciphertext, aad);
+      return sqlOpen(stored.material, sealed.nonce, sealed.ciphertext, stored.aad);
     },
     destroyValueKey: async (keyId) => {
       ctx.writable();
