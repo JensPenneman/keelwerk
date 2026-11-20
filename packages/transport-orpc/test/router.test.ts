@@ -139,6 +139,7 @@ describe('close', () => {
           return { ok: true, value: { module: 'loans' } };
         },
       },
+      config: () => undefined,
       host: { route: (_spec: unknown, handler: never) => routes.push({ handler }) },
       log: { error: () => undefined },
     } as unknown as MountContext<OrpcConfig>;

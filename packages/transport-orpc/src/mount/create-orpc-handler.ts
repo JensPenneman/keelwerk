@@ -1,5 +1,5 @@
 import { type HttpHandler, utcDayOf } from '@keelwerk/core';
-import { asKeelwerkError, coreError } from '@keelwerk/core/http';
+import { asKeelwerkError, coreError, readBoundedBody } from '@keelwerk/core/http';
 import type { OrpcAnswer } from '../router/orpc-answer.ts';
 import type { OrpcContext } from '../router/orpc-context.ts';
 import { actionDeprecationHeaders } from './action-deprecation-headers.ts';
@@ -10,6 +10,18 @@ import { orpcRefusal } from './orpc-refusal.ts';
 /** The prefix the host stripped, as oRPC wants it: a path that starts with a slash. */
 function isPath(value: string): value is `/${string}` {
   return value.startsWith('/');
+}
+
+/**
+ * The request oRPC reads: a GET or HEAD goes on as it came, any other body is read within
+ * `maxBodyBytes` (a declared `content-length` above it is refused before a byte is read, a body
+ * without one at the first chunk over it) and handed on in a request of the same method, headers
+ * and signal. A request without a body goes on as it came.
+ */
+async function boundedRequest(request: Request, maxBodyBytes: number): Promise<Request> {
+  if (request.method === 'GET' || request.method === 'HEAD') return request;
+  const body = await readBoundedBody(request, maxBodyBytes);
+  return body === undefined ? request : new Request(request, { body });
 }
 
 /**
@@ -51,8 +63,9 @@ function answered(
  * context of this request. The OpenAPI handler also answers `GET /openapi.json` with the document of
  * the session's version. What the procedure reported goes onto the response: cookies, the command
  * id, the replay mark, the effects, 202 for an accepted command, `Retry-After`, `WWW-Authenticate`
- * and the deprecation headers of the action. A path oRPC does not know is `core.not_found`. It
- * never resolves a tenant or a principal.
+ * and the deprecation headers of the action. A request body above the `maxBodyBytes` of the
+ * backend's config is refused `core.payload_too_large` (413). A path oRPC does not know is
+ * `core.not_found`. It never resolves a tenant or a principal.
  */
 export function createOrpcHandler(deps: OrpcHandlerDeps, kind: 'rpc' | 'openapi'): HttpHandler {
   return async (request, ctx) => {
@@ -97,7 +110,8 @@ export function createOrpcHandler(deps: OrpcHandlerDeps, kind: 'rpc' | 'openapi'
         setCookies,
         answer,
       };
-      const result = await handler.handle(request, {
+      const bounded = await boundedRequest(request, deps.config(ctx.session.scope).maxBodyBytes);
+      const result = await handler.handle(bounded, {
         ...(isPath(ctx.basePath) ? { prefix: ctx.basePath } : {}),
         context,
       });

@@ -81,6 +81,7 @@ await mountOrpc(
       route: (spec: { prefix: string }, handler: HttpHandler) =>
         routes.push({ prefix: spec.prefix, handler }),
     },
+    config: () => undefined,
     log: { error: () => undefined },
   } as unknown as MountContext<OrpcConfig>,
   { openapi: '/orpc-openapi' },

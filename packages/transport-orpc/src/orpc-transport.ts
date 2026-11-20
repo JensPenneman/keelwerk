@@ -11,7 +11,10 @@ export function orpcTransport(options: OrpcStaticOptions = {}): OrpcModule {
   return defineTransportModule({
     id: 'orpc',
     requires: [contracts.httpHost],
-    config: shape({ cors: field.list(field.string()).default([]) }),
+    config: shape({
+      cors: field.list(field.string()).default([]),
+      maxBodyBytes: field.integer({ min: 1024 }).default(1_048_576),
+    }),
     transport: createOrpcAdapter(options),
   });
 }

@@ -4,6 +4,14 @@ import { describe, expect, test, vi } from 'vitest';
 import { subscribeProcedure } from '../src/router/subscribe-procedure.ts';
 import { orpcConformanceApp, orpcConformanceVersions } from './support/orpc-conformance-app.ts';
 
+/**
+ * A promise that resolves to 'late' in a macrotask. Microtasks all run before any macrotask, so
+ * when a race against it is won by something else, that thing settled by microtasks alone.
+ */
+function late(): Promise<'late'> {
+  return new Promise<'late'>((resolve) => setImmediate(() => resolve('late')));
+}
+
 describe('the iterator of subscribeProcedure', () => {
   const surface: ApiSurface = deriveSurface(
     orpcConformanceApp as never,
@@ -284,17 +292,17 @@ describe('the iterator of subscribeProcedure', () => {
         undefined,
       );
       await iterator.next();
-      expect((await iterator.next()).value).toEqual({ control: 'reset', reason: 'resync' });
+      // The reset wins against a reset that waits for the slow return.
+      const reset = await Promise.race([iterator.next(), late()]);
+      expect(reset).toEqual({ done: false, value: { control: 'reset', reason: 'resync' } });
       expect(seen.returned).toBe(1);
-      let ended = false;
-      const last = iterator.next().then((step) => {
-        ended = true;
-        return step;
-      });
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      expect(ended).toBe(false);
+      const last = iterator.next();
+      // The end waits for the slow return while the gate is shut.
+      expect(await Promise.race([last, late()])).toBe('late');
       open();
-      expect(await last).toEqual({ done: true, value: undefined });
+      // The end arrives once the return is open.
+      const end = await Promise.race([last, late()]);
+      expect(end).toEqual({ done: true, value: undefined });
     });
   });
 });

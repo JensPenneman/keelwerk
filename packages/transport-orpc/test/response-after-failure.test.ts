@@ -64,6 +64,7 @@ describe('the response of a call that failed after the procedure ran', () => {
         invoke: async () =>
           options.outcome ?? { ok: true, replayed: true, value, effects: ['effect-1'] },
       },
+      config: () => undefined,
       host: { route: (_spec: unknown, handler: never) => routes.push({ handler }) },
       log: { error: () => undefined },
     } as unknown as MountContext<OrpcConfig>;

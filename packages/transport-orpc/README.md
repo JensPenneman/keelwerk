@@ -21,11 +21,18 @@ defineApp({ id: 'library', modules: [library, orpc] });
 - `openapi` (absent by default): the prefix of oRPC's OpenAPI handler. Without it the handler is not
   mounted.
 
-The module's `config` has one member, `cors`, the extra origins the host allows (the host applies
-it; a backend without an `orpc` entry allows none). Known limit: the host's CORS lists do not yet
-take the headers a transport declares, so a browser client on another origin can neither resume an
-oRPC subscription with `Last-Event-ID` nor read `Preference-Applied`; the lists take them in a
-change of the host.
+The module's `config` has two members. `cors` is the extra origins the host allows (the host applies
+it; a backend without an `orpc` entry allows none). `maxBodyBytes` is the most bytes of a request
+body (an integer of at least 1024, default 1 MiB). The host reads every body within its own
+`maxBodyBytes` first, so a setting above the host's has no effect. The transport then refuses a body
+above its bound at the RPC and the OpenAPI handler with `core.payload_too_large`, status 413, in the
+transport's error form: a declared `content-length` above it before the transport reads a byte, and
+a body without one at the first chunk over it. The client's upload is never cut by this setting, as
+the host has read it by then.
+
+Known limit: the host's CORS lists do not yet take the headers a transport declares, so a browser
+client on another origin can neither resume an oRPC subscription with `Last-Event-ID` nor read
+`Preference-Applied`; the lists take them in a change of the host.
 
 ## The router
 

@@ -11003,7 +11003,9 @@ anonymous-address bounds (section 15.4.10).
   retry with the same command id returns it. A command that exceeds its timeout is rolled back and
   reported as `unavailable` with code `core.timeout` (section 10).
 - Request bodies are limited to 1 MiB by default (`maxBodyBytes` per transport); larger bodies are
-  `validation` with code `core.payload_too_large`.
+  `validation` with code `core.payload_too_large`. The host reads every body of a mounted route
+  within its own `maxBodyBytes` first; REST, GraphQL, tRPC and oRPC then apply the `maxBodyBytes`
+  of their backend's config (minimum 1024, default 1 MiB) to the body they read.
 - Batch sizes are bounded: GraphQL by the operation limits of section 16.6.6, tRPC batches and
   invocation-protocol batches by 20 invocations.
 
@@ -11569,6 +11571,12 @@ despite its youth; it ships in M2 beside GraphQL and tRPC, passes the same confo
 |---|---|---|
 | `OrpcRouter` type alias | `keelwerk dev`, `keelwerk generate` | a type fragment in `keelwerk.generated.ts`, committed |
 | router value | at `listen`, from the surface | memory |
+
+Added 2026-11-20: the module's config holds `cors` and `maxBodyBytes`, as tRPC's. A request body
+above `maxBodyBytes` is refused at the RPC and the OpenAPI handler with `core.payload_too_large`
+(413) in oRPC's error form. The host reads every body within its own `maxBodyBytes` first, so a
+setting above the host's has no effect; the transport refuses a declared `content-length` above its
+bound before it reads a byte, and a body without one at the first chunk over it.
 
 ### 16.8 The invocation protocol and the typed client
 

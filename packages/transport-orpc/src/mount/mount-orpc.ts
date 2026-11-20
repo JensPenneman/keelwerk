@@ -1,5 +1,6 @@
 import { errors, type HttpHandler, type MountContext, type MountHandle } from '@keelwerk/core';
 import type { OrpcConfig } from '../orpc-config.ts';
+import { orpcConfigOf } from '../orpc-config-of.ts';
 import type { OrpcStaticOptions } from '../orpc-static-options.ts';
 import { createOrpcHandler } from './create-orpc-handler.ts';
 import type { OrpcHandlerDeps } from './orpc-handler-deps.ts';
@@ -24,6 +25,7 @@ export async function mountOrpc(
   const deps: OrpcHandlerDeps = {
     versions,
     invoker: ctx.invoker,
+    config: (scope) => orpcConfigOf(ctx.config(scope)),
     log: ctx.log,
     development,
     serializer: options.serializer ?? 'orpc',
