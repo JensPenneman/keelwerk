@@ -233,6 +233,7 @@ export async function startRuntime(
       apps: servedById,
       invoker: draining.invoker,
       clock,
+      flagProviders,
       gate,
       restoreHold: restore.hold,
     });

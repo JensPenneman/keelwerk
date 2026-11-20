@@ -10,6 +10,8 @@ import {
   testOperator,
 } from '@keelwerk/testing';
 import { deliveryApp } from './delivery-app.ts';
+import { forgedApp } from './forged-app.ts';
+import { heldApp } from './held-app.ts';
 import { membersApp } from './members-app.ts';
 
 type Tenant = 'acme' | 'globex';
@@ -81,9 +83,20 @@ export interface BootedMembers {
 /** Boots the app with one backend and two tenants, acme and globex, on a clock the test moves. */
 export async function bootMembers(
   kind: MembersStorage,
-  options: Pick<TestRuntimeOptions, 'logger' | 'external'> & { readonly delivery?: boolean } = {},
+  options: Pick<TestRuntimeOptions, 'logger' | 'external'> & {
+    readonly delivery?: boolean;
+    readonly forged?: boolean;
+    readonly held?: boolean;
+  } = {},
 ): Promise<BootedMembers> {
-  const app = options.delivery === true ? deliveryApp : membersApp;
+  const app =
+    options.forged === true
+      ? forgedApp
+      : options.held === true
+        ? heldApp
+        : options.delivery === true
+          ? deliveryApp
+          : membersApp;
   // The erasure worker runs its steps when a test asks (`settle`), never on a timer.
   const worker = erasure({ pollMs: 3_600_000 });
   // Both apps hold the members module and nothing a test reads of the other module, so the

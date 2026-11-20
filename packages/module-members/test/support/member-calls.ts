@@ -7,6 +7,7 @@ const founderSubject = '0192f3a0-0000-7000-8000-00000000f001';
 const strangerSubject = '0192f3a0-0000-7000-8000-00000000f003';
 const adminSubject = '0192f3a0-0000-7000-8000-00000000f004';
 const viewerSubject = '0192f3a0-0000-7000-8000-00000000f005';
+const secondAdminSubject = '0192f3a0-0000-7000-8000-00000000f006';
 /** The address the owner's invitation of most tests goes to. */
 const founderAddress = 'founder@example.com';
 
@@ -19,6 +20,8 @@ export const invitee: TestPrincipal = testPrincipal(inviteeSubject);
 export const stranger: TestPrincipal = testPrincipal(strangerSubject);
 /** A person who holds the admin role in tests that need one. */
 export const admin: TestPrincipal = testPrincipal(adminSubject);
+/** A second admin, for tests where one admin acts on what another did. */
+export const secondAdmin: TestPrincipal = testPrincipal(secondAdminSubject);
 /** A person who holds the viewer role in tests that need one. */
 export const viewer: TestPrincipal = testPrincipal(viewerSubject);
 

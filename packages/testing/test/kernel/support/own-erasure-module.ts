@@ -1,10 +1,11 @@
-import type { AppType, ModuleType, SubjectId } from '@keelwerk/core';
+import type { AppType, FlagProvider, ModuleType, SubjectId } from '@keelwerk/core';
 import {
   core,
   defineApp,
   defineCommand,
   defineContribution,
   defineEntity,
+  defineFlag,
   defineModule,
   defineModuleBase,
   defineRule,
@@ -16,6 +17,20 @@ import {
 
 /** Whether the erasures of the module's service principal are on hold: the test turns it on and off. */
 const erasureHold = { on: false };
+
+/** Whether the flag `oes.legalHold` is on for every tenant: the provider below answers it. */
+const legalHold = { on: false };
+
+/** A flag provider of the process that turns `oes.legalHold` on while `legalHold.on`, and passes every other flag on. */
+const legalHoldProvider: FlagProvider = {
+  id: 'legal-hold',
+  sync: true,
+  start: () => Promise.resolve(),
+  resolve: (flag) =>
+    flag.key === 'oes.legalHold' && legalHold.on
+      ? ({ value: true, variant: 'true', reason: 'STATIC', provider: 'legal-hold' } as never)
+      : undefined,
+};
 
 /** A row whose data subject starts as its own id, as an invitation's does, and moves to a person. */
 const itemDef = defineEntity({
@@ -50,6 +65,14 @@ const oesBaseDef = defineModuleBase({
   version: '0.1.0',
   contributions: { toCore },
   entities: { item: itemDef, holder: holderDef, mention: mentionDef },
+  flags: {
+    legalHold: defineFlag({
+      kind: 'boolean',
+      default: false,
+      level: 'tenant',
+      purpose: 'operational',
+    }),
+  },
 });
 
 const makeCommand = defineCommand(oesBaseDef, {
@@ -129,6 +152,14 @@ const holdErasures = defineRule(within(oesBaseDef, toCore), core.actions.eraseSu
   reason: 'Erasures are on hold.',
 });
 
+/** A hold that reads a flag: it matches the service principals while a provider turns `oes.legalHold` on. */
+const holdByFlag = defineRule(within(oesBaseDef, toCore), core.actions.eraseSubject, {
+  effect: 'deny',
+  principal: 'service',
+  when: (ctx) => ctx.flags.oes?.legalHold === true,
+  reason: 'A legal hold is on.',
+});
+
 const oesDef = defineModule(oesBaseDef, {
   actions: {
     make: makeCommand,
@@ -136,7 +167,7 @@ const oesDef = defineModule(oesBaseDef, {
     hold: holdCommand,
     speak: mentionCommand,
   },
-  contributes: { toCore: { policies: { eraseSubject: { holdErasures } } } },
+  contributes: { toCore: { policies: { eraseSubject: { holdErasures, holdByFlag } } } },
   policies: {
     make: {
       operators: defineRule(oesBaseDef, makeCommand, { effect: 'allow', principal: 'operator' }),
@@ -193,4 +224,4 @@ interface OwnErasureApp extends AppType<typeof ownErasureAppDef> {}
 /** An app of two modules: one whose rows end by erasing their own id, and one that tries it on a row that is not its own. */
 const ownErasureApp: OwnErasureApp = ownErasureAppDef;
 
-export { erasureHold, ownErasureApp };
+export { erasureHold, legalHold, legalHoldProvider, ownErasureApp };

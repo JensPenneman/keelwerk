@@ -54,7 +54,7 @@ describe('members on PostgreSQL', () => {
     expect((await app.row('invitation', invited.id))?.email).toBe('grace@example.com');
   });
 
-  test('T4: two createOwner calls at once leave one live owner invitation, two accepts at once one owner', async () => {
+  test('T4: two createOwner calls at once leave one live owner invitation; two concurrent accepts of the one live owner token leave one owner, the loser refused as members.invitation_invalid', async () => {
     const tenant = 'globex';
     const operator = app.operator(tenant);
     // Both commands read the tenant before either writes an invitation.

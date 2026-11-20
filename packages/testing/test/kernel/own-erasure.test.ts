@@ -5,7 +5,12 @@ import { createLocalClient } from '../../src/harness/create-local-client.ts';
 import { startTestRuntime } from '../../src/harness/start-test-runtime.ts';
 import { testOperator } from '../../src/harness/test-operator.ts';
 import type { TestRuntime } from '../../src/harness/test-runtime.ts';
-import { erasureHold, ownErasureApp } from './support/own-erasure-module.ts';
+import {
+  erasureHold,
+  legalHold,
+  legalHoldProvider,
+  ownErasureApp,
+} from './support/own-erasure-module.ts';
 
 type Runtime = TestRuntime<typeof ownErasureApp>;
 type Caller = {
@@ -19,6 +24,7 @@ type Caller = {
 let current: Runtime | undefined;
 afterEach(async () => {
   erasureHold.on = false;
+  legalHold.on = false;
   await current?.stop();
   current = undefined;
 });
@@ -30,6 +36,7 @@ async function boot(adapter: 'memory' | 'pglite') {
     operators: true,
     workers: true,
     eventWorkers: [worker],
+    flagProviders: [legalHoldProvider],
   });
   current = runtime;
   const operator = createLocalClient(runtime, {
@@ -138,47 +145,105 @@ describe.each(['memory', 'pglite'] as const)(
       expect(await keyLive(itemId)).toBe(true);
     });
 
-    test('C4: an id that equals a subject another row owns is refused and the key stays', {
+    test('C4: an id that equals a subject another row owns ends the row, and the key stays', {
       timeout,
     }, async () => {
-      const { operator, rows, keyLive } = await boot(adapter);
+      const { operator, rows, keyLive, settle, ledger } = await boot(adapter);
       const victim = person();
       await operator.invoke('oes.hold', { ownerId: victim, label: 'owned by the victim' });
       await operator.invoke('oes.make', { id: victim, note: 'a copy of the id' });
       expect(await keyLive(victim)).toBe(true);
-      const refused = await operator.attempt('oes.end', { itemId: victim });
-      expect(refused.error?.code).toBe('core.request_not_allowed');
-      expect(refused.error?.message).not.toContain(victim);
+      const ended = await operator.attempt('oes.end', { itemId: victim });
+      expect(ended.ok).toBe(true);
+      expect((await rows('oes.item', true))[0]?.state).toBe('ended');
+      // The job asks again, and every time another row holds the subject: nothing is erased.
+      await settle();
+      await current?.advanceTo(current.clock.now().add({ hours: 3 }));
+      await settle();
       expect(await keyLive(victim)).toBe(true);
-      expect((await rows('oes.item', true))[0]?.state).toBe('open');
+      expect(erasures(await ledger())).toEqual([]);
     });
 
-    test('C5: an id that another stream refers to is refused', { timeout }, async () => {
-      const { operator, rows, keyLive } = await boot(adapter);
+    test('C5: an id that another stream refers to ends the row, and the key stays', {
+      timeout,
+    }, async () => {
+      const { operator, rows, keyLive, settle, ledger } = await boot(adapter);
       const itemId = String((await operator.invoke('oes.make', { note: 'mine' })).itemId);
       await operator.invoke('oes.speak', {
         ownerId: person(),
         aboutId: itemId,
         text: 'about it',
       });
-      const refused = await operator.attempt('oes.end', { itemId });
-      expect(refused.error?.code).toBe('core.request_not_allowed');
+      const ended = await operator.attempt('oes.end', { itemId });
+      expect(ended.ok).toBe(true);
+      expect((await rows('oes.item', true))[0]?.state).toBe('ended');
+      await settle();
+      await current?.advanceTo(current.clock.now().add({ hours: 3 }));
+      await settle();
       expect(await keyLive(itemId)).toBe(true);
-      expect((await rows('oes.item', true))[0]?.state).toBe('open');
+      expect(erasures(await ledger())).toEqual([]);
     });
 
-    test('C6: a deny rule on the erasure refuses the end and rolls it back', {
+    test('C6: a hold on the erasure does not stop the end; the erasure starts when the hold lifts', {
       timeout,
     }, async () => {
-      const { operator, rows, ledger, settle } = await boot(adapter);
+      const { operator, rows, ledger, settle, keyLive } = await boot(adapter);
       const itemId = String((await operator.invoke('oes.make', { note: 'mine' })).itemId);
       erasureHold.on = true;
-      const refused = await operator.attempt('oes.end', { itemId });
-      expect(refused.error?.kind).toBe('forbidden');
-      expect((await rows('oes.item', true))[0]?.state).toBe('open');
-      erasureHold.on = false;
+      const ended = await operator.attempt('oes.end', { itemId });
+      expect(ended.ok).toBe(true);
+      expect((await rows('oes.item', true))[0]?.state).toBe('ended');
       await settle();
       expect(erasures(await ledger())).toEqual([]);
+      expect(await keyLive(itemId)).toBe(true);
+      // Still held when the job asks again.
+      await current?.advanceTo(current.clock.now().add({ hours: 2 }));
+      await settle();
+      expect(erasures(await ledger())).toEqual([]);
+      erasureHold.on = false;
+      await current?.advanceTo(current.clock.now().add({ hours: 2 }));
+      await settle();
+      expect(erasures(await ledger())).toHaveLength(1);
+      expect(await keyLive(itemId)).toBe(false);
+      expect(await rows('oes.item', true)).toEqual([]);
+    });
+
+    test('C6b: a hold that reads a flag a provider turns on keeps the key until the provider turns it off', {
+      timeout,
+    }, async () => {
+      const { operator, ledger, settle, keyLive } = await boot(adapter);
+      const itemId = String((await operator.invoke('oes.make', { note: 'mine' })).itemId);
+      legalHold.on = true;
+      expect((await operator.attempt('oes.end', { itemId })).ok).toBe(true);
+      await settle();
+      // The job asks again twice, and the flag holds each time: the key is not shredded.
+      for (let retry = 0; retry < 2; retry += 1) {
+        await current?.advanceTo(current.clock.now().add({ hours: 2 }));
+        await settle();
+        expect(erasures(await ledger())).toEqual([]);
+        expect(await keyLive(itemId)).toBe(true);
+      }
+      legalHold.on = false;
+      await current?.advanceTo(current.clock.now().add({ hours: 2 }));
+      await settle();
+      expect(erasures(await ledger())).toHaveLength(1);
+      expect(await keyLive(itemId)).toBe(false);
+    });
+
+    test('C7: a job that first starts more than a day after its request still erases', {
+      timeout,
+    }, async () => {
+      const { operator, ledger, settle, keyLive } = await boot(adapter);
+      const itemId = String((await operator.invoke('oes.make', { note: 'mine' })).itemId);
+      // The workers are held back by the hold until the clock has gone past the default receipt window.
+      erasureHold.on = true;
+      await operator.invoke('oes.end', { itemId });
+      await settle();
+      erasureHold.on = false;
+      await current?.advanceTo(current.clock.now().add({ hours: 30 }));
+      await settle();
+      expect(erasures(await ledger())).toHaveLength(1);
+      expect(await keyLive(itemId)).toBe(false);
     });
   },
 );

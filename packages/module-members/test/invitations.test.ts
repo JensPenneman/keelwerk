@@ -37,19 +37,25 @@ describe.each(['memory', 'pglite'] as const)('invitations on %s', (kind: Members
       patch: { status: 'withdrawn' },
     });
 
-  test('only the inviter withdraws a pending invitation, and a withdrawn one cannot be accepted', {
+  test('the inviter and the admins and owner withdraw a pending invitation, no one else, and a withdrawn one cannot be accepted', {
     timeout,
   }, async () => {
     const app = await boot();
     await joinAs(app, admin, 'admin', 'admin@example.com');
+    await joinAs(app, viewer, 'viewer', 'viewer@example.com');
     const byAdmin = await inviteAs(app, admin, { email: 'ada@example.com', role: 'member' });
-    // The owner did not invite it: the invitation is out of the owner's reach.
-    expect(refusalOfAttempt(await withdraw(app, founder, byAdmin.id))?.kind).toBe('not_found');
+    // A viewer did not invite it and is no admin, and a stranger is no member: out of their reach.
+    expect(refusalOfAttempt(await withdraw(app, viewer, byAdmin.id))?.kind).toBe('not_found');
     expect(refusalOfAttempt(await withdraw(app, stranger, byAdmin.id))?.kind).toBe('not_found');
     const withdrawn = await withdraw(app, admin, byAdmin.id);
     if (!withdrawn.ok) throw withdrawn.error;
     expect((await app.row('invitation', byAdmin.id))?.status).toBe('withdrawn');
     expect(refusalOfAttempt(await acceptAs(app, invitee, byAdmin.token ?? ''))?.code).toBe(invalid);
+    // The owner withdraws what an admin issued.
+    const byAdminAgain = await inviteAs(app, admin, { email: 'grace@example.com', role: 'member' });
+    const byOwner = await withdraw(app, founder, byAdminAgain.id);
+    if (!byOwner.ok) throw byOwner.error;
+    expect((await app.row('invitation', byAdminAgain.id))?.status).toBe('withdrawn');
   });
 
   test('the withdraw rule moves a pending invitation to withdrawn and to nothing else', {

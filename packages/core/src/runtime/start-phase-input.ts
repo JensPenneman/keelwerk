@@ -1,4 +1,5 @@
 import type { RestoreHold } from '../control/restore-hold.ts';
+import type { FlagProvider } from '../flags/flag-provider.ts';
 import type { Invoker } from '../invoker/invoker.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { Composed } from './compose-phase.ts';
@@ -21,6 +22,8 @@ export interface StartPhaseInput {
   readonly invoker: Invoker;
   /** The runtime clock (plan rule 13). */
   readonly clock: Clock;
+  /** The ordered flag providers of the process (the invoker's), which the workers read a hold's flags through. */
+  readonly flagProviders?: readonly FlagProvider[];
   /** Closed by a service that finds a restore under the running process; absent in a bare start. */
   readonly gate?: ServiceGate;
   /** The tenants a restore holds: the workers give their effect and deadline jobs back. */

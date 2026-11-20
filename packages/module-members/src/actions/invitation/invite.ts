@@ -11,8 +11,7 @@ import { requireLiveAdmin } from '../../lib/require-live-admin.ts';
  * (decision 480); the receipt never keeps it. An address that already has a pending invitation is
  * refused without naming it, until that invitation is withdrawn or has expired. The caller's
  * membership is loaded, not read from the session, so a removed admin whose session is still open
- * issues no token. Only
- * `createOwner` and `transferOwnership` give the owner role.
+ * issues no token. Only `createOwner` and `transferOwnership` give the owner role.
  */
 const inviteDef = defineCommand(membersBase, invitation, {
   creates: true,

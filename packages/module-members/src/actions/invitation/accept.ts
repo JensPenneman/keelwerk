@@ -11,8 +11,11 @@ import { memberRoles } from '../../lib/member-roles.ts';
  * role. The token alone proves the right to accept (the address is not compared with the person's);
  * it works once. A token of another prefix, an unknown one, a wrong one, a used, withdrawn or
  * expired one all answer `members.invitation_invalid`, and an unknown token costs one verification
- * like a known one. Accepting moves the invitation to the person as its data subject and writes
- * the address again, so an erasure of the person reaches it.
+ * like a known one. So does a pending row that holds no address (an operator is erasing it: the
+ * token verifies, but nothing may be accepted without the address to move) and one whose inviter
+ * is no longer an admin or the owner of the tenant (a token issued before the inviter was removed
+ * or demoted dies with their power). Accepting moves the invitation to the person as its data
+ * subject and writes the address again, so an erasure of the person reaches it.
  */
 const acceptDef = defineCommand(membersBase, invitation, {
   creates: true,
@@ -37,6 +40,17 @@ const acceptDef = defineCommand(membersBase, invitation, {
     ) {
       throw invitationInvalid();
     }
+    const { email, invitedBy } = row;
+    if (email === undefined) throw invitationInvalid();
+    if (
+      invitedBy !== undefined &&
+      !(yield* ctx.load.members.membership.exists({
+        subject: invitedBy,
+        role: { in: ['admin', 'owner'] },
+      }))
+    ) {
+      throw invitationInvalid();
+    }
     const { subject } = ctx.principal;
     if (yield* ctx.load.members.membership.exists({ subject })) {
       throw errors.conflict('You are already a member of this tenant.');
@@ -51,7 +65,7 @@ const acceptDef = defineCommand(membersBase, invitation, {
           status: 'accepted',
           acceptedAt: now,
           subject,
-          ...(row.email === undefined ? {} : { email: row.email }),
+          email,
         }),
         ctx.write.members.membership.create({
           id: membershipId,

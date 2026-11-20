@@ -11,6 +11,7 @@ import { membersBase } from './base.ts';
 import { principalEnrichersFill } from './contributions/to-core/fills/principal-enrichers.ts';
 import { adminsInvite } from './policies/invitation/admins-invite.ts';
 import { adminsRead } from './policies/invitation/admins-read.ts';
+import { adminsWithdraw } from './policies/invitation/admins-withdraw.ts';
 import { bringUp } from './policies/invitation/bring-up.ts';
 import { invitees } from './policies/invitation/invitees.ts';
 import { withdraw } from './policies/invitation/withdraw.ts';
@@ -28,7 +29,7 @@ const membersDef = defineModule(membersBase, {
     membership: { changeRole, removeMember, transferOwnership },
   },
   policies: {
-    invitation: { adminsInvite, adminsRead, bringUp, invitees, withdraw },
+    invitation: { adminsInvite, adminsRead, adminsWithdraw, bringUp, invitees, withdraw },
     membership: { adminsChangeRoles, adminsRemoveMembers, membersRead, ownerKept, ownerTransfers },
   },
   reactions: { settleEndedInvitation },

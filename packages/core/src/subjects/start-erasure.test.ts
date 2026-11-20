@@ -182,6 +182,15 @@ describe('only the accepted command starts an erasure', () => {
     expect(completed).toEqual([{ kind: 'succeeded' }]);
   });
 
+  test('a job that names an entity of a module under a command id a caller chose is refused', async () => {
+    const { context, stored, appended, completed } = setup({ receipt: accepted });
+    await expect(
+      startErasure(context, stored, { ...input, entity: 'x.thing' }),
+    ).rejects.toMatchObject({ code: 'core.request_not_allowed' });
+    expect(appended).toEqual([]);
+    expect(completed).toEqual([]);
+  });
+
   test('an unknown subject is not_found even with the receipt', async () => {
     const { context, stored, appended } = setup({ receipt: accepted, known: false });
     await expect(startErasure(context, stored, input)).rejects.toMatchObject({

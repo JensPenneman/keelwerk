@@ -55,6 +55,13 @@ describe.each(['memory', 'pglite'] as const)('members erasure on %s', (kind: Mem
     expect(keys.live).toBe(false);
     expect(keys.shredded).toBeGreaterThan(0);
     expect(await creationOpens(app, invited.id)).toBe(false);
+    // The record that wrote the address again under the person is the last one that carries it, so a
+    // fold of the stream from version 1 ends on a value its key still opens.
+    const seals = await app.sealsOf('invitation', invited.id);
+    expect(
+      seals.some((seal) => seal.record === 'members.invitation.changed' && seal.openable),
+    ).toBe(true);
+    expect(seals.at(-1)).toMatchObject({ record: 'members.invitation.changed', openable: true });
     expect(await erasuresOf(app)).toContainEqual(
       expect.objectContaining({
         subjectId: invited.id,
@@ -125,5 +132,67 @@ describe.each(['memory', 'pglite'] as const)('members erasure on %s', (kind: Mem
     }
     const again = await inviteAs(app, founder, { email: address, role: 'viewer' });
     expect((await app.row('invitation', again.id))?.status).toBe('pending');
+  });
+
+  test('an accept after an operator began erasing the pending invitation is invalid and moves nothing', {
+    timeout,
+  }, async () => {
+    const app = await boot();
+    const invited = await inviteAs(app, founder, { email: address, role: 'member' });
+    // The erasure worker has shredded the invitation's key; the row is not erased yet.
+    await app.shred(invited.id);
+    expect(refusalOfAttempt(await acceptAs(app, invitee, invited.token ?? ''))?.code).toBe(
+      'members.invitation_invalid',
+    );
+    expect(await app.row('invitation', invited.id)).toMatchObject({ status: 'pending' });
+    expect((await app.row('invitation', invited.id))?.subject).not.toBe(inviteeSubject);
+    const members = await app.as(founder).invoke('members.membership.query', {});
+    expect(members.items.map((row) => row.role)).toEqual(['owner']);
+  });
+
+  test('an operator repairs an erasure after accept: before the members erasure ran', {
+    timeout,
+  }, async () => {
+    const app = await boot();
+    const invited = await inviteAs(app, founder, { email: address, role: 'member' });
+    const accepted = await acceptAs(app, invitee, invited.token ?? '');
+    if (!accepted.ok) throw accepted.error;
+    // The accept requested the erasure of the invitation's id; the erasure worker has not run yet.
+    expect((await app.keysOf(invited.id)).live).toBe(true);
+    const repair = await app.operator().attempt(
+      'core.eraseSubject',
+      { subjectId: invited.id, reason: 'operator' } as never,
+      {
+        prefer: 'async',
+      } as never,
+    );
+    expect(repair.ok).toBe(true);
+    await app.settle();
+    expect((await app.keysOf(invited.id)).live).toBe(false);
+    expect(await creationOpens(app, invited.id)).toBe(false);
+  });
+
+  test('an operator repairs an erasure after accept: once the members erasure completed', {
+    timeout,
+  }, async () => {
+    const app = await boot();
+    const invited = await inviteAs(app, founder, { email: address, role: 'member' });
+    const accepted = await acceptAs(app, invitee, invited.token ?? '');
+    if (!accepted.ok) throw accepted.error;
+    await app.settle();
+    expect((await app.keysOf(invited.id)).live).toBe(false);
+    // The subject is erased already: the request is answered as 14.7.5 answers it for a known
+    // subject, and leaves the key shredded and the record unreadable.
+    const repair = await app.operator().attempt(
+      'core.eraseSubject',
+      { subjectId: invited.id, reason: 'operator' } as never,
+      {
+        prefer: 'async',
+      } as never,
+    );
+    expect(repair.ok).toBe(true);
+    await app.settle();
+    expect((await app.keysOf(invited.id)).live).toBe(false);
+    expect(await creationOpens(app, invited.id)).toBe(false);
   });
 });

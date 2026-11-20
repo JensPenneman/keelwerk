@@ -4,6 +4,7 @@ import { errors } from '../errors/errors.ts';
 import type { EgressPolicy } from '../executors/egress-policy.ts';
 import { runDeadlineJob } from '../executors/run-deadline-job.ts';
 import { runEffectJob } from '../executors/run-effect-job.ts';
+import type { FlagProvider } from '../flags/flag-provider.ts';
 import type { Invoker } from '../invoker/invoker.ts';
 import type { ScopeLookup } from '../invoker/scope-lookup.ts';
 import type { Job } from '../jobs/job.ts';
@@ -45,6 +46,8 @@ export interface RunJobContext {
   readonly control: ControlStore;
   /** The deployment's ledger sinks (`RuntimeInfrastructure.ledgers`). */
   readonly ledgers: readonly LedgerSink[];
+  /** The process's ordered flag providers: a hold on an own-subject erasure reads its flags through them. */
+  readonly flagProviders?: readonly FlagProvider[];
   /** The tenants a restore holds (14.7.6); absent in a bare start, where none is held. */
   readonly restoreHold?: RestoreHold;
 }

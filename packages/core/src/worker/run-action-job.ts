@@ -44,7 +44,11 @@ export async function runActionJob(job: Job, context: RunJobContext): Promise<vo
   const { action, commandId } = stored.run;
   if (action === erasureAction) {
     // The erasure command never runs `decide`: its job writes the ledger record (14.7.5 step 1).
-    const erase = stored.run.input as { readonly subjectId: string; readonly reason: string };
+    const erase = stored.run.input as {
+      readonly subjectId: string;
+      readonly reason: string;
+      readonly entity?: string;
+    };
     await startErasure(context, stored, erase);
     return;
   }

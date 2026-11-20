@@ -3,8 +3,9 @@ import { membersBase } from '../../base.ts';
 import { membership } from '../../entities/membership.ts';
 
 /**
- * The owner row is out of the reach of `update`, `archive`, `changeRole` and `removeMember`: the deny `where` filters it out
- * before the command loads it, so such a call answers `not_found` and the reason is never shown.
+ * The owner row is out of the reach of `update`, `archive`, `changeRole` and `removeMember`: the
+ * deny `where` filters it out before the command loads it, so such a call answers `not_found` and
+ * the reason is never shown.
  */
 export const ownerKept = defineRule(membersBase, membership, {
   effect: 'deny',

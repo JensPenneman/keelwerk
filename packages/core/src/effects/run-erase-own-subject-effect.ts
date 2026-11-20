@@ -1,16 +1,14 @@
-import { evaluateGate } from '../authorization/evaluate-gate.ts';
-import { forbiddenError } from '../authorization/forbidden-error.ts';
 import { errors } from '../errors/errors.ts';
 import { buildEventMeta } from '../events/build-event-meta.ts';
 import { kernelCommandId } from '../ids/kernel-command-id.ts';
-import { principalContextOf } from '../interpreter/principal-context-of.ts';
 import { refuseRequest } from '../interpreter/refuse-request.ts';
 import { deriveScopeSecrets } from '../keys/derive-scope-secrets.ts';
 import type { EraseOwnSubjectEffect } from '../protocol/erase-own-subject-effect.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
 import { canonicalSubject } from '../subjects/canonical-subject.ts';
-import { checkOwnSubjectErasure } from '../subjects/check-own-subject-erasure.ts';
 import { erasureAction } from '../subjects/erasure-action.ts';
+import { ownErasureRetry } from '../subjects/own-erasure-retry.ts';
+import { ownErasureWindowMs } from '../subjects/own-erasure-window-ms.ts';
 import { appendReceiptChange } from '../write-path/append-receipt-change.ts';
 import { commandDigests } from '../write-path/command-digests.ts';
 import { receiptRow } from '../write-path/receipt-row.ts';
@@ -27,11 +25,14 @@ import { validateEffectInput } from './validate-effect-input.ts';
  * `acceptAsyncCommand` writes for `core.eraseSubject`: the `accepted` receipt, the job and the
  * receipt's change record, under the module's service principal (`<module>.system`), so the
  * unchanged worker of section 14.7.5 does every step and writes every ledger record. Only a tenant
- * unit, an entity the module owns whose data subject is a field or path, and a row that nothing
- * but itself holds (`checkOwnSubjectErasure`) are accepted. A rule that denies `core.eraseSubject`
- * for that principal refuses the request; no allow rule is needed, because the module's own row is
- * the ownership. The receipt carries no address or user agent: an erasure's receipt is never
- * purged. A unit that repeats rolls its receipt and job back with it.
+ * unit, an entity the module owns whose data subject is a field or path, and a live row are
+ * accepted here, and a request that fails these refuses the unit. Whether the erasure may start
+ * is not asked here: ending a row never depends on it. The job asks when it starts
+ * (`admitOwnSubjectErasure`): a rule that denies `core.eraseSubject` for that principal, or another
+ * row that holds the subject, makes it wait and try again (`ownErasureRetry`); no allow rule is
+ * needed, because the module's own row is the ownership. The receipt lasts as long as the job can
+ * be tried (`ownErasureWindowMs`) and carries no address or user agent: an erasure's receipt is
+ * never purged. A unit that repeats rolls its receipt and job back with it.
  */
 export async function runEraseOwnSubjectEffect(
   scene: EffectScene,
@@ -65,23 +66,15 @@ export async function runEraseOwnSubjectEffect(
     { subjectId, reason: 'retention' },
     `"${erasureAction}"`,
   );
-  await checkOwnSubjectErasure(unit, run.registry, { type: entry.ref, id: subjectId });
-  const principal = moduleServicePrincipal(scene.module, run.principal);
-  const verdict = evaluateGate({
-    rules: run.rules,
-    action,
-    context: principalContextOf(run.registry, principal, run.scope, run.flags),
-    transport: 'runtime',
-    input,
+  const found = await unit.rows.findOne(entry.descriptor, {
+    where: { op: 'eq', field: 'id', value: subjectId },
+    includeArchived: true,
+    includeErased: false,
   });
-  const denied = verdict.rules.some((match) => match.effect === 'deny');
-  if (denied) {
-    throw forbiddenError({
-      rules: verdict.rules,
-      action: erasureAction,
-      reason: verdict.reason ?? 'A rule holds the erasure of this subject.',
-    });
+  if (found === undefined) {
+    throw refuseRequest(`eraseOwnSubject of "${effect.row.type}"`, 'it names no live row');
   }
+  const principal = moduleServicePrincipal(scene.module, run.principal);
   const commandId = kernelCommandId('effect', id);
   const now = scene.clock.now();
   const fingerprintKey =
@@ -102,7 +95,7 @@ export async function runEraseOwnSubjectEffect(
       apiVersion: run.apiVersion,
       request: { transport: 'runtime', requestId: commandId },
       now,
-      windowMs: action.idempotencyWindowMs,
+      windowMs: ownErasureWindowMs,
     }),
     status: 'accepted' as const,
   };
@@ -125,9 +118,14 @@ export async function runEraseOwnSubjectEffect(
     }),
     kind: 'action',
     queue: commandQueue,
+    retry: ownErasureRetry,
+    // The entity names what the job's admission checks; only a kernel command id may carry it.
     run: commandJobRun(
       erasureAction,
-      await sealJobInput(unit, run.registry, commandId, action, input),
+      {
+        ...((await sealJobInput(unit, run.registry, commandId, action, input)) as object),
+        entity: entry.ref,
+      },
       commandId,
     ),
   });
