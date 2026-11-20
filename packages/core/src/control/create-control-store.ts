@@ -12,6 +12,7 @@ import type { ControlStore } from './control-store.ts';
 import { createControlApiUsage } from './create-control-api-usage.ts';
 import { createControlFlags } from './create-control-flags.ts';
 import { createControlIdentities } from './create-control-identities.ts';
+import { createControlLeases } from './create-control-leases.ts';
 import { createControlLedger } from './create-control-ledger.ts';
 import { createControlMarks } from './create-control-marks.ts';
 import { createControlQuotas } from './create-control-quotas.ts';
@@ -59,6 +60,7 @@ export function createControlStore(options: ControlStoreOptions): ControlStore {
     retention: createControlRetention(adapter, namespace),
     identities: createControlIdentities(adapter, namespace),
     marks: createControlMarks(adapter, namespace, epochs),
+    leases: createControlLeases(adapter, namespace),
     epochs: () => epochs,
     epochOf: (scope) =>
       epochs.get(

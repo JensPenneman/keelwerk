@@ -49,7 +49,6 @@ describe('accelerations switched off', () => {
     expect(plainCapabilities.changeFeed).toBe('notify');
     expect(fallbackReport(plainCapabilities).map((row) => row.capability)).toEqual([
       'search',
-      'broadcast',
       'encryptedQueries.order',
       'encryptedQueries.tagSets',
     ]);
@@ -59,6 +58,7 @@ describe('accelerations switched off', () => {
     expect(offCapabilities.rowLocks).toBe(false);
     expect(offCapabilities.changeFeed).toBe('poll');
     expect(off.feed.level).toBe('poll');
+    expect(offCapabilities.broadcast).toBe(true);
     expect(fallbackReport(offCapabilities).map((row) => row.capability)).toEqual(
       expect.arrayContaining(['rowLocks', 'changeFeed']),
     );

@@ -3,6 +3,7 @@ import type {
   BucketStore,
   Clock,
   ConsumerStore,
+  ControlLeaseStore,
   ControlLedger,
   CounterStore,
   EventStore,
@@ -31,6 +32,7 @@ import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
 import { sqlCommitBuffer } from './sql-commit-buffer.ts';
 import { runCommitTail } from './sql-commit-tail.ts';
 import { sqlConsumerStore } from './sql-consumer-store.ts';
+import { sqlControlLeases } from './sql-control-leases.ts';
 import { sqlCounterStore } from './sql-counter-store.ts';
 import type { SqlDb } from './sql-db.ts';
 import type { SqlEntityIndex } from './sql-entity-index.ts';
@@ -100,6 +102,8 @@ export interface SqlUnit {
   readonly marks?: ScopeMarks;
   /** `kw_retention_runs`; deployment-scope units only (14.7.1). */
   readonly retentionRuns?: RetentionRunStore;
+  /** `kw_leases`; deployment-scope units only (S-120). */
+  readonly leases?: ControlLeaseStore;
   /** The counters of every scope of the namespace; namespace-scope units only (14.7.6). */
   readonly counters?: CounterStore;
   nested<T>(fn: (u: SqlUnit) => Promise<T>, options?: NestedUnitOptions): Promise<T>;
@@ -172,6 +176,7 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
             identities: sqlNamespaceIdentities(ctx),
             marks: sqlScopeMarks(ctx),
             retentionRuns: sqlRetentionRunStore(ctx),
+            leases: sqlControlLeases(ctx),
           }
         : {}),
       ...(current.scope.level === 'namespace' ? { counters: sqlCounterStore(ctx) } : {}),

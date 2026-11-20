@@ -24,11 +24,14 @@ const tracer = {
   },
 } as unknown as Tracer;
 
-/** An adapter environment for tests: a silent logger and a tracer whose spans do nothing. */
-export function testEnvironment(deploymentId = testScopes.deploymentId): AdapterEnvironment {
+/** An adapter environment for tests: a silent logger (or the one given) and a tracer whose spans do nothing. */
+export function testEnvironment(
+  deploymentId = testScopes.deploymentId,
+  logger: Logger = log,
+): AdapterEnvironment {
   return {
     deploymentId,
-    log,
+    log: logger,
     tracer,
     secrets: { resolve: async () => '' },
     signal: new AbortController().signal,

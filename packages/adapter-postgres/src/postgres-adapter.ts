@@ -7,6 +7,7 @@ import {
   withCommandReceipts,
 } from '@keelwerk/data';
 import pg from 'pg';
+import { createPostgresBroadcast } from './broadcast/create-postgres-broadcast.ts';
 import { connectionTimeout } from './connection-timeout.ts';
 import { createPostgresInstance } from './create-postgres-instance.ts';
 import { maskUnit } from './mask-unit.ts';
@@ -46,7 +47,11 @@ function ownerOnly(options: PostgresAdapterOptions, schema: SchemaOperations): S
  * notifier sends the wake-ups, and the heads are polled every second as the recovery (14.3.7).
  * `accelerations: { rowLocks: false, notify: false }` reports `rowLocks: false` and
  * `changeFeed: 'poll'`, sends no `NOTIFY` and opens no `LISTEN`, so the kernel's fallback paths run.
- * Listed in a deployment as the adapter `postgres`.
+ * `notify: false` switches off the change feed's `NOTIFY`/`LISTEN` only: broadcast keeps its own
+ * sessions (14.3.2) and still reports `broadcast: true`. The placement's url must reach a session (a
+ * direct connection or a session-mode pooler, never a transaction-mode pooler, 14.3.7), because
+ * broadcast and the change feed hold `LISTEN` on it; `notify: false` does not make such a url usable
+ * for broadcast. Listed in a deployment as the adapter `postgres`.
  */
 export function postgresAdapter(options: PostgresAdapterOptions = {}): DataAdapterFactory {
   return {
@@ -63,6 +68,12 @@ export function postgresAdapter(options: PostgresAdapterOptions = {}): DataAdapt
         log: env.log,
         adapter: instance,
         notify: !off.includes('changeFeed'),
+        connectionTimeoutMs: connectionTimeout(placement.options),
+      });
+      const broadcast = createPostgresBroadcast({
+        url: placement.url ?? '',
+        applicationName: options.applicationName ?? 'keelwerk',
+        log: env.log,
         connectionTimeoutMs: connectionTimeout(placement.options),
       });
       const hasOwner = options.ownerUrl !== undefined && options.ownerUrl !== '';
@@ -95,7 +106,11 @@ export function postgresAdapter(options: PostgresAdapterOptions = {}): DataAdapt
         ...instance,
         connect: async () => maskCapabilities(await instance.connect(), off),
         close: async (deadlineMs) => {
-          await Promise.all([feed.close(deadlineMs), instance.close(deadlineMs)]);
+          await Promise.all([
+            feed.close(deadlineMs),
+            broadcast.close(deadlineMs),
+            instance.close(deadlineMs),
+          ]);
         },
         unit: async (namespace, scope, fn, unitOptions) =>
           instance.unit(
@@ -113,6 +128,7 @@ export function postgresAdapter(options: PostgresAdapterOptions = {}): DataAdapt
             unitOptions,
           ),
         feed: feed.source,
+        broadcast: broadcast.source,
         schema: ownerOnly(
           options,
           withCommandReceipts(

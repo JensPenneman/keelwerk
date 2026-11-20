@@ -12,6 +12,7 @@ import type { Scope } from '../storage/scope.ts';
 import type { Unit } from '../storage/unit.ts';
 import type { ControlApiUsage } from './control-api-usage.ts';
 import type { ControlFlags } from './control-flags.ts';
+import type { ControlLeaseStore } from './control-lease-store.ts';
 import type { ControlLedger } from './control-ledger.ts';
 import type { ControlQuotas } from './control-quotas.ts';
 import type { ControlRetention } from './control-retention.ts';
@@ -64,6 +65,8 @@ export interface ControlStore {
   readonly quotas: ControlQuotas;
   /** The runs of the retention worker (14.7.1): kw_retention_runs, each call in its own deployment unit. */
   readonly retention: ControlRetention;
+  /** kw_leases, each call in its own deployment unit of the control namespace (S-120). */
+  readonly leases: ControlLeaseStore;
   /** Runs `fn` in a read-only deployment-scope unit. */
   read<T>(fn: (unit: Unit) => Promise<T>): Promise<T>;
 }

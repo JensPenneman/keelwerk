@@ -12,7 +12,7 @@ export interface NotifySenderSettings {
 
 /** The sender and the way to end its connection. */
 export interface NotifySender {
-  send(payload: string): Promise<void>;
+  send(payload: string, channel?: string): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -47,7 +47,7 @@ export function notifySender(settings: NotifySenderSettings): NotifySender {
     return created;
   };
   return {
-    send: async (payload) => {
+    send: async (payload, channel) => {
       // A wake-up that arrives after the close has nobody to wake and must not open a connection.
       if (closed) return;
       client ??= connect();
@@ -60,7 +60,7 @@ export function notifySender(settings: NotifySenderSettings): NotifySender {
         throw error;
       }
       try {
-        await connected.query('select pg_notify($1, $2)', ['kw_events', payload]);
+        await connected.query('select pg_notify($1, $2)', [channel ?? 'kw_events', payload]);
       } catch (error) {
         if (client !== undefined && (await client.catch(() => undefined)) === connected) {
           client = undefined;

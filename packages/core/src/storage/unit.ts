@@ -1,3 +1,4 @@
+import type { ControlLeaseStore } from '../control/control-lease-store.ts';
 import type { ControlLedger } from '../control/control-ledger.ts';
 import type { NamespaceIdentities } from '../control/namespace-identities.ts';
 import type { ScopeMarks } from '../control/scope-marks.ts';
@@ -60,6 +61,8 @@ export interface Unit {
   readonly identities?: NamespaceIdentities;
   /** kw_scope_marks (14.7.6, S-119); deployment-scope units only. */
   readonly marks?: ScopeMarks;
+  /** kw_leases (S-120); deployment-scope units only. */
+  readonly leases?: ControlLeaseStore;
   /**
    * A savepoint: rolls back to it when `fn` throws, then rethrows. A tenant unit may pass
    * `{ as: <backend scope>, readOnly: true }` to read backend data; no other `as` is allowed.

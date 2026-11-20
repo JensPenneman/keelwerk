@@ -21,6 +21,7 @@ import { jobPurgeCases } from './job-purge-cases.ts';
 import { jobStoreCases } from './job-store-cases.ts';
 import { jobStoreKeyedCases } from './job-store-keyed-cases.ts';
 import { jobStoreQueuedCases } from './job-store-queued-cases.ts';
+import { leaseCases } from './lease-cases.ts';
 import { ledgerCases } from './ledger-cases.ts';
 import { migrationCases } from './migration-cases.ts';
 import { paginationCases } from './pagination-cases.ts';
@@ -125,5 +126,6 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('toggle then rebuild', () => toggleRebuildCases(subject));
     describe('capability honesty', () => capabilityHonestyCases(subject));
     describe('encrypted queries', () => encryptedQueryCases(subject));
+    describe('leases', () => leaseCases(subject));
   });
 }

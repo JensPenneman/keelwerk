@@ -6,7 +6,7 @@ const maxScan = 10_000;
 /**
  * What the PostgreSQL adapter declares (14.3.3, 14.3.7): native savepoints, transactional DDL and
  * partial indexes, row locks with `SKIP LOCKED` and `NOWAIT`, forced row-level security and the
- * notify change feed with polling recovery. Native search is not declared: the kernel's path serves it.
+ * notify change feed with polling recovery, and broadcast through `LISTEN`/`NOTIFY` (14.3.2). Native search is not declared: the kernel's path serves it.
  * M1 places every tenant in shared tables of one database.
  */
 export function postgresCapabilities(): AdapterCapabilities {
@@ -29,7 +29,7 @@ export function postgresCapabilities(): AdapterCapabilities {
     search: false,
     positionPaging: { maxOffset: 10_000 },
     jobs: 'skip-locked',
-    broadcast: false,
+    broadcast: true,
     sql: false,
     processes: 'network',
     encryptedQueries: { equality: true, tagSets: false, order: false, maxScan },

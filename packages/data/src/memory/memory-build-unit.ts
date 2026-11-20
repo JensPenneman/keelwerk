@@ -2,6 +2,7 @@ import type { Unit } from '@keelwerk/core';
 import { memoryApiUsageStore } from './memory-api-usage-store.ts';
 import { memoryBucketStore } from './memory-bucket-store.ts';
 import { memoryConsumerStore } from './memory-consumer-store.ts';
+import { memoryControlLeases } from './memory-control-leases.ts';
 import { memoryCounterStore } from './memory-counter-store.ts';
 import { memoryEventStore } from './memory-event-store.ts';
 import { memoryJobStore } from './memory-job-store.ts';
@@ -48,6 +49,7 @@ export function memoryBuildUnit(ctx: MemoryUnitContext, hooks: (() => void)[]): 
           identities: memoryNamespaceIdentities(ctx),
           marks: memoryScopeMarks(ctx),
           retentionRuns: memoryRetentionRunStore(ctx),
+          leases: memoryControlLeases(ctx),
         }
       : {}),
     ...(ctx.scope.level === 'namespace' ? { counters: memoryCounterStore(ctx) } : {}),

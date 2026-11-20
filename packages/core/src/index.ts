@@ -917,11 +917,13 @@ export type {
   ApiUsageTotal,
 } from './storage/api-usage-store.ts';
 export type { AppliedMigration } from './storage/applied-migration.ts';
+export { broadcastNotification } from './storage/broadcast-notification.ts';
 export type { BucketStore } from './storage/bucket-store.ts';
 export type { BucketTake } from './storage/bucket-take.ts';
 export { cancelsRunningAttempt } from './storage/cancels-running-attempt.ts';
 export type { Catalogue } from './storage/catalogue.ts';
 export type { ChangeFeedSource } from './storage/change-feed-source.ts';
+export { checkBroadcastChannel } from './storage/check-broadcast-channel.ts';
 export type { ColumnSpec } from './storage/column-spec.ts';
 export type { ConsumerStore } from './storage/consumer-store.ts';
 export type { CounterStore } from './storage/counter-store.ts';

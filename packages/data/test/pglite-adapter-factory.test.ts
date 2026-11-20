@@ -92,4 +92,11 @@ describe('pgliteAdapterFactory', () => {
       expect((error as KeelwerkError).message).toContain('shared-tables');
     }
   });
+
+  test('PGlite reports broadcast false and offers no broadcast member', async () => {
+    const adapter = open({});
+    const capabilities = await adapter.connect();
+    expect(capabilities.broadcast).toBe(false);
+    expect(adapter.broadcast).toBeUndefined();
+  });
 });

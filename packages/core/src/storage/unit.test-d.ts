@@ -1,6 +1,7 @@
 import { expectTypeOf, test } from 'vitest';
 import type { Condition } from '../conditions/condition.ts';
 import type { ConditionOp } from '../conditions/condition-op.ts';
+import type { ControlLeaseStore } from '../control/control-lease-store.ts';
 import type { ControlLedger } from '../control/control-ledger.ts';
 import type { NamespaceIdentities } from '../control/namespace-identities.ts';
 import type { ScopeMarks } from '../control/scope-marks.ts';
@@ -41,6 +42,7 @@ test('Unit has exactly the members of S-03', () => {
     | 'identities'
     | 'marks'
     | 'retentionRuns'
+    | 'leases'
     | 'nested'
     | 'afterCommit'
   >();
@@ -50,9 +52,14 @@ test('Unit has exactly the members of S-03', () => {
   expectTypeOf<Unit['counters']>().toEqualTypeOf<CounterStore | undefined>();
   expectTypeOf<Unit['identities']>().toEqualTypeOf<NamespaceIdentities | undefined>();
   expectTypeOf<Unit['marks']>().toEqualTypeOf<ScopeMarks | undefined>();
+  expectTypeOf<Unit['leases']>().toEqualTypeOf<ControlLeaseStore | undefined>();
   expectTypeOf<Unit['ledger']>().toEqualTypeOf<ControlLedger | undefined>();
   expectTypeOf<Unit['jobs']>().toEqualTypeOf<JobStore>();
   expectTypeOf<Unit['streams']>().toEqualTypeOf<StreamRecordStore>();
+});
+
+test('ControlLeaseStore has hold, release, total and expire', () => {
+  expectTypeOf<keyof ControlLeaseStore>().toEqualTypeOf<'hold' | 'release' | 'total' | 'expire'>();
 });
 
 test('JobStore has the members of S-03, the schedules (M2) and the erasure purge', () => {

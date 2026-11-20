@@ -28,6 +28,7 @@ function toUnit(base: SqlUnit): Unit {
     ...(base.identities === undefined ? {} : { identities: base.identities }),
     ...(base.marks === undefined ? {} : { marks: base.marks }),
     ...(base.retentionRuns === undefined ? {} : { retentionRuns: base.retentionRuns }),
+    ...(base.leases === undefined ? {} : { leases: base.leases }),
     ...(base.counters === undefined ? {} : { counters: base.counters }),
     nested: async (fn, options) => base.nested(async (inner) => fn(toUnit(inner)), options),
     afterCommit: (fn) => {
