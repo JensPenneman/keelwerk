@@ -10400,6 +10400,16 @@ Rules for the host:
   upgrades that carry a cookie and cookie-authenticated SSE), security headers, compression of
   non-streaming responses
   (from M2; M1 sends responses uncompressed), and graceful shutdown.
+- A mounted handler always gets a request whose body it can read the usual Fetch way: the bytes
+  that arrived, within the host's body limit, and an empty body (it reads the empty string) when
+  none arrived; what an empty body means is the handler's decision (added 2026-11-20). The host
+  does not serve TRACE: it refuses every TRACE request itself, before the body limit and any
+  handler, and does not read its body, because the Fetch standard has no TRACE request, so a
+  handler would receive a GET that calls itself TRACE, with no body member, and no transport of
+  keelwerk uses it. The answer is `core.unsupported` (405) with an `Allow` header, formatted as any
+  other refusal of the host (a problem document under a REST mount, the envelope elsewhere); an
+  earlier refusal comes first where one applies (a ticket under `/_keelwerk/`), and a TRACE that
+  asks for a WebSocket upgrade never reaches this code and keeps the upgrade listener's plain 400.
 - A tenant whose scope comes from the host name and a request whose carrier also names a scope key
   (a receiver path, a credential's public id) must agree; a mismatch is `not_found`, so a path can
   never steer a request into another tenant of the same host.

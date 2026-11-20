@@ -15,7 +15,6 @@ import { invokeEndpoint } from './invoke-endpoint.ts';
 import { isAllowedOrigin } from './is-allowed-origin.ts';
 import { isStreamRequest } from './is-stream-request.ts';
 import { isStreamResponse } from './is-stream-response.ts';
-import { jsonResponse } from './json-response.ts';
 import { mountPathOf } from './mount-path-of.ts';
 import { originCheck } from './origin-check.ts';
 import { socketFacts } from './socket-facts.ts';
@@ -24,19 +23,21 @@ import { subscribeEndpoint } from './subscribe-endpoint.ts';
 import { surfaceEndpoint } from './surface-endpoint.ts';
 import { syntacticTenantPrefixOf } from './syntactic-tenant-prefix-of.ts';
 import { ticketRefusal } from './ticket-refusal.ts';
-import { wireErrorOf } from './wire-error-of.ts';
 import { withStreamSlot } from './with-stream-slot.ts';
 
 const reservedPrefix = '/_keelwerk';
 const protocolBase = `${reservedPrefix}/v1`;
 const bodyless: ReadonlySet<string> = new Set(['GET', 'HEAD']);
 
-function methodNotAllowed(call: EndpointCall, allow: string): Response {
-  const error = coreError('core.unsupported', {
-    message: `Use ${allow} on this endpoint.`,
+function methodNotAllowed(
+  call: Pick<EndpointCall, 'host' | 'state'>,
+  allow: string,
+  message = `Use ${allow} on this endpoint.`,
+): Response {
+  return errorResponse(call.host, call.state, coreError('core.unsupported', { message }), {
+    status: 405,
+    headers: { allow },
   });
-  call.state.failure = { kind: error.kind, code: error.code };
-  return jsonResponse(405, wireErrorOf(call.host, call.state, error), { allow });
 }
 
 async function protocolEndpoint(call: EndpointCall, path: string): Promise<Response> {
@@ -91,15 +92,17 @@ async function mounted(call: EndpointCall, path: string, streams: boolean): Prom
   }
   state.route = match.prefix === '/' ? '/*' : `${match.prefix}/*`;
   state.transport = match.transport;
-  const forwarded =
-    call.bytes.byteLength === 0
-      ? request
-      : new Request(request.url, {
-          method: request.method,
-          headers: request.headers,
-          body: call.bytes,
-          signal: request.signal,
-        });
+  // The host has read the body within the limit, so its stream is used up: the handler gets those bytes in a
+  // request of their own, an empty body when none arrived. A request whose body the host did not read
+  // (GET, HEAD, or a request without a body member) goes on as it came.
+  const forwarded = request.bodyUsed
+    ? new Request(request.url, {
+        method: request.method,
+        headers: request.headers,
+        body: call.bytes,
+        signal: request.signal,
+      })
+    : request;
   // The one rule of path handling: the host strips the mount's prefix, the transport never does.
   const relative = mountPathOf(match.prefix, path);
   const run = (): Promise<Response> =>
@@ -198,6 +201,16 @@ export async function serveRequest(
     );
   }
   if (refusedTicket !== null) return errorResponse(host, state, refusedTicket);
+  // The Fetch standard has no TRACE request: the server can only hand on a GET that calls itself TRACE, with
+  // no body member. The host does not serve TRACE; it answers before the body is read or any handler runs.
+  // The Allow list is a fixed one, because the refusal comes before the resource is known.
+  if (request.method === 'TRACE') {
+    return methodNotAllowed(
+      { host, state },
+      'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, QUERY',
+      'The host does not serve TRACE.',
+    );
+  }
   let bytes: Uint8Array<ArrayBuffer> = new Uint8Array();
   try {
     if (!bodyless.has(request.method)) {

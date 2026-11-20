@@ -6,14 +6,15 @@ import { problemResponseOf } from './problem-response-of.ts';
 import type { RequestState } from './request-state.ts';
 import { wireErrorOf } from './wire-error-of.ts';
 
-/** The envelope response of an error, with the status, `Retry-After` and `WWW-Authenticate` its kind needs. */
+/** The envelope response of an error, with the status, `Retry-After` and `WWW-Authenticate` its kind needs, and the status or headers a `refusal` names. */
 export function errorResponse(
   host: HostContext,
   state: RequestState,
   error: KeelwerkError,
+  refusal: { readonly status?: number; readonly headers?: Readonly<Record<string, string>> } = {},
 ): Response {
-  const status = statusOfError(error);
-  const headers = new Headers();
+  const status = refusal.status ?? statusOfError(error);
+  const headers = new Headers(refusal.headers);
   if (error.retryAfter !== undefined && error.code !== 'core.quota_exceeded') {
     headers.set('retry-after', String(Math.ceil(error.retryAfter)));
   }

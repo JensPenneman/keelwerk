@@ -5,11 +5,10 @@ import { orpcEchoApp } from './support/orpc-echo-app.ts';
 
 /**
  * The size of a request body at the oRPC handlers. The transport reads no body itself: the host
- * reads every body of a mounted route (any method but GET and HEAD) before the route is chosen,
- * never beyond its `maxBodyBytes`, and hands the handler a request rebuilt from the bytes it read.
- * A body of zero bytes is the exception: the host hands the original request on, whose body stream
- * it has already used up (open point of the host, outside this package). These tests run both
- * handlers behind the real host, as the app runs them.
+ * reads every body of a mounted route (any method but GET and HEAD; the host answers TRACE
+ * itself and serves no handler) before the route is chosen, never beyond its `maxBodyBytes`, and hands the
+ * handler a request rebuilt from the bytes it read, an empty body when none arrived. These tests run
+ * both handlers behind the real host, as the app runs them.
  */
 const limit = 2048;
 const chunk = 256;

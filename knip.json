@@ -22,9 +22,6 @@
         "@keelwerk/data",
         "@keelwerk/module-audit",
         "@keelwerk/module-members",
-        "@keelwerk/transport-graphql",
-        "@keelwerk/transport-orpc",
-        "@keelwerk/transport-trpc",
         "@orpc/client",
         "@trpc/client",
         "eventsource"
