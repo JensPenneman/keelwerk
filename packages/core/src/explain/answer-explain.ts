@@ -1,5 +1,4 @@
 import { trace } from '@opentelemetry/api';
-import { runAdmission } from '../admission/run-admission.ts';
 import { effectiveRules } from '../authorization/effective-rules.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import { errors } from '../errors/errors.ts';
@@ -11,6 +10,7 @@ import type { InvokerEnv } from '../invoker/invoker-env.ts';
 import { createInvokerEnv } from '../invoker/invoker-env.ts';
 import { mapUnknownError } from '../invoker/map-unknown-error.ts';
 import type { Outcome } from '../invoker/outcome.ts';
+import { admit } from '../invoker/stages/admit.ts';
 import { authorize } from '../invoker/stages/authorize.ts';
 import { locate } from '../invoker/stages/locate.ts';
 import { prepare } from '../invoker/stages/prepare.ts';
@@ -101,7 +101,7 @@ export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker 
       const resolvedBackend = scope.level === 'tenant' ? (backend ?? null) : null;
       const admissionSpan = trace.getTracer('keelwerk').startSpan('keelwerk.explain.admission');
       try {
-        await runAdmission(admissionEnv(), {
+        await admit(admissionEnv(), {
           action,
           session: { ...session, principal, scope },
           details: {

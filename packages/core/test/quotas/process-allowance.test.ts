@@ -1,43 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { createProcessAllowance } from '../../src/quotas/create-process-allowance.ts';
 import type { RateBucket } from '../../src/quotas/process-allowance.ts';
+import { bucketOf, clockOf, unitGate } from './allowance-kit.ts';
 import { rateFake } from './rate-fake.ts';
-
-function clockOf(): { now: () => Temporal.Instant; advance: (ms: number) => void } {
-  let at = Temporal.Instant.from('2026-11-19T10:00:00Z');
-  return {
-    now: () => at,
-    advance: (ms) => {
-      at = at.add({ milliseconds: ms });
-    },
-  };
-}
-
-const bucketOf = (key: string, capacity: number, refillPerSecond = 1): RateBucket => ({
-  key,
-  limit: { kind: 'rate', capacity, refillPerSecond },
-});
-
-/** `hold()` holds back the next unit the fake's adapter is asked for until the function it returns runs. */
-function unitGate(fake: ReturnType<typeof rateFake>): () => () => void {
-  const adapter = fake.target.handle.adapter as unknown as { unit: (...args: never[]) => unknown };
-  const open = adapter.unit.bind(adapter);
-  const gates: Promise<void>[] = [];
-  adapter.unit = async (...args: never[]) => {
-    const gate = gates.shift();
-    if (gate !== undefined) await gate;
-    return open(...args);
-  };
-  return () => {
-    let release: () => void = () => undefined;
-    gates.push(
-      new Promise<void>((resolve) => {
-        release = resolve;
-      }),
-    );
-    return release;
-  };
-}
 
 describe('createProcessAllowance (S-143, decision 156)', () => {
   test('the first touch of a bucket takes one token from the shared bucket', async () => {
@@ -133,17 +98,17 @@ describe('createProcessAllowance (S-143, decision 156)', () => {
     expect(fake.units.readWrite).toBe(1);
   });
 
-  test('the tokens taken before a refusal stay with the process', async () => {
+  test('a refused request takes nothing of the buckets before the one that refused', async () => {
     const fake = rateFake();
     const allowance = createProcessAllowance({ clock: clockOf() });
     fake.levels.set('b', 0);
     expect(await allowance.take(fake.target, [bucketOf('a', 100), bucketOf('b', 100)], false)).toBe(
       5,
     );
-    expect(fake.levels.get('a')).toBe(99);
+    expect(fake.levels.get('a')).toBe(100);
     expect(await allowance.take(fake.target, [bucketOf('a', 100)], false)).toBeUndefined();
     expect(fake.levels.get('a')).toBe(99);
-    expect(fake.units.readWrite).toBe(1);
+    expect(fake.units.readWrite).toBe(2);
   });
 
   test('a held token of a request that is refused later goes back to the process', async () => {

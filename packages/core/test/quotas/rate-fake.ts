@@ -8,18 +8,26 @@ import type { Unit } from '../../src/storage/unit.ts';
 export interface RateFake {
   readonly target: ScopeTarget;
   readonly levels: Map<string, number>;
+  /** Every take and check the buckets answered, as `take:<key>:<cost>` and `check:<key>:<cost>`. */
+  readonly calls: string[];
+  /** Keys whose next take of a cost above 0 refuses once with a retryAfter of 7; the key leaves the set then. */
+  readonly refuseNextTake: Set<string>;
   readonly units: { readWrite: number; readOnly: number };
 }
 
 /**
  * A scope target whose adapter keeps token levels in a map and counts its units. With a clock the
  * levels refill by the elapsed time at the limit's `refillPerSecond`, capped at its capacity (a
- * level the test sets is read as of the clock's next reading); without one they never refill.
+ * level the test sets is read as of the clock's next reading); without one they never refill. A
+ * take of cost 0 opens the row at its level and changes no token count, as the stores do; a unit
+ * whose function throws restores what its takes changed, as a rolled back transaction does.
  */
 export function rateFake(namespaceId = 'ns-1', clock?: { now(): Temporal.Instant }): RateFake {
   const levels = new Map<string, number>();
   const readAt = new Map<string, Temporal.Instant>();
   const units = { readWrite: 0, readOnly: 0 };
+  const calls: string[] = [];
+  const refuseNextTake = new Set<string>();
   const levelOf = (bucket: string, limits: { capacity: number; refillPerSecond: number }) => {
     const level = levels.get(bucket) ?? limits.capacity;
     const at = readAt.get(bucket);
@@ -29,8 +37,13 @@ export function rateFake(namespaceId = 'ns-1', clock?: { now(): Temporal.Instant
   };
   const buckets: BucketStore = {
     take: async (bucket, cost, limits) => {
+      calls.push(`take:${bucket}:${cost}`);
       const level = levelOf(bucket, limits);
       if (clock !== undefined) readAt.set(bucket, clock.now());
+      if (cost > 0 && refuseNextTake.delete(bucket)) {
+        levels.set(bucket, level);
+        return { ok: false, retryAfter: 7 };
+      }
       if (level < cost) {
         levels.set(bucket, level);
         return { ok: false, retryAfter: 5 };
@@ -39,6 +52,7 @@ export function rateFake(namespaceId = 'ns-1', clock?: { now(): Temporal.Instant
       return { ok: true };
     },
     check: async (bucket, cost, limits) => {
+      calls.push(`check:${bucket}:${cost}`);
       return levelOf(bucket, limits) < cost ? { ok: false, retryAfter: 5 } : { ok: true };
     },
   };
@@ -51,7 +65,17 @@ export function rateFake(namespaceId = 'ns-1', clock?: { now(): Temporal.Instant
     ) => {
       if (options?.readOnly === true) units.readOnly += 1;
       else units.readWrite += 1;
-      return fn({ buckets } as unknown as Unit);
+      const savedLevels = new Map(levels);
+      const savedReadAt = new Map(readAt);
+      try {
+        return await fn({ buckets } as unknown as Unit);
+      } catch (error) {
+        levels.clear();
+        for (const [key, level] of savedLevels) levels.set(key, level);
+        readAt.clear();
+        for (const [key, at] of savedReadAt) readAt.set(key, at);
+        throw error;
+      }
     },
   } as unknown as DataAdapter;
   const target = {
@@ -63,5 +87,5 @@ export function rateFake(namespaceId = 'ns-1', clock?: { now(): Temporal.Instant
     namespace: { id: namespaceId } as NamespaceRef,
     handle: { adapter },
   } as unknown as ScopeTarget;
-  return { target, levels, units };
+  return { target, levels, calls, refuseNextTake, units };
 }

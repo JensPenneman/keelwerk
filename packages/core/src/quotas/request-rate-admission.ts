@@ -4,6 +4,7 @@ import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { InvokerEnv } from '../invoker/invoker-env.ts';
 import type { Principal } from '../principals/principal.ts';
+import { clientAddressBucket } from './client-address-bucket.ts';
 import { createProcessAllowance } from './create-process-allowance.ts';
 import type { ProcessAllowance, RateBucket } from './process-allowance.ts';
 
@@ -18,7 +19,10 @@ const classRate = {
   subscription: 'core.subscribeRate',
 } as const;
 
-/** The name of the principal's own bucket: an anonymous caller is told apart by its address. */
+/**
+ * The name of the principal's own bucket: an anonymous caller is told apart by its client address,
+ * an IPv6 address by its /64 and an IPv4-mapped address as its IPv4 address.
+ */
 function principalKeyOf(principal: Principal, address: string | undefined): string | undefined {
   switch (principal.kind) {
     case 'user':
@@ -28,7 +32,7 @@ function principalKeyOf(principal: Principal, address: string | undefined): stri
     case 'operator':
       return `operator:${principal.id}`;
     case 'anonymous':
-      return address === undefined ? 'anonymous' : `anonymous:${address}`;
+      return address === undefined ? 'anonymous' : `anonymous:${clientAddressBucket(address)}`;
     default:
       return undefined;
   }
@@ -38,8 +42,9 @@ function principalKeyOf(principal: Principal, address: string | undefined): stri
  * The request rate of section 12.2 at `admit`: one token of the principal's
  * `core.principalRequestRate`, of the action class's rate and of the tenant's `core.requestRate`,
  * through the process's allowance, in that order; the first bucket that refuses stops the rest, so
- * a caller over its own rate spends nothing of the tenant's. An anonymous caller has the bucket of
- * its client address, or one shared bucket when the address is unknown. Refuses with `rate_limited`
+ * a caller over its own rate spends nothing of the tenant's, and a refused request takes no token
+ * of the shared buckets. An anonymous caller has the bucket of its client address, an IPv6 address
+ * by its /64, or one shared bucket when the address is unknown. Refuses with `rate_limited`
  * `core.rate_limited` and `retryAfter`.
  */
 export async function checkRequestRate(env: InvokerEnv, run: AdmissionRun): Promise<void> {

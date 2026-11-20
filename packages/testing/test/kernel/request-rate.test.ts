@@ -1,4 +1,3 @@
-import type { QuotaLimit, QuotaLimits } from '@keelwerk/core';
 import { field, shape } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import { bootKeys, storedName } from './support/admission-kit.ts';
@@ -11,17 +10,8 @@ import {
   publicQuery,
   tenantId,
 } from './support/invoker-kit.ts';
+import { tenantOnly } from './support/quota-kit.ts';
 import { namespace, tenant } from './support/run-read-kit.ts';
-
-const tenantOnly = (capacities: Readonly<Record<string, number>>): QuotaLimits => ({
-  limitOf: (_registry, scope, ref): QuotaLimit => {
-    const own = scope.level === 'tenant' && scope.tenantId === tenantId;
-    const capacity = own ? (capacities[ref] ?? 100) : 100;
-    return { kind: 'rate', capacity, refillPerSecond: 0.001 };
-  },
-  queueOf: () => ({ running: 4, queued: 10_000, weight: 1 }),
-  fresh: () => Promise.resolve(),
-});
 
 async function setup(capacities: Readonly<Record<string, number>>) {
   const keys = await bootKeys();
@@ -124,5 +114,38 @@ describe('request rate (section 12.2)', () => {
       const result = await invoker.invoke(call(probe.ref, { who: 'x' }, { carrier: ada }));
       expect(result.ok).toBe(true);
     }
+  });
+
+  test('an anonymous caller that rotates addresses inside one /64 is refused at its principal capacity while another /64 is served', async () => {
+    const { invoker, probe } = await setup({ 'core.principalRequestRate': 2 });
+    let served = 0;
+    for (let n = 1; n <= 20; n++) {
+      const result = await invoker.invoke(
+        call(probe.ref, { who: 'x' }, { carrier: fromAddress(`2001:db8:1:2::${n}`) }),
+      );
+      if (result.ok) served += 1;
+    }
+    expect(served).toBe(2);
+    const elsewhere = await invoker.invoke(
+      call(probe.ref, { who: 'x' }, { carrier: fromAddress('2001:db8:1:3::1') }),
+    );
+    expect(elsewhere.ok).toBe(true);
+  });
+
+  test('an IPv4-mapped address and its IPv4 address share one principal bucket', async () => {
+    const { invoker, probe } = await setup({ 'core.principalRequestRate': 2 });
+    const results: boolean[] = [];
+    for (const address of [
+      '::ffff:203.0.113.7',
+      '203.0.113.7',
+      '::ffff:cb00:7107',
+      '203.0.113.7',
+    ]) {
+      const result = await invoker.invoke(
+        call(probe.ref, { who: 'x' }, { carrier: fromAddress(address) }),
+      );
+      results.push(result.ok);
+    }
+    expect(results).toEqual([true, true, false, false]);
   });
 });

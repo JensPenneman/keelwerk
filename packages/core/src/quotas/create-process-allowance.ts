@@ -24,16 +24,28 @@ function drawOf(limit: RateBucket['limit']): number {
   return Math.max(1, Math.min(mostDraw, Math.floor(limit.capacity / 10)));
 }
 
+/** A take that refused after its check allowed it: only a clock that stepped back does that. */
+class StoreRefusal extends Error {
+  readonly wait: number;
+  constructor(wait: number) {
+    super('A bucket refused a take that its check had allowed.');
+    this.name = 'StoreRefusal';
+    this.wait = wait;
+  }
+}
+
 /**
  * A process's allowance of the shared rate buckets (S-143, decision 156): a request that finds the
  * bucket's tokens held takes one without a store round trip; a request that does not draws up to
  * a tenth of the bucket's capacity (at most 10 tokens) in the same unit that takes its own, and
  * while that draw is in flight the requests that miss take one token each, so a process never
- * holds more than one draw per bucket. Held tokens lapse `holdMs` after the draw and are never
- * returned to the store, so across processes at most `n - 1` tokens per process are lost or spent
- * early. The buckets of a request are taken in the order given and the first refusal stops the
- * rest: a refused request spends no token of the buckets after the one that refused, and the
- * tokens it already took go back into the process's own held tokens.
+ * holds more than one draw per bucket. Held tokens lapse `holdMs` after the draw (a clock that
+ * steps back lapses them at once) and are never returned to the store. The buckets of a request
+ * are taken in the order given and the first refusal stops the rest: every bucket but the last
+ * that needs the store is locked and read before any is taken, so a refused request takes no token
+ * of the shared buckets and the tokens it took from the process's own held tokens go back. Across
+ * processes at most `n - 1` tokens per process and bucket are lost or spent early, refusals
+ * included.
  */
 export function createProcessAllowance(options: {
   readonly clock: Clock;
@@ -46,8 +58,12 @@ export function createProcessAllowance(options: {
   const most = options.most ?? defaultMost;
   const held = new Map<string, Held>();
   const drawing = new Set<string>();
-  const freshOf = (entry: Held | undefined, now: Temporal.Instant): entry is Held =>
-    entry !== undefined && now.since(entry.takenAt).total('milliseconds') < holdMs;
+  /** Fresh from the take until `holdMs` after it; an entry dated after the clock's reading has lapsed. */
+  const freshOf = (entry: Held | undefined, now: Temporal.Instant): entry is Held => {
+    if (entry === undefined) return false;
+    const age = now.since(entry.takenAt).total('milliseconds');
+    return age >= 0 && age < holdMs;
+  };
   const remember = (name: string, entry: Held): void => {
     held.delete(name);
     held.set(name, entry);
@@ -73,13 +89,16 @@ export function createProcessAllowance(options: {
   /**
    * Adds the tokens a draw left to what is held now: requests that overlap each add their own,
    * and the entry's time never moves back to an earlier request's start. An entry that lapsed
-   * while the unit ran counts as 0 and the new tokens are dated from the start of their request.
+   * while the unit ran counts as 0 and the new tokens are dated from the start of their request,
+   * never later than the clock's reading now.
    */
   const settle = (name: string, tokens: number, started: Temporal.Instant): void => {
+    const now = options.clock.now();
     const current = held.get(name);
-    const live = freshOf(current, options.clock.now());
-    const takenAt =
+    const live = freshOf(current, now);
+    const dated =
       live && Temporal.Instant.compare(current.takenAt, started) > 0 ? current.takenAt : started;
+    const takenAt = Temporal.Instant.compare(dated, now) > 0 ? now : dated;
     remember(name, { tokens: (live ? current.tokens : 0) + tokens, takenAt });
   };
 
@@ -142,37 +161,73 @@ export function createProcessAllowance(options: {
           for (const name of heldNames.splice(next)) putBack(name);
           drawn.length = 0;
           wait = undefined;
+          // Held tokens first and without an await; the buckets that need the store follow in order.
+          const pending: number[] = [];
           for (let at = next; at < buckets.length; at += 1) {
+            const name = names[at] ?? '';
+            if (takeHeld(name)) heldNames.push(name);
+            else pending.push(at);
+          }
+          // Every pending bucket but the last is locked (a take of 0 creates, locks and refills its
+          // row) and read; the last is taken at once. The first refusal stops the request before any
+          // of the locked buckets is taken.
+          const locked: { bucket: RateBucket; name: string; cost: number }[] = [];
+          const taken: { name: string; cost: number }[] = [];
+          for (const [position, at] of pending.entries()) {
             const bucket = buckets[at];
             const name = names[at];
             if (bucket === undefined || name === undefined) continue;
-            if (takeHeld(name)) {
-              heldNames.push(name);
+            let cost = costs[at] ?? 1;
+            if (position < pending.length - 1) {
+              await unit.buckets.take(bucket.key, 0, bucket.limit);
+              let read = await unit.buckets.check(bucket.key, cost, bucket.limit);
+              if (!read.ok && cost > 1) {
+                cost = 1;
+                read = await unit.buckets.check(bucket.key, cost, bucket.limit);
+              }
+              if (!read.ok) {
+                wait = read.retryAfter ?? 1;
+                return;
+              }
+              locked.push({ bucket, name, cost });
               continue;
             }
-            let cost = costs[at] ?? 1;
-            let taken = await unit.buckets.take(bucket.key, cost, bucket.limit);
-            if (!taken.ok && cost > 1) {
+            let result = await unit.buckets.take(bucket.key, cost, bucket.limit);
+            if (!result.ok && cost > 1) {
               cost = 1;
-              taken = await unit.buckets.take(bucket.key, cost, bucket.limit);
+              result = await unit.buckets.take(bucket.key, cost, bucket.limit);
             }
-            if (!taken.ok) {
-              wait = taken.retryAfter ?? 1;
+            if (!result.ok) {
+              wait = result.retryAfter ?? 1;
               return;
             }
-            drawn.push({ name, cost });
+            taken.push({ name, cost });
           }
+          for (const { bucket, name, cost } of locked) {
+            const result = await unit.buckets.take(bucket.key, cost, bucket.limit);
+            // Only a clock that stepped back since the check lands here: the unit rolls back whole.
+            if (!result.ok) throw new StoreRefusal(result.retryAfter ?? 1);
+            taken.push({ name, cost });
+          }
+          drawn.push(...taken);
         });
       } catch (error) {
-        for (const name of heldNames) putBack(name);
         for (const name of marked) drawing.delete(name);
-        throw error;
+        if (!(error instanceof StoreRefusal)) {
+          for (const name of heldNames) putBack(name);
+          throw error;
+        }
+        wait = error.wait;
+        drawn.length = 0;
       }
       for (const name of marked) drawing.delete(name);
-      // The one token the refused request did not spend stays held with the rest of its draw.
-      for (const { name, cost } of drawn)
-        settle(name, wait === undefined ? cost - 1 : cost, started);
-      if (wait !== undefined) for (const name of heldNames) putBack(name);
+      // A refused request settles nothing and gives its held tokens back; the one token a request
+      // that was served did not spend stays held with the rest of its draw.
+      if (wait === undefined) {
+        for (const { name, cost } of drawn) settle(name, cost - 1, started);
+      } else {
+        for (const name of heldNames) putBack(name);
+      }
       return wait;
     },
   };

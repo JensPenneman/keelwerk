@@ -147,6 +147,27 @@ describe('checkRequestRate (section 12.2)', () => {
     expect(w.fake.levels.size).toBe(5);
   });
 
+  test('anonymous calls from two addresses of one /64 name one principal bucket', async () => {
+    const w = world();
+    const env = w.env({ quotas: w.limits({ 'core.principalRequestRate': rate(2) }) });
+    const anonymous = { kind: 'anonymous' };
+    await checkRequestRate(env, w.run({ principal: anonymous, address: '2001:db8:1:2::1' }));
+    await checkRequestRate(env, w.run({ principal: anonymous, address: '2001:db8:1:2::2' }));
+    // principal, class and tenant: the two addresses share the principal bucket
+    expect(w.fake.levels.size).toBe(3);
+    const refused = await checkRequestRate(
+      env,
+      w.run({ principal: anonymous, address: '2001:db8:1:2:aaaa::9' }),
+    ).catch((error: unknown) => error);
+    expect(refused).toMatchObject({ kind: 'rate_limited' });
+    await checkRequestRate(env, w.run({ principal: anonymous, address: '2001:db8:1:3::1' }));
+    expect(w.fake.levels.size).toBe(4);
+    // an IPv4-mapped address is its IPv4 address
+    await checkRequestRate(env, w.run({ principal: anonymous, address: '::ffff:203.0.113.7' }));
+    await checkRequestRate(env, w.run({ principal: anonymous, address: '203.0.113.7' }));
+    expect(w.fake.levels.size).toBe(5);
+  });
+
   test('a principal over its own rate spends nothing of the class and tenant buckets', async () => {
     const w = world();
     const env = w.env({ quotas: w.limits({ 'core.principalRequestRate': rate(1) }) });
