@@ -212,9 +212,7 @@ export async function startRuntime(
       const app = served.find((candidate) => candidate.id === appId);
       if (app !== undefined)
         return projectionOf(app.id, app.source, datesOf(app)).at(version ?? app.head);
-      if (appId !== 'core') {
-        throw new AppNotServedError(appId);
-      }
+      if (appId !== 'core') throw new AppNotServedError(appId);
       // A session of the app `core` carries a version of the operator endpoint's own calendar, which
       // the one served app need not declare; both calendars are served.
       const head = sole?.head ?? coreHead;
@@ -233,6 +231,8 @@ export async function startRuntime(
       apps: servedById,
       invoker: draining.invoker,
       clock,
+      flagProviders,
+      targeting,
       gate,
       restoreHold: restore.hold,
     });

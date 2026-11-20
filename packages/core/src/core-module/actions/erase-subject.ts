@@ -14,7 +14,9 @@ import type { CoreLiteral } from '../core-type.ts';
  * the ledger hold no value an operator typed. A job of this action never runs `decide`: the worker
  * starts the erasure itself (`startErasure`), appends the ledger record and leaves the receipt
  * `accepted` until the events worker has finished the last step. Only `acceptAsyncCommand` starts
- * one, after the rules and the ownership check (`checkErasureGrant`): no effect may name it.
+ * one, after the rules and the ownership check (`checkErasureGrant`), or the own-subject request of
+ * `eraseOwnSubject`, whose job asks `checkOwnSubjectErasure` and the rules when it starts: no
+ * effect may name it.
  */
 export const eraseSubject: CoreLiteral['actions']['eraseSubject'] = defineCommand(coreBase, {
   scope: 'tenant',

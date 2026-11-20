@@ -47,6 +47,11 @@
         "packageBytes": 79872,
         "reason": "auth with accounts: contribution, conditional parts, reset flow, the actions that deliver a reset link, revoke the sessions of a deactivated subject page by page and extend a session as the module's service principal, the six session-only deny rules with their lib files, and the session-rate, password-length and liveness checks (11,850 B manifest and 69,391 B package measured on 2026-11-18 plus 15 %, rounded up to 256 B)"
       },
+      "packages/module-members": {
+        "manifestBytes": 6144,
+        "packageBytes": 28416,
+        "reason": "members with its membership and invitation entities, the invite, createOwner, accept, transferOwnership, changeRole, removeMember and expireInvitation actions, the settleEndedInvitation reaction, the eleven rules, the role enricher and the delivery extension point (2,720 B manifest measured on 2026-11-19, 24,545 B package measured on 2026-11-19 after the hardening pass, plus 15 %, rounded up to 256 B; raised from 22,784 B for the hardening of WP-118 (sheets/WP-118-lead.md, Answer 19))"
+      },
       "packages/testing/src/fixtures/modules/loans": {
         "manifestBytes": 8448,
         "packageBytes": 19968,

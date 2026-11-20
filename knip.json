@@ -130,14 +130,7 @@
     },
     "packages/module-members": {
       "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts", "test/**/*.ts"],
-      "ignoreDependencies": [
-        "@keelwerk/adapter-postgres",
-        "@keelwerk/core",
-        "@keelwerk/module-accounts",
-        "@keelwerk/module-auth",
-        "@keelwerk/testing"
-      ]
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/module-audit": {
       "entry": ["src/**/*.test-d.ts"],

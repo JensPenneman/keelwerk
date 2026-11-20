@@ -3,6 +3,7 @@ import { deriveEffectId } from './derive-effect-id.ts';
 import type { EffectScene } from './effect-scene.ts';
 import { recordExternalEffect } from './record-external-effect.ts';
 import { runEnqueueEffect } from './run-enqueue-effect.ts';
+import { runEraseOwnSubjectEffect } from './run-erase-own-subject-effect.ts';
 import { runInvokeEffect } from './run-invoke-effect.ts';
 import { runTimerEffects } from './run-timer-effects.ts';
 import { settleExternal } from './settle-external.ts';
@@ -29,6 +30,9 @@ export async function performEffects(
       case 'setTimer':
       case 'cancelTimer':
         await runTimerEffects(scene, effect, id);
+        break;
+      case 'eraseOwnSubject':
+        await runEraseOwnSubjectEffect(scene, effect, id);
         break;
       case 'settle':
         await settleExternal(scene, effect);
