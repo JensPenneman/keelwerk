@@ -2,7 +2,10 @@ import type { StorageRow, SubjectId } from '@keelwerk/core';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { probeInput } from './support/hooks-kit.ts';
 import { attemptsOf, drainHooks, effectOf, rowsOf } from './support/hooks-reads.ts';
+import { useUpperDraws } from './support/use-upper-draws.ts';
 import { watchedHooks } from './support/watched-hooks.ts';
+
+useUpperDraws();
 
 const start = Temporal.Instant.from('2026-03-01T08:00:00Z');
 const owner = crypto.randomUUID() as SubjectId;

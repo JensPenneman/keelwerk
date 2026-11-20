@@ -4,6 +4,9 @@ import { testPrincipal } from '../../src/harness/test-principal.ts';
 import { dumpDatabase, findPlaintext } from '../../src/index.ts';
 import { pgliteQuery, sectionsOf } from './support/dump-sections.ts';
 import { bootErasureRules, ledgerOf, stopBooted } from './support/erasure-rules-kit.ts';
+import { useUpperDraws } from './support/use-upper-draws.ts';
+
+useUpperDraws();
 
 afterEach(stopBooted);
 

@@ -1,6 +1,9 @@
 import { errors } from '@keelwerk/core';
 import { afterAll, describe, expect, test } from 'vitest';
+import { useUpperDraws } from './support/use-upper-draws.ts';
 import { acmeScope, askCloseAll, lendBook, startWatched, statsOf } from './support/worker-kit.ts';
+
+useUpperDraws();
 
 const { runtime, spy } = await startWatched({ workers: true });
 afterAll(() => runtime.stop());

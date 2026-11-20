@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, test } from 'vitest';
 import { bootQueues, stopQueues } from './support/erasure-queues-kit.ts';
 import { queuesControl } from './support/erasure-queues-module.ts';
+import { useUpperDraws } from './support/use-upper-draws.ts';
+
+useUpperDraws();
 
 afterEach(stopQueues);
 

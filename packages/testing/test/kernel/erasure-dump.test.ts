@@ -6,6 +6,9 @@ import { runErasureDumpCase } from './support/erasure-dump-case.ts';
 import { dumpDispatcher } from './support/erasure-dump-markers.ts';
 import { erasureDumpApp } from './support/erasure-probe-module.ts';
 import { dumpTime } from './support/erasure-usage-flush.ts';
+import { useUpperDraws } from './support/use-upper-draws.ts';
+
+useUpperDraws();
 
 describe('a PGlite dump after erasing a subject planted through every path (criterion 5, first half)', () => {
   test('the inventory names every table, the key is gone and no marker survives', {

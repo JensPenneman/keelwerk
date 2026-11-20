@@ -12,7 +12,8 @@ const flakyOf = async (kit: ReactionsKit, tenant: 'acme' | 'globex') =>
  * retried by its policy with back-off, while tenant B's reactions to the same event type complete in
  * the first take after their enqueue, whatever A is waiting for. Times are the pinned clock's, read
  * from the rows the reactions wrote, never wall time. `relay.forward` maps the invoked command's
- * declared error to its own.
+ * declared error to its own. The kit holds the retry draws in the upper half of each delay (full jitter
+ * could otherwise draw zero), so a retry of A waits 5 to 10 s, then 10 to 20 s, then 20 to 40 s.
  */
 export async function runSliceThree(kit: ReactionsKit): Promise<void> {
   const t0 = kit.now();
@@ -72,7 +73,9 @@ export async function runSliceThree(kit: ReactionsKit): Promise<void> {
   for (const row of globex) expect(row.createdAt).toEqual(later);
   expect(await flakyOf(kit, 'acme')).toEqual([]);
 
-  // The retries follow the policy's delays (10 s, 20 s, 40 s, each at most): A succeeds at the fourth attempt.
+  // The retries follow the policy's delays (10 s, 20 s, 40 s, each drawn between half and the whole of it by
+  // the held draws): retry 2 falls due between t0 + 21 s and t0 + 31 s, attempt 3 runs at t0 + 32 s and
+  // retry 3 falls due between t0 + 52 s and t0 + 72 s, and A succeeds at the fourth attempt.
   await kit.advanceTo(t0.add({ seconds: 32 }));
   for (const event of downEvents) expect(relayControl.attempts.get(event.eventId)).toBe(3);
   expect(await flakyOf(kit, 'acme')).toEqual([]);

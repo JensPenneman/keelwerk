@@ -13,6 +13,7 @@ import { testCarrier } from '../../../src/harness/test-carrier.ts';
 import { testPrincipal } from '../../../src/harness/test-principal.ts';
 import type { TestRuntime } from '../../../src/harness/test-runtime.ts';
 import type { TestRuntimeOptions } from '../../../src/harness/test-runtime-options.ts';
+import { holdUpperDraws } from './hold-upper-draws.ts';
 import type { JobSpy } from './job-spy.ts';
 import { jobSpy } from './job-spy.ts';
 import type { RelayApp } from './relay-app.ts';
@@ -133,14 +134,25 @@ export async function bootReactions(
     app,
     ...rest
   } = options;
-  const runtime = await startTestRuntime(app ?? relayApp, {
-    tenants: ['acme', 'globex'],
-    clock: { now: () => at },
-    workers: workers ?? true,
-    eventWorkers: [dispatcher],
-    ...rest,
-    ...(watched === undefined ? {} : { external: { factory: watched.factory, url: watchedUrl } }),
-  });
+  // Full jitter draws zero with a small probability (architecture 9.5.4): a retry would then be due at
+  // the pinned instant and run again before a test looks. The draws are held in the upper half, [0.5, 1),
+  // before the workers start (the queue fetcher captures its source at start) and until the kit stops, so
+  // a retry waits between half and the whole of its policy's delay.
+  const releaseDraws = holdUpperDraws();
+  let runtime: ReactionsKit['runtime'];
+  try {
+    runtime = await startTestRuntime(app ?? relayApp, {
+      tenants: ['acme', 'globex'],
+      clock: { now: () => at },
+      workers: workers ?? true,
+      eventWorkers: [dispatcher],
+      ...rest,
+      ...(watched === undefined ? {} : { external: { factory: watched.factory, url: watchedUrl } }),
+    });
+  } catch (error) {
+    releaseDraws();
+    throw error;
+  }
   const scopeOf = (tenant: 'acme' | 'globex'): Scope => ({
     level: 'tenant',
     backendId: runtime.backendId,
@@ -200,7 +212,13 @@ export async function bootReactions(
       at = instant;
       await settle();
     },
-    stop: () => runtime.stop(),
+    stop: async () => {
+      try {
+        await runtime.stop();
+      } finally {
+        releaseDraws();
+      }
+    },
   };
 }
 

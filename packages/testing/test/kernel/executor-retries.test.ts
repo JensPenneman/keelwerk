@@ -5,6 +5,9 @@ import { recordingLogger } from '../../src/harness/recording-logger.ts';
 import { type HookEndpoint, startHookEndpoint } from './support/hook-endpoint.ts';
 import { type BootedHooks, bootHooks, probeInput } from './support/hooks-kit.ts';
 import { attemptsOf, drainHooks, effectOf, rowsOf } from './support/hooks-reads.ts';
+import { useUpperDraws } from './support/use-upper-draws.ts';
+
+useUpperDraws();
 
 const start = Temporal.Instant.from('2026-03-01T08:00:00Z');
 const hours = (count: number): Temporal.Instant => start.add({ hours: count });

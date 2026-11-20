@@ -7,6 +7,9 @@ import { testPrincipal } from '../../src/harness/test-principal.ts';
 import { pgliteQuery } from './support/dump-sections.ts';
 import { useEpochKit } from './support/epoch-kit.ts';
 import { erasureQueuesApp, queuesControl } from './support/erasure-queues-module.ts';
+import { useUpperDraws } from './support/use-upper-draws.ts';
+
+useUpperDraws();
 
 const { directories } = useEpochKit();
 

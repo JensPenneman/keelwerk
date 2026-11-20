@@ -12,6 +12,9 @@ import { testCarrier } from '../../src/harness/test-carrier.ts';
 import { withTestResolver } from '../../src/harness/with-test-resolver.ts';
 import { call, spiedMemory, testClock } from './support/core-actions-kit.ts';
 import { ada, boot, bootWorking, deploymentOf } from './support/runtime-kit.ts';
+import { useUpperDraws } from './support/use-upper-draws.ts';
+
+useUpperDraws();
 
 /** An app whose one tenant hook runs `behave(attempt)`: the attempts counted from one. */
 function appOf(behave: (attempt: number) => void) {
