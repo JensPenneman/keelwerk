@@ -18,6 +18,7 @@ function principalOf(held: TestPrincipal, scope: Scope, operators: boolean): Pri
     roles: held.roles,
     memberships: [],
     via: 'test.principal',
+    ...(held.expiresAt === undefined ? {} : { expiresAt: Temporal.Instant.from(held.expiresAt) }),
   };
   if (operators && held.claims.operator === true) {
     return {

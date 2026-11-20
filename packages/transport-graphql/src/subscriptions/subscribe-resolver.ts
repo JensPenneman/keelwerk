@@ -6,39 +6,13 @@ import {
   utcDayOf,
 } from '@keelwerk/core';
 import { asKeelwerkError, decodeActionInput, encodeFrames } from '@keelwerk/core/http';
-import type { GraphQLError, GraphQLFieldResolver } from 'graphql';
+import { type GraphQLError, type GraphQLFieldResolver, isObjectType } from 'graphql';
 import { graphqlErrorOf } from '../errors/graphql-error-of.ts';
 import type { GraphqlContext } from '../resolve/graphql-context.ts';
 import { plainOf } from '../resolve/plain-of.ts';
+import { eventMemberOf } from './event-member-of.ts';
 
 type Members = Readonly<Record<string, unknown>>;
-
-/** The member of the event union a frame is: the item with its state, or a control type. */
-function memberOf(frame: LiveFrame<unknown>, itemType: string): Record<string, unknown> {
-  if ('control' in frame) {
-    switch (frame.control) {
-      case 'head':
-        return { __typename: 'StreamHead', state: frame.state };
-      case 'reset':
-        return {
-          __typename: 'StreamReset',
-          reason: frame.reason,
-          ...(frame.state === undefined ? {} : { state: frame.state }),
-        };
-      case 'gap':
-        return {
-          __typename: 'StreamGap',
-          ...(frame.missed === undefined ? {} : { missed: frame.missed }),
-        };
-    }
-  }
-  const event: unknown = frame.event;
-  return {
-    ...(typeof event === 'object' && event !== null ? event : {}),
-    __typename: itemType,
-    ...(frame.state === undefined ? {} : { state: frame.state }),
-  };
-}
 
 /** The wire input of a subscription: its arguments without the resume argument `after`. */
 function wireOf(action: SurfaceAction, args: Members): unknown {
@@ -53,16 +27,16 @@ function wireOf(action: SurfaceAction, args: Members): unknown {
  * invoker subscribes under the connection's session and its frames are wire encoded. It awaits the
  * first frame before it returns, so a refusal (a malformed `after`, a forbidden subscription) is
  * thrown as a GraphQL error and answers as the operation's error. Each frame is a member of the event
- * union. A failure of a later frame ends the stream with a GraphQL error as its last item; one of kind
- * unauthenticated also asks the socket's session check to run now. The returned iterator's `return`
- * aborts the invocation first, so the hub's iterator is free to return (a carrier that awaits `return`
- * with a `next` pending would otherwise wait for an event).
+ * union (`eventMemberOf`). A failure of a later frame ends the stream with a GraphQL error as its
+ * last item; one of kind unauthenticated also asks the socket's session check to run now. The
+ * returned iterator's `return` aborts the invocation first, so the hub's iterator is free to return
+ * (a carrier that awaits `return` with a `next` pending would otherwise wait for an event).
  */
 export function subscribeResolver(
   action: SurfaceAction,
   itemType: string,
 ): GraphQLFieldResolver<unknown, GraphqlContext> {
-  return async (_source, args: Members, context) => {
+  return async (_source, args: Members, context, info) => {
     const failed = (thrown: unknown): GraphQLError => {
       const error = asKeelwerkError(thrown);
       if (error.kind === 'unauthenticated') void context.socket?.check();
@@ -103,6 +77,8 @@ export function subscribeResolver(
       context.signal.removeEventListener('abort', abort);
       throw failed(thrown);
     }
+    const type = info.schema.getType(itemType);
+    const members = isObjectType(type) ? Object.keys(type.getFields()) : [];
     let waiting: IteratorResult<LiveFrame<unknown>> | undefined = first;
     let finished = false;
     const stop = async (): Promise<IteratorResult<unknown>> => {
@@ -119,7 +95,7 @@ export function subscribeResolver(
           const step = waiting ?? (await iterator.next());
           waiting = undefined;
           if (step.done === true) return await stop();
-          return { done: false, value: memberOf(step.value, itemType) };
+          return { done: false, value: eventMemberOf(step.value, { typeName: itemType, members }) };
         } catch (thrown) {
           const error = failed(thrown);
           await stop();

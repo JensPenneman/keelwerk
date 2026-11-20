@@ -20,6 +20,6 @@ export interface LiveSocketHostOptions {
   readonly messageWindowMs?: number;
   /** Invokes queued or running on one socket; more answer `core.quota_exceeded` unrun; default 32. */
   readonly maxPendingInvokes?: number;
-  /** The socket's own session check; default 60,000. */
+  /** The session check of sockets and of HTTP streams; default 60,000. */
   readonly revalidateMs?: number;
 }

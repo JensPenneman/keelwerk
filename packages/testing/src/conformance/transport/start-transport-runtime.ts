@@ -90,7 +90,7 @@ export async function startTransportRuntime(
   const probed = Promise.withResolvers<void>();
   const runtime = await startRuntime(
     {
-      apps: [withRevocation(withCookieResolver(withTestResolver(app, false, book)), book)],
+      apps: [withRevocation(withCookieResolver(withTestResolver(app, false, book), book), book)],
       infrastructure: [
         factory,
         schemaPlanner(),

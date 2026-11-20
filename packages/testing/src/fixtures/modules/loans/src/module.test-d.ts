@@ -9,7 +9,9 @@ import { loansBase } from './base.ts';
 import { countLoans } from './conditional/when-library/reactions/count-loans.ts';
 import { loanEvents } from './conditional/when-live/actions/loan-events.ts';
 import { loanTicker } from './conditional/when-live/actions/loan-ticker.ts';
+import { loanTitles } from './conditional/when-live/actions/loan-titles.ts';
 import { signedIn as loanEventsSignedIn } from './conditional/when-live/policies/loan-events/signed-in.ts';
+import { signedIn as loanTitlesSignedIn } from './conditional/when-live/policies/loan-titles/signed-in.ts';
 import { reserve } from './contributions/to-library/actions/book/reserve.ts';
 import { reservers } from './contributions/to-library/policies/book/reservers.ts';
 import { staff } from './policies/close-all/staff.ts';
@@ -28,8 +30,11 @@ describe('the loans fixture manifest', () => {
       conditional: {
         whenLibrary: { reactions: { countLoans } },
         whenLive: {
-          actions: { loanEvents, loanTicker },
-          policies: { loanEvents: { signedIn: loanEventsSignedIn } },
+          actions: { loanEvents, loanTicker, loanTitles },
+          policies: {
+            loanEvents: { signedIn: loanEventsSignedIn },
+            loanTitles: { signedIn: loanTitlesSignedIn },
+          },
         },
       },
     });

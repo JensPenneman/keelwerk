@@ -2,11 +2,9 @@ import type { InvocationSession, KeelwerkError, Outcome } from '@keelwerk/core';
 import { endReasonOfError } from '@keelwerk/core';
 import { asKeelwerkError, closeCodeOfError } from '@keelwerk/core/http';
 import type { LiveSocketState } from './live-socket-state.ts';
+import { nextSessionCheckAt } from './next-session-check-at.ts';
 import { sendLiveMessage } from './send-live-message.ts';
 import { socketWireError } from './socket-wire-error.ts';
-
-/** A check never comes sooner than this after the last one, so a session whose expiry is past cannot spin. */
-const floorMs = 1000;
 
 async function revalidated(session: InvocationSession): Promise<Outcome<InvocationSession>> {
   try {
@@ -72,15 +70,11 @@ export function keepSocketSession(
   void (async () => {
     const { signal } = state.everything;
     while (!signal.aborted) {
-      const now = state.clock.now();
-      const periodic = now.add({ milliseconds: state.upgrade.host.liveSocket.revalidateMs });
-      const { expiresAt } = state.session;
-      const wanted =
-        expiresAt !== undefined && Temporal.Instant.compare(expiresAt, periodic) < 0
-          ? expiresAt
-          : periodic;
-      const floor = now.add({ milliseconds: floorMs });
-      const at = Temporal.Instant.compare(wanted, floor) < 0 ? floor : wanted;
+      const at = nextSessionCheckAt(
+        state.clock.now(),
+        state.upgrade.host.liveSocket.revalidateMs,
+        state.session.expiresAt,
+      );
       if (!(await state.timers.sleepUntil(at, signal))) return;
       if (!(await check())) return;
     }

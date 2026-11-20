@@ -2,7 +2,10 @@
 export interface SseHostOptions {
   /** Milliseconds of silence before a `: ping` comment; default 15,000 (15.4.5). */
   readonly heartbeatMs?: number;
-  /** The longest a stream lives, in milliseconds; default 86,400,000 (24 hours). */
+  /**
+   * The longest a stream lives (the host's own and a mounted route's), in milliseconds; default
+   * 86,400,000 (24 hours).
+   */
   readonly maxDurationMs?: number;
   /** Bytes one connection queues for its client; default 1 MiB. */
   readonly maxBufferedBytes?: number;

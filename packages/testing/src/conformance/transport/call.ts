@@ -6,6 +6,8 @@ export interface Caller {
   readonly subject?: string | null;
   /** The roles of the signed-in subject. */
   readonly roles?: readonly string[];
+  /** When the test principal's session expires, an ISO instant; absent: never. */
+  readonly expiresAt?: string;
   /** The raw value of the test session cookie (`__Host-kw-test`), as a browser sends it. */
   readonly cookie?: string;
   /** A browser's `Origin` header. */

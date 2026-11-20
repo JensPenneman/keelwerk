@@ -3,6 +3,7 @@ import { expect, test, vi } from 'vitest';
 import type { Caller } from './call.ts';
 import type { EventStreamReader } from './event-stream-reader.ts';
 import { freshName } from './fresh-name.ts';
+import { lendTitles } from './lend-titles.ts';
 import { liveSocketDialect } from './live-socket-dialect.ts';
 import { originOf } from './origin-of.ts';
 import { requestHeaders } from './request-headers.ts';
@@ -271,5 +272,44 @@ export function liveSocketCases(target: TransportTarget): void {
         await Promise.all(sockets.map((socket) => socket.close()));
       }
     },
+  );
+
+  // Lends its titles once per deployment, in the second tenant (the SSE case lends in the first);
+  // every runner boots its own deployment, so a second run on one deployment fails at once on the lend.
+  test.skipIf(skip || Object.keys(target.tenants).length < 2)(
+    'over a socket too, an item whose event has its own member control stays an item for every subscriber',
+    async () => {
+      const tenant = Object.keys(target.tenants)[1];
+      const [adaName, bobName] = [freshName('ada'), freshName('bob')];
+      const caller = (subject: string): Caller => ({
+        subject,
+        roles: ['auditor'],
+        ...(tenant === undefined ? {} : { tenant }),
+      });
+      const sockets: TestSocket[] = [];
+      try {
+        const ada = opened(await upgradeWith(dialect, caller(adaName), '203.0.113.96'));
+        sockets.push(ada);
+        const bob = opened(await upgradeWith(dialect, caller(bobName), '203.0.113.97'));
+        sockets.push(bob);
+        for (const socket of [ada, bob]) {
+          await dialect.open(socket);
+          expect(await dialect.subscribeTitles(socket, 't')).toEqual({ kind: 'head' });
+        }
+        const controls = ['reset', 'head', 'gap', 'later'];
+        await lendTitles(target, adaName, caller(adaName), controls);
+        for (const socket of [ada, bob]) {
+          for (const control of controls) {
+            expect(await dialect.frame(socket, 't', 30_000)).toMatchObject({
+              kind: 'item',
+              event: { control },
+            });
+          }
+        }
+      } finally {
+        await Promise.all(sockets.map((socket) => socket.close()));
+      }
+    },
+    120_000,
   );
 }

@@ -1,6 +1,7 @@
 import {
   type Carrier,
   deprecationsOf,
+  endReasonOfError,
   liveTimersOf,
   type StateToken,
   unknownClientAddress,
@@ -9,6 +10,7 @@ import {
 import { asKeelwerkError, coreError, decodeActionInput, encodeFrames } from '@keelwerk/core/http';
 import type { EndpointCall } from './endpoint-call.ts';
 import { errorResponse } from './error-response.ts';
+import { keepStreamSession } from './keep-stream-session.ts';
 import { parseSubscribeRequest } from './parse-subscribe-request.ts';
 import { servedSurfaceOf } from './served-surface-of.ts';
 import { sseConnection } from './sse-connection.ts';
@@ -24,7 +26,13 @@ const protocolVersion = 1;
  * decoded like any input; the open streams of the principal, the tenant and the process are within
  * their bounds; the invoker subscribes (it translates each item once for this version); the frames are
  * wire encoded; the carrier serves them on a connection the host owns. The stream ends `going_away` at
- * stop. A failure of the setup after the subscription started is an `error` event, not a status.
+ * stop. When its session no longer holds (`keepStreamSession`) it ends with an `error` event that
+ * carries the cause: the check's own error code, `core.unauthenticated` at `expiresAt` and for a
+ * renewal that holds other credentials than the stream opened with, `core.unavailable` for a check
+ * that does not answer within one revalidation interval; or with `end` `version_retired` for a
+ * retired version. A session that is already expired when the stream opens gets that one `error`
+ * event too (the stream is set up first), unlike a mounted route, which answers `401`. A failure of
+ * the setup after the subscription started is an `error` event, not a status.
  */
 export async function subscribeEndpoint(call: EndpointCall): Promise<Response> {
   const { host, state, session, carrier, request } = call;
@@ -93,8 +101,26 @@ export async function subscribeEndpoint(call: EndpointCall): Promise<Response> {
       ...(socket !== undefined && { destroy: () => socket.destroy() }),
     });
     host.streams.add(stream);
+    // A stop that began during the setup has already taken its list of streams.
+    if (host.lifecycle.stopping) void stream.goAway();
     request.signal.addEventListener('abort', () => abort.abort(), { once: true });
     const log = host.deps.log.child({ requestId: state.requestId });
+    keepStreamSession({
+      session,
+      revalidateMs: host.liveSocket.revalidateMs,
+      clock,
+      timers,
+      signal: abort.signal,
+      end: (error) => {
+        log.info('stream ended by the host', { reason: error.code });
+        // A retired version ends the stream as a finished one, as it does on a socket (15.4.6).
+        const ended =
+          endReasonOfError(error) === 'version_retired'
+            ? stream.connection.end('version_retired')
+            : stream.connection.fail(wireErrorOf(host, state, error).error);
+        void ended.then(() => abort.abort());
+      },
+    });
     void live
       .serve(frames, stream.connection, {
         heartbeatMs: host.live.heartbeatMs,
