@@ -16,6 +16,10 @@ import {
   recordBeat,
   recordBeatShortLived,
   recordTick,
+  recordVaultBeat,
+  recordVaultTick,
+  unlockTwice,
+  unlockUp,
 } from './ticker-commands.ts';
 
 const everyTenant = defineSchedule(tickerBase, {
@@ -34,6 +38,7 @@ const everyBackend = defineSchedule(tickerBase, {
 });
 
 const user = { effect: 'allow', principal: 'user' } as const;
+const anyone = { effect: 'allow', principal: 'anonymous' } as const;
 
 const tickerDef = defineModule(tickerBase, {
   actions: {
@@ -52,6 +57,10 @@ const tickerDef = defineModule(tickerBase, {
     invokeUp,
     invokeUpAsSystem,
     reachDown,
+    recordVaultBeat,
+    recordVaultTick,
+    unlockTwice,
+    unlockUp,
   },
   policies: {
     recordTick: { users: defineRule(tickerBase, recordTick, user) },
@@ -69,6 +78,10 @@ const tickerDef = defineModule(tickerBase, {
     invokeUp: { users: defineRule(tickerBase, invokeUp, user) },
     invokeUpAsSystem: { users: defineRule(tickerBase, invokeUpAsSystem, user) },
     reachDown: { users: defineRule(tickerBase, reachDown, user) },
+    recordVaultBeat: { anyone: defineRule(tickerBase, recordVaultBeat, anyone) },
+    unlockUp: { anyone: defineRule(tickerBase, unlockUp, anyone) },
+    recordVaultTick: { anyone: defineRule(tickerBase, recordVaultTick, anyone) },
+    unlockTwice: { anyone: defineRule(tickerBase, unlockTwice, anyone) },
   },
   schedules: { everyTenant, everyBackend },
 });

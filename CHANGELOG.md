@@ -39,6 +39,7 @@ commit;
 
 * A project created with `keelwerk init` does not start on an empty database with the compose file it ships with, in 0.1.0 as in 0.2.0. Before the first start, apply the database migrations with `keelwerk db apply`; it needs the `ownerUrl` option of the PostgreSQL adapter, set to a connection of the database owner role. Then start the application.
 * When the PostgreSQL server ends a connection that a unit of work or a schema operation holds (a failover, an administrator ending the backend, a timeout on the server), the connection emits an `error` event that nothing handles, in 0.1.0 as in 0.2.0. Node.js treats that as an uncaught exception, so the process ends unless the application handles uncaught exceptions itself. The fix ships in the next release.
+* A caller without an identity who repeats a finished command is answered from the recorded outcome when the command id and every member that is not a secret are the same, whatever secret members the repeat carries. Whoever holds the command id of such a call and its other input within the receipt window (24 hours by default) learns its outcome. In the modules of this release that is whether a login, a sign-up or a password reset succeeded; no session, token or password is exposed. Until the fix ships in the next release: do not return a value that a secret member guards from an action that anonymous callers may run.
 
 
 ### ⚠ BREAKING CHANGES

@@ -2448,6 +2448,30 @@ receipt per `(scope, commandId)` with a fingerprint of the input and the outcome
   is completed at commit.
 - A retry with the same id and fingerprint returns the recorded outcome; the same id with a
   different fingerprint is `conflict` with code `core.idempotency_mismatch`.
+- A caller without a principal reference (an anonymous caller, the system principal) who repeats a
+  finished command (completed or failed, inside its window) of an action that declares a credential
+  member is refused with `core.idempotency_mismatch` and answered nothing of the recorded outcome:
+  no value, reference, effect id or recorded error (amended 2026-11-19). An action declares a
+  credential member when its input declares, at any depth, a `field.secret()` or `field.verifier()`
+  member (optional or not, in a list or set, in a `field.json()` shape, or a field of the entity
+  inside a generated `update` or `set`); it is a property of the action, not of the call. The
+  fingerprint withholds those members and every such caller has the same principal reference, none,
+  so a replay would tell whoever holds the command id the outcome of a login, a sign-up or a
+  password reset, or hand out a value a secret guards, whatever secret the repeat carries. The
+  refusal is the same for a completed and a failed receipt and for an equal and an unequal input,
+  comes, inside the command's unit, before any load, decision or key operation (only the derivation
+  of the fingerprint key and a declared `prepare` run before it, as for every command), and stores
+  and changes nothing. A pending or accepted receipt is answered as before; a caller with a
+  principal reference, and an action without a credential member, are replayed as before. The
+  kernel's own repeats are replayed too: a command under a command id of the kernel's form, which no
+  caller can present (`core.command_id_reserved`), and a worker's run of a job that meets a receipt a
+  worker's run wrote under that command id: the worker drops a replayed value, and a recorded error
+  ends the job as it ended the command, its history keeping only the closed projection of the
+  error, so no caller reads either, and a job whose command completed ends succeeded. A job that
+  meets a receipt a caller wrote directly is refused like that caller and ends failed. No digest of
+  secret members is kept to compare instead. A caller without a principal reference who lost the
+  answer of such a command sends it again with a new command id; the command still runs at most
+  once per command id.
 - Receipts expire after the action's window (`idempotency: { window }`, default 24 hours, at most
   what the operator's receipt retention allows), counted from the receipt's completion when that is
   later (amended 2026-11-19), so a submitter has a full window to read the outcome and a retry
@@ -2480,7 +2504,9 @@ As built in M1 (added 2026-11-05, register entries 336, 346 and 421):
   HKDF(control scope key, `keelwerk/fingerprint/v1`) (amended 2026-11-18), over the input with its
   secret and verifier members withheld by the marker `kw:withheld` and its personal members inside,
   so a receipt never lets a reader check guesses of a plaintext secret. A retry with another secret
-  replays; a retry with another personal value is `core.idempotency_mismatch`; a backend create's
+  replays for a caller with a principal reference; a caller without one is refused when the action
+  declares a credential member (section 7.5); a retry with another personal value is
+  `core.idempotency_mismatch`; a backend create's
   `config` is withheld whole. A receipt of 0.1.0 is compared with the 0.1.0 form. A control
   create fingerprints the client's input, before its configuration is sealed.
 
@@ -4567,7 +4593,7 @@ kind unless the column says otherwise. The prose above stays the description of 
 | `core.conflict` | `conflict` | kind | the kind-level code; a unique violation (after one repeat inside a command, entry 427), a duplicate id or scope-key version | 7.9.4, 10 |
 | `core.version_mismatch` | `conflict` | kind | `ifVersion` or a stream version moved | 16.4.9, 15.1.4 |
 | `core.state_mismatch` | `conflict` | kind | `ifInState` no longer holds | 6.7 |
-| `core.idempotency_mismatch` | `conflict` | kind | a command id reused with another input or by another principal (entry 336) | 7.5 |
+| `core.idempotency_mismatch` | `conflict` | kind | a command id reused with another input or by another principal (entry 336), or a finished command of an action that declares a credential member repeated by a caller without a principal reference (7.5) | 7.5 |
 | `core.command_in_progress` | `conflict` | yes | the command's pending receipt is held; a replay-only control create finding the receipt just inserted (entry 421) | 7.5 |
 | `core.rollout_not_finalized` | `conflict` | kind | a contract step before its rollout is finalized | 5.7, 19.3 |
 | `core.reference_missing` | `conflict` | kind | a `ref` whose target does not exist | 10 |
@@ -8632,7 +8658,9 @@ open point 456). This settles register open point 322.
 - The receipt fingerprint of every command is a keyed digest, `kwf1.` and the HMAC-SHA-256 under
   HKDF(control scope key, `keelwerk/fingerprint/v1`) (amended 2026-11-18), over the input with its
   secret and verifier members withheld by the marker `kw:withheld` and its personal members inside.
-  A retry with another secret replays; a retry with another personal value is
+  A retry with another secret replays for a caller with a principal reference; a caller without one
+  is refused when the action declares a credential member (section 7.5); a retry with another
+  personal value is
   `core.idempotency_mismatch`; a backend create's `config` is withheld whole. A receipt of 0.1.0 is
   compared with the 0.1.0 form. No bare 64-hex text is written by 0.2.0: an inline reaction's
   decision digest is `kwr1.` (section 7.9.6). A
@@ -11646,7 +11674,11 @@ plain JSON. The platform `fetch` cannot reach a Unix socket, so a `unix://` URL 
 of the subpath `@keelwerk/client/unix-socket`, `unixSocketFetch`, built on `node:http` with
 `socketPath`; the main entry imports no `node:*` module and stays usable in browsers.
 It retries network failures of queries, and of commands under the same command id (safe because of
-receipts), at most three times with jittered backoff.
+receipts), at most three times with jittered backoff. When the first attempt of a command finished
+but its answer was lost, the retry is answered from the receipt, except for a caller without a
+principal reference and an action that declares a credential member (section 7.5): that retry
+answers `core.idempotency_mismatch`, which the client does not retry and returns to the caller, who
+sends the command again with a new command id (a call without `commandId` gets a new one).
 
 The generated `update`'s input is the runtime's `{ id, patch, ifVersion? }`, one shared type
 (`UpdateInputAt`), so client and runtime cannot drift (added 2026-11-05, register entry 389). Section

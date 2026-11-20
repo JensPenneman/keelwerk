@@ -7,7 +7,7 @@ describe.each(['memory', 'pglite'] as const)(
   (kind: StorageKind) => {
     const timeout = kind === 'pglite' ? 60_000 : 10_000;
 
-    test('a refused password is pinned to the id: the right password with the same id answers the recorded refusal, a new id logs in', {
+    test('a refused password is pinned to the id: the right password with the same id is refused, a new id logs in', {
       timeout,
     }, async () => {
       const auth: BootedAuth = await bootAuth(kind);
@@ -19,10 +19,10 @@ describe.each(['memory', 'pglite'] as const)(
         expect(codeOf(await auth.request('auth.login', wrong, { commandId }))).toBe(
           'auth.invalid_credentials',
         );
-        // The receipt covers no password: the same id with the right one answers the recorded
-        // refusal.
+        // The receipt covers no password and the caller has no identity, so the finished command is
+        // not replayed to it: the same id with the right password is refused.
         expect(codeOf(await auth.request('auth.login', ada, { commandId }))).toBe(
-          'auth.invalid_credentials',
+          'core.idempotency_mismatch',
         );
         // A new command id runs the login again.
         const again = await auth.request('auth.login', ada, { commandId: crypto.randomUUID() });

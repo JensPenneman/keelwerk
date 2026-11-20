@@ -105,7 +105,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     });
   }
   if (pending.kind === 'replay') {
-    const replayed = await replayReceipt(unit, registry, action, authority, pending.receipt);
+    const replayed = await replayReceipt(unit, registry, action, authority, pending.receipt, job);
     if (job !== undefined) await completeJobHere(unit, job, action.scope, { kind: 'succeeded' });
     return replayed;
   }

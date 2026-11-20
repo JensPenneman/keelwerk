@@ -1,4 +1,4 @@
-import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { coreError } from '../http/core-error.ts';
 import type { Receipt } from '../storage/receipt.ts';
 import { isLegacyDigest } from './is-legacy-digest.ts';
 
@@ -22,10 +22,6 @@ export function assertSameRequest(
       (isLegacyDigest(existing.fingerprint) && existing.fingerprint === legacyFingerprint())
     )
   ) {
-    throw new KeelwerkError({
-      kind: 'conflict',
-      code: 'core.idempotency_mismatch',
-      message: 'The command id was used with a different request.',
-    });
+    throw coreError('core.idempotency_mismatch');
   }
 }

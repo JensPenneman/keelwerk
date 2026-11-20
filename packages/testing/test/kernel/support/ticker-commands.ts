@@ -41,6 +41,55 @@ const recordBeat = defineCommand(tickerBase, {
   },
 });
 
+const vaultInput = shape({ at: field.string(), pin: field.secret() });
+
+/** A backend command that declares a secret member and writes a beat: what an anonymous tenant caller reaches upward. */
+const recordVaultBeat = defineCommand(tickerBase, {
+  scope: 'backend',
+  input: vaultInput,
+  output: shape({}),
+  *decide(input, ctx) {
+    const id = yield* ctx.newId(beat);
+    return [ctx.write.ticker.beat.create({ id, source: 'vault', at: input.at })];
+  },
+});
+
+/** A tenant command that anonymous callers may run and that invokes the backend command with the secret. */
+const unlockUp = defineCommand(tickerBase, {
+  input: vaultInput,
+  output: shape({}),
+  decide: (input) => ({
+    events: [],
+    effects: [invoke(recordVaultBeat, { at: input.at, pin: input.pin })],
+  }),
+});
+
+/** A tenant command that declares a secret and writes a tick row: what a job of one scope repeats under a chosen command id. */
+const recordVaultTick = defineCommand(tickerBase, {
+  input: vaultInput,
+  output: shape({}),
+  *decide(input, ctx) {
+    const id = yield* ctx.newId(tick);
+    return [ctx.write.ticker.tick.create({ id, schedule: 'vault', at: input.at })];
+  },
+});
+
+/** The command id both jobs of `unlockTwice` carry. */
+const vaultJobId = '00000000-0000-7000-8000-0000000000d4';
+
+/** A tenant command that anonymous callers may run and that enqueues the secret-declaring tenant command twice under one command id. */
+const unlockTwice = defineCommand(tickerBase, {
+  input: vaultInput,
+  output: shape({}),
+  decide: (input) => ({
+    events: [],
+    effects: [
+      enqueue(recordVaultTick, { at: input.at, pin: input.pin }, { commandId: vaultJobId }),
+      enqueue(recordVaultTick, { at: input.at, pin: input.pin }, { commandId: vaultJobId }),
+    ],
+  }),
+});
+
 /** A backend command whose receipts last only half a minute: its jobs from a tenant must hold longer than that. */
 const recordBeatShortLived = defineCommand(tickerBase, {
   scope: 'backend',
@@ -231,4 +280,9 @@ export {
   recordBeat,
   recordBeatShortLived,
   recordTick,
+  recordVaultBeat,
+  recordVaultTick,
+  unlockTwice,
+  unlockUp,
+  vaultJobId,
 };
