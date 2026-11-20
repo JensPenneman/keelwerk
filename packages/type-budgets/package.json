@@ -36,7 +36,7 @@
     "@keelwerk/module-auth": "workspace:*"
   },
   "devDependencies": {
-    "@ark/attest": "0.58.0",
+    "@ark/attest": "0.58.1",
     "typescript": "6.0.3",
     "vitest": "5.1.0"
   }
