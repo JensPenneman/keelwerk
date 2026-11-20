@@ -152,3 +152,33 @@ describe('a ticket that no resolver redeems', () => {
     expect(session.principal).toMatchObject({ subject: 'ada' });
   });
 });
+
+describe('a ticket whose principal has expired', () => {
+  // The world's clock is 2026-11-04T00:00:00Z.
+  const clock = Temporal.Instant.from('2026-11-04T00:00:00Z');
+
+  test.each([
+    ['at the clock', clock],
+    ['1 ms before the clock', clock.subtract({ milliseconds: 1 })],
+  ])(
+    'a principal that expires %s answers like a spent ticket and opens no session',
+    async (_when, expiresAt) => {
+      const { invoker, rows, expiring } = worldOf();
+      expiring.set('ada', expiresAt);
+      expect(failureOf(await invoker.open(ticketCarrier))).toMatchObject({
+        kind: 'unauthenticated',
+        code: 'core.ticket_invalid',
+        message: 'The stream ticket is not valid.',
+      });
+      expect(rows.get('tk1')?.usedAt).toBeDefined();
+    },
+  );
+
+  test('a principal that expires 1 ms after the clock opens a session', async () => {
+    const { invoker, expiring } = worldOf();
+    expiring.set('ada', clock.add({ milliseconds: 1 }));
+    expect(sessionOf(await invoker.open(ticketCarrier)).principal).toMatchObject({
+      subject: 'ada',
+    });
+  });
+});

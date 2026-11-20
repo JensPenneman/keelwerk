@@ -10534,6 +10534,26 @@ Rules:
   page by a stale cookie (section 16.4.10). The resolver asks for that by returning the anonymous
   principal with `clearCookies` in its `PrincipalResolution`; the session carries the names to the
   host.
+  A resolver that instead answers a principal whose `expiresAt` has passed is refused like any
+  other (next rule).
+- A session never opens for a principal whose `expiresAt` is at or before the invoker's clock
+  (added 2026-11-20). `open` compares the expiry with the clock once, right after the principal is
+  resolved, so a principal that expires during the rest of the open still gets its session. It
+  answers `unauthenticated` before the tenant marker, the API version and any effect the resolver
+  asked for. What the caller is told depends on the path. A fresh open (a transport's open, an
+  `invoke` or `subscribe` without a session) has proven nothing on this connection, so it gets the
+  refusal of a credential that is not accepted (`core.unauthenticated`, "The credentials were not
+  accepted."), built by the same `credentialsRefused()` as the stage's own refusals, so the caller
+  gets the same answer as the kernel's own refusal of a credential that no resolver accepts; where a
+  resolver answers an unknown cookie as anonymous, or refuses an unknown credential with a text of
+  its own, a caller can still tell an expired principal from an unknown credential. For a stream ticket it answers
+  `core.ticket_invalid` instead, so a ticket still tells its caller nothing of why. Only the
+  revalidation of a session that was valid when it opened, and a job, are told "The session
+  expired.". The rule holds for every path that opens: a transport's open, an `invoke` or
+  `subscribe` without a session, a revalidation and a job. `invoke` does not check a session that is
+  already open: an HTTP request, its batch members included, runs under the session its open
+  admitted, and a live subscription or a socket ends through its revalidation at `expiresAt`, which
+  refuses through the same rule.
 - A session lives for one HTTP request. For SSE streams and WebSocket connections it lives as long
   as the connection, and the live module revalidates it at `expiresAt`, at least every 60 seconds
   (configurable), and on a change of a row the session depends on (`dependsOn`, amended

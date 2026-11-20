@@ -168,13 +168,23 @@ const resolver: PrincipalResolver = {
   },
 };
 
-const withResolver = (registry: Registry): Registry => ({
-  ...registry,
-  fills: new Map([
-    ...registry.fills,
-    ['core.principalResolvers', [fill('core.principalResolvers', resolver)]],
-  ]),
-});
+/**
+ * The registry with the kit's resolver after the principal resolvers it already holds. A registry
+ * that already holds the kit's resolver comes back unchanged: live-kit.ts and the route-subscribe
+ * tests wrap the registry before `invokerOf` wraps it again, and appending twice would fill the
+ * resolver twice.
+ */
+const withResolver = (registry: Registry): Registry => {
+  const own = registry.fills.get('core.principalResolvers') ?? [];
+  if (own.some((entry) => entry.fill === resolver)) return registry;
+  return {
+    ...registry,
+    fills: new Map([
+      ...registry.fills,
+      ['core.principalResolvers', [...own, fill('core.principalResolvers', resolver)]],
+    ]),
+  };
+};
 
 /** An invoker over the registry; `served` adds to the app it serves (its live hub, for one). */
 function invokerOf(

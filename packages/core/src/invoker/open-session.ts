@@ -1,5 +1,7 @@
+import { errors } from '../errors/errors.ts';
 import { isKeelwerkError } from '../errors/is-keelwerk-error.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { coreError } from '../http/core-error.ts';
 import { isBrowserRequest } from '../http/is-browser-request.ts';
 import { sessionCookie } from '../http/session-cookie.ts';
 import type { Span } from '../observability/span.ts';
@@ -11,6 +13,7 @@ import type { InvocationSession } from './invocation-session.ts';
 import type { InvokerEnv } from './invoker-env.ts';
 import { mapUnknownError } from './map-unknown-error.ts';
 import type { Outcome } from './outcome.ts';
+import { credentialsRefused } from './stages/credentials-refused.ts';
 import { resolvePrincipal } from './stages/resolve-principal.ts';
 import { resolveScope } from './stages/resolve-scope.ts';
 import { resolveVersion } from './stages/resolve-version.ts';
@@ -40,6 +43,7 @@ async function open(
   requestId: string,
   span: Span,
   standsFor: PrincipalRef | undefined,
+  revalidating: boolean,
 ): Promise<InvocationSession> {
   if (signal?.aborted === true) {
     throw new KeelwerkError({
@@ -51,6 +55,20 @@ async function open(
   const deployed = await resolveScope(env, carrier);
   const presented = deployed.resolvedBy === 'path' ? withoutCookie(carrier) : carrier;
   const found = await resolvePrincipal(env, presented, deployed, { requestId, span }, standsFor);
+  const { expiresAt } = found.principal;
+  if (
+    expiresAt !== undefined &&
+    Temporal.Instant.compare(expiresAt, env.options.clock.now()) <= 0
+  ) {
+    // A stream ticket answers one error whatever went wrong, so a caller learns nothing of why. A
+    // fresh open has proven nothing on this connection, so it gets the refusal of a credential that
+    // is not accepted; only the revalidation of a session that was valid when it opened, or a job
+    // (whose principal is resolved again when it runs), is told that the session expired.
+    if (presented.ticket !== undefined) throw coreError('core.ticket_invalid');
+    throw revalidating || carrier.job !== undefined
+      ? errors.unauthenticated('The session expired.')
+      : credentialsRefused();
+  }
   const resolved = await applyTenantEntry(env, presented, deployed, found.principal);
   const version = resolveVersion(env, resolved, presented, found.principal);
   if (resolved.target !== null) {
@@ -94,7 +112,7 @@ async function open(
     ...(found.dependsOn === undefined || found.dependsOn.length === 0
       ? {}
       : { dependsOn: found.dependsOn }),
-    revalidate: () => reopen(env, kept, {}, reference),
+    revalidate: () => reopen(env, kept, {}, reference, true),
   };
   env.sessions.register(session, { resolved, carrier: kept });
   return session;
@@ -106,6 +124,7 @@ async function reopen(
   carrier: Carrier,
   options: { readonly signal?: AbortSignal; readonly requestId?: string },
   standsFor: PrincipalRef | undefined,
+  revalidating: boolean,
 ): Promise<Outcome<InvocationSession>> {
   const span = env.tracer.startSpan('keelwerk.open', {
     attributes: { 'keelwerk.transport': carrier.transport },
@@ -118,6 +137,7 @@ async function reopen(
       options.requestId ?? globalThis.crypto.randomUUID(),
       span,
       standsFor,
+      revalidating,
     );
     return { ok: true, value: session };
   } catch (error) {
@@ -135,14 +155,21 @@ async function reopen(
 /**
  * `Invoker.open` (section 16.3.4): `resolveScope`, `resolvePrincipal` and `resolveVersion` once
  * for a transport request or a connection, then the effects a resolver returned. Only this
- * function creates a session, and it keeps each in the invoker's private registry. A failure is
- * an outcome: `unauthenticated` passes whatever its code, every other error follows
- * `mapUnknownError`.
+ * function creates a session, and it keeps each in the invoker's private registry. A principal
+ * whose `expiresAt` is at or before the invoker's clock never gets one: the expiry is compared with
+ * the clock once, right after the principal is resolved, so a principal that expires during the
+ * rest of the open still gets its session. The open answers `unauthenticated` before the tenant
+ * marker, the API version and any effect the resolver asked for; this holds for every path that
+ * opens (a transport, an invoke or subscribe without a session, a revalidation, a job). A fresh
+ * open gets `credentialsRefused()` ("The credentials were not accepted."), because the caller has
+ * proven nothing on this connection; a stream ticket gets `core.ticket_invalid`; the revalidation
+ * of a session that was valid at its open, and a job, get "The session expired.". A failure is an
+ * outcome: `unauthenticated` passes whatever its code, every other error follows `mapUnknownError`.
  */
 export function openSession(
   env: InvokerEnv,
   carrier: Carrier,
   options: { readonly signal?: AbortSignal; readonly requestId?: string } = {},
 ): Promise<Outcome<InvocationSession>> {
-  return reopen(env, carrier, options, undefined);
+  return reopen(env, carrier, options, undefined, false);
 }

@@ -22,7 +22,7 @@ const ticketDescriptor = {
   ref: 'doc.ticket',
   fields: { usedAt: {} },
 } as unknown as EntityDescriptor;
-export function referredUserOf(subject: string): Principal {
+export function referredUserOf(subject: string, expiresAt?: Temporal.Instant): Principal {
   return {
     kind: 'user',
     subject,
@@ -34,12 +34,16 @@ export function referredUserOf(subject: string): Principal {
     memberships: [],
     via: 'test.ref',
     ref: { resolver: 'test.ref', principalId: subject },
+    ...(expiresAt === undefined ? {} : { expiresAt }),
   } as unknown as Principal;
 }
 
 export const standing: PrincipalRef = { resolver: 'test.ref', principalId: 'ada' };
 
-/** The world of the tests: the rows a unit holds and the principals that are revoked. */
+/**
+ * The world of the tests: the rows a unit holds, the principals that are revoked and the expiry
+ * (`expiring`) a principal answers with.
+ */
 export function worldOf(
   ref: PrincipalRef = standing,
   entity = 'doc.ticket',
@@ -49,6 +53,7 @@ export function worldOf(
 ) {
   const rows = new Map<string, StorageRow>([['tk1', { id: 'tk1', version: 1 }]]);
   const revoked = new Set<string>();
+  const expiring = new Map<string, Temporal.Instant>();
   const loaded: string[] = [];
   const transports: (string | null)[] = [];
   const redeeming: PrincipalResolver = {
@@ -78,7 +83,7 @@ export function worldOf(
       if (thrown !== undefined) throw thrown;
       if (revoked.has(found.principalId)) return null;
       return {
-        principal: referredUserOf(found.principalId),
+        principal: referredUserOf(found.principalId, expiring.get(found.principalId)),
         cache: { key: 'k', entity: 'doc.pass', id: 'p1' },
       };
     },
@@ -129,7 +134,7 @@ export function worldOf(
     log: silentLog,
     environment: 'test',
   } as unknown as InvokerOptions);
-  return { invoker, rows, revoked, loaded, transports };
+  return { invoker, rows, revoked, expiring, loaded, transports };
 }
 
 export const ticketCarrier: Carrier = {

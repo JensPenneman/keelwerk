@@ -21,6 +21,7 @@ import { withResolverKit } from '../edge/with-resolver-kit.ts';
 import type { InvokerEnv } from '../invoker-env.ts';
 import { moduleConfigOf } from '../module-config-of.ts';
 import type { ResolvedScope } from '../resolved-scope.ts';
+import { credentialsRefused } from './credentials-refused.ts';
 
 function bearerPresent(carrier: Carrier): boolean {
   return (
@@ -78,7 +79,7 @@ export async function resolvePrincipal(
   }
   // An operator token is no credential of the app: away from an operator host it ends here, so the
   // app's resolvers never see it.
-  if (presented !== undefined) throw errors.unauthenticated('The credentials were not accepted.');
+  if (presented !== undefined) throw credentialsRefused();
   const { target } = resolved;
   if (target === null) {
     // A ticket that nothing can redeem is refused: it never opens an anonymous request.
@@ -122,7 +123,7 @@ export async function resolvePrincipal(
     throw coreError('core.ticket_invalid');
   }
   if (!result.authenticated && bearerPresent(carrier)) {
-    throw errors.unauthenticated('The credentials were not accepted.');
+    throw credentialsRefused();
   }
   if (result.redeem !== undefined) {
     await spendCredential(env, target, resolved.app, result.redeem);
