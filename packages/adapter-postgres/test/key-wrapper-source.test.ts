@@ -11,6 +11,7 @@ const seen: PostgresUnitRequest[] = [];
 
 vi.mock('../src/postgres-pool.ts', () => ({
   createPostgresPool: () => ({
+    options: { max: 1 },
     connect: async () => ({ release: () => undefined, query: async () => ({ rows: [] }) }),
     end: async () => undefined,
   }),

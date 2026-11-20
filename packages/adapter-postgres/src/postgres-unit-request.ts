@@ -5,6 +5,8 @@ import type { Kysely } from 'kysely';
 /** What `runPostgresUnit` needs to open one unit. */
 export interface PostgresUnitRequest {
   readonly db: Kysely<SqlDb>;
+  /** The pool's `max`: an opening that finds its connection lost is repeated at most this many times. */
+  readonly poolMax: number;
   readonly namespace: NamespaceRef;
   readonly scope: StorageScope;
   readonly options: UnitOptions | undefined;

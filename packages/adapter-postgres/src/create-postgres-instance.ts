@@ -82,21 +82,25 @@ export function createPostgresInstance(
     namespace: NamespaceRef,
     scope: StorageScope,
     unitOptions: UnitOptions | undefined,
-  ): PostgresUnitRequest => ({
-    db: open().db,
-    namespace,
-    scope,
-    options: unitOptions,
-    deploymentId: env.deploymentId,
-    log: env.log,
-    tracer: env.tracer,
-    parts: {
+  ): PostgresUnitRequest => {
+    const { db, pool } = open();
+    return {
+      db,
+      poolMax: pool.options.max,
+      namespace,
+      scope,
+      options: unitOptions,
       deploymentId: env.deploymentId,
-      clock,
-      entities,
-      ...(keyWrapper === undefined ? {} : { keyWrapper }),
-    },
-  });
+      log: env.log,
+      tracer: env.tracer,
+      parts: {
+        deploymentId: env.deploymentId,
+        clock,
+        entities,
+        ...(keyWrapper === undefined ? {} : { keyWrapper }),
+      },
+    };
+  };
   return {
     placementId: placement.id,
     connect: async () => {

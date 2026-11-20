@@ -51,7 +51,11 @@ function ownerOnly(options: PostgresAdapterOptions, schema: SchemaOperations): S
  * sessions (14.3.2) and still reports `broadcast: true`. The placement's url must reach a session (a
  * direct connection or a session-mode pooler, never a transaction-mode pooler, 14.3.7), because
  * broadcast and the change feed hold `LISTEN` on it; `notify: false` does not make such a url usable
- * for broadcast. Listed in a deployment as the adapter `postgres`.
+ * for broadcast. A connection that the server ended while it sat idle in the pool does not fail a
+ * unit of work: the unit finds it lost at its first statement, before any of its work ran, and
+ * begins again on another connection, at most once for each connection the pool can hold, so after
+ * the server has ended its connections the next command commits once the server accepts a new
+ * connection. Listed in a deployment as the adapter `postgres`.
  */
 export function postgresAdapter(options: PostgresAdapterOptions = {}): DataAdapterFactory {
   return {

@@ -5,10 +5,20 @@ import { isConnectionFailure } from './is-connection-failure.ts';
 const withCode = (code: string): Error => Object.assign(new Error('driver'), { code });
 
 describe('isConnectionFailure', () => {
-  test('class 08, 57P01-57P03 and 53300 are connection failures', () => {
-    for (const code of ['08000', '08006', '08P01', '57P01', '57P02', '57P03', '53300']) {
-      expect(isConnectionFailure(withCode(code))).toBe(true);
-    }
+  test.each([
+    '08000',
+    '08006',
+    '08P01',
+    '57P01',
+    '57P02',
+    '57P03',
+    '57P04',
+    '57P05',
+    '25P03',
+    '25P04',
+    '53300',
+  ])('the server code %s is a connection failure', (code) => {
+    expect(isConnectionFailure(withCode(code))).toBe(true);
   });
 
   test('socket error codes are connection failures', () => {
@@ -35,8 +45,8 @@ describe('isConnectionFailure', () => {
     }
   });
 
-  test('23505, 40001, 57014, a plain Error and a KeelwerkError are not', () => {
-    for (const code of ['23505', '40001', '57014']) {
+  test('23505, 40001, 57000, 57014, a plain Error and a KeelwerkError are not', () => {
+    for (const code of ['23505', '40001', '57000', '57014']) {
       expect(isConnectionFailure(withCode(code))).toBe(false);
     }
     expect(isConnectionFailure(new Error('boom'))).toBe(false);
