@@ -1,0 +1,588 @@
+{
+  "entities": {
+    "audit.entry": {
+      "events": {},
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "action": {
+          "codec": null,
+          "column": "action",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 7,
+          "unique": false
+        },
+        "actorId": {
+          "codec": null,
+          "column": "actor_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 12,
+          "unique": false
+        },
+        "actorKind": {
+          "codec": null,
+          "column": "actor_kind",
+          "constraints": {
+            "values": ["anonymous", "user", "service", "operator", "system"]
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "enum",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 10,
+          "unique": false
+        },
+        "actorVia": {
+          "codec": null,
+          "column": "actor_via",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 11,
+          "unique": false
+        },
+        "at": {
+          "codec": null,
+          "column": "at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 6,
+          "unique": false
+        },
+        "causationId": {
+          "codec": null,
+          "column": "causation_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 9,
+          "unique": false
+        },
+        "commandId": {
+          "codec": null,
+          "column": "command_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 8,
+          "unique": false
+        },
+        "eventId": {
+          "codec": null,
+          "column": "event_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "exclusive",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": true
+        },
+        "eventType": {
+          "codec": null,
+          "column": "event_type",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 2,
+          "unique": false
+        },
+        "remoteAddress": {
+          "codec": null,
+          "column": "remote_address",
+          "constraints": {
+            "maxLength": 64
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": {
+            "keys": "tenant",
+            "normalize": {
+              "id": "nfc",
+              "version": 1
+            },
+            "params": {
+              "contains": {
+                "bits": 12
+              },
+              "eq": {
+                "bits": 128
+              },
+              "order": {
+                "bytes": 16
+              },
+              "prefix": {
+                "max": 32,
+                "min": 3
+              }
+            },
+            "queries": [],
+            "subject": "subject"
+          },
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 15,
+          "unique": false
+        },
+        "streamId": {
+          "codec": null,
+          "column": "stream_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 4,
+          "unique": false
+        },
+        "streamType": {
+          "codec": null,
+          "column": "stream_type",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 3,
+          "unique": false
+        },
+        "streamVersion": {
+          "codec": null,
+          "column": "stream_version",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "integer",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 5,
+          "unique": false
+        },
+        "subject": {
+          "codec": null,
+          "column": "subject",
+          "constraints": {},
+          "hidden": false,
+          "indexed": true,
+          "inner": null,
+          "kind": "subject",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 13,
+          "unique": false
+        },
+        "transport": {
+          "codec": null,
+          "column": "transport",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 14,
+          "unique": false
+        },
+        "userAgent": {
+          "codec": null,
+          "column": "user_agent",
+          "constraints": {
+            "maxLength": 512
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": {
+            "keys": "tenant",
+            "normalize": {
+              "id": "nfc",
+              "version": 1
+            },
+            "params": {
+              "contains": {
+                "bits": 12
+              },
+              "eq": {
+                "bits": 128
+              },
+              "order": {
+                "bytes": 16
+              },
+              "prefix": {
+                "max": 32,
+                "min": 3
+              }
+            },
+            "queries": [],
+            "subject": "subject"
+          },
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 16,
+          "unique": false
+        }
+      },
+      "history": "state",
+      "mergeState": false,
+      "renames": []
+    }
+  },
+  "format": "keelwerk.snapshot/1",
+  "tables": [
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "tenant_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "created_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "updated_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "archived_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": 1,
+          "field": null,
+          "kind": "integer",
+          "name": "version",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hlc",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hash",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "kw_erased_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "eventId",
+          "kind": "string",
+          "name": "event_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "eventType",
+          "kind": "string",
+          "name": "event_type",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "streamType",
+          "kind": "string",
+          "name": "stream_type",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "streamId",
+          "kind": "string",
+          "name": "stream_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "streamVersion",
+          "kind": "integer",
+          "name": "stream_version",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "at",
+          "kind": "instant",
+          "name": "at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "action",
+          "kind": "string",
+          "name": "action",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "commandId",
+          "kind": "string",
+          "name": "command_id",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "causationId",
+          "kind": "string",
+          "name": "causation_id",
+          "nullable": true
+        },
+        {
+          "constraints": {
+            "values": ["anonymous", "user", "service", "operator", "system"]
+          },
+          "default": null,
+          "field": "actorKind",
+          "kind": "enum",
+          "name": "actor_kind",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "actorVia",
+          "kind": "string",
+          "name": "actor_via",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "actorId",
+          "kind": "string",
+          "name": "actor_id",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "subject",
+          "kind": "subject",
+          "name": "subject",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "transport",
+          "kind": "string",
+          "name": "transport",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "remoteAddress",
+          "kind": "sealed",
+          "name": "remote_address",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "userAgent",
+          "kind": "sealed",
+          "name": "user_agent",
+          "nullable": true
+        }
+      ],
+      "foreignKeys": [],
+      "indexes": [
+        {
+          "columns": ["tenant_id", "event_id"],
+          "method": "btree",
+          "name": "audit__entry__event_id_uq",
+          "unique": true,
+          "where": {
+            "field": "archivedAt",
+            "op": "isNull",
+            "value": true
+          }
+        },
+        {
+          "columns": ["tenant_id", "subject"],
+          "method": "btree",
+          "name": "audit__entry__subject_ix",
+          "unique": false,
+          "where": null
+        }
+      ],
+      "name": "audit__entry",
+      "primaryKey": ["tenant_id", "id"],
+      "scoped": "tenant"
+    }
+  ],
+  "track": "audit",
+  "version": 1
+}

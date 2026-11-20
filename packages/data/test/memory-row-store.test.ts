@@ -1,4 +1,4 @@
-import type { StorageRow } from '@keelwerk/core';
+import { isUniqueConflict, type StorageRow } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import { account } from './support/account.ts';
 import { failure } from './support/failure.ts';
@@ -162,6 +162,18 @@ describe('unique fields and indexes', () => {
       ),
     );
     expect(restore.kind).toBe('conflict');
+  });
+
+  test('a violated unique field is marked unique, like the conflict of the SQL adapters', async () => {
+    const memory = openMemory([account]);
+    await memory.run(tenantScope, (unit) => unit.rows.insert(account, [row(1, { handle: 'ann' })]));
+    const taken = await memory
+      .run(tenantScope, (unit) => unit.rows.insert(account, [row(2, { handle: 'ann' })]))
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+    expect(isUniqueConflict(taken)).toBe(true);
   });
 
   test("absent values never collide, and one tenant does not see another tenant's values", async () => {

@@ -12,6 +12,7 @@ import { countReactionFault } from './count-reaction-fault.ts';
 import type { FoldedProcess } from './fold-process-state.ts';
 import { foldProcessState } from './fold-process-state.ts';
 import { isProcessStream } from './is-process-stream.ts';
+import { observedEventOf } from './observed-event-of.ts';
 import type { ReactionJobInput } from './reaction-job-input.ts';
 
 /** The error a job fails with when the dispatcher marked its key unusable: the registered code, else `internal`. */
@@ -134,7 +135,20 @@ export async function openAsyncReaction(input: {
       return decidesNothing(reaction);
     }
   }
-  const event = await asyncReactionEventOf(unit, registry, reaction.module, stored);
+  const asyncEvent = await asyncReactionEventOf(unit, registry, reaction.module, stored);
+  let event: AsyncReactionEvent<string, unknown, Readonly<Record<string, unknown>>> = asyncEvent;
+  if (reaction.on === 'all') {
+    const observed = await observedEventOf(unit, registry, stored, asyncEvent);
+    if (observed === undefined) {
+      input.log?.warn('an observer job found the subject of its event erased and decides nothing', {
+        reaction: reaction.id,
+        event: job.event,
+      });
+      countReactionFault('subject_erased', reaction.id);
+      return decidesNothing(reaction);
+    }
+    event = observed;
+  }
   if (reaction.process && job.processStream === undefined) {
     throw errors.internal(`the job of the process "${reaction.id}" names no instance`);
   }

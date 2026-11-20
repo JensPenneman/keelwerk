@@ -223,4 +223,55 @@ describe('opening an async reaction for its job', () => {
       },
     ]);
   });
+
+  const watcher = { ...reactionOf(registry, 'plain'), id: 'logs.watcher', on: 'all' as const };
+
+  test('an observer job whose subject is erased decides nothing, is logged once and counted', async () => {
+    const lines: { message: string; fields: unknown }[] = [];
+    const log = {
+      warn: (message: string, fields: unknown) => lines.push({ message, fields }),
+    } as unknown as Logger;
+    const added: unknown[] = [];
+    vi.spyOn(metrics, 'getMeter').mockReturnValue({
+      createCounter: () => ({
+        add: (value: number, attributes: unknown) => added.push([value, attributes]),
+      }),
+    } as unknown as Meter);
+    const subject = '0197a1c2-7b3e-7c11-9a55-3f2e8d6b4a99';
+    const unit = {
+      ...unitHolding([noteEvent({ actor: { kind: 'user', id: subject, via: 'auth.session' } })]),
+      receipts: { get: () => Promise.resolve(undefined) },
+      keys: { dataKey: () => Promise.resolve(undefined) },
+    } as unknown as Unit;
+    const opened = await openAsyncReaction({
+      unit,
+      registry,
+      reaction: watcher,
+      input,
+      log,
+    });
+    vi.restoreAllMocks();
+    expect(opened.event).toBeUndefined();
+    expect(opened.decide({})).toBeUndefined();
+    expect(lines).toEqual([
+      {
+        message: 'an observer job found the subject of its event erased and decides nothing',
+        fields: { reaction: 'logs.watcher', event: stored.eventId },
+      },
+    ]);
+    expect(added).toEqual([[1, { fault: 'subject_erased', reaction: 'logs.watcher' }]]);
+  });
+
+  test('a listed reaction is given no observed members', async () => {
+    const opened = await openAsyncReaction({
+      unit: unitHolding([stored]),
+      registry,
+      reaction: reactionOf(registry, 'plain'),
+      input,
+    });
+    expect(opened.event).toBeDefined();
+    expect(opened.event).not.toHaveProperty('request');
+    expect(opened.event).not.toHaveProperty('subject');
+    expect(opened.event).not.toHaveProperty('action');
+  });
 });

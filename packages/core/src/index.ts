@@ -279,6 +279,7 @@ export type {
   AsyncReactionEvent,
   EventRefsOf,
   InlineReactionEvent,
+  ObservedEvent,
   ReactionEventBase,
   ReactionEventOf,
   ReactionPart,

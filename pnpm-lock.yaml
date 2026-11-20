@@ -392,9 +392,6 @@ importers:
       '@keelwerk/core':
         specifier: workspace:*
         version: link:../core
-      '@keelwerk/module-members':
-        specifier: workspace:*
-        version: link:../module-members
     devDependencies:
       '@keelwerk/adapter-postgres':
         specifier: workspace:*

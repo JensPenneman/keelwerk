@@ -13,6 +13,7 @@ import type { ActorRef } from '../principals/actor-ref.ts';
 import type { Decision } from '../protocol/decision.ts';
 import type { Gen } from '../protocol/gen.ts';
 import type { Position } from '../storage/position.ts';
+import type { Receipt } from '../storage/receipt.ts';
 import type { Observes } from './observes.ts';
 
 type GeneratedEventName = 'created' | 'changed' | 'archived' | 'restored' | 'erased';
@@ -33,6 +34,15 @@ type ReactionData<S, I extends string, E, N> = N extends keyof EventsOf<EntityAt
     ? ShapeValue<F, I, 'stored'>
     : never
   : { readonly [field: string]: unknown };
+
+/** The event a reaction's `key` receives: the one of `react`, but the plain async event for `on: 'all'`. */
+type ReactionKeyEventOf<S, On extends string, Tm> = On extends 'all'
+  ? AsyncReactionEvent<
+      string,
+      { readonly [field: string]: unknown },
+      { readonly [field: string]: unknown }
+    >
+  : ReactionEventOf<S, On, Tm>;
 
 /** Every event reference a part may react to: own entities and present dependencies' entities. */
 export type EventRefsOf<S> =
@@ -72,13 +82,37 @@ export interface AsyncReactionEvent<Name extends string, Data, R>
   readonly current: R | undefined;
 }
 
+/**
+ * The event an `on: 'all'` reaction receives (G12): the async event, plus what the kernel reads for an
+ * observer in the job's unit. Filled only for `on: 'all'` reactions.
+ */
+export interface ObservedEvent
+  extends AsyncReactionEvent<
+    string,
+    { readonly [field: string]: unknown },
+    { readonly [field: string]: unknown }
+  > {
+  /** The envelope's `action`: the action of the command that wrote the event. */
+  readonly action: string | null;
+  /**
+   * The request metadata of the receipt of `commandId`, when it is kept and is that command's (same
+   * action); else null. `remoteAddress` and `userAgent` are filled only when `subject` is not null;
+   * without a subject both are null and the transport stays. An observer that keeps either value
+   * keeps it `.personal()` under `subject`, so that an erasure of the subject reaches the copy.
+   */
+  readonly request: Receipt['request'] | null;
+  /**
+   * The person the event's request came from, canonical (`canonicalSubject`): a user actor's subject;
+   * for an anonymous actor the data subject of the event's row (archived included; an erased row
+   * gives no event at all); null for any other actor, outside a tenant scope, and for a text that
+   * is no 128-bit subject.
+   */
+  readonly subject: string | null;
+}
+
 /** The event a reaction receives, typed by its reference and timing. */
 export type ReactionEventOf<S, On extends string, Tm> = On extends 'all'
-  ? AsyncReactionEvent<
-      string,
-      { readonly [field: string]: unknown },
-      { readonly [field: string]: unknown }
-    >
+  ? ObservedEvent
   : On extends `${infer I}.${infer E}.${infer N}`
     ? Tm extends 'inline'
       ? InlineReactionEvent<On, ReactionData<S, I, E, N>, ReactionRow<S, I, E>>
@@ -94,8 +128,10 @@ export interface ReactionSpec<S, On extends string, Tm extends 'inline' | 'async
   /**
    * Async only. The key an ordered or coalescing reaction groups its events by (7.7): the events of
    * one key run in order, or the newest replaces the pending one. It must not return a personal value.
+   * It receives the async event as the dispatcher shows it: for `on: 'all'` that is the plain event,
+   * without the `action`, `request` and `subject` an observer's `react` receives.
    */
-  readonly key?: (event: ReactionEventOf<S, On, Tm>) => string;
+  readonly key?: (event: ReactionKeyEventOf<S, On, Tm>) => string;
   /** Async only: `fifo-per-key` runs the events of one key one at a time, in event order. Default `none`. */
   readonly ordering?: Tm extends 'inline' ? never : 'none' | 'fifo-per-key';
   /** Async only: a newer event of one key replaces the pending job of the older one. Default false. */

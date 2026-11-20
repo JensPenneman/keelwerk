@@ -1,7 +1,7 @@
 import { metrics } from '@opentelemetry/api';
 import type { Meter } from '../observability/meter.ts';
 
-/** The reaction faults that are counted: an event purged or a process subject erased before its job ran, a fold of a very long stream, a chain of reactions that reached its depth bound. */
+/** The reaction faults that are counted: an event purged, or a process subject or the subject of an observed event erased, before its job ran, a fold of a very long stream, a chain of reactions that reached its depth bound. */
 export type ReactionFault = 'event_purged' | 'subject_erased' | 'long_fold' | 'depth_bound';
 
 /**

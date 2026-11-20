@@ -53,7 +53,8 @@ function tupleOf(
 }
 
 /**
- * Throws `conflict` when `candidate` would repeat a unique tuple of `others`. A row that is
+ * Throws `conflict` marked `unique` (as `uniqueConflict` marks the SQL adapters' violations, so the
+ * command runner repeats the unit once) when `candidate` would repeat a unique tuple of `others`. A row that is
  * archived, or that a partial index excludes, takes part in no tuple, so archiving releases the
  * value and restoring a taken one conflicts.
  */
@@ -74,7 +75,12 @@ export function memoryCheckUnique(
           kind: 'conflict',
           code: 'core.conflict',
           message: `${entity.ref} already has a row with this ${constraint.fields.join(', ')}`,
-          details: { entity: entity.ref, constraint: constraint.name, fields: constraint.fields },
+          details: {
+            unique: true,
+            entity: entity.ref,
+            constraint: constraint.name,
+            fields: constraint.fields,
+          },
         });
       }
     }

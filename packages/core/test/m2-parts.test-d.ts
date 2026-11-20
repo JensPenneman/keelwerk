@@ -5,6 +5,7 @@ import { defineFlag } from '../src/dsl/define-flag.ts';
 import { defineModule } from '../src/dsl/define-module.ts';
 import { defineModuleBase } from '../src/dsl/define-module-base.ts';
 import { defineProcess } from '../src/dsl/define-process.ts';
+import type { ObservedEvent } from '../src/dsl/define-reaction.ts';
 import { defineReaction } from '../src/dsl/define-reaction.ts';
 import { defineStream } from '../src/dsl/define-stream.ts';
 import { defineTopic } from '../src/dsl/define-topic.ts';
@@ -13,6 +14,7 @@ import { quota } from '../src/dsl/quota.ts';
 import { field } from '../src/fields/field.ts';
 import { shape } from '../src/fields/shape.ts';
 import type { FlagRequest } from '../src/protocol/flag-request.ts';
+import type { Receipt } from '../src/storage/receipt.ts';
 import { hooksBase } from './fixtures/modules/hooks/src/base.ts';
 import { start } from './fixtures/modules/m2-parts/src/actions/start.ts';
 import { m2PartsBase } from './fixtures/modules/m2-parts/src/base.ts';
@@ -115,6 +117,42 @@ describe('M2 kernel contract: the parts, typed against their base', () => {
     defineReaction(m2PartsBase, { on: 'all', react: () => ({ events: [] }) });
     // @ts-expect-error hooks does not declare observes: 'all'
     defineReaction(hooksBase, { on: 'all', react: () => ({ events: [] }) });
+  });
+
+  test("an observer's event carries action, request and subject", () => {
+    defineReaction(m2PartsBase, {
+      on: 'all',
+      react: (event) => {
+        expectTypeOf(event).toEqualTypeOf<ObservedEvent>();
+        expectTypeOf(event.action).toEqualTypeOf<string | null>();
+        expectTypeOf(event.request).toEqualTypeOf<Receipt['request'] | null>();
+        expectTypeOf(event.subject).toEqualTypeOf<string | null>();
+        return { events: [] };
+      },
+    });
+    defineReaction(m2PartsBase, {
+      on: 'all',
+      ordering: 'fifo-per-key',
+      key: (event) => {
+        // @ts-expect-error the dispatcher computes the key from the plain async event: no request
+        event.request;
+        // @ts-expect-error nor an action
+        event.action;
+        // @ts-expect-error nor a subject
+        event.subject;
+        expectTypeOf(event.stream.id).toBeString();
+        return event.stream.id;
+      },
+      react: () => ({ events: [] }),
+    });
+    defineReaction(m2PartsBase, {
+      on: 'm2-parts.task.renamed',
+      react: (event) => {
+        // @ts-expect-error a listed reaction's event has no request
+        event.request;
+        return { events: [] };
+      },
+    });
   });
 
   test("on: all is refused with timing: 'inline'", () => {

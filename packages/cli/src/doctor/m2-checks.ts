@@ -1,6 +1,7 @@
 import type { LayoutWorkspace } from '../layout/layout-workspace.ts';
 import { checkEpochBumps } from './check-epoch-bumps.ts';
 import { checkHeldTenants } from './check-held-tenants.ts';
+import { checkObservers } from './check-observers.ts';
 import type { DeploymentFacts } from './deployment-facts.ts';
 import type { DeploymentInput } from './deployment-input.ts';
 import type { DoctorFinding } from './doctor-finding.ts';
@@ -20,4 +21,4 @@ export const m2Checks: {
     input: ProjectChecksInput,
     workspace: LayoutWorkspace,
   ) => Promise<readonly DoctorFinding[]>)[];
-} = { deployment: [checkEpochBumps, checkHeldTenants], project: [] };
+} = { deployment: [checkEpochBumps, checkHeldTenants, checkObservers], project: [] };
