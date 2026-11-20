@@ -25,7 +25,7 @@ function spied(unit: Unit, spy: JobSpy, pending: StoredJobSpec[]): Unit {
         return id;
       },
       take: async (queue, worker, request) => {
-        if (spy.refuseTake?.(queue, worker) === true) return { jobs: [], skippedLanes: 0 };
+        if (spy.refuseTake?.(queue, worker) === true) return { jobs: [], skippedLanes: 1 };
         // Recorded when the call starts, so its index orders it against the commits that precede it.
         const entry = { queue, worker, jobs: [] as readonly StoredJob[] };
         spy.takes.push(entry);

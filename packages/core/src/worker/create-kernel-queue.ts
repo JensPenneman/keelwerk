@@ -6,6 +6,7 @@ import type { Job } from '../jobs/job.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { WorkClassStats } from '../storage/work-class-stats.ts';
+import { eventLoopTurn } from './event-loop-turn.ts';
 import type { HeldJob } from './held-job.ts';
 import { jobLeaseLost } from './job-lease-lost.ts';
 import type { KernelQueue } from './kernel-queue.ts';
@@ -40,8 +41,9 @@ export interface KernelQueueOptions {
  * renews the leases that are due, one statement per namespace, aborts the attempts past
  * `expireInSeconds` with `core.timeout`, and sweeps the fetchers that have a wake pending. Wake-ups
  * come from the adapters' job feeds, which name the queues a commit made takeable (a wake-up that names
- * none sweeps every fetcher of its namespace), from `probe.wake()`, from `Job.heartbeat()` and from a
- * freed slot; the wall timer only re-checks, at most once a second, and never starts before `work`.
+ * none sweeps every fetcher of its namespace), from `probe.wake()` (see `sweepUnseen`), from a slot
+ * freed in a full fetcher (that fetcher only) and from `Job.heartbeat()` (a tick only; it wakes no
+ * fetcher); the wall timer only re-checks, at most once a second, and never starts before `work`.
  * The queue is stopped when every fetcher has drained.
  */
 export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
@@ -124,16 +126,33 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
     }, nextDelayMs());
     timer.unref();
   };
-  const wakeAll = (): void => {
-    for (const fetcher of fetchers) fetcher.wake();
+  const tickNow = (): void => {
     if (started && !stopped.signal.aborted) tick();
+  };
+  // Every commit is this process's own and its feed notifies: a commit's wake-up names what it made
+  // takeable, so a fetcher at rest needs no sweep until the clock moves.
+  const announced = sources.every(
+    (source) =>
+      source.handle.capabilities?.processes === 'single' &&
+      source.handle.adapter.feed.level !== 'poll',
+  );
+  /** The probe's sweep: every fetcher unless it came to rest at the clock's reading and wake-ups announce the rest. */
+  const sweepUnseen = (): void => {
+    const now = clock.now();
+    for (const fetcher of fetchers) {
+      const { seenAt } = fetcher;
+      if (!announced || seenAt === undefined || Temporal.Instant.compare(now, seenAt) > 0) {
+        fetcher.wake();
+      }
+    }
+    tickNow();
   };
   /** A commit made jobs takeable in `queues` of `namespace`; without `queues` in every queue of it. */
   const wakeQueues = (namespace: string, queues: readonly string[] | undefined): void => {
     for (const fetcher of fetchers) {
       if (queues === undefined || queues.includes(fetcher.queue)) fetcher.wake(namespace);
     }
-    if (started && !stopped.signal.aborted) tick();
+    tickNow();
   };
 
   const follow = (): void => {
@@ -159,27 +178,24 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
   const unsupported = (what: string, wp: string): KeelwerkError =>
     errors.not_implemented(`${what} of the kernel queue arrives with ${wp}.`);
 
-  /** Starts every attended run; once all have settled the fetchers are woken, and a check for quiet follows. */
-  const runAttended = (): void => {
-    const runs = attended.map((run) => {
-      const running: Promise<void> = run().catch((error: unknown) => {
-        log.error('an attended run failed', { cause: error });
-      });
-      attending.add(running);
-      return running;
-    });
-    void Promise.all(runs).then(() => {
-      for (const running of runs) attending.delete(running);
-      wakeAll();
-      changed();
-    });
-  };
-
   const probe = {
     wake: () => {
       readiness.recheck();
-      if (attended.length === 0) wakeAll();
-      else runAttended();
+      tickNow();
+      // The sweep comes after the attended runs have settled and one turn of the event loop has
+      // delivered, on the in-process feeds, the wake-ups that commits pushed before this call; the
+      // probe is not quiet until then.
+      const runs = attended.map((run) =>
+        run().catch((error: unknown) => {
+          log.error('an attended run failed', { cause: error });
+        }),
+      );
+      const choosing = Promise.all(runs).then(eventLoopTurn).then(sweepUnseen);
+      attending.add(choosing);
+      void choosing.finally(() => {
+        attending.delete(choosing);
+        changed();
+      });
     },
     idle: () =>
       new Promise<void>((resolve) => {
@@ -232,7 +248,7 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
             changed();
           },
           changed,
-          wake: wakeAll,
+          tick: tickNow,
         },
       });
       fetchers.push(fetcher);

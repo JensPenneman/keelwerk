@@ -37,7 +37,7 @@ export function holdReactionJobs(adapter: DataAdapter, held = true): ReactionJob
             },
             take: (queue, worker, request) =>
               holding && queue === 'reactions'
-                ? Promise.resolve({ jobs: [], skippedLanes: 0 })
+                ? Promise.resolve({ jobs: [], skippedLanes: 1 })
                 : unit.jobs.take(queue, worker, request),
             complete: (attempt, worker, outcome) => {
               outcomes.push(outcome);

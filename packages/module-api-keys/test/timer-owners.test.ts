@@ -48,7 +48,7 @@ describe.each(['memory', 'pglite'] as const)('api-keys timer owners on %s', (kin
               },
               take: (queue, worker, request) =>
                 held
-                  ? Promise.resolve({ jobs: [], skippedLanes: 0 })
+                  ? Promise.resolve({ jobs: [], skippedLanes: 1 })
                   : unit.jobs.take(queue, worker, request),
             },
           }),

@@ -33,6 +33,13 @@ const refusedAtBound = {
   deadline: ['loop.toPulse'],
 } as const;
 
+/**
+ * The takes of the deadline case (from the call to the end of its last step), by adapter. The bound is
+ * exact: it follows the order in which the feeds deliver wake-ups and moves with the kernel's queues,
+ * its namespaces and the feeds' internals (a sweep that comes back adds ten); change it with them.
+ */
+const takesBound = { memory: 89, pglite: 95 } as const;
+
 const byReaction = (a: Readonly<Record<string, unknown>>, b: Readonly<Record<string, unknown>>) =>
   String(a.reaction).localeCompare(String(b.reaction));
 
@@ -104,6 +111,7 @@ describe.each(['memory', 'pglite'] as const)(
     test.each(vias)(
       'a two-reaction loop through %s stops at the bound: reaction jobs at depths 1 to 4 with the start event as origin, one log line per refused reaction, nothing dead, the system quiet',
       async (via) => {
+        const takesBefore = loopKit.spy?.takes.length ?? 0;
         const started = await loopKit.call('acme', 'loop.start', { via });
         expect(started.ok).toBe(true);
         await drive(via);
@@ -157,6 +165,14 @@ describe.each(['memory', 'pglite'] as const)(
         // For the deadline way the clock passes one more deadline (the step settles), so a job left scheduled at the bound would run here.
         if (via === 'deadline') await loopKit.advanceTo(loopKit.now().add({ seconds: 2 }));
         else await loopKit.settle();
+        // Counted, not timed: the takes from the call to the end of the last step stay at the count the
+        // kernel's queues give; a drain that sweeps queues at rest again adds ten (five queues, two
+        // namespaces) and fails here, as may a change of the order of delivery.
+        if (via === 'deadline') {
+          expect((loopKit.spy?.takes.length ?? 0) - takesBefore).toBeLessThanOrEqual(
+            takesBound[adapter],
+          );
+        }
         expect(loopKit.spy?.enqueued.length).toBe(queued);
         expect(bound()).toHaveLength(refused.length);
       },

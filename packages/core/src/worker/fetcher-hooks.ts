@@ -9,6 +9,6 @@ export interface FetcherHooks {
   settled(): void;
   /** What the probe's `idle` looks at may have changed. */
   changed(): void;
-  /** Asks for a tick now. */
-  wake(): void;
+  /** Asks for a tick now: renewals, expiries and the fetchers that have a wake pending or a poll due. */
+  tick(): void;
 }

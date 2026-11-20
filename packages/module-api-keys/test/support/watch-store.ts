@@ -31,7 +31,7 @@ function watchedUnit(unit: Unit, watch: StoreWatch, readOnly: boolean): Unit {
       },
       take: async (queue, worker, request) =>
         watch.paused !== undefined && worker !== watch.paused
-          ? { jobs: [], skippedLanes: 0 }
+          ? { jobs: [], skippedLanes: 1 }
           : unit.jobs.take(queue, worker, request),
       complete: async (attempt, worker, outcome) => {
         watch.outcomes.push(outcome);

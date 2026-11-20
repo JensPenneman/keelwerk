@@ -39,6 +39,12 @@ export interface QueueFetcher {
    */
   drain(deadline: Temporal.Instant): Promise<number>;
   readonly idle: boolean;
+  /**
+   * The clock's reading when the last sweep of every namespace began, while every sweep since then
+   * ended in a round that took and promoted nothing, skipped no lane and found every source ready.
+   * Unknown (undefined) after any other end, a drain included.
+   */
+  readonly seenAt: Temporal.Instant | undefined;
 }
 
 /**
@@ -78,6 +84,7 @@ export function queueFetcher(input: {
   let saturated = false;
   let nextPollAt: Temporal.Instant | undefined;
   let rotation = 0;
+  let seenAt: Temporal.Instant | undefined;
 
   const completeFailed = async (entry: HeldJob, error: unknown): Promise<void> => {
     const { stored } = entry.job;
@@ -113,7 +120,7 @@ export function queueFetcher(input: {
         signal: abort.signal,
         heartbeat: () => {
           entry.renewedAt = Temporal.Instant.fromEpochMilliseconds(0);
-          hooks.wake();
+          hooks.tick();
         },
       },
       source,
@@ -141,11 +148,12 @@ export function queueFetcher(input: {
         held.delete(key);
         mine.delete(entry);
         slots.release();
-        hooks.settled();
+        // The fetcher's own wake comes before the settled hook, so the probe is not quiet between them.
         if (saturated) {
           wakeEverywhere = true;
-          hooks.wake();
+          hooks.tick();
         }
+        hooks.settled();
       }
     })();
     running.add(attempt);
@@ -154,20 +162,24 @@ export function queueFetcher(input: {
 
   const wakePending = (): boolean => wakeEverywhere || wakeNamespaces.size > 0;
 
-  const sweep = async (only: ReadonlySet<string> | undefined): Promise<void> => {
+  const sweep = async (only: ReadonlySet<string> | undefined): Promise<boolean> => {
     const swept = only === undefined ? sources : sources.filter((s) => only.has(s.namespace.id));
     let retakes = 0;
     for (;;) {
-      if (draining) return;
+      if (draining) return false;
       saturated = slots.free() === 0;
-      if (saturated) return;
+      if (saturated) return false;
       let took = false;
       let skipped = false;
+      let unready = false;
       const first = rotation;
       rotation += 1;
       for (let i = 0; i < swept.length && slots.free() > 0 && !draining; i += 1) {
         const source = swept[(first + i) % swept.length];
-        if (source === undefined || !(await readiness.ready(source))) continue;
+        if (source === undefined || !(await readiness.ready(source))) {
+          unready = true;
+          continue;
+        }
         const free = slots.free();
         const batch = await takeBatch(source, queue, worker, {
           limit: free,
@@ -178,7 +190,7 @@ export function queueFetcher(input: {
         });
         // A drain that began while the take was in flight: nothing of the batch starts (no executor
         // runs after the gate closed or the process stopped), and the leases of its jobs expire (D6).
-        if (draining) return;
+        if (draining) return false;
         slots.hold(batch.jobs.length);
         for (const stored of batch.jobs) start(stored, source);
         took ||= batch.jobs.length > 0 || batch.promoted > 0;
@@ -188,7 +200,8 @@ export function queueFetcher(input: {
         retakes = 0;
         continue;
       }
-      if (!skipped || retakes >= maxRetakes || slots.free() === 0) return;
+      if (!skipped) return !unready;
+      if (retakes >= maxRetakes) return false;
       retakes += 1;
       await new Promise<void>((resolve) => setTimeout(resolve, Math.floor(random() * pacingMs)));
     }
@@ -219,10 +232,12 @@ export function queueFetcher(input: {
             nextPollAt = now.add({
               milliseconds: Math.round(pollMs * (1 - pollJitter + 2 * pollJitter * random())),
             });
+            seenAt = now;
           }
-          await sweep(only);
+          if (!(await sweep(only))) seenAt = undefined;
         } while (wakePending() && !draining);
       } catch (error) {
+        seenAt = undefined;
         log.error('a sweep of the queue failed', { queue, cause: error });
       } finally {
         sweeping = undefined;
@@ -265,6 +280,9 @@ export function queueFetcher(input: {
     },
     get idle() {
       return draining || (sweeping === undefined && !wakePending());
+    },
+    get seenAt() {
+      return seenAt;
     },
   };
 }

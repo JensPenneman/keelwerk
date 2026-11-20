@@ -42,7 +42,8 @@ export interface TransportRuntime {
   readonly socket: string;
   /**
    * Wakes the workers and settles once they are idle, answering the attempts they settled since the
-   * previous drain. Throws `internal` when the runtime was started without `workers` or `eventWorkers`.
+   * previous drain; what it runs and leaves is said at `TestRuntime.drainJobs`. Throws `internal`
+   * when the runtime was started without `workers` or `eventWorkers`.
    */
   drainJobs(): Promise<number>;
   stop(): Promise<void>;

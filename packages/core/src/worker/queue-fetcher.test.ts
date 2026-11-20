@@ -27,7 +27,11 @@ const source = { namespace: { id: 'n1' } } as unknown as QueueSource;
 const other = { namespace: { id: 'n2' } } as unknown as QueueSource;
 const job = { id: 'job-1', queue: 'effects' } as unknown as StoredJob;
 
-function fetcherOf(handler: (job: unknown) => Promise<void>, sources = [source]) {
+function fetcherOf(
+  handler: (job: unknown) => Promise<void>,
+  sources = [source],
+  ready: () => Promise<boolean> = async () => true,
+) {
   const log = { warn: () => undefined, error: () => undefined };
   return queueFetcher({
     queue: 'effects',
@@ -41,12 +45,12 @@ function fetcherOf(handler: (job: unknown) => Promise<void>, sources = [source])
       writer: {},
     },
     held: new Map(),
-    readiness: { ready: async () => true, recheck: () => undefined },
+    readiness: { ready, recheck: () => undefined },
     hooks: {
       took: () => undefined,
       settled: () => undefined,
       changed: () => undefined,
-      wake: () => undefined,
+      tick: () => undefined,
     },
   } as unknown as Parameters<typeof queueFetcher>[0]);
 }
@@ -105,5 +109,46 @@ describe('the sweep of a fetcher', () => {
     expect(seam.swept).toEqual([]);
     await fetcher.tick(at.add({ seconds: 2 }));
     expect([...seam.swept].sort()).toEqual(['n1', 'n2']);
+  });
+
+  describe('seenAt', () => {
+    test('is kept by a sweep that took and then found nothing, and lost by one that left a lane skipped', async () => {
+      const fetcher = fetcherOf(async () => undefined);
+      const at = Temporal.Now.instant();
+      seam.answers = [{ jobs: [], skippedLanes: 0, promoted: 1 }];
+      await fetcher.tick(at);
+      expect(fetcher.seenAt).toEqual(at);
+      // Every take skips a lane: the sweep retakes thrice and ends with lanes still locked.
+      seam.answers = Array.from({ length: 4 }, () => ({ jobs: [], skippedLanes: 1, promoted: 0 }));
+      fetcher.wake();
+      await fetcher.tick(at);
+      expect(fetcher.seenAt).toBeUndefined();
+    });
+
+    test('is unknown while a source is not ready, and known again once it is', async () => {
+      let ready = false;
+      const fetcher = fetcherOf(
+        async () => undefined,
+        [source],
+        async () => ready,
+      );
+      const at = Temporal.Now.instant();
+      await fetcher.tick(at);
+      expect(fetcher.seenAt).toBeUndefined();
+      ready = true;
+      fetcher.wake();
+      await fetcher.tick(at);
+      expect(fetcher.seenAt).toEqual(at);
+    });
+
+    test('is unknown after a sweep that threw', async () => {
+      const fetcher = fetcherOf(async () => undefined);
+      const at = Temporal.Now.instant();
+      await fetcher.tick(at);
+      seam.take = Promise.reject(new Error('the store is gone'));
+      fetcher.wake();
+      await fetcher.tick(at);
+      expect(fetcher.seenAt).toBeUndefined();
+    });
   });
 });

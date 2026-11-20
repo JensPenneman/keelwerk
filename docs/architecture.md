@@ -4399,11 +4399,25 @@ available, scheduled and waiting jobs, never running or dead ones.
   them, a list that did not fit the payload, an overflow) and the first wake-up of each reader.
   The one-second poll is the net under every wake-up and keeps its interval (a sweep that only job
   wake-ups asked for, each of which names its namespace, leaves the next poll where it is; the
-  poll, `probe.wake()`, a heartbeat and a freed slot sweep every namespace and set it again), so a
-  lost or late wake-up costs latency and never a job. A take whose promotion moved jobs is work,
-  not "no work": a SQL store (PGlite, PostgreSQL) counts promoted jobs on their lanes only when the
-  unit commits, so the take of the same unit cannot see them (the memory store counts them at
-  once), and the fetcher takes again at once.
+  poll, a sweep the test probe asks for and a slot freed in a full fetcher sweep every namespace
+  and set it again), so a lost or late wake-up costs latency and never a job. A slot freed in a
+  full fetcher sweeps that fetcher's namespaces and no other fetcher; a heartbeat asks for a tick
+  only and wakes no fetcher. A take whose promotion moved jobs is work, not "no work": a SQL store
+  (PGlite, PostgreSQL) counts promoted jobs on their lanes only when the unit commits, so the take
+  of the same unit cannot see them (the memory store counts them at once), and the fetcher takes
+  again at once.
+- Added 2026-11-20 (breaking, test code on memory and PGlite): the test probe (`probe.wake()`, and
+  with it `drainJobs`, `advanceTo` and `settleReactions` of `@keelwerk/testing`) sweeps a fetcher
+  only when it did not come to rest at the clock's reading (its last sweep of every namespace and
+  each sweep after it ended in a round that took and promoted nothing, skipped no lane and found
+  every source ready), or the clock moved since, or the adapter serves more than one process, or
+  its feed polls. A drain waits for one turn of the event loop (a message on a channel, which fake
+  timers leave alone); on the in-process feeds that turn delivers the wake-ups pushed before the
+  call. A job that no wake-up named waits for the poll, so it is left until the clock moves (one
+  known case: a job freed by provisioning a namespace, which sets the limits of its job groups
+  without a wake-up). A job made takeable while a drain runs may be left to the next drain; a store
+  double that holds a take back answers it with a skipped lane, not with no job, and its test
+  keeps real timers: the retake after a skipped lane waits on `setTimeout`.
 - Added 2026-11-11: a worker takes no job from a namespace until step 0002 of the framework's
   migration track (`keelwerk.framework`, the M2 framework tables) is recorded there; it warns once
   that the jobs wait for `keelwerk db apply`.

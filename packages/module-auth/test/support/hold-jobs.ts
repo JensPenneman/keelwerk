@@ -29,7 +29,7 @@ export function holdJobs(adapter: DataAdapter): HeldJobs {
             ...unit.jobs,
             take: (queue, worker, request) =>
               held
-                ? Promise.resolve({ jobs: [], skippedLanes: 0 })
+                ? Promise.resolve({ jobs: [], skippedLanes: 1 })
                 : unit.jobs.take(queue, worker, request),
             complete: (attempt, worker, outcome) => {
               outcomes.push(outcome);

@@ -168,4 +168,27 @@ export function workerWakeCases(
       await workers.stop();
     }
   });
+
+  test('a drain right after a commit runs its job; at rest it sweeps nothing on an adapter of one process, every queue on one of several', async (t) => {
+    if (subject.adapter().feed.level === 'poll') return t.skip();
+    const workers = await start();
+    try {
+      await enqueue([numbered(1, { queue: 'a' })]);
+      workers.queue.probe.wake();
+      await workers.queue.probe.idle();
+      expect(workers.ran).toEqual(['a']);
+      workers.takes.clear();
+      workers.queue.probe.wake();
+      await workers.queue.probe.idle();
+      const { processes } = subject.capabilities();
+      if (processes === 'single') {
+        expect([...workers.takes]).toEqual([]);
+      } else {
+        expect(workers.takes.get('a')).toBeGreaterThan(0);
+        expect(workers.takes.get('b')).toBeGreaterThan(0);
+      }
+    } finally {
+      await workers.stop();
+    }
+  });
 }

@@ -181,7 +181,7 @@ describe('the idle extension a session has queued (17.2.3, 14.7.5)', () => {
               ...unit.jobs,
               take: (queue, workerId, request) =>
                 timers.held
-                  ? Promise.resolve({ jobs: [], skippedLanes: 0 })
+                  ? Promise.resolve({ jobs: [], skippedLanes: 1 })
                   : unit.jobs.take(queue, workerId, request),
               complete: (attempt, workerId, outcome) => {
                 timers.outcomes.push(outcome);

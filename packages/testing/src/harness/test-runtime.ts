@@ -52,13 +52,26 @@ export interface TestRuntime<App, Name extends string = string> {
   /** The API version the runtime serves. */
   readonly head: string;
   /**
-   * Wakes the workers and settles once they are idle; answers the attempts settled. Throws without
-   * `workers`.
+   * Runs the jobs that a commit's wake-up or a step of the clock has made takeable by the time it
+   * starts, as the workers' slots free up, and settles once the workers are idle; answers the
+   * attempts they settled since the previous drain of this runtime, those a commit woke them for
+   * included. It also runs what the attended services (the schedule pass among them) enqueue
+   * during the drain. It sweeps where a wake-up or the clock can have made such a job takeable:
+   * the queues a commit's wake-up named since their last sweep came to rest, every queue whose
+   * last sweep did not come to rest, and every queue when the clock has moved since, or the
+   * adapter serves more than one process, or its feed polls. A job that no wake-up named waits for
+   * the poll, so it is left until the clock moves. One known case is a job freed by provisioning a
+   * namespace, which sets the limits of its job groups without a wake-up; any other job left at a
+   * still clock points to a missing wake-up in the store or to a mistake in the test. A job made
+   * takeable while a drain runs may be left to the next drain (`settleReactions` runs it in its
+   * next round). A test double that holds a job back answers its take with a skipped lane, not
+   * with no job; the fetcher then retakes after a pause on `setTimeout`, so under fake timers such
+   * a drain does not settle. Throws without `workers`.
    */
   drainJobs(): Promise<number>;
   /**
-   * Pins the clock at `at` (RangeError when earlier than now), then drains the jobs when workers
-   * run, else answers 0.
+   * Pins the clock at `at` (RangeError when earlier than now), then drains the jobs as `drainJobs`
+   * does when workers run, else answers 0.
    */
   advanceTo(at: Temporal.Instant): Promise<number>;
   /** `runtime.control.rebuild` of the tenant's id; default the first tenant. */

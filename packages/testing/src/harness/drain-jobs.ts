@@ -1,11 +1,7 @@
 import { KeelwerkError } from '@keelwerk/core';
 import type { DrainState } from './drain-state.ts';
 
-/**
- * Wakes the workers and settles once they are idle (they run nothing, hold no wake and took no job
- * in their last sweep); answers the attempts they settled since the previous drain of the same
- * runtime, those a commit woke them for included. Throws without workers.
- */
+/** The drain of `TestRuntime.drainJobs`, where its guarantee is said. */
 export async function drainJobs(state: DrainState): Promise<number> {
   const { probe } = state;
   if (probe === undefined) {

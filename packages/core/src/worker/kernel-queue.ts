@@ -10,7 +10,9 @@ export interface KernelQueue extends JobQueue {
   sourceOf(job: Job): QueueSource;
   /**
    * Binds a kernel service to the probe: `probe.wake()` calls `run`, and `probe.idle()` waits until
-   * each promise it answered has settled; the fetchers are woken when one settles.
+   * each promise it answered has settled. Once they all have and one turn has passed, the fetchers that
+   * did not come to rest are woken, and every fetcher when the clock moved or a source is not one
+   * process with a notifying feed (see `WorkersProbe.wake`).
    */
   attend(run: () => Promise<void>): void;
 }
