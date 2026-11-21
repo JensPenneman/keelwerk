@@ -189,6 +189,15 @@ export function jobStoreCases(subject: Pick<ConformanceSubject, 'run' | 'clock'>
       expect(inputs(await take('w2'))).toHaveLength(1);
     });
 
+    test('a job that loses its lease gives its group slot back, so the next take hands it out again', async () => {
+      await enqueue([numbered(1, { group: { id: 'mx:example.com', concurrency: 1 } })]);
+      const first = only(await take('w1', { leaseMs: 1 }));
+      await wait(25);
+      const second = only(await take('w2', { leaseMs: 60_000 }));
+      expect(second.id).toBe(first.id);
+      expect(second.attempt.attempt).toBe(2);
+    });
+
     test('a group rate admits the tokens it has and holds the rest back', async () => {
       const grouped = (n: number) => numbered(n, { group: { id: 'rate', rate: '2/1h' } });
       await enqueue([grouped(1), grouped(2), grouped(3)]);

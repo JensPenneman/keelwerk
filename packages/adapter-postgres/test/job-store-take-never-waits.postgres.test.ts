@@ -110,7 +110,7 @@ const rowsOf = async (sql: string): Promise<readonly Record<string, unknown>[]> 
   owner(async (client) => (await client.query(sql)).rows);
 
 describe('a take inside a unit that holds what the reclaim needs', () => {
-  test('a unit that changed the lane cap and then appends under the key of an expired head: the take does not wait for the lane, and the append is not deadlocked', async () => {
+  test('a unit that changed the lane cap and then appends under the key of an expired head: the take does not wait for the lane, counts its lane as skipped, and the append is not deadlocked', async () => {
     await enqueueFor([fifo(1)]);
     await expireLeases(1);
     let bodies = 0;
@@ -123,7 +123,7 @@ describe('a take inside a unit that holds what the reclaim needs', () => {
       await jobs.enqueue(fifo(2, { laneCap: 11 }));
     });
     expect(bodies).toBe(1);
-    expect(await inside?.promise).toEqual({ jobs: [], skippedLanes: 0 });
+    expect(await inside?.promise).toEqual({ jobs: [], skippedLanes: 1 });
     expect(await stateOf('chain')).toEqual([
       { state: 'running', lost_leases: 0 },
       { state: 'waiting', lost_leases: 0 },
@@ -131,7 +131,7 @@ describe('a take inside a unit that holds what the reclaim needs', () => {
     expect(inputs((await takeAll('take-after-cap')).jobs)).toEqual([1, 8]);
   });
 
-  test('a unit that re-limited the group of an expired head and then appends under its key: the take does not wait for the group row, and the append is not deadlocked', async () => {
+  test('a unit that re-limited the group of an expired head and then appends under its key: the take does not wait for the group row, counts its lane as skipped, and the append is not deadlocked', async () => {
     await enqueueFor([fifo(1, { group: group(5) })]);
     await expireLeases(1);
     let bodies = 0;
@@ -144,7 +144,7 @@ describe('a take inside a unit that holds what the reclaim needs', () => {
       await jobs.enqueue(fifo(2, { group: group(6) }));
     });
     expect(bodies).toBe(1);
-    expect(await inside?.promise).toEqual({ jobs: [], skippedLanes: 0 });
+    expect(await inside?.promise).toEqual({ jobs: [], skippedLanes: 1 });
     expect(await stateOf('chain')).toEqual([
       { state: 'running', lost_leases: 0 },
       { state: 'waiting', lost_leases: 0 },
@@ -183,12 +183,12 @@ describe('a take inside a unit that holds what the reclaim needs', () => {
   test('an owner that holds the done counter of the lane: a job at its third lost lease stays running, and the next take makes it dead', async () => {
     await enqueueFor([spec(1)]);
     await expireLeases(3);
-    let inside: Observed<{ jobs: readonly StoredJob[] }> | undefined;
+    let inside: Observed<{ jobs: readonly StoredJob[]; skippedLanes: number }> | undefined;
     await holdingCount('done', async () => {
       inside = await observe('take-dying', () => takeAll('take-dying'));
     });
     expect(inside?.waited).toBe(false);
-    expect((await inside?.promise)?.jobs).toEqual([]);
+    expect(await inside?.promise).toEqual({ jobs: [], skippedLanes: 1 });
     expect(await rowsOf(`select state, lost_leases from app.kw_jobs`)).toEqual([
       { state: 'running', lost_leases: 2 },
     ]);
@@ -200,27 +200,30 @@ describe('a take inside a unit that holds what the reclaim needs', () => {
   test('an owner that holds the enqueued counter of the lane: a take unit leaves a due job scheduled, and one unit later promotes and takes it', async () => {
     await enqueueFor([spec(1, { runAt: clock.now().add({ seconds: 10 }) })]);
     clock.advance(11_000);
-    let inside: Observed<{ promoted: number; jobs: readonly StoredJob[] }> | undefined;
+    let inside:
+      | Observed<{ promoted: number; jobs: readonly StoredJob[]; skippedLanes: number }>
+      | undefined;
     await holdingCount('enqueued', async () => {
       inside = await observe('take-promote', () => promoteAndTake('take-promote'));
     });
     expect(inside?.waited).toBe(false);
-    expect(await inside?.promise).toMatchObject({ promoted: 0, jobs: [] });
+    expect(await inside?.promise).toEqual({ promoted: 0, jobs: [], skippedLanes: 1 });
     expect(await rowsOf(`select state from app.kw_jobs`)).toEqual([{ state: 'scheduled' }]);
     const next = await promoteAndTake('take-promote-after');
     expect(next.promoted).toBe(1);
+    expect(next.skippedLanes).toBe(0);
     expect(inputs(next.jobs)).toEqual([1]);
   });
 
   test('an owner that holds the enqueued counter of the lane: a FIFO head at its third lost lease stays running, and the next take ends it and hands out the follower', async () => {
     await enqueueFor([fifo(1), fifo(2)]);
     await expireLeases(3);
-    let inside: Observed<{ jobs: readonly StoredJob[] }> | undefined;
+    let inside: Observed<{ jobs: readonly StoredJob[]; skippedLanes: number }> | undefined;
     await holdingCount('enqueued', async () => {
       inside = await observe('take-head', () => takeAll('take-head'));
     });
     expect(inside?.waited).toBe(false);
-    expect((await inside?.promise)?.jobs).toEqual([]);
+    expect(await inside?.promise).toEqual({ jobs: [], skippedLanes: 1 });
     expect(await stateOf('chain')).toEqual([
       { state: 'running', lost_leases: 2 },
       { state: 'waiting', lost_leases: 0 },

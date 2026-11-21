@@ -1,8 +1,9 @@
 /**
- * The hash of `jobKeyLockText` as an SQL expression over the namespace root, a lane id and a key,
- * each given as an SQL expression, for the statement that tries the locks of many keys at once. It
- * must write the same text as `jobKeyLockText`: a take that ends a dying head while an append holds
- * the key only leaves the head when the two agree (job-store-fifo-key.postgres.test.ts).
+ * The hash the advisory lock of a FIFO key is taken on, as an SQL expression over the namespace
+ * root, a lane id and a key, each given as an SQL expression (a bound parameter or a column). The
+ * one place that writes the lock's text: an enqueue that appends under the key, every statement that
+ * ends the key's head or removes its jobs, and the take's try for a dying head's key all lock the
+ * same hash (job-store-fifo-key.postgres.test.ts proves that they agree).
  */
 export const jobKeyLockSql = (root: string, laneId: string, key: string): string =>
-  `hashtextextended(${root}::text || ':' || ${laneId}::text || ':' || ${key}, 0)`;
+  `hashtextextended(${root}::text || ':' || ${laneId}::text || ':' || ${key}::text, 0)`;

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll } from 'vitest';
 import { assertConnectionsClosed } from './assert-connections-closed.ts';
+import { assertDeadlocksDeclared } from './assert-deadlocks-declared.ts';
 import { deadlockCount } from './deadlock-count.ts';
 import { declaredDeadlocks } from './declared-deadlocks.ts';
 import { openClientConnections } from './open-client-connections.ts';
@@ -41,11 +42,6 @@ export function guardClientConnections(
     const moved = (await deadlockCount(cluster)) - deadlocksBefore;
     const declared = declaredDeadlocks.count;
     declaredDeadlocks.count = 0;
-    if (moved !== declared) {
-      throw new Error(
-        `The test file moved the PostgreSQL deadlock counter by ${moved} and declared ${declared}. ` +
-          'A deadlock that PostgreSQL ends and a unit survives by a retry is a defect to remove; a case that provokes deadlocks on purpose calls declareDeadlocks(count) with how many it provokes.',
-      );
-    }
+    assertDeadlocksDeclared(moved, declared);
   }, timeoutMs + 30_000);
 }

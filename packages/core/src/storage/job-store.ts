@@ -41,7 +41,9 @@ export interface JobStore {
   /**
    * Moves due `scheduled` jobs (timers, retries, delayed sends) to `available` and counts them on their
    * lanes. A store may count them only when its unit commits, so that a take of the same unit does not
-   * see them; the bundled stores count them at once.
+   * see them; the bundled stores count them at once. A store that waits for no lock may leave the due
+   * jobs of a lane whose counter row another unit holds `scheduled`; the take of the same unit then
+   * counts that lane as skipped. A promotion's limit counts those jobs too.
    */
   promote(queue: string, limit: number): Promise<number>;
   /**
@@ -51,9 +53,11 @@ export interface JobStore {
    * ended for lost leases, stays takeable and is handed out with `leasesExhausted`, so its taker
    * ends it together with its receipt); only jobs enqueued at or below `maxRevision`, the worker's
    * build revision (section 19.2). `lanes` defaults to `limit`; `skippedLanes` counts lanes locked
-   * by other takers or held back by a group row another unit holds, not "no work". A take never waits
-   * behind an open unit: whatever it cannot lock at once stays as it is for a later take (an expired
-   * job stays running, a job whose group row is held stays available).
+   * by other takers, and lanes in which work stayed because another unit holds a row it needs (an
+   * expired job's rows, a job's group row, the counter row of a lane whose due job the unit's
+   * `promote` left), not "no work". A take never waits behind an open unit: whatever it cannot lock at
+   * once stays as it is for a later take (an expired job stays running, a job whose group row is
+   * held stays available) and its lane counts as skipped, so the fetcher takes again.
    */
   take(
     queue: string,

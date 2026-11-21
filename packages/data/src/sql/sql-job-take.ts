@@ -84,8 +84,9 @@ export interface SqlTakeRequest {
  * `available`; a job whose group row another unit holds stays `available` and its lane counts as
  * skipped), and the admitted jobs become `running` with the worker, the next attempt and a lease
  * while their lanes add them to `taken` and their cost to the virtual time. `skippedLanes` counts
- * the lanes that were eligible and within the lane budget but locked by another taker, and the lanes
- * a job of which stayed because its group row is held, apart from "no work". The unit buffers no lane
+ * the lanes that were eligible and within the lane budget but locked by another taker, the lanes a
+ * job of which stayed because its group row is held, and the lanes in which the reclaim or the unit's
+ * promotion (`promotionLeft`) left work behind for a held row, apart from "no work". The unit buffers no lane
  * change, so its commit runs no tail statement for the take.
  */
 export async function sqlJobTake(
@@ -94,18 +95,19 @@ export async function sqlJobTake(
   queue: string,
   worker: string,
   request: SqlTakeRequest,
+  promotionLeft: ReadonlySet<string>,
 ): Promise<{ readonly jobs: readonly StoredJob[]; readonly skippedLanes: number }> {
   const root = ctx.namespace.root;
   const now = ctx.clock.now();
   const nowText = encodeInstant(now);
   const scopeId = jobUnitScopeId(ctx);
-  await sqlJobReclaim(ctx, buffer, queue, now);
+  const heldLanes = new Set([...promotionLeft, ...(await sqlJobReclaim(ctx, buffer, queue, now))]);
   const [bounds] = await runSql(
     ctx.db,
     takeBoundsStatement(root, queue, request.capabilitySets, scopeId),
   );
   const eligible = Number(bounds?.eligible ?? 0);
-  if (eligible === 0) return { jobs: [], skippedLanes: 0 };
+  if (eligible === 0) return { jobs: [], skippedLanes: heldLanes.size };
   const vmin = Number(bounds?.vmin ?? 0);
   const lanesWanted = request.lanes ?? request.limit;
   const picked = await runSql(
@@ -127,7 +129,6 @@ export async function sqlJobTake(
   const { groups, held } = await lockedGroups(ctx, candidates);
   const touched = new Set<string>();
   const admitted: SqlRow[] = [];
-  const heldLanes = new Set<string>();
   for (const row of candidates) {
     if (admitted.length >= request.limit) break;
     const key = groupOf(row);

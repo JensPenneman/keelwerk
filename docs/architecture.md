@@ -4100,8 +4100,9 @@ id of a process instance forever. Build a job key from ids, never from a persona
   error, without input, seven days). Dead letters keep their input until replayed or discarded.
 - Lane state is split by writer: what makes a job available (an enqueue tail, a promotion, a FIFO
   release) moves `enqueued`, takes move `taken` and the virtual time, completions `done`; groups
-  count the same way. Takes lock only lane rows to pick, so an enqueue burst never makes takers skip a
-  lane, and a stale `done` only lowers a lane's room.
+  count the same way. A take locks only lane rows to pick, so an enqueue burst never makes takers skip
+  a lane for the pick, and a stale `done` only lowers a lane's room; a promotion and a reclaim, which
+  lock counter rows, do skip a lane whose row a commit tail holds (next bullets).
 - A job due now is `available` and counted at its cause's commit tail, beside the scope's position
   counter (section 15.1.4); a later `runAt` (timers, retries, delayed sends) stays `scheduled` until
   the queue's fetcher promotes it, which counts it on its lane in the promoting statement, so lanes
@@ -4119,13 +4120,20 @@ id of a process instance forever. Build a job key from ids, never from a persona
   `skip locked` (job, lane, counter and group rows) or tries (the key's advisory lock, by
   `pg_try_advisory_xact_lock`), and it acts only where it got everything: the reclaim of an expired
   job needs the job row, the lane row of a job that returns to `available`, the `done` row of a job
-  that dies, its group row and, for a dying FIFO head, the lane's `enqueued` row and the key; a job it
-  did not get everything for stays `running` with its expired lease until a later take. A job that
-  returns stays the key's head and takes no key lock; a dying FIFO head is passed over for as long as
-  units keep its key, and any job while a unit holds one of its rows (a cap change, a re-limit of its
-  group, a drain's settle). A promotion moves only the due jobs of the lanes whose `enqueued` row it
-  got. The take's unit buffers no lane change, so its commit runs no tail statement, and a take is
-  part of no deadlock. Known limits: units that take two key locks in opposite orders (enqueues,
+  that dies, its group row and, for a dying FIFO head, the lane's `enqueued` row and the key. The
+  order is rows first, the key tried last, so a key is held only when everything else of its head is;
+  a job it did not get everything for stays `running` with its expired lease until a later take. A
+  job that returns stays the key's head and takes no key lock; a dying FIFO head is passed over for
+  as long as units keep its key, and any job while a unit holds one of its rows (a cap change, a
+  re-limit of its group, a drain's settle, an open commit tail that lowers `enqueued`). A promotion
+  moves only the due jobs of the lanes whose `enqueued` row it got; the due jobs of the other lanes
+  stay `scheduled` and count against its limit of 100. The one lock the take does not skip or try is
+  the `waiting` row of the next job of a dying FIFO head's key, which it locks with a plain `for
+  update` after it holds the key: every unit that locks a waiting row holds the key first, so no
+  other unit can hold that row and the lock cannot wait. Work the take leaves for a held row (an
+  expired job, a due job, a job whose group row is held) is counted as a skipped lane, so the fetcher
+  takes again (section 9.5.6). The take's unit buffers no lane change, so its commit runs no tail
+  statement, and a take is part of no deadlock. Known limits: units that take two key locks in opposite orders (enqueues,
   cancels by key, erasures) can still deadlock, and a completion waits for the key's lock behind an
   open append; the deadlock counter of the PostgreSQL test suites shows a deadlock that a retry hides.
 - A job's unit runs the kernel's loads, then writes events, effect records, receipt and completion
@@ -4324,9 +4332,10 @@ lane row, so a lane whose cap is being changed is still skipped; it does not con
 share`. The take's own update of the lane writes `taken` and `vtime`, no key column. Of the adapters
 built, only PostgreSQL had the gap: the in-memory adapter and PGlite run units one at a time. The
 MySQL steps of 14.3.9 have the same gap until that adapter is built. The statement that settles
-lanes (a drain that releases an attempt, a completion, a cancel) locks the lane rows the same way and
-for the same reason: of the lane row it changes `taken` only, and it no longer waits for an open
-enqueue unit of the lane. A take no longer settles lanes: its reclaim locks the lane rows it needs
+lanes (a drain that releases an attempt) locks the lane rows the same way and for the same reason:
+of the lane row it changes `taken` only, and it no longer waits for an open enqueue unit of the
+lane. It locks a lane row only where `taken` changes, which is only when a drain releases an attempt;
+the settles of a completion and of a cancel lock only `done` rows. A take no longer settles lanes: its reclaim locks the lane rows it needs
 with `skip locked` (section 9.5.2).
 
 - Order: strict priority classes; then the least running work per unit of weight, which counts long
@@ -4426,7 +4435,9 @@ Making the two the same number is open work.
   fetcher per queue promotes due jobs and takes batches for the slots, woken after commit by the
   notifier of section 14.3.7 (channel `kw_jobs`) and by a jittered poll every second. A take that
   skipped locked lanes is not "no work": a fetcher that saw skipped lanes takes again at once,
-  after a short jitter, instead of waiting for the next wake-up or the poll (section 9.5.3). With
+  after a short jitter, instead of waiting for the next wake-up or the poll (section 9.5.3); a take
+  that left work behind for a row another unit holds (an expired job, a due job) counts that lane as
+  skipped as well, and the fetcher retakes at most three times before it rests. With
   per-tenant namespaces (M5), wake-ups pass through the control store, and each process sweeps the
   namespaces that rendezvous hashing over the live registry gives it. An executor's queue may not
   carry the name of an action queue (`commands`, `reactions`, `schedules`, `timers`, `hooks`),

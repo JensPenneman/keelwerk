@@ -90,6 +90,7 @@ export interface SqlJobStore
  */
 export function sqlJobStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): SqlJobStore {
   const root = quoteIdentifier(ctx.namespace.root);
+  const promotionLeft = new Set<string>();
   return {
     provisionGroup: async (group) =>
       sqlGuard(async () => {
@@ -228,11 +229,11 @@ returning id::text as id`,
 
     promote: async (queue, limit) => {
       ctx.writable();
-      return sqlGuard(async () => sqlJobPromote(ctx, buffer, queue, limit));
+      return sqlGuard(async () => sqlJobPromote(ctx, buffer, queue, limit, promotionLeft));
     },
     take: async (queue, worker, request) => {
       ctx.writable();
-      return sqlGuard(async () => sqlJobTake(ctx, buffer, queue, worker, request));
+      return sqlGuard(async () => sqlJobTake(ctx, buffer, queue, worker, request, promotionLeft));
     },
     release: async (attempts, worker) => {
       ctx.writable();

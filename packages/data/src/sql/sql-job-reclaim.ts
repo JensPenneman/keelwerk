@@ -15,21 +15,23 @@ import type { SqlUnitContext } from './sql-unit-context.ts';
  * loss makes a job a dead letter, whose FIFO successor is released. A take never waits for a lock
  * another unit holds, so it reclaims a job only where it got everything the reclaim writes: the
  * attempt statement locks the rows with `skip locked` and tries the key of a dying FIFO head
- * (`reclaimAttemptStatement`), and the jobs it got everything for are released and reclaimed in
- * two statements over rows it holds, which also move the lanes' counters and the groups' running
- * counts. A job it did not get everything for stays `running` with its expired lease until a later
- * take: while another unit holds one of its rows, and for a dying head while units keep its key. The
- * job's own worker can still complete it, which is fenced on worker and attempt. A job that returns
- * to `available` stays its key's head and takes no key lock. What the attempt locked stays held until
- * the unit ends, also for a job it left, so an append or a cancel under that key waits for the take's
- * commit.
+ * (`reclaimAttemptStatement`), and the jobs it got everything for are reclaimed in two more
+ * statements: the release of the next job of each dying head's key, which locks that job's waiting
+ * row itself (it cannot wait: every unit that locks a waiting row holds the key, which the take then
+ * holds), and the reclaim, which moves the lanes' counters and the groups' running counts over rows
+ * the attempt holds. A job it did not get everything for stays `running` with its expired lease until
+ * a later take: while another unit holds one of its rows, and for a dying head while units keep its
+ * key. The job's own worker can still complete it, which is fenced on worker and attempt. A job that
+ * returns to `available` stays its key's head and takes no key lock. A key the take got stays held
+ * until its commit, and the rows of a job it left stay locked until then. Returns the lanes of the
+ * jobs it left, which the take counts as skipped, so the fetcher takes again (9.5.6).
  */
 export async function sqlJobReclaim(
   ctx: SqlUnitContext,
   buffer: SqlCommitBuffer,
   queue: string,
   now: Temporal.Instant,
-): Promise<void> {
+): Promise<ReadonlySet<string>> {
   const root = ctx.namespace.root;
   const scopeId = jobUnitScopeId(ctx);
   const expired = await runSql(
@@ -39,10 +41,13 @@ export async function sqlJobReclaim(
   const missing = expired.find((row) => row.group_missing === true);
   if (missing !== undefined) throw groupRowMissing(String(missing.group_id));
   const ready = expired.filter((row) => row.ready === true);
-  if (ready.length === 0) return;
+  const left = new Set(
+    expired.filter((row) => row.ready !== true).map((row) => String(row.lane_id)),
+  );
+  if (ready.length === 0) return left;
   const heads = new Map<string, { laneId: string; key: string }>();
   for (const row of ready) {
-    if (row.dies === true && row.ordering === 'fifo-per-key' && row.key !== null) {
+    if (row.head === true) {
       heads.set(`${String(row.lane_id)}\u0000${String(row.key)}`, {
         laneId: String(row.lane_id),
         key: String(row.key),
@@ -72,4 +77,5 @@ export async function sqlJobReclaim(
   );
   if (reclaimed.some((row) => row.group_id !== null)) buffer.readyAnywhere();
   else buffer.ready(queue);
+  return left;
 }
