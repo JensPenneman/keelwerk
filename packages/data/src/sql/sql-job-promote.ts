@@ -6,10 +6,11 @@ import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
 
 /**
- * Promotion of due `scheduled` jobs to `available` (9.5.2): timers, retries and delayed sends. Each
- * lane's `enqueued` counter moves at the commit tail with the other changes of the unit, so a take
- * of the same unit cannot see the promoted jobs; the queue is recorded as takeable. Returns how many
- * jobs were promoted.
+ * Promotion of due `scheduled` jobs to `available` (9.5.2): timers, retries and delayed sends. The
+ * statement counts each promoted job on its lane at once, under the lane's counter row, which it
+ * locks without waiting: a due job of a lane whose counter row another unit holds stays `scheduled`
+ * for a later promotion, so a take of the same unit sees every job promoted and nothing waits at the
+ * commit tail. The queue is recorded as takeable. Returns how many jobs were promoted.
  */
 export async function sqlJobPromote(
   ctx: SqlUnitContext,
@@ -27,12 +28,7 @@ export async function sqlJobPromote(
       scopeId: jobUnitScopeId(ctx),
     }),
   );
-  let promoted = 0;
-  for (const row of rows) {
-    const count = Number(row.n);
-    buffer.moveLane(String(row.lane_id), count);
-    promoted += count;
-  }
+  const promoted = Number(rows[0]?.n ?? 0);
   if (promoted > 0) buffer.ready(queue);
   return promoted;
 }

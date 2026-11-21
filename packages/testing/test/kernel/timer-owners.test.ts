@@ -132,14 +132,11 @@ describe.each(adapters)('timer owners on %s', (adapter) => {
     expect((await kit.call('acme', 'ticker.armTimer', { at: 't' })).ok).toBe(true);
     await kit.advanceTo(later(45));
     const { runtime } = kit;
-    // The lane counters of a promotion commit with its unit, so the take is a unit of its own.
-    await runtime.adapter.unit(runtime.namespace, kit.scopeOf('acme'), (unit) =>
-      unit.jobs.promote('timers', 10),
-    );
     const [attempt] = await runtime.adapter.unit(
       runtime.namespace,
       kit.scopeOf('acme'),
       async (unit) => {
+        await unit.jobs.promote('timers', 10);
         const taken = await unit.jobs.take('timers', 'test', {
           limit: 10,
           capabilitySets: [''],

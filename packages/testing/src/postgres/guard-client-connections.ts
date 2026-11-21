@@ -1,5 +1,8 @@
 import { afterAll, beforeAll } from 'vitest';
 import { assertConnectionsClosed } from './assert-connections-closed.ts';
+import { assertDeadlocksDeclared } from './assert-deadlocks-declared.ts';
+import { deadlockCount } from './deadlock-count.ts';
+import { declaredDeadlocks } from './declared-deadlocks.ts';
 import { openClientConnections } from './open-client-connections.ts';
 import type { PostgresCluster } from './postgres-cluster.ts';
 
@@ -14,9 +17,13 @@ import type { PostgresCluster } from './postgres-cluster.ts';
 const defaultTimeoutMs = 2000;
 
 /**
- * Registers, for the calling test file, a `beforeAll` that records the connections already open
- * and an `afterAll` that runs `assertConnectionsClosed` with those as `except`. Called from a
- * project's setup file. Setup-file hooks run last among the after hooks.
+ * Registers, for the calling test file, a `beforeAll` that records the connections already open and
+ * the cluster's deadlock counter, and an `afterAll` that runs `assertConnectionsClosed` with those
+ * connections as `except` and then fails the file when the deadlock counter moved by other than the
+ * deadlocks its cases declared (`declareDeadlocks`). The counter is the cluster's: the guard knows no
+ * file's databases, and a project's PostgreSQL files run one at a time on its cluster. The reading
+ * follows the check of the connections, because a backend writes its counters before it leaves.
+ * Called from a project's setup file. Setup-file hooks run last among the after hooks.
  */
 export function guardClientConnections(
   cluster: PostgresCluster,
@@ -24,10 +31,17 @@ export function guardClientConnections(
 ): void {
   const timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
   let baseline: readonly number[] = [];
+  let deadlocksBefore = 0;
   beforeAll(async () => {
+    declaredDeadlocks.count = 0;
     baseline = (await openClientConnections(cluster)).map((connection) => connection.pid);
+    deadlocksBefore = await deadlockCount(cluster);
   });
   afterAll(async () => {
     await assertConnectionsClosed(cluster, { except: baseline, timeoutMs });
+    const moved = (await deadlockCount(cluster)) - deadlocksBefore;
+    const declared = declaredDeadlocks.count;
+    declaredDeadlocks.count = 0;
+    assertDeadlocksDeclared(moved, declared);
   }, timeoutMs + 30_000);
 }

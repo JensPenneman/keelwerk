@@ -7,5 +7,7 @@ export interface RunningPostgres {
   /** The adapter's role: no superuser and no BYPASSRLS, so forced row-level security applies. */
   readonly app: ClientConfig;
   readonly version: string;
+  /** The container's id, with which the shared deadlock rule reads the counter of the testing package. */
+  readonly containerId: string;
   stop(): Promise<void>;
 }

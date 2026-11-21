@@ -1,5 +1,5 @@
 import { isKeelwerkError, RetryableUnitError } from '@keelwerk/core';
-import { keepIdleClients, waitForEmptyListing } from '@keelwerk/testing/postgres';
+import { declareDeadlocks, keepIdleClients, waitForEmptyListing } from '@keelwerk/testing/postgres';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createPostgresInstance } from '../src/create-postgres-instance.ts';
 import type { PostgresAdapterInstance } from '../src/postgres-adapter-instance.ts';
@@ -117,6 +117,7 @@ describe('error mapping', () => {
     expect(rejected[0]).toMatchObject({ reason: { reason: 'deadlock' } });
     expect(rejected[0]?.reason).toBeInstanceOf(RetryableUnitError);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    declareDeadlocks(1);
   });
 
   test('any other driver error passes through with its code', async () => {

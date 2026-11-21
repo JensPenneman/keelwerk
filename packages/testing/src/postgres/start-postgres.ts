@@ -1,6 +1,9 @@
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { assertConnectionsClosed } from './assert-connections-closed.ts';
+import { assertDeadlocksDeclared } from './assert-deadlocks-declared.ts';
 import { createApplicationRole } from './create-application-role.ts';
+import { deadlockCount } from './deadlock-count.ts';
+import { declaredDeadlocks } from './declared-deadlocks.ts';
 import { postgresImage } from './postgres-image.ts';
 import type { RunningPostgres } from './running-postgres.ts';
 
@@ -10,9 +13,17 @@ import type { RunningPostgres } from './running-postgres.ts';
  * as its volume and keeps `PGDATA` below it, so the mount replaces the anonymous volume; the server
  * starts faster too), creates the application role, and labels the container `keelwerk-test` so
  * that `docker ps -a --filter label=keelwerk-test` finds leftovers. Clients reach it over TCP
- * through the container runtime's port forwarding.
+ * through the container runtime's port forwarding. By default the container's `stop` also fails
+ * unless its deadlock counter moved by exactly what the file declared (`declareDeadlocks`), the
+ * rule of the connection guard (`assertDeadlocksDeclared`); the container goes down first, either
+ * way. A file that declared deadlocks and stops more than one checked container fails: a declaration
+ * belongs to the file, so opt one container out with `checkDeadlocks: false` or split the file.
+ * Only a caller whose files the connection guard already checks one by one, and a test of this rule,
+ * opts out.
  */
-export async function startPostgres(): Promise<RunningPostgres> {
+export async function startPostgres(
+  options: { readonly checkDeadlocks?: boolean } = {},
+): Promise<RunningPostgres> {
   const container = await new PostgreSqlContainer(postgresImage)
     .withCommand(['postgres', '-c', 'max_connections=200'])
     .withLabels({ 'keelwerk-test': 'postgres' })
@@ -38,6 +49,11 @@ export async function startPostgres(): Promise<RunningPostgres> {
       'kw_app:kw_app@',
     );
     const containerId = container.getId();
+    const cluster = { containerId, adminUrl };
+    const checkDeadlocks = options.checkDeadlocks !== false;
+    const deadlocksBefore = checkDeadlocks ? await deadlockCount(cluster) : 0;
+    const declaredBefore = declaredDeadlocks.count;
+    if (checkDeadlocks) declaredDeadlocks.checked += 1;
     return {
       adminUrl,
       appUrl,
@@ -54,7 +70,19 @@ export async function startPostgres(): Promise<RunningPostgres> {
             { cause },
           );
         }
+        const moved = checkDeadlocks ? (await deadlockCount(cluster)) - deadlocksBefore : 0;
         await container.stop();
+        if (checkDeadlocks) {
+          // What the file declared for this container only; a declaration for another cluster stays.
+          const total = declaredDeadlocks.count;
+          declaredDeadlocks.count = declaredBefore;
+          if (total > 0 && declaredDeadlocks.checked > 1) {
+            throw new Error(
+              'The test file declared deadlocks and starts more than one container with the deadlock check, so a declaration cannot be charged to one container. Opt one container out with checkDeadlocks: false, or split the file.',
+            );
+          }
+          assertDeadlocksDeclared(moved, total - declaredBefore);
+        }
       },
     };
   } catch (error) {

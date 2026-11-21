@@ -1,4 +1,5 @@
 import type { PostgresStatement } from './begin-unit-statements.ts';
+import { jobGroupScopeSql } from './job-group-scope.ts';
 import { quoteIdentifier } from './quote-identifier.ts';
 
 /** What the fair take needs (section 9.5.3). */
@@ -62,7 +63,7 @@ from picked p cross join share s left join lateral (
     and not exists (
       select 1 from ${root}.kw_job_groups g
       where g.id = j.group_id
-        and g.scope_id is not distinct from (case when j.group_spec ->> 'scope' = 'namespace' then null else j.scope_id end)
+        and g.scope_id is not distinct from ${jobGroupScopeSql('j')}
         and g.blocked_until > $7::timestamptz)
   order by j.run_at, j.id
   limit least(p.room, s.n)

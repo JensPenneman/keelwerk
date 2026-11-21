@@ -19,6 +19,28 @@
   },
   "overrides": [
     {
+      "includes": ["**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@testcontainers/postgresql": "Start a PostgreSQL test container with startPostgres of @keelwerk/testing/postgres: its stop applies the deadlock rule.",
+                  "testcontainers": "Start a PostgreSQL test container with startPostgres of @keelwerk/testing/postgres: its stop applies the deadlock rule."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/testing/src/postgres/**"],
+      "linter": { "rules": { "style": { "noRestrictedImports": "off" } } }
+    },
+    {
       "includes": ["packages/*/migrations/*/0*.ts"],
       "linter": {
         "rules": {

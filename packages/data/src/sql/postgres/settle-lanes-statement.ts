@@ -11,15 +11,15 @@ export interface LaneSettlement {
 }
 
 /**
- * Applies completions and reclaims to the lanes (9.5.2): `done` counters and, for taken-back
- * attempts, `taken`. Each lane's counter rows are locked first in ascending lane id, so units that
+ * Applies completions, cancels and drains to the lanes (9.5.2): `done` counters and, for taken-back
+ * attempts, `taken`. A take does not come here: its reclaim locks and writes the lane rows it needs
+ * without waiting (`reclaimAttemptStatement`). Each lane's counter rows are locked first in ascending lane id, so units that
  * settle the same lanes take their locks in one order and cannot deadlock. The statement answers
  * the number of lanes it moved; a lane row hidden from the unit by row-level security matches
  * nothing and would otherwise lose the count silently. The lane rows are locked `for no key
  * update`, not `for update`, for the reason the take gives (`fairTakeStatement`): a unit that
  * enqueues into a lane holds `for key share` on its row, which `for update` would wait for, so a
- * take that reclaims a lease and a drain that releases an attempt would wait for every open
- * enqueue unit of the lane. Of the lane row the statement changes `taken` only, which no key
+ * drain that releases an attempt would wait for every open enqueue unit of the lane. Of the lane row the statement changes `taken` only, which no key
  * contains.
  */
 export function settleLanesStatement(

@@ -1,5 +1,5 @@
-import { errors } from '@keelwerk/core';
 import { encodeInstant } from './encode-instant.ts';
+import { groupRowMissing } from './group-row-missing.ts';
 import { releaseGroupStatement } from './postgres/release-group-statement.ts';
 import { runSql } from './run-sql.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
@@ -49,9 +49,7 @@ export async function sqlReleaseGroups(
       ),
     );
     if (moved.length === 0) {
-      throw errors.internal(
-        `the job group ${release.id} has no row to give a running slot back to; its running count would drift`,
-      );
+      throw groupRowMissing(release.id);
     }
   }
 }

@@ -82,9 +82,10 @@ export interface SqlJobStore
  * that becomes available moves its lane's `enqueued` counter at the commit tail (`runCommitTail`),
  * beside the scope's position counter. Concurrent units that enqueue under one key serialise on a
  * transaction-scoped advisory lock of lane and key, so the policy sees every earlier decision. The
- * units that end the key's head or remove its jobs (a completion, a reclaim, a purge, a replace, a
- * cancel by key) take the same lock, so a job appended under a key is never left `waiting` without
- * a head. A purge, a cancel by key, a completion and a reclaim take it before their row.
+ * units that end the key's head or remove its jobs (a completion, a purge, a replace, a cancel by
+ * key) take the same lock, and a take that ends a dead head tries it, so a job appended under a key
+ * is never left `waiting` without a head. A purge, a cancel by key and a completion take it before
+ * their row; a take leaves a head whose lock is held to a later take.
  * A job's unit is its scope's: no unit spans two scopes (14.3.6).
  */
 export function sqlJobStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): SqlJobStore {
