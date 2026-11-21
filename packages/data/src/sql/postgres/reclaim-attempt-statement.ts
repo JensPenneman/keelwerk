@@ -8,9 +8,10 @@ import { quoteIdentifier } from './quote-identifier.ts';
  * The first step of the reclaim of a take (9.5.4): finds the running jobs of a queue whose lease
  * ended before `now` and locks, without waiting, everything their reclaim will write. Whatever it
  * cannot lock at once, because another unit holds it, it leaves, and the job is not `ready`: a later
- * take reclaims it. Every lock is `skip locked` or tried, and each CTE is fixed by what it reads, not
- * by the order PostgreSQL runs the CTEs in: the expired `running` job rows come first and the tries
- * last. Between them, what each CTE reads decides which rows it locks:
+ * take reclaims it. Every lock is `skip locked` or tried. PostgreSQL decides the order in which the
+ * CTEs run; what the statement fixes is what each CTE reads, so a job's other rows are locked only
+ * after its job row, and a head's key is tried only after that head's `done`, group and `enqueued`
+ * rows, which the CTE of the try reads. What each CTE locks:
  * - the lane rows (`for no key update`, the mode the take's pick uses) of the jobs that return to
  *   `available`, for their `taken`;
  * - the `done` counter rows of the lanes of the jobs that die, and the group rows of the jobs that
@@ -19,8 +20,8 @@ import { quoteIdentifier } from './quote-identifier.ts';
  *   got, for the follower a head's end makes available;
  * - the advisory lock of each such head's key, by a try (`pg_try_advisory_xact_lock`, written once per
  *   lane and key in the select list of a materialized CTE, never as a filter, so the planner cannot
- *   run a try for a row that another condition rejects). A key is tried only for a head whose lane
- *   `enqueued` row it got, so a key is held only when everything else of its head is. A job that
+ *   run a try for a row that another condition rejects). A key is tried only for a head whose `done`,
+ *   group and lane `enqueued` rows it got, so a key is held only when everything else of its head is. A job that
  *   returns to `available` stays the key's head and takes no key lock.
  *
  * A job dies at its third consecutive lost lease, except an action job whose run carries a command id

@@ -4102,7 +4102,7 @@ id of a process instance forever. Build a job key from ids, never from a persona
   release) moves `enqueued`, takes move `taken` and the virtual time, completions `done`; groups
   count the same way. A take locks only lane rows to pick, so an enqueue burst never makes takers skip
   a lane for the pick, and a stale `done` only lowers a lane's room; a promotion and a reclaim, which
-  lock counter rows, do skip a lane whose row a commit tail holds (next bullets).
+  lock counter rows, do skip a lane whose row another unit holds (next bullets).
 - A job due now is `available` and counted at its cause's commit tail, beside the scope's position
   counter (section 15.1.4); a later `runAt` (timers, retries, delayed sends) stays `scheduled` until
   the queue's fetcher promotes it, which counts it on its lane in the promoting statement, so lanes
@@ -4125,7 +4125,8 @@ id of a process instance forever. Build a job key from ids, never from a persona
   a job it did not get everything for stays `running` with its expired lease until a later take. A
   job that returns stays the key's head and takes no key lock; a dying FIFO head is passed over for
   as long as units keep its key, and any job while a unit holds one of its rows (a cap change, a
-  re-limit of its group, a drain's settle, an open commit tail that lowers `enqueued`). A promotion
+  re-limit of its group, a settle of a completion, cancel or drain, another unit's open commit tail
+  that moves `enqueued`). A promotion
   moves only the due jobs of the lanes whose `enqueued` row it got; the due jobs of the other lanes
   stay `scheduled` and count against its limit of 100. The one lock the take does not skip or try is
   the `waiting` row of the next job of a dying FIFO head's key, which it locks with a plain `for
@@ -4135,7 +4136,10 @@ id of a process instance forever. Build a job key from ids, never from a persona
   takes again (section 9.5.6). The take's unit buffers no lane change, so its commit runs no tail
   statement, and a take is part of no deadlock. Known limits: units that take two key locks in opposite orders (enqueues,
   cancels by key, erasures) can still deadlock, and a completion waits for the key's lock behind an
-  open append; the deadlock counter of the PostgreSQL test suites shows a deadlock that a retry hides.
+  open append. The deadlock counter that the connection guard of the PostgreSQL test suites checks
+  (`guardClientConnections`, in the setup of adapter-postgres, data and testing) shows a deadlock
+  that a retry hides; the PostgreSQL files of events, the modules and the portal example have no
+  such guard.
 - A job's unit runs the kernel's loads, then writes events, effect records, receipt and completion
   at its tail (section 7.9.4). No handler waits on the network inside a unit, so no long write
   transaction pins PostgreSQL's MVCC horizon. Database effects commit with the completion,
@@ -4437,7 +4441,9 @@ Making the two the same number is open work.
   skipped locked lanes is not "no work": a fetcher that saw skipped lanes takes again at once,
   after a short jitter, instead of waiting for the next wake-up or the poll (section 9.5.3); a take
   that left work behind for a row another unit holds (an expired job, a due job) counts that lane as
-  skipped as well, and the fetcher retakes at most three times before it rests. With
+  skipped as well, and the fetcher retakes at most three times; a sweep that ends after three
+  skipped retakes has not come to rest, and the next wake-up, the poll or the test probe sweeps the
+  queue again. With
   per-tenant namespaces (M5), wake-ups pass through the control store, and each process sweeps the
   namespaces that rendezvous hashing over the live registry gives it. An executor's queue may not
   carry the name of an action queue (`commands`, `reactions`, `schedules`, `timers`, `hooks`),
@@ -6478,8 +6484,10 @@ export interface JobStore {
   virtual time, of which takes write only `taken` and the virtual time; `kw_job_lane_counts` holds
   its `enqueued` and `done` counters, which enqueue tails, promotions, FIFO releases, completions and
   the reclaim of a take write (a take under the rows' locks, taken with `SKIP LOCKED`) and takers read
-  without locking. An enqueue burst therefore never makes takers skip a lane,
-  and a stale `done` only lowers a lane's room.
+  without locking. An enqueue burst therefore never makes takers skip a lane for the pick; a
+  promotion that finds a lane's `enqueued` row held by an enqueue's commit tail leaves that lane's
+  due jobs, and the reclaim leaves a dying FIFO head whose key another unit holds, and the take
+  counts either lane as skipped. A stale `done` only lowers a lane's room.
 - Group limits (concurrency and rate) are counted under the group's row lock, taken in id order
   with `SKIP LOCKED` after the jobs are picked, and a job over its limit goes back; counting them inside the take
   statement raced at `READ COMMITTED`. FIFO per key keeps a key's followers `waiting` and makes the

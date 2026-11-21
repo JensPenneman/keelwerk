@@ -54,8 +54,8 @@ export interface JobStore {
    * ends it together with its receipt); only jobs enqueued at or below `maxRevision`, the worker's
    * build revision (section 19.2). `lanes` defaults to `limit`; `skippedLanes` counts lanes locked
    * by other takers, and lanes in which work stayed because another unit holds a row it needs (an
-   * expired job's rows, a job's group row, the counter row of a lane whose due job the unit's
-   * `promote` left), not "no work". A take never waits behind an open unit: whatever it cannot lock at
+   * expired job's rows, a job's group row, the key of a dying FIFO head, the counter row of a lane whose
+   * due job the unit's `promote` left), not "no work". A take never waits behind an open unit: whatever it cannot lock at
    * once stays as it is for a later take (an expired job stays running, a job whose group row is
    * held stays available) and its lane counts as skipped, so the fetcher takes again.
    */
