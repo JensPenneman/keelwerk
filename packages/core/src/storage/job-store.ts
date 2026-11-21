@@ -21,7 +21,8 @@ export interface JobStore {
    * (`ordering: 'fifo-per-key'`) the appended job is `waiting` behind the key's head. An adapter
    * must serialise the append with every unit that ends the head (a completion, a reclaim, a purge,
    * a replace, a cancel by key): the append sees the head as it is after such a unit committed, or that unit releases
-   * the appended job after the append's commit. A job appended under a key is never left `waiting`
+   * the appended job after the append's commit; a take that cannot get the serialisation without waiting
+   * leaves the head it would end to a later take. A job appended under a key is never left `waiting`
    * without a head.
    */
   enqueue(job: StoredJobSpec): Promise<JobId>;
@@ -37,7 +38,11 @@ export interface JobStore {
    * none left, is available. Answers how many it cancelled.
    */
   cancel(queue: string, key: string): Promise<number>;
-  /** Moves due `scheduled` jobs (timers, retries, delayed sends) to `available` and counts them on their lanes. */
+  /**
+   * Moves due `scheduled` jobs (timers, retries, delayed sends) to `available` and counts them on their
+   * lanes. A store may count them only when its unit commits, so that a take of the same unit does not
+   * see them; the bundled stores count them at once.
+   */
   promote(queue: string, limit: number): Promise<number>;
   /**
    * The fair take of section 9.5.3 over the lanes of the worker's capability sets: lane caps, keys,
@@ -46,8 +51,9 @@ export interface JobStore {
    * ended for lost leases, stays takeable and is handed out with `leasesExhausted`, so its taker
    * ends it together with its receipt); only jobs enqueued at or below `maxRevision`, the worker's
    * build revision (section 19.2). `lanes` defaults to `limit`; `skippedLanes` counts lanes locked
-   * by other takers, not "no work". A take never waits behind an open unit: an expired job of a FIFO
-   * key whose lock another unit holds stays running until a later take gets the lock.
+   * by other takers or held back by a group row another unit holds, not "no work". A take never waits
+   * behind an open unit: whatever it cannot lock at once stays as it is for a later take (an expired
+   * job stays running, a job whose group row is held stays available).
    */
   take(
     queue: string,

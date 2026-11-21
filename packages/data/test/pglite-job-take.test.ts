@@ -1,6 +1,7 @@
 // biome-ignore-all lint/style/useNamingConvention: the keys are the column names of the framework tables
 import type { StoredJob } from '@keelwerk/core';
-import { beforeEach, describe, expect, test } from 'vitest';
+import { CompiledQuery } from 'kysely';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { finishJob } from './support/finish-job.ts';
 import { instantMs } from './support/instant-ms.ts';
 import { succeeded, unavailable } from './support/job-fixtures.ts';
@@ -177,6 +178,71 @@ describe('groups', () => {
     ).toBe(true);
     expect(await rows('select running from app.kw_job_groups')).toEqual([{ running: 0 }]);
     expect(await take('w2')).toHaveLength(1);
+  });
+});
+
+describe('the reclaim of a take', () => {
+  const chain = (n: number) =>
+    jobSpec({ ordering: 'fifo-per-key', key: { value: `chain-${n}`, onConflict: 'append' } });
+  const loseLeases = async (rounds: number): Promise<void> => {
+    for (let round = 0; round < rounds; round += 1) {
+      await take(`w${round}`, { leaseMs: 1000 });
+      store.clock.advance(5000);
+    }
+  };
+
+  test('the keys of the dying FIFO heads of one take are tried in one statement and held', async () => {
+    await store.run(tenantScope, async (unit) => {
+      for (const n of [1, 2, 3]) await unit.jobs.enqueue(chain(n));
+    });
+    await loseLeases(3);
+    const { tries, held } = await store.run(namespaceScope, async (unit) => {
+      const executed = vi.spyOn(unit.db, 'executeQuery');
+      await unit.jobs.take('commands', 'w', {
+        limit: 10,
+        capabilitySets: [''],
+        maxRevision: 100,
+        leaseMs: 1000,
+      });
+      const texts = executed.mock.calls.map(([query]) => (query as CompiledQuery).sql);
+      const [locks] = (
+        await unit.db.executeQuery<{ n: string }>(
+          CompiledQuery.raw(
+            `select count(*)::text as n from pg_locks where locktype = 'advisory' and pid = pg_backend_pid()`,
+          ),
+        )
+      ).rows;
+      return {
+        tries: texts.filter((text) => text.includes('pg_try_advisory_xact_lock')).length,
+        held: Number(locks?.n),
+      };
+    });
+    expect(tries).toBe(1);
+    expect(held).toBe(3);
+    expect(await rows('select state from app.kw_jobs order by id')).toEqual([
+      { state: 'dead' },
+      { state: 'dead' },
+      { state: 'dead' },
+    ]);
+  });
+
+  test('a take whose reclaim finds the group row of an expired job gone fails as internal', async () => {
+    await store.run(tenantScope, async (unit) => {
+      await unit.jobs.enqueue(jobSpec({ group: { id: 'mx:gone', concurrency: 5 } }));
+    });
+    await take('w1', { leaseMs: 1000 });
+    store.clock.advance(5000);
+    await rows('delete from app.kw_job_groups');
+    await expect(take('w2')).rejects.toMatchObject({ kind: 'internal' });
+  });
+
+  test('a take whose pick finds the group row of an available job gone fails as internal', async () => {
+    await store.run(tenantScope, async (unit) => {
+      await unit.jobs.enqueue(jobSpec({ group: { id: 'mx:gone', concurrency: 5 } }));
+    });
+    await rows('delete from app.kw_job_groups');
+    await expect(take('w1')).rejects.toMatchObject({ kind: 'internal' });
+    expect(await rows('select state from app.kw_jobs')).toEqual([{ state: 'available' }]);
   });
 });
 

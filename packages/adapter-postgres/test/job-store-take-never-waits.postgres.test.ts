@@ -1,0 +1,234 @@
+// biome-ignore-all lint/style/useNamingConvention: the keys are the column names of the framework tables
+import type { JobStore, StorageScope, StoredJob, StoredJobSpec } from '@keelwerk/core';
+import { describe, expect, test } from 'vitest';
+import { eventHarness } from './support/event-harness.ts';
+import { spec, takeRequest, tenant } from './support/job-store-fixtures.ts';
+import { lockLook } from './support/lock-look.ts';
+import { taggedUnit } from './support/tagged-unit.ts';
+
+const { adapter, clock, run, owner } = eventHarness('job_store_take_never_waits', 16);
+const namespaceScope: StorageScope = { level: 'namespace', reason: 'test' };
+const { untilEndedOrWaits } = lockLook(owner);
+
+/*
+ * What decides every case below: the unit or the client that holds a lock is opened and ended by the
+ * case itself, and ends only after the take under test has ended or a look has seen it wait on a
+ * lock. A take that waits therefore waits for certain (the holder is open), and a take that does
+ * not wait ends while the holder is open; nothing in the background (no worker, no fetcher) moves a
+ * job, a lease or a counter. A lease of 1 s is expired by a clock advance of 5 s.
+ */
+
+const tagged = <T>(label: string, fn: (jobs: JobStore) => Promise<T>): Promise<T> =>
+  taggedUnit(adapter(), clock, namespaceScope, `job-store:${label}`, async (unit) => fn(unit.jobs));
+const inTenant = <T>(label: string, fn: (jobs: JobStore) => Promise<T>): Promise<T> =>
+  taggedUnit(adapter(), clock, tenant(0), `job-store:${label}`, async (unit) => fn(unit.jobs));
+
+const fifo = (n: number, over: Partial<StoredJobSpec> = {}): StoredJobSpec =>
+  spec(n, { ordering: 'fifo-per-key', key: { value: 'chain', onConflict: 'append' }, ...over });
+const group = (concurrency: number) => ({ id: 'g', concurrency });
+const inputOf = (job: StoredJob): number => (job.run as { input: number }).input;
+const inputs = (jobs: readonly StoredJob[]): number[] => jobs.map(inputOf).sort();
+
+const takeAll = (label: string): Promise<{ jobs: readonly StoredJob[]; skippedLanes: number }> =>
+  tagged(label, (jobs) => jobs.take('commands', 'w2', takeRequest(5)));
+
+/** A take unit as the fetcher runs it: the promotion first, then the take, in one unit. */
+const promoteAndTake = (label: string) =>
+  tagged(label, async (jobs) => {
+    const promoted = await jobs.promote('commands', 100);
+    return { promoted, ...(await jobs.take('commands', 'w2', takeRequest(5))) };
+  });
+
+async function enqueueFor(jobs: readonly StoredJobSpec[]): Promise<void> {
+  await run(tenant(0), async (unit) => {
+    for (const job of jobs) await unit.jobs.enqueue(job);
+  });
+}
+
+/** Takes the jobs with a 1 s lease and lets the lease end, `rounds` times: a job has then lost `rounds - 1` leases. */
+async function expireLeases(rounds: number): Promise<void> {
+  for (let round = 0; round < rounds; round += 1) {
+    await tagged(`take-lease-${round}`, (jobs) => jobs.take('commands', 'w', takeRequest(5, 1000)));
+    clock.advance(5000);
+  }
+}
+
+/** What a take under test did: its promise, and whether a look saw it wait for a lock. */
+interface Observed<T> {
+  readonly promise: Promise<T>;
+  readonly waited: boolean;
+}
+
+/**
+ * Starts `work` and goes on when it has ended or a look has seen it wait; the caller ends its holder
+ * and then awaits `promise`. A holder that sees `waited` ends and fails the case.
+ */
+async function observe<T>(label: string, work: () => Promise<T>): Promise<Observed<T>> {
+  let ended = false;
+  const promise = work().finally(() => {
+    ended = true;
+  });
+  return { promise, waited: await untilEndedOrWaits(() => ended, label) };
+}
+
+async function laneId(): Promise<string> {
+  const [lane] = await owner(
+    async (client) => (await client.query(`select id::text as id from app.kw_job_lanes`)).rows,
+  );
+  return String(lane?.id);
+}
+
+/** A transaction of the owner that holds one counter row of the lane `for update` until `inside` returns. */
+async function holdingCount(kind: 'done' | 'enqueued', inside: () => Promise<void>): Promise<void> {
+  const lane = await laneId();
+  await owner(async (client) => {
+    await client.query('begin');
+    try {
+      await client.query(
+        `select 1 from app.kw_job_lane_counts where lane_id = $1::bigint and kind = $2 for update`,
+        [lane, kind],
+      );
+      await inside();
+    } finally {
+      await client.query('rollback');
+    }
+  });
+}
+
+const stateOf = async (key: string): Promise<readonly Record<string, unknown>[]> =>
+  owner(
+    async (client) =>
+      (
+        await client.query(
+          `select state, lost_leases from app.kw_jobs where key = $1 order by id`,
+          [key],
+        )
+      ).rows,
+  );
+
+const rowsOf = async (sql: string): Promise<readonly Record<string, unknown>[]> =>
+  owner(async (client) => (await client.query(sql)).rows);
+
+describe('a take inside a unit that holds what the reclaim needs', () => {
+  test('a unit that changed the lane cap and then appends under the key of an expired head: the take does not wait for the lane, and the append is not deadlocked', async () => {
+    await enqueueFor([fifo(1)]);
+    await expireLeases(1);
+    let bodies = 0;
+    let inside: Observed<{ jobs: readonly StoredJob[]; skippedLanes: number }> | undefined;
+    await inTenant('open-cap', async (jobs) => {
+      bodies += 1;
+      await jobs.enqueue(spec(8, { laneCap: 11 }));
+      inside = await observe('take-cap', () => takeAll('take-cap'));
+      if (inside.waited) throw new Error('the take waited for the unit that changed the lane cap');
+      await jobs.enqueue(fifo(2, { laneCap: 11 }));
+    });
+    expect(bodies).toBe(1);
+    expect(await inside?.promise).toEqual({ jobs: [], skippedLanes: 0 });
+    expect(await stateOf('chain')).toEqual([
+      { state: 'running', lost_leases: 0 },
+      { state: 'waiting', lost_leases: 0 },
+    ]);
+    expect(inputs((await takeAll('take-after-cap')).jobs)).toEqual([1, 8]);
+  });
+
+  test('a unit that re-limited the group of an expired head and then appends under its key: the take does not wait for the group row, and the append is not deadlocked', async () => {
+    await enqueueFor([fifo(1, { group: group(5) })]);
+    await expireLeases(1);
+    let bodies = 0;
+    let inside: Observed<{ jobs: readonly StoredJob[]; skippedLanes: number }> | undefined;
+    await inTenant('open-group-key', async (jobs) => {
+      bodies += 1;
+      await jobs.enqueue(spec(8, { group: group(6) }));
+      inside = await observe('take-group-key', () => takeAll('take-group-key'));
+      if (inside.waited) throw new Error('the take waited for the unit that re-limited the group');
+      await jobs.enqueue(fifo(2, { group: group(6) }));
+    });
+    expect(bodies).toBe(1);
+    expect(await inside?.promise).toEqual({ jobs: [], skippedLanes: 0 });
+    expect(await stateOf('chain')).toEqual([
+      { state: 'running', lost_leases: 0 },
+      { state: 'waiting', lost_leases: 0 },
+    ]);
+    expect(inputs((await takeAll('take-after-group-key')).jobs)).toEqual([1, 8]);
+  });
+
+  test('an owner that holds the done counter of the lane: the take hands out the head of its first lost lease', async () => {
+    await enqueueFor([fifo(1)]);
+    await expireLeases(1);
+    let inside: Observed<{ jobs: readonly StoredJob[] }> | undefined;
+    await holdingCount('done', async () => {
+      inside = await observe('take-done', () => takeAll('take-done'));
+    });
+    expect(inside?.waited).toBe(false);
+    expect(inputs((await inside?.promise)?.jobs ?? [])).toEqual([1]);
+    expect(await stateOf('chain')).toEqual([{ state: 'running', lost_leases: 1 }]);
+  });
+
+  test('a unit that re-limited the group of an available job: the take leaves the job and counts its lane as skipped; the next take hands it out', async () => {
+    await enqueueFor([spec(1, { group: group(5) })]);
+    let inside: Observed<{ jobs: readonly StoredJob[]; skippedLanes: number }> | undefined;
+    await inTenant('open-group', async (jobs) => {
+      await jobs.enqueue(spec(8, { group: group(6) }));
+      inside = await observe('take-group', () => takeAll('take-group'));
+      if (inside.waited) throw new Error('the take waited for the unit that re-limited the group');
+    });
+    expect(await inside?.promise).toEqual({ jobs: [], skippedLanes: 1 });
+    expect(await rowsOf(`select state from app.kw_jobs order by id`)).toEqual([
+      { state: 'available' },
+      { state: 'available' },
+    ]);
+    expect(inputs((await takeAll('take-after-group')).jobs)).toEqual([1, 8]);
+  });
+
+  test('an owner that holds the done counter of the lane: a job at its third lost lease stays running, and the next take makes it dead', async () => {
+    await enqueueFor([spec(1)]);
+    await expireLeases(3);
+    let inside: Observed<{ jobs: readonly StoredJob[] }> | undefined;
+    await holdingCount('done', async () => {
+      inside = await observe('take-dying', () => takeAll('take-dying'));
+    });
+    expect(inside?.waited).toBe(false);
+    expect((await inside?.promise)?.jobs).toEqual([]);
+    expect(await rowsOf(`select state, lost_leases from app.kw_jobs`)).toEqual([
+      { state: 'running', lost_leases: 2 },
+    ]);
+    expect((await takeAll('take-dead')).jobs).toEqual([]);
+    expect(await rowsOf(`select state from app.kw_jobs`)).toEqual([{ state: 'dead' }]);
+    expect(await rowsOf(`select outcome from app.kw_job_history`)).toEqual([{ outcome: 'dead' }]);
+  });
+
+  test('an owner that holds the enqueued counter of the lane: a take unit leaves a due job scheduled, and one unit later promotes and takes it', async () => {
+    await enqueueFor([spec(1, { runAt: clock.now().add({ seconds: 10 }) })]);
+    clock.advance(11_000);
+    let inside: Observed<{ promoted: number; jobs: readonly StoredJob[] }> | undefined;
+    await holdingCount('enqueued', async () => {
+      inside = await observe('take-promote', () => promoteAndTake('take-promote'));
+    });
+    expect(inside?.waited).toBe(false);
+    expect(await inside?.promise).toMatchObject({ promoted: 0, jobs: [] });
+    expect(await rowsOf(`select state from app.kw_jobs`)).toEqual([{ state: 'scheduled' }]);
+    const next = await promoteAndTake('take-promote-after');
+    expect(next.promoted).toBe(1);
+    expect(inputs(next.jobs)).toEqual([1]);
+  });
+
+  test('an owner that holds the enqueued counter of the lane: a FIFO head at its third lost lease stays running, and the next take ends it and hands out the follower', async () => {
+    await enqueueFor([fifo(1), fifo(2)]);
+    await expireLeases(3);
+    let inside: Observed<{ jobs: readonly StoredJob[] }> | undefined;
+    await holdingCount('enqueued', async () => {
+      inside = await observe('take-head', () => takeAll('take-head'));
+    });
+    expect(inside?.waited).toBe(false);
+    expect((await inside?.promise)?.jobs).toEqual([]);
+    expect(await stateOf('chain')).toEqual([
+      { state: 'running', lost_leases: 2 },
+      { state: 'waiting', lost_leases: 0 },
+    ]);
+    expect(inputs((await takeAll('take-after-head')).jobs)).toEqual([2]);
+    expect(await stateOf('chain')).toEqual([
+      { state: 'dead', lost_leases: 3 },
+      { state: 'running', lost_leases: 0 },
+    ]);
+  });
+});

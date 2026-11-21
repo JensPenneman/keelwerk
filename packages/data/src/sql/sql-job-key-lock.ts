@@ -9,9 +9,10 @@ import type { SqlUnitContext } from './sql-unit-context.ts';
  * committed, or the ending unit waits for the append's commit and then releases the appended job.
  * The order is always lock, then row: a purge and a cancel by key take their locks before they
  * delete rows, a completion before it changes the running head's row, and an enqueue before it reads
- * the key's pending rows. A reclaim, which runs in every take, never waits for the lock: it tries
- * it (`sqlJobKeyTryLock`) and leaves the keys whose lock another unit holds to a later take. So no unit
- * waits for a row while another waits for its lock, and no take waits behind an open unit.
+ * the key's pending rows. A take never waits for the lock: the reclaim of a dying FIFO head tries it
+ * in `reclaimAttemptStatement` and leaves the keys whose lock another unit holds to a later take, so
+ * no take waits behind an open unit and none is part of a deadlock. Units that take two key locks
+ * in opposite orders (enqueues, cancels by key, erasures) can still deadlock with each other.
  */
 export async function sqlJobKeyLock(
   ctx: SqlUnitContext,

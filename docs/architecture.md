@@ -4100,11 +4100,12 @@ id of a process instance forever. Build a job key from ids, never from a persona
   error, without input, seven days). Dead letters keep their input until replayed or discarded.
 - Lane state is split by writer: what makes a job available (an enqueue tail, a promotion, a FIFO
   release) moves `enqueued`, takes move `taken` and the virtual time, completions `done`; groups
-  count the same way. Takes lock only lane rows, so an enqueue burst never makes takers skip a lane,
-  and a stale `done` only lowers a lane's room.
+  count the same way. Takes lock only lane rows to pick, so an enqueue burst never makes takers skip a
+  lane, and a stale `done` only lowers a lane's room.
 - A job due now is `available` and counted at its cause's commit tail, beside the scope's position
   counter (section 15.1.4); a later `runAt` (timers, retries, delayed sends) stays `scheduled` until
-  the queue's fetcher promotes it, so lanes count only due work. FIFO followers are `waiting`;
+  the queue's fetcher promotes it, which counts it on its lane in the promoting statement, so lanes
+  count only due work. FIFO followers are `waiting`;
   `replace` and `coalesce` act on a pending job of the same key and lane.
 - Completion is a statement of the job's unit, conditional on its lease: success removes the row and
   writes history, a retryable failure schedules the next attempt, and the key's next `waiting` job
@@ -4113,8 +4114,20 @@ id of a process instance forever. Build a job key from ids, never from a persona
   unit committed, or the ending unit waits for the append's commit and then releases the appended job,
   so a job appended under a key is never left `waiting` without a head. A cancel by key takes the same lock: an
   append that committed before it is cancelled with the key's other jobs, an append after it waits behind a
-  running head the cancel left or finds no head. A reclaim, which every take runs, only tries the lock and leaves
-  the expired job of a key whose lock is held to a later take, so a take never waits behind an open unit.
+  running head the cancel left or finds no head.
+- A take waits for no lock that another unit holds (2026-11-21). Everything it needs it locks with
+  `skip locked` (job, lane, counter and group rows) or tries (the key's advisory lock, by
+  `pg_try_advisory_xact_lock`), and it acts only where it got everything: the reclaim of an expired
+  job needs the job row, the lane row of a job that returns to `available`, the `done` row of a job
+  that dies, its group row and, for a dying FIFO head, the lane's `enqueued` row and the key; a job it
+  did not get everything for stays `running` with its expired lease until a later take. A job that
+  returns stays the key's head and takes no key lock; a dying FIFO head is passed over for as long as
+  units keep its key, and any job while a unit holds one of its rows (a cap change, a re-limit of its
+  group, a drain's settle). A promotion moves only the due jobs of the lanes whose `enqueued` row it
+  got. The take's unit buffers no lane change, so its commit runs no tail statement, and a take is
+  part of no deadlock. Known limits: units that take two key locks in opposite orders (enqueues,
+  cancels by key, erasures) can still deadlock, and a completion waits for the key's lock behind an
+  open append; the deadlock counter of the PostgreSQL test suites shows a deadlock that a retry hides.
 - A job's unit runs the kernel's loads, then writes events, effect records, receipt and completion
   at its tail (section 7.9.4). No handler waits on the network inside a unit, so no long write
   transaction pins PostgreSQL's MVCC horizon. Database effects commit with the completion,
@@ -4286,8 +4299,8 @@ from picked p cross join share s left join lateral (
   for update skip locked) j on true
 order by p.priority, p.load, p.v, p.id, j.run_at, j.id;
 -- Same transaction: jobs become 'running' with (worker, attempt, lease, started_at); lanes add the jobs to `taken` and
--- cost / weight to `vtime` (lifted to $vmin first); group rows are locked in id order and checked; a job over its limit
--- goes back.
+-- cost / weight to `vtime` (lifted to $vmin first); group rows are locked in id order (skip locked) and checked; a job
+-- over its limit goes back, and a job whose group row another unit holds stays available.
 ```
 
 The statement printed here until 2026-11-05 differed in five readings, which the implementation
@@ -4311,17 +4324,19 @@ lane row, so a lane whose cap is being changed is still skipped; it does not con
 share`. The take's own update of the lane writes `taken` and `vtime`, no key column. Of the adapters
 built, only PostgreSQL had the gap: the in-memory adapter and PGlite run units one at a time. The
 MySQL steps of 14.3.9 have the same gap until that adapter is built. The statement that settles
-lanes (a take that reclaims an expired lease, a drain that releases an attempt) locks the lane rows
-the same way and for the same reason: of the lane row it changes `taken` only, and it no longer waits
-for an open enqueue unit of the lane.
+lanes (a drain that releases an attempt, a completion, a cancel) locks the lane rows the same way and
+for the same reason: of the lane row it changes `taken` only, and it no longer waits for an open
+enqueue unit of the lane. A take no longer settles lanes: its reclaim locks the lane rows it needs
+with `skip locked` (section 9.5.2).
 
 - Order: strict priority classes; then the least running work per unit of weight, which counts long
   jobs as load (Temporal's task-queue fairness weighs dispatches only); then virtual time, a
   weighted round robin (stride scheduling). Lifting a lane to `$vmin` means idleness earns no
   credit.
 - Takers lock different lanes, then different jobs, sharing a batch over the lanes picked. Group
-  rows serialise only takes of one group; counting under that lock replaces the count inside the
-  take statement, which raced at `READ COMMITTED`.
+  rows serialise only takes of one group: a taker that finds the row held by another unit leaves
+  the jobs of that group for a later take and counts their lane as skipped; counting under that lock
+  replaces the count inside the take statement, which raced at `READ COMMITTED`.
 - `$vmin` is the least virtual time of the lanes of the queue and capability sets that have
   available work (`enqueued > taken`), read in the take's unit; an idle lane that becomes busy is
   lifted to it.
@@ -4360,7 +4375,8 @@ for an open enqueue unit of the lane.
   the same defaults: `limit` (it counts attempts) is 3 unless `giveUpAfter` bounds the retries by
   time, and `maxDelay` is 10 minutes.
 - The worker renews its running jobs' leases every `heartbeatSeconds`, one statement per namespace;
-  a lease lasts three heartbeats. The next take reclaims an expired one: the job returns to
+  a lease lasts three heartbeats. The next take that gets the locks the reclaim needs (section
+  9.5.2) reclaims an expired one: the job returns to
   `available`, the attempt counted as `unavailable`, `core.job_lease_lost`. Renewal and completion
   are conditional on (worker, attempt), so a paused or partitioned attempt fails at its completion
   statement and rolls back its own unit.
@@ -4426,10 +4442,9 @@ Making the two the same number is open work.
   poll, a sweep the test probe asks for and a slot freed in a full fetcher sweep every namespace
   and set it again), so a lost or late wake-up costs latency and never a job. A slot freed in a
   full fetcher sweeps that fetcher's namespaces and no other fetcher; a heartbeat asks for a tick
-  only and wakes no fetcher. A take whose promotion moved jobs is work, not "no work": a SQL store
-  (PGlite, PostgreSQL) counts promoted jobs on their lanes only when the unit commits, so the take
-  of the same unit cannot see them (the memory store counts them at once), and the fetcher takes
-  again at once.
+  only and wakes no fetcher. A take whose promotion moved jobs is work, not "no work": the fetcher takes
+  again at once. A store may count promoted jobs on their lanes only when the unit commits, so
+  that the take of the same unit cannot see them; the bundled stores count them at once.
 - Added 2026-11-20 (breaking, test code on memory and PGlite): the test probe (`probe.wake()`, and
   with it `drainJobs`, `advanceTo` and `settleReactions` of `@keelwerk/testing`) sweeps a fetcher
   only when it did not come to rest at the clock's reading (its last sweep of every namespace and
@@ -6437,7 +6452,9 @@ export interface JobStore {
 ```
 
 - On PostgreSQL and MySQL, `take` locks lane rows and then job rows with `SKIP LOCKED` (section
-  9.5.3), so any number of workers on any number of processes share a queue. On SQLite, PGlite and
+  9.5.3), so any number of workers on any number of processes share a queue. A take waits for no lock
+  that another unit holds: what it reclaims it locks with `SKIP LOCKED` or tries (section 9.5.2), and a job it cannot lock at once
+  stays for a later take. On SQLite, PGlite and
   the in-memory adapter, the single writer serialises `take`; they serve `keelwerk dev`, tests and
   single-process deployments.
 - Added 2026-11-19: the take request gets one optional member that lists the paused scopes of the
@@ -6448,14 +6465,15 @@ export interface JobStore {
   job stores.
 - Lane counters are split by writer: `kw_job_lanes` holds each lane's cap, weight, `taken` and
   virtual time, of which takes write only `taken` and the virtual time; `kw_job_lane_counts` holds
-  its `enqueued` and `done` counters, which enqueue tails, promotions, FIFO releases and completions
-  write and takers read without locking. An enqueue burst therefore never makes takers skip a lane,
+  its `enqueued` and `done` counters, which enqueue tails, promotions, FIFO releases, completions and
+  the reclaim of a take write (a take under the rows' locks, taken with `SKIP LOCKED`) and takers read
+  without locking. An enqueue burst therefore never makes takers skip a lane,
   and a stale `done` only lowers a lane's room.
 - Group limits (concurrency and rate) are counted under the group's row lock, taken in id order
-  after the jobs are picked, and a job over its limit goes back; counting them inside the take
+  with `SKIP LOCKED` after the jobs are picked, and a job over its limit goes back; counting them inside the take
   statement raced at `READ COMMITTED`. FIFO per key keeps a key's followers `waiting` and makes the
-  next one `available` when its predecessor completes; the unit that completes, reclaims, purges or
-  cancels a head takes the key's advisory lock (before its rows, where it deletes or changes any), the same lock an enqueue under the key holds.
+  next one `available` when its predecessor completes; the unit that completes, purges or
+  cancels a head takes the key's advisory lock (before its rows, where it deletes or changes any), the same lock an enqueue under the key holds; a take that ends a dead head tries it and leaves the head to a later take when it is held.
 - Renewal and completion are conditional on (worker, attempt), so a paused or partitioned attempt
   fails at its completion statement and rolls back its own unit; the next take returns a job whose
   lease expired to `available` (section 9.5.4).

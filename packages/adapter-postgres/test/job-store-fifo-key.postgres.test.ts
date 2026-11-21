@@ -3,10 +3,12 @@ import type { JobStore, StorageScope, StoredJob, StoredJobSpec } from '@keelwerk
 import { describe, expect, test } from 'vitest';
 import { eventHarness } from './support/event-harness.ts';
 import { pause, spec, takeRequest, tenant } from './support/job-store-fixtures.ts';
+import { lockLook } from './support/lock-look.ts';
 import { taggedUnit } from './support/tagged-unit.ts';
 
 const { adapter, clock, run, owner } = eventHarness('job_store_fifo', 16);
 const namespaceScope: StorageScope = { level: 'namespace', reason: 'test' };
+const { waiting: lockWait, untilEndedOrWaits: untilCompletionEndedOrWaits } = lockLook(owner);
 
 const tagged = <T>(label: string, fn: (jobs: JobStore) => Promise<T>): Promise<T> =>
   taggedUnit(adapter(), clock, namespaceScope, `job-store:${label}`, async (unit) => fn(unit.jobs));
@@ -20,34 +22,6 @@ async function enqueueFor(n: number, jobs: readonly StoredJobSpec[]): Promise<vo
 describe('the end of a FIFO key head while a unit that appended to the key is open', () => {
   const fifo = (n: number): StoredJobSpec =>
     spec(n, { ordering: 'fifo-per-key', key: { value: 'chain', onConflict: 'append' } });
-
-  /**
-   * Goes on when the unit under test has ended, or when the server shows its backend waiting on a
-   * lock of any kind (an advisory lock or a row): the two states it can be in while the other unit is
-   * open. A look that shows neither proves nothing and leads to another look; the pause only spaces
-   * them. Answers whether the wait was seen.
-   */
-  async function untilCompletionEndedOrWaits(
-    ended: () => boolean,
-    label: string,
-  ): Promise<boolean> {
-    while (!ended()) {
-      const [waiting] = await owner(
-        async (client) =>
-          (
-            await client.query(
-              `select 1 from pg_stat_activity
-               where datname = current_database() and application_name = $1
-                 and wait_event_type = 'Lock'`,
-              [`kwtest:job-store:${label}`],
-            )
-          ).rows,
-      );
-      if (waiting !== undefined) return true;
-      await pause(5);
-    }
-    return false;
-  }
 
   /**
    * Opens a unit that appends the follower under the key, ends the head inside its window and
@@ -104,21 +78,6 @@ describe('the end of a FIFO key head while a unit that appended to the key is op
     await enqueueFor(0, [fifo(1)]);
     await appendWhileHeadEnds(undefined, 'c', true);
   });
-
-  /** Whether a backend of this application name waits for a lock, and for which kind. */
-  async function lockWait(label: string): Promise<string | undefined> {
-    const [row] = await owner(
-      async (client) =>
-        (
-          await client.query(
-            `select wait_event from pg_stat_activity
-             where datname = current_database() and application_name = $1 and wait_event_type = 'Lock'`,
-            [`kwtest:job-store:${label}`],
-          )
-        ).rows,
-    );
-    return row?.wait_event === undefined ? undefined : String(row.wait_event);
-  }
 
   const inTenant = <T>(label: string, fn: (jobs: JobStore) => Promise<T>): Promise<T> =>
     taggedUnit(adapter(), clock, tenant(0), `job-store:${label}`, async (unit) => fn(unit.jobs));
@@ -241,7 +200,7 @@ describe('the end of a FIFO key head while a unit that appended to the key is op
     return { jobs: (await taking) ?? [], waited };
   }
 
-  test('a take does not wait behind an open append under a key whose head lease expired', async () => {
+  test('a take hands out the head whose lease expired while an append under its key is open, and does not wait for the key', async () => {
     await enqueueFor(0, [fifo(1)]);
     await tagged('take-head-w', (jobs) => jobs.take('commands', 'w', takeRequest(1, 1000)));
     clock.advance(5000);
@@ -252,11 +211,23 @@ describe('the end of a FIFO key head while a unit that appended to the key is op
       'w',
     );
     expect(result.waited).toBe(false);
-    expect(result.jobs.map((job) => job.run)).toEqual([{ action: 'a', input: 9 }]);
+    // The head returns to `available` and stays the key's head, so the open append, which holds
+    // the key's lock, is no reason to leave it: a job that returns takes no key lock.
+    expect(result.jobs.map((job) => (job.run as { input: number }).input).sort()).toEqual([1, 9]);
     const later = await tagged('take-later-w', (jobs) =>
       jobs.take('commands', 'w3', takeRequest(5)),
     );
-    expect(later.jobs.map((job) => job.run)).toEqual([{ action: 'a', input: 1 }]);
+    expect(later.jobs).toEqual([]);
+    const [states] = await owner(
+      async (client) =>
+        (
+          await client.query(
+            `select count(*) filter (where state = 'running')::int as running,
+              count(*) filter (where state = 'waiting')::int as waiting from app.kw_jobs where key = 'chain'`,
+          )
+        ).rows,
+    );
+    expect(states).toEqual({ running: 1, waiting: 1 });
   });
 
   test('a take does not wait behind an open cancel by key whose head lease expired', async () => {
