@@ -747,6 +747,9 @@ importers:
 
   spikes/write-path:
     devDependencies:
+      '@keelwerk/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
       '@testcontainers/postgresql':
         specifier: 12.2.1
         version: 12.2.1(bare-buffer@3.7.3)(supports-color@7.2.0)

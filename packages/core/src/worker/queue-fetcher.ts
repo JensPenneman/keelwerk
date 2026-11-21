@@ -66,7 +66,7 @@ export interface QueueFetcher {
 /**
  * The fetcher of one queue (9.5.6, D1): a sweep promotes due jobs and takes batches for the free
  * slots from every ready namespace in turn, again and again until a take finds nothing; a take that
- * promoted jobs is work too, because a SQL store counts them only when its unit commits, and a take
+ * promoted jobs is work too, because a store may count them only when its unit commits, and a take
  * that skipped locked lanes is retaken after a short jittered pause, at most three times in a row. A
  * wake that names a namespace sweeps that namespace; the poll and a wake that names none sweep them
  * all. A wake that arrives during a sweep is not lost: the sweep repeats once when it ends. An attempt

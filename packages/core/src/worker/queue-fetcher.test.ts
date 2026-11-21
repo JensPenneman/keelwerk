@@ -169,7 +169,7 @@ describe('the sweep of a fetcher', () => {
   });
 
   test('a take that promoted due jobs is followed at once by another take, which starts them', async () => {
-    // The store counts promoted jobs when the unit commits, so the take that promoted them sees none.
+    // A store may count promoted jobs only when its unit commits, so the take that promoted them sees none.
     seam.answers = [
       { jobs: [], skippedLanes: 0, promoted: 1 },
       { jobs: [job], skippedLanes: 0, promoted: 0 },

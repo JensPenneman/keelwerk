@@ -92,23 +92,37 @@ describe('takers in parallel', () => {
     expect(left).toEqual({ n: 0 });
   });
 
-  test('a group limit holds across takers that run at the same time', async () => {
+  test('a group limit holds across takers that run at the same time, and takers that skip its held row leave their jobs for a later take', async () => {
     const group = { id: 'mx:shared', concurrency: 3, scope: 'namespace' } as const;
     await run(namespaceScope, (unit) => unit.jobs.provisionGroup(group));
     for (const n of [1, 2, 3, 4, 5, 6]) {
       await enqueueFor(n, [spec(n, { group }), spec(n + 100, { group })]);
     }
-    const results = await Promise.all(
+    const running = async (): Promise<unknown> =>
+      (
+        await owner(
+          async (client) => (await client.query(`select running from app.kw_job_groups`)).rows,
+        )
+      )[0]?.running;
+    // A taker that finds the group row held by another taker leaves the job it picked, so how many
+    // jobs the six takers hand out at once depends on who holds the row first: never more than the limit.
+    const together = await Promise.all(
       [0, 1, 2, 3, 4, 5].map(async (taker) =>
         tagged(`group-${taker}`, (jobs) => jobs.take('commands', `w${taker}`, takeRequest(4))),
       ),
     );
-    expect(results.flatMap((result) => result.jobs)).toHaveLength(3);
-    const [counters] = await owner(
-      async (client) =>
-        (await client.query(`select running, scope_id from app.kw_job_groups`)).rows,
-    );
-    expect(counters).toEqual({ running: 3, scope_id: null });
+    const taken = together.flatMap((result) => result.jobs).length;
+    expect(taken).toBeLessThanOrEqual(3);
+    expect(await running()).toBe(taken);
+    // The takers run one after another now, so none finds the row held: the limit is reached, not passed.
+    let after = 0;
+    for (const taker of [6, 7, 8]) {
+      after += (
+        await tagged(`group-${taker}`, (jobs) => jobs.take('commands', `w${taker}`, takeRequest(4)))
+      ).jobs.length;
+    }
+    expect(taken + after).toBe(3);
+    expect(await running()).toBe(3);
   });
 
   test('a take reports lanes another taker holds as skipped, apart from "no work"', async () => {

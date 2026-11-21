@@ -1,6 +1,8 @@
 import pg from 'pg';
-import { describe, expect, inject, it } from 'vitest';
-import { execInContainer, startPostgres } from '../src/postgres/index.ts';
+import { afterEach, describe, expect, inject, it } from 'vitest';
+import { declaredDeadlocks } from '../src/postgres/declared-deadlocks.ts';
+import { declareDeadlocks, execInContainer, startPostgres } from '../src/postgres/index.ts';
+import { provokeDeadlock } from './support/provoke-deadlock.ts';
 
 async function query<Row extends pg.QueryResultRow>(
   connectionString: string,
@@ -22,6 +24,12 @@ const startTimeout = 180_000;
 // The project's global setup already runs one container; each case here adds at most one more, and
 // stops it before it ends, so two containers are the most that ever run (plan rule 4).
 describe('startPostgres', () => {
+  // This file tests the rule itself: what a case declares or starts must not carry over to the next.
+  afterEach(() => {
+    declaredDeadlocks.count = 0;
+    declaredDeadlocks.checked = 0;
+  });
+
   it(
     'starts PostgreSQL 18 with a non-privileged application role',
     async () => {
@@ -63,6 +71,50 @@ describe('startPostgres', () => {
       }
     },
     startTimeout,
+  );
+
+  it(
+    'a container stops when its deadlocks were declared, refuses to stop quietly when one was not, and stops when none moved the counter',
+    async () => {
+      const declared = await startPostgres();
+      await provokeDeadlock(declared.adminUrl, 'declared');
+      declareDeadlocks(1);
+      await expect(declared.stop()).resolves.toBeUndefined();
+      declaredDeadlocks.count = 0;
+
+      const undeclared = await startPostgres();
+      await provokeDeadlock(undeclared.adminUrl, 'undeclared');
+      await expect(undeclared.stop()).rejects.toThrow(
+        'moved the PostgreSQL deadlock counter by 1 and declared 0',
+      );
+
+      const quiet = await startPostgres();
+      await expect(quiet.stop()).resolves.toBeUndefined();
+    },
+    3 * startTimeout,
+  );
+
+  it(
+    'a container opted out with checkDeadlocks false stops although a deadlock moved its counter',
+    async () => {
+      const opted = await startPostgres({ checkDeadlocks: false });
+      await provokeDeadlock(opted.adminUrl, 'opted');
+      await expect(opted.stop()).resolves.toBeUndefined();
+    },
+    startTimeout,
+  );
+
+  it(
+    'a file that declared deadlocks and stops two checked containers is refused, and the message says to opt one out or split the file',
+    async () => {
+      const first = await startPostgres();
+      const second = await startPostgres();
+      await provokeDeadlock(first.adminUrl, 'ambiguous');
+      declareDeadlocks(1);
+      await expect(first.stop()).rejects.toThrow('Opt one container out');
+      await expect(second.stop()).resolves.toBeUndefined();
+    },
+    2 * startTimeout,
   );
 
   it(

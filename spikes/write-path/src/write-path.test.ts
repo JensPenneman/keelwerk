@@ -1,4 +1,9 @@
 import { setTimeout as delay } from 'node:timers/promises';
+import {
+  assertConnectionsClosed,
+  assertDeadlocksDeclared,
+  deadlockCount,
+} from '@keelwerk/testing/postgres';
 import type { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { appendCommand } from './append-command.ts';
@@ -38,13 +43,29 @@ const tenantUnit = async (client: Client, scope: SeededScope): Promise<void> => 
   await client.query(`select set_config('keelwerk.tenant_id', $1, true)`, [scope.id]);
 };
 
+// The shared deadlock rule of the testing package: no case of this file provokes a deadlock, so the
+// container's counter must not have moved when the file ends. The spike keeps its own starter (its
+// schema creates the kw_app role itself, which clashes with the role the shared starter creates, and
+// the spike loads pg_stat_statements, which the shared starter does not), so the counter is read only after `assertConnectionsClosed` has shown that no
+// client connection is left: a backend records its counters when it leaves.
+const clusterOf = (running: RunningPostgres): { containerId: string; adminUrl: string } => ({
+  containerId: running.containerId,
+  adminUrl: `postgres://${encodeURIComponent(running.admin.user ?? '')}@localhost/${encodeURIComponent(running.admin.database ?? '')}`,
+});
+let deadlocksBefore = 0;
+
 beforeAll(async () => {
   postgres = await startPostgres();
   admin = await connect(postgres.admin, 'test-admin');
+  deadlocksBefore = await deadlockCount(clusterOf(postgres));
 });
 afterAll(async () => {
   await admin?.end();
-  await postgres?.stop();
+  if (postgres === undefined) return;
+  await assertConnectionsClosed(clusterOf(postgres));
+  const moved = (await deadlockCount(clusterOf(postgres))) - deadlocksBefore;
+  await postgres.stop();
+  assertDeadlocksDeclared(moved, 0);
 });
 
 describe('commit tail (section 15.1.4)', () => {

@@ -14,7 +14,8 @@ declare module 'vitest' {
 
 /** Starts the one PostgreSQL container every suite of the project shares; returns its teardown. */
 export async function setup(project: TestProject): Promise<() => Promise<void>> {
-  const running = await startPostgres();
+  // Opted out: the connection guard of this project checks the deadlock counter of every file, one by one.
+  const running = await startPostgres({ checkDeadlocks: false });
   project.provide('portalCluster', {
     adminUrl: running.adminUrl,
     appUrl: running.appUrl,

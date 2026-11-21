@@ -7,8 +7,9 @@ export type TakenBatch = Awaited<ReturnType<JobStore['take']>> & { readonly prom
 /**
  * One take of a fetcher on one namespace (9.5.6): due `scheduled` jobs (timers, retries) are promoted
  * first, up to 100, then the fair take of 9.5.3 runs, both in one namespace-scope unit. The take
- * reclaims expired leases itself. A store counts a promoted job on its lane when the unit commits, so
- * the take of the same unit may not see it: `promoted` tells the fetcher to take again.
+ * reclaims expired leases itself. A store may count a promoted job on its lane only when the unit
+ * commits (the bundled stores count it at once), so the take of the same unit may not see it:
+ * `promoted` tells the fetcher to take again.
  */
 export function takeBatch(
   source: QueueSource,

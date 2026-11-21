@@ -21,7 +21,8 @@ export interface JobStore {
    * (`ordering: 'fifo-per-key'`) the appended job is `waiting` behind the key's head. An adapter
    * must serialise the append with every unit that ends the head (a completion, a reclaim, a purge,
    * a replace, a cancel by key): the append sees the head as it is after such a unit committed, or that unit releases
-   * the appended job after the append's commit. A job appended under a key is never left `waiting`
+   * the appended job after the append's commit; a take that cannot get the serialisation without waiting
+   * leaves the head it would end to a later take. A job appended under a key is never left `waiting`
    * without a head.
    */
   enqueue(job: StoredJobSpec): Promise<JobId>;
@@ -37,7 +38,13 @@ export interface JobStore {
    * none left, is available. Answers how many it cancelled.
    */
   cancel(queue: string, key: string): Promise<number>;
-  /** Moves due `scheduled` jobs (timers, retries, delayed sends) to `available` and counts them on their lanes. */
+  /**
+   * Moves due `scheduled` jobs (timers, retries, delayed sends) to `available` and counts them on their
+   * lanes. A store may count them only when its unit commits, so that a take of the same unit does not
+   * see them; the bundled stores count them at once. A store that waits for no lock may leave the due
+   * jobs of a lane whose counter row another unit holds `scheduled` for a later promotion; the take
+   * does not count that lane as skipped. A promotion's limit counts those jobs too.
+   */
   promote(queue: string, limit: number): Promise<number>;
   /**
    * The fair take of section 9.5.3 over the lanes of the worker's capability sets: lane caps, keys,
@@ -45,9 +52,25 @@ export interface JobStore {
    * makes a job a dead letter, except an action job whose run carries a command id: it is never
    * ended for lost leases, stays takeable and is handed out with `leasesExhausted`, so its taker
    * ends it together with its receipt); only jobs enqueued at or below `maxRevision`, the worker's
-   * build revision (section 19.2). `lanes` defaults to `limit`; `skippedLanes` counts lanes locked
-   * by other takers, not "no work". A take never waits behind an open unit: an expired job of a FIFO
-   * key whose lock another unit holds stays running until a later take gets the lock.
+   * build revision (section 19.2). `lanes` defaults to `limit`. `skippedLanes` counts the lanes whose
+   * takeable jobs the take could not look at because a lock was busy (a lane another taker holds, a
+   * job's group row another unit holds), not "no work"; it is not widened to the maintenance work of
+   * a take. A take never waits behind an open unit: whatever it cannot lock at once stays as it is
+   * for a later take. A job whose group row is held stays available and its lane counts as skipped,
+   * so the fetcher takes again. A lane the take looked at, in which another unit holds the row of an
+   * available job, is not counted either. A lane in which only a reclaim, a promotion or a release of a
+   * successor was left behind a busy lock is not counted: an expired job stays running, a dying
+   * FIFO head stays its key's head, a due job stays scheduled, and the next take of the queue does
+   * that work. Under sustained contention on a lane's row the return of an expired job can be
+   * passed over by any number of takes; the first take whose reclaim finds the row free returns it.
+   * What brings the next take: the wake-up that the commit of a unit sends where it sends one (an
+   * enqueue of a due job, a cap change, a group's re-limit, a completion, a cancel that ends a
+   * running attempt, an erasure that releases a key's next job; it names the queue, or every queue
+   * for a re-limit and for grouped jobs), a slot that frees in a fetcher, and the next poll, about
+   * every second (a fixed interval with jitter, no option). A unit that only appends a `waiting`
+   * job under a key, a cancel of pending jobs and an erasure that releases no job send no wake-up.
+   * At a still clock in the test runtime none of these may come: the work stays until the clock
+   * moves or another take runs.
    */
   take(
     queue: string,
