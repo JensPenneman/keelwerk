@@ -52,22 +52,29 @@ describe('the end of a FIFO key head while a unit that appended to the key is op
   /**
    * Opens a unit that appends the follower under the key, ends the head inside its window and
    * commits; `running` is a head taken before the unit opened, or undefined for a head taken inside
-   * the window. The next take must answer the follower.
+   * the window, before the append's insert or (`takeAfterInsert`) after it. The next take must
+   * answer the follower.
    */
-  async function appendWhileHeadEnds(running: StoredJob | undefined, label: string): Promise<void> {
+  async function appendWhileHeadEnds(
+    running: StoredJob | undefined,
+    label: string,
+    takeAfterInsert = false,
+  ): Promise<void> {
     let completion: Promise<boolean> | undefined;
     let completed = false;
     await taggedUnit(adapter(), clock, tenant(0), `job-store:append-${label}`, async (unit) => {
-      // A take cannot come after the append's insert: the insert shares the lane row, and a take
-      // skips a lane another unit holds. So the take of shape B is first inside the window.
-      const taken =
-        running ??
+      // The insert holds `for key share` on the lane row. The take locks lane rows `for no key
+      // update`, which does not conflict with that lock, so a take can come before the insert
+      // (shape B) or after it (shape C) inside the window.
+      const takeHead = async (): Promise<StoredJob | undefined> =>
         (await tagged(`take-head-${label}`, (jobs) => jobs.take('commands', 'w', takeRequest(1))))
           .jobs[0];
-      if (taken === undefined) throw new Error('the head was not takeable');
+      const before = running ?? (takeAfterInsert ? undefined : await takeHead());
       await unit.jobs.enqueue(fifo(2));
+      const head = before ?? (await takeHead());
+      if (head === undefined) throw new Error('the head was not takeable');
       completion = tagged(`complete-${label}`, (jobs) =>
-        jobs.complete(taken.attempt, 'w', { kind: 'succeeded' }),
+        jobs.complete(head.attempt, 'w', { kind: 'succeeded' }),
       ).finally(() => {
         completed = true;
       });
@@ -91,6 +98,11 @@ describe('the end of a FIFO key head while a unit that appended to the key is op
   test('the head is available when the append opens and a take inside it runs it to its end: the appended job is released', async () => {
     await enqueueFor(0, [fifo(1)]);
     await appendWhileHeadEnds(undefined, 'b');
+  });
+
+  test('the head is available when the append opens and a take after the insert of the append runs it to its end: the appended job is released', async () => {
+    await enqueueFor(0, [fifo(1)]);
+    await appendWhileHeadEnds(undefined, 'c', true);
   });
 
   /** Whether a backend of this application name waits for a lock, and for which kind. */

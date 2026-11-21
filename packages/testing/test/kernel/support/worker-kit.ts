@@ -1,6 +1,7 @@
 import type {
   AdapterCapabilities,
   Clock,
+  DataAdapter,
   JobSpec,
   KernelQueue,
   Logger,
@@ -142,14 +143,21 @@ export function jobOf(
 /** A kernel queue of the test's own over the runtime's namespace, on the runtime's clock. */
 export function ownQueue(
   runtime: Watched,
-  over: { readonly worker?: string; readonly random?: () => number } = {},
+  over: {
+    readonly worker?: string;
+    readonly random?: () => number;
+    /** The adapter the queue works through, a wrapper of the runtime's own SQL adapter, say. */
+    readonly adapter?: DataAdapter;
+  } = {},
 ) {
   return createKernelQueue({
     sources: [
       {
         namespace: runtime.namespace,
         // The in-memory adapter keeps no framework track, which its SQL capability says (D8).
-        handle: { adapter: runtime.adapter, capabilities: { sql: false } as AdapterCapabilities },
+        handle: over.adapter
+          ? { adapter: over.adapter }
+          : { adapter: runtime.adapter, capabilities: { sql: false } as AdapterCapabilities },
         registry: runtime.app.registry,
       },
     ],

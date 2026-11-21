@@ -162,6 +162,9 @@
     },
     {
       "path": "spikes/interpreter-overhead/tsconfig.test.json"
+    },
+    {
+      "path": "spikes/queue-real-handlers"
     }
   ]
 }

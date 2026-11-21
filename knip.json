@@ -85,6 +85,10 @@
     "spikes/interpreter-overhead": {
       "project": ["src/**/*.ts"]
     },
+    "spikes/queue-real-handlers": {
+      "entry": ["src/worker-child.ts"],
+      "project": ["src/**/*.ts"]
+    },
     "examples/portal": {
       "entry": [".launchway/deployment.ts", ".launchway/launchway.ts"],
       "ignoreDependencies": ["@keelwerk/cli"]

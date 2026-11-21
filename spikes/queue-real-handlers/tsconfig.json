@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/adapter-postgres" },
+    { "path": "../../packages/core" },
+    { "path": "../../packages/events" },
+    { "path": "../../packages/testing" }
+  ]
+}

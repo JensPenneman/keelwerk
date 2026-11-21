@@ -4270,7 +4270,7 @@ with picked as (
     and ($scope is null or l.scope_id = $scope)
   order by l.priority, (l.taken - d.value)::double precision / l.weight, greatest(l.vtime, $vmin), l.id   -- class, load per share, round robin, lane
   limit $lanes
-  for update of l skip locked
+  for no key update of l skip locked
 ), share as (select greatest(1, ceil($batch::numeric / nullif(count(*), 0))) as n from picked)
 select p.id as lane_id, p.priority, p.capability_set, p.cap, j.*
 from picked p cross join share s left join lateral (
@@ -4298,9 +4298,22 @@ not tell lanes it locked from lanes it skipped (the `left join` answers such a l
 a null job); the group check matched `g.scope_id` to the job's scope even for a namespace group;
 and the time was `now()` rather than the unit's clock. The outer `order by` serves the lanes the
 pick ranked first, so the taker's cut at its batch size keeps the pick's order (the ranking is
-projected from `picked` because PostgreSQL refuses window functions with `for update`). The take
+projected from `picked` because PostgreSQL refuses window functions with a locking clause). The take
 reports `skippedLanes` as the eligible lanes it could have used, at most `$lanes`, minus those it
 locked (entry 331).
+
+A sixth reading (2026-11-21): the lane rows are locked `for no key update`, not `for update`. A
+unit that enqueues a job inserts a row of `kw_jobs`, whose foreign key to its lane makes PostgreSQL
+hold `for key share` on the lane row until the unit ends, and `for update` conflicts with that
+lock, so the take skipped a lane while any unit enqueueing into it stood open. The weaker mode
+conflicts with itself, so takers still exclude one another, and with an update or delete of the
+lane row, so a lane whose cap is being changed is still skipped; it does not conflict with `for key
+share`. The take's own update of the lane writes `taken` and `vtime`, no key column. Of the adapters
+built, only PostgreSQL had the gap: the in-memory adapter and PGlite run units one at a time. The
+MySQL steps of 14.3.9 have the same gap until that adapter is built. The statement that settles
+lanes (a take that reclaims an expired lease, a drain that releases an attempt) locks the lane rows
+the same way and for the same reason: of the lane row it changes `taken` only, and it no longer waits
+for an open enqueue unit of the lane.
 
 - Order: strict priority classes; then the least running work per unit of weight, which counts long
   jobs as load (Temporal's task-queue fairness weighs dispatches only); then virtual time, a

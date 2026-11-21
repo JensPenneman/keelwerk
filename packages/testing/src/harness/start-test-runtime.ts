@@ -34,6 +34,14 @@ import { withTestResolver } from './with-test-resolver.ts';
 
 const placementName = 'main';
 
+/** The slots of each named queue: the option's `slots`, default four. */
+function slotsOf(workers: {
+  readonly queues: readonly string[];
+  readonly slots?: number;
+}): Record<string, number> {
+  return Object.fromEntries(workers.queues.map((queue) => [queue, workers.slots ?? 4]));
+}
+
 /**
  * Starts the app in process the way a deployment does: `startRuntime` over the in-memory adapter
  * (or the one the options name), the control store, one backend and the named tenants created
@@ -165,10 +173,7 @@ export async function startTestRuntime<
         : {
             work: {
               ...(options.drainSeconds === undefined ? {} : { drainSeconds: options.drainSeconds }),
-              slots:
-                options.workers === true
-                  ? { '*': 4 }
-                  : Object.fromEntries(options.workers.queues.map((queue) => [queue, 4])),
+              slots: options.workers === true ? { '*': 4 } : slotsOf(options.workers),
               ...(options.workers === true || options.workers.capabilities === undefined
                 ? {}
                 : { capabilities: options.workers.capabilities }),

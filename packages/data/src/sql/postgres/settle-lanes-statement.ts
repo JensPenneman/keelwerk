@@ -15,7 +15,12 @@ export interface LaneSettlement {
  * attempts, `taken`. Each lane's counter rows are locked first in ascending lane id, so units that
  * settle the same lanes take their locks in one order and cannot deadlock. The statement answers
  * the number of lanes it moved; a lane row hidden from the unit by row-level security matches
- * nothing and would otherwise lose the count silently.
+ * nothing and would otherwise lose the count silently. The lane rows are locked `for no key
+ * update`, not `for update`, for the reason the take gives (`fairTakeStatement`): a unit that
+ * enqueues into a lane holds `for key share` on its row, which `for update` would wait for, so a
+ * take that reclaims a lease and a drain that releases an attempt would wait for every open
+ * enqueue unit of the lane. Of the lane row the statement changes `taken` only, which no key
+ * contains.
  */
 export function settleLanesStatement(
   rootName: string,
@@ -29,7 +34,7 @@ export function settleLanesStatement(
 ), locked_lanes as (
   select l.id from ${root}.kw_job_lanes l
   where l.id in (select lane_id from settlement) and exists (select 1 from settlement s where s.lane_id = l.id and s.taken <> 0)
-  order by l.id for update
+  order by l.id for no key update
 ), locked_counts as (
   select c.lane_id from ${root}.kw_job_lane_counts c
   where c.kind = 'done' and c.lane_id in (select lane_id from settlement) order by c.lane_id for update

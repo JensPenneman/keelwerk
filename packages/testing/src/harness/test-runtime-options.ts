@@ -38,13 +38,15 @@ export interface TestRuntimeOptions<Name extends string = 'acme' | 'globex'> {
   /**
    * Starts the kernel workers in the test runtime (role 'all'); absent: role 'serve' and no worker, so
    * asynchronous commands keep their `accepted` receipts. `true` gives every action queue four
-   * slots; `{ queues }` gives each named queue four, and `capabilities` are the ones this process
-   * advertises for effect jobs (21.2) and `egress` its outbound policy (12.3).
+   * slots; `{ queues }` gives each named queue `slots` slots (default four), and `capabilities`
+   * are the ones this process advertises for effect jobs (21.2) and `egress` its outbound policy
+   * (12.3).
    */
   readonly workers?:
     | true
     | {
         readonly queues: readonly string[];
+        readonly slots?: number;
         readonly capabilities?: readonly string[];
         readonly egress?: EgressPolicy;
       };

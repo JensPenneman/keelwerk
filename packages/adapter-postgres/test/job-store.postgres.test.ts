@@ -132,6 +132,61 @@ describe('takers in parallel', () => {
   });
 });
 
+describe('takes and settles beside an open enqueue into their lane', () => {
+  // An enqueue's insert holds `for key share` on its lane row until its unit ends. Both cases hold
+  // such a unit open, and no outcome in them waits for time (the second case's 20 ms pause only
+  // spaces its looks): the take answers or skips by lock mode (`skip locked` never waits), and the
+  // settle either finishes or shows itself waiting on a lock.
+  const enqueueIntoLane = (jobs: JobStore) => jobs.enqueue({ ...spec(2), scope: tenant(1) });
+
+  test('a take hands out a lane while an enqueue into it is open', async () => {
+    await enqueueFor(1, [spec(1)]);
+    const taken = await run(tenant(1), async (unit) => {
+      await enqueueIntoLane(unit.jobs);
+      return tagged('taker', (jobs) => jobs.take('commands', 'w', takeRequest(5)));
+    });
+    expect(taken.jobs.map((job) => job.run)).toEqual([{ action: 'a', input: 1 }]);
+    expect(taken.skippedLanes).toBe(0);
+  });
+
+  test('a take that reclaims a lease does not wait for an enqueue into the lane', async () => {
+    await enqueueFor(1, [spec(1)]);
+    const first = await tagged('first', (jobs) => jobs.take('commands', 'w1', takeRequest(1, 1)));
+    expect(first.jobs).toHaveLength(1);
+    clock.advance(60_000);
+    const release = Promise.withResolvers<void>();
+    const held = Promise.withResolvers<void>();
+    const holder = run(tenant(1), async (unit) => {
+      await enqueueIntoLane(unit.jobs);
+      held.resolve();
+      await release.promise;
+    });
+    await Promise.race([held.promise, holder]);
+    let ended = false;
+    const settler = tagged('settler', (jobs) =>
+      jobs.take('commands', 'w2', takeRequest(5)),
+    ).finally(() => {
+      ended = true;
+    });
+    // Only what a look shows decides: the take ended, or its backend waits on a lock (a failure).
+    let waitedOnLock = false;
+    while (!ended && !waitedOnLock) {
+      waitedOnLock = await owner(async (client) => {
+        const result = await client.query(
+          `select 1 from pg_stat_activity where application_name = 'kwtest:job-store:settler' and wait_event_type = 'Lock'`,
+        );
+        return result.rowCount === 1;
+      });
+      if (!ended && !waitedOnLock) await pause(20);
+    }
+    release.resolve();
+    const taken = await settler;
+    await holder;
+    expect(waitedOnLock).toBe(false);
+    expect(taken.jobs.map((job) => job.run)).toEqual([{ action: 'a', input: 1 }]);
+  });
+});
+
 describe('what is written', () => {
   test('history never holds the input, and a dead letter keeps it', async () => {
     await enqueueFor(1, [spec(1, { run: { action: 'a', input: { secret: 'x' } } }), spec(2)]);

@@ -1,0 +1,19 @@
+{
+  "name": "@keelwerk/spike-queue-real-handlers",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Throwaway measurement of the take with real handlers (section 9.5.7) of milestone M2.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "scripts": {
+    "measure": "node --conditions=@keelwerk/source src/main.ts"
+  },
+  "devDependencies": {
+    "@keelwerk/adapter-postgres": "workspace:*",
+    "@keelwerk/core": "workspace:*",
+    "@keelwerk/events": "workspace:*",
+    "@keelwerk/testing": "workspace:*",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1"
+  }
+}

@@ -28,11 +28,15 @@ export interface FairTakeInput {
  * with three running jobs of weight 2 to one with two), and a lane that was picked but had no job
  * to hand out still answers one row with a null job, so the caller can tell lanes it locked from
  * lanes it skipped. A job whose group is blocked stays behind; the group's concurrency and rate are
- * checked under the group's row lock after the pick (14.3.9). The rows come back in the order of
- * the pick (class, load per weight, virtual time, lane) and then due order, so the caller's cut at its
- * batch size serves the lanes the pick ranked first; the ranking is projected from `picked` as
- * plain columns because PostgreSQL refuses window functions together with `for update`. Columns are text where a driver would
- * otherwise choose a type for them.
+ * checked under the group's row lock after the pick (14.3.9). The lane rows are locked `for no key
+ * update`, not `for update`: a unit that enqueues a job holds `for key share` on its lane row (the
+ * foreign key of `kw_jobs`), which `for update` would skip, so an open enqueue unit would hide its
+ * lane from every take; the weaker mode still excludes other takers and still skips a lane whose
+ * row an update or delete holds. The rows come back in the order of the pick (class, load per
+ * weight, virtual time, lane) and then due order, so the caller's cut at its batch size serves the
+ * lanes the pick ranked first; the ranking is projected from `picked` as plain columns because
+ * PostgreSQL refuses window functions together with a locking clause. Columns are text where a
+ * driver would otherwise choose a type for them.
  */
 export function fairTakeStatement(input: FairTakeInput): PostgresStatement {
   const root = quoteIdentifier(input.root);
@@ -46,7 +50,7 @@ export function fairTakeStatement(input: FairTakeInput): PostgresStatement {
     and ($8::uuid is null or l.scope_id = $8::uuid)
   order by l.priority, (l.taken - d.value)::double precision / l.weight, greatest(l.vtime, $3::double precision), l.id
   limit $4::integer
-  for update of l skip locked
+  for no key update of l skip locked
 ), share as (select greatest(1, ceil($5::numeric / nullif(count(*), 0))) as n from picked)
 select p.id::text as lane_id, p.priority, p.capability_set, p.cap,
   j.id::text as id, j.scope_id::text as scope_id, j.scope, j.queue, j.kind, j.run_at, j.principal, j.causation,
