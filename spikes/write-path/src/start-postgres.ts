@@ -35,6 +35,7 @@ export async function startPostgres(): Promise<RunningPostgres> {
       admin,
       app: { ...admin, user: 'kw_app', password: 'kw_app' },
       version: version.rows[0]?.version ?? 'unknown',
+      containerId: container.getId(),
       stop: async () => {
         await container.stop();
       },

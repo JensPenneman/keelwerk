@@ -9,6 +9,7 @@
     "measure": "node src/main.ts"
   },
   "devDependencies": {
+    "@keelwerk/testing": "workspace:*",
     "@testcontainers/postgresql": "12.2.1",
     "@types/node": "26.6.6",
     "@types/pg": "8.23.1",

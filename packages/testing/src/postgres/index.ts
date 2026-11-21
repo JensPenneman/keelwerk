@@ -1,3 +1,4 @@
+export { assertDeadlocksDeclared } from './assert-deadlocks-declared.ts';
 export { deadlockCount } from './deadlock-count.ts';
 export { declareDeadlocks } from './declare-deadlocks.ts';
 export { execInContainer } from './exec-in-container.ts';

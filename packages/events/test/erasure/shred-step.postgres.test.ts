@@ -12,7 +12,7 @@ describe('the shred step on PostgreSQL', () => {
   let probe: Probe;
 
   beforeAll(async () => {
-    postgres = await startPostgres({ checkDeadlocks: true });
+    postgres = await startPostgres();
     probe = await bootProbe('memory', {
       external: {
         factory: postgresAdapter({ ownerUrl: postgres.adminUrl }),

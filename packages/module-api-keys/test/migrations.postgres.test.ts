@@ -9,7 +9,7 @@ describe('api-keys on PostgreSQL', () => {
   let app: BootedApiKeys;
 
   beforeAll(async () => {
-    postgres = await startPostgres({ checkDeadlocks: true });
+    postgres = await startPostgres();
     app = await bootApiKeys('memory', {
       external: { factory: postgresAdapter({ ownerUrl: postgres.adminUrl }), url: postgres.appUrl },
     });

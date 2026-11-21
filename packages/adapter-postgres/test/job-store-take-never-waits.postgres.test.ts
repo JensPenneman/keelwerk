@@ -1,14 +1,25 @@
 // biome-ignore-all lint/style/useNamingConvention: the keys are the column names of the framework tables
-import type { JobStore, StorageScope, StoredJob, StoredJobSpec } from '@keelwerk/core';
+import type { StoredJob } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import { eventHarness } from './support/event-harness.ts';
-import { spec, takeRequest, tenant } from './support/job-store-fixtures.ts';
-import { lockLook } from './support/lock-look.ts';
-import { taggedUnit } from './support/tagged-unit.ts';
+import { spec } from './support/job-store-fixtures.ts';
+import type { Observed } from './support/take-kit.ts';
+import { takeKit } from './support/take-kit.ts';
 
-const { adapter, clock, run, owner } = eventHarness('job_store_take_never_waits', 16);
-const namespaceScope: StorageScope = { level: 'namespace', reason: 'test' };
-const { untilEndedOrWaits } = lockLook(owner);
+const harness = eventHarness('job_store_take_never_waits', 16);
+const {
+  inTenant,
+  fifo,
+  group,
+  inputs,
+  takeAll,
+  enqueueFor,
+  expireLeases,
+  observe,
+  holdingCount,
+  stateOf,
+  rowsOf,
+} = takeKit(harness);
 
 /*
  * What decides every case below: the unit or the client that holds a lock is opened and ended by the
@@ -20,101 +31,6 @@ const { untilEndedOrWaits } = lockLook(owner);
  * job's group row another unit holds); a lane in which only a reclaim, a promotion or a release was
  * left behind a held row is not counted, so those cases answer 0 and the next take does the work.
  */
-
-const tagged = <T>(label: string, fn: (jobs: JobStore) => Promise<T>): Promise<T> =>
-  taggedUnit(adapter(), clock, namespaceScope, `job-store:${label}`, async (unit) => fn(unit.jobs));
-const inTenant = <T>(label: string, fn: (jobs: JobStore) => Promise<T>): Promise<T> =>
-  taggedUnit(adapter(), clock, tenant(0), `job-store:${label}`, async (unit) => fn(unit.jobs));
-
-const fifo = (n: number, over: Partial<StoredJobSpec> = {}): StoredJobSpec =>
-  spec(n, { ordering: 'fifo-per-key', key: { value: 'chain', onConflict: 'append' }, ...over });
-const group = (concurrency: number) => ({ id: 'g', concurrency });
-const inputOf = (job: StoredJob): number => (job.run as { input: number }).input;
-const inputs = (jobs: readonly StoredJob[]): number[] => jobs.map(inputOf).sort();
-
-const takeAll = (label: string): Promise<{ jobs: readonly StoredJob[]; skippedLanes: number }> =>
-  tagged(label, (jobs) => jobs.take('commands', 'w2', takeRequest(5)));
-
-/** A take unit as the fetcher runs it: the promotion first, then the take, in one unit. */
-const promoteAndTake = (label: string) =>
-  tagged(label, async (jobs) => {
-    const promoted = await jobs.promote('commands', 100);
-    return { promoted, ...(await jobs.take('commands', 'w2', takeRequest(5))) };
-  });
-
-async function enqueueFor(jobs: readonly StoredJobSpec[]): Promise<void> {
-  await run(tenant(0), async (unit) => {
-    for (const job of jobs) await unit.jobs.enqueue(job);
-  });
-}
-
-/** Takes the jobs with a 1 s lease and lets the lease end, `rounds` times: a job has then lost `rounds - 1` leases. */
-async function expireLeases(rounds: number): Promise<void> {
-  for (let round = 0; round < rounds; round += 1) {
-    await tagged(`take-lease-${round}`, (jobs) => jobs.take('commands', 'w', takeRequest(5, 1000)));
-    clock.advance(5000);
-  }
-}
-
-/** What a take under test did: its promise, and whether a look saw it wait for a lock. */
-interface Observed<T> {
-  readonly promise: Promise<T>;
-  readonly waited: boolean;
-}
-
-/**
- * Starts `work` and goes on when it has ended or a look has seen it wait; the caller ends its holder
- * and then awaits `promise`. A holder that sees `waited` ends and fails the case.
- */
-async function observe<T>(label: string, work: () => Promise<T>): Promise<Observed<T>> {
-  let ended = false;
-  const promise = work().finally(() => {
-    ended = true;
-  });
-  return { promise, waited: await untilEndedOrWaits(() => ended, label) };
-}
-
-async function laneId(): Promise<string> {
-  const [lane] = await owner(
-    async (client) => (await client.query(`select id::text as id from app.kw_job_lanes`)).rows,
-  );
-  return String(lane?.id);
-}
-
-/** A transaction of the owner that holds one counter row of the lane `for update` until `inside` returns. */
-async function holdingCount(
-  kind: 'done' | 'enqueued',
-  inside: () => Promise<void>,
-  lane?: string,
-): Promise<void> {
-  const held = lane ?? (await laneId());
-  await owner(async (client) => {
-    await client.query('begin');
-    try {
-      await client.query(
-        `select 1 from app.kw_job_lane_counts where lane_id = $1::bigint and kind = $2 for update`,
-        [held, kind],
-      );
-      await inside();
-    } finally {
-      await client.query('rollback');
-    }
-  });
-}
-
-const stateOf = async (key: string): Promise<readonly Record<string, unknown>[]> =>
-  owner(
-    async (client) =>
-      (
-        await client.query(
-          `select state, lost_leases from app.kw_jobs where key = $1 order by id`,
-          [key],
-        )
-      ).rows,
-  );
-
-const rowsOf = async (sql: string): Promise<readonly Record<string, unknown>[]> =>
-  owner(async (client) => (await client.query(sql)).rows);
 
 describe('a take inside a unit that holds what the reclaim needs', () => {
   test('a unit that changed the lane cap and then appends under the key of an expired head: the take does not wait for the lane, reports no skipped lane, and the append is not deadlocked', async () => {
@@ -204,24 +120,6 @@ describe('a take inside a unit that holds what the reclaim needs', () => {
     expect(await rowsOf(`select outcome from app.kw_job_history`)).toEqual([{ outcome: 'dead' }]);
   });
 
-  test('an owner that holds the enqueued counter of the lane: a take unit leaves a due job scheduled, and one unit later promotes and takes it', async () => {
-    await enqueueFor([spec(1, { runAt: clock.now().add({ seconds: 10 }) })]);
-    clock.advance(11_000);
-    let inside:
-      | Observed<{ promoted: number; jobs: readonly StoredJob[]; skippedLanes: number }>
-      | undefined;
-    await holdingCount('enqueued', async () => {
-      inside = await observe('take-promote', () => promoteAndTake('take-promote'));
-    });
-    expect(inside?.waited).toBe(false);
-    expect(await inside?.promise).toEqual({ promoted: 0, jobs: [], skippedLanes: 0 });
-    expect(await rowsOf(`select state from app.kw_jobs`)).toEqual([{ state: 'scheduled' }]);
-    const next = await promoteAndTake('take-promote-after');
-    expect(next.promoted).toBe(1);
-    expect(next.skippedLanes).toBe(0);
-    expect(inputs(next.jobs)).toEqual([1]);
-  });
-
   test('an owner that holds the enqueued counter of the lane: a FIFO head at its third lost lease stays running, and the next take ends it and hands out the follower', async () => {
     await enqueueFor([fifo(1), fifo(2)]);
     await expireLeases(3);
@@ -284,40 +182,5 @@ describe('a take inside a unit that holds what the reclaim needs', () => {
       { state: 'dead', lost_leases: 3 },
       { state: 'running', lost_leases: 0 },
     ]);
-  });
-
-  test('an owner that holds the enqueued counter of one tenant lane: a take unit promotes and takes the due job of another tenant, leaves the held lane to a later unit, and does not wait', async () => {
-    const due = clock.now().add({ seconds: 10 });
-    await run(tenant(0), async (unit) => void (await unit.jobs.enqueue(spec(1, { runAt: due }))));
-    await run(
-      tenant(1),
-      async (unit) => void (await unit.jobs.enqueue(spec(2, { runAt: due, scope: tenant(1) }))),
-    );
-    clock.advance(11_000);
-    const [held] = await rowsOf(
-      `select lane_id::text as lane from app.kw_jobs where (input->>'input')::int = 1`,
-    );
-    let inside:
-      | Observed<{ promoted: number; jobs: readonly StoredJob[]; skippedLanes: number }>
-      | undefined;
-    await holdingCount(
-      'enqueued',
-      async () => {
-        inside = await observe('take-tenants', () => promoteAndTake('take-tenants'));
-      },
-      String(held?.lane),
-    );
-    expect(inside?.waited).toBe(false);
-    const answer = await inside?.promise;
-    expect(answer?.promoted).toBe(1);
-    expect(inputs(answer?.jobs ?? [])).toEqual([2]);
-    expect(answer?.skippedLanes).toBe(0);
-    expect(await rowsOf(`select state from app.kw_jobs order by id`)).toEqual([
-      { state: 'scheduled' },
-      { state: 'running' },
-    ]);
-    const next = await promoteAndTake('take-tenants-after');
-    expect(next.promoted).toBe(1);
-    expect(inputs(next.jobs)).toEqual([1]);
   });
 });

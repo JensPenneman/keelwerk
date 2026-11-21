@@ -12,7 +12,7 @@ let postgres: Awaited<ReturnType<typeof startPostgres>>;
 let kit: RetentionKit;
 
 beforeAll(async () => {
-  postgres = await startPostgres({ checkDeadlocks: true });
+  postgres = await startPostgres();
   kit = await bootRetention('memory', { batchSize: 10 }, ['acme', 'globex'], {
     factory: postgresAdapter({ ownerUrl: postgres.adminUrl }),
     url: postgres.appUrl,

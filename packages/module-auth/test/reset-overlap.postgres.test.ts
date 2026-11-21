@@ -13,7 +13,7 @@ describe('reset deliveries on PostgreSQL', () => {
   let both: BootedBoth;
 
   beforeAll(async () => {
-    postgres = await startPostgres({ checkDeadlocks: true });
+    postgres = await startPostgres();
     both = await bootBoth(
       'memory',
       {},

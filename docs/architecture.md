@@ -4136,22 +4136,34 @@ id of a process instance forever. Build a job key from ids, never from a persona
   takeable jobs the take could not look at because a lock was busy (a lane another taker holds, a
   job's group row another unit holds); work a take leaves behind a busy lock, a reclaim, a promotion
   or the release of a successor, does not count, and the next take of the queue does it. What brings
-  that take depends on the holder: the commit of a unit that made a job takeable sends a wake-up
-  that names the queue (an enqueue of a due job, a cap change, a group's re-limit, a completion, a
-  cancel, the release of attempts at a drain), a slot that frees in a fetcher sweeps the queue, and
-  the poll (every second by default) is the net under both; a unit that only appends a `waiting`
-  job under a key, and an erasure, send no wake-up. At a still clock in the test runtime none of
-  these may come, so the work stays until the clock moves or another take runs (section 9.5.6).
+  that take depends on the holder: the commit of a unit sends a wake-up where it sends one (an
+  enqueue of a due job, a cap change, a group's re-limit, a completion, a cancel that ends a
+  running attempt, an erasure that releases a key's next job); it names the queue, or every queue
+  for a re-limit and for grouped jobs. A slot that frees in a fetcher sweeps the queue, and the poll
+  (about every second: a fixed interval with jitter, no option) is the net under both. A unit that
+  only appends a `waiting` job under a key, a cancel of pending jobs and an erasure that releases
+  no job send no wake-up. At a still clock in the test runtime none of these may come, so the work
+  stays until the clock moves or another take runs (section 9.5.6).
   The take's unit buffers no lane change, so its commit runs no tail statement, and a take is part
   of no deadlock. Known limits: under sustained contention on a lane's row the return of an expired
   job can be passed over by any number of takes, and the first take whose reclaim finds the row
   free returns it (WP-198 settles or binds this); units that take two key locks in opposite orders
   (enqueues, cancels by key, erasures) can still deadlock, and a completion waits for the key's
-  lock behind an open append. The deadlock counter shows a deadlock that a retry hides: the
-  connection guard of the PostgreSQL test suites (`guardClientConnections`, in the setup of
-  adapter-postgres, data and testing and in the portal example) checks it for every file, and the
-  files of events and of the modules, which start a container of their own, check it when they stop
-  it (`startPostgres({ checkDeadlocks: true })`); those files have no connection guard.
+  lock behind an open append. The deadlock counter shows a deadlock that a retry hides, and two
+  checks read it. The connection guard (`guardClientConnections`) checks each file of the four
+  guarded projects (adapter-postgres, data, testing and the portal example) for connections left
+  open and for a counter that moved by other than the file declared. `startPostgres` checks the
+  counter of its own container when it stops it, by default, so every file that starts a container
+  through it, the files of events and of the modules among them, is checked and has no connection
+  guard; a file that declared deadlocks and stops two checked containers fails, because a
+  declaration belongs to the file. Opted out (`checkDeadlocks: false`, each with its reason in the
+  code): the global setups of the four guarded projects, whose files the guard checks one by one,
+  and the cases of the rule's own test. A lint rule (`noRestrictedImports`, root `biome.json`)
+  refuses the container libraries outside the testing package's `postgres` folder; it does not
+  reach the spikes, where the linter is off: `spikes/write-path` applies the rule in its test file
+  through the shared functions, `spikes/queue-real-handlers` uses `startPostgres`, and
+  `spikes/interpreter-overhead` starts a container of its own for a measurement, not a test, and is
+  not checked.
 - A job's unit runs the kernel's loads, then writes events, effect records, receipt and completion
   at its tail (section 7.9.4). No handler waits on the network inside a unit, so no long write
   transaction pins PostgreSQL's MVCC horizon. Database effects commit with the completion,
@@ -4456,7 +4468,7 @@ Making the two the same number is open work.
   after a short jitter, instead of waiting for the next wake-up or the poll (section 9.5.3); a take
   that left a reclaim, a promotion or a release behind a row another unit holds does not count that
   lane as skipped: the next take of the queue does that work, brought by the wake-up of the holder's
-  commit, a slot that frees or the poll (section 9.5.2), and at a still clock in the test runtime
+  commit where it sends one, a slot that frees or the poll (section 9.5.2), and at a still clock in the test runtime
   it stays until the clock moves or another take runs. A take that skipped lanes is retaken at most
   three times; a sweep that ends after three skipped retakes has not come to rest, and the next
   wake-up, the poll or the test probe sweeps the queue again. With

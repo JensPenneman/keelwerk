@@ -13,10 +13,13 @@ import type { RunningPostgres } from './running-postgres.ts';
  * as its volume and keeps `PGDATA` below it, so the mount replaces the anonymous volume; the server
  * starts faster too), creates the application role, and labels the container `keelwerk-test` so
  * that `docker ps -a --filter label=keelwerk-test` finds leftovers. Clients reach it over TCP
- * through the container runtime's port forwarding. A test file that starts the container for itself
- * passes `checkDeadlocks`: its `stop` then also fails unless the container's deadlock counter moved
- * by exactly what the file declared (`declareDeadlocks`), the rule of the connection guard
- * (`assertDeadlocksDeclared`); the container goes down first, either way.
+ * through the container runtime's port forwarding. By default the container's `stop` also fails
+ * unless its deadlock counter moved by exactly what the file declared (`declareDeadlocks`), the
+ * rule of the connection guard (`assertDeadlocksDeclared`); the container goes down first, either
+ * way. A file that declared deadlocks and stops more than one checked container fails: a declaration
+ * belongs to the file, so opt one container out with `checkDeadlocks: false` or split the file.
+ * Only a caller whose files the connection guard already checks one by one, and a test of this rule,
+ * opts out.
  */
 export async function startPostgres(
   options: { readonly checkDeadlocks?: boolean } = {},
@@ -47,9 +50,10 @@ export async function startPostgres(
     );
     const containerId = container.getId();
     const cluster = { containerId, adminUrl };
-    const checkDeadlocks = options.checkDeadlocks === true;
+    const checkDeadlocks = options.checkDeadlocks !== false;
     const deadlocksBefore = checkDeadlocks ? await deadlockCount(cluster) : 0;
     const declaredBefore = declaredDeadlocks.count;
+    if (checkDeadlocks) declaredDeadlocks.checked += 1;
     return {
       adminUrl,
       appUrl,
@@ -70,9 +74,14 @@ export async function startPostgres(
         await container.stop();
         if (checkDeadlocks) {
           // What the file declared for this container only; a declaration for another cluster stays.
-          const declared = declaredDeadlocks.count - declaredBefore;
+          const total = declaredDeadlocks.count;
           declaredDeadlocks.count = declaredBefore;
-          assertDeadlocksDeclared(moved, declared);
+          if (total > 0 && declaredDeadlocks.checked > 1) {
+            throw new Error(
+              'The test file declared deadlocks and starts more than one container with the deadlock check, so a declaration cannot be charged to one container. Opt one container out with checkDeadlocks: false, or split the file.',
+            );
+          }
+          assertDeadlocksDeclared(moved, total - declaredBefore);
         }
       },
     };

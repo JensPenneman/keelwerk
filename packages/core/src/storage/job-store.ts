@@ -62,12 +62,14 @@ export interface JobStore {
    * FIFO head stays its key's head, a due job stays scheduled, and the next take of the queue does
    * that work. Under sustained contention on a lane's row the return of an expired job can be
    * passed over by any number of takes; the first take whose reclaim finds the row free returns it.
-   * What brings the next take: the wake-up that the commit of a unit sends when it made a job
-   * takeable (an enqueue of a due job, a cap change, a group's re-limit, a completion, a cancel, the
-   * release of attempts at a drain; a unit that only appends a `waiting` job under a key or erases
-   * sends none), a slot that frees in a fetcher, and the next poll (every second by default). At a
-   * still clock in the test runtime none of these may come: the work stays until the clock moves or
-   * another take runs.
+   * What brings the next take: the wake-up that the commit of a unit sends where it sends one (an
+   * enqueue of a due job, a cap change, a group's re-limit, a completion, a cancel that ends a
+   * running attempt, an erasure that releases a key's next job; it names the queue, or every queue
+   * for a re-limit and for grouped jobs), a slot that frees in a fetcher, and the next poll, about
+   * every second (a fixed interval with jitter, no option). A unit that only appends a `waiting`
+   * job under a key, a cancel of pending jobs and an erasure that releases no job send no wake-up.
+   * At a still clock in the test runtime none of these may come: the work stays until the clock
+   * moves or another take runs.
    */
   take(
     queue: string,
