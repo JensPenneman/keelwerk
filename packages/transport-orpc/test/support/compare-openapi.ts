@@ -237,7 +237,6 @@ export function compareOpenapi(
     format: 'keelwerk.orpc-comparison/1',
     app: surface.app,
     apiVersion: surface.apiVersion,
-    surface: surface.hash,
     actions: surface.actions.length,
     own: ownFacts,
     orpc: orpcFacts,

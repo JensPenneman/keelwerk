@@ -41,8 +41,6 @@ export interface OpenapiComparison {
   readonly format: 'keelwerk.orpc-comparison/1';
   readonly app: string;
   readonly apiVersion: string;
-  /** The surface hash of the version. */
-  readonly surface: string;
   readonly actions: number;
   readonly own: DocumentFacts;
   readonly orpc: DocumentFacts;

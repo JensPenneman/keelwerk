@@ -2,7 +2,6 @@
   "format": "keelwerk.orpc-comparison/1",
   "app": "orpc-conformance",
   "apiVersion": "2026-11-11",
-  "surface": "sha256-Ne7-6eT-OnwrGR7x6LuU84uxw1OZ22G40YUk8n-DajU",
   "actions": 112,
   "own": {
     "producer": "@keelwerk/transport-rest",
