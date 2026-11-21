@@ -1,9 +1,12 @@
 import type { JobAttempt, JobOutcome } from '@keelwerk/core';
 import { encodeInstant } from './encode-instant.ts';
 import { groupKeyOfJob } from './group-key-of-job.ts';
+import { jobUnitScopeId } from './job-unit-scope-id.ts';
 import { completeJobStatement } from './postgres/complete-job-statement.ts';
+import { quoteIdentifier } from './postgres/quote-identifier.ts';
 import { runSql } from './run-sql.ts';
 import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
+import { sqlJobKeyLock } from './sql-job-key-lock.ts';
 import { sqlJobRelease } from './sql-job-release.ts';
 import { sqlLaneChanges } from './sql-lane-changes.ts';
 import { sqlReleaseGroups } from './sql-release-groups.ts';
@@ -16,7 +19,10 @@ import type { SqlUnitContext } from './sql-unit-context.ts';
  * attempt, and writes the history row; `false` when the lease was lost. The lane's `done` counter
  * and the group's running slot are given back at the end of the unit, before the commit tail, so
  * the hot counter rows are locked for as short a time as possible. A job that ends (not a retry)
- * releases the next job of its key when the queue orders by key.
+ * releases the next job of its key when the queue orders by key. For such a job the key's advisory
+ * lock is taken before the completion statement (lock, then row, as an enqueue and a cancel by key
+ * take it: the cancel deletes a running head of the timers and hooks queues): an append that is still open decides first and the completion then releases its job, or the
+ * completion commits first and the append sees no head. A retry keeps the head and takes no lock.
  */
 export async function sqlJobComplete(
   ctx: SqlUnitContext,
@@ -27,6 +33,17 @@ export async function sqlJobComplete(
 ): Promise<boolean> {
   if (!/^\d+$/.test(attempt.jobId)) return false;
   const now = ctx.clock.now();
+  if (outcome.kind !== 'retry') {
+    const root = quoteIdentifier(ctx.namespace.root);
+    const scopeId = jobUnitScopeId(ctx);
+    const [head] = await runSql(ctx.db, {
+      sql: `select lane_id::text as lane_id, key from ${root}.kw_jobs
+where id = $1::bigint and state = 'running' and ordering = 'fifo-per-key' and key is not null
+  and ($2::uuid is null or scope_id = $2::uuid)`,
+      parameters: [attempt.jobId, scopeId],
+    });
+    if (head !== undefined) await sqlJobKeyLock(ctx, String(head.lane_id), String(head.key));
+  }
   const [row] = await runSql(
     ctx.db,
     completeJobStatement({

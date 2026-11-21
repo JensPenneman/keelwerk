@@ -4108,7 +4108,13 @@ id of a process instance forever. Build a job key from ids, never from a persona
   `replace` and `coalesce` act on a pending job of the same key and lane.
 - Completion is a statement of the job's unit, conditional on its lease: success removes the row and
   writes history, a retryable failure schedules the next attempt, and the key's next `waiting` job
-  becomes `available`.
+  becomes `available`. That release and the append of a job under the key serialise on the
+  transaction-scoped advisory lock of lane and key: an append sees the head as it is after an ending
+  unit committed, or the ending unit waits for the append's commit and then releases the appended job,
+  so a job appended under a key is never left `waiting` without a head. A cancel by key takes the same lock: an
+  append that committed before it is cancelled with the key's other jobs, an append after it waits behind a
+  running head the cancel left or finds no head. A reclaim, which every take runs, only tries the lock and leaves
+  the expired job of a key whose lock is held to a later take, so a take never waits behind an open unit.
 - A job's unit runs the kernel's loads, then writes events, effect records, receipt and completion
   at its tail (section 7.9.4). No handler waits on the network inside a unit, so no long write
   transaction pins PostgreSQL's MVCC horizon. Database effects commit with the completion,
@@ -6424,7 +6430,8 @@ export interface JobStore {
 - Group limits (concurrency and rate) are counted under the group's row lock, taken in id order
   after the jobs are picked, and a job over its limit goes back; counting them inside the take
   statement raced at `READ COMMITTED`. FIFO per key keeps a key's followers `waiting` and makes the
-  next one `available` when its predecessor completes.
+  next one `available` when its predecessor completes; the unit that completes, reclaims, purges or
+  cancels a head takes the key's advisory lock (before its rows, where it deletes or changes any), the same lock an enqueue under the key holds.
 - Renewal and completion are conditional on (worker, attempt), so a paused or partitioned attempt
   fails at its completion statement and rolls back its own unit; the next take returns a job whose
   lease expired to `available` (section 9.5.4).

@@ -2,12 +2,17 @@ import { encodeInstant } from './encode-instant.ts';
 import { quoteIdentifier } from './postgres/quote-identifier.ts';
 import { runSql } from './run-sql.ts';
 import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
+import { sqlJobKeyLock } from './sql-job-key-lock.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
 
 /**
  * FIFO per key (9.1.2, 9.5.2): when the head of a key leaves the queue, the key's next `waiting`
  * job becomes `available` (or `scheduled`, when its time has not come) and, when available, is
  * counted on its lane at the commit tail; `queue` is the queue of the lane, recorded as takeable.
+ * The key's advisory lock is taken first, the one an append under the key holds until it commits: a
+ * job appended while the head ends is either seen by the append as having no head, or released here
+ * once the append has committed. The callers (completion, reclaim, purge, the replace of an enqueue)
+ * take it before their rows and so hold it already; this call is the guard for a caller that does not.
  */
 export async function sqlJobRelease(
   ctx: SqlUnitContext,
@@ -16,6 +21,7 @@ export async function sqlJobRelease(
   laneId: string,
   key: string,
 ): Promise<void> {
+  await sqlJobKeyLock(ctx, laneId, key);
   const root = quoteIdentifier(ctx.namespace.root);
   const parameters: unknown[] = [laneId, key, encodeInstant(ctx.clock.now())];
   let scoped = '';

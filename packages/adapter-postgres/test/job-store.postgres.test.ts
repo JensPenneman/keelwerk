@@ -3,40 +3,11 @@ import type { JobStore, StorageScope, StoredJob, StoredJobSpec } from '@keelwerk
 import { jobStoreCases } from '@keelwerk/testing';
 import { describe, expect, test } from 'vitest';
 import { eventHarness } from './support/event-harness.ts';
+import { pause, spec, takeRequest, tenant } from './support/job-store-fixtures.ts';
 import { taggedUnit } from './support/tagged-unit.ts';
-import { testScopes } from './support/test-scopes.ts';
 
-const { backendId } = testScopes;
 const { adapter, clock, run, owner } = eventHarness('job_store', 16);
 const namespaceScope: StorageScope = { level: 'namespace', reason: 'test' };
-
-const tenant = (n: number): Extract<StorageScope, { level: 'tenant' }> => ({
-  level: 'tenant',
-  backendId,
-  tenantId: `00000000-0000-4000-8000-0000000002${String(n).padStart(2, '0')}`,
-});
-
-const spec = (n: number, over: Partial<StoredJobSpec> = {}): StoredJobSpec => ({
-  queue: 'commands',
-  run: { action: 'a', input: n },
-  scope: tenant(0),
-  principal: { resolver: 'system', principalId: 'p' },
-  causation: {},
-  build: { id: 'b1', revision: 1 },
-  kind: 'action',
-  laneCap: 10,
-  createdAt: Temporal.Instant.from('2026-01-01T00:00:00Z'),
-  ...over,
-});
-
-const takeRequest = (limit: number, leaseMs = 60_000) => ({
-  limit,
-  capabilitySets: [''],
-  maxRevision: 100,
-  leaseMs,
-});
-
-const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** A unit that names itself in `application_name`, so a stuck statement shows who ran it. */
 const tagged = <T>(label: string, fn: (jobs: JobStore) => Promise<T>): Promise<T> =>

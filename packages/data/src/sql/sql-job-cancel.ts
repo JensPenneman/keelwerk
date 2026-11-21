@@ -2,8 +2,11 @@ import { cancelsRunningAttempt } from '@keelwerk/core';
 import { encodeInstant } from './encode-instant.ts';
 import { groupKeyOfJob } from './group-key-of-job.ts';
 import { quoteIdentifier } from './postgres/quote-identifier.ts';
+import type { SqlRow } from './run-sql.ts';
 import { runSql } from './run-sql.ts';
 import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
+import { sqlJobDeleteUnderKeyLocks } from './sql-job-delete-under-key-locks.ts';
+import type { SqlJobKeyRef } from './sql-job-key-locks.ts';
 import { sqlLaneChanges } from './sql-lane-changes.ts';
 import { sqlReleaseGroups } from './sql-release-groups.ts';
 import { sqlSettleLanes } from './sql-settle-lanes.ts';
@@ -33,7 +36,12 @@ export interface SqlCancelledJob {
  * and its group's running slot are given back at the commit tail. A job that was `available` leaves
  * its lane's `enqueued` count there too, beside the other changes of the unit. A namespace-scope
  * unit cancels across scopes (the maintenance policy of the queue tables); every other unit only
- * its own.
+ * its own. A cancel by key takes the advisory lock of every lane's FIFO key before it deletes any
+ * row, in one order, and deletes only in the lanes it holds the lock of, reading the lanes again until
+ * none is new (`sqlJobDeleteUnderKeyLocks`): an append that committed before is cancelled with the
+ * key's other jobs, an append that comes after waits behind a running head this cancel left or, with
+ * none, is available. The lock comes first because the delete may wait for a running head's row that
+ * a completion holds, and that completion takes the lock before its row.
  */
 export async function sqlJobCancel(
   ctx: SqlUnitContext,
@@ -41,36 +49,63 @@ export async function sqlJobCancel(
   target: SqlJobCancelTarget,
 ): Promise<readonly SqlCancelledJob[]> {
   const root = quoteIdentifier(ctx.namespace.root);
-  const parameters: unknown[] = [];
-  const bind = (value: unknown, cast: string): string => {
-    parameters.push(value);
-    return `$${parameters.length}::${cast}`;
-  };
-  const conditions = [
-    'ids' in target || !cancelsRunningAttempt(target.queue)
-      ? `state in ('scheduled', 'available', 'waiting')`
-      : `state in ('scheduled', 'available', 'waiting', 'running')`,
-  ];
-  if ('ids' in target) {
-    conditions.push(`id = any (${bind(target.ids, 'bigint[]')})`);
-  } else {
-    conditions.push(`queue = ${bind(target.queue, 'text')}`, `key = ${bind(target.key, 'text')}`);
-  }
-  if (ctx.scope.level !== 'namespace') {
-    conditions.push(`scope_id = ${bind(ctx.scopeId(), 'uuid')}`);
-  }
-  const finished = bind(encodeInstant(ctx.clock.now()), 'timestamptz');
-  const rows = await runSql(ctx.db, {
-    sql: `with gone as (
+  const finished = encodeInstant(ctx.clock.now());
+  const cutRows = async (
+    lockedLanes: readonly string[] | undefined,
+  ): Promise<readonly SqlRow[]> => {
+    const parameters: unknown[] = [];
+    const bind = (value: unknown, cast: string): string => {
+      parameters.push(value);
+      return `$${parameters.length}::${cast}`;
+    };
+    const conditions = [
+      'ids' in target || !cancelsRunningAttempt(target.queue)
+        ? `state in ('scheduled', 'available', 'waiting')`
+        : `state in ('scheduled', 'available', 'waiting', 'running')`,
+    ];
+    if ('ids' in target) {
+      conditions.push(`id = any (${bind(target.ids, 'bigint[]')})`);
+    } else {
+      conditions.push(`queue = ${bind(target.queue, 'text')}`, `key = ${bind(target.key, 'text')}`);
+    }
+    if (ctx.scope.level !== 'namespace') {
+      conditions.push(`scope_id = ${bind(ctx.scopeId(), 'uuid')}`);
+    }
+    if (lockedLanes !== undefined) {
+      conditions.push(
+        `(ordering <> 'fifo-per-key' or lane_id = any (${bind(lockedLanes, 'bigint[]')}))`,
+      );
+    }
+    const stamp = bind(finished, 'timestamptz');
+    return runSql(ctx.db, {
+      sql: `with gone as (
   delete from ${root}.kw_jobs where ${conditions.join(' and ')}
   returning id, scope_id, lane_id, queue, kind, state, attempt, started_at, ordering, key, group_id, group_spec ->> 'scope' as group_scope
 ), history as (
   insert into ${root}.kw_job_history (scope_id, job_id, queue, kind, outcome, attempts, started_at, finished_at, error)
-  select scope_id, id, queue, kind, 'cancelled', attempt, started_at, ${finished}, null from gone
+  select scope_id, id, queue, kind, 'cancelled', attempt, started_at, ${stamp}, null from gone
 )
 select id::text as id, scope_id::text as scope_id, lane_id::text as lane_id, queue, state, ordering, key, group_id, group_scope from gone order by id`,
-    parameters,
-  });
+      parameters,
+    });
+  };
+  const readLanes = async (queue: string, key: string): Promise<readonly SqlJobKeyRef[]> => {
+    const scoped = ctx.scope.level !== 'namespace';
+    const lanes = await runSql(ctx.db, {
+      sql: `select distinct lane_id::text as lane_id from ${root}.kw_jobs
+where queue = $1::text and key = $2 and ordering = 'fifo-per-key'${scoped ? ' and scope_id = $3::uuid' : ''}`,
+      parameters: scoped ? [queue, key, ctx.scopeId()] : [queue, key],
+    });
+    return lanes.map((row) => ({ laneId: String(row.lane_id), key }));
+  };
+  const rows =
+    'key' in target
+      ? await sqlJobDeleteUnderKeyLocks(
+          ctx,
+          () => readLanes(target.queue, target.key),
+          (locked) => cutRows(locked.map((ref) => ref.laneId)),
+        )
+      : await cutRows(undefined);
   const cancelled = rows.map((row) => ({
     id: String(row.id),
     laneId: String(row.lane_id),

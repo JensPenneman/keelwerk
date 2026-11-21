@@ -1,8 +1,11 @@
 import type { PurgedJob } from '@keelwerk/core';
 import { encodeInstant } from './encode-instant.ts';
 import { quoteIdentifier } from './postgres/quote-identifier.ts';
+import type { SqlRow } from './run-sql.ts';
 import { runSql } from './run-sql.ts';
 import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
+import { sqlJobDeleteUnderKeyLocks } from './sql-job-delete-under-key-locks.ts';
+import type { SqlJobKeyRef } from './sql-job-key-locks.ts';
 import { sqlJobRelease } from './sql-job-release.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
 
@@ -23,7 +26,12 @@ export interface SqlPurgedJob {
  * runs stays, whoever caused it), and writes a `cancelled` history row for each, which never holds
  * the input (a dead job keeps the `dead` row it already has). A job that was `available` leaves its
  * lane's `enqueued` count at the commit tail; the next waiting job of a key whose head left is
- * released. The jobs are answered with what they ran, for the value keys of their secret members.
+ * released. The advisory locks of the FIFO keys of the jobs to delete are taken, in one order, before
+ * the delete locks any row, and the delete is limited to the keys it holds the lock of, repeated until
+ * a read shows no key that is not locked (`sqlJobDeleteUnderKeyLocks`): an enqueue under such a key
+ * holds the lock and may wait for a row this delete holds, while the release below needs the lock.
+ * The jobs are answered with what they ran, for the
+ * value keys of their secret members.
  */
 export async function sqlJobPurge(
   ctx: SqlUnitContext,
@@ -33,10 +41,13 @@ export async function sqlJobPurge(
 ): Promise<readonly SqlPurgedJob[]> {
   const root = quoteIdentifier(ctx.namespace.root);
   const finished = encodeInstant(ctx.clock.now());
-  const rows = await runSql(ctx.db, {
-    sql: `with gone as (
+  const cut = async (locked: readonly SqlJobKeyRef[]): Promise<readonly SqlRow[]> =>
+    runSql(ctx.db, {
+      sql: `with gone as (
   delete from ${root}.kw_jobs where state <> 'running' and scope_id = $1::uuid
     and kind = 'action' and queue = any ($4::text[]) and principal->>'principalId' = any ($2::text[])
+    and (ordering <> 'fifo-per-key' or key is null
+      or (lane_id::text, key) in (select * from unnest($5::text[], $6::text[])))
   returning id, scope_id, lane_id, queue, kind, state, attempt, ordering, key, input
 ), history as (
   insert into ${root}.kw_job_history (scope_id, job_id, queue, kind, outcome, attempts, started_at, finished_at, error)
@@ -44,8 +55,25 @@ export async function sqlJobPurge(
   on conflict do nothing
 )
 select id::text as id, lane_id::text as lane_id, queue, state, ordering, key, input from gone order by id`,
-    parameters: [ctx.scopeId(), principalIds, finished, queues],
-  });
+      parameters: [
+        ctx.scopeId(),
+        principalIds,
+        finished,
+        queues,
+        locked.map((ref) => ref.laneId),
+        locked.map((ref) => ref.key),
+      ],
+    });
+  const readKeys = async (): Promise<readonly SqlJobKeyRef[]> => {
+    const keyed = await runSql(ctx.db, {
+      sql: `select distinct lane_id::text as lane_id, key from ${root}.kw_jobs
+where state <> 'running' and scope_id = $1::uuid and kind = 'action' and queue = any ($3::text[])
+  and principal->>'principalId' = any ($2::text[]) and ordering = 'fifo-per-key' and key is not null`,
+      parameters: [ctx.scopeId(), principalIds, queues],
+    });
+    return keyed.map((row) => ({ laneId: String(row.lane_id), key: String(row.key) }));
+  };
+  const rows = await sqlJobDeleteUnderKeyLocks(ctx, readKeys, cut);
   const purged = rows.map(
     (row): SqlPurgedJob => ({
       id: String(row.id),

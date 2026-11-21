@@ -16,7 +16,14 @@ export interface JobStore {
    * namespace unit, so tenants never wait on each other for it (section 15.1.4); refused elsewhere.
    */
   provisionGroup(group: JobGroup): Promise<void>;
-  /** Keys: keep, replace or coalesce a pending job with the same key and lane. */
+  /**
+   * Keys: keep, replace or coalesce a pending job with the same key and lane. Under a FIFO key
+   * (`ordering: 'fifo-per-key'`) the appended job is `waiting` behind the key's head. An adapter
+   * must serialise the append with every unit that ends the head (a completion, a reclaim, a purge,
+   * a replace, a cancel by key): the append sees the head as it is after such a unit committed, or that unit releases
+   * the appended job after the append's commit. A job appended under a key is never left `waiting`
+   * without a head.
+   */
   enqueue(job: StoredJobSpec): Promise<JobId>;
   /**
    * Cancels the pending jobs of a queue and key. In the timers and hooks queues the attempt that is
@@ -24,7 +31,10 @@ export interface JobStore {
    * that completes the job. Its row goes with its lease, so its worker's `complete` answers false and its heartbeat
    * is refused; the unit of the command rolls back, and exactly one of the cancel and that command
    * commits. In every other queue a running job is left to finish and is not counted (its command may commit in
-   * another scope's unit, where nothing could take it back). Answers how many it cancelled.
+   * another scope's unit, where nothing could take it back). Under a FIFO key the cancel serialises with
+   * an append under the key: an append that committed before the cancel is cancelled with the key's
+   * other jobs; an append that comes after it waits behind a running head the cancel left, or, with
+   * none left, is available. Answers how many it cancelled.
    */
   cancel(queue: string, key: string): Promise<number>;
   /** Moves due `scheduled` jobs (timers, retries, delayed sends) to `available` and counts them on their lanes. */
@@ -36,7 +46,8 @@ export interface JobStore {
    * ended for lost leases, stays takeable and is handed out with `leasesExhausted`, so its taker
    * ends it together with its receipt); only jobs enqueued at or below `maxRevision`, the worker's
    * build revision (section 19.2). `lanes` defaults to `limit`; `skippedLanes` counts lanes locked
-   * by other takers, not "no work".
+   * by other takers, not "no work". A take never waits behind an open unit: an expired job of a FIFO
+   * key whose lock another unit holds stays running until a later take gets the lock.
    */
   take(
     queue: string,

@@ -7,7 +7,9 @@ import { quoteIdentifier } from './quote-identifier.ts';
  * `available` with its lost-lease count raised, or, at the third consecutive loss, becomes a dead
  * letter that keeps its input and writes a `dead` history row with the error in `$3`; an action job
  * whose run carries a command id (`mayHoldReceipt`) stays `available` whatever the count, and its
- * taker ends it with its receipt. Rows another taker is reclaiming are skipped. The statement
+ * taker ends it with its receipt. Rows another taker is reclaiming are skipped, and so are the rows of a
+ * FIFO key that is not among the lane and key pairs `$5` and `$6` (the keys the caller holds the advisory
+ * lock of): such a job stays `running` with its expired lease until a later take holds the lock. The statement
  * answers the reclaimed jobs, so the caller can correct the lanes' `taken` and `done` counts and the
  * groups' running counts.
  */
@@ -17,6 +19,8 @@ export function reclaimStatement(
   now: string,
   deadError: string,
   scopeId: string | null,
+  lockedLanes: readonly string[],
+  lockedKeys: readonly string[],
 ): PostgresStatement {
   const root = quoteIdentifier(rootName);
   return {
@@ -24,6 +28,8 @@ export function reclaimStatement(
   select id from ${root}.kw_jobs
   where queue = $1::text and state = 'running' and lease_until < $2::timestamptz
     and ($4::uuid is null or scope_id = $4::uuid)
+    and (ordering <> 'fifo-per-key' or key is null
+      or (lane_id::text, key) in (select * from unnest($5::text[], $6::text[])))
   order by id for update skip locked
 ), lost as (
   update ${root}.kw_jobs j set lost_leases = j.lost_leases + 1,
@@ -42,6 +48,6 @@ export function reclaimStatement(
 )
 select id::text as id, scope_id::text as scope_id, lane_id::text as lane_id, state, ordering, key, group_id, group_scope
 from lost order by id`,
-    parameters: [queue, now, deadError, scopeId],
+    parameters: [queue, now, deadError, scopeId, lockedLanes, lockedKeys],
   };
 }

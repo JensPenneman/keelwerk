@@ -14,6 +14,7 @@ import { sqlJobCancel } from './sql-job-cancel.ts';
 import { sqlJobComplete } from './sql-job-complete.ts';
 import { sqlJobGroup } from './sql-job-group.ts';
 import { sqlJobHeartbeat } from './sql-job-heartbeat.ts';
+import { sqlJobKeyLock } from './sql-job-key-lock.ts';
 import { sqlJobKeyed } from './sql-job-keyed.ts';
 import { sqlJobLane } from './sql-job-lane.ts';
 import { sqlJobPromote } from './sql-job-promote.ts';
@@ -80,7 +81,10 @@ export interface SqlJobStore
  * not come, `waiting` behind an earlier job of the same key when the queue orders by key. A job
  * that becomes available moves its lane's `enqueued` counter at the commit tail (`runCommitTail`),
  * beside the scope's position counter. Concurrent units that enqueue under one key serialise on a
- * transaction-scoped advisory lock of lane and key, so the policy sees every earlier decision.
+ * transaction-scoped advisory lock of lane and key, so the policy sees every earlier decision. The
+ * units that end the key's head or remove its jobs (a completion, a reclaim, a purge, a replace, a
+ * cancel by key) take the same lock, so a job appended under a key is never left `waiting` without
+ * a head. A purge, a cancel by key, a completion and a reclaim take it before their row.
  * A job's unit is its scope's: no unit spans two scopes (14.3.6).
  */
 export function sqlJobStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): SqlJobStore {
@@ -119,10 +123,7 @@ export function sqlJobStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): SqlJo
         const due = Temporal.Instant.compare(runAt, now) <= 0;
         const key = spec.key;
         if (key !== undefined) {
-          await runSql(ctx.db, {
-            sql: 'select pg_advisory_xact_lock(hashtextextended($1, 0))',
-            parameters: [`${ctx.namespace.root}:${laneId}:${key.value}`],
-          });
+          await sqlJobKeyLock(ctx, laneId, key.value);
           // `append` looks nothing up: the job joins the key's FIFO below.
           const [found] =
             key.onConflict === 'append'
