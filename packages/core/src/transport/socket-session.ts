@@ -25,6 +25,14 @@ export interface SocketSession {
    * version retired); `release` is idempotent.
    */
   subscription(id: string): { readonly signal: AbortSignal; release(): void };
+  /**
+   * One call slot of the socket, taken when a call starts and released when it ends: a socket holds
+   * at most the host's `maxPendingInvokes` (the invokes queued or running on one socket). Throws
+   * `core.quota_exceeded` past that bound and `TypeError` before `open`; `release` is idempotent.
+   */
+  invocation(): { release(): void };
+  /** The largest message the host takes on this socket (its `liveSocket.maxMessageBytes`): a larger one closes the socket 1009 before a handler reads it. */
+  readonly maxMessageBytes: number;
   /** Runs the session check now (a subscription failed unauthenticated); false when the session did not hold and the socket is closing. */
   check(): Promise<boolean>;
   /** Aborted when the socket ends. */

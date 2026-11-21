@@ -47,7 +47,8 @@ function registrationRefusal(
  * and then meet the registration's app and `refuse` again for the session they opened,
  * start the session check and the ping loop, and end the first-message wait (`opened`); each
  * subscription takes its slot through `takeSocketSubscription` and is kept in `state.subscriptions`,
- * where aborting it (socket end, version retired) gives the slot back.
+ * where aborting it (socket end, version retired) gives the slot back; each call takes one of the
+ * host's `maxPendingInvokes` slots on `state.pendingInvokes`.
  */
 export function socketSessionOf(
   state: LiveSocketState,
@@ -60,6 +61,7 @@ export function socketSessionOf(
   return {
     session: () => state.session,
     carrier: () => state.socketCarrier,
+    maxMessageBytes: state.upgrade.host.liveSocket.maxMessageBytes,
     async open(credentials) {
       if (started) throw new TypeError('The socket was opened already.');
       started = true;
@@ -102,6 +104,23 @@ export function socketSessionOf(
       signal.addEventListener('abort', release, { once: true });
       abort.signal.addEventListener('abort', release, { once: true });
       return { signal: abort.signal, release };
+    },
+    invocation() {
+      if (!ready) throw new TypeError('Open the socket before a call.');
+      if (state.pendingInvokes >= state.upgrade.host.liveSocket.maxPendingInvokes) {
+        throw coreError('core.quota_exceeded', {
+          message: 'Too many calls are running on this socket.',
+        });
+      }
+      state.pendingInvokes += 1;
+      let released = false;
+      return {
+        release() {
+          if (released) return;
+          released = true;
+          state.pendingInvokes -= 1;
+        },
+      };
     },
     check: () => state.keeper?.check() ?? Promise.resolve(true),
     signal,

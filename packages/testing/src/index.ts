@@ -20,6 +20,7 @@ export type { Decoded } from './conformance/transport/decoded.ts';
 export { describeOperatorConformance } from './conformance/transport/describe-operator-conformance.ts';
 export { describeTransportConformance } from './conformance/transport/describe-transport-conformance.ts';
 export type { EventStreamReader } from './conformance/transport/event-stream-reader.ts';
+export { expectSteppedClockBounds } from './conformance/transport/expect-stepped-clock-bounds.ts';
 export { freshName } from './conformance/transport/fresh-name.ts';
 export { lendCall } from './conformance/transport/lend-call.ts';
 export { originOf } from './conformance/transport/origin-of.ts';
@@ -36,6 +37,9 @@ export type { SocketSubscribeAnswer } from './conformance/transport/socket-subsc
 export type { SocketUpgrade } from './conformance/transport/socket-upgrade.ts';
 export type { TransportRuntimeOptions } from './conformance/transport/start-transport-runtime.ts';
 export { startTransportRuntime } from './conformance/transport/start-transport-runtime.ts';
+export { steppedClockLiveSocket } from './conformance/transport/stepped-clock-live-socket.ts';
+export { steppedClockStepMs } from './conformance/transport/stepped-clock-step-ms.ts';
+export { steppedClockWait } from './conformance/transport/stepped-clock-wait.ts';
 export type { StreamFrame } from './conformance/transport/stream-frame.ts';
 export type { SubscribeCall } from './conformance/transport/subscribe-call.ts';
 export { subscriptionCases } from './conformance/transport/subscription-cases.ts';

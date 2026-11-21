@@ -1,4 +1,10 @@
-import { freshName } from '@keelwerk/testing';
+import {
+  expectSteppedClockBounds,
+  freshName,
+  steppedClockLiveSocket,
+  steppedClockStepMs,
+  steppedClockWait,
+} from '@keelwerk/testing';
 import { afterAll, afterEach, describe, expect, test, vi } from 'vitest';
 import {
   graphqlWsClient,
@@ -14,7 +20,10 @@ vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 // shared code whose removal it fails on.
 const kit = await startWsRuntime({ liveSocket: { maxSubscriptionsPerSocket: 2 } });
 const { bounds } = kit.runtime;
-const slow = await startWsRuntime({ liveSocket: { revalidateMs: 10_000_000 } });
+// The case below that moves the clock by a minute again and again runs here: its session check and its heartbeat
+// sit beyond the steps its loop can make (a ping sent at 30 s of the clock sees its pong deadline passed by
+// the next step, 1006; a session check that comes within the loop closes the socket 4401 by itself).
+const slow = await startWsRuntime({ liveSocket: steppedClockLiveSocket });
 afterAll(async () => {
   await kit.runtime.stop();
   await slow.runtime.stop();
@@ -102,11 +111,21 @@ describe('the host protections hold over graphql-transport-ws', () => {
     expect(await refusedWith(holders[0] ?? ws, 'x')).toBe('core.quota_exceeded');
   });
 
+  test('the runtime of the revoked-subscription case runs with live socket bounds beyond its clock steps', () => {
+    expectSteppedClockBounds(slow.runtime.bounds);
+  });
+
   test('a subscription after the session was revoked is refused and the socket closes 4401', async () => {
     // Remove the `void context.socket?.check()` call in subscribe-resolver.ts: the stream ends with its error and the socket stays open.
-    // The host's own periodic check is far away here, so only the subscription's failure can close the socket.
+    // The host's own periodic check (100,000,000 ms) lies beyond the loop below (steppedClockWait at steppedClockStepMs a step, ten times over)
+    // (expectSteppedClockBounds reads it from the runtime), so only the subscription's failure can close the socket.
+    // The client answers no ping, so the case fails 1006 whenever the heartbeat is within reach of the clock's
+    // steps (the default 30 s is): with an answering client the same failure waits for a slow pong.
     const ada = freshName('ada');
-    const upgrade = await slow.connect({ headers: principal(ada) });
+    const upgrade = await slow.connect({
+      headers: principal(ada),
+      options: { answerPings: false },
+    });
     const socket = openedSocket(upgrade);
     open.push(socket);
     const ws = graphqlWsClient(socket);
@@ -120,13 +139,10 @@ describe('the host protections hold over graphql-transport-ws', () => {
     void ws.socket.closed.then((result) => {
       closed = result;
     });
-    await vi.waitFor(
-      async () => {
-        await slow.advance(61_000);
-        expect(closed).toBeDefined();
-      },
-      { timeout: 20_000, interval: 100 },
-    );
+    await vi.waitFor(async () => {
+      await slow.advance(steppedClockStepMs);
+      expect(closed).toBeDefined();
+    }, steppedClockWait);
     expect(closed).toMatchObject({ code: 4401 });
   });
 

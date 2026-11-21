@@ -18,7 +18,7 @@ export interface LiveSocketHostOptions {
   readonly maxMessagesPerWindow?: number;
   /** The fixed window of the message rate, on the runtime's clock; default 10,000. */
   readonly messageWindowMs?: number;
-  /** Invokes queued or running on one socket; more answer `core.quota_exceeded` unrun; default 32. */
+  /** Invokes queued or running on one keelwerk.live.v1 socket, and calls running on a transport's socket; more answer `core.quota_exceeded` unrun; default 32. */
   readonly maxPendingInvokes?: number;
   /** The socket's own session check; default 60,000. */
   readonly revalidateMs?: number;

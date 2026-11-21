@@ -3,6 +3,8 @@ import type { TransportBounds } from './transport-bounds.ts';
 
 const defaultStreamsPerPrincipal = 20;
 const defaultSubscriptionsPerSocket = 100;
+const defaultHeartbeatMs = 30_000;
+const defaultRevalidateMs = 60_000;
 
 /** A positive whole number at `path` below `root`, read structurally; undefined when it is not one. */
 function boundAt(root: unknown, path: readonly string[]): number | undefined {
@@ -16,8 +18,9 @@ function boundAt(root: unknown, path: readonly string[]): number | undefined {
 
 /**
  * The bounds of the host entry the runner started, read from its options without importing the
- * transport: `live.maxStreamsPerPrincipal` and `liveSocket.maxSubscriptionsPerSocket`; an entry that
- * sets neither runs at the host's defaults, 20 and 100.
+ * transport: `live.maxStreamsPerPrincipal`, `liveSocket.maxSubscriptionsPerSocket`,
+ * `liveSocket.heartbeatMs` and `liveSocket.revalidateMs`; an entry that sets none runs at the host's
+ * defaults, 20, 100, 30,000 and 60,000.
  */
 export function transportBoundsOf(host: InfrastructureEntry): TransportBounds {
   return {
@@ -26,5 +29,7 @@ export function transportBoundsOf(host: InfrastructureEntry): TransportBounds {
     maxSubscriptionsPerSocket:
       boundAt(host, ['options', 'liveSocket', 'maxSubscriptionsPerSocket']) ??
       defaultSubscriptionsPerSocket,
+    heartbeatMs: boundAt(host, ['options', 'liveSocket', 'heartbeatMs']) ?? defaultHeartbeatMs,
+    revalidateMs: boundAt(host, ['options', 'liveSocket', 'revalidateMs']) ?? defaultRevalidateMs,
   };
 }

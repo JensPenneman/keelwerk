@@ -14,6 +14,7 @@ import {
   type Telemetry,
   type TransportHost,
   type VersionProjection,
+  type WebSocketHandler,
 } from '@keelwerk/core';
 import { type LoggedLine, recordingLogger } from '@keelwerk/testing';
 import { createTrpcAdapter } from '../../src/create-trpc-adapter.ts';
@@ -89,9 +90,17 @@ export interface TrpcRegistered {
   readonly streams: ((request: Request, path: string) => boolean) | undefined;
 }
 
+/** What the adapter registered through `host.upgrade`. */
+export interface TrpcUpgraded {
+  readonly path: string;
+  readonly protocols: readonly string[];
+  readonly handler: WebSocketHandler;
+}
+
 export interface TrpcMounted {
   readonly handler: HttpHandler;
   readonly registered: TrpcRegistered[];
+  readonly upgraded: TrpcUpgraded[];
   readonly calls: Invocation<unknown>[];
   readonly subscribed: Invocation<unknown>[];
   readonly lines: LoggedLine[];
@@ -115,11 +124,14 @@ export async function mountedTrpc(
   over: TrpcMountOptions = {},
 ): Promise<TrpcMounted> {
   const registered: TrpcRegistered[] = [];
+  const upgraded: TrpcUpgraded[] = [];
   const host: TransportHost = {
     route: (spec, handler) => {
       registered.push({ prefix: spec.prefix, handler, streams: spec.streams });
     },
-    upgrade: () => undefined,
+    upgrade: (spec, handler) => {
+      upgraded.push({ path: spec.path, protocols: spec.protocols, handler });
+    },
     fetch: async () => new Response(null, { status: 404 }),
   };
   const calls: Invocation<unknown>[] = [];
@@ -143,7 +155,7 @@ export async function mountedTrpc(
     surface,
     invoker,
     host,
-    config: () => ({ cors: [], maxBodyBytes: 1_048_576, ...over.config }),
+    config: () => ({ cors: [], maxBodyBytes: 1_048_576, websocket: false, ...over.config }),
     telemetry: {} as unknown as Telemetry,
     log: recordingLogger(lines),
     ...(over.development === true ? { development: true } : {}),
@@ -155,6 +167,7 @@ export async function mountedTrpc(
   return {
     handler: first.handler,
     registered,
+    upgraded,
     calls,
     subscribed,
     lines,

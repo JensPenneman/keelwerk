@@ -14,6 +14,7 @@ export function trpcTransport(options: TrpcStaticOptions = {}): TrpcModule {
     config: shape({
       cors: field.list(field.string()).default([]),
       maxBodyBytes: field.integer({ min: 1024 }).default(1_048_576),
+      websocket: field.boolean().default(false),
     }),
     transport: createTrpcAdapter(options),
   });

@@ -15,7 +15,7 @@ export function createTrpcAdapter(
 ): TransportAdapter<TrpcStaticOptions, TrpcConfig> {
   return {
     name: 'trpc',
-    capabilities: { streaming: ['sse'], batching: true, binary: false },
+    capabilities: { streaming: ['sse', 'websocket'], batching: true, binary: false },
     static: options,
     check: (surface) => checkTrpcSurface(surface),
     artifacts: () => [trpcRouterFragment(options)],

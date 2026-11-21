@@ -1,80 +1,17 @@
-import type { KeelwerkError, SocketSession, WebSocketHandler } from '@keelwerk/core';
+import type { KeelwerkError, SocketSession } from '@keelwerk/core';
 import { closeCodeOfError, coreError } from '@keelwerk/core/http';
-import { describe, expect, test, vi } from 'vitest';
-import { WebSocket } from 'ws';
-import type { HttpHostDeps, HttpHostOptions } from '../src/index.ts';
+import { describe, expect, onTestFinished, test, vi } from 'vitest';
 import { createFakeInvoker } from './support/fake-invoker.ts';
 import { fakeSession } from './support/fake-session.ts';
-import { useHosts } from './support/use-hosts.ts';
+import {
+  connectRegisteredSocket,
+  liveCarrier,
+  opened,
+  protocol,
+  registeredSocketKit,
+} from './support/registered-socket-kit.ts';
 
-const { setup } = useHosts();
-const protocol = 'graphql-transport-ws';
-const liveCarrier: NonNullable<HttpHostDeps['liveCarrier']> = () => ({
-  name: 'websocket',
-  serve: async () => undefined,
-});
-
-async function start(
-  handler: WebSocketHandler,
-  options: HttpHostOptions = {},
-  invoker = createFakeInvoker(),
-) {
-  const made = setup({ listen: { port: 0 }, ...options }, invoker, { liveCarrier });
-  made.host.upgrade(
-    { app: 'library', transport: 'chat', path: '/chat', protocols: [protocol] },
-    handler,
-  );
-  const { port } = await made.host.listen();
-  return { ...made, port: port ?? 0 };
-}
-
-interface Client {
-  readonly socket: WebSocket;
-  readonly texts: string[];
-  next(): Promise<string>;
-  readonly closed: Promise<number>;
-}
-
-/** Connects a ws client to the registered path; the refusal's status when the upgrade is refused. */
-function connect(port: number): Promise<Client | { readonly status: number }> {
-  return new Promise((resolve, reject) => {
-    const socket = new WebSocket(`ws://127.0.0.1:${port}/chat`, [protocol], {
-      headers: { host: 'x.example' },
-    });
-    const texts: string[] = [];
-    const waiting: ((text: string) => void)[] = [];
-    const closed = new Promise<number>((done) => socket.once('close', (code) => done(code)));
-    socket.on('message', (data) => {
-      const text = String(data);
-      const next = waiting.shift();
-      if (next === undefined) texts.push(text);
-      else next(text);
-    });
-    socket.once('open', () =>
-      resolve({
-        socket,
-        texts,
-        closed,
-        next: () => {
-          const text = texts.shift();
-          return text === undefined
-            ? new Promise<string>((arrived) => waiting.push(arrived))
-            : Promise.resolve(text);
-        },
-      }),
-    );
-    socket.once('unexpected-response', (_request, response) => {
-      response.resume();
-      resolve({ status: response.statusCode ?? 0 });
-    });
-    socket.once('error', reject);
-  });
-}
-
-function opened(client: Client | { readonly status: number }): Client {
-  if (!('socket' in client)) throw new Error(`the upgrade was refused with ${client.status}`);
-  return client;
-}
+const { setup, start } = registeredSocketKit();
 
 describe('a transport socket on the host', () => {
   test('a refusing handler is answered before the handshake', async () => {
@@ -85,7 +22,7 @@ describe('a transport socket on the host', () => {
         calls += 1;
       },
     });
-    expect(await connect(port)).toEqual({ status: 404 });
+    expect(await connectRegisteredSocket(port)).toEqual({ status: 404 });
     expect(calls).toBe(0);
   });
 
@@ -114,7 +51,7 @@ describe('a transport socket on the host', () => {
       async () => Response.json({}),
     );
     const { port } = await made.host.listen();
-    expect(await connect(port ?? 0)).toEqual({ status: 500 });
+    expect(await connectRegisteredSocket(port ?? 0)).toEqual({ status: 500 });
     expect(calls).toEqual(['GET']);
     expect(opens).toBe(0);
   });
@@ -134,7 +71,7 @@ describe('a transport socket on the host', () => {
         }
       },
     });
-    const client = opened(await connect(port));
+    const client = opened(await connectRegisteredSocket(port));
     expect(await client.next()).toBe('binary:true');
     client.socket.send('a');
     client.socket.send('b');
@@ -163,7 +100,7 @@ describe('a transport socket on the host', () => {
             : { ok: true, value: fakeSession() },
       }),
     );
-    const client = opened(await connect(port));
+    const client = opened(await connectRegisteredSocket(port));
     expect(await client.closed).toBe(closeCodeOfError(refusal.kind));
     expect(answered).toEqual([false]);
   });
@@ -187,7 +124,7 @@ describe('a transport socket on the host', () => {
       },
       { liveSocket: { maxSubscriptionsPerSocket: 2 } },
     );
-    const client = opened(await connect(port));
+    const client = opened(await connectRegisteredSocket(port));
     for (const [id, answer] of [
       ['a', 'a:ok'],
       ['a', 'a:core.malformed_request'],
@@ -228,7 +165,7 @@ describe('a transport socket on the host', () => {
             : { ok: true, value: fakeSession() },
       }),
     );
-    const client = opened(await connect(port));
+    const client = opened(await connectRegisteredSocket(port));
     await client.closed;
     expect(answers).toEqual(['before-open:TypeError', 'open:false', 'after-refusal:TypeError']);
   });
@@ -272,7 +209,7 @@ describe('a transport socket on the host', () => {
       ['off', false, closeCodeOfError('not_found')],
       ['other', false, closeCodeOfError('not_found')],
     ] as const) {
-      const client = opened(await connect(port));
+      const client = opened(await connectRegisteredSocket(port));
       client.socket.send(token);
       if (ok) {
         await vi.waitFor(() => expect(answers.at(-1)).toEqual({ token, ok: true }));
@@ -284,9 +221,22 @@ describe('a transport socket on the host', () => {
     }
   });
 
+  test("the session the host hands to a handler states the host's message bound: liveSocket.maxMessageBytes", async () => {
+    // Set `maxMessageBytes` in socket-session-of.ts to Infinity: the value the handler reads is not the setting.
+    const seen = Promise.withResolvers<number>();
+    const { port } = await start(
+      { open: (_socket, _ctx, connection) => seen.resolve(connection.maxMessageBytes) },
+      { liveSocket: { maxMessageBytes: 4_321 } },
+    );
+    const client = opened(await connectRegisteredSocket(port));
+    onTestFinished(() => client.socket.close(1000));
+    // The handler's open settles the promise: nothing in the background decides it. The host is stopped by the file's afterEach.
+    expect(await seen.promise).toBe(4_321);
+  });
+
   test('stop closes the socket 1001', async () => {
     const { port, host } = await start({ open: () => undefined });
-    const client = opened(await connect(port));
+    const client = opened(await connectRegisteredSocket(port));
     void host.stop(100);
     expect(await client.closed).toBe(1001);
   });

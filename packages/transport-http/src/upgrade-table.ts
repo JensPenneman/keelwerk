@@ -15,4 +15,8 @@ export const upgradeTable: readonly UpgradeEntry[] = [
     }),
   },
   { protocol: 'keelwerk.live.v1', path: '/_keelwerk/v1/live', serve: liveSocketEndpoint },
+  {
+    protocol: 'keelwerk.trpc.v1',
+    serve: registeredSocketEndpoint('keelwerk.trpc.v1', { code: 4000, reason: 'hello_timeout' }),
+  },
 ];

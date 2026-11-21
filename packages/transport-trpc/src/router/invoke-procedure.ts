@@ -16,6 +16,7 @@ import {
 } from '@keelwerk/core/http';
 import { toWire } from '@keelwerk/core/wire';
 import { trpcErrorOf } from '../errors/trpc-error-of.ts';
+import { admitSocketCall } from '../socket/admit-socket-call.ts';
 import { superjsonValueOf } from '../transformer/superjson-value-of.ts';
 import { superjsonWireOf } from '../transformer/superjson-wire-of.ts';
 import type { TrpcContext } from './trpc-context.ts';
@@ -27,7 +28,14 @@ async function outcomeOf(
   raw: unknown,
   signal: AbortSignal,
 ): Promise<Outcome<unknown>> {
+  let slot: { release(): void } | undefined;
   try {
+    // Taken before the await, so the call holds its slot while it waits on the session check;
+    // `invocation()` checks and counts in one synchronous step.
+    slot = context.socket?.invocation();
+    if (context.socket !== undefined) {
+      await admitSocketCall(context.socket, action, context.closing);
+    }
     const wire = context.transformer === 'superjson' ? superjsonWireOf(action.input, raw) : raw;
     const input = decodeActionInput(context.surface, action, wire);
     // The kernel's own form is refused as reserved, before the grammar of a caller's id applies.
@@ -51,10 +59,15 @@ async function outcomeOf(
       ...(commandId === undefined ? {} : { commandId }),
       ...(command && context.prefer !== undefined ? { prefer: context.prefer } : {}),
       ...(context.traceparent === undefined ? {} : { traceparent: context.traceparent }),
-      signal: signalOf(action, signal),
+      signal: signalOf(
+        action,
+        context.socket === undefined ? signal : AbortSignal.any([signal, context.socket.signal]),
+      ),
     });
   } catch (thrown) {
     return { ok: false, error: asKeelwerkError(thrown) };
+  } finally {
+    slot?.release();
   }
 }
 
@@ -80,14 +93,8 @@ function encodeOutput(context: TrpcContext, action: SurfaceAction, value: unknow
   }
 }
 
-/**
- * Runs a query or a command as the request's session (section 16.7.1). The raw input is flattened
- * to the wire form when superjson carried it and decoded once, by core, against the surface of the
- * request's API version; a command carries the caller's command id (`Idempotency-Key`) or a
- * generated one. A failed outcome is thrown as the `TRPCError` of its kind, a receipt is answered as
- * `{ commandId, status }`, and any other value is its wire encoding.
- */
-export async function invokeProcedure(
+/** The answer of one call, as `invokeProcedure` gives it, without the mount's set of calls in flight. */
+async function answerOf(
   context: TrpcContext,
   action: SurfaceAction,
   raw: unknown,
@@ -101,4 +108,31 @@ export async function invokeProcedure(
     return { commandId: outcome.receipt.commandId, status: outcome.receipt.status };
   }
   return encodeOutput(context, action, outcome.value);
+}
+
+/**
+ * Runs a query or a command as the request's session (section 16.7.1). The raw input is flattened
+ * to the wire form when superjson carried it and decoded once, by core, against the surface of the
+ * request's API version; a command carries the caller's command id (`Idempotency-Key`) or a
+ * generated one. A failed outcome is thrown as the `TRPCError` of its kind, a receipt is answered as
+ * `{ commandId, status }`, and any other value is its wire encoding.
+ *
+ * A query over a socket joins the mount's calls in flight for its life, so that closing the mount waits
+ * for it as for an HTTP request.
+ */
+export async function invokeProcedure(
+  context: TrpcContext,
+  action: SurfaceAction,
+  raw: unknown,
+  signal: AbortSignal,
+): Promise<unknown> {
+  const pending = answerOf(context, action, raw, signal);
+  const running = context.socket === undefined ? undefined : context.running;
+  if (running === undefined) return pending;
+  running.add(pending);
+  try {
+    return await pending;
+  } finally {
+    running.delete(pending);
+  }
 }

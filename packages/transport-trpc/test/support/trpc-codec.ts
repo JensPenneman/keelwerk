@@ -13,6 +13,7 @@ import { keelwerkSuperjson } from '../../src/transformer/keelwerk-superjson.ts';
 import { superjsonValueOf } from '../../src/transformer/superjson-value-of.ts';
 import { superjsonWireOf } from '../../src/transformer/superjson-wire-of.ts';
 import { trpcConformanceApp, trpcConformanceVersions } from './trpc-conformance-app.ts';
+import { trpcSocketDialect } from './trpc-socket-dialect.ts';
 import { trpcSubscribeOver } from './trpc-subscribe-over.ts';
 
 const surface = deriveSurface(trpcConformanceApp as never, trpcConformanceVersions.head).surface;
@@ -136,4 +137,5 @@ export const trpcCodec: TransportCodec = {
   subscribePath: '/trpc',
   streamWelcome: false,
   subscribe: (target, call) => trpcSubscribeOver(target, call, surface),
+  socket: trpcSocketDialect,
 };

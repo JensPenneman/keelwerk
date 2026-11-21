@@ -1,7 +1,8 @@
-import type { LiveFrame, StateToken, SurfaceAction } from '@keelwerk/core';
+import { type LiveFrame, newUuidV7, type StateToken, type SurfaceAction } from '@keelwerk/core';
 import { asKeelwerkError, decodeActionInput, encodeFrames, signalOf } from '@keelwerk/core/http';
 import { tracked } from '@trpc/server';
 import { trpcErrorOf } from '../errors/trpc-error-of.ts';
+import { admitSocketCall } from '../socket/admit-socket-call.ts';
 import { superjsonValueOf } from '../transformer/superjson-value-of.ts';
 import { superjsonWireOf } from '../transformer/superjson-wire-of.ts';
 import type { TrpcContext } from './trpc-context.ts';
@@ -64,7 +65,13 @@ export async function* subscribeProcedure(
   raw: unknown,
   signal: AbortSignal,
 ): AsyncGenerator<unknown> {
+  const socket = context.socket;
+  let slot: { readonly signal: AbortSignal; release(): void } | undefined;
   try {
+    if (socket !== undefined) {
+      await admitSocketCall(socket, action, context.closing);
+      slot = socket.subscription(newUuidV7());
+    }
     const { rest, after } = resumeOf(action, raw);
     const wire = context.transformer === 'superjson' ? superjsonWireOf(action.input, rest) : rest;
     const input = decodeActionInput(context.surface, action, wire);
@@ -77,7 +84,10 @@ export async function* subscribeProcedure(
           session: context.session,
           requestId: context.requestId,
           ...(context.traceparent === undefined ? {} : { traceparent: context.traceparent }),
-          signal: signalOf(action, signal),
+          signal: signalOf(
+            action,
+            slot === undefined ? signal : AbortSignal.any([signal, slot.signal]),
+          ),
         },
         after === undefined ? undefined : { after },
       ),
@@ -86,6 +96,9 @@ export async function* subscribeProcedure(
     for await (const frame of frames) yield messageOf(context, action, frame);
   } catch (thrown) {
     const error = asKeelwerkError(thrown);
+    if (error.kind === 'unauthenticated') void socket?.check();
     throw trpcErrorOf(error);
+  } finally {
+    slot?.release();
   }
 }

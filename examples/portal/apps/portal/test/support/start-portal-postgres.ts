@@ -96,7 +96,12 @@ export async function startPortalPostgres(options: PostgresPortalOptions): Promi
     tenants,
     domains,
     // The portal runs the host at its defaults and has no test principal book to revoke from.
-    bounds: { maxStreamsPerPrincipal: 20, maxSubscriptionsPerSocket: 100 },
+    bounds: {
+      maxStreamsPerPrincipal: 20,
+      maxSubscriptionsPerSocket: 100,
+      heartbeatMs: 30_000,
+      revalidateMs: 60_000,
+    },
     headApiVersion: portal.api?.dates.at(-1) ?? '',
     deprecatedPins: {},
     revoke: () => {

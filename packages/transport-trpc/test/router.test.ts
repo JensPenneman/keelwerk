@@ -88,7 +88,8 @@ describe('the router', () => {
       bookTitle: 'x'.repeat(200),
       dueAt: Temporal.Instant.from('2026-12-01T00:00:00Z'),
     });
-    expect(answer.status).toBe(400);
+    expect(answer.status).toBe(413);
+    expect(answer.body.error.json.data.code).toBe('PAYLOAD_TOO_LARGE');
     expect(answer.body.error.json.data.keelwerk).toMatchObject({ code: 'core.payload_too_large' });
     expect(mounted.calls).toEqual([]);
   });

@@ -1,4 +1,5 @@
 export { checkTrpcSurface } from './check/check-trpc-surface.ts';
+export { trpcWebSocket } from './client/trpc-web-socket.ts';
 export { createTrpcAdapter } from './create-trpc-adapter.ts';
 export type { TrpcErrorShape } from './errors/trpc-error-shape.ts';
 export { trpc } from './module.ts';

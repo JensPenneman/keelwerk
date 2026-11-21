@@ -17,7 +17,11 @@ const byKind: Readonly<Record<ErrorKind, TRPC_ERROR_CODE_KEY>> = {
   internal: 'INTERNAL_SERVER_ERROR',
 };
 
-/** The tRPC code of an error (the tRPC column of section 16.4.6): the kind's, and `PRECONDITION_FAILED` for a failed precondition. */
+/**
+ * The tRPC code of an error (the tRPC column of section 16.4.6): the kind's, `PRECONDITION_FAILED` for
+ * a failed precondition and `PAYLOAD_TOO_LARGE` (status 413) for a body over the bound, as the other
+ * transports answer it.
+ */
 export function trpcCodeOf(error: Pick<KeelwerkError, 'kind' | 'code'>): TRPC_ERROR_CODE_KEY {
   if (
     error.kind === 'conflict' &&
@@ -25,5 +29,6 @@ export function trpcCodeOf(error: Pick<KeelwerkError, 'kind' | 'code'>): TRPC_ER
   ) {
     return 'PRECONDITION_FAILED';
   }
+  if (error.code === 'core.payload_too_large') return 'PAYLOAD_TOO_LARGE';
   return byKind[error.kind];
 }

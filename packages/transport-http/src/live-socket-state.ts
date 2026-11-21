@@ -29,6 +29,7 @@ export interface LiveSocketState {
   >;
   /** The head refs of deprecated actions this socket was told of. */
   readonly noticedActions: Set<string>;
+  /** The invokes queued or running (keelwerk.live.v1), or the calls holding a slot (a transport's socket). */
   pendingInvokes: number;
   /** The bytes of the texts of the invokes queued or running. */
   pendingInvokeBytes: number;

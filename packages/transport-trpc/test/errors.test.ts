@@ -42,6 +42,19 @@ describe('the tRPC code of an error', () => {
     expect(answer.body.error.json.data.keelwerk).toMatchObject({ kind, code: `core.${kind}` });
   });
 
+  test('PAYLOAD_TOO_LARGE with status 413 for a body over the bound, though its kind is validation', async () => {
+    const error = new KeelwerkError({
+      kind: 'validation',
+      code: 'core.payload_too_large',
+      message: 'Too large.',
+    });
+    expect(trpcCodeOf(error)).toBe('PAYLOAD_TOO_LARGE');
+    const mounted = await mountedTrpc(trpcConformanceSurface(), failing(error));
+    const answer = await queryTrpc(mounted.handler, 'loans.about', {});
+    expect(answer.status).toBe(413);
+    expect(answer.body.error.json.data.code).toBe('PAYLOAD_TOO_LARGE');
+  });
+
   test('PRECONDITION_FAILED for a stale ifVersion', async () => {
     for (const code of ['core.version_mismatch', 'core.state_mismatch']) {
       expect(trpcCodeOf({ kind: 'conflict', code })).toBe('PRECONDITION_FAILED');

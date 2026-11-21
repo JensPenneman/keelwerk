@@ -11,7 +11,7 @@ const maxReasonBytes = 123;
  * is gone; `message` events carry the text messages in order (reading starts with the first `message`
  * listener, so none is lost to a handler that is not set up yet); one `close` event follows the last
  * message, with the close code (1006 without a close frame). `send` takes text only. `close` takes
- * 1000 or 3000 to 4999 and a reason of at most 123 bytes, and closes through the host.
+ * 1000, 1011 (an internal failure) or 3000 to 4999 and a reason of at most 123 bytes, and closes through the host.
  */
 class HostWebSocket extends EventTarget implements WebSocket {
   static readonly CONNECTING = connecting;
@@ -90,8 +90,11 @@ class HostWebSocket extends EventTarget implements WebSocket {
   }
 
   close(code?: number, reason?: string): void {
-    if (code !== undefined && code !== 1000 && (code < 3000 || code > 4999)) {
-      throw new DOMException('The close code must be 1000 or 3000 to 4999.', 'InvalidAccessError');
+    if (code !== undefined && code !== 1000 && code !== 1011 && (code < 3000 || code > 4999)) {
+      throw new DOMException(
+        'The close code must be 1000, 1011 or 3000 to 4999.',
+        'InvalidAccessError',
+      );
     }
     if (reason !== undefined && Buffer.byteLength(reason) > maxReasonBytes) {
       throw new DOMException('The close reason is longer than 123 bytes.', 'SyntaxError');

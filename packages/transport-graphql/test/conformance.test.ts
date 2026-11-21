@@ -1,11 +1,13 @@
 import {
   describeTransportConformance,
+  expectSteppedClockBounds,
   pinnedTransportClock,
   startTransportRuntime,
+  steppedClockLiveSocket,
   transportTargetOf,
 } from '@keelwerk/testing';
 import { httpHost } from '@keelwerk/transport-http';
-import { afterAll, describe } from 'vitest';
+import { afterAll, describe, test } from 'vitest';
 import { graphqlCodec } from './support/graphql-codec.ts';
 import {
   graphqlConformanceApp,
@@ -14,11 +16,12 @@ import {
 
 const origins = ['https://app.example.test'];
 const config = { graphql: { cors: origins, websocket: true } };
-// A listening host that trusts the loopback: the socket cases open real sockets through it.
+// A listening host that trusts the loopback: the socket cases open real sockets through it. The bounds of the
+// live socket sit far beyond the steps of the pinned clock (see steppedClockLiveSocket).
 const host = httpHost({
   listen: { port: 0 },
   trustedProxies: ['127.0.0.1'],
-  liveSocket: { revalidateMs: 10_000_000 },
+  liveSocket: steppedClockLiveSocket,
 });
 const options = {
   app: graphqlConformanceApp,
@@ -46,6 +49,13 @@ const pglite = await startTransportRuntime({
 afterAll(async () => {
   await memory.stop();
   await pglite.stop();
+});
+
+describe('the live socket bounds of the runner', () => {
+  test('sit beyond the longest loop of steps of the pinned clock', () => {
+    expectSteppedClockBounds(memory.bounds);
+    expectSteppedClockBounds(pglite.bounds);
+  });
 });
 
 // The fixture app through GraphQL: the one scenario set of the other transports, one decoded outcome.

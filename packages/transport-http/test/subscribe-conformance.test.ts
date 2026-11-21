@@ -1,14 +1,16 @@
 import { defineApp } from '@keelwerk/core';
 import { live } from '@keelwerk/live';
 import {
+  expectSteppedClockBounds,
   pinnedTransportClock,
   protocolCodec,
   startTransportRuntime,
+  steppedClockLiveSocket,
   subscriptionCases,
   transportTargetOf,
 } from '@keelwerk/testing';
 import { library, loans } from '@keelwerk/testing/fixtures';
-import { afterAll, describe, vi } from 'vitest';
+import { afterAll, describe, test, vi } from 'vitest';
 import { httpHost } from '../src/index.ts';
 
 vi.setConfig({ testTimeout: 30_000 });
@@ -18,10 +20,11 @@ const origins = ['https://app.example.test'];
 const app = defineApp({ id: 'streams', modules: [live, library, loans] });
 const options = {
   app,
+  // The bounds of the live socket sit far beyond the steps of the pinned clock (see steppedClockLiveSocket).
   host: httpHost({
     listen: { port: 0 },
     trustedProxies: ['127.0.0.1'],
-    liveSocket: { revalidateMs: 10_000_000 },
+    liveSocket: steppedClockLiveSocket,
   }),
 };
 
@@ -43,6 +46,13 @@ const pglite = await startTransportRuntime({
 afterAll(async () => {
   await memory.stop();
   await pglite.stop();
+});
+
+describe('the live socket bounds of the runner', () => {
+  test('sit beyond the longest loop of steps of the pinned clock', () => {
+    expectSteppedClockBounds(memory.bounds);
+    expectSteppedClockBounds(pglite.bounds);
+  });
 });
 
 describe('the subscription cases on the in-memory adapter', () => {

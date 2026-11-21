@@ -6,11 +6,11 @@ import {
   readBoundedBody,
 } from '@keelwerk/core/http';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
-import { keelwerkErrorOfTrpc } from '../errors/keelwerk-error-of-trpc.ts';
 import type { TrpcContext } from '../router/trpc-context.ts';
 import { trpcPathOf } from '../router/trpc-path-of.ts';
 import { asksForJsonLines } from './asks-for-json-lines.ts';
 import { trpcCommandOptionsOf } from './trpc-command-options-of.ts';
+import { trpcErrorLogger } from './trpc-error-logger.ts';
 import type { TrpcHandlerDeps } from './trpc-handler-deps.ts';
 import { trpcRefusal } from './trpc-refusal.ts';
 import { trpcRequestOf } from './trpc-request-of.ts';
@@ -152,16 +152,7 @@ export function createTrpcHandler(deps: TrpcHandlerDeps): HttpHandler {
         responseMeta: ({ paths: called }) => ({
           headers: trpcResponseMeta(context, called?.length ?? 0),
         }),
-        onError: ({ error }) => {
-          const cause = keelwerkErrorOfTrpc(error);
-          if (cause.kind === 'internal') {
-            deps.log.error('The tRPC request failed.', {
-              requestId: ctx.requestId,
-              code: cause.code,
-              cause: cause.cause ?? error.cause,
-            });
-          }
-        },
+        onError: trpcErrorLogger(deps.log, ctx.requestId),
       });
       if (!jsonLines || !setsAnswerHeaders(mount, paths)) return response;
       // tRPC built the headers of a JSON-lines answer before any procedure ran. The answer of this

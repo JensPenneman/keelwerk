@@ -4,4 +4,6 @@ export interface TrpcConfig {
   readonly cors: readonly string[];
   /** The most bytes of a request body. */
   readonly maxBodyBytes: number;
+  /** Serve `keelwerk.trpc.v1` (queries and subscriptions over a WebSocket) on the mount path; default false. */
+  readonly websocket: boolean;
 }

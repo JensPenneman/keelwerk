@@ -14,6 +14,12 @@ export interface TrpcHandlerDeps {
   readonly development: boolean;
   /** The runtime's clock, for cookie lifetimes; absent: the system clock. */
   readonly clock?: Clock;
-  /** Aborted by the mount's close: every open stream ends. */
+  /**
+   * Aborted by the mount's close: every open HTTP stream ends and a call that starts after it is
+   * refused `unavailable`, over HTTP and over a socket. A stream already open on a socket is ended by
+   * the host's own stop, not by this signal.
+   */
   readonly closing: AbortSignal;
+  /** The calls in flight that the mount's close waits for: every HTTP request and every query over a socket. */
+  readonly running: Set<Promise<unknown>>;
 }

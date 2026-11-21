@@ -56,6 +56,9 @@ function fakeConnection(over: { readonly refuseSlot?: boolean } = {}) {
       opened.push(credentials);
       return { ok: true, value: session };
     },
+    maxMessageBytes: 1_048_576,
+    // GraphQL sockets run only subscriptions and take no call slot.
+    invocation: () => ({ release: () => undefined }),
     subscription: (id) => {
       if (over.refuseSlot === true) throw coreError('core.quota_exceeded');
       const slot = { id, released: 0, abort: new AbortController() };

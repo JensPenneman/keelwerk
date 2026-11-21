@@ -8,6 +8,8 @@ import { originOf } from './origin-of.ts';
 import { requestHeaders } from './request-headers.ts';
 import type { SocketDialect } from './socket-dialect.ts';
 import type { SocketUpgrade } from './socket-upgrade.ts';
+import { steppedClockStepMs } from './stepped-clock-step-ms.ts';
+import { steppedClockWait } from './stepped-clock-wait.ts';
 import type { TestSocket } from './test-socket.ts';
 import type { TransportTarget } from './transport-target.ts';
 
@@ -159,8 +161,9 @@ export function liveSocketCases(target: TransportTarget): void {
     async () => {
       const sockets: TestSocket[] = [];
       try {
-        // The runner sets the host's `revalidateMs` far beyond the clock's steps, so only the session
-        // check that the failing subscription asks for can close the socket.
+        // The runner sets the host's `revalidateMs` and `heartbeatMs` far beyond the clock's steps, so
+        // only the session check that the failing subscription asks for can close the socket, and no
+        // ping's pong deadline passes between two steps.
         const subject = freshName('ada');
         const socket = opened(await upgrade({ subject }, '203.0.113.95'));
         sockets.push(socket);
@@ -173,19 +176,16 @@ export function liveSocketCases(target: TransportTarget): void {
         });
         // The hub counts a minute of the runtime's clock from the first of its own ticks that sees
         // the subscription, so the clock moves again until the socket is seen closed.
-        await vi.waitFor(
-          async () => {
-            await target.advance?.(61_000);
-            expect(closed).toBeDefined();
-          },
-          { timeout: 10_000, interval: 100 },
-        );
+        await vi.waitFor(async () => {
+          await target.advance?.(steppedClockStepMs);
+          expect(closed).toBeDefined();
+        }, steppedClockWait);
         expect(closed).toMatchObject({ code: 4401 });
       } finally {
         await Promise.all(sockets.map((socket) => socket.close()));
       }
     },
-    20_000,
+    2 * steppedClockWait.timeout,
   );
 
   test.skipIf(skip || target.codec.subscribe === undefined)(
