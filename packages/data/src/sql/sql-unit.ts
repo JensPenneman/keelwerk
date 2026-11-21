@@ -163,11 +163,11 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
       jobs: sqlJobStore(ctx, buffer),
       consumers: sqlConsumerStore(ctx),
       receipts: sqlReceiptStore(ctx),
-      usage: sqlUsageStore(ctx),
+      usage: sqlUsageStore(ctx, buffer),
       buckets: sqlBucketStore(ctx),
       keys: sqlSubjectKeyStore(keyCtx),
       serials: sqlSerialStore(ctx),
-      streams: sqlStreamRecordStore(ctx),
+      streams: sqlStreamRecordStore(ctx, buffer),
       ...(scopeKeys === undefined ? {} : { scopeKeys }),
       ...(apiUsage === undefined ? {} : { apiUsage }),
       ...(current.scope.level === 'deployment'
@@ -276,7 +276,15 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
     // Work that swallowed a statement error leaves the transaction aborted, and `commit` of an
     // aborted transaction answers `rollback` without an error: the probe fails with 25P02 then.
     if (ran) await runSql(session.db, { sql: 'select 1', parameters: [] });
-    if (tail !== undefined) await runCommitTail(tail, root);
+    if (tail !== undefined) {
+      try {
+        await runCommitTail(tail, root);
+      } catch (error) {
+        // A commit the tail refuses changes nothing and wakes nothing.
+        root.forgetReadied();
+        throw error;
+      }
+    }
   });
   return build(session, root);
 }

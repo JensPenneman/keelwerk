@@ -4398,6 +4398,11 @@ configuration cannot reach them); `keelwerk jobs lanes` and `keelwerk doctor` sh
 Added 2026-11-11: the job statistics (`JobQueue.stats`, section 21.4) carry a `queued` count, the
 available, scheduled and waiting jobs, never running or dead ones.
 
+Limit of the queued cap as built: it counts the jobs that can be taken now. A scheduled job and a
+follower under a key pass the cap uncounted and are not checked when they become available, so the
+count the cap uses differs from the `queued` count of the job statistics, which includes them.
+Making the two the same number is open work.
+
 #### 9.5.6 Workers, scopes and schedules
 
 - Workers run only in processes with the `work` role, for the queues their named process slots, and
@@ -4773,6 +4778,12 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
   counters are both per scope (section 15.1.4).
 - Usage is a metric per tenant and dimension; `keelwerk doctor` lists tenants above 80 percent
   of a limit.
+- Limits of the storage quotas as built (both are open work): receipt change records, which stay
+  at least seven days, are not counted in `core.eventBytes`; and a command with a prepare step of
+  a tenant that already stands above its limit still performs its inline effect and stores its
+  effect records before its decision is refused with `core.quota_exceeded`. A new limit applies to
+  the commands that start after the quota cache has read it again: a change on the feed starts
+  that read in the background, and with the feed down or behind, the refresh period does.
 
 Rate buckets, those of quotas and those that admission rules name (auth's login limits, section
 17.2.6), are rows of one framework table per namespace, under forced row-level security like the

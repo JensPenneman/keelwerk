@@ -39,28 +39,30 @@ export interface CommandRunnerOptions {
  */
 export function createCommandRunner(options: CommandRunnerOptions): CommandRunner {
   const processClock = options.hybridClock ?? hybridClock(options.nodeId ?? defaultNodeId);
-  return (run) => {
+  return async (run) => {
     const { invocation } = run;
     const job = invocation.carrier.job;
     // Before any receipt is written, so a refused id is never recorded or claimed.
     if (job === undefined) {
-      try {
-        checkCallerCommandId(invocation.commandId);
-        const clientId = invocation.sync?.clientId;
-        if (clientId !== undefined && !isOpaqueId(clientId)) {
-          throw errors.validation('A client id is a UUID of version 4 or 7, or a ULID.', {
-            issues: [
-              {
-                path: ['clientId'],
-                message: 'A client id is a UUID of version 4 or 7, or a ULID.',
-              },
-            ],
-          });
-        }
-      } catch (error) {
-        return Promise.reject(error);
+      checkCallerCommandId(invocation.commandId);
+      const clientId = invocation.sync?.clientId;
+      if (clientId !== undefined && !isOpaqueId(clientId)) {
+        throw errors.validation('A client id is a UUID of version 4 or 7, or a ULID.', {
+          issues: [
+            {
+              path: ['clientId'],
+              message: 'A client id is a UUID of version 4 or 7, or a ULID.',
+            },
+          ],
+        });
       }
     }
+    // Refreshes the quota cache before the run. The store is read only when the cache was never
+    // loaded or has aged out. Limits set with `core.quota.set` or in the backend configuration
+    // apply to the commands that start after the cache has read them again: a feed wake starts
+    // that read in the background, and a command that starts before the read ends may still see
+    // the old limits; with the feed down or behind, the refresh period starts it.
+    await run.quotas?.fresh();
     const input: RunCommandInput = {
       registry: run.registry,
       adapter: run.target.handle.adapter,
@@ -95,6 +97,7 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
       ...(run.concurrentUnits === undefined ? {} : { concurrentUnits: run.concurrentUnits }),
       ...(run.namespaceOf === undefined ? {} : { namespaceOf: run.namespaceOf }),
       ...(run.quotaChecked === true ? { quotaChecked: true } : {}),
+      ...(run.quotas === undefined ? {} : { quotas: run.quotas }),
       hybridClock: processClock,
       ...(options.egress === undefined ? {} : { egress: options.egress }),
       ...(options.retry === undefined ? {} : { retry: options.retry }),

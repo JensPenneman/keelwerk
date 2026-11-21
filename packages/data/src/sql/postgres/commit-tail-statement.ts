@@ -34,7 +34,10 @@ const eventColumns = [
  * events): a version another unit took first is skipped by `on conflict`, not raised, because a
  * violation's detail is hidden from a role without `BYPASSRLS`, so the caller finds the events whose
  * position (`first` plus their index) did not come back and throws for their streams; the unit's
- * rollback gives the counter back. The lane counters are matched against the unit's scope. Every parameter is text, cast in the statement, so PGlite and `pg` bind it alike.
+ * rollback gives the counter back. A unit that charges usage adds the `usage` upsert as the last
+ * part of the statement, answered as `usage`; a lane with a queued cap adds the `queued` read of the
+ * available jobs of its queue, answered as `queued`. The lane counters are matched against the
+ * unit's scope. Every parameter is text, cast in the statement, so PGlite and `pg` bind it alike.
  */
 export function commitTailStatement(input: CommitTailInput): PostgresStatement {
   const root = quoteIdentifier(input.root);
@@ -47,6 +50,12 @@ export function commitTailStatement(input: CommitTailInput): PostgresStatement {
   const count = input.events.length;
   if (count > 0 && input.scopeId === null) {
     throw new TypeError('the events of a commit tail need the scope of their unit');
+  }
+  const capped = input.lanes.filter((lane) => lane.queuedCap !== undefined);
+  if ((input.usage.length > 0 || capped.length > 0) && input.scopeId === null) {
+    throw new TypeError(
+      'the usage and the queued caps of a commit tail need the scope of their unit',
+    );
   }
   const scope = input.scopeId === null ? null : bind(input.scopeId, 'uuid');
   if (count > 0 && scope !== null) {
@@ -106,19 +115,64 @@ export function commitTailStatement(input: CommitTailInput): PostgresStatement {
   from unnest(${ids}, ${deltas}) as x (lane_id, delta)
   where c.lane_id = x.lane_id::bigint and c.kind = 'enqueued'${scopeOf('c')}
     and c.lane_id in (select lane_id from locked)
-  returning 1
+  returning ${capped.length > 0 ? 'c.lane_id, c.value' : '1'}
 )`,
     );
   }
-  if (ctes.length === 0) throw new TypeError('a commit tail needs events or lane counts');
+  if (capped.length > 0 && scope !== null) {
+    const cappedIds = bind(
+      capped.map((lane) => lane.laneId),
+      'text[]',
+    );
+    // The value is what the unit leaves available in the queue: the counter rows the update just
+    // moved are read from its answer, every other lane from the statement's snapshot.
+    ctes.push(
+      `queued as (
+  select x.lane_id, o.queue, sum(coalesce(m.value, e.value) - l.taken) as value
+  from unnest(${cappedIds}) as x (lane_id)
+  join ${root}.kw_job_lanes o on o.id = x.lane_id::bigint and o.scope_id = ${scope}
+  join ${root}.kw_job_lanes l on l.scope_id = o.scope_id and l.queue = o.queue
+  join ${root}.kw_job_lane_counts e on e.lane_id = l.id and e.kind = 'enqueued'
+  left join enqueued m on m.lane_id = l.id
+  group by x.lane_id, o.queue
+)`,
+    );
+  }
+  if (input.usage.length > 0 && scope !== null) {
+    const dimensions = bind(
+      input.usage.map((charge) => charge.dimension),
+      'text[]',
+    );
+    const deltas = bind(
+      input.usage.map((charge) => charge.delta),
+      'text[]',
+    );
+    ctes.push(
+      `usage as (
+  insert into ${root}.kw_usage as u (scope_id, dimension, value)
+  select ${scope}, x.dimension, x.delta::bigint from unnest(${dimensions}, ${deltas}) as x (dimension, delta)
+  on conflict (scope_id, dimension) do update set value = u.value + excluded.value
+  returning u.dimension, u.value
+)`,
+    );
+  }
+  if (ctes.length === 0) throw new TypeError('a commit tail needs events, lane counts or usage');
   const first = count > 0 ? '(select first::text from counter)' : 'null::text';
   const appended =
     count > 0
       ? `(select coalesce(json_agg(position::text), '[]'::json) from appended)::text`
       : 'null::text';
   const lanes = input.lanes.length > 0 ? '(select count(*) from enqueued)::text' : `'0'::text`;
+  const queued =
+    capped.length > 0
+      ? `, (select coalesce(json_agg(json_build_array(lane_id::text, queue, value::text)), '[]'::json) from queued)::text as queued`
+      : '';
+  const usage =
+    input.usage.length > 0
+      ? `, (select coalesce(json_agg(json_build_array(dimension, value::text)), '[]'::json) from usage)::text as usage`
+      : '';
   return {
-    sql: `with ${ctes.join(', ')}\nselect ${first} as first, ${lanes} as lanes, ${appended} as appended`,
+    sql: `with ${ctes.join(', ')}\nselect ${first} as first, ${lanes} as lanes, ${appended} as appended${queued}${usage}`,
     parameters,
   };
 }

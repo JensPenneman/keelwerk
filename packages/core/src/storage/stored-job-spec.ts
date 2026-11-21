@@ -6,4 +6,9 @@ export interface StoredJobSpec extends JobSpec {
   /** `queues.<q>.running` for an upserted lane (section 9.5.2). */
   readonly laneCap: number;
   readonly createdAt: Temporal.Instant;
+  /**
+   * `queues.<q>.queued` of a command job's scope, checked at the enqueue's commit tail; absent: no
+   * cap. An enqueue instruction, never stored: a job of 0.1.0 or 0.2.0 reads as uncapped.
+   */
+  readonly queuedCap?: number;
 }

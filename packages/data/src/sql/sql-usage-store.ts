@@ -1,12 +1,21 @@
 import type { UsageStore } from '@keelwerk/core';
+import { errors } from '@keelwerk/core';
 import { sql } from 'kysely';
+import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
 import { sqlGuard } from './sql-guard.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
 
 /** The quota counters of the unit's scope (12.2); they commit with the data they count. */
-export function sqlUsageStore(ctx: SqlUnitContext): UsageStore {
+export function sqlUsageStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): UsageStore {
   const table = ctx.table('kw_usage');
   return {
+    charge: (charges) => {
+      if (ctx.scope.level === 'namespace') {
+        throw errors.internal('a namespace unit charges no usage');
+      }
+      ctx.writable();
+      buffer.charge(charges);
+    },
     add: async (dimension, delta) => {
       ctx.writable();
       const row = await sqlGuard(async () =>

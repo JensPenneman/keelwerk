@@ -29,6 +29,21 @@ function sameScope(unit: StorageScope, job: Scope): boolean {
 }
 
 /**
+ * Notes the queued cap of a lane that gained an available job, for the commit tail; the smallest
+ * cap of the unit wins.
+ */
+function recordQueuedCap(
+  ctx: MemoryUnitContext,
+  scopeId: string,
+  laneKey: string,
+  cap: number | undefined,
+): void {
+  if (cap === undefined) return;
+  const caps = ctx.tx.write<number>(`~queuedcap/${scopeId}`);
+  caps.set(laneKey, Math.min(cap, caps.get(laneKey) ?? cap));
+}
+
+/**
  * Inserts a job in the unit of its cause (9.5.2): upserts the lane, applies the key policy to a
  * pending job of the same key and lane, and counts the job on the lane when it is due. A job whose
  * time has not come stays `scheduled`; a FIFO follower stays `waiting`. The job's scope must be
@@ -93,6 +108,7 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
         if (due) {
           memoryAdjustLane(tables, laneKey, (lane) => ({ ...lane, enqueued: lane.enqueued + 1 }));
           ctx.readied.ready(spec.queue);
+          recordQueuedCap(ctx, scopeId, laneKey, spec.queuedCap);
         }
         return String(found.id);
       }
@@ -147,11 +163,13 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
   const state = follower ? 'waiting' : due ? 'available' : 'scheduled';
   ctx.state.sequences.job += 1;
   const id = ctx.state.sequences.job;
+  // The cap is an instruction for the commit tail: a stored job, like a SQL row, never holds it.
+  const { queuedCap, ...stored } = spec;
   tables.putJob({
     id,
     scopeId,
     laneKey,
-    spec,
+    spec: stored,
     state,
     runAt,
     worker: null,
@@ -163,6 +181,7 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
   if (state === 'available') {
     memoryAdjustLane(tables, laneKey, (lane) => ({ ...lane, enqueued: lane.enqueued + 1 }));
     ctx.readied.ready(spec.queue);
+    recordQueuedCap(ctx, scopeId, laneKey, queuedCap);
   }
   return String(id);
 }

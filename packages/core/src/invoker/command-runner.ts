@@ -5,6 +5,7 @@ import type { ComputePool } from '../kernel/compute-pool.ts';
 import type { KeyService } from '../kernel/key-service.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Span } from '../observability/span.ts';
+import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { NamespaceRef } from '../storage/namespace-ref.ts';
@@ -55,6 +56,8 @@ export interface CommandRun {
   readonly namespaceOf?: (scope: StorageScope) => NamespaceRef;
   /** Set by the runtime's command routing only, for `core.quota.set` after its check ran: the write path refuses that command without it. It opens no other command. */
   readonly quotaChecked?: boolean;
+  /** The resolved quota limits (12.2); absent: writes are counted, never refused. */
+  readonly quotas?: QuotaLimits;
 }
 
 /** What a command answered. */

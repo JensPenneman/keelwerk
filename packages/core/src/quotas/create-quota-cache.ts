@@ -16,6 +16,9 @@ import { queueQuotaEntry } from './queue-quota-entry.ts';
 import type { QuotaLimits } from './quota-limits.ts';
 import { resolveLimits } from './resolve-limits.ts';
 
+/** The most rows a load names in its debug record (those new or changed since the load before). */
+const loadedRowsLogged = 50;
+
 /** What the cache is built from. */
 export interface QuotaCacheOptions {
   readonly quotas: ControlQuotas;
@@ -106,11 +109,16 @@ export function createQuotaCache(options: QuotaCacheOptions): QuotaLimits {
           next.set(row.slot, row);
         }
       }
+      const changed = [...next.values()]
+        .filter((row) => rows.get(row.slot)?.version !== row.version)
+        .slice(0, loadedRowsLogged)
+        .map(({ id, version }) => ({ id, version }));
       rows = next;
       backendQuotas = configured;
       loaded = true;
       loadedAt = started;
       failedAt = null;
+      log.debug('the quota rows were loaded', { rows: next.size, changed });
     } catch (error) {
       failedAt = now();
       log.error('the quota rows could not be loaded; the last rows keep serving', {
@@ -125,14 +133,17 @@ export function createQuotaCache(options: QuotaCacheOptions): QuotaLimits {
       if (fromWake) again = true;
       return inFlight;
     }
+    // The marker is cleared in the step of the loop's last check, so no wake lands between them.
     const run = (async (): Promise<void> => {
-      do {
-        again = false;
-        await attempt();
-      } while (again);
-    })().finally(() => {
-      inFlight = undefined;
-    });
+      try {
+        do {
+          again = false;
+          await attempt();
+        } while (again);
+      } finally {
+        inFlight = undefined;
+      }
+    })();
     inFlight = run;
     return run;
   };

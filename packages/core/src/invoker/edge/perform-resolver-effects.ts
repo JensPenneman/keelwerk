@@ -18,6 +18,7 @@ import type { JobGroup } from '../../jobs/job-group.ts';
 import type { Principal } from '../../principals/principal.ts';
 import type { PrincipalRef } from '../../principals/principal-ref.ts';
 import type { AnyEffect } from '../../protocol/any-effect.ts';
+import { commandQueuedCap } from '../../quotas/command-queued-cap.ts';
 import { moduleServicePrincipal } from '../../reactions/module-service-principal.ts';
 import type { ActionEntry } from '../../registry/action-entry.ts';
 import type { StoredJobSpec } from '../../storage/stored-job-spec.ts';
@@ -166,6 +167,9 @@ export async function performResolverEffects(
 ): Promise<void> {
   if (effects.length === 0) return;
   const keySecret = await env.options.keys.derive(target.scope, jobKeyInfo, 32);
+  // The cap the enqueue below carries is the operator's value, not the declared default, also in a
+  // process whose first request opens a session.
+  await env.options.quotas?.fresh();
   const jobs = effects.map((effect) => {
     const job = jobOf(env, target, principal, effect, module, keySecret);
     return { job, command: commandOf(env, target, principal, job) };
@@ -183,8 +187,15 @@ export async function performResolverEffects(
         command.action,
         job.run.input,
       );
+      // Only a command job carries the cap (a timer is not queued work of the commands lane).
+      const { quotas } = env.options;
+      const cap =
+        job.queue === commandQueue && quotas !== undefined
+          ? commandQueuedCap({ quotas, scope: job.scope }, command.action)
+          : undefined;
       await unit.jobs.enqueue({
         ...job,
+        ...(cap === undefined ? {} : { queuedCap: cap }),
         run: commandJobRun(job.run.action, sealed, job.run.commandId),
         ...(command.group === undefined ? {} : { group: command.group }),
       });

@@ -91,6 +91,7 @@ export async function execute(env: InvokerEnv, input: ExecuteInput): Promise<Exe
           ...(capabilities === undefined
             ? {}
             : { concurrentUnits: capabilities.processes !== 'single' }),
+          ...(options.quotas === undefined ? {} : { quotas: options.quotas }),
         }),
       { command: true, ...(action.timeoutMs === undefined ? {} : { timeoutMs: action.timeoutMs }) },
     );

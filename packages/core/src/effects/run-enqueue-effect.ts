@@ -2,6 +2,7 @@ import { checkCallerCommandId } from '../ids/check-caller-command-id.ts';
 import { kernelCommandId } from '../ids/kernel-command-id.ts';
 import { refuseRequest } from '../interpreter/refuse-request.ts';
 import type { EnqueueEffect } from '../protocol/enqueue-effect.ts';
+import { commandQueuedCap } from '../quotas/command-queued-cap.ts';
 import { checkEffectScope } from './check-effect-scope.ts';
 import { commandActionOf } from './command-action-of.ts';
 import { commandJobRun } from './command-job-run.ts';
@@ -50,6 +51,7 @@ export async function runEnqueueEffect(
     );
   }
   const commandId = effect.commandId ?? kernelCommandId('effect', id);
+  const cap = commandQueuedCap(run, action);
   const secret = effect.key === undefined ? undefined : await jobKeySecretOf(run);
   await unit.jobs.enqueue({
     ...jobInput({
@@ -69,6 +71,7 @@ export async function runEnqueueEffect(
     }),
     kind: 'action',
     queue: commandQueue,
+    ...(cap === undefined ? {} : { queuedCap: cap }),
     run: commandJobRun(
       action.ref,
       await sealJobInput(unit, run.registry, commandId, action, input),

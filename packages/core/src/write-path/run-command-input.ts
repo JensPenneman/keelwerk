@@ -11,6 +11,7 @@ import type { RequestAnswerer } from '../kernel/request-answerer.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Span } from '../observability/span.ts';
 import type { Principal } from '../principals/principal.ts';
+import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { DataAdapter } from '../storage/data-adapter.ts';
@@ -111,4 +112,6 @@ export interface RunCommandInput {
     readonly sleep?: (ms: number) => Promise<void>;
     readonly random?: () => number;
   };
+  /** The resolved quota limits (12.2); absent: writes are counted, never refused. */
+  readonly quotas?: QuotaLimits;
 }

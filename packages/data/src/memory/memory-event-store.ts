@@ -1,6 +1,8 @@
 import type { EventStore, Position, StoredEvent } from '@keelwerk/core';
-import { errors, KeelwerkError } from '@keelwerk/core';
+import { errors, KeelwerkError, storedEventBytes } from '@keelwerk/core';
 import { assertStreamInScope } from '../sql/assert-stream-in-scope.ts';
+import { storedRecordsCharge } from '../sql/stored-records-charge.ts';
+import { memoryBufferCharges } from './memory-buffer-charges.ts';
 import type { MemoryCounter } from './memory-counter.ts';
 import { memoryEnvelope } from './memory-envelope.ts';
 import type { MemoryLoggedEvent } from './memory-logged-event.ts';
@@ -71,6 +73,7 @@ export function memoryEventStore(ctx: MemoryUnitContext): EventStore {
         planned.set(key, version + append.events.length);
       }
       const results: { eventId: string; version: number }[] = [];
+      let appendedBytes = 0n;
       const buffer = ctx.tx.write<MemoryPendingEvent>(bufferName());
       const versions = ctx.tx.write<number>(versionsName());
       for (const append of batch) {
@@ -78,6 +81,7 @@ export function memoryEventStore(ctx: MemoryUnitContext): EventStore {
         let version = committedVersion(append.stream.type, append.stream.id);
         for (const event of append.events) {
           version += 1;
+          appendedBytes += storedEventBytes(append.stream.type, event);
           buffer.set(sequenceKey(buffer.size), {
             stream: append.stream,
             version,
@@ -88,6 +92,7 @@ export function memoryEventStore(ctx: MemoryUnitContext): EventStore {
         }
         versions.set(key, version);
       }
+      memoryBufferCharges(ctx, storedRecordsCharge(ctx.scope, appendedBytes));
       return results;
     },
     readStream: async (stream, range = {}) => {

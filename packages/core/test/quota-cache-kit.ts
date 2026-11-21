@@ -65,8 +65,11 @@ export function quotaRig(
   let waiter: (() => void) | undefined;
   let queuedWakes = 0;
   const errors: string[] = [];
+  const debugged: { readonly message: string; readonly fields: unknown }[] = [];
   const log: Logger = {
-    debug: () => undefined,
+    debug: (message, fields) => {
+      debugged.push({ message, fields });
+    },
     info: () => undefined,
     warn: () => undefined,
     error: (message) => {
@@ -111,6 +114,7 @@ export function quotaRig(
   return {
     cache,
     errors,
+    debugged,
     loads: () => loads,
     backendLoads: () => backendLoads,
     advance: (ms: number) => {

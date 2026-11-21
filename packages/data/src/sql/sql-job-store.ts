@@ -148,7 +148,7 @@ where id = $1::bigint and scope_id = $4::uuid`,
                 parameters: [foundId, encodeInstant(earliest), String(becomesDue), scopeId],
               });
               if (becomesDue) {
-                buffer.moveLane(laneId, 1);
+                buffer.moveLane(laneId, 1, spec.queuedCap);
                 buffer.ready(spec.queue);
               }
               return foundId;
@@ -218,7 +218,7 @@ returning id::text as id`,
         });
         if (inserted === undefined) throw errors.internal('the job insert answered nothing');
         if (state === 'available') {
-          buffer.moveLane(laneId, 1);
+          buffer.moveLane(laneId, 1, spec.queuedCap);
           buffer.ready(spec.queue);
         }
         return String(inserted.id);

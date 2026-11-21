@@ -6,9 +6,11 @@ import { buildDecisionRecord } from '../events/build-decision-record.ts';
 import { buildEventMeta } from '../events/build-event-meta.ts';
 import type { EventMeta } from '../events/event-meta.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
+import { chargeStorage } from '../quotas/charge-storage.ts';
 import { reactionMatches } from '../registry/reaction-matches.ts';
 import { appendEvents } from '../write-path/append-events.ts';
 import { appendStreamRecords } from '../write-path/append-stream-records.ts';
+import { chargeUsage } from '../write-path/charge-usage.ts';
 import { checkWrittenItems } from '../write-path/check-written-items.ts';
 import { draftsToEvents } from '../write-path/drafts-to-events.ts';
 import { normalizeDecision } from '../write-path/normalize-decision.ts';
@@ -100,6 +102,18 @@ export async function dispatchInlineReactions(
       if (meta === undefined) throw errors.internal('the reaction wrote without building its meta');
       await writeStateRows(unit, wrote);
       await appendEvents(unit, wrote);
+      // The rows a reaction creates are stored with the command that caused it, so they are
+      // charged to it; the adapter counts the bytes of its records like any other.
+      chargeUsage(
+        unit,
+        chargeStorage({
+          registry: run.registry,
+          scope: run.scope,
+          written: wrote,
+          quotas: run.quotas,
+          exempt: run.action.module === 'core',
+        }),
+      );
       await appendStreamRecords({
         registry: run.registry,
         unit,

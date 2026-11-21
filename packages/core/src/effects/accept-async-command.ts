@@ -6,6 +6,7 @@ import { checkCallerCommandId } from '../ids/check-caller-command-id.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import { deriveScopeSecrets } from '../keys/derive-scope-secrets.ts';
+import { commandQueuedCap } from '../quotas/command-queued-cap.ts';
 import { checkErasureGrant } from '../subjects/check-erasure-grant.ts';
 import { erasureAction } from '../subjects/erasure-action.ts';
 import { appendReceiptChange } from '../write-path/append-receipt-change.ts';
@@ -41,6 +42,7 @@ export async function acceptAsyncCommand(input: RunCommandInput): Promise<Comman
   checkCallerCommandId(input.commandId);
   const commandId = input.commandId ?? newUuidV7();
   const now = input.clock.now();
+  const cap = commandQueuedCap(input, action);
   // Before the unit opens: a derivation inside it would open a second unit once the cache expired.
   const { fingerprintKey } = await deriveScopeSecrets(input.keys, input.scope);
   // Pure: the same text serves every retry of the unit, and no key is read or created.
@@ -108,6 +110,7 @@ export async function acceptAsyncCommand(input: RunCommandInput): Promise<Comman
             }),
             kind: 'action',
             queue: commandQueue,
+            ...(cap === undefined ? {} : { queuedCap: cap }),
             run: commandJobRun(
               action.ref,
               await sealJobInput(unit, input.registry, commandId, action, input.input),

@@ -105,6 +105,7 @@ import type { TableSpec } from './table-spec.ts';
 import type { TrackSnapshot } from './track-snapshot.ts';
 import type { Unit } from './unit.ts';
 import type { UnitOptions } from './unit-options.ts';
+import type { UsageCharge } from './usage-charge.ts';
 import type { UsageStore } from './usage-store.ts';
 import type { WorkClassStats } from './work-class-stats.ts';
 import type { WrappedScopeKey } from './wrapped-scope-key.ts';
@@ -222,6 +223,7 @@ type Interfaces =
   | Unit
   | UnitOptions
   | UpdateDraft
+  | UsageCharge
   | UsageStore
   | UserPrincipal
   | WireError

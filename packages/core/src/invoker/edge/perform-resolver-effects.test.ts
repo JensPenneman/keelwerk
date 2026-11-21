@@ -211,3 +211,41 @@ test('a keyed enqueue without the module of its resolver is refused, does not na
   expect(JSON.stringify(error)).not.toContain('idle:1');
   expect(jobs).toEqual([]);
 });
+
+const quotas = {
+  limitOf: () => ({ kind: 'count', value: 0 }),
+  queueOf: () => ({ running: 4, queued: 7, weight: 1 }),
+  fresh: async () => undefined,
+} as unknown as NonNullable<InvokerEnv['options']['quotas']>;
+
+test('an enqueue of a session carries the queued cap of its scope, without quotas none', async () => {
+  const { jobs, env, target, principal, enqueue } = setup('backend', 'tenant');
+  await performResolverEffects(env, target, principal, [enqueue], 'auth');
+  expect(jobs[0]?.queuedCap).toBeUndefined();
+  const limited = { ...env, options: { ...env.options, quotas } } as InvokerEnv;
+  await performResolverEffects(limited, target, principal, [enqueue], 'auth');
+  expect(jobs[1]?.queuedCap).toBe(7);
+});
+
+test('a timer of a resolver carries no queued cap', async () => {
+  const { jobs, env, target, principal, timer } = setup();
+  const limited = { ...env, options: { ...env.options, quotas } } as InvokerEnv;
+  await performResolverEffects(limited, target, principal, [timer], 'auth');
+  expect(jobs[0]?.queuedCap).toBeUndefined();
+});
+
+test('the cap of an enqueue is the one read after the quota cache has been refreshed', async () => {
+  const { jobs, env, target, principal, enqueue } = setup('backend', 'tenant');
+  let loaded = false;
+  const cold = {
+    ...quotas,
+    // Until the first load the declared default serves, as in a process that has run no command yet.
+    queueOf: () => ({ running: 4, queued: loaded ? 7 : 10_000, weight: 1 }),
+    fresh: async () => {
+      loaded = true;
+    },
+  } as unknown as NonNullable<InvokerEnv['options']['quotas']>;
+  const limited = { ...env, options: { ...env.options, quotas: cold } } as InvokerEnv;
+  await performResolverEffects(limited, target, principal, [enqueue], 'auth');
+  expect(jobs[0]?.queuedCap).toBe(7);
+});

@@ -1,5 +1,5 @@
 import type { EventStore, Position, StoredEvent, StreamRef } from '@keelwerk/core';
-import { errors } from '@keelwerk/core';
+import { errors, storedEventBytes } from '@keelwerk/core';
 import { sql } from 'kysely';
 import { assertStreamInScope } from './assert-stream-in-scope.ts';
 import { eventSelectorConditions } from './event-selector-conditions.ts';
@@ -12,6 +12,7 @@ import { sqlPurgeTransient } from './sql-purge-transient.ts';
 import { sqlStreamKey } from './sql-stream-key.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
 import { storedEventOfRow } from './stored-event-of-row.ts';
+import { storedRecordsCharge } from './stored-records-charge.ts';
 import { streamVersionConflict } from './stream-version-conflict.ts';
 
 const uuidShaped = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -164,6 +165,7 @@ export function sqlEventStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): Eve
         planned.set(key, version + append.events.length);
       }
       const results: { eventId: string; version: number }[] = [];
+      let appendedBytes = 0n;
       for (const append of batch) {
         const key = sqlStreamKey(append.stream);
         let version = committed.get(key) ?? 0;
@@ -171,9 +173,11 @@ export function sqlEventStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): Eve
         for (const event of append.events) {
           version += 1;
           buffer.push({ stream: append.stream, version, partition: append.partition, event });
+          appendedBytes += storedEventBytes(append.stream.type, event);
           results.push({ eventId: event.eventId, version });
         }
       }
+      buffer.charge(storedRecordsCharge(ctx.scope, appendedBytes));
       return results;
     },
 

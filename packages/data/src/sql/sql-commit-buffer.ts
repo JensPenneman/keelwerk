@@ -1,4 +1,4 @@
-import type { Position } from '@keelwerk/core';
+import type { Position, UsageCharge } from '@keelwerk/core';
 import { readiedQueues } from '../job-wake/readied-queues.ts';
 import type { CommitTailLane } from './postgres/commit-tail-lane.ts';
 import type { SqlPendingEvent } from './sql-pending-event.ts';
@@ -9,21 +9,25 @@ interface SqlCommitMark {
   readonly events: number;
   readonly lanes: number;
   readonly readied: number;
+  readonly usage: number;
   readonly work: number;
 }
 
 /**
  * What a unit owes its commit tail (15.1.4): the events appended so far, the changes of the lanes'
- * `enqueued` counters and, once the tail has run, the positions it assigned. The events and the
- * lane changes are shared by the unit and its savepoints; a savepoint that fails takes back what it
- * added (`restore`), exactly as the database takes back its rows. It also records the queues in which
- * the unit made a job takeable, which the adapter reads after the commit (`JobStore.readied`).
+ * `enqueued` counters, the usage charges and, once the tail has run, the positions it assigned. The
+ * events, the lane changes and the usage charges are shared by the unit and its savepoints; a
+ * savepoint that fails takes back what it added (`restore`), exactly as the database takes back its
+ * rows. It also records the queues in which the unit made a job takeable, which the adapter reads
+ * after the commit (`JobStore.readied`).
  */
 export interface SqlCommitBuffer {
   /** Appended events in order; read only, `push` and `restore` change it. */
   readonly events: readonly SqlPendingEvent[];
   /** Lane counter changes in order, not yet summed. */
   readonly lanes: readonly CommitTailLane[];
+  /** Usage charges in order, not yet summed. */
+  readonly usage: readonly UsageCharge[];
   /** The positions the tail assigned. */
   readonly assigned: Position[];
   /** The version a stream has with the buffered events, if any are buffered. */
@@ -33,10 +37,17 @@ export interface SqlCommitBuffer {
   defer(work: () => Promise<void>): void;
   /** The deferred work in order, emptying the list. */
   takeWork(): readonly (() => Promise<void>)[];
-  /** A lane's `enqueued` counter changes by `delta` at the tail. */
-  moveLane(laneId: string, delta: number): void;
+  /** Buffers usage charges for the tail. */
+  charge(charges: readonly UsageCharge[]): void;
+  /**
+   * A lane's `enqueued` counter changes by `delta` at the tail; `queuedCap` caps the queue's
+   * available jobs.
+   */
+  moveLane(laneId: string, delta: number, queuedCap?: number): void;
   /** A job of `queue` became takeable, or a lane slot of `queue` came back. */
   ready(queue: string): void;
+  /** The unit's commit is refused: it made nothing takeable. */
+  forgetReadied(): void;
   /** Something became takeable in queues the unit cannot name (a group's slot). */
   readyAnywhere(): void;
   /** The queues recorded so far, or `undefined` when one entry names none. */
@@ -52,12 +63,14 @@ export interface SqlCommitBuffer {
 export function sqlCommitBuffer(guard: () => void = () => undefined): SqlCommitBuffer {
   const events: SqlPendingEvent[] = [];
   const lanes: CommitTailLane[] = [];
+  const usage: UsageCharge[] = [];
   const work: (() => Promise<void>)[] = [];
   const versions = new Map<string, number>();
   const readied = readiedQueues();
   return {
     events,
     lanes,
+    usage,
     assigned: [],
     versionOf: (type, id) => versions.get(sqlStreamKey({ type, id })),
     push: (event) => {
@@ -70,9 +83,13 @@ export function sqlCommitBuffer(guard: () => void = () => undefined): SqlCommitB
       guard();
       work.push(fn);
     },
-    moveLane: (laneId, delta) => {
+    charge: (charges) => {
       guard();
-      lanes.push({ laneId, delta });
+      usage.push(...charges);
+    },
+    moveLane: (laneId, delta, queuedCap) => {
+      guard();
+      lanes.push(queuedCap === undefined ? { laneId, delta } : { laneId, delta, queuedCap });
     },
     ready: (queue) => {
       guard();
@@ -82,11 +99,15 @@ export function sqlCommitBuffer(guard: () => void = () => undefined): SqlCommitB
       guard();
       readied.readyAnywhere();
     },
+    forgetReadied: () => {
+      readied.restore(0);
+    },
     readied: () => readied.queues(),
     mark: () => ({
       events: events.length,
       lanes: lanes.length,
       readied: readied.mark(),
+      usage: usage.length,
       work: work.length,
     }),
     restore: (mark) => {
@@ -98,6 +119,7 @@ export function sqlCommitBuffer(guard: () => void = () => undefined): SqlCommitB
       }
       lanes.length = mark.lanes;
       readied.restore(mark.readied);
+      usage.length = mark.usage;
       work.length = mark.work;
     },
   };

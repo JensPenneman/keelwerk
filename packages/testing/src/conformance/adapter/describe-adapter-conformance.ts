@@ -11,6 +11,7 @@ import type { AdapterConformanceOptions } from './adapter-conformance-options.ts
 import { apiUsageCases } from './api-usage-cases.ts';
 import { capabilityHonestyCases } from './capability-honesty-cases.ts';
 import { codecCases } from './codec-cases.ts';
+import { commitTailQuotaCases } from './commit-tail-quota-cases.ts';
 import { conditionCases } from './condition-cases.ts';
 import type { ConformanceSubject } from './conformance-subject.ts';
 import type { ConformanceTarget } from './conformance-target.ts';
@@ -29,6 +30,7 @@ import { namedValueKeyCases } from './named-value-key-cases.ts';
 import { paginationCases } from './pagination-cases.ts';
 import { processStreamCases } from './process-stream-cases.ts';
 import { queueScenarioCases } from './queue-scenario-cases.ts';
+import { queuedCapAdmissionCases } from './queued-cap-admission-cases.ts';
 import { restoreDetectionCases } from './restore-detection-cases.ts';
 import { retentionCases } from './retention-cases.ts';
 import { rowCases } from './row-cases.ts';
@@ -37,6 +39,7 @@ import { scheduleCases } from './schedule-cases.ts';
 import { serialCases } from './serial-cases.ts';
 import { storeCases } from './store-cases.ts';
 import { storeIsolationCases } from './store-isolation-cases.ts';
+import { storedRecordCases } from './stored-record-cases.ts';
 import { streamRecordCases } from './stream-record-cases.ts';
 import { timeoutCases } from './timeout-cases.ts';
 import { toggleRebuildCases } from './toggle-rebuild-cases.ts';
@@ -137,5 +140,10 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('encrypted queries', () => encryptedQueryCases(subject));
     describe('leases', () => leaseCases(subject));
     describe('queue scenarios', () => queueScenarioCases(subject));
+    describe('commit tail quotas', () => {
+      commitTailQuotaCases(subject);
+      storedRecordCases(subject);
+      queuedCapAdmissionCases(subject);
+    });
   });
 }

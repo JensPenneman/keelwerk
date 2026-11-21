@@ -16,4 +16,6 @@ export interface CommitTailInput {
   readonly events: readonly CommitTailEvent[];
   /** Per lane, summed; empty when the unit made no job available. */
   readonly lanes: readonly CommitTailLane[];
+  /** Net usage changes, sorted by dimension; empty when the unit charged nothing. */
+  readonly usage: readonly { readonly dimension: string; readonly delta: string }[];
 }

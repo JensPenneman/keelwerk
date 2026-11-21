@@ -1,9 +1,12 @@
 import type { StreamRecord, StreamRecordStore } from '@keelwerk/core';
+import { storedStreamRecordBytes } from '@keelwerk/core';
 import { malformedQuery } from '../sql/malformed-query.ts';
 import { recordOfStreamData } from '../sql/record-of-stream-data.ts';
+import { storedRecordsCharge } from '../sql/stored-records-charge.ts';
 import { streamExpiryPolicy } from '../sql/stream-expiry-policy.ts';
 import { streamRecordData } from '../sql/stream-record-data.ts';
 import { floorInstant } from './floor-instant.ts';
+import { memoryBufferCharges } from './memory-buffer-charges.ts';
 import { memoryCloneValue } from './memory-clone-value.ts';
 import { memoryM2Collections } from './memory-m2-collections.ts';
 import type { MemoryUnitContext } from './memory-unit-context.ts';
@@ -61,6 +64,10 @@ export function memoryStreamRecordStore(ctx: MemoryUnitContext): StreamRecordSto
         const seq = firstSeq + BigInt(index);
         table.set(entryKey(stream, key, seq), { stream, key, seq, at, data: item });
       }
+      memoryBufferCharges(
+        ctx,
+        storedRecordsCharge(ctx.scope, storedStreamRecordBytes(stream, records)),
+      );
       return { firstSeq };
     },
     read: async (stream, key, afterSeq, limit) => {

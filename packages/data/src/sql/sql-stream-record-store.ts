@@ -1,6 +1,6 @@
 // biome-ignore-all lint/style/useNamingConvention: the keys are the column names of the framework tables
 import type { StreamRecordStore } from '@keelwerk/core';
-import { canonicalizeJson } from '@keelwerk/core';
+import { canonicalizeJson, storedStreamRecordBytes } from '@keelwerk/core';
 import { decodeInstant } from './decode-instant.ts';
 import { encodeInstant } from './encode-instant.ts';
 import { malformedQuery } from './malformed-query.ts';
@@ -8,8 +8,10 @@ import { expireStreamRecordsStatement } from './postgres/expire-stream-records-s
 import { takeSerial } from './postgres/serial-statements.ts';
 import { recordOfStreamData } from './record-of-stream-data.ts';
 import { runSql } from './run-sql.ts';
+import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
 import { sqlGuard } from './sql-guard.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
+import { storedRecordsCharge } from './stored-records-charge.ts';
 import { streamExpiryPolicy } from './stream-expiry-policy.ts';
 import { streamRecordData } from './stream-record-data.ts';
 
@@ -22,7 +24,10 @@ const chunk = 1000;
  * commit order and a rolled-back unit gives its values back; a purge leaves the counter. `at` is
  * the adapter clock's instant, never the database's. `data` is `{"record": …}`.
  */
-export function sqlStreamRecordStore(ctx: SqlUnitContext): StreamRecordStore {
+export function sqlStreamRecordStore(
+  ctx: SqlUnitContext,
+  buffer: SqlCommitBuffer,
+): StreamRecordStore {
   const table = ctx.table('kw_stream_records');
   return {
     append: async (stream, key, records) => {
@@ -56,6 +61,7 @@ export function sqlStreamRecordStore(ctx: SqlUnitContext): StreamRecordStore {
             )
             .execute();
         }
+        buffer.charge(storedRecordsCharge(ctx.scope, storedStreamRecordBytes(stream, records)));
         return { firstSeq };
       });
     },

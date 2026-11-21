@@ -63,7 +63,13 @@ export async function memoryUnit<T>(
       result = await fn(memoryBuildUnit(ctx, hooks));
       options.signal?.throwIfAborted();
       if (!readOnly) {
-        memoryCommitTail(ctx);
+        try {
+          memoryCommitTail(ctx);
+        } catch (error) {
+          // A commit the tail refuses changes nothing and wakes nothing.
+          ctx.readied.restore(0);
+          throw error;
+        }
         for (const [name, collection] of ctx.tx.changes()) state.collections.set(name, collection);
       }
       if (ctx.assigned.length > 0) database.committed(namespace.id, ctx.scopeId());

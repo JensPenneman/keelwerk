@@ -49,6 +49,26 @@ describe('createQuotaCache', () => {
     r.stop();
   });
 
+  test('each load names the rows that are new or changed since the load before', async () => {
+    const r = quotaRig([storedQuotaRow('notes.rows', '40')]);
+    const row = (version: number) => ({ id: storedQuotaRow('notes.rows', '40').id, version });
+    await r.cache.fresh();
+    expect(r.debugged).toEqual([
+      { message: 'the quota rows were loaded', fields: { rows: 1, changed: [row(1)] } },
+    ]);
+    r.set([storedQuotaRow('notes.rows', '10', { version: 2 })]);
+    r.advance(1000);
+    await r.cache.fresh();
+    r.advance(1000);
+    await r.cache.fresh();
+    expect(r.debugged.map((entry) => entry.fields)).toEqual([
+      { rows: 1, changed: [row(1)] },
+      { rows: 1, changed: [row(2)] },
+      { rows: 1, changed: [] },
+    ]);
+    r.stop();
+  });
+
   test('fresh() reloads rows older than a second and not younger ones', async () => {
     const r = quotaRig([storedQuotaRow('notes.rows', '40')]);
     await r.cache.fresh();
@@ -207,6 +227,38 @@ describe('createQuotaCache', () => {
     await r.cache.fresh();
     expect(r.loads()).toBe(2);
     r.stop();
+  });
+
+  test('a wake at any step after the last read of a load still loads again and serves the new row', async () => {
+    const turns = async (count: number): Promise<void> => {
+      for (let turn = 0; turn < count; turn += 1) await Promise.resolve();
+    };
+    // The reads are held by a promise the case resolves; the change and its wake follow the release
+    // after 0 to 59 microtask turns, so one of them lands between the end of the load's last check of "again" and
+    // the clearing of its marker. Only microtasks order the steps: no clock and no timer decides.
+    const loadLogged: boolean[] = [];
+    for (let offset = 0; offset < 60; offset += 1) {
+      const r = quotaRig([storedQuotaRow('notes.rows', '40')]);
+      r.hold(true);
+      const first = r.cache.fresh();
+      await turns(20);
+      expect(r.loads()).toBe(1);
+      r.hold(false);
+      r.release();
+      await turns(offset);
+      r.set([storedQuotaRow('notes.rows', '10', { version: 2 })]);
+      loadLogged.push(r.debugged.length > 0);
+      r.wake();
+      await first;
+      await turns(200);
+      expect(r.cache.limitOf(registry, quotaTenantScope, 'notes.rows'), `offset ${offset}`).toEqual(
+        count(10),
+      );
+      r.stop();
+    }
+    // The sweep must cross the end of the first load, or it proves nothing about the wake after it.
+    expect(loadLogged).toContain(false);
+    expect(loadLogged).toContain(true);
   });
 
   test('two open pairs of reads block a third', async () => {
