@@ -10,6 +10,7 @@ import { library, loans, passes } from '../../../src/fixtures/index.ts';
 import { testMasterKeyName } from '../../../src/harness/test-master-key-name.ts';
 import { testSecrets } from '../../../src/harness/test-secrets.ts';
 import { withTestResolver } from '../../../src/harness/with-test-resolver.ts';
+import { keepIdleClients } from '../../../src/postgres/keep-idle-clients.ts';
 import type { TestDatabase } from '../../support/test-database.ts';
 
 const placement = 'main';
@@ -50,9 +51,14 @@ export async function startSlice5Runtime(options: {
     {
       apps: [withTestResolver(slice5App)],
       infrastructure: [factory, schemaPlanner(), fallbackReporter(), testSecrets, httpHost()],
-      control: { adapter: factory.id, url: options.urls.appUrl },
+      control: { adapter: factory.id, url: options.urls.appUrl, pool: keepIdleClients },
       placements: {
-        [placement]: { adapter: factory.id, strategy: 'shared-tables', url: options.urls.appUrl },
+        [placement]: {
+          adapter: factory.id,
+          strategy: 'shared-tables',
+          url: options.urls.appUrl,
+          pool: keepIdleClients,
+        },
       },
       tenantResolution: [{ kind: 'header', header: 'x-tenant' }],
       keys: { masterKey: secret(testMasterKeyName) },

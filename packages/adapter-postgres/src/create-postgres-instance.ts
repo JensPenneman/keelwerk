@@ -149,7 +149,11 @@ export function createPostgresInstance(
       const current = connection;
       connection = undefined;
       if (current === undefined) return;
-      const ended = current.db.destroy();
+      // The pool is ended here and nowhere else. Kysely would end it through `db.destroy()` only
+      // when a query had initialised its driver, so an adapter that never ran a unit kept its
+      // connection until the pool's idle timeout; and ending it through both would be a second
+      // `pool.end()`, which rejects. Kysely holds nothing else that needs closing.
+      const ended = current.pool.end();
       const timer = new AbortController();
       const timedOut = await Promise.race([
         ended.then(

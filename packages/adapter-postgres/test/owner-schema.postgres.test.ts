@@ -1,6 +1,7 @@
 import type { EntityEntry, NamespaceRef } from '@keelwerk/core';
 import { buildTrackSnapshot } from '@keelwerk/data';
 import { conformanceApp } from '@keelwerk/testing/fixtures';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { postgresAdapter } from '../src/postgres-adapter.ts';
@@ -37,7 +38,12 @@ beforeAll(async () => {
   running = await createTestDatabase('owner_schema');
   const factory = postgresAdapter({ ownerUrl: running.adminUrl });
   instance = factory.create(
-    { id: 'main', url: running.appUrl, strategy: 'shared-tables', pool: { max: 2 } },
+    {
+      id: 'main',
+      url: running.appUrl,
+      strategy: 'shared-tables',
+      pool: { max: 2, ...keepIdleClients },
+    },
     testEnvironment(),
   ) as PostgresAdapterInstance;
 });

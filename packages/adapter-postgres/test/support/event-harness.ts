@@ -1,5 +1,6 @@
 import type { PlacementConfig, StorageScope, Unit } from '@keelwerk/core';
 import { isKeelwerkError } from '@keelwerk/core';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import { createPostgresInstance } from '../../src/create-postgres-instance.ts';
@@ -61,7 +62,7 @@ export function eventHarness(databaseName: string, poolMax: number): EventHarnes
     id: 'main',
     url,
     strategy: 'shared-tables',
-    pool: { max },
+    pool: { max, ...keepIdleClients },
   });
   beforeAll(async () => {
     database = await createTestDatabase(databaseName);

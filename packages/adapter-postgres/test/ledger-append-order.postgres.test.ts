@@ -1,5 +1,6 @@
 import type { DataAdapter, ErasureRecord, NamespaceRef, Unit } from '@keelwerk/core';
 import { aesKeyWrapper } from '@keelwerk/data/conformance';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { postgresAdapter } from '../src/postgres-adapter.ts';
@@ -25,7 +26,12 @@ beforeAll(async () => {
     ownerUrl: urls.adminUrl,
     keyWrapper: aesKeyWrapper(new Uint8Array(32).fill(7)),
   }).create(
-    { id: 'main', strategy: 'shared-tables', url: urls.appUrl, pool: { max: 6 } },
+    {
+      id: 'main',
+      strategy: 'shared-tables',
+      url: urls.appUrl,
+      pool: { max: 6, ...keepIdleClients },
+    },
     testEnvironment(),
   );
   await adapter.connect();

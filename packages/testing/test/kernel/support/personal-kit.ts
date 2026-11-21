@@ -30,6 +30,7 @@ import { testCarrier } from '../../../src/harness/test-carrier.ts';
 import { testMasterKeyName } from '../../../src/harness/test-master-key-name.ts';
 import { testSecrets } from '../../../src/harness/test-secrets.ts';
 import { withTestResolver } from '../../../src/harness/with-test-resolver.ts';
+import { keepIdleClients } from '../../../src/postgres/keep-idle-clients.ts';
 import { ada, boot, type Kind } from './runtime-kit.ts';
 
 const personDef = defineEntity({
@@ -194,7 +195,7 @@ export async function bootPeopleOn(target: PeopleTarget): Promise<People_> {
       return captured.adapter;
     },
   };
-  const url = target.url === undefined ? {} : { url: target.url };
+  const url = target.url === undefined ? {} : { url: target.url, pool: keepIdleClients };
   const runtime = await boot({
     apps: [withTestResolver(peopleApp)],
     infrastructure: [factory, schemaPlanner(), fallbackReporter(), testSecrets],

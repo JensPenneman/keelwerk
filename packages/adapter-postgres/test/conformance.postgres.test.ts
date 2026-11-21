@@ -1,6 +1,7 @@
 import type { EntityDescriptor, NamespaceRef } from '@keelwerk/core';
 import { aesKeyWrapper, conformanceSnapshot } from '@keelwerk/data/conformance';
 import { describeAdapterConformance } from '@keelwerk/testing';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import pg from 'pg';
 import { inject } from 'vitest';
 import { postgresAdapter } from '../src/postgres-adapter.ts';
@@ -50,7 +51,10 @@ for (const [name, database, accelerations] of variants) {
         entities: (ref) => known.get(ref),
         keyWrapper: aesKeyWrapper(new Uint8Array(32).fill(7)),
         ...accelerations,
-      }).create({ id: 'main', strategy: 'shared-tables', url: urls.appUrl }, testEnvironment());
+      }).create(
+        { id: 'main', strategy: 'shared-tables', url: urls.appUrl, pool: keepIdleClients },
+        testEnvironment(),
+      );
       await adapter.connect();
       await adapter.schema.provision(namespace, [conformanceSnapshot(entities)]);
       const tables = new Set(entities.map((entity) => entity.table));

@@ -1,4 +1,5 @@
 import { isKeelwerkError, RetryableUnitError } from '@keelwerk/core';
+import { keepIdleClients, waitForEmptyListing } from '@keelwerk/testing/postgres';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createPostgresInstance } from '../src/create-postgres-instance.ts';
 import type { PostgresAdapterInstance } from '../src/postgres-adapter-instance.ts';
@@ -20,7 +21,12 @@ beforeAll(async () => {
   await prepareNamespaces(running.adminUrl);
   adapter = createPostgresInstance(
     {},
-    { id: 'main', url: running.appUrl, strategy: 'shared-tables', pool: { max: 4 } },
+    {
+      id: 'main',
+      url: running.appUrl,
+      strategy: 'shared-tables',
+      pool: { max: 4, ...keepIdleClients },
+    },
     testEnvironment(),
   );
   await adapter.connect();
@@ -130,6 +136,15 @@ describe('error mapping', () => {
   });
 });
 
+const backendsOf = (applicationName: string) =>
+  adapter.session(testNamespace, scopeA, async (s) =>
+    (
+      await query(s, 'select pid from pg_stat_activity where application_name = $1', [
+        applicationName,
+      ])
+    ).map(({ pid }) => pid),
+  );
+
 describe('the adapter entry points', () => {
   test('a unit runs with the event store and the whole job store wired', async () => {
     expect(await adapter.unit(testNamespace, scopeA, async () => 1)).toBe(1);
@@ -143,7 +158,7 @@ describe('the adapter entry points', () => {
   test('a closed adapter is unavailable and unhealthy', async () => {
     const other = createPostgresInstance(
       {},
-      { id: 'main', url: running.appUrl, strategy: 'shared-tables' },
+      { id: 'main', url: running.appUrl, strategy: 'shared-tables', pool: keepIdleClients },
       testEnvironment(),
     );
     await other.connect();
@@ -152,5 +167,21 @@ describe('the adapter entry points', () => {
     await expect(other.session(testNamespace, scopeA, async () => 1)).rejects.toMatchObject({
       kind: 'unavailable',
     });
+  });
+
+  test('an adapter closed before it ran a unit leaves no connection behind', async () => {
+    const name = 'errors-closed-unused';
+    const unused = createPostgresInstance(
+      { applicationName: name },
+      { id: 'main', url: running.appUrl, strategy: 'shared-tables', pool: keepIdleClients },
+      testEnvironment(),
+    );
+    await unused.connect();
+    expect(await backendsOf(name)).toHaveLength(1);
+    await unused.close(5000);
+    // The pool ended; its client sent Terminate and the backend exits on reading it. The wait is
+    // the guard's: a failure rests only on a listing started after 2000 ms, far below the pool's
+    // idle timeout (10 s), which would also end it.
+    expect(await waitForEmptyListing(() => backendsOf(name), { timeoutMs: 2000 })).toEqual([]);
   });
 });

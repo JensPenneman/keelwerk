@@ -3,6 +3,7 @@ import { isKeelwerkError } from '@keelwerk/core';
 import type { SqlUnit } from '@keelwerk/data';
 import { sqlEntityIndex, sqlUnit } from '@keelwerk/data';
 import { aesKeyWrapper } from '@keelwerk/data/conformance';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import { createPostgresInstance } from '../../src/create-postgres-instance.ts';
@@ -50,7 +51,7 @@ export function storeHarness(databaseName: string): StoreHarness {
     id: 'main',
     url,
     strategy: 'shared-tables',
-    pool: { max: 4 },
+    pool: { max: 4, ...keepIdleClients },
   });
   beforeAll(async () => {
     database = await createTestDatabase(databaseName);

@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, inject, test } from 'vitest';
 import { assertConnectionsClosed } from '../src/postgres/assert-connections-closed.ts';
 import { openClientConnections } from '../src/postgres/open-client-connections.ts';
 import type { PostgresCluster } from '../src/postgres/postgres-cluster.ts';
+import { waitForEmptyListing } from '../src/postgres/wait-for-empty-listing.ts';
 
 const injected = inject('postgresCluster');
 const cluster: PostgresCluster = {
@@ -48,5 +49,53 @@ describe('assertConnectionsClosed', () => {
     await expect(
       assertConnectionsClosed(cluster, { except: baseline, timeoutMs: 300 }),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('waitForEmptyListing', () => {
+  const clockOf = () => {
+    let time = 0;
+    return { now: () => time, advance: (ms: number) => (time += ms), pause: async () => undefined };
+  };
+
+  test('a listing that started before the grace ran out never fails the wait, however slow it is', async () => {
+    const clock = clockOf();
+    const starts: number[] = [];
+    const listed = await waitForEmptyListing(
+      async () => {
+        starts.push(clock.now());
+        if (starts.length === 1) {
+          clock.advance(2100);
+          return ['pid 1'];
+        }
+        return [];
+      },
+      { timeoutMs: 2000, now: clock.now, pause: clock.pause },
+    );
+    expect(listed).toEqual([]);
+    expect(starts).toEqual([0, 2100]);
+  });
+
+  test('a connection still shown by a listing that started after the grace fails the wait', async () => {
+    const clock = clockOf();
+    const starts: number[] = [];
+    const listed = await waitForEmptyListing(
+      async () => {
+        starts.push(clock.now());
+        clock.advance(700);
+        return ['pid 1'];
+      },
+      { timeoutMs: 2000, now: clock.now, pause: clock.pause },
+    );
+    expect(listed).toEqual(['pid 1']);
+    expect(starts).toEqual([0, 700, 1400, 2100]);
+  });
+
+  test('a real connection that is never ended still fails assertConnectionsClosed', async () => {
+    await client?.end();
+    client = await open();
+    await expect(assertConnectionsClosed(cluster, { timeoutMs: 300 })).rejects.toThrow(
+      /left 1 PostgreSQL connection\(s\) open: pid \d+ "left-open" on /,
+    );
   });
 });

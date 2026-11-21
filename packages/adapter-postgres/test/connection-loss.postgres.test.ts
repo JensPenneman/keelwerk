@@ -1,6 +1,7 @@
 import { isKeelwerkError } from '@keelwerk/core';
 import type { LoggedLine } from '@keelwerk/testing';
 import { recordingLogger } from '@keelwerk/testing';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createPostgresInstance } from '../src/create-postgres-instance.ts';
@@ -62,7 +63,12 @@ beforeAll(async () => {
   await owner.connect();
   instance = createPostgresInstance(
     { applicationName: 'loss' },
-    { id: 'main', url: running.appUrl, strategy: 'shared-tables', pool: { max: 1 } },
+    {
+      id: 'main',
+      url: running.appUrl,
+      strategy: 'shared-tables',
+      pool: { max: 1, ...keepIdleClients },
+    },
     environment(),
   );
   await instance.connect();
@@ -150,7 +156,7 @@ describe('a connection the server ends', () => {
         id: 'main',
         url: running.appUrl,
         strategy: 'shared-tables',
-        pool: { max: 1 },
+        pool: { max: 1, ...keepIdleClients },
         options: { connectionTimeoutMs: 300 },
       },
       environment(),
@@ -189,7 +195,12 @@ describe('a connection the server ends', () => {
       ownerUrl: running.adminUrl,
       applicationName: 'loss',
     }).create(
-      { id: 'main', url: running.appUrl, strategy: 'shared-tables', pool: { max: 1 } },
+      {
+        id: 'main',
+        url: running.appUrl,
+        strategy: 'shared-tables',
+        pool: { max: 1, ...keepIdleClients },
+      },
       environment(),
     );
     const { schema } = created;

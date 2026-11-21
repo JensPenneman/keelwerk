@@ -5,6 +5,7 @@ import { libraryApp } from '../../src/fixtures/index.ts';
 import { testMasterKeyName } from '../../src/harness/test-master-key-name.ts';
 import { testSecrets } from '../../src/harness/test-secrets.ts';
 import { withTestResolver } from '../../src/harness/with-test-resolver.ts';
+import { keepIdleClients } from '../../src/postgres/keep-idle-clients.ts';
 import { type Slice2Adapters, slice2Adapters } from './slice-2-adapters.ts';
 
 const app = withTestResolver(libraryApp);
@@ -31,7 +32,7 @@ export interface Slice2 {
 
 export function slice2(target: Slice2Target): Slice2 {
   const adapters = slice2Adapters(target.factory, target.volatile);
-  const url = target.url === undefined ? {} : { url: target.url };
+  const url = target.url === undefined ? {} : { url: target.url, pool: keepIdleClients };
   const deployment = (planner = schemaPlanner()): DeploymentDefinition => ({
     apps: [app],
     infrastructure: [adapters.factory, planner, fallbackReporter(), testSecrets],

@@ -17,6 +17,7 @@ import {
   startRuntime,
 } from '@keelwerk/core';
 import { fallbackReporter, memoryAdapter, schemaPlanner } from '@keelwerk/data';
+import { keepIdleClients } from '../postgres/keep-idle-clients.ts';
 import { advanceTo } from './advance-to.ts';
 import { clientFetchOf } from './client-fetch-of.ts';
 import { drainJobs } from './drain-jobs.ts';
@@ -140,12 +141,12 @@ export async function startTestRuntime<
       control:
         external === undefined
           ? { adapter: given === undefined ? kind : 'memory' }
-          : { adapter: base.id, url: external.url },
+          : { adapter: base.id, url: external.url, pool: keepIdleClients },
       placements: {
         [placementName]: {
           adapter: external !== undefined ? base.id : given === undefined ? kind : 'given',
           strategy: 'shared-tables',
-          ...(external === undefined ? {} : { url: external.url }),
+          ...(external === undefined ? {} : { url: external.url, pool: keepIdleClients }),
         },
       },
       tenantResolution: [{ kind: 'header', header: 'x-tenant', backendHeader: 'x-backend' }],

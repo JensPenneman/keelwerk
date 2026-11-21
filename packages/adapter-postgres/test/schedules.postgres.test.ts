@@ -1,4 +1,5 @@
 import type { StorageScope, Unit } from '@keelwerk/core';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { postgresAdapter } from '../src/postgres-adapter.ts';
 import type { PostgresAdapterInstance } from '../src/postgres-adapter-instance.ts';
@@ -19,7 +20,7 @@ let second: PostgresAdapterInstance;
 
 const open = (url: string, ownerUrl: string): PostgresAdapterInstance =>
   postgresAdapter({ ownerUrl, entities: (ref) => known.get(ref) }).create(
-    { id: 'main', url, strategy: 'shared-tables', pool: { max: 4 } },
+    { id: 'main', url, strategy: 'shared-tables', pool: { max: 4, ...keepIdleClients } },
     testEnvironment(),
   ) as PostgresAdapterInstance;
 

@@ -1,6 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import type { AdapterCapabilities, DataAdapter } from '@keelwerk/core';
 import { fallbackReport } from '@keelwerk/data';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { postgresAdapter } from '../src/postgres-adapter.ts';
 import { streamAppend } from './support/event-fixtures.ts';
@@ -23,7 +24,7 @@ beforeAll(async () => {
     id: 'main',
     url: harness.database.appUrl,
     strategy: 'shared-tables' as const,
-    pool: { max: 4 },
+    pool: { max: 4, ...keepIdleClients },
   };
   plain = postgresAdapter({ entities: (ref) => known.get(ref) }).create(
     placement,

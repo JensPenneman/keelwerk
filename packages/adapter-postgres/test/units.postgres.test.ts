@@ -1,4 +1,5 @@
 import type { PlacementConfig, StorageScope } from '@keelwerk/core';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createPostgresInstance } from '../src/create-postgres-instance.ts';
@@ -21,7 +22,7 @@ const controlNamespace = { ...testNamespace, id: 'ns-control', root: 'kw__contro
 
 function placement(url: string): PlacementConfig {
   // One connection: every unit after the first reuses a session that earlier held another scope.
-  return { id: 'main', url, strategy: 'shared-tables', pool: { max: 1 } };
+  return { id: 'main', url, strategy: 'shared-tables', pool: { max: 1, ...keepIdleClients } };
 }
 
 beforeAll(async () => {

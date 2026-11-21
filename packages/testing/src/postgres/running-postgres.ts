@@ -10,7 +10,7 @@ export interface RunningPostgres {
   readonly containerId: string;
   /**
    * Stops and removes the container, after the server shows no client connection left open. When
-   * one is still open after ten seconds it rejects, naming each, and leaves the container running
+   * one is still shown by a listing started after two seconds it rejects, naming each, and leaves the container running
    * for the reaper: stopping it would end those connections with an error nobody handles.
    */
   stop(): Promise<void>;

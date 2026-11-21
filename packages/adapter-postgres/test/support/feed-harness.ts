@@ -1,4 +1,5 @@
 import type { DataAdapter, PlacementConfig } from '@keelwerk/core';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import pg from 'pg';
 import type { AccelerationOptions } from '../../src/acceleration-options.ts';
 import { postgresAdapter } from '../../src/postgres-adapter.ts';
@@ -40,7 +41,7 @@ export async function feedHarness(databaseName: string): Promise<FeedHarness> {
     id: 'main',
     url: database.appUrl,
     strategy: 'shared-tables',
-    pool: { max: 4 },
+    pool: { max: 4, ...keepIdleClients },
   };
   return {
     database,

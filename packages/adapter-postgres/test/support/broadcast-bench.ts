@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import type { DataAdapter, Logger } from '@keelwerk/core';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import { postgresAdapter } from '../../src/postgres-adapter.ts';
 import type { FeedHarness } from './feed-harness.ts';
 import { feedHarness } from './feed-harness.ts';
@@ -50,7 +51,7 @@ export async function broadcastBench(databaseName: string): Promise<BroadcastBen
         entities: (ref) => known.get(ref),
         ...(accelerations === undefined ? {} : { accelerations }),
       }).create(
-        { id: 'main', url, strategy: 'shared-tables', pool: { max: 2 } },
+        { id: 'main', url, strategy: 'shared-tables', pool: { max: 2, ...keepIdleClients } },
         testEnvironment(undefined, recorder),
       );
       connected.set(adapter, await adapter.connect());

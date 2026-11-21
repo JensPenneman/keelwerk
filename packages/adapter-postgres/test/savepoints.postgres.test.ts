@@ -1,3 +1,4 @@
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createPostgresInstance } from '../src/create-postgres-instance.ts';
 import type { PostgresAdapterInstance } from '../src/postgres-adapter-instance.ts';
@@ -17,7 +18,12 @@ beforeAll(async () => {
   await prepareNamespaces(database.adminUrl);
   adapter = createPostgresInstance(
     {},
-    { id: 'main', url: database.appUrl, strategy: 'shared-tables', pool: { max: 1 } },
+    {
+      id: 'main',
+      url: database.appUrl,
+      strategy: 'shared-tables',
+      pool: { max: 1, ...keepIdleClients },
+    },
     testEnvironment(),
   );
   await adapter.connect();

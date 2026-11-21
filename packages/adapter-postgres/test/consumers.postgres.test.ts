@@ -1,4 +1,5 @@
 import type { StorageScope, Unit } from '@keelwerk/core';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { postgresAdapter } from '../src/postgres-adapter.ts';
@@ -23,7 +24,12 @@ beforeAll(async () => {
     ownerUrl: database.adminUrl,
     entities: (ref) => known.get(ref),
   }).create(
-    { id: 'main', url: database.appUrl, strategy: 'shared-tables', pool: { max: 4 } },
+    {
+      id: 'main',
+      url: database.appUrl,
+      strategy: 'shared-tables',
+      pool: { max: 4, ...keepIdleClients },
+    },
     testEnvironment(),
   ) as PostgresAdapterInstance;
   await instance.connect();

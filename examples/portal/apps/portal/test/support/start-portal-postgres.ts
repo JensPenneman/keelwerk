@@ -7,6 +7,7 @@ import { secret, startRuntime } from '@keelwerk/core';
 import { fallbackReporter, schemaPlanner } from '@keelwerk/data';
 import type { TransportRuntime } from '@keelwerk/testing';
 import { clientFetchOf } from '@keelwerk/testing';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import { httpHost } from '@keelwerk/transport-http';
 import { portal } from '../../src/app.ts';
 import { portalConfig } from './portal-config.ts';
@@ -52,9 +53,14 @@ export async function startPortalPostgres(options: PostgresPortalOptions): Promi
         httpHost(),
         portalDispatcher(),
       ],
-      control: { adapter: factory.id, url: options.appUrl },
+      control: { adapter: factory.id, url: options.appUrl, pool: keepIdleClients },
       placements: {
-        main: { adapter: factory.id, strategy: 'shared-tables', url: options.appUrl },
+        main: {
+          adapter: factory.id,
+          strategy: 'shared-tables',
+          url: options.appUrl,
+          pool: keepIdleClients,
+        },
       },
       operator: { socket },
       tenantResolution: [{ kind: 'hostname' }, { kind: 'header', header: 'x-tenant' }],

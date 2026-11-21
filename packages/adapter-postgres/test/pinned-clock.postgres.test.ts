@@ -1,4 +1,5 @@
 import type { NamespaceRef, Receipt } from '@keelwerk/core';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { postgresAdapter } from '../src/postgres-adapter.ts';
 import type { PostgresAdapterInstance } from '../src/postgres-adapter-instance.ts';
@@ -29,7 +30,12 @@ beforeAll(async () => {
   await prepareStoreTables(running.adminUrl);
   // No `clock` option: the only clock the adapter can use is the one of the environment.
   instance = postgresAdapter({ ownerUrl: running.adminUrl }).create(
-    { id: 'main', url: running.appUrl, strategy: 'shared-tables', pool: { max: 2 } },
+    {
+      id: 'main',
+      url: running.appUrl,
+      strategy: 'shared-tables',
+      pool: { max: 2, ...keepIdleClients },
+    },
     { ...testEnvironment(), clock: { now: () => pinned } },
   ) as PostgresAdapterInstance;
   await instance.connect();

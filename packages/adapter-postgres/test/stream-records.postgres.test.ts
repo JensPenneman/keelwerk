@@ -1,4 +1,5 @@
 import type { NamespaceRef } from '@keelwerk/core';
+import { keepIdleClients } from '@keelwerk/testing/postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { postgresAdapter } from '../src/postgres-adapter.ts';
@@ -27,7 +28,12 @@ beforeAll(async () => {
   await prepareNamespaces(running.adminUrl);
   // No `clock` option: the clock of the environment is the one the adapter reads.
   instance = postgresAdapter({ ownerUrl: running.adminUrl }).create(
-    { id: 'main', url: running.appUrl, strategy: 'shared-tables', pool: { max: 2 } },
+    {
+      id: 'main',
+      url: running.appUrl,
+      strategy: 'shared-tables',
+      pool: { max: 2, ...keepIdleClients },
+    },
     { ...testEnvironment(), clock: { now: () => pinned } },
   ) as PostgresAdapterInstance;
   await instance.connect();
