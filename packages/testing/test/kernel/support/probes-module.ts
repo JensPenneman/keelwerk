@@ -7,6 +7,7 @@ import {
   defineModuleBase,
   defineRule,
   type EntityType,
+  enqueue,
   errors,
   field,
   KeelwerkError,
@@ -146,7 +147,10 @@ const pingExecutor = defineEffectExecutor(probesBase, ping, {
   inline: true,
   timeout: '5s',
   group: () => ({ id: 'ping', concurrency: 1 }),
-  run: async () => ({ status: 200 }),
+  run: async () => {
+    pingRuns.count += 1;
+    return { status: 200 };
+  },
 });
 
 const unsealExecutor = defineEffectExecutor(probesBase, unseal, {
@@ -213,6 +217,17 @@ const look = defineCommand(probesBase, {
   },
 });
 
+/**
+ * Enqueues `look` as a command job: the runtime's worker takes it later and runs a command with a
+ * `prepare` step, as it does for any `enqueue` of a command (12.2, the admission on the job path).
+ */
+const lookLater = defineCommand(probesBase, {
+  input: shape({ owner: field.subject() }),
+  output: shape({}),
+  principal: 'user',
+  decide: (input) => ({ events: [], effects: [enqueue(look, { owner: input.owner })] }),
+});
+
 const record = defineCommand(probesBase, target, {
   input: outcomeOf(act),
   decide: (input, _current, ctx) => [
@@ -225,7 +240,7 @@ const record = defineCommand(probesBase, target, {
 });
 
 const probesDef = defineModule(probesBase, {
-  actions: { run, plant, look },
+  actions: { run, plant, look, lookLater },
   entityActions: { target: { record, sign } },
   effects: { act, ping, unseal },
   executors: { act: actExecutor, ping: pingExecutor, unseal: unsealExecutor },
@@ -233,6 +248,9 @@ const probesDef = defineModule(probesBase, {
     run: { signedIn: defineRule(probesBase, run, { effect: 'allow', principal: 'user' }) },
     plant: { signedIn: defineRule(probesBase, plant, { effect: 'allow', principal: 'user' }) },
     look: { signedIn: defineRule(probesBase, look, { effect: 'allow', principal: 'user' }) },
+    lookLater: {
+      signedIn: defineRule(probesBase, lookLater, { effect: 'allow', principal: 'user' }),
+    },
     target: {
       writers: defineRule(probesBase, target, {
         effect: 'allow',
@@ -248,3 +266,6 @@ const probesDef = defineModule(probesBase, {
 /** The test-local module that probes the executor runtime: every failure case runs through one effect. */
 export interface Probes extends ModuleType<typeof probesDef> {}
 export const probes: Probes = probesDef;
+
+/** How many times the inline executor of `ping` has run in this process: a case counts the performs. */
+export const pingRuns = { count: 0 };

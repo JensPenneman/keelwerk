@@ -2902,6 +2902,13 @@ generator, so `yield*` types each answer (as in Effect); a bare `yield` is a lin
 #### 7.9.4 Phases of a command invocation
 
 1. **Admission**: the pipeline of section 9.2 up to `authorize`; rules read the flag snapshot.
+   **Storage admission**, for a command that declares `prepare`: the check of such a command against
+   the storage limits. A command of a scope above a storage limit is refused with
+   `core.quota_exceeded` before phase 2, whatever its decision would store, unless its command id
+   has a finished, unexpired receipt or has left an effect record. The unit of such a command
+   declares no storage limit at its commit tail, so a storage limit never refuses it after its
+   prepare step ran (section 12.2); a command without `prepare` that a unit is opened for is checked
+   at the commit tail of that unit (section 12.2).
 2. **Prepare**, for sync commands that declare it, outside any unit. Loads read read-only
    snapshots, never open while an inline effect runs. Each `ctx.perform` records `requested` in a short
    unit, runs the inline executor within its timeout without retries, and records `settled`; the
@@ -4825,7 +4832,7 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
 |---|---|---|---|
 | request rate (per tenant, per principal, per action class) | `core` quota configuration per backend, with tenant overrides | token buckets in the tenant's namespace (`kw_rate_buckets`, below), refilled by time; each process takes a small allowance at a time so the shared row is touched rarely | `admit`: `rate_limited` with `retryAfter` |
 | concurrent invocations per tenant | as above | per process, reconciled through leases in the control store | `admit` |
-| storage: rows, event bytes and blob bytes per tenant | as above; modules may declare finer dimensions (`mail-store`'s bytes per mail account) | usage counters per scope, updated in the commit tail of the unit that changes them (blob bytes when a blob is adopted or purged) | the commit tail: `rate_limited` with code `core.quota_exceeded`, not retryable |
+| storage: rows, event bytes and blob bytes per tenant | as above; modules may declare finer dimensions (`mail-store`'s bytes per mail account) | usage counters per scope, updated in the commit tail of the unit that changes them (blob bytes when a blob is adopted or purged) | the admission of a command with a prepare step (before `prepare` runs; the commit tail of its unit declares no storage limit) and the commit tail of the unit of a command without a prepare step, for an action that is not a core action: `rate_limited` with code `core.quota_exceeded`, not retryable |
 | running jobs per tenant and queue | `queues.<q>.running` per backend, with tenant overrides (section 9.5.5) | the lane's `taken` and `done` counters | the take, by the lane's cap: excess jobs wait |
 | queued jobs per tenant and queue | `queues.<q>.queued` (default 10,000), with backend and tenant overrides | the lane counters (section 9.5.2) | the enqueue's commit tail: `rate_limited` with code `core.queue_full` and `retryAfter` |
 | share of a queue | a weight per backend and tenant (default 1), operator only | the lane's virtual time | the take's order |
@@ -4840,12 +4847,101 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
   counters are both per scope (section 15.1.4).
 - Usage is a metric per tenant and dimension; `keelwerk doctor` lists tenants above 80 percent
   of a limit.
-- Limits of the storage quotas as built (both are open work): receipt change records, which stay
-  at least seven days, are not counted in `core.eventBytes`; and a command with a prepare step of
-  a tenant that already stands above its limit still performs its inline effect and stores its
-  effect records before its decision is refused with `core.quota_exceeded`. A new limit applies to
-  the commands that start after the quota cache has read it again: a change on the feed starts
-  that read in the background, and with the feed down or behind, the refresh period does.
+- What a storage counter counts, and when it goes down. `core.eventBytes` counts every event
+  and every stream record a unit stores in a tenant or a backend scope, receipt change records
+  included, and not the process state cache, which is replaced at every fold. The adapter charges
+  a record when it appends it and gives the same bytes back, measured again from the stored
+  record, in the unit that removes it: the retention sweep of receipt change records, the expiry of
+  the stream records of modules that declare a retention, and the erasure of the stream records
+  keyed by a row its subject owns. Every other event stays, and so does every row of `core.rows`:
+  nothing removes one, so that counter does not go down. The counters are
+  charged and lowered at the commit tail, and a unit that rolls back changes neither.
+- Admission. A command with a prepare step is checked before `prepare` runs, until its command id
+  has a finished, unexpired receipt or an effect record: a scope whose `core.eventBytes` or
+  `core.rows` stands above its limit refuses it with `core.quota_exceeded`, whatever its decision
+  would store. The admission cannot know that, and a prepare step that ran for a command that is
+  then refused is what it prevents. Nothing of the command starts and no receipt is written (the
+  refusal is not pinned to the command id). A counter equal to its limit admits.
+  The rule: a storage limit is checked in one place for the command a unit is opened for, and what
+  runs nested in that unit follows that command; the place follows from that command. A command with
+  a prepare step is checked at its admission and nowhere else: the unit opened for it declares no
+  storage limit at its commit tail, so the tail charges what the unit stores and stores the decision
+  whatever the counters are by then. That holds for everything the unit stores, whichever action
+  charges it: the decision, its inline reactions, every synchronous command invoked in the unit at
+  any depth and the inline reactions of those. It is decided once, for the command the unit was
+  opened for, and handed on to what runs in the unit (`isUnitExemptFromTail`, asked by
+  `attemptCommand`; a nested run does not ask it again of its own action), and it holds for every
+  run of such a command (admitted, resumed from an effect record, called directly, run in a job). A
+  job that its decision enqueues and an asynchronous command it invokes run in units of their own. A
+  command without a prepare step that a unit is opened for is checked at the commit tail of that
+  unit, in a dimension that its commit adds to, and that refusal is pinned to the command id as a
+  failed receipt; a synchronous command invoked in that unit declares the limit of the tail too.
+  What the rule does not say, item by item: a core action is checked nowhere (its tail declares no
+  limit, per action and not per unit; as built none reaches a limit); a dry run runs the same code
+  in a unit that always rolls back, so no limit refuses it; an asynchronous command is accepted
+  first, and its accept stores its receipt and change record, which no storage limit refuses. A unit
+  the framework runs for itself declares no storage limit and is never refused by one. The rule that
+  names them: every unit that is not the run of a command through `attemptCommand`, or an inline
+  reaction of that run, because only those two charge a storage limit (`chargeStorage`, called by
+  `attempt-command.ts` and `dispatch-inline-reactions.ts`). Examples: the accept of an asynchronous
+  command, the begin and the end unit of an effect attempt (also the guard job's begin that settles
+  an abandoned inline effect), the settle after a failed end, the close of an unrun attempt, the
+  deadline job, the settle unit of an inline effect, the release of a job at a drain, the end of an
+  exhausted command job, the steps of an erasure, a dispatcher pass. Other holds still reach such a
+  unit, and none of them is a storage limit: a unit that enqueues a job carrying a queued cap
+  (`commandQueuedCap`; for example the accept of an asynchronous command) can be refused with
+  `core.queue_full`, and a dispatcher pass is held at 90 percent of the scope's `reactions` lane
+  (section 9.5.5). The queued cap of a job that a unit enqueues is checked at the commit tail of
+  that unit also for a command with a prepare step: it can refuse the unit with the retryable
+  `core.queue_full` after the prepare step ran, the refusal is not pinned to the command id, and the
+  same id sent again with room completes without a second effect (a case shows it).
+  A command id that is sent again is not checked again when its first attempt has left:
+  - a finished, unexpired receipt: the id is answered from that receipt, starts no effect and is
+    charged nothing (a different request under that id is still refused with
+    `core.idempotency_mismatch`); if the receipt is gone by the time its `prepare` would have to
+    start an effect, the run is refused with a retryable `core.command_in_progress`;
+  - no such receipt but an effect record: its first attempt was admitted and the id is never
+    refused by a limit and charged nothing; it goes the way every resend of a first attempt goes:
+    for the same caller and effect input, a retryable `core.command_in_progress` while the effect
+    is requested, the recorded outcome once it has settled, and then its decision; an anonymous
+    caller and another effect input are answered as before the admission existed.
+  The records of an inline effect (the `core.effect` events and the effect attempt records) count
+  in `core.eventBytes` and never in `core.rows`: `core.effect` is an invocation entity.
+- Limits of the storage quotas as built: a command admitted while its tenant is at or below the
+  limits, the one that crosses it and any admitted beside it, performs its inline effects and stores
+  their records, which stay counted, and everything its unit stores, the decision with the receipt,
+  is stored whatever the counters are by then; so is the decision of a resumed command (one with an
+  effect record). The counters are read without a lock, so commands that start together may all be
+  admitted. An id that has an effect record is admitted by its first attempt and never refused by a
+  limit again, also with another request, for the same caller and effect input as its first effect:
+  per id the bound is the performs of one prepare run that its first attempt had not begun, and one
+  decision with what its unit stores, while the effect record lives. A resend that arrives after its
+  first attempt was admitted and before that attempt has committed its first effect record (for a
+  prepare step that performs none, its receipt), while a counter has meanwhile risen above its
+  limit, finds neither receipt nor effect record and is refused with the non-retryable
+  `core.quota_exceeded` although the first attempt can still complete; the same id sent after that
+  commit is admitted on its effect record or answered from its receipt. A tenant above its
+  `core.rows` limit cannot run a command with a prepare step, also one whose decision only removes
+  rows. A tenant gets back under a limit only by raising it (`core.quota.set`), and for
+  `core.eventBytes` by what gives bytes back: the retention sweep of receipt change records (the
+  newest record of a receipt's stream stays while the receipt exists), the expiry of the stream
+  records of modules that declare a retention (the effect attempt records declare none), and the
+  erasure of a row its subject owns, which purges the stream records keyed by it. Nothing lowers
+  `core.rows`, and no event of an entity, a process or `core.effect` is removed. The decision of a
+  command without a prepare step never takes a counter above a limit, because the tail checks under
+  the lock of the usage row. What overshoots is everything that the unit of a command with a prepare
+  step stores (the effect records, the decision, its inline reactions and every synchronous command
+  invoked in the unit with theirs) for every such command that was admitted while no counter stood
+  above its limit, in flight or resumed from an effect record, and the records of the framework's
+  units (the rule of the Admission bullet). No fixed number bounds the commands of the first kind:
+  they are the commands with a prepare step in flight or resumable when a limit is crossed; the
+  records of framework units have no bound. An asynchronous command of a tenant above its limit is
+  still accepted (its receipt and change record are stored and counted) and its job is refused at
+  its tail. Records stored before they were counted (by 0.2.0 or earlier, and receipt change records
+  written before this change) were never charged, but their removal lowers the counter anyway, so it
+  can fall below the stored bytes and below zero; nothing recounts. A new limit applies to the
+  commands that start after the quota cache has read it again: a change on the feed starts that read
+  in the background, and with the feed down or behind, the refresh period does.
 
 Rate buckets, those of quotas and those that admission rules name (auth's login limits, section
 17.2.6), are rows of one framework table per namespace, under forced row-level security like the
@@ -5989,8 +6085,9 @@ export interface StreamRecordStore {
   purgeKeys(stream: string, keys: readonly string[]): Promise<number>          // erasure and retention
 }
 export interface UsageStore {
-  add(dimension: string, delta: bigint): Promise<bigint>                      // returns the new value for the unit's scope
-  get(dimension: string): Promise<bigint>
+  get(dimension: string): Promise<bigint>                                     // the committed counter of the unit's scope
+  charge(charges: readonly UsageCharge[]): void                               // buffered for the commit tail; a delta below 0 is internal; a net growth above a declared limit refuses the unit
+  giveBack(dimension: string, amount: bigint): void                           // buffered for the commit tail, never refused; an amount below 0 is internal
 }
 ```
 
@@ -6299,7 +6396,8 @@ that carry no hash and no previous hash, recorded before `before`, that are not 
 newest record unless no receipt row with the stream's id exists in the scope, at most `max_rows` (1
 to 100,000, else it raises). It holds the one purgeable stream type, `core.commandReceipt`, as a
 literal and refuses a list that names any other with 42501. It answers `removed`, the rows it
-deleted, and `more`, whether a candidate is left, read by a statement of its own after the delete
+deleted, `records`, the `[data, before, meta]` of each deleted row as a JSON array (the adapter
+measures it to give the bytes back to `core.eventBytes`), and `more`, whether a candidate is left, read by a statement of its own after the delete
 and never derived from `removed`: a delete that skipped rows another pass took removes fewer than
 `max_rows` while older candidates remain. `EventStore.purgeTransient` and `JobStore.purgeHistory`
 answer the same `PurgeBatch`. It repeats the policies' scope predicate, because an owner that
@@ -8517,8 +8615,13 @@ with counter as (
 ), enqueued as (                                                   -- only when the unit made jobs available (section 9.5.2)
   update <root>.kw_job_lane_counts c set value = c.value + x.n
   from unnest($lanes, $counts) as x(lane_id, n) where c.lane_id = x.lane_id and c.kind = 'enqueued' and c.scope_id = $scope
+), usage as (                                                      -- only when the unit charged or gave back usage (section 12.2)
+  insert into <root>.kw_usage as u (scope_id, dimension, value)
+  select $scope, x.dimension, x.delta from unnest($dimensions, $deltas) as x(dimension, delta)   -- ascending dimension; a give-back is a negative delta
+  on conflict (scope_id, dimension) do update set value = u.value + excluded.value
+  returning u.dimension, u.value
 )
-select first, <lane rows moved>, <appended positions>;   -- the lane rows moved must equal the lanes: a row RLS hides moves nothing
+select first, <appended positions>, <usage counters>, <lane rows moved>;   -- in this order: the executor evaluates the select list in this order and so takes the locks in it; the lane rows moved must equal the lanes: a row RLS hides moves nothing
 commit;
 commit;
 -- after commit: the unit's afterCommit hook hands ($namespace, $scope) to the process's notifier (section 14.3.7)
@@ -8531,7 +8634,18 @@ Properties:
   a scope is its maximum position. A read's position is `kw_positions.next - 1`, the last position
   committed in the scope, and 0 for a scope that never appended; positioned loads read it in the
   same statement, and a locked load in the first statement after the lock (section 7.9.4).
-- A unit that appended nothing sends only the lane update and never touches the counter. Job
+- Every tail takes its locks in one order, the order in which the executor evaluates the select list
+  of the statement (PostgreSQL does not promise it for data-modifying CTEs; the case
+  `commit-tail-lock-order.postgres.test.ts` pins only that the usage rows are locked before the
+  `enqueued` rows, and nothing pins the order of the first three): the positions row, the stream
+  versions of its events, the `kw_usage` rows by dimension, then the `enqueued` rows of its lanes by
+  lane id. Two tails therefore form no
+  cycle, and the `enqueued` rows, which a take's promotion and attempt skip while they are held,
+  are held last and for the shortest time. A tail waits only for another tail of the scope that
+  holds one of these rows, until that tail commits, and for a take that holds an `enqueued` row
+  of its lane (a take can be a namespace-scope unit), which ends without waiting (WP-197); nothing
+  else locks the `kw_usage` rows, and the admission of a command reads them without a lock.
+- A unit that appended nothing sends only its lane and usage parts and never touches the positions counter. Job
   groups that span the namespace's scopes are created and re-limited only in namespace-scope units
   (`JobStore.provisionGroup`, section 9.5.2), so a tenant unit never writes a row other tenants'
   units wait on.
@@ -8999,6 +9113,14 @@ purgeable stream type (`core.commandReceipt`) as a literal and refuses a list th
 with 42501; widening it is a new framework step that replaces the function. Framework step 0004
 builds the index `kw_events_transient` inside the step, so the step stays atomic: every event
 append waits until the step commits, and the build reads the whole table.
+
+Amended 2026-11-21: the removal gives the bytes back. `purgeTransient` buffers, for the unit's commit
+tail, the lowering of `core.eventBytes` by the bytes the deleted records were charged
+(`storedEventBytes`, measured again from the stored data, before image and meta), in tenant and
+backend scopes; the PostgreSQL function answers the deleted rows as `records` for that. Step 0004
+is in no release, so the function was changed in place; once a release carries it, a change is a
+later step. `StreamRecordStore.expire` and `purgeKeys` give back the bytes of their records the same
+way (`storedStreamRecordBytes`), and a unit that rolls back gives nothing back.
 
 #### 15.1.12 Streams of records (G6)
 

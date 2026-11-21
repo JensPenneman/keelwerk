@@ -1,8 +1,10 @@
 import type { PurgeBatch } from '@keelwerk/core';
-import { errors } from '@keelwerk/core';
+import { errors, storedEventBytesOf } from '@keelwerk/core';
 import { checkPurgeLimit } from '../sql/check-purge-limit.ts';
 import { checkPurgeTypes } from '../sql/check-purge-types.ts';
 import { commandReceiptTable } from '../sql/postgres/command-receipt-table.ts';
+import { storedRecordsCharge } from '../sql/stored-records-charge.ts';
+import { memoryBufferCharges } from './memory-buffer-charges.ts';
 import type { MemoryLoggedEvent } from './memory-logged-event.ts';
 import { memoryRowsName } from './memory-rows-name.ts';
 import { memoryStreamKey } from './memory-stream-key.ts';
@@ -65,5 +67,8 @@ export function memoryPurgeTransient(
     const key = memoryStreamKey(event.stream.type, event.stream.id);
     if (!remaining.has(key)) counters.delete(key);
   }
+  let freed = 0n;
+  for (const { event } of chosen) freed += storedEventBytesOf(event);
+  memoryBufferCharges(ctx, storedRecordsCharge(ctx.scope, -freed));
   return { removed: chosen.length, more: doomed.length > chosen.length };
 }

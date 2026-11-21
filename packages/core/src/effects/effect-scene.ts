@@ -43,4 +43,10 @@ export interface EffectScene {
   /** The process clock the events' readings are taken from. */
   readonly hybridClock: HybridClock;
   readonly runNested: NestedCommandRunner;
+  /**
+   * Whether the unit declares no storage limit at its commit tail: decided once by the command the
+   * unit was opened for (`isUnitExemptFromTail`), and the same for the decision, its inline
+   * reactions and every command nested in the unit.
+   */
+  readonly unitExempt: boolean;
 }

@@ -80,27 +80,36 @@ export function readStore(over: OverTheLimit): Promise<StoredRecords> {
  * starts in the background, so nothing here waits for a time to pass.
  */
 export async function putOverTheLimits(over: OverTheLimit): Promise<void> {
-  if (over.scope.level !== 'tenant') throw new Error('the limits are those of a tenant');
-  const { tenantId } = over.scope;
   // A second command, so that both counters stand above the limit of 1 before it is set.
   expect((await over.grow()).ok).toBe(true);
   const before = await readStore(over);
   expect(before.counted).toBeGreaterThan(1n);
   expect(before.rows).toBeGreaterThan(1n);
-  const loaded: Promise<void>[] = [];
   for (const [dimension, limit] of Object.entries(limits)) {
-    const set = await setQuota(over.runtime, {
-      dimension,
-      backendId: over.runtime.backendId,
-      tenantId,
-      limit,
-      reason: 'over the limit',
-    });
-    if (!set.ok) throw set.error;
-    loaded.push(over.loads.loaded(set.value.id, set.value.version));
+    await limitTenant(over, dimension, limit);
   }
-  await Promise.all(loaded);
   expect((await over.grow()).error?.code).toBe('core.quota_exceeded');
+}
+
+/**
+ * Sets the limit of one dimension of the tenant with `core.quota.set` and returns once the quota
+ * cache of the runtime has loaded the row (it logs each load, `watchQuotaLoads`).
+ */
+export async function limitTenant(
+  over: OverTheLimit,
+  dimension: string,
+  limit: string,
+): Promise<void> {
+  if (over.scope.level !== 'tenant') throw new Error('the limits are those of a tenant');
+  const set = await setQuota(over.runtime, {
+    dimension,
+    backendId: over.runtime.backendId,
+    tenantId: over.scope.tenantId,
+    limit,
+    reason: 'over the limit',
+  });
+  if (!set.ok) throw set.error;
+  await over.loads.loaded(set.value.id, set.value.version);
 }
 
 /**

@@ -1,6 +1,6 @@
 import type { UsageCharge } from '@keelwerk/core';
+import { quotaExceeded } from '@keelwerk/core';
 import { queueFull } from '../sql/queue-full.ts';
-import { quotaExceeded } from '../sql/quota-exceeded.ts';
 import { sumUsageCharges } from '../sql/sum-usage-charges.ts';
 import type { MemoryCounter } from './memory-counter.ts';
 import { memoryEnvelope } from './memory-envelope.ts';

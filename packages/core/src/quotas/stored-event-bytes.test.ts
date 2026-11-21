@@ -23,12 +23,10 @@ const metaBytes = BigInt(Buffer.byteLength(eventMetaText(meta)));
 
 describe('what a stored record costs', () => {
   test('an event costs its data, its before image and its meta', () => {
-    expect(storedEventBytes('shop.order', { data: { a: 'é' }, before: { a: 0 }, meta })).toBe(
+    expect(storedEventBytes({ data: { a: 'é' }, before: { a: 0 }, meta })).toBe(
       bytes({ a: 'é' }) + bytes({ a: 0 }) + metaBytes,
     );
-    expect(storedEventBytes('shop.order', { data: undefined, before: null, meta })).toBe(
-      bytes(null) + metaBytes,
-    );
+    expect(storedEventBytes({ data: undefined, before: null, meta })).toBe(bytes(null) + metaBytes);
   });
 
   test('the meta carries its decision record in the form the store keeps', () => {
@@ -43,10 +41,9 @@ describe('what a stored record costs', () => {
     expect(eventMetaText({ ...meta, decision })).toContain('"at":"7"');
   });
 
-  test('the change records of receipts cost nothing, every other transient record does', () => {
+  test('every event costs the same, whatever its stream: the change records of receipts too', () => {
     const event = { data: { a: 1 }, before: null, meta };
-    expect(storedEventBytes('core.commandReceipt', event)).toBe(0n);
-    expect(storedEventBytes('shop.cart', event)).toBe(bytes({ a: 1 }) + metaBytes);
+    expect(storedEventBytes(event)).toBe(bytes({ a: 1 }) + metaBytes);
   });
 
   test('stream records cost their JSON text, the process state cache nothing', () => {

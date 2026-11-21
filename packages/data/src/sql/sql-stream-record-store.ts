@@ -18,11 +18,23 @@ import { streamRecordData } from './stream-record-data.ts';
 /** Rows per insert or delete statement, so the parameter count stays far below the driver's limit. */
 const chunk = 1000;
 
+/** Buffers the give-back of the bytes that the removed records were charged, measured from their stored `data`. */
+function giveBackRemoved(
+  ctx: SqlUnitContext,
+  buffer: SqlCommitBuffer,
+  stream: string,
+  removed: readonly unknown[],
+): void {
+  const freed = storedStreamRecordBytes(stream, removed.map(recordOfStreamData));
+  buffer.charge(storedRecordsCharge(ctx.scope, -freed));
+}
+
 /**
  * The records of declared streams in the unit's scope (14.3.2, 15.1.12), in `kw_stream_records`.
  * `seq` is drawn from the `kw_serials` row of the stream and key, so it rises by one per record in
  * commit order and a rolled-back unit gives its values back; a purge leaves the counter. `at` is
- * the adapter clock's instant, never the database's. `data` is `{"record": …}`.
+ * the adapter clock's instant, never the database's. `data` is `{"record": …}`. `expire` and
+ * `purgeKeys` give the bytes of the records they delete back to `core.eventBytes`, at the unit's commit tail.
  */
 export function sqlStreamRecordStore(
   ctx: SqlUnitContext,
@@ -106,6 +118,12 @@ export function sqlStreamRecordStore(
             limit,
           }),
         );
+        giveBackRemoved(
+          ctx,
+          buffer,
+          stream,
+          removed.map((row) => row.data),
+        );
         return removed.length;
       });
     },
@@ -115,14 +133,21 @@ export function sqlStreamRecordStore(
       let removed = 0;
       for (let start = 0; start < keys.length; start += chunk) {
         const batch = keys.slice(start, start + chunk);
-        const result = await sqlGuard(async () =>
+        const rows = await sqlGuard(async () =>
           db
             .deleteFrom(table)
             .where('stream', '=', stream)
             .where('key', 'in', batch)
-            .executeTakeFirst(),
+            .returning('data')
+            .execute(),
         );
-        removed += Number(result?.numDeletedRows ?? 0n);
+        giveBackRemoved(
+          ctx,
+          buffer,
+          stream,
+          rows.map((row) => row.data),
+        );
+        removed += rows.length;
       }
       return removed;
     },

@@ -1,10 +1,9 @@
 import type { StreamRef } from '@keelwerk/core';
-import { errors, KeelwerkError } from '@keelwerk/core';
+import { errors, KeelwerkError, quotaExceeded } from '@keelwerk/core';
 import { mapSqlError } from './map-sql-error.ts';
 import { pendingTailEvent } from './pending-tail-event.ts';
 import { commitTailStatement } from './postgres/commit-tail-statement.ts';
 import { queueFull } from './queue-full.ts';
-import { quotaExceeded } from './quota-exceeded.ts';
 import { runSql } from './run-sql.ts';
 import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
 import { sqlEventBackendId } from './sql-event-backend-id.ts';

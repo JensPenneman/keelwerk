@@ -1,9 +1,13 @@
 import type {
   ActionEntry,
+  Carrier,
+  Clock,
   DataAdapter,
   EffectEntry,
   ExecutorEntry,
+  InvokerOptions,
   KeyService,
+  QuotaLimits,
   ReactionEntry,
   Registry,
   Scope,
@@ -29,28 +33,46 @@ if (effectEntry === undefined) throw new Error('the fixture has no core.effect')
 const receiptEntry = servedRegistry.entities.get('core.commandReceipt');
 if (receiptEntry === undefined) throw new Error('the fixture has no core.commandReceipt');
 const receiptEntity = receiptEntry.descriptor;
-function invoker(registry: Registry, adapter: DataAdapter, keys?: KeyService) {
+function invoker(
+  registry: Registry,
+  adapter: DataAdapter,
+  keys?: KeyService,
+  options: Partial<Pick<InvokerOptions, 'clock' | 'quotas'>> = {},
+) {
+  const runner = createCommandRunner({
+    deploymentId: '0198a1e0-0000-7000-8000-00000000d001',
+    behaviours: () => behaviours,
+    retry: { sleep: async () => undefined },
+  });
   const built = kit({
     registry,
     adapter,
     ...(keys === undefined ? {} : { keys }),
+    ...options,
     build: { id: 'build-42', revision: 7 },
-    commands: createCommandRunner({
-      deploymentId: '0198a1e0-0000-7000-8000-00000000d001',
-      behaviours: () => behaviours,
-      retry: { sleep: async () => undefined },
-    }),
+    // The signal of a call cuts the run: a test aborts it from inside an executor, as the signal
+    // of a deadline would, so the run ends with no receipt.
+    commands: (run) =>
+      runner({ ...run, signal: AbortSignal.any([run.signal, run.invocation.signal]) }),
   });
   return (
     action: string,
     input: unknown,
-    options: { readonly commandId?: string; readonly prefer?: 'sync' | 'async' } = {},
+    options: {
+      readonly commandId?: string;
+      readonly prefer?: 'sync' | 'async';
+      /** The carrier of the call; default: the signed-in caller `ada`. A worker's job passes its own. */
+      readonly carrier?: Carrier;
+      /** The signal of the call; default: one that never aborts. A test that cuts a run aborts its own. */
+      readonly signal?: AbortSignal;
+    } = {},
   ) =>
     built.invoker.invoke(
       call(action, input, {
-        carrier: ada,
+        carrier: options.carrier ?? ada,
         ...(options.commandId === undefined ? {} : { commandId: options.commandId }),
         ...(options.prefer === undefined ? {} : { prefer: options.prefer }),
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
       }),
     );
 }
@@ -181,10 +203,22 @@ export function externalEffect(
 /** An invoker over the fixture, the in-memory adapter and the write path, with the build the jobs record. */
 export function effectsKit(
   registry: Registry,
-  over: { readonly adapter?: DataAdapter; readonly keys?: KeyService } = {},
+  over: {
+    readonly adapter?: DataAdapter;
+    readonly keys?: KeyService;
+    /** The clock of the adapter and of the invoker; default: the fixture's fixed instant. */
+    readonly clock?: Clock;
+    /** The limits the write path reads; default: none, so writes are counted and never refused. */
+    readonly quotas?: QuotaLimits;
+  } = {},
 ): { readonly adapter: DataAdapter; readonly invoke: ReturnType<typeof invoker> } {
-  const adapter = over.adapter ?? open([bookEntity, loanEntity, effectEntity, receiptEntity]);
-  return { adapter, invoke: invoker(registry, adapter, over.keys) };
+  const adapter =
+    over.adapter ?? open([bookEntity, loanEntity, effectEntity, receiptEntity], over.clock);
+  const options = {
+    ...(over.clock === undefined ? {} : { clock: over.clock }),
+    ...(over.quotas === undefined ? {} : { quotas: over.quotas }),
+  };
+  return { adapter, invoke: invoker(registry, adapter, over.keys, options) };
 }
 
 /** Everything a test reads back of the scope: the books, the effect rows, the events of the books and the jobs. */

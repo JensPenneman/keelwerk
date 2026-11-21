@@ -23,6 +23,8 @@ export interface KernelEffectsInput {
   /** The process clock the events' readings are taken from. */
   readonly hybridClock: HybridClock;
   readonly runNested: NestedCommandRunner;
+  /** Whether the unit declares no storage limit (decided by the command it was opened for). */
+  readonly unitExempt: boolean;
   /** The commands nested above this one; default 0. */
   readonly depth?: number;
   /** An async reaction job: the event it decided on and the actor that caused it. The effects it requests name them as their cause. */

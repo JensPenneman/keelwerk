@@ -15,4 +15,4 @@ with counter as (
   on conflict on constraint kw_events_scope_id_stream_type_stream_id_stream_version_key do nothing
   returning position
 )
-select (select first::text from counter) as first, '0'::text as lanes, (select coalesce(json_agg(position::text), '[]'::json) from appended)::text as appended
+select (select first::text from counter) as first, (select coalesce(json_agg(position::text), '[]'::json) from appended)::text as appended, '0'::text as lanes

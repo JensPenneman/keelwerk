@@ -54,7 +54,7 @@ export function storeIsolationCases(subject: ConformanceSubject): void {
           expiresAt: stamp.add({ hours: 1 }),
         });
         await unit.jobs.enqueue(storedJob());
-        await unit.usage.add('requests', 9n);
+        unit.usage.charge([{ dimension: 'requests', delta: 9n, limit: null }]);
         await unit.buckets.take('shared', 5, { capacity: 5, refillPerSecond: 0.001 });
       });
       expect(await subject.read(tenantB, (unit) => unit.receipts.get('c1'))).toBeUndefined();

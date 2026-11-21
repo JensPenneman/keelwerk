@@ -1,37 +1,24 @@
 import type { UsageStore } from '@keelwerk/core';
-import { errors } from '@keelwerk/core';
 import { sql } from 'kysely';
 import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
 import { sqlGuard } from './sql-guard.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
+import { usageGiveBackCharges } from './usage-give-back-charges.ts';
+import { usageStoreCharges } from './usage-store-charges.ts';
 
 /** The quota counters of the unit's scope (12.2); they commit with the data they count. */
 export function sqlUsageStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): UsageStore {
   const table = ctx.table('kw_usage');
   return {
     charge: (charges) => {
-      if (ctx.scope.level === 'namespace') {
-        throw errors.internal('a namespace unit charges no usage');
-      }
+      const checked = usageStoreCharges(ctx.scope, charges);
+      ctx.writable();
+      buffer.charge(checked);
+    },
+    giveBack: (dimension, amount) => {
+      const charges = usageGiveBackCharges(ctx.scope, dimension, amount);
       ctx.writable();
       buffer.charge(charges);
-    },
-    add: async (dimension, delta) => {
-      ctx.writable();
-      const row = await sqlGuard(async () =>
-        ctx
-          .scopedDb()
-          .insertInto(table)
-          .values({ dimension, value: delta.toString() })
-          .onConflict((conflict) =>
-            conflict.columns(['scope_id', 'dimension']).doUpdateSet({
-              value: sql`${sql.ref('kw_usage.value')} + ${delta.toString()}::bigint`,
-            }),
-          )
-          .returning(sql<string>`value::text`.as('value'))
-          .executeTakeFirstOrThrow(),
-      );
-      return BigInt(String(row.value));
     },
     get: async (dimension) => {
       const row = await sqlGuard(async () =>

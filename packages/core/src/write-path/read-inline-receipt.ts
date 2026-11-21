@@ -1,6 +1,7 @@
 import type { Receipt } from '../storage/receipt.ts';
 import type { Unit } from '../storage/unit.ts';
 import { assertSameRequest } from './assert-same-request.ts';
+import { isUnexpiredReceipt } from './is-unexpired-receipt.ts';
 import type { PerformInlineInput } from './perform-inline.ts';
 import { receiptRow } from './receipt-row.ts';
 import { receiptWindowMs } from './receipt-window-ms.ts';
@@ -20,9 +21,7 @@ export async function readInlineReceipt(
 ): Promise<Receipt | undefined> {
   const { run, commandId } = input;
   const receipt = await unit.receipts.get(commandId);
-  if (receipt === undefined || Temporal.Instant.compare(receipt.expiresAt, now) <= 0) {
-    return undefined;
-  }
+  if (receipt === undefined || !isUnexpiredReceipt(receipt, now)) return undefined;
   assertSameRequest(
     receipt,
     receiptRow({

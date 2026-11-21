@@ -58,7 +58,7 @@ describe('rows', () => {
   test('every store refuses another scope: rows, serials, usage, buckets, keys', async () => {
     await run(scopeA, async (u) => {
       await u.rows.insert(ticket, [row(1, { title: 'mine' })]);
-      await u.usage.add('rows', 4n);
+      u.usage.charge([{ dimension: 'rows', delta: 4n, limit: null }]);
       await u.serials.next(ticket, 'number', ['box']);
       await u.buckets.take('k', 2, { capacity: 2, refillPerSecond: 0.5 });
       await u.keys.dataKey(id(70), { create: true });

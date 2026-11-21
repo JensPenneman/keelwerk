@@ -16,11 +16,12 @@ export interface StreamRecordStore {
     afterSeq: bigint | null,
     limit: number,
   ): Promise<readonly StreamRecord[]>;
+  /** Deletes records beyond a policy; the bytes they were charged go back to `core.eventBytes` at the unit's commit tail. */
   expire(
     stream: string,
     policy: { readonly maxAge?: string; readonly maxPerKey?: number },
     limit: number,
   ): Promise<number>;
-  /** Erasure and retention. */
+  /** Erasure and retention. Like `expire`, it gives the bytes of the records it deletes back to `core.eventBytes` (`storedStreamRecordBytes`) at the unit's commit tail. */
   purgeKeys(stream: string, keys: readonly string[]): Promise<number>;
 }

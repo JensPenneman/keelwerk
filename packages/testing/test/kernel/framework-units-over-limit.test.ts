@@ -124,8 +124,8 @@ test('the end of an exhausted command job commits its receipt', { timeout: 60_00
     });
     const ended = await statsOf(runtime, 'commands');
     expect([ended?.due, ended?.running]).toEqual([0, 0]);
-    // The change record of the receipt is the one the framework removes itself: nothing counted.
-    expect(await expectCountedAbove(over, before)).toBe(0n);
+    // The unit declares no limit, so it commits over the limits; the change record of the receipt is counted.
+    expect(await expectCountedAbove(over, before)).toBeGreaterThan(0n);
   } finally {
     await runtime.stop();
   }

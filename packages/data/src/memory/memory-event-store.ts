@@ -81,7 +81,7 @@ export function memoryEventStore(ctx: MemoryUnitContext): EventStore {
         let version = committedVersion(append.stream.type, append.stream.id);
         for (const event of append.events) {
           version += 1;
-          appendedBytes += storedEventBytes(append.stream.type, event);
+          appendedBytes += storedEventBytes(event);
           buffer.set(sequenceKey(buffer.size), {
             stream: append.stream,
             version,

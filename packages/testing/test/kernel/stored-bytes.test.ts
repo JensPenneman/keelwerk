@@ -1,5 +1,7 @@
 import { describe, test } from 'vitest';
 import {
+  asyncStoredBytes,
+  erasureStoredBytes,
   hooksStoredBytes,
   journalStoredBytes,
   receiptStoredBytes,
@@ -26,6 +28,22 @@ describe.each(['memory', 'pglite'] as const)(
     );
 
     test(
+      'an asynchronous command and its job: change records counted, given back by the sweep',
+      {
+        timeout: 120_000,
+      },
+      () => asyncStoredBytes({ adapter }),
+    );
+
+    test(
+      'an erasure that purges keyed stream records gives their bytes back',
+      {
+        timeout: 120_000,
+      },
+      () => erasureStoredBytes({ adapter }),
+    );
+
+    test(
       'the relay app: inline and asynchronous reactions, the process stream',
       {
         timeout: 120_000,
@@ -35,5 +53,4 @@ describe.each(['memory', 'pglite'] as const)(
   },
 );
 
-test('the change record of an accepted command is stored and not counted', () =>
-  receiptStoredBytes());
+test('the change record of an accepted command is stored and counted', () => receiptStoredBytes());

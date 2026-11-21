@@ -173,7 +173,7 @@ export function sqlEventStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): Eve
         for (const event of append.events) {
           version += 1;
           buffer.push({ stream: append.stream, version, partition: append.partition, event });
-          appendedBytes += storedEventBytes(append.stream.type, event);
+          appendedBytes += storedEventBytes(event);
           results.push({ eventId: event.eventId, version });
         }
       }
@@ -289,7 +289,7 @@ export function sqlEventStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): Eve
     committed: () => [...buffer.assigned],
 
     purgeTransient: (before, limit, streamTypes) =>
-      sqlPurgeTransient(ctx, before, limit, streamTypes),
+      sqlPurgeTransient(ctx, buffer, before, limit, streamTypes),
     movedScopes: async (since, limit) => {
       const ids = [...since.keys()];
       const rows = await sqlGuard(async () =>

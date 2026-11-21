@@ -102,13 +102,13 @@ test('step 0004 keeps the index, adds the purge function and the run columns, an
   const controlStatements = stepOf('0004').ddl('kw__control', control);
   expect(namespace.map((statement) => statement.split('\n')[0])).toEqual([
     `create index kw_events_transient on "example".kw_events (scope_id, recorded_at, position) where transient and stream_type = 'core.commandReceipt'`,
-    'create function "example".kw_purge_transient(before timestamptz, max_rows integer, stream_types text[]) returns table (removed integer, more boolean)',
+    'create function "example".kw_purge_transient(before timestamptz, max_rows integer, stream_types text[]) returns table (removed integer, more boolean, records jsonb)',
     'revoke execute on function "example".kw_purge_transient(timestamptz, integer, text[]) from public',
   ]);
   expect(controlStatements.map((statement) => statement.split('\n')[0])).toEqual([
     `create index kw_events_transient on "kw__control".kw_events (scope_id, recorded_at, position) where transient and stream_type = 'core.commandReceipt'`,
     'alter table "kw__control".kw_retention_runs add column namespace_id text, add column outcome text, add column error jsonb',
-    'create function "kw__control".kw_purge_transient(before timestamptz, max_rows integer, stream_types text[]) returns table (removed integer, more boolean)',
+    'create function "kw__control".kw_purge_transient(before timestamptz, max_rows integer, stream_types text[]) returns table (removed integer, more boolean, records jsonb)',
     'revoke execute on function "kw__control".kw_purge_transient(timestamptz, integer, text[]) from public',
   ]);
   expect(stepOf('0004').marker).toBe('kw_events_transient');
@@ -140,8 +140,8 @@ test('the purge function is owner-owned, pins its search path and names every ta
     );
     expect(targets.length).toBeGreaterThan(0);
     for (const target of targets) {
-      // `from doomed` is the CTE; `using errcode` belongs to `raise`.
-      if (target === 'doomed' || target === 'errcode') continue;
+      // `from doomed` and `from deleted` are the CTEs; `using errcode` belongs to `raise`.
+      if (target === 'doomed' || target === 'deleted' || target === 'errcode') continue;
       expect(target).toMatch(new RegExp(`^"${root}"\\.(kw_events|core__command_receipt)$`));
     }
     expect(body).toContain(

@@ -92,7 +92,7 @@ describe('writes only the control path makes', () => {
         legacyFingerprint: () => 'l',
         clock: { now: () => Temporal.Now.instant() },
         prepared: undefined,
-        nested: { depth: 1, causationId: 'c0' },
+        nested: { depth: 1, causationId: 'c0', unitExempt: false },
       },
       {} as Unit,
     );

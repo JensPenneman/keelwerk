@@ -7,6 +7,7 @@ import { buildEventMeta } from '../events/build-event-meta.ts';
 import type { EventMeta } from '../events/event-meta.ts';
 import type { RecordedRead } from '../events/recorded-read.ts';
 import { chargeStorage } from '../quotas/charge-storage.ts';
+import { isExemptFromTail } from '../quotas/is-exempt-from-tail.ts';
 import { reactionMatches } from '../registry/reaction-matches.ts';
 import { appendEvents } from '../write-path/append-events.ts';
 import { appendStreamRecords } from '../write-path/append-stream-records.ts';
@@ -111,7 +112,7 @@ export async function dispatchInlineReactions(
           scope: run.scope,
           written: wrote,
           quotas: run.quotas,
-          exempt: run.action.module === 'core',
+          exempt: isExemptFromTail(run.action, scene.unitExempt),
         }),
       );
       await appendStreamRecords({

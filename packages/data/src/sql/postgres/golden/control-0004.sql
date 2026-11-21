@@ -2,7 +2,7 @@ create index kw_events_transient on "kw__control".kw_events (scope_id, recorded_
 
 alter table "kw__control".kw_retention_runs add column namespace_id text, add column outcome text, add column error jsonb;
 
-create function "kw__control".kw_purge_transient(before timestamptz, max_rows integer, stream_types text[]) returns table (removed integer, more boolean)
+create function "kw__control".kw_purge_transient(before timestamptz, max_rows integer, stream_types text[]) returns table (removed integer, more boolean, records jsonb)
 language plpgsql
 security definer
 set search_path = pg_catalog, pg_temp
@@ -33,6 +33,7 @@ begin
   if cardinality(stream_types) = 0 then
     removed := 0;
     more := false;
+    records := '[]'::jsonb;
     return next;
     return;
   end if;
@@ -48,13 +49,17 @@ begin
         where r.scope_id = e.scope_id and r.id = e.stream_id offset 0))
     order by e.recorded_at, e.position
     limit max_rows
+  ), deleted as (
+    delete from "kw__control".kw_events as events
+    where events.scope_id = unit_scope
+      and events.position = any(array(select d.position from doomed as d))
+      and events.transient and events.stream_type = 'core.commandReceipt'
+      and events.hash is null and events.prev_hash is null
+    returning events.data, events.before, events.meta
   )
-  delete from "kw__control".kw_events as events
-  where events.scope_id = unit_scope
-    and events.position = any(array(select d.position from doomed as d))
-    and events.transient and events.stream_type = 'core.commandReceipt'
-    and events.hash is null and events.prev_hash is null;
-    get diagnostics removed = row_count;
+  select count(*)::integer,
+    coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(x.data, x.before, x.meta)), '[]'::jsonb)
+  into removed, records from deleted as x;
     -- A statement of its own: under read committed it sees what other units committed since the
     -- delete began, so a batch that skipped rows another pass took does not pass for an empty
     -- buffer. Rows another pass is still deleting stay visible, which errs towards "more".
@@ -75,13 +80,17 @@ begin
           and n.stream_id = e.stream_id and n.stream_version > e.stream_version offset 0))
     order by e.recorded_at, e.position
     limit max_rows
+  ), deleted as (
+    delete from "kw__control".kw_events as events
+    where events.scope_id = unit_scope
+      and events.position = any(array(select d.position from doomed as d))
+      and events.transient and events.stream_type = 'core.commandReceipt'
+      and events.hash is null and events.prev_hash is null
+    returning events.data, events.before, events.meta
   )
-  delete from "kw__control".kw_events as events
-  where events.scope_id = unit_scope
-    and events.position = any(array(select d.position from doomed as d))
-    and events.transient and events.stream_type = 'core.commandReceipt'
-    and events.hash is null and events.prev_hash is null;
-    get diagnostics removed = row_count;
+  select count(*)::integer,
+    coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(x.data, x.before, x.meta)), '[]'::jsonb)
+  into removed, records from deleted as x;
     select exists (select 1 from "kw__control".kw_events as c where c.scope_id = unit_scope and c.transient and c.stream_type = 'core.commandReceipt'
       and c.hash is null and c.prev_hash is null and c.recorded_at < cutoff
       and (exists (select 1 from "kw__control".kw_events as n

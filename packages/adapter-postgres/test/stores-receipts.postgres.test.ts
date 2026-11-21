@@ -66,13 +66,12 @@ describe('receipts, serials, usage, buckets', () => {
     expect(rolledBack).toBe(7n);
   });
 
-  test('usage adds and reads; a bucket refills by time and answers retryAfter', async () => {
-    expect(
-      await run(scopeA, async (u) => [
-        await u.usage.add('rows', 5n),
-        await u.usage.add('rows', -2n),
-      ]),
-    ).toEqual([5n, 3n]);
+  test('usage charges, gives back and reads; a bucket refills by time and answers retryAfter', async () => {
+    await run(scopeA, async (u) => {
+      u.usage.charge([{ dimension: 'rows', delta: 5n, limit: null }]);
+      u.usage.giveBack('rows', 2n);
+    });
+    expect(await run(scopeA, (u) => u.usage.get('rows'))).toBe(3n);
     const limits = { capacity: 2, refillPerSecond: 0.5 };
     const takes = await run<unknown[]>(scopeA, async (u) => [
       await u.buckets.take('k', 1, limits),

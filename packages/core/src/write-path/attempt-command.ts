@@ -2,7 +2,6 @@ import { hybridClock } from '../clock/hybrid-clock.ts';
 import { plannedEffectIds } from '../effects/planned-effect-ids.ts';
 import { runKernelEffects } from '../effects/run-kernel-effects.ts';
 import { errors } from '../errors/errors.ts';
-import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { buildDecisionRecord } from '../events/build-decision-record.ts';
 import { buildEventMeta } from '../events/build-event-meta.ts';
 import type { EventMeta } from '../events/event-meta.ts';
@@ -11,6 +10,8 @@ import { setResultWithState } from '../generated-actions/set-result-with-state.t
 import type { CommandResult } from '../invoker/command-runner.ts';
 import type { Clock } from '../kernel/clock.ts';
 import { chargeStorage } from '../quotas/charge-storage.ts';
+import { isExemptFromTail } from '../quotas/is-exempt-from-tail.ts';
+import { isUnitExemptFromTail } from '../quotas/is-unit-exempt-from-tail.ts';
 import { appendReactionProcessEvents } from '../reactions/append-reaction-process-events.ts';
 import { processDraftsOf } from '../reactions/process-drafts-of.ts';
 import type { Unit } from '../storage/unit.ts';
@@ -33,6 +34,7 @@ import { normalizeDecision } from './normalize-decision.ts';
 import { openDecision } from './open-decision.ts';
 import { openReactionJob } from './open-reaction-job.ts';
 import type { PreparedRun } from './prepared-run.ts';
+import { receiptGone } from './receipt-gone.ts';
 import { receiptRow } from './receipt-row.ts';
 import { receiptWindowMs } from './receipt-window-ms.ts';
 import { refuseGeneratedWrite } from './refuse-generated-write.ts';
@@ -60,8 +62,15 @@ export interface AttemptInput {
   readonly prepared: unknown;
   /** What `prepare` produced: its record joins the decision record, its flags `meta.flags`. */
   readonly preparedRun?: PreparedRun;
-  /** An `invoke` runs the command nested: how deep, and the command that invoked it. */
-  readonly nested?: { readonly depth: number; readonly causationId: string };
+  /**
+   * An `invoke` runs the command nested: how deep, the command that invoked it, and whether the
+   * unit it runs in declares no storage limit (decided by the command the unit was opened for).
+   */
+  readonly nested?: {
+    readonly depth: number;
+    readonly causationId: string;
+    readonly unitExempt: boolean;
+  };
 }
 
 /**
@@ -77,6 +86,8 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
   const authority = action.contributedBy ?? action.module;
   refuseGeneratedWrite(run, input.nested);
   const now = clock.now();
+  // Decided once, for the command the unit was opened for, and handed on to what runs in it.
+  const unitExempt = input.nested?.unitExempt ?? isUnitExemptFromTail(action);
 
   const job = input.nested === undefined ? run.job : undefined;
   // A nested command is caused by the command that invoked it; a continuation job by its effect.
@@ -97,12 +108,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     legacyFingerprint: input.legacyFingerprint,
   });
   if (pending.kind === 'inserted' && run.replayOnly === true) {
-    throw new KeelwerkError({
-      kind: 'conflict',
-      code: 'core.command_in_progress',
-      message: 'The receipt of this command expired while it was replayed: send it again.',
-      retryable: true,
-    });
+    throw receiptGone();
   }
   if (pending.kind === 'replay') {
     const replayed = await replayReceipt(unit, registry, action, authority, pending.receipt, job);
@@ -219,7 +225,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
       scope: run.scope,
       written,
       quotas: run.quotas,
-      exempt: action.module === 'core',
+      exempt: isExemptFromTail(action, unitExempt),
     }),
   );
   await checkWrittenItems({
@@ -243,6 +249,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
     effects: decided.effects,
     hybridClock: processClock,
     depth: input.nested?.depth ?? 0,
+    unitExempt,
     ...(opened?.event === undefined
       ? {}
       : { cause: { eventId: opened.event.id, actor: opened.event.actor } }),
@@ -257,7 +264,7 @@ export async function attemptCommand(input: AttemptInput, unit: Unit): Promise<C
           ...nestedFingerprint({ ...nestedRun, fingerprintKey }),
           clock,
           prepared: undefined,
-          nested,
+          nested: { ...nested, unitExempt },
         },
         nestedUnit,
       );

@@ -70,7 +70,7 @@ const purge = (list: string, extra = later, limit = 10) =>
   adapter.unit(exampleNamespace, scope, async (unit) =>
     runStatement(
       unit,
-      `select removed, more from example.kw_purge_transient(${extra}, ${limit}, ${list})`,
+      `select removed, more, records from example.kw_purge_transient(${extra}, ${limit}, ${list})`,
     ),
   );
 
@@ -118,8 +118,21 @@ test('in a migrated root the application role can update and delete nothing in k
 });
 
 test('in a migrated root the function removes the older records of a receipt stream but its newest and every other', async () => {
+  expect((await purge(`array[]::text[]`)).rows[0]).toMatchObject({
+    removed: 0,
+    more: false,
+    records: [],
+  });
   const removed = await purge(`array['${receiptType}']`);
-  expect(removed.rows[0]).toMatchObject({ removed: 2, more: false });
+  // `records` is the [data, before, meta] of each deleted row, which the adapter measures to give the bytes back.
+  expect(removed.rows[0]).toMatchObject({
+    removed: 2,
+    more: false,
+    records: [
+      [{}, null, {}],
+      [{}, null, {}],
+    ],
+  });
   expect(await versionsLeft(streamOf(1))).toEqual([3]);
   expect(await versionsLeft(id(2))).toEqual([1, 2]);
 });
@@ -210,7 +223,20 @@ test('a plain owner role makes the function and the forced policies keep their w
     await database.exec(`grant usage on schema example to plain_owner`);
   });
   await record(receiptType, streamOf(1), [6, 7], { position: 70 });
+  expect((await purge(`array[]::text[]`)).rows[0]).toMatchObject({
+    removed: 0,
+    more: false,
+    records: [],
+  });
   const removed = await purge(`array['${receiptType}']`);
-  expect(removed.rows[0]).toMatchObject({ removed: 2, more: false });
+  // `records` is the [data, before, meta] of each deleted row, which the adapter measures to give the bytes back.
+  expect(removed.rows[0]).toMatchObject({
+    removed: 2,
+    more: false,
+    records: [
+      [{}, null, {}],
+      [{}, null, {}],
+    ],
+  });
   expect(await versionsLeft(streamOf(1))).toEqual([7]);
 });

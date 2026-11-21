@@ -31,11 +31,23 @@ function checkLimit(limit: number): void {
   }
 }
 
+/** Deletes the records and buffers the give-back of what they were charged, measured from what is stored. */
+function removeStored(ctx: MemoryUnitContext, stream: string, doomed: readonly Stored[]): void {
+  const table = ctx.tx.write<Stored>(memoryM2Collections.streamRecords(ctx.scopeId()));
+  for (const stored of doomed) table.delete(entryKey(stored.stream, stored.key, stored.seq));
+  const freed = storedStreamRecordBytes(
+    stream,
+    doomed.map((stored) => recordOfStreamData(stored.data)),
+  );
+  memoryBufferCharges(ctx, storedRecordsCharge(ctx.scope, -freed));
+}
+
 /**
  * The records of declared streams in the unit's scope (14.3.2, 15.1.12): each stream and key has
  * a counter in `serials/<scope>` under the same key the SQL adapters use, so seqs rise by one per
  * record, are never reused after a purge and are given back when the unit rolls back. Records
  * keep the `{ record }` envelope of the SQL table, and their instant is the adapter clock's.
+ * `expire` and `purgeKeys` give the bytes of the records they remove back to `core.eventBytes`.
  */
 export function memoryStreamRecordStore(ctx: MemoryUnitContext): StreamRecordStore {
   const recordsOf = (stream: string): Stored[] => {
@@ -86,7 +98,6 @@ export function memoryStreamRecordStore(ctx: MemoryUnitContext): StreamRecordSto
     },
     expire: async (stream, policy, limit) => {
       ctx.writable();
-      const scopeId = ctx.scopeId();
       const { maxAgeMs, maxPerKey } = streamExpiryPolicy(policy, limit);
       const before = maxAgeMs === null ? null : ctx.clock.now().epochMilliseconds - maxAgeMs;
       const all = recordsOf(stream);
@@ -120,18 +131,15 @@ export function memoryStreamRecordStore(ctx: MemoryUnitContext): StreamRecordSto
         )
         .slice(0, limit);
       if (doomed.length === 0) return 0;
-      const table = ctx.tx.write<Stored>(memoryM2Collections.streamRecords(scopeId));
-      for (const stored of doomed) table.delete(entryKey(stored.stream, stored.key, stored.seq));
+      removeStored(ctx, stream, doomed);
       return doomed.length;
     },
     purgeKeys: async (stream, keys) => {
       ctx.writable();
-      const scopeId = ctx.scopeId();
       const wanted = new Set(keys);
       const doomed = recordsOf(stream).filter((stored) => wanted.has(stored.key));
       if (doomed.length === 0) return 0;
-      const table = ctx.tx.write<Stored>(memoryM2Collections.streamRecords(scopeId));
-      for (const stored of doomed) table.delete(entryKey(stored.stream, stored.key, stored.seq));
+      removeStored(ctx, stream, doomed);
       return doomed.length;
     },
   };

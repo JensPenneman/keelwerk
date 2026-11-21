@@ -2,6 +2,8 @@ import { postgresAdapter } from '@keelwerk/adapter-postgres';
 import { describe, test } from 'vitest';
 import { createTestDatabase } from '../support/create-test-database.ts';
 import {
+  asyncStoredBytes,
+  erasureStoredBytes,
   hooksStoredBytes,
   journalStoredBytes,
   relayStoredBytes,
@@ -32,6 +34,22 @@ describe('core.eventBytes counts what is stored on PostgreSQL', () => {
       timeout: 180_000,
     },
     async () => journalStoredBytes(await postgresOptions('stored_bytes_journal')),
+  );
+
+  test(
+    'an asynchronous command and its job: change records counted, given back by the sweep',
+    {
+      timeout: 180_000,
+    },
+    async () => asyncStoredBytes(await postgresOptions('stored_bytes_async')),
+  );
+
+  test(
+    'an erasure that purges keyed stream records gives their bytes back',
+    {
+      timeout: 180_000,
+    },
+    async () => erasureStoredBytes(await postgresOptions('stored_bytes_erasure')),
   );
 
   test(

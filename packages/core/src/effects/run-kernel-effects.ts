@@ -31,6 +31,7 @@ export async function runKernelEffects(input: KernelEffectsInput): Promise<reado
     eventIds: input.written.flatMap((item) => item.events.map((event) => event.eventId)),
     hybridClock: input.hybridClock,
     runNested: input.runNested,
+    unitExempt: input.unitExempt,
   };
   const reacted = await dispatchInlineReactions(scene, input.written, scene.depth + 1);
   const deferred = [...(await performEffects(scene, input.effects))];

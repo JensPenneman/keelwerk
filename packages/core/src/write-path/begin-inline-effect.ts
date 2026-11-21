@@ -23,6 +23,7 @@ import { inlineGuardGraceMs } from './inline-guard-grace-ms.ts';
 import { isFinishedReceipt } from './is-finished-receipt.ts';
 import type { PerformInlineInput } from './perform-inline.ts';
 import { readInlineReceipt } from './read-inline-receipt.ts';
+import { receiptGone } from './receipt-gone.ts';
 
 /** What the begin unit of an inline effect answers. */
 export type InlineBegun =
@@ -41,7 +42,8 @@ export type InlineBegun =
  * command id refuses the new effect (`core.idempotency_mismatch`: phase 3 would replay the recorded
  * outcome) before anything is sealed; otherwise the `requested` record, the start record of attempt
  * 1 and the guard job that settles a run that was cut are written, and the input is opened for the
- * executor. The run's signal is checked last: an abort during the unit rolls all of it back and
+ * executor; a run that the admission let through on a receipt (`replayOnly`) starts none of it and
+ * is refused with a retryable `core.command_in_progress` instead. The run's signal is checked last: an abort during the unit rolls all of it back and
  * rejects with the reason, so nothing is stored. A `conflict` of the unit is a second run of the
  * same effect and answers `core.command_in_progress` too.
  */
@@ -100,6 +102,9 @@ export async function beginInlineEffect(
           message: 'The command id was used with a different request.',
         });
       }
+      // Admitted on the receipt it found, a resend starts nothing: with that receipt gone, the retry
+      // takes the full path.
+      if (run.replayOnly === true) throw receiptGone();
       const sealed = await sealEffectInput({
         unit,
         registry,

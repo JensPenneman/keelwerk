@@ -62,10 +62,47 @@ export function commitTailQuotaCases(
       expect(await usage()).toBe(5n);
     });
 
-    test('a negative delta is never refused, also above the limit', async () => {
-      await subject.run(tenantA, async (unit) => unit.usage.charge([usageChargeOf(5n, null)]));
-      await subject.run(tenantA, async (unit) => unit.usage.charge([usageChargeOf(-2n, 1n)]));
-      expect(await usage()).toBe(3n);
+    test('a give-back lowers the counter and is never refused, also above a limit', async () => {
+      const own = 'conformance.count';
+      await subject.run(tenantA, async (unit) => unit.usage.charge([usageChargeOf(5n, null, own)]));
+      await subject.run(tenantA, async (unit) => {
+        unit.usage.giveBack(own, 2n);
+        unit.usage.charge([usageChargeOf(0n, 1n, own)]);
+      });
+      expect(await usage(own)).toBe(3n);
+    });
+
+    test('a give-back of a counter of the framework is internal and lowers nothing', async () => {
+      await subject.run(tenantA, async (unit) =>
+        unit.usage.charge([usageChargeOf(5n, null), usageChargeOf(7n, null, 'core.eventBytes')]),
+      );
+      for (const dimension of ['core.rows', 'core.eventBytes']) {
+        expect(
+          await failureOf(subject.run(tenantA, async (unit) => unit.usage.giveBack(dimension, 1n))),
+        ).toEqual({ kind: 'internal', code: 'core.internal' });
+      }
+      expect(await usage()).toBe(5n);
+      expect(await usage('core.eventBytes')).toBe(7n);
+    });
+
+    test('a charge below 0, a give-back below 0 and a give-back in a namespace unit are internal', async () => {
+      const internal = { kind: 'internal', code: 'core.internal' };
+      expect(
+        await failureOf(
+          subject.run(tenantA, async (unit) => unit.usage.charge([usageChargeOf(-1n, null)])),
+        ),
+      ).toEqual(internal);
+      expect(
+        await failureOf(
+          subject.run(tenantA, async (unit) => unit.usage.giveBack('conformance.count', -1n)),
+        ),
+      ).toEqual(internal);
+      expect(
+        await failureOf(
+          subject.run(namespaceScope, async (unit) => unit.usage.giveBack('conformance.count', 1n)),
+        ),
+      ).toEqual(internal);
+      expect(await usage()).toBe(0n);
     });
 
     test('a savepoint that fails takes its charges back', async () => {
@@ -101,17 +138,17 @@ export function commitTailQuotaCases(
         ),
       );
       expect(refused.details).toEqual({ dimension: 'core.rows', limit: 5, value: 8 });
-      await subject.run(tenantA, async (unit) =>
+      await subject.run(tenantA, async (unit) => {
         unit.usage.charge([
-          usageChargeOf(6n, 10n),
-          usageChargeOf(-2n, null),
-          usageChargeOf(2n, null, 'core.eventBytes'),
-          usageChargeOf(1n, null, 'core.eventBytes'),
-          usageChargeOf(-3n, null, 'core.eventBytes'),
-        ]),
-      );
-      expect(await usage()).toBe(4n);
-      expect(await usage('core.eventBytes')).toBe(0n);
+          usageChargeOf(6n, 10n, 'conformance.rows'),
+          usageChargeOf(2n, null, 'conformance.bytes'),
+          usageChargeOf(1n, null, 'conformance.bytes'),
+        ]);
+        unit.usage.giveBack('conformance.rows', 2n);
+        unit.usage.giveBack('conformance.bytes', 3n);
+      });
+      expect(await usage('conformance.rows')).toBe(4n);
+      expect(await usage('conformance.bytes')).toBe(0n);
     });
 
     test('a charge in a namespace unit is refused as internal', async () => {

@@ -24,20 +24,30 @@ const eventColumns = [
 /**
  * The commit tail of a unit as one statement (section 15.1.4, decision 112): the counter row of the
  * scope advances by the number of events (and is created on the scope's first append), the events
- * are inserted at the positions that opens, and the `enqueued` counters of the lanes that gained
- * available jobs move, all in one round trip, so the counter's row lock is held for one round trip
- * plus the flush. A unit that appended nothing sends only the lane update and never touches the
- * counter. The statement answers one row: `first`, the position of the first event (null without
- * events), and `lanes`, the number of counter rows it moved, which must equal the number of lanes:
- * an update that row-level security hides matches nothing and would otherwise lose the count
- * silently, and `appended`, the positions of the rows that were inserted as JSON text (null without
- * events): a version another unit took first is skipped by `on conflict`, not raised, because a
- * violation's detail is hidden from a role without `BYPASSRLS`, so the caller finds the events whose
- * position (`first` plus their index) did not come back and throws for their streams; the unit's
- * rollback gives the counter back. A unit that charges usage adds the `usage` upsert as the last
- * part of the statement, answered as `usage`; a lane with a queued cap adds the `queued` read of the
- * available jobs of its queue, answered as `queued`. The lane counters are matched against the
- * unit's scope. Every parameter is text, cast in the statement, so PGlite and `pg` bind it alike.
+ * are inserted at the positions that opens, the usage counters are moved, and the `enqueued`
+ * counters of the lanes that gained available jobs move, all in one round trip, so the counter's row
+ * lock is held for one round trip plus the flush. A unit that appended nothing sends only its lane
+ * and usage parts and never touches the counter. The statement answers one row: `first`, the position of the
+ * first event (null without events), `appended`, the positions of the rows that were inserted as JSON
+ * text (null without events): a version another unit took first is skipped by `on conflict`, not
+ * raised, because a violation's detail is hidden from a role without `BYPASSRLS`, so the caller finds
+ * the events whose position (`first` plus their index) did not come back and throws for their
+ * streams; the unit's rollback gives the counter back; `usage`, the counters after the upsert of a
+ * unit that charges or gives back usage (in ascending dimension, a give-back being a negative delta);
+ * `lanes`, the number of counter rows it moved, which must equal the number of lanes: an update that
+ * row-level security hides matches nothing and would otherwise lose the count silently; and, for a
+ * lane with a queued cap, `queued`, the available jobs of its queue. The lane counters are matched
+ * against the unit's scope.
+ *
+ * The parts take their locks in the order of the final select list: the positions row, the event
+ * versions, the usage rows by dimension, then the `enqueued` rows by lane id. The order is what the
+ * PostgreSQL executor does with the select-list subqueries, in the order they are written; the
+ * documentation of PostgreSQL does not promise it for data-modifying CTEs.
+ * `commit-tail-lock-order.postgres.test.ts` pins only that the usage rows are locked before the
+ * `enqueued` rows; the order of the positions row, the event versions and the usage rows is not
+ * pinned by a case. Every tail asks for them in that order, so two tails form no cycle, and the
+ * rows a take's promotion or attempt skips (`skip locked`) are held last and shortest.
+ * Every parameter is text, cast in the statement, so PGlite and `pg` bind it alike.
  */
 export function commitTailStatement(input: CommitTailInput): PostgresStatement {
   const root = quoteIdentifier(input.root);
@@ -172,7 +182,7 @@ export function commitTailStatement(input: CommitTailInput): PostgresStatement {
       ? `, (select coalesce(json_agg(json_build_array(dimension, value::text)), '[]'::json) from usage)::text as usage`
       : '';
   return {
-    sql: `with ${ctes.join(', ')}\nselect ${first} as first, ${lanes} as lanes, ${appended} as appended${queued}${usage}`,
+    sql: `with ${ctes.join(', ')}\nselect ${first} as first, ${appended} as appended${usage}, ${lanes} as lanes${queued}`,
     parameters,
   };
 }

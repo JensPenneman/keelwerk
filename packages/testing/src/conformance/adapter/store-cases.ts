@@ -206,13 +206,13 @@ export function storeCases(subject: ConformanceSubject): void {
   });
 
   describe('usage, buckets and subject keys', () => {
-    test('usage adds, reads and rolls back with its unit', async () => {
-      expect(await subject.run(tenantA, (unit) => unit.usage.add('requests', 3n))).toBe(3n);
-      expect(await subject.run(tenantA, (unit) => unit.usage.add('requests', 4n))).toBe(7n);
-      expect(await subject.run(tenantA, (unit) => unit.usage.add('requests', -2n))).toBe(5n);
+    test('usage charges, gives back, reads and rolls back with its unit', async () => {
+      const charge = (delta: bigint) => ({ dimension: 'requests', delta, limit: null });
+      await subject.run(tenantA, async (unit) => unit.usage.charge([charge(3n), charge(4n)]));
+      await subject.run(tenantA, async (unit) => unit.usage.giveBack('requests', 2n));
       await subject
         .run(tenantA, async (unit) => {
-          await unit.usage.add('requests', 100n);
+          unit.usage.charge([charge(100n)]);
           throw new Error('undo');
         })
         .catch(() => undefined);

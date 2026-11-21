@@ -4,7 +4,7 @@ import { quoteIdentifier } from './quote-identifier.ts';
 /**
  * Removes the records of one stream that are older than `before` or beyond the newest `maxPerKey`
  * of their key, oldest first by `(at, key, seq)`, at most `limit`, and returns one row per record
- * removed. No branch ranks the whole stream: the age branch reads `(scope_id, stream, at)` in
+ * removed, with its `data`, which the caller measures to give the bytes back. No branch ranks the whole stream: the age branch reads `(scope_id, stream, at)` in
  * order and stops after `limit` rows; the per-key branch walks the distinct keys through the
  * primary key, finds each key's newest-`maxPerKey` edge by one index probe, and takes at most
  * `limit` older records of that key. So a batch costs about the rows it removes plus one probe per
@@ -65,7 +65,7 @@ ${branches.join('\n  union\n')}
 delete from ${table} as records using doomed
 where records.scope_id = $1 and records.stream = $2
   and records.key = doomed.key and records.seq = doomed.seq
-returning 1`,
+returning records.data`,
     parameters,
   };
 }

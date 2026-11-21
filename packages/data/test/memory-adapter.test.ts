@@ -55,6 +55,8 @@ test('only shared tables are hosted, the placement id is kept, identity is stabl
 test('a store keeps nothing of one instance in another', async () => {
   const a = openMemory();
   const b = openMemory();
-  await a.run({ level: 'deployment' }, (unit) => unit.usage.add('x', 1n));
+  await a.run({ level: 'deployment' }, async (unit) =>
+    unit.usage.charge([{ dimension: 'x', delta: 1n, limit: null }]),
+  );
   expect(await b.read({ level: 'deployment' }, (unit) => unit.usage.get('x'))).toBe(0n);
 });

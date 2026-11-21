@@ -40,4 +40,4 @@ with counter as (
   on conflict (scope_id, dimension) do update set value = u.value + excluded.value
   returning u.dimension, u.value
 )
-select (select first::text from counter) as first, (select count(*) from enqueued)::text as lanes, (select coalesce(json_agg(position::text), '[]'::json) from appended)::text as appended, (select coalesce(json_agg(json_build_array(lane_id::text, queue, value::text)), '[]'::json) from queued)::text as queued, (select coalesce(json_agg(json_build_array(dimension, value::text)), '[]'::json) from usage)::text as usage
+select (select first::text from counter) as first, (select coalesce(json_agg(position::text), '[]'::json) from appended)::text as appended, (select coalesce(json_agg(json_build_array(dimension, value::text)), '[]'::json) from usage)::text as usage, (select count(*) from enqueued)::text as lanes, (select coalesce(json_agg(json_build_array(lane_id::text, queue, value::text)), '[]'::json) from queued)::text as queued

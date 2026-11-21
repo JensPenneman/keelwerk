@@ -10,10 +10,11 @@ import { tenantA } from './support/tenant-a.ts';
 
 let adapter: PgliteAdapter;
 
-/** The statement of the function over the three parameters it reads as variables. */
+/** The statement of the function over the three parameters it reads as variables; `into` is the one clause only PL/pgSQL has. */
 const prepared = (receipts: boolean, kind: 'batch' | 'more'): string => {
   const sql = transientPurgeBatchSql('example', receipts)
-    [kind].replaceAll(/\bunit_scope\b/g, '$1::uuid')
+    [kind].replace(' into removed, records', '')
+    .replaceAll(/\bunit_scope\b/g, '$1::uuid')
     .replaceAll(/\bcutoff\b/g, '$2::timestamptz')
     .replaceAll(/\bmax_rows\b/g, '$3::integer');
   return `prepare purge_${kind}(uuid, timestamptz, integer) as ${sql}`;

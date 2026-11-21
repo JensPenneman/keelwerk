@@ -1,6 +1,12 @@
 import type { Registry, SubjectId } from '@keelwerk/core';
+import { transientPurgeTypes } from '@keelwerk/core';
+import { erasure } from '@keelwerk/events';
 import { expect } from 'vitest';
+import { conformanceApp } from '../../../src/fixtures/index.ts';
 import { createLocalClient } from '../../../src/harness/create-local-client.ts';
+import { startTestRuntime } from '../../../src/harness/start-test-runtime.ts';
+import { testCarrier } from '../../../src/harness/test-carrier.ts';
+import { testOperator } from '../../../src/harness/test-operator.ts';
 import { testPrincipal } from '../../../src/harness/test-principal.ts';
 import type { TestRuntime } from '../../../src/harness/test-runtime.ts';
 import type { TestRuntimeOptions } from '../../../src/harness/test-runtime-options.ts';
@@ -8,7 +14,7 @@ import { command, effectsKit, registryWith } from './effects-kit.ts';
 import { startHookEndpoint } from './hook-endpoint.ts';
 import { bootHooks, probeInput } from './hooks-kit.ts';
 import { drainHooks } from './hooks-reads.ts';
-import { bootJournal } from './journal-kit.ts';
+import { author, bootJournal } from './journal-kit.ts';
 import { bootReactions } from './reactions-kit.ts';
 import { namespace, tenant } from './run-read-kit.ts';
 import { type StoredRecords, storedRecords } from './stored-bytes.ts';
@@ -89,6 +95,48 @@ export async function journalStoredBytes(options: StoredBytesOptions): Promise<v
 }
 
 /**
+ * An erasure that purges stream records: the subject owns a page with keyed `journal.lines` records;
+ * once the erasure has run, the records are gone, and the counter equals the measure recomputed from
+ * the store, so the purge gave back exactly the bytes of the records it removed.
+ */
+export async function erasureStoredBytes(options: StoredBytesOptions): Promise<void> {
+  const worker = erasure({ pollMs: 3_600_000 });
+  const journal = await bootJournal({
+    ...options,
+    operators: true,
+    workers: true,
+    eventWorkers: [worker],
+  });
+  try {
+    const written = await journal.call<{ pageId: string }>('journal.writePage', {
+      title: 'Day one',
+      texts: ['alpha', 'beta'],
+    });
+    if (!written.ok) throw written.error;
+    const before = await readBack(journal.runtime);
+    expect((before.streams.get('journal.lines') ?? []).length).toBe(3);
+    expectCounterEqualsStored(before);
+    const operator = createLocalClient(journal.runtime, {
+      principal: testOperator(),
+      tenant: 'acme',
+    });
+    await operator.invoke(
+      'core.eraseSubject',
+      { subjectId: author as never, reason: 'subjectRequest' },
+      { prefer: 'async' },
+    );
+    await journal.runtime.drainJobs();
+    await worker.pass();
+    const after = await readBack(journal.runtime);
+    expect((after.streams.get('journal.lines') ?? []).length).toBe(0);
+    expect(after.events.some((event) => event.type.endsWith('.erased'))).toBe(true);
+    expectCounterEqualsStored(after);
+  } finally {
+    await journal.runtime.stop();
+  }
+}
+
+/**
  * The relay app: the events of a command, of its inline reactions, of its asynchronous reaction
  * jobs and of a process's own stream.
  */
@@ -114,8 +162,8 @@ export async function relayStoredBytes(options: StoredBytesOptions): Promise<voi
 }
 
 /**
- * A command accepted asynchronously stores the transient change record of its receipt (a record the
- * retention sweep of `transientRecords` removes): it is stored, and the counter leaves it out.
+ * A command accepted asynchronously stores the transient change record of its receipt: it is
+ * counted like every record, and the retention sweep that removes it gives its bytes back.
  */
 export async function receiptStoredBytes(): Promise<void> {
   const registry = registryWith({
@@ -127,9 +175,59 @@ export async function receiptStoredBytes(): Promise<void> {
   const read = await storedRecords(adapter, namespace, tenant, registry);
   expect(read.events.map((event) => event.stream.type)).toEqual(['core.commandReceipt']);
   expect(read.events.every((event) => event.transient)).toBe(true);
-  expect(read.uncountedEvents).toHaveLength(1);
-  expect(read.counted).toBe(0n);
-  expect(read.stored).toBe(0n);
+  expect(read.stored).toBeGreaterThan(0n);
+  expect(read.counted).toBe(read.stored);
+}
+
+/**
+ * An asynchronous command and its job: the receipt's change records (accepted, then completed) are
+ * counted like every record; the sweep that purges the older one gives its bytes back in its own
+ * unit, so the counter equals the measure of what is left and fell by the measure of what went.
+ */
+export async function asyncStoredBytes(options: StoredBytesOptions): Promise<void> {
+  const runtime = await startTestRuntime(conformanceApp, {
+    ...options,
+    operators: true,
+    workers: true,
+  });
+  try {
+    const scope = {
+      level: 'tenant',
+      backendId: runtime.backendId,
+      tenantId: runtime.tenants.acme.id,
+    } as const;
+    const accepted = await runtime.invoker.invoke({
+      action: 'loans.closeAll',
+      input: { borrower: 'bea' },
+      carrier: testCarrier(runtime.tenants.acme, testOperator('olive')),
+      requestId: crypto.randomUUID(),
+      commandId: crypto.randomUUID(),
+      prefer: 'async',
+      signal: new AbortController().signal,
+    });
+    expect(accepted).toMatchObject({ ok: true, receipt: { status: 'accepted' } });
+    await runtime.drainJobs();
+    const read = () =>
+      storedRecords(runtime.adapter, runtime.namespace, scope, runtime.app.registry);
+    const stored = await read();
+    const changes = stored.events.filter((event) => event.stream.type === 'core.commandReceipt');
+    expect(changes.length).toBeGreaterThanOrEqual(2);
+    expectCounterEqualsStored(stored);
+    const purged = await runtime.adapter.unit(runtime.namespace, scope, (unit) =>
+      unit.events.purgeTransient(
+        Temporal.Now.instant().add({ hours: 24 * 30 }),
+        100,
+        transientPurgeTypes,
+      ),
+    );
+    expect(purged.removed).toBeGreaterThan(0);
+    const left = await read();
+    expect(left.events.length).toBe(stored.events.length - purged.removed);
+    expectCounterEqualsStored(left);
+    expect(left.counted).toBeLessThan(stored.counted);
+  } finally {
+    await runtime.stop();
+  }
 }
 
 export interface StoredBytesOptions {

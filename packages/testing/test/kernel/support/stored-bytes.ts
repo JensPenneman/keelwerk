@@ -1,30 +1,5 @@
-import type {
-  DataAdapter,
-  EventMeta,
-  NamespaceRef,
-  Registry,
-  Scope,
-  StoredEvent,
-} from '@keelwerk/core';
-import { storedEventBytes, storedStreamRecordBytes } from '@keelwerk/core';
-
-/** The meta an event was written with, rebuilt from the envelope the store reads back. */
-function metaOf(event: StoredEvent): EventMeta {
-  return {
-    actor: event.actor,
-    commandId: event.commandId,
-    action: event.action,
-    causationId: event.causationId,
-    correlationId: event.correlationId,
-    client: event.client,
-    merge: event.merge,
-    traceparent: event.traceparent,
-    writer: event.writer,
-    flags: event.flags,
-    decision: event.decision,
-    ...(event.lineage === undefined ? {} : { lineage: event.lineage }),
-  };
-}
+import type { DataAdapter, NamespaceRef, Registry, Scope, StoredEvent } from '@keelwerk/core';
+import { storedEventBytesOf, storedStreamRecordBytes } from '@keelwerk/core';
 
 /** Every record a scope stores, read back, with what `core.eventBytes` says and what they add up to. */
 export interface StoredRecords {
@@ -37,8 +12,6 @@ export interface StoredRecords {
   readonly events: readonly StoredEvent[];
   /** The records of every declared stream, by stream, as stored. */
   readonly streams: ReadonlyMap<string, readonly unknown[]>;
-  /** The events the framework removes itself (`transientPurgeTypes`), which `stored` leaves out. */
-  readonly uncountedEvents: readonly StoredEvent[];
 }
 
 /**
@@ -78,16 +51,7 @@ export async function storedRecords(
         streams.set(entry.ref, records);
       }
       let stored = 0n;
-      const uncountedEvents: StoredEvent[] = [];
-      for (const event of events) {
-        const bytes = storedEventBytes(event.stream.type, {
-          data: event.data,
-          before: event.before,
-          meta: metaOf(event),
-        });
-        if (bytes === 0n) uncountedEvents.push(event);
-        stored += bytes;
-      }
+      for (const event of events) stored += storedEventBytesOf(event);
       for (const [stream, records] of streams) stored += storedStreamRecordBytes(stream, records);
       return {
         counted: await unit.usage.get('core.eventBytes'),
@@ -95,7 +59,6 @@ export async function storedRecords(
         stored,
         events,
         streams,
-        uncountedEvents,
       };
     },
     { readOnly: true },

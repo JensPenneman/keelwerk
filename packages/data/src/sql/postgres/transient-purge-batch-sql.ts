@@ -1,7 +1,9 @@
 /**
  * The two statements of `kw_purge_transient` (framework step 0004), as text over the function's
- * variables `unit_scope`, `cutoff` and `max_rows`: `batch` deletes one batch and `more` asks
- * whether a candidate is left. The stream type is written out as a literal, never read from the
+ * variables `unit_scope`, `cutoff` and `max_rows`: `batch` deletes one batch and reads into `removed`
+ * how many rows it deleted and into `records` the deleted rows' data, before image and meta as a
+ * JSON array of `[data, before, meta]` (what the adapter measures to give the bytes back), and `more`
+ * asks whether a candidate is left. The stream type is written out as a literal, never read from the
  * argument or from a list of the kernel: the function is a stored protection of the history of
  * state entities, so widening it is a later framework step that replaces the function. A candidate
  * is a transient record of that type, without a hash or a previous hash, older than `cutoff`, that
@@ -40,12 +42,17 @@ export function transientPurgeBatchSql(
     where ${candidate('e')}
     order by e.recorded_at, e.position
     limit max_rows
+  ), deleted as (
+    delete from ${events} as events
+    where events.scope_id = unit_scope
+      and events.position = any(array(select d.position from doomed as d))
+      and events.transient and events.stream_type = 'core.commandReceipt'
+      and events.hash is null and events.prev_hash is null
+    returning events.data, events.before, events.meta
   )
-  delete from ${events} as events
-  where events.scope_id = unit_scope
-    and events.position = any(array(select d.position from doomed as d))
-    and events.transient and events.stream_type = 'core.commandReceipt'
-    and events.hash is null and events.prev_hash is null`,
+  select count(*)::integer,
+    coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(x.data, x.before, x.meta)), '[]'::jsonb)
+  into removed, records from deleted as x`,
     more: `select exists (select 1 from ${events} as c where ${candidate('c')})`,
   };
 }

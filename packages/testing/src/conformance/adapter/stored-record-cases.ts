@@ -1,28 +1,35 @@
-import type { StreamAppend } from '@keelwerk/core';
+import type { NewEvent, StreamAppend } from '@keelwerk/core';
 import { storedEventBytes, storedStreamRecordBytes } from '@keelwerk/core';
 import { conformanceScopes } from '@keelwerk/data/conformance';
 import { describe, expect, test } from 'vitest';
 import { appendOf } from './append-of.ts';
+import { appendPurgeReceipt } from './append-purge-receipt.ts';
 import type { ConformanceSubject } from './conformance-subject.ts';
+import { purgeReceiptType as type } from './purge-receipt-type.ts';
+import { purgeRecord } from './purge-record.ts';
+import { purgeTransientKit } from './purge-transient-kit.ts';
 import { quotaRejection } from './quota-rejection.ts';
+import { stamp } from './stamp.ts';
 import { usageChargeOf } from './usage-charge-of.ts';
 import { usageOf } from './usage-of.ts';
 
 const { tenantA, tenantB, backend, deployment } = conformanceScopes;
+const stampAfter = (hours: number): Temporal.Instant => stamp.add({ hours });
 
 /**
  * What the adapters count under `core.eventBytes` (12.2): every event and every stream record a
- * unit appends, by the measure of the framework, for its own scope; what the framework removes
- * itself is not counted; a unit is refused only when it declares a limit.
+ * unit appends, by the measure of the framework, for its own scope, the change records of receipts
+ * included; the unit that removes a record gives its bytes back, by the same measure recomputed from
+ * what is stored; a unit is refused only when it declares a limit.
  */
 export function storedRecordCases(subject: Pick<ConformanceSubject, 'run' | 'read'>): void {
   const usage = usageOf(subject);
+  const { receipts } = purgeTransientKit(subject);
   describe('stored records are counted under core.eventBytes', () => {
     const bytes = 'core.eventBytes';
     const measured = (batch: readonly StreamAppend[]): bigint =>
       batch.reduce(
-        (sum, append) =>
-          sum + append.events.reduce((all, e) => all + storedEventBytes(append.stream.type, e), 0n),
+        (sum, append) => sum + append.events.reduce((all, e) => all + storedEventBytes(e), 0n),
         0n,
       );
 
@@ -41,17 +48,21 @@ export function storedRecordCases(subject: Pick<ConformanceSubject, 'run' | 'rea
       expect(await usage(bytes, deployment)).toBe(0n);
     });
 
-    test('stream records are counted as stored; the change records of receipts and the process state cache are not', async () => {
+    test('stream records are counted as stored, the process state cache is not', async () => {
       const records = [{ n: 1 }, { text: 'two' }];
-      const receipt = [appendOf(1, [1], { tenancy: 'invocation' }, 'core.commandReceipt')];
       await subject.run(tenantA, async (unit) => {
         await unit.streams.append('conf.lines', 'k', records);
         await unit.streams.append('kernel:process-state', 'k', [{ v: 1 }]);
-        await unit.events.append(receipt);
       });
       expect(await usage(bytes)).toBe(storedStreamRecordBytes('conf.lines', records));
       expect(storedStreamRecordBytes('conf.lines', records)).toBeGreaterThan(0n);
-      expect(measured(receipt)).toBe(0n);
+    });
+
+    test('the change records of receipts are counted like every other event', async () => {
+      const receipt = [appendOf(1, [1], { tenancy: 'invocation' }, 'core.commandReceipt')];
+      await subject.run(tenantA, (unit) => unit.events.append(receipt));
+      expect(measured(receipt)).toBeGreaterThan(0n);
+      expect(await usage(bytes)).toBe(measured(receipt));
     });
 
     test('a unit that declares no limit is never refused, whatever the counter says', async () => {
@@ -94,6 +105,77 @@ export function storedRecordCases(subject: Pick<ConformanceSubject, 'run' | 'rea
           .catch(() => undefined);
       });
       expect(await usage(bytes)).toBe(measured(kept));
+    });
+  });
+
+  describe('a removal gives back the bytes it frees, in its own unit', () => {
+    const bytes = 'core.eventBytes';
+    const lines = 'conf.lines';
+    const own = (...events: readonly NewEvent[]): bigint =>
+      events.reduce((sum, event) => sum + storedEventBytes(event), 0n);
+
+    test('purgeTransient gives back the change records it deletes and nothing for the newest it keeps', async () => {
+      await receipts([1]);
+      const records = [1, 2, 3, 4].map((n) => purgeRecord(n, n));
+      await subject.run(tenantA, (unit) => unit.events.append([appendPurgeReceipt(1, records)]));
+      expect(await usage(bytes)).toBe(own(...records));
+      await subject.run(tenantA, (unit) => unit.events.purgeTransient(stampAfter(100), 3, [type]));
+      expect(await usage(bytes)).toBe(own(records[3] as NewEvent));
+    });
+
+    test('expire gives back the records it removes', async () => {
+      const records = [{ n: 1 }, { n: 2, text: 'two' }, { n: 3 }, { n: 4, text: 'four of them' }];
+      await subject.run(tenantA, (unit) => unit.streams.append(lines, 'a', records));
+      const kept = records.slice(2);
+      await subject.run(tenantA, (unit) => unit.streams.expire(lines, { maxPerKey: 2 }, 10));
+      expect(await usage(bytes)).toBe(storedStreamRecordBytes(lines, kept));
+    });
+
+    test('purgeKeys gives back the records of the keys it removes', async () => {
+      const a = [{ n: 1 }, { text: 'two' }];
+      const b = [{ n: 3, more: [1, 2, 3] }];
+      await subject.run(tenantA, async (unit) => {
+        await unit.streams.append(lines, 'a', a);
+        await unit.streams.append(lines, 'b', b);
+      });
+      await subject.run(tenantA, (unit) => unit.streams.purgeKeys(lines, ['a']));
+      expect(await usage(bytes)).toBe(storedStreamRecordBytes(lines, b));
+    });
+
+    test('purgeKeys of the process state cache moves nothing: it was never charged', async () => {
+      await subject.run(tenantA, async (unit) => {
+        await unit.streams.append('conf.lines', 'k', [{ n: 1 }]);
+        await unit.streams.append('kernel:process-state', 'k', [{ v: 1 }]);
+      });
+      const before = await usage(bytes);
+      await subject.run(tenantA, (unit) => unit.streams.purgeKeys('kernel:process-state', ['k']));
+      expect(await usage(bytes)).toBe(before);
+    });
+
+    test('a removal of a unit that rolls back gives nothing back', async () => {
+      await receipts([1]);
+      const records = [1, 2].map((n) => purgeRecord(n, n));
+      await subject.run(tenantA, async (unit) => {
+        await unit.events.append([appendPurgeReceipt(1, records)]);
+        await unit.streams.append(lines, 'a', [{ n: 1 }]);
+      });
+      const before = await usage(bytes);
+      await subject
+        .run(tenantA, async (unit) => {
+          await unit.events.purgeTransient(stampAfter(100), 10, [type]);
+          await unit.streams.purgeKeys(lines, ['a']);
+          throw new Error('the unit rolls back');
+        })
+        .catch(() => undefined);
+      expect(await usage(bytes)).toBe(before);
+    });
+
+    test('a removal in another scope gives back to that scope only', async () => {
+      await subject.run(tenantA, (unit) => unit.streams.append(lines, 'a', [{ n: 1 }]));
+      await subject.run(tenantB, (unit) => unit.streams.append(lines, 'a', [{ n: 1 }]));
+      await subject.run(tenantB, (unit) => unit.streams.purgeKeys(lines, ['a']));
+      expect(await usage(bytes)).toBe(storedStreamRecordBytes(lines, [{ n: 1 }]));
+      expect(await usage(bytes, tenantB)).toBe(0n);
     });
   });
 }

@@ -27,7 +27,7 @@ export function unitCases(subject: ConformanceSubject): void {
       await expect(
         subject.run(tenantA, async (unit) => {
           await unit.rows.insert(owner, [rowAt(2, { name: 'lost' })]);
-          await unit.usage.add('requests', 5n);
+          unit.usage.charge([{ dimension: 'requests', delta: 5n, limit: null }]);
           await unit.serials.next(conformanceEntities.ticket, 'seq', ['box']);
           throw boom;
         }),
@@ -125,7 +125,7 @@ export function unitCases(subject: ConformanceSubject): void {
         (unit: Parameters<Parameters<ConformanceSubject['read']>[1]>[0]) =>
           unit.rows.insert(owner, [rowAt(1, { name: 'no' })]),
         (unit: Parameters<Parameters<ConformanceSubject['read']>[1]>[0]) =>
-          unit.usage.add('requests', 1n),
+          unit.usage.charge([{ dimension: 'requests', delta: 1n, limit: null }]),
         (unit: Parameters<Parameters<ConformanceSubject['read']>[1]>[0]) =>
           unit.events.append([appendOf(1, [1])]),
       ];

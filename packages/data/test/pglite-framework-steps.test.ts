@@ -51,6 +51,15 @@ const rowsOfFixture = async (adapter: PgliteAdapter): Promise<readonly unknown[]
     ].map((sql) => rowsOf(adapter, sql)),
   );
 
+/** What `kw_purge_transient` of the root answers, as the database prints its result type (null: no such function). */
+async function purgeResultType(adapter: PgliteAdapter, root: string): Promise<unknown> {
+  const rows = await rowsOf(
+    adapter,
+    `select pg_get_function_result(to_regprocedure('"${root}".kw_purge_transient(timestamptz, integer, text[])')) as result`,
+  );
+  return rows[0]?.result;
+}
+
 const stepIds = frameworkSteps.map((step) => step.id);
 
 const stepOf = (id: string): FrameworkStep => {
@@ -135,6 +144,11 @@ describe('the framework track on PGlite', { timeout: 30_000 }, () => {
         .map(Number)
         .map((n, index) => (index === 0 || index === 2 ? n + frameworkSteps.length : n)),
     );
+    const fresh = await open();
+    await provisionExampleRoots(fresh);
+    for (const root of ['example', 'kw__control']) {
+      expect(await purgeResultType(adapter, root)).toBe(await purgeResultType(fresh, root));
+    }
   });
 
   test('provision again changes nothing', async () => {

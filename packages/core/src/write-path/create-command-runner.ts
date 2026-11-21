@@ -4,6 +4,7 @@ import { errors } from '../errors/errors.ts';
 import { checkCallerCommandId } from '../ids/check-caller-command-id.ts';
 import { isOpaqueId } from '../ids/is-opaque-id.ts';
 import type { CommandRunner } from '../invoker/command-runner.ts';
+import { admitPrepare } from '../quotas/admit-prepare.ts';
 import { commandReceiptId } from './command-receipt-id.ts';
 import { defaultNodeId } from './default-node-id.ts';
 import type { EntityBehaviours } from './entity-behaviours.ts';
@@ -33,7 +34,8 @@ export interface CommandRunnerOptions {
 /**
  * The `CommandRunner` the invoker's execute stage calls for a command (`InvokerOptions.commands`):
  * it maps what the stage hands over to `runCommand`, or, for an asynchronous command (an `async`
- * one, or an `either` one the caller prefers to run asynchronously), to `acceptAsyncCommand`. A host that runs commands
+ * one, or an `either` one the caller prefers to run asynchronously), to `acceptAsyncCommand`. A command with `prepare` is first admitted
+ * against the storage limits (`admitPrepare`). A host that runs commands
  * with `prepare` through it must enforce the action's `timeoutMs` through the run's `signal`, as the
  * invoker's execute stage does with `withDeadline`: see `runCommand`.
  */
@@ -120,11 +122,13 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
             },
       );
     }
-    return runCommand(input).catch(async (error: unknown) => {
+    // Outside the catch below: a command refused before `prepare` leaves no receipt, not even a failed one.
+    const admitted = await admitPrepare(input);
+    return runCommand(admitted).catch(async (error: unknown) => {
       // A deterministic refusal after the unit rolled back is pinned to the command id (15.1.7); a
       // job's worker records its failure itself, in the unit that completes the job.
       if (job === undefined && invocation.commandId !== undefined && isRecordedFailure(error)) {
-        await recordFailedReceipt(input, invocation.commandId, error).catch(() => undefined);
+        await recordFailedReceipt(admitted, invocation.commandId, error).catch(() => undefined);
       }
       throw error;
     });

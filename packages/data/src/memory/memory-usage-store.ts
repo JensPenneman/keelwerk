@@ -1,5 +1,6 @@
 import type { UsageStore } from '@keelwerk/core';
-import { errors } from '@keelwerk/core';
+import { usageGiveBackCharges } from '../sql/usage-give-back-charges.ts';
+import { usageStoreCharges } from '../sql/usage-store-charges.ts';
 import { memoryBufferCharges } from './memory-buffer-charges.ts';
 import type { MemoryUnitContext } from './memory-unit-context.ts';
 
@@ -8,18 +9,14 @@ export function memoryUsageStore(ctx: MemoryUnitContext): UsageStore {
   const name = (): string => `usage/${ctx.scopeId()}`;
   return {
     charge: (charges) => {
-      if (ctx.scope.level === 'namespace') {
-        throw errors.internal('a namespace unit charges no usage');
-      }
+      const checked = usageStoreCharges(ctx.scope, charges);
+      ctx.writable();
+      memoryBufferCharges(ctx, checked);
+    },
+    giveBack: (dimension, amount) => {
+      const charges = usageGiveBackCharges(ctx.scope, dimension, amount);
       ctx.writable();
       memoryBufferCharges(ctx, charges);
-    },
-    add: async (dimension, delta) => {
-      ctx.writable();
-      const table = ctx.tx.write<bigint>(name());
-      const value = (table.get(dimension) ?? 0n) + delta;
-      table.set(dimension, value);
-      return value;
     },
     get: async (dimension) => ctx.tx.read<bigint>(name()).get(dimension) ?? 0n,
   };

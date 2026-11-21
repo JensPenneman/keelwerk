@@ -76,7 +76,7 @@ test('an error leaves nothing of the unit behind, in any store', async () => {
   await memory
     .run(tenantScope, async (unit) => {
       await unit.rows.insert(note, [noteRow(1, {})]);
-      await unit.usage.add('n', 1n);
+      unit.usage.charge([{ dimension: 'n', delta: 1n, limit: null }]);
       await unit.events.append([
         {
           stream: { type: 'app.note', id: id(1) },

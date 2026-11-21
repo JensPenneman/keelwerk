@@ -22,9 +22,11 @@ import { transientPurgeBatchSql } from './transient-purge-batch-sql.ts';
  * gone from the scope (the row id is the stream id), because the stream serves no one then; a root
  * without a receipt table keeps every newest record. It does not compare `before` with the
  * database clock: the adapter's clock is the time authority. It answers `removed`, how many it
- * deleted, and `more`, whether a candidate is left: read by a statement of its own after the
- * delete, never derived from `removed`, because a delete that skipped rows another pass took
- * removes fewer than `max_rows` while older candidates remain.
+ * deleted, `records`, the `[data, before, meta]` of each deleted row as a JSON array (what the
+ * adapter measures to give the stored bytes back to the counter), and `more`, whether a candidate
+ * is left: read by a statement of its own after the delete, never derived from `removed`, because a
+ * delete that skipped rows another pass took removes fewer than `max_rows` while older candidates
+ * remain.
  * With `control` (the control root) the scope is the deployment's, else the tenant's, the
  * backend's or the deployment's, the same expression as the policies of `rlsPoliciesDdl`. The
  * control root also gets the columns that make a retention run a complete record of its pass.
@@ -47,7 +49,7 @@ export function transientPurgeDdl(
           `alter table "${schema}".kw_retention_runs add column namespace_id text, add column outcome text, add column error jsonb`,
         ]
       : []),
-    `create function ${fn}(before timestamptz, max_rows integer, stream_types text[]) returns table (removed integer, more boolean)
+    `create function ${fn}(before timestamptz, max_rows integer, stream_types text[]) returns table (removed integer, more boolean, records jsonb)
 language plpgsql
 security definer
 set search_path = pg_catalog, pg_temp
@@ -78,19 +80,18 @@ begin
   if cardinality(stream_types) = 0 then
     removed := 0;
     more := false;
+    records := '[]'::jsonb;
     return next;
     return;
   end if;
   if has_receipts then
     ${withReceipts.batch};
-    get diagnostics removed = row_count;
     -- A statement of its own: under read committed it sees what other units committed since the
     -- delete began, so a batch that skipped rows another pass took does not pass for an empty
     -- buffer. Rows another pass is still deleting stay visible, which errs towards "more".
     ${withReceipts.more} into more;
   else
     ${withoutReceipts.batch};
-    get diagnostics removed = row_count;
     ${withoutReceipts.more} into more;
   end if;
   return next;

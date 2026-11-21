@@ -54,7 +54,9 @@ export interface EventStore {
    * answers how many it deleted and whether a candidate of a listed type is left (`PurgeBatch`). An
    * empty list removes nothing and answers `{ removed: 0, more: false }`. The one exception to the
    * newest record: that of a receipt stream whose receipt row is gone from the scope, because the
-   * stream serves no one then (its version starts again at 1 if a command id returns). `internal`
+   * stream serves no one then (its version starts again at 1 if a command id returns). The bytes of
+   * the deleted records, measured as `storedEventBytes` measures them, go back to `core.eventBytes` at the
+   * unit's commit tail. `internal`
    * in a read-only or namespace-scope unit; `validation` (core.malformed_request) for a limit
    * outside 1..100000 and for a list that names a type outside `transientPurgeTypes`: the
    * PostgreSQL function holds that list as a literal and refuses any other with 42501.
