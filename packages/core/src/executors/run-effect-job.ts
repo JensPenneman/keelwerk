@@ -5,6 +5,7 @@ import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import type { Job } from '../jobs/job.ts';
 import type { RunJobContext } from '../worker/run-job.ts';
 import { beginEffectAttempt } from './begin-effect-attempt.ts';
+import { closeUnrunAttempt } from './close-unrun-attempt.ts';
 import type { EffectAttemptJob } from './effect-attempt-job.ts';
 import type { EffectConfig } from './effect-config.ts';
 import { effectConfigOf } from './effect-config-of.ts';
@@ -22,8 +23,9 @@ function isTimeout(reason: unknown): boolean {
  * may run (`beginEffectAttempt`), the executor outside any unit (`performExecutor`), and an end
  * unit that retries or settles (`endEffectAttempt`). The job row never holds the input: the
  * executor's input is opened in the begin unit and lives in memory for the attempt. Rejects only
- * with `core.job_lease_lost` (or the reason of a worker that is stopping, which the lease's expiry
- * resolves: the destination may have acted, so the next taker settles the effect `abandoned`) or a
+ * with `core.job_lease_lost` (or the reason of a worker that is stopping: when the executor was
+ * never called its start record is closed first and the drain releases the attempt; when it was
+ * called the destination may have acted, so the next taker settles the effect `abandoned`) or a
  * kernel `internal`; the executor's own text never reaches the fetcher's fallback. A failure of the
  * end unit does not end the job with the effect `requested` and an open attempt: `settleAfterFailedEnd`.
  */
@@ -80,6 +82,10 @@ export async function runEffectJob(job: Job, context: RunJobContext): Promise<vo
       log,
     });
     if (!result.ok && job.signal.aborted && !isTimeout(job.signal.reason)) {
+      // An executor that was never called leaves no open start record: the next take runs the effect again.
+      if (result.unrun === true) {
+        await closeUnrunAttempt(context, target, began, job.signal.reason);
+      }
       throw job.signal.reason;
     }
     let failure: EffectAttemptError | undefined;

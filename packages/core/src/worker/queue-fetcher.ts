@@ -9,6 +9,8 @@ import type { FetcherHooks } from './fetcher-hooks.ts';
 import type { HeldJob } from './held-job.ts';
 import { jobOutcomeOfError } from './job-outcome-of-error.ts';
 import type { QueueSource } from './queue-source.ts';
+import { releaseAttempts } from './release-attempts.ts';
+import { settleExhaustedJob } from './settle-exhausted-job.ts';
 import { settleJobAttempt } from './settle-job-attempt.ts';
 import type { SourceReadiness } from './source-readiness.ts';
 import { takeBatch } from './take-batch.ts';
@@ -21,6 +23,8 @@ const pollJitter = 0.2;
 const takeLeaseMs = 30_000;
 const maxRetakes = 3;
 const pacingMs = 25;
+/** How long a drain waits (wall clock) for aborted handlers before it releases (D4). */
+const releaseGraceMs = 1000;
 
 /** What a kernel queue drives for each queue it works. */
 export interface QueueFetcher {
@@ -34,8 +38,20 @@ export interface QueueFetcher {
   tick(now: Temporal.Instant): Promise<void>;
   /**
    * Stops taking and waits for the attempts still running until `deadline` (wall clock), then
-   * aborts the ones left with a shutdown reason and answers how many there were; their leases
-   * expire (D6). A later call with a deadline that has passed ends the waits of the earlier ones.
+   * aborts the ones left with a shutdown reason, gives their handlers a short grace to settle (an
+   * effect attempt closes its start record, a late commit lands) and releases what is still running
+   * in the store: back to available, the attempt not counted (21.6 step 4). A release that fails is
+   * logged and the leases expire as before. A take in flight when the drain begins has its batch
+   * released too, once the take answers (never started); the drain waits for that take and its
+   * release even when `deadline` has passed (one take and one release unit more). Once begun, a
+   * drain is final: the fetcher takes nothing again, also after a take that promoted jobs. The jobs
+   * that last take promoted, and the attempts it released, are another worker's to take: the commit
+   * of the take unit records the queue as readied for the promoted jobs (`JobStore.promote`), the
+   * release unit's own commit for the released attempts (`JobStore.release`), and
+   * `createKernelQueue`'s `wakeQueues` wakes that worker's fetcher of the queue when the change
+   * feed delivers it. A feed that only polls delivers none, so they wait for that worker's next
+   * poll. Answers how many attempts were left at the deadline. A later call with a deadline that
+   * has passed ends the waits of the earlier ones.
    */
   drain(deadline: Temporal.Instant): Promise<number>;
   readonly idle: boolean;
@@ -73,6 +89,7 @@ export function queueFetcher(input: {
   const running = new Set<Promise<void>>();
   const mine = new Set<HeldJob>();
   const expiries = new Set<() => void>();
+  const released = new WeakSet<HeldJob>();
   const shutdown = coreError('core.unavailable', {
     message: 'The worker stopped before the attempt finished.',
   });
@@ -85,6 +102,7 @@ export function queueFetcher(input: {
   let nextPollAt: Temporal.Instant | undefined;
   let rotation = 0;
   let seenAt: Temporal.Instant | undefined;
+  let releasing: Promise<void> = Promise.resolve();
 
   const completeFailed = async (entry: HeldJob, error: unknown): Promise<void> => {
     const { stored } = entry.job;
@@ -107,6 +125,32 @@ export function queueFetcher(input: {
         cause: failure,
       });
     }
+  };
+
+  const unreleased = (error: unknown): void => {
+    log.warn('attempts could not be released; their leases will expire', { queue, cause: error });
+  };
+
+  const releaseLeft = async (leftBehind: readonly HeldJob[]): Promise<void> => {
+    let grace: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.allSettled([...running]),
+        new Promise<void>((resolve) => {
+          grace = setTimeout(resolve, releaseGraceMs);
+          grace.unref();
+        }),
+      ]);
+    } finally {
+      clearTimeout(grace);
+    }
+    const released = await releaseAttempts(leftBehind, worker, unreleased);
+    log.warn('attempts were still running at the deadline', {
+      queue,
+      attempts: leftBehind.length,
+      released,
+      leftToTheirLeases: leftBehind.length - released,
+    });
   };
 
   const start = (stored: StoredJob, source: QueueSource): void => {
@@ -141,7 +185,17 @@ export function queueFetcher(input: {
     hooks.took(entry.job, source);
     const attempt = (async () => {
       try {
-        await handler(entry.job);
+        if (stored.leasesExhausted === true) {
+          // Ends here with its receipt and never runs; a unit that fails leaves it to its lease.
+          await settleExhaustedJob({ source, worker, writer: kernel.writer, clock }, stored).catch(
+            (failure: unknown) =>
+              log.warn('a job whose leases were lost could not be ended', {
+                queue,
+                job: stored.id,
+                cause: failure,
+              }),
+          );
+        } else await handler(entry.job);
       } catch (error) {
         await completeFailed(entry, error);
       } finally {
@@ -189,8 +243,17 @@ export function queueFetcher(input: {
           leaseMs: takeLeaseMs,
         });
         // A drain that began while the take was in flight: nothing of the batch starts (no executor
-        // runs after the gate closed or the process stopped), and the leases of its jobs expire (D6).
-        if (draining) return false;
+        // runs after the gate closed or the process stopped) and its attempts are released before
+        // the drain answers; a release that fails leaves them to their leases, as does a process
+        // that stops before the take answers (D6).
+        if (draining) {
+          await releaseAttempts(
+            batch.jobs.map((stored) => ({ source, job: { stored } })),
+            worker,
+            unreleased,
+          );
+          return false;
+        }
         slots.hold(batch.jobs.length);
         for (const stored of batch.jobs) start(stored, source);
         took ||= batch.jobs.length > 0 || batch.promoted > 0;
@@ -273,9 +336,18 @@ export function queueFetcher(input: {
         expiries.delete(expired.resolve);
       }
       const left = running.size;
-      for (const entry of mine) {
+      const leftBehind = [...mine].filter((entry) => !released.has(entry));
+      for (const entry of leftBehind) {
+        released.add(entry);
         if (!entry.abort.signal.aborted) entry.abort.abort(shutdown);
       }
+      if (leftBehind.length > 0) {
+        // Set before the first await: a drain that finds the attempts claimed already waits for this one.
+        releasing = Promise.all([releasing, releaseLeft(leftBehind)]).then(() => undefined);
+      }
+      // A take in flight is awaited even past the deadline: its batch is released inside the sweep
+      // (one take and one release unit), and that release has ended when the drain answers.
+      await Promise.all([releasing, sweeping]);
       return left;
     },
     get idle() {

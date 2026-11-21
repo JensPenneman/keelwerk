@@ -72,7 +72,7 @@ describe('performExecutor', () => {
       }),
     );
     expect(calls).toBe(0);
-    expect(result).toEqual({ ok: false, error: reason });
+    expect(result).toEqual({ ok: false, error: reason, unrun: true });
   });
 
   test('an executor abandoned at the deadline that rejects later is caught and logged once, with its code and never its text', async () => {

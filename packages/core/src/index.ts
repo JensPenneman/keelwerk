@@ -1092,6 +1092,7 @@ export { version } from './version.ts';
 export type { KernelQueueOptions } from './worker/create-kernel-queue.ts';
 export { createKernelQueue } from './worker/create-kernel-queue.ts';
 export type { KernelQueue } from './worker/kernel-queue.ts';
+export { lostLeaseWireError } from './worker/lost-lease-wire-error.ts';
 export type { QueueSource } from './worker/queue-source.ts';
 export type { SourceReadiness } from './worker/source-readiness.ts';
 export { sourceReadiness } from './worker/source-readiness.ts';

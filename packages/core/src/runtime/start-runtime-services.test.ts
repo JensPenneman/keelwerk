@@ -81,9 +81,10 @@ describe('startRuntimeServices when the stop gives up on the start', () => {
     seam.services = [first.built];
     const ended: unknown[] = [];
     const stop = startRuntimeServices(inputOf((probe) => ended.push(probe)));
-    await stop(AbortSignal.abort());
+    const stopping = stop(AbortSignal.abort());
     door.resolve([]);
-    await vi.waitFor(() => expect(ended).toHaveLength(1));
+    await stopping;
+    expect(ended).toHaveLength(1);
     expect(first.calls).toEqual([]);
   });
 
@@ -98,10 +99,51 @@ describe('startRuntimeServices when the stop gives up on the start', () => {
     const abort = new AbortController();
     const stopping = stop(abort.signal);
     abort.abort();
-    await stopping;
     door.resolve();
-    await vi.waitFor(() => expect(first.calls).toEqual(['start', 'stop']));
+    // The stop returns only after the late chain has stopped what it started.
+    await stopping;
+    expect(first.calls).toEqual(['start', 'stop']);
     expect(second.calls).toEqual([]);
+  });
+
+  test('a stop whose deadline passed before a service start ended returns after that service was stopped', async () => {
+    seam.sources = undefined;
+    const door = Promise.withResolvers<void>();
+    const first = service('a', door.promise);
+    seam.services = [first.built];
+    const stop = startRuntimeServices(inputOf());
+    await vi.waitFor(() => expect(first.calls).toEqual(['start']));
+    let returned = false;
+    const stopping = stop(AbortSignal.abort()).then(() => {
+      returned = true;
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(returned).toBe(false);
+    door.resolve();
+    await stopping;
+    expect(first.calls).toEqual(['start', 'stop']);
+  });
+
+  test('a start that never ends holds the stop for the give-back bound only', async () => {
+    seam.sources = undefined;
+    const first = service('a', new Promise<void>(() => undefined));
+    seam.services = [first.built];
+    const stop = startRuntimeServices(inputOf());
+    await vi.waitFor(() => expect(first.calls).toEqual(['start']));
+    vi.useFakeTimers();
+    try {
+      let returned = false;
+      const stopping = stop(AbortSignal.abort()).then(() => {
+        returned = true;
+      });
+      await vi.advanceTimersByTimeAsync(4999);
+      expect(returned).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await stopping;
+      expect(returned).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test('the probe is handed over after the services started, and a normal stop stops them once', async () => {
@@ -117,6 +159,63 @@ describe('startRuntimeServices when the stop gives up on the start', () => {
     await stop(AbortSignal.timeout(5000));
     expect(handed).toHaveLength(1);
     expect(first.calls).toEqual(['start', 'stop']);
+  });
+});
+
+describe('startRuntimeServices when the stop deadline passes before a service stopped', () => {
+  const started: string[] = [];
+  function slow(expire?: () => Promise<void>): RuntimeService {
+    return {
+      id: 'slow',
+      roles: ['work'],
+      start: async () => {
+        started.push('slow');
+      },
+      stop: () => new Promise<void>(() => undefined),
+      ...(expire === undefined ? {} : { expire }),
+    };
+  }
+
+  test('asks each service to give back what it holds, and returns only when that is done', async () => {
+    seam.sources = undefined;
+    const release = Promise.withResolvers<void>();
+    const expire = vi.fn(() => release.promise);
+    started.length = 0;
+    seam.services = [slow(expire), slow()];
+    const stop = startRuntimeServices(inputOf());
+    await vi.waitFor(() => expect(started).toHaveLength(2), { timeout: 30_000 });
+    const abort = new AbortController();
+    let returned = false;
+    const stopping = stop(abort.signal).then(() => {
+      returned = true;
+    });
+    abort.abort();
+    await vi.waitFor(() => expect(expire).toHaveBeenCalledTimes(1), { timeout: 30_000 });
+    expect(returned).toBe(false);
+    release.resolve();
+    await stopping;
+    expect(returned).toBe(true);
+  });
+
+  test('a service that stops in time is not asked to give anything back', async () => {
+    seam.sources = undefined;
+    const expire = vi.fn(() => Promise.resolve());
+    const quick = service('quick');
+    seam.services = [{ ...quick.built, expire }];
+    const stop = startRuntimeServices(inputOf());
+    await stop(AbortSignal.timeout(30_000));
+    expect(expire).not.toHaveBeenCalled();
+  });
+
+  test('a service whose give-back fails is logged and the stop goes on', async () => {
+    seam.sources = undefined;
+    warnings.length = 0;
+    started.length = 0;
+    seam.services = [slow(() => Promise.reject(new Error('store gone')))];
+    const stop = startRuntimeServices(inputOf());
+    await vi.waitFor(() => expect(started).toHaveLength(1), { timeout: 30_000 });
+    await stop(AbortSignal.abort());
+    expect(warnings).toContain('a runtime service did not give back what it holds');
   });
 });
 

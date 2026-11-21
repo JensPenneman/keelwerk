@@ -82,3 +82,31 @@ describe('stopPhase and the live hubs', () => {
     expect(order).toContain('unfollow');
   });
 });
+
+describe('stopPhase and what the services give back at the deadline', () => {
+  test('the adapters close only after the phases returned, which may outlast the deadline', async () => {
+    const { input } = setup(() => Promise.resolve());
+    const events: string[] = [];
+    const phases = Promise.withResolvers<void>();
+    const phased = input as unknown as {
+      started: { stopPhases: () => Promise<void> };
+      connected: { adapters: { close: () => Promise<void> }[] };
+      abort: AbortController;
+    };
+    phased.abort.signal.addEventListener('abort', () => events.push('aborted'));
+    phased.started.stopPhases = () => phases.promise.then(() => void events.push('phases'));
+    phased.connected.adapters = [
+      {
+        close: () => {
+          events.push('closed');
+          return Promise.resolve();
+        },
+      },
+    ];
+    const stopping = stopPhase(input, 20);
+    await vi.waitFor(() => expect(events).toEqual(['aborted']), { timeout: 30_000 });
+    phases.resolve();
+    await stopping;
+    expect(events).toEqual(['aborted', 'phases', 'closed']);
+  });
+});

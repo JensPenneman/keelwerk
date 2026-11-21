@@ -11,6 +11,33 @@ import { staysInService } from './stays-in-service.ts';
 /** Seconds a draining process may take when `RuntimeOptions.work` says nothing (21.6). */
 const defaultDrainSeconds = 60;
 
+/**
+ * How long the stop waits, after its own deadline, for the services to give back what they hold in
+ * the store (`RuntimeService.expire`): the grace of the workers for their handlers (one second) and
+ * one unit of the store; and, when the start chain is still running at the deadline, for it to end
+ * and stop what it started.
+ */
+const expireWaitMs = 5000;
+
+/** Settles when `work` does or after `ms`, whichever is first; never rejects. */
+async function waitUpTo(work: Promise<unknown>, ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      work.then(
+        () => undefined,
+        () => undefined,
+      ),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, ms);
+        timer.unref();
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function aborted(signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (signal.aborted) resolve();
@@ -26,10 +53,12 @@ function aborted(signal: AbortSignal): Promise<void> {
  * also aborts when the process gate closes, even with its evidence still pending. A start that
  * rejects is logged and the others continue. It never throws synchronously: the start runs in the
  * background, and the function it returns stops every started service at once against one
- * wall-clock deadline (now plus `drainSeconds`), after waiting for the start chain, both within the
- * phase's own deadline signal.
+ * wall-clock deadline (now plus `drainSeconds`), after waiting for the start chain; both waits end
+ * when the phase's own deadline signal aborts (the one exception to that deadline is in `stopPhase`).
  * A deadline signal that aborts (or is aborted already) before the chain ends makes the chain start
- * nothing more and stop what it started at once, so a start that is given up on leaves no worker.
+ * nothing more and stop what it started at once; the returned stop then still waits for that chain
+ * and its stop, at most `expireWaitMs`, so a start that is given up on leaves no worker running
+ * after the stop returned.
  * The probe goes to `options.work` after the services started, and only in a process that works
  * (a process with the `serve` role has no fetcher to watch).
  */
@@ -126,11 +155,38 @@ export function startRuntimeServices(
       );
     }
     await Promise.race([running, aborted(deadline)]);
-    if (ready === undefined) return;
+    if (ready === undefined) {
+      // The chain is still starting: it stops what it started when it ends (`stopped` is set before
+      // `running` settles), and the adapters must stay open until that is done.
+      await waitUpTo(
+        running.then(() => stopped),
+        expireWaitMs,
+      );
+      return;
+    }
     stopped ??= stopAll(
       ready,
       Temporal.Now.instant().add({ seconds: options.work?.drainSeconds ?? defaultDrainSeconds }),
     );
-    await Promise.race([stopped, aborted(deadline)]);
+    const inTime = await Promise.race([
+      stopped.then(() => true),
+      aborted(deadline).then(() => false),
+    ]);
+    if (inTime) return;
+    // The stop is about to close the adapters: the workers still holding attempts release them now,
+    // while the store is open (21.6 step 4), and not at the later abort of the process.
+    await waitUpTo(
+      Promise.all(
+        ready.map((service) =>
+          service.expire?.().catch((error: unknown) => {
+            connected.log.warn('a runtime service did not give back what it holds', {
+              service: service.id,
+              cause: error,
+            });
+          }),
+        ),
+      ),
+      expireWaitMs,
+    );
   };
 }

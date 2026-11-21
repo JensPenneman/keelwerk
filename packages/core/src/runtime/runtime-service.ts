@@ -10,6 +10,16 @@ export interface RuntimeService {
   readonly id: string;
   readonly roles: readonly ProcessRole[];
   start(context: RuntimeServiceContext): Promise<void>;
-  /** Resolves by the deadline; unfinished work is left to its lease. */
+  /**
+   * Stops the service's work: what runs is given until `deadline` to finish, then it is aborted and
+   * what the service holds in the store is given back, so `stop` can resolve a little after the
+   * deadline. The runtime's stop waits for it only as `stopPhase` says.
+   */
   stop(deadline: Temporal.Instant): Promise<void>;
+  /**
+   * The stop gave up waiting for `stop` at its own deadline and is about to close the adapters:
+   * ends the waits of `stop` and gives back what the service still holds in the store. Resolves
+   * when that is done; a service that holds nothing in the store leaves it out.
+   */
+  expire?(): Promise<void>;
 }

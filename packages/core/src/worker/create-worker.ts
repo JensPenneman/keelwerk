@@ -10,10 +10,13 @@ import { runJob } from './run-job.ts';
  * The kernel's workers (`core.workers`, S-154): in a process with the `work` role, `start` runs
  * the kernel queue's `work` for each queue the process slots (`workRole`), each job through
  * `runJob`; `stop` drains every fetcher by the deadline, so attempts running at that moment finish
- * and what is still running is aborted and left to its lease (D6, interim: 21.6 step 4 releases it
- * without counting the attempt, which waits for a release member on the job store). When the process
- * is torn down before the deadline, or leaves service (the abort of `context.signal`), the same
- * happens at once: nothing is released, the leases expire.
+ * and what is still running is aborted and released (21.6 step 4): back to available with the
+ * attempt not counted. The release records the job's queue as takeable (`JobStore.readied`; it
+ * answers `undefined`, cannot name, when the job is in a group, so every queue of the namespace
+ * wakes), so another worker is woken by the change feed and takes it at once; a feed that only
+ * polls (notify off) leaves it to that worker's next poll. When the stop gives up at its own
+ * deadline (`expire`), or the process is torn down before the deadline, or leaves service (the
+ * abort of `context.signal`), the same happens at once.
  */
 export function createWorker(input: StartPhaseInput): RuntimeService {
   const handles: { drain(deadline: Temporal.Instant): Promise<number> }[] = [];
@@ -61,17 +64,14 @@ export function createWorker(input: StartPhaseInput): RuntimeService {
       if (context.signal.aborted) drainAll();
       else context.signal.addEventListener('abort', drainAll, { once: true });
     },
+    // The fetchers log what a drain found still running and how much of it they released.
     stop: async (deadline) => {
-      const left = await Promise.all(handles.map((handle) => handle.drain(deadline)));
-      const unfinished = left.reduce((sum, count) => sum + count, 0);
-      if (unfinished > 0) {
-        connected.log.warn(
-          'attempts were still running at the deadline; their leases will expire',
-          {
-            attempts: unfinished,
-          },
-        );
-      }
+      await Promise.all(handles.map((handle) => handle.drain(deadline)));
+    },
+    // The stop gave up at its deadline: what is still running is aborted and released now, while
+    // the adapters are open. The same drain ends the waits of the one `stop` started.
+    expire: async () => {
+      await Promise.all(handles.map((handle) => handle.drain(Temporal.Now.instant())));
     },
   };
 }

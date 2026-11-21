@@ -268,5 +268,28 @@ export function receiptStoreCases(subject: ReceiptStoreSubject): void {
       expect(acknowledged.version).toBe(2);
       expect(acknowledged.acknowledgedAt?.equals(acknowledged.updatedAt)).toBe(true);
     });
+
+    test('a claim never takes over an accepted receipt, even past its expiry: its job still owns it', async () => {
+      const expired = Temporal.Instant.fromEpochMilliseconds(0);
+      await subject.run(tenantA, (unit) =>
+        unit.receipts.put(conformanceReceipt('c1', { status: 'accepted', expiresAt: expired })),
+      );
+      await subject.run(tenantA, (unit) =>
+        unit.receipts.put(conformanceReceipt('c2', { status: 'pending', expiresAt: expired })),
+      );
+      expect(
+        await subject.run(tenantA, (unit) =>
+          unit.receipts.claim(conformanceReceipt('c1', { fingerprint: 'f2' })),
+        ),
+      ).toBe('exists');
+      expect(
+        await subject.read(tenantA, async (unit) => (await unit.receipts.get('c1'))?.fingerprint),
+      ).toBe('f1');
+      expect(
+        await subject.run(tenantA, (unit) =>
+          unit.receipts.claim(conformanceReceipt('c2', { fingerprint: 'f2' })),
+        ),
+      ).toBe('inserted');
+    });
   });
 }

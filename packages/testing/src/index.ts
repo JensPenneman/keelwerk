@@ -5,6 +5,7 @@ export type { ConformanceTarget } from './conformance/adapter/conformance-target
 export { consumerCases } from './conformance/adapter/consumer-cases.ts';
 export { describeAdapterConformance } from './conformance/adapter/describe-adapter-conformance.ts';
 export { jobStoreCases } from './conformance/adapter/job-store-cases.ts';
+export { queueScenarioCases } from './conformance/adapter/queue-scenario-cases.ts';
 export { receiptInstantCases } from './conformance/adapter/receipt-instant-cases.ts';
 export { receiptIsolationCases } from './conformance/adapter/receipt-isolation-cases.ts';
 export { receiptStoreCases } from './conformance/adapter/receipt-store-cases.ts';

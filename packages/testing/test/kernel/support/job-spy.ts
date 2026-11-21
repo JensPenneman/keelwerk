@@ -41,6 +41,11 @@ function spied(unit: Unit, spy: JobSpy, pending: StoredJobSpec[]): Unit {
       },
       heartbeat: async (attempts, worker, leaseMs) =>
         spy.heartbeat?.(attempts) ?? unit.jobs.heartbeat(attempts, worker, leaseMs),
+      release: async (attempts, worker) => {
+        const released = await unit.jobs.release(attempts, worker);
+        spy.releases.push({ worker, released });
+        return released;
+      },
     },
     receipts: {
       ...unit.receipts,
@@ -62,6 +67,12 @@ export interface Completion {
   readonly worker: string;
   readonly outcome: JobOutcome;
   readonly granted: boolean;
+}
+
+/** One call of `jobs.release` and the attempts the store gave back. */
+export interface Release {
+  readonly worker: string;
+  readonly released: readonly JobAttempt[];
 }
 
 /** One call of `jobs.take` and the jobs it claimed. */
@@ -110,6 +121,8 @@ export interface JobSpy {
   readonly takes: Take[];
   /** The jobs of every unit that enqueued and committed, in commit order. */
   readonly enqueued: Enqueued[];
+  /** Every call of `jobs.release` (a drain giving its attempts back), in call order. */
+  readonly releases: Release[];
   /** Answers instead of the store when it returns a boolean. */
   complete?: ((attempt: JobAttempt, outcome: JobOutcome) => boolean | undefined) | undefined;
   /** Answers instead of the store when it returns attempts. */
@@ -141,7 +154,7 @@ export function jobSpy(
   readonly spy: JobSpy;
   readonly factory: DataAdapterFactory;
 } {
-  const spy: JobSpy = { completions: [], takes: [], enqueued: [] };
+  const spy: JobSpy = { completions: [], takes: [], enqueued: [], releases: [] };
   const base = over ?? memoryAdapter({ entities });
   const factory: DataAdapterFactory = {
     ...base,

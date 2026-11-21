@@ -24,6 +24,8 @@ export type AttemptResult =
       readonly error: unknown;
       /** The executor returned, so the destination acted, and the kernel then failed to take the answer: the effect settles `abandoned`, never `failed`. */
       readonly acted?: true;
+      /** The job's signal had aborted before the executor was called: the destination was never reached. */
+      readonly unrun?: true;
     };
 
 /**

@@ -10,7 +10,8 @@ export interface ReceiptStore {
    * Inserts the receipt as the first statement of a command's unit and holds its row until commit
    * (section 15.1.7): `inserted` when this unit now owns the command id, `exists` when a receipt
    * of that id was already there (the caller reads it and decides between replay, mismatch and
-   * in-progress). It never changes an existing receipt.
+   * in-progress). An expired receipt is replaced, except an `accepted` one, whatever its expiry:
+   * the command it answers may still be running.
    */
   claim(receipt: Receipt): Promise<'inserted' | 'exists'>;
   /**

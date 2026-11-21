@@ -21,6 +21,7 @@ import { sqlJobPurge } from './sql-job-purge.ts';
 import { sqlJobPurgeHistory } from './sql-job-purge-history.ts';
 import { sqlJobQueued } from './sql-job-queued.ts';
 import { sqlJobRelease } from './sql-job-release.ts';
+import { sqlJobReleaseAttempts } from './sql-job-release-attempts.ts';
 import { sqlJobStats } from './sql-job-stats.ts';
 import { sqlJobTake } from './sql-job-take.ts';
 import { sqlScheduleStore } from './sql-schedule-store.ts';
@@ -57,6 +58,7 @@ export interface SqlJobStore
     | 'purgeHistory'
     | 'queued'
     | 'readied'
+    | 'release'
     | 'schedules'
     | 'stats'
     | 'take'
@@ -229,6 +231,10 @@ returning id::text as id`,
     take: async (queue, worker, request) => {
       ctx.writable();
       return sqlGuard(async () => sqlJobTake(ctx, buffer, queue, worker, request));
+    },
+    release: async (attempts, worker) => {
+      ctx.writable();
+      return sqlGuard(async () => sqlJobReleaseAttempts(ctx, buffer, attempts, worker));
     },
     heartbeat: async (attempts, worker, leaseMs) => {
       ctx.writable();

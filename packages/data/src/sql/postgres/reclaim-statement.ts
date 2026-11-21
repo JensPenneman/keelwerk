@@ -1,15 +1,15 @@
+import { lostLeaseLimit } from '../../lost-lease-limit.ts';
 import type { PostgresStatement } from './begin-unit-statements.ts';
 import { quoteIdentifier } from './quote-identifier.ts';
-
-/** How many consecutive lost leases make a job a dead letter (9.5.4). */
-const deadAfterLostLeases = 3;
 
 /**
  * Reclaims the running jobs of a queue whose lease ended before `now` (9.5.4): each returns to
  * `available` with its lost-lease count raised, or, at the third consecutive loss, becomes a dead
- * letter that keeps its input and writes a `dead` history row with the error in `$3`. Rows another
- * taker is reclaiming are skipped. The statement answers the reclaimed jobs, so the caller can
- * correct the lanes' `taken` and `done` counts and the groups' running counts.
+ * letter that keeps its input and writes a `dead` history row with the error in `$3`; an action job
+ * whose run carries a command id (`mayHoldReceipt`) stays `available` whatever the count, and its
+ * taker ends it with its receipt. Rows another taker is reclaiming are skipped. The statement
+ * answers the reclaimed jobs, so the caller can correct the lanes' `taken` and `done` counts and the
+ * groups' running counts.
  */
 export function reclaimStatement(
   rootName: string,
@@ -27,7 +27,9 @@ export function reclaimStatement(
   order by id for update skip locked
 ), lost as (
   update ${root}.kw_jobs j set lost_leases = j.lost_leases + 1,
-    state = case when j.lost_leases + 1 >= ${deadAfterLostLeases} then 'dead' else 'available' end,
+    state = case when j.lost_leases + 1 >= ${lostLeaseLimit}
+      and not (j.kind = 'action' and coalesce(jsonb_typeof(j.input -> 'commandId') = 'string', false))
+      then 'dead' else 'available' end,
     worker = null, lease_until = null
   from expired e where j.id = e.id
   returning j.id, j.scope_id, j.lane_id, j.queue, j.kind, j.state, j.attempt, j.started_at, j.ordering, j.key,

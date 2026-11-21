@@ -21,11 +21,12 @@ import { executorSecrets } from './executor-secrets.ts';
  * is the job's (it aborts at `expireInSeconds`, at a lost lease and at a worker's stop) and also
  * aborts when the attempt ends, so a fetch or a reveal that a late executor makes afterwards is
  * refused and sends and opens nothing. The executor is not called when the job's signal is already
- * aborted. The run is raced against the job's signal, so an executor that ignores
- * `expireInSeconds` still ends the attempt; its late rejection is caught and logged once with its
- * code only. The answer is checked against the effect's output shape: an answer that does not match
- * is a failure after the destination acted (`acted`). A rejection is the signal's reason when the
- * signal aborted. Never throws: the failure is returned and judged by the caller.
+ * aborted (the failure then says `unrun`). The run is raced against the job's signal, so an
+ * executor that ignores `expireInSeconds` still ends the attempt; its late rejection is caught and
+ * logged once with its code only. The answer is checked against the effect's output shape: an
+ * answer that does not match is a failure after the destination acted (`acted`). A rejection is the
+ * signal's reason when the signal aborted. Never throws: the failure is returned and judged by the
+ * caller.
  */
 export async function performExecutor(
   job: Job,
@@ -42,7 +43,7 @@ export async function performExecutor(
   if (executor === undefined || entry === undefined) {
     return { ok: false, error: errors.internal('No executor performs this effect.') };
   }
-  if (job.signal.aborted) return { ok: false, error: job.signal.reason };
+  if (job.signal.aborted) return { ok: false, error: job.signal.reason, unrun: true };
   const { source } = context;
   const abort = abortRace(job.signal);
   const ended = new AbortController();

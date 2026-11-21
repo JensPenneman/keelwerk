@@ -5,6 +5,7 @@ import {
   recordingLogger,
   recordingMeter,
 } from '../../test/executor-kit.ts';
+import type { EffectAttemptRecord } from '../effects/effect-attempt-record.ts';
 import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
 import type { JobOutcome } from '../storage/job-outcome.ts';
@@ -19,8 +20,13 @@ const opening = vi.hoisted(() => ({
 vi.mock('../effects/open-effect-input.ts', () => ({
   openEffectInput: () => Promise.resolve(opening.answer),
 }));
+const stream = vi.hoisted(() => ({ records: [] as EffectAttemptRecord[] }));
 vi.mock('./latest-attempt-records.ts', () => ({
-  latestAttemptRecords: () => Promise.resolve({ records: [], started: new Set<number>() }),
+  latestAttemptRecords: () =>
+    Promise.resolve({
+      records: stream.records,
+      started: new Set(stream.records.map((record) => record.attempt)),
+    }),
 }));
 vi.mock('./record-attempt.ts', () => ({ recordAttempt: () => Promise.resolve() }));
 const settled = vi.hoisted(() => ({ errors: [] as { code: string }[] }));
@@ -97,7 +103,34 @@ function setup(commitFailures = 0, input: unknown = {}) {
 
 beforeEach(() => {
   settled.errors.length = 0;
+  stream.records = [];
   opening.answer = { input: {}, erased: [], mismatched: [] };
+});
+
+describe('an effect attempt that follows a release of the same attempt number', () => {
+  const take = (process: string): EffectAttemptRecord => ({
+    process,
+    build: 'b',
+    attempt: 1,
+    startedAt: `2026-01-01T00:00:00Z/${process}`,
+  });
+
+  test('a take that started and never ended settles the effect abandoned, though an earlier take of the number ended', async () => {
+    stream.records = [take('p1'), { ...take('p1'), endedAt: '2026-01-01T00:00:01Z' }, take('p2')];
+    const { completed, context, target } = setup();
+    expect(await beginEffectAttempt(context, target, {})).toEqual({ kind: 'finished' });
+    expect(settled.errors).toEqual([
+      expect.objectContaining({ code: 'core.effect_outcome_unknown' }),
+    ]);
+    expect(completed.map((outcome) => outcome.kind)).toEqual(['failed']);
+  });
+
+  test('a take that ended leaves the attempt to run again', async () => {
+    stream.records = [take('p1'), { ...take('p1'), endedAt: '2026-01-01T00:00:01Z' }];
+    const { context, target } = setup();
+    expect(await beginEffectAttempt(context, target, {})).toMatchObject({ kind: 'run' });
+    expect(settled.errors).toEqual([]);
+  });
 });
 
 describe('an effect attempt whose input cannot be opened', () => {

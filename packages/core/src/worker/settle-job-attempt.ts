@@ -62,7 +62,7 @@ function projected(
  * ends the job (`failed`, `dead`) also fails the job's own `accepted` receipt and appends its change
  * record, so the submitter reads the failure; a receipt that is not the job's own (another
  * principal's, or another command's) is left as it is. The unit is the one a handler that threw is
- * completed in too, so no way out of a job leaves its receipt `accepted`.
+ * completed in too, so no end of an attempt by the worker leaves its receipt `accepted`.
  */
 export async function settleJobAttempt(
   context: Pick<RunJobContext, 'source' | 'worker' | 'writer' | 'clock'>,

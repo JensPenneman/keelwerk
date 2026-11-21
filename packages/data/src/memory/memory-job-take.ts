@@ -1,4 +1,5 @@
 import type { StoredJob } from '@keelwerk/core';
+import { lostLeaseLimit } from '../lost-lease-limit.ts';
 import type { MemoryJob } from './memory-job.ts';
 import { memoryJobGroups } from './memory-job-groups.ts';
 import { memoryJobReclaim } from './memory-job-reclaim.ts';
@@ -136,6 +137,7 @@ export function memoryJobTake(
         id: String(job.id),
         runAt: job.runAt,
         attempt: { jobId: String(job.id), attempt: running.attempt },
+        ...(job.lostLeases >= lostLeaseLimit ? { leasesExhausted: true as const } : {}),
       });
     }
     if (count > 0) {

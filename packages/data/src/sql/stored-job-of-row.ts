@@ -1,5 +1,6 @@
 import type { Scope, StoredJob } from '@keelwerk/core';
 import { errors } from '@keelwerk/core';
+import { lostLeaseLimit } from '../lost-lease-limit.ts';
 import { decodeInstant } from './decode-instant.ts';
 import { jobPriorityName } from './job-priority-name.ts';
 import type { SqlRow } from './run-sql.ts';
@@ -65,5 +66,6 @@ export function storedJobOfRow(row: SqlRow): StoredJob {
     ...(row.retry === null ? {} : { retry: jsonOf(row.retry) as NonNullable<StoredJob['retry']> }),
     ...(row.expire_in_seconds === null ? {} : { expireInSeconds: Number(row.expire_in_seconds) }),
     ...(row.dead_letter === null ? {} : { deadLetter: String(row.dead_letter) }),
+    ...(Number(row.lost_leases) >= lostLeaseLimit ? { leasesExhausted: true as const } : {}),
   };
 }

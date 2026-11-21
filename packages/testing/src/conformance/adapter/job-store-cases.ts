@@ -2,13 +2,14 @@ import type { JobOutcome, StoredJob, WireError } from '@keelwerk/core';
 import { conformanceScopes } from '@keelwerk/data/conformance';
 import { describe, expect, test } from 'vitest';
 import type { ConformanceSubject } from './conformance-subject.ts';
+import { conformanceWait } from './conformance-wait.ts';
 import { jobStoreHelpers } from './job-store-helpers.ts';
+import { jobStoreLostLeaseCases } from './job-store-lost-lease-cases.ts';
 import { jobStorePendingCases } from './job-store-pending-cases.ts';
 import { jobStoreTenantCases } from './job-store-tenant-cases.ts';
 
 const { tenantA, tenantB } = conformanceScopes;
 const namespaceScope = { level: 'namespace', reason: 'conformance' } as const;
-const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 const unavailable: WireError = {
   kind: 'unavailable',
   code: 'core.unavailable',
@@ -25,16 +26,13 @@ const succeeded: JobOutcome = { kind: 'succeeded' };
  */
 export function jobStoreCases(subject: Pick<ConformanceSubject, 'run' | 'clock'>): void {
   const now = (): Temporal.Instant => subject.clock?.now() ?? Temporal.Now.instant();
-  /** Moves time on: the target's clock when it has one, real time otherwise. */
-  const wait = async (ms: number): Promise<void> => {
-    if (subject.clock === undefined) await pause(ms);
-    else subject.clock.advance(ms);
-  };
+  const wait = conformanceWait(subject);
   const { take, enqueue, finish, only, inputs, numbered } = jobStoreHelpers(subject);
 
   describe('job store (9.5, 14.3.9)', () => {
     jobStoreTenantCases(subject);
     jobStorePendingCases(subject);
+    jobStoreLostLeaseCases(subject);
 
     test('a taken job carries its spec, its scope and the attempt the worker holds', async () => {
       const [id] = await enqueue([

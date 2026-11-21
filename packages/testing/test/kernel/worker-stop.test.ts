@@ -54,8 +54,12 @@ describe('stop drains the workers within its deadline', () => {
     expect(log.warnings.filter((line) => line.includes('still running'))).toEqual([]);
   });
 
-  test('a handler that never settles does not hold stop past its deadline; the job stays running for its lease', async () => {
-    const { runtime, spy } = await startWatched({ workers: { queues: ['held'] } });
+  test('a handler that never settles holds stop past its deadline only for the give-back; the job is released for another worker', async () => {
+    const log = lines();
+    const { runtime, spy } = await startWatched({
+      workers: { queues: ['held'] },
+      logger: log.logger,
+    });
     await enqueueHeld(runtime);
     const door = gate(1);
     spy.hold = door;
@@ -64,9 +68,17 @@ describe('stop drains the workers within its deadline', () => {
     expect((await statsOf(runtime, 'held'))?.running).toBe(1);
     await runtime.stop(50);
     expect(spy.completions).toEqual([]);
+    expect(log.warnings.filter((line) => line.includes('could not be released'))).toEqual([]);
+    // The adapter is closed once `stop` returns; the release itself reached the store before it
+    // closed, and gave back the one attempt, the first. The test below shows that the take of
+    // another worker finds a released attempt under the same number.
+    expect(spy.releases.map((entry) => entry.released.map((attempt) => attempt.attempt))).toEqual([
+      [1],
+    ]);
+    expect(log.warnings).toContain('attempts were still running at the deadline');
   });
 
-  test('at the deadline the attempts left are aborted with a shutdown reason and completed by nobody', async () => {
+  test('at the deadline the attempts left are aborted with a shutdown reason, released, and completed by nobody', async () => {
     const { runtime, spy } = await startWatched();
     const queue = ownQueue(runtime);
     const seen = {
@@ -90,7 +102,20 @@ describe('stop drains the workers within its deadline', () => {
     expect(await seen.aborted.promise).toMatchObject({ code: 'core.unavailable' });
     queue.probe.wake();
     expect(spy.completions).toEqual([]);
-    expect((await statsOf(runtime, 'stuck'))?.running).toBe(1);
+    const stats = await statsOf(runtime, 'stuck');
+    expect([stats?.due, stats?.running]).toEqual([1, 0]);
+    const taken = await runtime.adapter.unit(
+      runtime.namespace,
+      { level: 'namespace', reason: 'jobs' },
+      (unit) =>
+        unit.jobs.take('stuck', 'other-worker', {
+          limit: 1,
+          capabilitySets: [''],
+          maxRevision: 1,
+          leaseMs: 30_000,
+        }),
+    );
+    expect(taken.jobs.map((job) => job.attempt.attempt)).toEqual([1]);
     await runtime.stop();
   });
 

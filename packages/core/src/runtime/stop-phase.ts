@@ -36,8 +36,15 @@ export interface StopInput {
 /**
  * `stop` (section 3.3, the drain of 21.6): the process is marked `draining` and takes no new
  * invocations; the listeners stop accepting; the invocations in flight continue until the
- * deadline, which is one absolute deadline for the whole stop; the live hubs end their streams; the change feed ends; the chain anchors still waiting are written (within the same deadline); the process deregisters as `stopped`; the computation pool and
+ * deadline; the live hubs end their streams; the change feed ends; the chain anchors still waiting
+ * are written; the process deregisters as `stopped`; the computation pool closes; the services that
+ * gave up at the deadline return what they hold in the store (the workers release their attempts);
  * the adapters close.
+ *
+ * Every wait of the stop ends by the deadline, except two: the give-back of the services (and the
+ * stop of a start chain still running at the deadline) ends at most `expireWaitMs` after it (5
+ * seconds, `startRuntimeServices`), and the two process-state writes (draining and stopped) and
+ * the closing of the pool and of the adapters have no bound of their own.
  */
 export async function stopPhase(input: StopInput, deadlineMs: number): Promise<void> {
   const { connected } = input;
@@ -79,5 +86,9 @@ export async function stopPhase(input: StopInput, deadlineMs: number): Promise<v
   );
   await connected.compute.close();
   input.abort.abort();
+  // The services give back what they still hold in the store when the deadline passed (the workers
+  // release their attempts, 21.6 step 4): that ends inside the phase itself, which bounds it, and
+  // needs the adapters open.
+  await phasesStopped;
   await Promise.allSettled(connected.adapters.map((adapter) => adapter.close(remaining())));
 }

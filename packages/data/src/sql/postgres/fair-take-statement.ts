@@ -51,7 +51,7 @@ export function fairTakeStatement(input: FairTakeInput): PostgresStatement {
 select p.id::text as lane_id, p.priority, p.capability_set, p.cap,
   j.id::text as id, j.scope_id::text as scope_id, j.scope, j.queue, j.kind, j.run_at, j.principal, j.causation,
   j.build_id, j.revision, j.api_version, j.ordering, j.group_id, j.group_spec, j.key, j.cost, j.retry,
-  j.heartbeat_seconds, j.expire_in_seconds, j.dead_letter, j.input, j.attempt, j.created_at
+  j.heartbeat_seconds, j.expire_in_seconds, j.dead_letter, j.input, j.attempt, j.lost_leases, j.created_at
 from picked p cross join share s left join lateral (
   select * from ${root}.kw_jobs j
   where j.lane_id = p.id and j.state = 'available' and j.revision <= $6::integer

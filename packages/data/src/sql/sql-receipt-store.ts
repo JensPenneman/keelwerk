@@ -110,7 +110,10 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
     acknowledged_at:
       receipt.acknowledgedAt === undefined ? null : encodeInstant(receipt.acknowledgedAt),
   });
-  /** `takeOver`: a row whose `expires_at` is at or before the clock's now is overwritten (claim). */
+  /**
+   * `takeOver`: a row whose `expires_at` is at or before the clock's now is overwritten (claim),
+   * unless it is `accepted`: its command may still run (D7).
+   */
   const insert = (
     receipt: Receipt,
     takeOver = false,
@@ -132,7 +135,7 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
             ? target
                 .doUpdateSet(replacement)
                 .where(
-                  sql<boolean>`${sql.ref(`${commandReceiptTable}.expires_at`)} <= ${encodeInstant(ctx.clock.now())}`,
+                  sql<boolean>`${sql.ref(`${commandReceiptTable}.expires_at`)} <= ${encodeInstant(ctx.clock.now())} and ${sql.ref(`${commandReceiptTable}.status`)} <> 'accepted'`,
                 )
             : target.doNothing();
         })
@@ -141,7 +144,8 @@ export function sqlReceiptStore(ctx: SqlUnitContext): ReceiptStore {
     });
   /**
    * The claim's insert waits for a concurrent duplicate's row lock for `claimWaitMs` and then gives
-   * up with `core.command_in_progress` (section 7.5); an expired row is taken over; the unit's own setting comes back afterwards.
+   * up with `core.command_in_progress` (section 7.5); an expired row is taken over,
+   * except an accepted one; the unit's own setting comes back afterwards.
    */
   const insertWithin = async (
     receipt: Receipt,

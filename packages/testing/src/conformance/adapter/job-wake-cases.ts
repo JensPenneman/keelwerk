@@ -77,6 +77,16 @@ export function jobWakeCases(
     expect(await completing({ kind: 'dead', error: unavailable })).toEqual(['a']);
   });
 
+  test('a release at a drain gives the queue of each released job back, and cannot name it for a group', async () => {
+    const releasing = async (queue: string, over: object) => {
+      await enqueue([numbered(1, { queue, ...over })]);
+      const job = only(await take('w1', { queue }));
+      return readiedBy(namespaceScope, (unit) => unit.jobs.release([job.attempt], 'w1'));
+    };
+    expect(await releasing('rel', {})).toEqual(['rel']);
+    expect(await releasing('rel-g', { group: { id: 'rg', concurrency: 1 } })).toBeUndefined();
+  });
+
   test('the end of a key head releases the next job of the key in the same queue', async () => {
     const chained = (n: number) =>
       inA(n, { key: { value: 'k', onConflict: 'append' }, ordering: 'fifo-per-key' });
@@ -90,15 +100,36 @@ export function jobWakeCases(
     expect(only(await take('w1', { queue: 'a' })).run).toMatchObject({ input: 2 });
   });
 
-  test('a completion in a group, whose slot a job of another queue may wait for, names no queue', async () => {
-    const grouped = (queue: string) => numbered(1, { queue, group: { id: 'g', concurrency: 1 } });
-    await enqueue([grouped('a')]);
-    const job = only(await take('w1', { queue: 'a' }));
-    expect(
-      await readiedBy(namespaceScope, (unit) =>
-        unit.jobs.complete(job.attempt, 'w1', { kind: 'succeeded' }),
-      ),
-    ).toBeUndefined();
+  const grouped = (queue: string, over = {}) =>
+    numbered(1, { queue, group: { id: 'g', concurrency: 1 }, ...over });
+  const groupOutcomes: readonly (readonly [string, () => JobOutcome])[] = [
+    ['succeeded', () => ({ kind: 'succeeded' })],
+    ['retry', () => ({ kind: 'retry', at: now().add({ milliseconds: 1000 }), error: unavailable })],
+    ['dead', () => ({ kind: 'dead', error: unavailable })],
+    ['failed', () => ({ kind: 'failed', error: unavailable })],
+  ];
+
+  test.each(groupOutcomes)(
+    'a completion in a group, whose slot a job of another queue may wait for, names no queue: %s',
+    async (_name, outcome) => {
+      await enqueue([grouped('a')]);
+      const job = only(await take('w1', { queue: 'a' }));
+      expect(
+        await readiedBy(namespaceScope, (unit) => unit.jobs.complete(job.attempt, 'w1', outcome())),
+      ).toBeUndefined();
+    },
+  );
+
+  test('the cancel of a running attempt in a group names no queue, as the cancel of one outside a group names its own', async () => {
+    const cancelling = async (over: object) => {
+      await enqueue([
+        numbered(1, { queue: 'timers', key: { value: 'k', onConflict: 'replace' }, ...over }),
+      ]);
+      only(await take('w1', { queue: 'timers' }));
+      return readiedBy(tenantA, (unit) => unit.jobs.cancel('timers', 'k'));
+    };
+    expect(await cancelling({})).toEqual(['timers']);
+    expect(await cancelling({ group: { id: 'g', concurrency: 1 } })).toBeUndefined();
   });
 
   test('an enqueue that changes the limit of a group names no queue, one that keeps it names its own', async () => {

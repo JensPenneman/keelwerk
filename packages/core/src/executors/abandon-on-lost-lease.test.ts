@@ -2,14 +2,14 @@ import { describe, expect, test } from 'vitest';
 import type { EffectAttemptRecord } from '../effects/effect-attempt-record.ts';
 import { abandonOnLostLease } from './abandon-on-lost-lease.ts';
 
-const start = (attempt: number): EffectAttemptRecord => ({
-  process: 'p',
+const start = (attempt: number, process = 'p'): EffectAttemptRecord => ({
+  process,
   build: 'b',
   attempt,
-  startedAt: '2026-11-11T10:00:00Z',
+  startedAt: `2026-11-11T10:00:00Z/${process}`,
 });
-const end = (attempt: number): EffectAttemptRecord => ({
-  ...start(attempt),
+const end = (attempt: number, process = 'p'): EffectAttemptRecord => ({
+  ...start(attempt, process),
   endedAt: '2026-11-11T10:00:01Z',
 });
 
@@ -29,6 +29,16 @@ describe('abandonOnLostLease', () => {
   test('an open start record that has the current attempt number is open too: the job was handed out again under the same number', () => {
     expect(abandonOnLostLease([start(2)], 2)).toEqual({ started: 1, open: 2 });
     expect(abandonOnLostLease([start(2), end(2)], 2)).toEqual({ started: 1, open: undefined });
+  });
+
+  test('the end of an earlier take does not close a later take of the same number', () => {
+    expect(abandonOnLostLease([start(1, 'p1'), end(1, 'p1'), start(1, 'p2')], 1)).toEqual({
+      started: 1,
+      open: 1,
+    });
+    expect(
+      abandonOnLostLease([start(1, 'p1'), end(1, 'p1'), start(1, 'p2'), end(1, 'p2')], 1),
+    ).toEqual({ started: 1, open: undefined });
   });
 
   test('later attempts are ignored for the open check, and the first open one is named', () => {

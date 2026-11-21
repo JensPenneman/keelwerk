@@ -63,7 +63,11 @@ export function memoryReceiptStore(ctx: MemoryUnitContext): ReceiptStore {
     claim: async (receipt) => {
       ctx.writable();
       const existing = read(receipt.commandId);
-      if (existing !== undefined && !expired(existing)) return 'exists';
+      // An accepted receipt stays whatever its expiry, since its command may still run (D7); a
+      // finished one expires as before.
+      if (existing !== undefined && (!expired(existing) || existing.status === 'accepted')) {
+        return 'exists';
+      }
       store(receipt, existing);
       return 'inserted';
     },

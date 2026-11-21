@@ -91,10 +91,13 @@ describe('completing the receipt of an erasure is a conditional transition', () 
     expect(calls).toEqual(['lock', 'get']);
   });
 
-  test('a receipt that failed with core.unavailable is completed, one that failed another way is not, and a missing one is not made', async () => {
+  test('a receipt that failed with core.unavailable or a lost lease is completed, one that failed another way is not, and a missing one is not made', async () => {
     const unavailable = setup(receipt('failed', 'core.unavailable'));
     await completeErasureReceipt(unavailable.unit, record, 3, context);
     expect(unavailable.calls).toEqual(['lock', 'get', 'complete', 'change']);
+    const lost = setup(receipt('failed', 'core.job_lease_lost'));
+    await completeErasureReceipt(lost.unit, record, 3, context);
+    expect(lost.calls).toEqual(['lock', 'get', 'complete', 'change']);
     const other = setup(receipt('failed', 'core.not_found'));
     await completeErasureReceipt(other.unit, record, 3, context);
     expect(other.calls).toEqual(['lock', 'get']);

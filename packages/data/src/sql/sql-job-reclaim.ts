@@ -1,3 +1,4 @@
+import { lostLeaseWireError } from '@keelwerk/core';
 import { encodeInstant } from './encode-instant.ts';
 import { groupKeyOfJob } from './group-key-of-job.ts';
 import { jobUnitScopeId } from './job-unit-scope-id.ts';
@@ -6,7 +7,6 @@ import { runSql } from './run-sql.ts';
 import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
 import { sqlJobRelease } from './sql-job-release.ts';
 import { sqlLaneChanges } from './sql-lane-changes.ts';
-import { sqlLostLeaseError } from './sql-lost-lease-error.ts';
 import type { GroupRelease } from './sql-release-groups.ts';
 import { sqlSettleLanes } from './sql-settle-lanes.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
@@ -31,7 +31,7 @@ export async function sqlJobReclaim(
       ctx.namespace.root,
       queue,
       encodeInstant(now),
-      JSON.stringify(sqlLostLeaseError),
+      JSON.stringify(lostLeaseWireError),
       jobUnitScopeId(ctx),
     ),
   );

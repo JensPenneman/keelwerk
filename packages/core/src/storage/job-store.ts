@@ -31,9 +31,12 @@ export interface JobStore {
   promote(queue: string, limit: number): Promise<number>;
   /**
    * The fair take of section 9.5.3 over the lanes of the worker's capability sets: lane caps, keys,
-   * FIFO order per key and group limits; reclaims expired leases first; only jobs enqueued at or
-   * below `maxRevision`, the worker's build revision (section 19.2). `lanes` defaults to `limit`;
-   * `skippedLanes` counts lanes locked by other takers, not "no work".
+   * FIFO order per key and group limits; reclaims expired leases first (the third consecutive loss
+   * makes a job a dead letter, except an action job whose run carries a command id: it is never
+   * ended for lost leases, stays takeable and is handed out with `leasesExhausted`, so its taker
+   * ends it together with its receipt); only jobs enqueued at or below `maxRevision`, the worker's
+   * build revision (section 19.2). `lanes` defaults to `limit`; `skippedLanes` counts lanes locked
+   * by other takers, not "no work".
    */
   take(
     queue: string,
@@ -102,4 +105,15 @@ export interface JobStore {
    * failed recorded is taken back.
    */
   readied(): readonly string[] | undefined;
+  /**
+   * Gives back attempts still running at a drain (21.6 step 4), conditional on (worker, attempt) like
+   * `heartbeat`: each goes back to `available`, its attempt not counted (the next take hands it out
+   * under the same number), its lost-lease count unchanged, no history row; its lane's `taken` and its
+   * group's running slot are given back, a FIFO key keeps it as head. A namespace unit reaches every
+   * scope, any other unit its own. Answers the attempts released; one whose lease was lost, or that
+   * ended, is not among them, so the late completion of a released attempt answers false. A released
+   * job is takeable again: `readied` names its queue, or answers `undefined` (cannot name) when the
+   * job is in a group, whose slot another queue may wait for.
+   */
+  release(attempts: readonly JobAttempt[], worker: string): Promise<readonly JobAttempt[]>;
 }

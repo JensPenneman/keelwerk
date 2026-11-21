@@ -9,6 +9,7 @@ import { memoryJobKeyed } from './memory-job-keyed.ts';
 import { memoryJobPurgeHistory } from './memory-job-purge-history.ts';
 import { memoryJobQueued } from './memory-job-queued.ts';
 import { memoryJobRelease } from './memory-job-release.ts';
+import { memoryJobReleaseAttempts } from './memory-job-release-attempts.ts';
 import { memoryJobScopes } from './memory-job-scopes.ts';
 import { memoryJobStats } from './memory-job-stats.ts';
 import { memoryJobTake } from './memory-job-take.ts';
@@ -145,5 +146,6 @@ export function memoryJobStore(ctx: MemoryUnitContext): MemoryJobStore {
     queued: async (queue, limit) => memoryJobQueued(ctx, queue, limit),
     keyed: async (queue, key) => memoryJobKeyed(ctx, queue, key),
     schedules: () => memoryScheduleStore(ctx),
+    release: async (attempts, worker) => memoryJobReleaseAttempts(ctx, attempts, worker),
   };
 }

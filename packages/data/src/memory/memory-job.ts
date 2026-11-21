@@ -14,7 +14,7 @@ export interface MemoryJob {
   readonly worker: string | null;
   readonly attempt: number;
   readonly leaseUntil: Temporal.Instant | null;
-  /** Consecutive lost leases; three make a dead letter (9.5.4). */
+  /** Consecutive lost leases; three make a dead letter (9.5.4), or exhaust a job a receipt hangs on. */
   readonly lostLeases: number;
   readonly startedAt: Temporal.Instant | null;
 }

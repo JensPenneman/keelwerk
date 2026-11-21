@@ -1,4 +1,4 @@
-import type { StoredJobSpec } from '@keelwerk/core';
+import { lostLeaseWireError, type StoredJobSpec } from '@keelwerk/core';
 import { expect } from 'vitest';
 import type { TestRuntime } from '../../../src/harness/test-runtime.ts';
 import type { DumpQuery } from '../../../src/index.ts';
@@ -19,8 +19,8 @@ const strandedLetter = 'probe.stranded';
 const leaseMs = 1;
 /** One step of the clock past a lease: far below the wait of a retry or of a worker's poll. */
 const stepMs = 5;
-/** More than the three losses that make a job dead, for a worker that reclaims in between. */
-const mostTakes = 8;
+/** The lost leases after which a command job is handed out for its taker to end it. */
+const lostLeases = 3;
 
 const runOf = (row: Row): { action?: unknown; commandId?: unknown; input?: unknown } => {
   const run = typeof row.input === 'string' ? JSON.parse(row.input) : row.input;
@@ -64,11 +64,13 @@ function copyOf(row: Row, at: Temporal.Instant): StoredJobSpec {
 }
 
 /**
- * Plants a command job of the operator that ends dead the way a poison job does (9.5.4): the
+ * Plants a command job of the operator that ends dead the way a command job dies (9.5.4, D7): the
  * retrying `probe.defer` job is copied into a lane no worker takes from, the test takes the copy
- * with a lease of one millisecond, lets the clock pass the lease by a few milliseconds and takes
- * again, until three lost leases have made it a dead letter. The copy keeps the sealed input.
- * `advance` moves the clock of the runtime on (the clock otherwise stands still).
+ * with a lease of one millisecond and lets the clock pass the lease by a few milliseconds, three
+ * times. The take after the third loss hands the copy out as exhausted, and the test, as its taker,
+ * completes that attempt as a dead letter with the error of a lost lease (what `settleExhaustedJob`
+ * writes). The copy keeps the sealed input. `advance` moves the clock of the runtime on (the clock
+ * otherwise stands still).
  */
 async function strandDeadJob(input: {
   readonly runtime: Runtime;
@@ -87,19 +89,25 @@ async function strandDeadJob(input: {
     leaseMs,
   };
   const worker = 'probe.stranding';
-  await runtime.adapter.unit(runtime.namespace, spec.scope, async (unit) => {
-    await unit.jobs.enqueue(spec);
-    await unit.jobs.take('commands', worker, request);
-  });
-  for (let take = 0; take < mostTakes; take += 1) {
-    const [job] = await strandedJobs(queries);
-    if (job?.state === 'dead') return;
+  await runtime.adapter.unit(runtime.namespace, spec.scope, (unit) => unit.jobs.enqueue(spec));
+  for (let take = 0; take <= lostLeases; take += 1) {
     advance(stepMs);
     await runtime.adapter.unit(runtime.namespace, spec.scope, async (unit) => {
-      await unit.jobs.take('commands', worker, request);
+      const { jobs } = await unit.jobs.take('commands', worker, request);
+      const [taken] = jobs;
+      if (take < lostLeases) return;
+      expect(
+        taken?.leasesExhausted,
+        'the take after the third loss hands the copy out exhausted',
+      ).toBe(true);
+      if (taken === undefined) return;
+      await unit.jobs.complete(taken.attempt, worker, {
+        kind: 'dead',
+        error: lostLeaseWireError,
+      });
     });
   }
-  expect((await strandedJobs(queries))[0]?.state, 'three lost leases end the job dead').toBe(
+  expect((await strandedJobs(queries))[0]?.state, 'the exhausted attempt ends the job dead').toBe(
     'dead',
   );
 }

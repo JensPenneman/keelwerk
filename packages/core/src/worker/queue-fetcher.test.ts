@@ -23,9 +23,22 @@ vi.mock('./take-batch.ts', () => ({
   },
 }));
 
+const ended = vi.hoisted(() => ({ jobs: [] as string[], failure: undefined as Error | undefined }));
+// Conformance: queue-scenario-receipt-cases (the real unit that fails the receipt, on every adapter).
+vi.mock('./settle-exhausted-job.ts', () => ({
+  settleExhaustedJob: (_context: unknown, stored: { id: string }) => {
+    ended.jobs.push(stored.id);
+    return ended.failure === undefined ? Promise.resolve() : Promise.reject(ended.failure);
+  },
+}));
+
 const source = { namespace: { id: 'n1' } } as unknown as QueueSource;
 const other = { namespace: { id: 'n2' } } as unknown as QueueSource;
-const job = { id: 'job-1', queue: 'effects' } as unknown as StoredJob;
+const job = {
+  id: 'job-1',
+  queue: 'effects',
+  attempt: { jobId: 'job-1', attempt: 1 },
+} as unknown as StoredJob;
 
 function fetcherOf(
   handler: (job: unknown) => Promise<void>,
@@ -56,17 +69,94 @@ function fetcherOf(
 }
 
 describe('the fetcher of a queue that drains while a take is in flight', () => {
-  test('starts none of the taken jobs: their leases expire and the handler never runs', async () => {
+  beforeEach(() => {
+    seam.take = undefined;
+    seam.answers = [];
+    seam.swept = [];
+  });
+
+  test('starts none of the taken jobs, gives their attempts back, and the drain answers only after that', async () => {
     const take = Promise.withResolvers<Taken>();
     seam.take = take.promise;
+    const released: unknown[] = [];
+    const releasing = {
+      handle: {
+        adapter: {
+          placementId: 'main',
+          unit: async (_: unknown, __: unknown, fn: (unit: unknown) => Promise<unknown>) =>
+            fn({
+              jobs: {
+                release: async (attempts: unknown[]) => {
+                  released.push(...attempts);
+                  return attempts;
+                },
+              },
+            }),
+        },
+      },
+      namespace: { id: 'n1' },
+    } as unknown as QueueSource;
     const handler = vi.fn(async () => undefined);
-    const fetcher = fetcherOf(handler);
+    const fetcher = fetcherOf(handler, [releasing]);
     const ticking = fetcher.tick(Temporal.Now.instant());
-    // The take is waiting on the store when the drain begins.
-    const left = await fetcher.drain(Temporal.Now.instant());
+    // The take is waiting on the store when the drain begins, at a deadline that has passed already:
+    // the drain still waits for the take and for the release of its batch, so nothing of the worker
+    // runs on after the drain has answered.
+    let drained = false;
+    const draining = fetcher.drain(Temporal.Now.instant()).then((answer) => {
+      drained = true;
+      return answer;
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(drained).toBe(false);
+    expect(released).toEqual([]);
     take.resolve({ jobs: [job], skippedLanes: 0, promoted: 0 } as unknown as Taken);
+    const left = await draining;
+    expect(released).toEqual([job.attempt]);
     await ticking;
     expect(left).toBe(0);
+    expect(handler).not.toHaveBeenCalled();
+    // Conformance: job-store-release-cases (a released attempt is taken again under its number).
+  });
+
+  test('a fetcher that began to drain takes nothing again, even for a wake or a promotion', async () => {
+    seam.answers = [{ jobs: [job], skippedLanes: 0, promoted: 1 }];
+    const fetcher = fetcherOf(async () => undefined);
+    await fetcher.drain(Temporal.Now.instant());
+    fetcher.wake();
+    await fetcher.tick(Temporal.Now.instant());
+    expect(seam.swept).toEqual([]);
+  });
+});
+
+describe('the fetcher with a job whose leases were lost too often', () => {
+  beforeEach(() => {
+    seam.take = undefined;
+    seam.answers = [{ jobs: [{ ...job, leasesExhausted: true }], skippedLanes: 0, promoted: 0 }];
+    seam.swept = [];
+    ended.jobs = [];
+    ended.failure = undefined;
+  });
+
+  test('ends the job and never runs its handler', async () => {
+    const handler = vi.fn(async () => undefined);
+    const fetcher = fetcherOf(handler);
+    await fetcher.tick(Temporal.Now.instant());
+    await fetcher.drain(Temporal.Now.instant().add({ seconds: 5 }));
+    expect(ended.jobs).toEqual(['job-1']);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  // The store hands the job out again after its lease, at any number of lost leases: the
+  // conformance case "a command job whose taker never ends it is handed out again however often
+  // its leases are lost" proves that, and worker-end-unit.test.ts the retries of the real end unit.
+  test('a unit that fails leaves the job to its lease: the handler still never runs', async () => {
+    ended.failure = new Error('the store is gone');
+    const handler = vi.fn(async () => undefined);
+    const fetcher = fetcherOf(handler);
+    await fetcher.tick(Temporal.Now.instant());
+    await fetcher.drain(Temporal.Now.instant().add({ seconds: 5 }));
+    expect(ended.jobs).toEqual(['job-1']);
     expect(handler).not.toHaveBeenCalled();
   });
 });

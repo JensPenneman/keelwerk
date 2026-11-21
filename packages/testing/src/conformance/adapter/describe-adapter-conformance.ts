@@ -28,6 +28,7 @@ import { migrationCases } from './migration-cases.ts';
 import { namedValueKeyCases } from './named-value-key-cases.ts';
 import { paginationCases } from './pagination-cases.ts';
 import { processStreamCases } from './process-stream-cases.ts';
+import { queueScenarioCases } from './queue-scenario-cases.ts';
 import { restoreDetectionCases } from './restore-detection-cases.ts';
 import { retentionCases } from './retention-cases.ts';
 import { rowCases } from './row-cases.ts';
@@ -135,5 +136,6 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('capability honesty', () => capabilityHonestyCases(subject));
     describe('encrypted queries', () => encryptedQueryCases(subject));
     describe('leases', () => leaseCases(subject));
+    describe('queue scenarios', () => queueScenarioCases(subject));
   });
 }
