@@ -15,7 +15,7 @@ describe('concurrent registrations on PostgreSQL', () => {
   let accounts: BootedAccounts;
 
   beforeAll(async () => {
-    postgres = await startPostgres();
+    postgres = await startPostgres({ checkDeadlocks: true });
     accounts = await bootAccounts(
       'memory',
       { allowSelfRegistration: true },

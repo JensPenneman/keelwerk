@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { describe, expect, inject, it } from 'vitest';
-import { execInContainer, startPostgres } from '../src/postgres/index.ts';
+import { declareDeadlocks, execInContainer, startPostgres } from '../src/postgres/index.ts';
+import { provokeDeadlock } from './support/provoke-deadlock.ts';
 
 async function query<Row extends pg.QueryResultRow>(
   connectionString: string,
@@ -63,6 +64,26 @@ describe('startPostgres', () => {
       }
     },
     startTimeout,
+  );
+
+  it(
+    'a container started with checkDeadlocks stops when its deadlocks were declared, and refuses to stop quietly when one was not',
+    async () => {
+      const declared = await startPostgres({ checkDeadlocks: true });
+      await provokeDeadlock(declared.adminUrl, 'declared');
+      declareDeadlocks(1);
+      await expect(declared.stop()).resolves.toBeUndefined();
+
+      const undeclared = await startPostgres({ checkDeadlocks: true });
+      await provokeDeadlock(undeclared.adminUrl, 'undeclared');
+      await expect(undeclared.stop()).rejects.toThrow(
+        'moved the PostgreSQL deadlock counter by 1 and declared 0',
+      );
+
+      const quiet = await startPostgres({ checkDeadlocks: true });
+      await expect(quiet.stop()).resolves.toBeUndefined();
+    },
+    3 * startTimeout,
   );
 
   it(

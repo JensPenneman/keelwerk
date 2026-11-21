@@ -10,16 +10,13 @@ import type { SqlUnitContext } from './sql-unit-context.ts';
  * statement counts each promoted job on its lane at once, under the lane's counter row, which it
  * locks without waiting: a due job of a lane whose counter row another unit holds stays `scheduled`
  * for a later promotion, so a take of the same unit sees every job promoted and nothing waits at the
- * commit tail. A lane whose counter row is held is added to `left`, which the take of the unit counts
- * as skipped, so the fetcher takes again. The queue is recorded as takeable. Returns how many jobs
- * were promoted.
+ * commit tail. The queue is recorded as takeable. Returns how many jobs were promoted.
  */
 export async function sqlJobPromote(
   ctx: SqlUnitContext,
   buffer: SqlCommitBuffer,
   queue: string,
   limit: number,
-  left: Set<string>,
 ): Promise<number> {
   const rows = await runSql(
     ctx.db,
@@ -31,12 +28,7 @@ export async function sqlJobPromote(
       scopeId: jobUnitScopeId(ctx),
     }),
   );
-  let promoted = 0;
-  left.clear();
-  for (const row of rows) {
-    promoted += Number(row.n);
-    if (Number(row.n) === 0) left.add(String(row.lane_id));
-  }
+  const promoted = Number(rows[0]?.n ?? 0);
   if (promoted > 0) buffer.ready(queue);
   return promoted;
 }

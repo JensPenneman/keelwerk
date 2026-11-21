@@ -9,7 +9,7 @@ describe('concurrent sign-ups on PostgreSQL', () => {
   let auth: BootedAuth;
 
   beforeAll(async () => {
-    postgres = await startPostgres();
+    postgres = await startPostgres({ checkDeadlocks: true });
     auth = await bootAuth('memory', {}, undefined, {
       factory: postgresAdapter({ ownerUrl: postgres.adminUrl }),
       url: postgres.appUrl,

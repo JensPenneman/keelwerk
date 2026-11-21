@@ -23,15 +23,15 @@ import type { SqlUnitContext } from './sql-unit-context.ts';
  * a later take: while another unit holds one of its rows, and for a dying head while units keep its
  * key. The job's own worker can still complete it, which is fenced on worker and attempt. A job that
  * returns to `available` stays its key's head and takes no key lock. A key the take got stays held
- * until its commit, and the rows of a job it left stay locked until then. Returns the lanes of the
- * jobs it left, which the take counts as skipped, so the fetcher takes again (9.5.6).
+ * until its commit, and the rows of a job it left stay locked until then. The take does not count the
+ * lanes of the jobs it left as skipped: the next take of the queue reclaims them (9.5.6).
  */
 export async function sqlJobReclaim(
   ctx: SqlUnitContext,
   buffer: SqlCommitBuffer,
   queue: string,
   now: Temporal.Instant,
-): Promise<ReadonlySet<string>> {
+): Promise<void> {
   const root = ctx.namespace.root;
   const scopeId = jobUnitScopeId(ctx);
   const expired = await runSql(
@@ -41,10 +41,7 @@ export async function sqlJobReclaim(
   const missing = expired.find((row) => row.group_missing === true);
   if (missing !== undefined) throw groupRowMissing(String(missing.group_id));
   const ready = expired.filter((row) => row.ready === true);
-  const left = new Set(
-    expired.filter((row) => row.ready !== true).map((row) => String(row.lane_id)),
-  );
-  if (ready.length === 0) return left;
+  if (ready.length === 0) return;
   const heads = new Map<string, { laneId: string; key: string }>();
   for (const row of ready) {
     if (row.head === true) {
@@ -77,5 +74,4 @@ export async function sqlJobReclaim(
   );
   if (reclaimed.some((row) => row.group_id !== null)) buffer.readyAnywhere();
   else buffer.ready(queue);
-  return left;
 }

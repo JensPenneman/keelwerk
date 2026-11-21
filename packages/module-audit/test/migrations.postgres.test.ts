@@ -8,7 +8,7 @@ describe('audit on PostgreSQL', () => {
   let app: BootedAudit<typeof withAccountsApp>;
 
   beforeAll(async () => {
-    postgres = await startPostgres();
+    postgres = await startPostgres({ checkDeadlocks: true });
     app = await bootAudit(withAccountsApp, 'memory', {
       factory: postgresAdapter({ ownerUrl: postgres.adminUrl }),
       url: postgres.appUrl,

@@ -19,7 +19,7 @@ describe('consumers on PostgreSQL', () => {
   let polled: CountingConsumer;
 
   beforeAll(async () => {
-    postgres = await startPostgres();
+    postgres = await startPostgres({ checkDeadlocks: true });
     // The runtime's own consumers are built beside the kit's, on its adapter, with notify off.
     counted = countingConsumer('test.count');
     polled = countingConsumer('test.poll');

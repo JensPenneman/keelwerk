@@ -20,8 +20,7 @@ export interface PromoteInput {
  * this statement, so the unit's own take sees the promoted jobs. A due job of a lane whose counter
  * row is held stays `scheduled` for a later promotion. The limit counts the due jobs before the lane
  * filter, so the due jobs of a lane whose counter row is held also use up the limit for the lanes
- * whose row it got. The statement answers one row per lane that has a due job among the ones it
- * took: the number it promoted there (0 when the lane's counter row is held).
+ * whose row it got. The statement answers how many jobs it promoted.
  */
 export function promoteStatement(input: PromoteInput): PostgresStatement {
   const root = quoteIdentifier(input.root);
@@ -45,9 +44,7 @@ export function promoteStatement(input: PromoteInput): PostgresStatement {
   update ${root}.kw_job_lane_counts c set value = c.value + g.n
   from gained g where c.lane_id = g.lane_id and c.kind = 'enqueued'
 )
-select d.lane_id::text as lane_id, coalesce(g.n, 0)::text as n
-from (select distinct lane_id from due) d left join gained g on g.lane_id = d.lane_id
-order by d.lane_id`,
+select (select count(*) from moved)::text as n`,
     parameters: [input.queue, input.now, String(input.limit), input.scopeId],
   };
 }

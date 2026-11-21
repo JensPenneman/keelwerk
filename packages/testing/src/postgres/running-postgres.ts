@@ -11,7 +11,9 @@ export interface RunningPostgres {
   /**
    * Stops and removes the container, after the server shows no client connection left open. When
    * one is still shown by a listing started after two seconds it rejects, naming each, and leaves the container running
-   * for the reaper: stopping it would end those connections with an error nobody handles.
+   * for the reaper: stopping it would end those connections with an error nobody handles. A container
+   * started with `checkDeadlocks` is stopped first, and then the call rejects when its deadlock counter
+   * moved by other than the deadlocks the file declared.
    */
   stop(): Promise<void>;
 }

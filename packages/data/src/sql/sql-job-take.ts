@@ -84,10 +84,11 @@ export interface SqlTakeRequest {
  * `available`; a job whose group row another unit holds stays `available` and its lane counts as
  * skipped), and the admitted jobs become `running` with the worker, the next attempt and a lease
  * while their lanes add them to `taken` and their cost to the virtual time. `skippedLanes` counts
- * the lanes that were eligible and within the lane budget but locked by another taker, the lanes a
- * job of which stayed because its group row is held, and the lanes in which the reclaim or the unit's
- * promotion (`promotionLeft`) left work behind for a held row, apart from "no work". The unit buffers no lane
- * change, so its commit runs no tail statement for the take.
+ * the lanes that were eligible and within the lane budget but locked by another taker and the lanes
+ * a job of which stayed because its group row is held, apart from "no work". A lane in which only a
+ * reclaim, a promotion or a release of a successor was left behind a held row is not counted: the
+ * next take of the queue does that work. The unit buffers no lane change, so its commit runs no tail
+ * statement for the take.
  */
 export async function sqlJobTake(
   ctx: SqlUnitContext,
@@ -95,19 +96,19 @@ export async function sqlJobTake(
   queue: string,
   worker: string,
   request: SqlTakeRequest,
-  promotionLeft: ReadonlySet<string>,
 ): Promise<{ readonly jobs: readonly StoredJob[]; readonly skippedLanes: number }> {
   const root = ctx.namespace.root;
   const now = ctx.clock.now();
   const nowText = encodeInstant(now);
   const scopeId = jobUnitScopeId(ctx);
-  const heldLanes = new Set([...promotionLeft, ...(await sqlJobReclaim(ctx, buffer, queue, now))]);
+  await sqlJobReclaim(ctx, buffer, queue, now);
+  const heldLanes = new Set<string>();
   const [bounds] = await runSql(
     ctx.db,
     takeBoundsStatement(root, queue, request.capabilitySets, scopeId),
   );
   const eligible = Number(bounds?.eligible ?? 0);
-  if (eligible === 0) return { jobs: [], skippedLanes: heldLanes.size };
+  if (eligible === 0) return { jobs: [], skippedLanes: 0 };
   const vmin = Number(bounds?.vmin ?? 0);
   const lanesWanted = request.lanes ?? request.limit;
   const picked = await runSql(

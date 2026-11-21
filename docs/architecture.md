@@ -4121,8 +4121,9 @@ id of a process instance forever. Build a job key from ids, never from a persona
   `pg_try_advisory_xact_lock`), and it acts only where it got everything: the reclaim of an expired
   job needs the job row, the lane row of a job that returns to `available`, the `done` row of a job
   that dies, its group row and, for a dying FIFO head, the lane's `enqueued` row and the key. The
-  order is rows first, the key tried last, so a key is held only when everything else of its head is;
-  a job it did not get everything for stays `running` with its expired lease until a later take. A
+  order is said per head: a dying FIFO head's key is tried only after its job row and its `done`,
+  group and `enqueued` rows, so a key is held only when everything else of that head is held; a job
+  it did not get everything for stays `running` with its expired lease until a later take. A
   job that returns stays the key's head and takes no key lock; a dying FIFO head is passed over for
   as long as units keep its key, and any job while a unit holds one of its rows (a cap change, a
   re-limit of its group, a settle of a completion, cancel or drain, another unit's open commit tail
@@ -4131,15 +4132,26 @@ id of a process instance forever. Build a job key from ids, never from a persona
   stay `scheduled` and count against its limit of 100. The one lock the take does not skip or try is
   the `waiting` row of the next job of a dying FIFO head's key, which it locks with a plain `for
   update` after it holds the key: every unit that locks a waiting row holds the key first, so no
-  other unit can hold that row and the lock cannot wait. Work the take leaves for a held row (an
-  expired job, a due job, a job whose group row is held) is counted as a skipped lane, so the fetcher
-  takes again (section 9.5.6). The take's unit buffers no lane change, so its commit runs no tail
-  statement, and a take is part of no deadlock. Known limits: units that take two key locks in opposite orders (enqueues,
-  cancels by key, erasures) can still deadlock, and a completion waits for the key's lock behind an
-  open append. The deadlock counter that the connection guard of the PostgreSQL test suites checks
-  (`guardClientConnections`, in the setup of adapter-postgres, data and testing) shows a deadlock
-  that a retry hides; the PostgreSQL files of events, the modules and the portal example have no
-  such guard.
+  other unit can hold that row and the lock cannot wait. `skippedLanes` counts the lanes whose
+  takeable jobs the take could not look at because a lock was busy (a lane another taker holds, a
+  job's group row another unit holds); work a take leaves behind a busy lock, a reclaim, a promotion
+  or the release of a successor, does not count, and the next take of the queue does it. What brings
+  that take depends on the holder: the commit of a unit that made a job takeable sends a wake-up
+  that names the queue (an enqueue of a due job, a cap change, a group's re-limit, a completion, a
+  cancel, the release of attempts at a drain), a slot that frees in a fetcher sweeps the queue, and
+  the poll (every second by default) is the net under both; a unit that only appends a `waiting`
+  job under a key, and an erasure, send no wake-up. At a still clock in the test runtime none of
+  these may come, so the work stays until the clock moves or another take runs (section 9.5.6).
+  The take's unit buffers no lane change, so its commit runs no tail statement, and a take is part
+  of no deadlock. Known limits: under sustained contention on a lane's row the return of an expired
+  job can be passed over by any number of takes, and the first take whose reclaim finds the row
+  free returns it (WP-198 settles or binds this); units that take two key locks in opposite orders
+  (enqueues, cancels by key, erasures) can still deadlock, and a completion waits for the key's
+  lock behind an open append. The deadlock counter shows a deadlock that a retry hides: the
+  connection guard of the PostgreSQL test suites (`guardClientConnections`, in the setup of
+  adapter-postgres, data and testing and in the portal example) checks it for every file, and the
+  files of events and of the modules, which start a container of their own, check it when they stop
+  it (`startPostgres({ checkDeadlocks: true })`); those files have no connection guard.
 - A job's unit runs the kernel's loads, then writes events, effect records, receipt and completion
   at its tail (section 7.9.4). No handler waits on the network inside a unit, so no long write
   transaction pins PostgreSQL's MVCC horizon. Database effects commit with the completion,
@@ -4389,7 +4401,9 @@ with `skip locked` (section 9.5.2).
   time, and `maxDelay` is 10 minutes.
 - The worker renews its running jobs' leases every `heartbeatSeconds`, one statement per namespace;
   a lease lasts three heartbeats. The next take that gets the locks the reclaim needs (section
-  9.5.2) reclaims an expired one: the job returns to
+  9.5.2) reclaims an expired one (under sustained contention on a lane's row the return of an
+  expired job can be passed over by any number of takes; the first take whose reclaim finds the
+  row free returns it): the job returns to
   `available`, the attempt counted as `unavailable`, `core.job_lease_lost`. Renewal and completion
   are conditional on (worker, attempt), so a paused or partitioned attempt fails at its completion
   statement and rolls back its own unit.
@@ -4440,10 +4454,12 @@ Making the two the same number is open work.
   notifier of section 14.3.7 (channel `kw_jobs`) and by a jittered poll every second. A take that
   skipped locked lanes is not "no work": a fetcher that saw skipped lanes takes again at once,
   after a short jitter, instead of waiting for the next wake-up or the poll (section 9.5.3); a take
-  that left work behind for a row another unit holds (an expired job, a due job) counts that lane as
-  skipped as well, and the fetcher retakes at most three times; a sweep that ends after three
-  skipped retakes has not come to rest, and the next wake-up, the poll or the test probe sweeps the
-  queue again. With
+  that left a reclaim, a promotion or a release behind a row another unit holds does not count that
+  lane as skipped: the next take of the queue does that work, brought by the wake-up of the holder's
+  commit, a slot that frees or the poll (section 9.5.2), and at a still clock in the test runtime
+  it stays until the clock moves or another take runs. A take that skipped lanes is retaken at most
+  three times; a sweep that ends after three skipped retakes has not come to rest, and the next
+  wake-up, the poll or the test probe sweeps the queue again. With
   per-tenant namespaces (M5), wake-ups pass through the control store, and each process sweeps the
   namespaces that rendezvous hashing over the live registry gives it. An executor's queue may not
   carry the name of an action queue (`commands`, `reactions`, `schedules`, `timers`, `hooks`),
@@ -6454,7 +6470,7 @@ export interface JobStore {
   /** The fair take of section 9.5.3 over the lanes of the worker's capability sets: lane caps, keys, FIFO order per key
       and group limits; reclaims expired leases first; only jobs enqueued at or below `maxRevision`, the worker's build
       revision (section 19.2). */
-  take(queue: string, worker: string, request: { readonly limit: number; readonly lanes?: number; readonly capabilitySets: readonly string[]; readonly maxRevision: number; readonly leaseMs: number }): Promise<{ readonly jobs: readonly StoredJob[]; readonly skippedLanes: number }>   // lanes defaults to limit; skippedLanes: locked by other takers, not "no work"
+  take(queue: string, worker: string, request: { readonly limit: number; readonly lanes?: number; readonly capabilitySets: readonly string[]; readonly maxRevision: number; readonly leaseMs: number }): Promise<{ readonly jobs: readonly StoredJob[]; readonly skippedLanes: number }>   // lanes defaults to limit; skippedLanes: lanes locked by other takers or held back by a group row another unit holds, not "no work" and not the reclaim, promotion or release a take left behind a busy lock (section 9.5.2)
   /** Conditional on (worker, attempt); returns the attempts whose lease still holds. */
   heartbeat(attempts: readonly JobAttempt[], worker: string, leaseMs: number): Promise<readonly JobAttempt[]>
   /** Conditional on (worker, attempt): succeeded (history written), retry at a time, or dead letter; false when the lease was lost. */
@@ -6486,8 +6502,9 @@ export interface JobStore {
   the reclaim of a take write (a take under the rows' locks, taken with `SKIP LOCKED`) and takers read
   without locking. An enqueue burst therefore never makes takers skip a lane for the pick; a
   promotion that finds a lane's `enqueued` row held by an enqueue's commit tail leaves that lane's
-  due jobs, and the reclaim leaves a dying FIFO head whose key another unit holds, and the take
-  counts either lane as skipped. A stale `done` only lowers a lane's room.
+  due jobs, and the reclaim also leaves a dying FIFO head whose lane's `enqueued` row an enqueue's
+  tail holds or whose key another unit holds; the take does not count such a lane as skipped, and
+  the next take does the work. A stale `done` only lowers a lane's room.
 - Group limits (concurrency and rate) are counted under the group's row lock, taken in id order
   with `SKIP LOCKED` after the jobs are picked, and a job over its limit goes back; counting them inside the take
   statement raced at `READ COMMITTED`. FIFO per key keeps a key's followers `waiting` and makes the

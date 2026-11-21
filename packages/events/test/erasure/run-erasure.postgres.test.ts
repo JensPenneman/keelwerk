@@ -10,7 +10,7 @@ describe('two workers on one erasure on PostgreSQL', () => {
   let probe: Probe;
 
   beforeAll(async () => {
-    postgres = await startPostgres();
+    postgres = await startPostgres({ checkDeadlocks: true });
     probe = await bootProbe('memory', {
       external: {
         factory: postgresAdapter({ ownerUrl: postgres.adminUrl }),

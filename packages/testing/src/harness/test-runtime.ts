@@ -64,9 +64,13 @@ export interface TestRuntime<App, Name extends string = string> {
    * namespace, which sets the limits of its job groups without a wake-up; any other job left at a
    * still clock points to a missing wake-up in the store or to a mistake in the test. A job made
    * takeable while a drain runs may be left to the next drain (`settleReactions` runs it in its
-   * next round). A test double that holds a job back answers its take with a skipped lane, not
-   * with no job; the fetcher then retakes after a pause on `setTimeout`, so under fake timers such
-   * a drain does not settle. Throws without `workers`.
+   * next round). A reclaim, a promotion or the release of a FIFO successor that a take left behind
+   * a lock another unit held is no skipped lane: the next take of the queue does it, brought by the
+   * wake-up of the holder's commit, a slot that frees or the poll, so at a still clock a drain can
+   * settle while such work is left, until the clock moves or another take runs. A test double that
+   * holds a job back answers its take with a skipped lane, not with no job; the fetcher then retakes
+   * after a pause on `setTimeout`, so under fake timers such a drain does not settle. Throws without
+   * `workers`.
    */
   drainJobs(): Promise<number>;
   /**
