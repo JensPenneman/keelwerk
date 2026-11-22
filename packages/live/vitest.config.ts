@@ -1,4 +1,5 @@
 import { configDefaults, defineConfig } from 'vitest/config';
+import { testLimits } from '../../scripts/test-limits.ts';
 
 export default defineConfig({
   ssr: {
@@ -8,9 +9,7 @@ export default defineConfig({
   },
   test: {
     name: 'live',
-    // The hub suites boot a runtime on the embedded database in beforeAll; on a slow or loaded machine
-    // that takes longer than the default ten seconds.
-    hookTimeout: 60_000,
+    ...testLimits,
     include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
     exclude: [...configDefaults.exclude, 'test/**/*.postgres.test.ts'],
     typecheck: {

@@ -34,6 +34,8 @@ that a container stays within its 200 connections (`scripts/postgres-project-run
 run takes about 14 minutes on ten cores. Without Docker, run
 `pnpm vitest run --project '!*postgres*' --project '!spike-write-path'`.
 
+Time limits. A time limit in a test is a backstop against a hang, not a measure of speed. The limit of a case and of a hook is set in one place, `scripts/test-limits.ts`, which every project configuration spreads into its `test` options (`scripts/test/test-limits.test.ts` fails when a project configuration does not). A case or a file sets its own limit only when that limit is what it tests, and says so beside it. Test files that already set their own limit with `vi.setConfig` are exceptions until they are moved under this rule, and a new file adds none.
+
 Versions outside the manifests (the CLI templates, the compose files, the schema urls, the release workflow's npm, the PostgreSQL test image, the pnpm version above) are copies: `pnpm pins` writes them and `pnpm pins --check` (run in CI) fails on a stale one. A copy follows a place Dependabot moves: the root package.json, or `pins/node.Dockerfile` and `pins/postgres.Dockerfile` for the two container images (a new major of an image is a hand edit of its one FROM line). Only npm has no such place yet and is moved by hand in the `pins` member of the root package.json.
 
 | Command       | What it does                                             |
