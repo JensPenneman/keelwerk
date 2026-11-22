@@ -14,6 +14,8 @@ export interface PollChangeFeedOptions {
   readonly intervalMs?: number;
   /** Scopes asked per query; default 1000. */
   readonly pageSize?: number;
+  /** Default `Math.random`: the jitter of the pause after failed polls. */
+  readonly random?: () => number;
   /** A poll that failed; the next round tries again, so nothing is lost but time. */
   readonly onError?: (namespace: NamespaceRef, error: unknown) => void;
 }

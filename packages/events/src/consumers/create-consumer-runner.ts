@@ -9,7 +9,7 @@ import type {
   StreamRef,
   Unit,
 } from '@keelwerk/core';
-import { errors } from '@keelwerk/core';
+import { backgroundRetryMs, errors } from '@keelwerk/core';
 import { answerFailedBatch } from './answer-failed-batch.ts';
 import type { ConsumerPass, ConsumerRunner } from './consumer-runner.ts';
 import { createConsumerLease } from './create-consumer-lease.ts';
@@ -21,7 +21,10 @@ import { runScopeBatch } from './run-scope-batch.ts';
 import { scopeTargetOf } from './scope-target-of.ts';
 import { unparkStream } from './unpark-stream.ts';
 
-/** How long a scope waits after a failure outside `consume`, and after a limit without a retry hint. */
+/**
+ * How long a scope waits after a limit without a retry hint (a failed turn waits by
+ * `backgroundRetryMs`).
+ */
 const holdMs = 1000;
 const defaultMaxAttempts = 5;
 const namespaceScope = { level: 'namespace', reason: 'consumer sweep' } as const;
@@ -41,6 +44,8 @@ export interface ConsumerRunnerInput {
   readonly log: Logger;
   /** D8: false while the namespace misses framework step 0002; the runner then takes no lease. */
   readonly ready: () => Promise<boolean>;
+  /** Default `Math.random`: the jitter of the pause after a failed turn. */
+  readonly random?: () => number;
 }
 
 /**
@@ -52,6 +57,7 @@ export interface ConsumerRunnerInput {
  */
 export function createConsumerRunner(input: ConsumerRunnerInput): ConsumerRunner {
   const { spec, source, directory, deploymentId, owner, batchSize, clock, log } = input;
+  const random = input.random ?? Math.random;
   const maxAttempts = spec.maxAttempts ?? defaultMaxAttempts;
   // A batch, a start or a replay that outlasts a third of the lease fails inside its unit.
   const deadlineMs = Math.max(1, Math.floor(input.leaseMs / 3));
@@ -62,6 +68,7 @@ export function createConsumerRunner(input: ConsumerRunnerInput): ConsumerRunner
     leaseMs: input.leaseMs,
     clock,
     log,
+    random,
   });
   const later = (a: Temporal.Instant, b: Temporal.Instant): boolean =>
     Temporal.Instant.compare(a, b) > 0;
@@ -78,6 +85,8 @@ export function createConsumerRunner(input: ConsumerRunnerInput): ConsumerRunner
   /** The position through which this runner has read each scope, for `movedScopes`. */
   const known = new Map<string, Position>();
   const unmapped = new Set<string>();
+  /** The turns of a scope that failed in a row. */
+  const turnFailures = new Map<string, number>();
   /**
    * Whether the consumer has started (15.2.3): a `start: 'beginning'` consumer always has, a `now`
    * consumer once `startAtHeads` answered. The start is durable, so a lost lease keeps it.
@@ -102,6 +111,7 @@ export function createConsumerRunner(input: ConsumerRunnerInput): ConsumerRunner
     singles.clear();
     failing.clear();
     known.clear();
+    turnFailures.clear();
   };
   const hold = (scopeId: string, ms: number): void => {
     holds.set(scopeId, clock.now().add({ milliseconds: ms }));
@@ -267,9 +277,12 @@ export function createConsumerRunner(input: ConsumerRunnerInput): ConsumerRunner
         if (scopeId === undefined) break;
         try {
           if (await turn(scopeId)) batches += 1;
+          turnFailures.delete(scopeId);
         } catch (error) {
           log.warn('a consumer turn failed', { consumer: spec.id, scope: scopeId, cause: error });
-          hold(scopeId, holdMs);
+          const failures = (turnFailures.get(scopeId) ?? 0) + 1;
+          turnFailures.set(scopeId, failures);
+          hold(scopeId, backgroundRetryMs(failures, random));
         }
       }
       return { holding: lease.holds(), batches };

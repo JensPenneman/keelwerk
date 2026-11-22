@@ -6,9 +6,9 @@ import {
   postgresSchemaOperations,
   withCommandReceipts,
 } from '@keelwerk/data';
-import pg from 'pg';
 import { createPostgresBroadcast } from './broadcast/create-postgres-broadcast.ts';
 import { connectionTimeout } from './connection-timeout.ts';
+import { createPostgresClient } from './connections/create-postgres-client.ts';
 import { createPostgresInstance } from './create-postgres-instance.ts';
 import { maskUnit } from './mask-unit.ts';
 import { placementRole } from './placement-role.ts';
@@ -93,15 +93,15 @@ export function postgresAdapter(options: PostgresAdapterOptions = {}): DataAdapt
         if (connectionString === undefined || connectionString === '') {
           throw errors.validation(`the placement ${placement.id} needs a url`);
         }
-        const client = new pg.Client({
+        const client = createPostgresClient({
           connectionString,
           // biome-ignore lint/style/useNamingConvention: the key is the driver's option name
           application_name: `${options.applicationName ?? 'keelwerk'}-migrate`,
-        });
-        client.on('error', (error) => {
-          env.log.warn('postgres schema connection: the connection failed', {
-            message: error.message,
-          });
+          onError: (error) => {
+            env.log.warn('postgres schema connection: the connection failed', {
+              message: error.message,
+            });
+          },
         });
         await client.connect();
         return client;

@@ -4,13 +4,15 @@ import type { HeldJob } from './held-job.ts';
  * Renews the leases of the due attempts (9.5.4, D3): one `heartbeat` statement per namespace and
  * lease length, each in a namespace-scope unit of its own, the namespaces concurrently, so a slow
  * namespace never holds another's renewal. Answers the attempts whose lease was lost; the others
- * are renewed at `now`. A group that fails is not lost: its attempts stay due and the next tick
- * asks again, and `onError` hears of it.
+ * are renewed at `now`. A group that fails is not lost: `onError` hears of it, and its attempts
+ * stay due but are not asked for again before `retryMs` of their failures in a row have passed, so
+ * a server that is away is not asked on every tick.
  */
 export async function renewLeases(
   due: readonly HeldJob[],
   worker: string,
   now: Temporal.Instant,
+  retryMs: (failures: number) => number,
   onError?: (error: unknown) => void,
 ): Promise<readonly HeldJob[]> {
   const groups = new Map<string, HeldJob[]>();
@@ -37,10 +39,16 @@ export async function renewLeases(
         const kept = new Set(alive.map((attempt) => `${attempt.jobId}/${attempt.attempt}`));
         for (const held of group) {
           const { attempt } = held.job.stored;
-          if (kept.has(`${attempt.jobId}/${attempt.attempt}`)) held.renewedAt = now;
-          else lost.push(held);
+          if (kept.has(`${attempt.jobId}/${attempt.attempt}`)) {
+            held.renewedAt = now;
+            held.renewFailures = 0;
+          } else lost.push(held);
         }
       } catch (error) {
+        for (const held of group) {
+          held.renewFailures += 1;
+          held.renewRetryAt = now.add({ milliseconds: retryMs(held.renewFailures) });
+        }
         onError?.(error);
       }
     }),

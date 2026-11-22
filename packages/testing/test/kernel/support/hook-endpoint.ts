@@ -19,6 +19,8 @@ export async function startHookEndpoint(
   answer: (index: number) => number | 'hang' = () => 200,
   /** Milliseconds the endpoint waits before it answers a request: concurrent requests then overlap. */
   delayMs = 0,
+  /** Each request waits for this before it is answered, once the answer is decided. */
+  gate: Promise<void> = Promise.resolve(),
 ): Promise<HookEndpoint> {
   const requests: { headers: Record<string, string>; body: string }[] = [];
   const server = createServer((request, response) => {
@@ -33,10 +35,12 @@ export async function startHookEndpoint(
       requests.push({ headers, body: Buffer.concat(chunks).toString('utf8') });
       const status = answer(index);
       if (status === 'hang') return;
-      setTimeout(() => {
-        response.writeHead(status, { 'content-type': 'text/plain' });
-        response.end(`answered ${status}`);
-      }, delayMs);
+      void gate.then(() => {
+        setTimeout(() => {
+          response.writeHead(status, { 'content-type': 'text/plain' });
+          response.end(`answered ${status}`);
+        }, delayMs);
+      });
     });
   });
   await new Promise<void>((ready) => server.listen(0, '127.0.0.1', ready));

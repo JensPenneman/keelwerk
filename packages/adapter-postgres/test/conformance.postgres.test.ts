@@ -81,6 +81,17 @@ for (const [name, database, accelerations] of variants) {
             await owner.end();
           }
         },
+        endConnections: async () => {
+          const owner = new pg.Client({ connectionString: urls.adminUrl });
+          await owner.connect();
+          try {
+            await owner.query(
+              'select pg_terminate_backend(pid) from pg_stat_activity where datname = current_database() and pid <> pg_backend_pid()',
+            );
+          } finally {
+            await owner.end();
+          }
+        },
         close: async () => {
           await adapter.close(5000);
         },

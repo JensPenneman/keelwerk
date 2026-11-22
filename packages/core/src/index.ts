@@ -899,6 +899,7 @@ export { defaultFeedHorizon } from './replay/default-feed-horizon.ts';
 export type { RebuiltEntity } from './replay/rebuilt-entity.ts';
 export { transientPurgeTypes } from './replay/transient-purge-types.ts';
 export { AppNotServedError } from './runtime/app-not-served-error.ts';
+export { backgroundRetryMs } from './runtime/background-retry-ms.ts';
 export type { BuildIdApp } from './runtime/build-manifest-of.ts';
 export { buildManifestOf } from './runtime/build-manifest-of.ts';
 export type { DeploymentDefinition } from './runtime/deployment-definition.ts';

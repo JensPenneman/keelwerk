@@ -1,5 +1,6 @@
 import type { Clock } from '../kernel/clock.ts';
 import type { Logger } from '../observability/logger.ts';
+import { backgroundRetryMs } from '../runtime/background-retry-ms.ts';
 import { frameworkReady } from './framework-ready.ts';
 import type { QueueSource } from './queue-source.ts';
 
@@ -12,6 +13,9 @@ interface State {
   again: boolean;
   /** The check that is under way: a sweep that asks meanwhile waits for it. */
   checking: Promise<boolean> | undefined;
+  /** The checks that threw in a row, and how long clock time must pass before the next one. */
+  failures: number;
+  waitMs: number;
 }
 
 /** Which sources have the framework tables (D8); a source that is ready stays ready. */
@@ -25,16 +29,19 @@ export interface SourceReadiness {
 /**
  * The framework check of the fetchers (D8): a source that is behind takes no jobs, is logged once as
  * a warning, and is checked again at every explicit wake and otherwise at most once per minute of
- * clock time. A sweep that asks while a check is under way waits for its answer (unless an explicit
- * wake came after the check began: that sweep checks afresh), so no fetcher skips its first sweep on
- * a source that is about to turn out ready. An adapter without SQL tables is always ready. `waiting`
- * names what waits (the warning reads "<waiting> wait for keelwerk db apply").
+ * clock time. A check that cannot read the track (the database is away) is repeated by
+ * `backgroundRetryMs` instead of after a minute. A sweep that asks while a check is under way waits
+ * for its answer (unless an explicit wake came after the check began: that sweep checks afresh), so
+ * no fetcher skips its first sweep on a source that is about to turn out ready. An adapter without
+ * SQL tables is always ready. `waiting` names what waits (the warning reads "<waiting> wait for
+ * keelwerk db apply").
  */
 export function sourceReadiness(
   clock: Clock,
   log: Logger,
   /** What waits on a source that is behind, as the warning names it. */
   waiting = 'its jobs',
+  random: () => number = Math.random,
 ): SourceReadiness {
   const states = new Map<QueueSource, State>();
   return {
@@ -48,6 +55,8 @@ export function sourceReadiness(
         warned: false,
         again: false,
         checking: undefined,
+        failures: 0,
+        waitMs: recheckMs,
       };
       states.set(source, state);
       if (state.ready) return true;
@@ -56,7 +65,7 @@ export function sourceReadiness(
       if (
         state.checkedAt !== undefined &&
         !state.again &&
-        Temporal.Instant.compare(now, state.checkedAt.add({ milliseconds: recheckMs })) < 0
+        Temporal.Instant.compare(now, state.checkedAt.add({ milliseconds: state.waitMs })) < 0
       ) {
         return false;
       }
@@ -66,7 +75,11 @@ export function sourceReadiness(
         try {
           // A check that began before an explicit wake can answer after a fresher one: it never turns a ready source back.
           if (await frameworkReady(source)) state.ready = true;
+          state.failures = 0;
+          state.waitMs = recheckMs;
         } catch (error) {
+          state.failures += 1;
+          state.waitMs = backgroundRetryMs(state.failures, random);
           log.warn('the framework track of a namespace could not be read', {
             namespace: source.namespace.id,
             cause: error,

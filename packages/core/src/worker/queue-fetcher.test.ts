@@ -12,10 +12,16 @@ const seam = vi.hoisted(() => ({
   answers: [] as unknown[],
   /** The namespace of every take. */
   swept: [] as string[],
+  /** How many of the next takes the store refuses. */
+  refused: 0,
 }));
 vi.mock('./take-batch.ts', () => ({
   takeBatch: (source: QueueSource) => {
     seam.swept.push(source.namespace.id);
+    if (seam.refused > 0) {
+      seam.refused -= 1;
+      return Promise.reject(new Error('the database is away'));
+    }
     return (
       seam.take ??
       Promise.resolve(seam.answers.shift() ?? { jobs: [], skippedLanes: 0, promoted: 0 })
@@ -44,6 +50,7 @@ function fetcherOf(
   handler: (job: unknown) => Promise<void>,
   sources = [source],
   ready: () => Promise<boolean> = async () => true,
+  random?: () => number,
 ) {
   const log = { warn: () => undefined, error: () => undefined };
   return queueFetcher({
@@ -56,6 +63,7 @@ function fetcherOf(
       clock: { now: () => Temporal.Now.instant() },
       log,
       writer: {},
+      ...(random === undefined ? {} : { random }),
     },
     held: new Map(),
     readiness: { ready, recheck: () => undefined },
@@ -240,5 +248,62 @@ describe('the sweep of a fetcher', () => {
       await fetcher.tick(at);
       expect(fetcher.seenAt).toBeUndefined();
     });
+  });
+});
+
+describe('the polls of a fetcher whose store refuses its takes', () => {
+  beforeEach(() => {
+    seam.take = undefined;
+    seam.answers = [];
+    seam.swept = [];
+    seam.refused = 0;
+  });
+
+  test('the poll after a second failure in a row comes after the second pause of the policy', async () => {
+    seam.refused = 2;
+    const fetcher = fetcherOf(
+      async () => undefined,
+      [source],
+      async () => true,
+      () => 0.5,
+    );
+    const start = Temporal.Instant.from('2026-03-01T08:00:00Z');
+    const at = async (milliseconds: number): Promise<number> => {
+      await fetcher.tick(start.add({ milliseconds }));
+      return seam.swept.length;
+    };
+    // The first failure: the pause is the one of an ordinary poll, a second.
+    expect(await at(0)).toBe(1);
+    expect(await at(999)).toBe(1);
+    expect(await at(1000)).toBe(2);
+    // The second failure in a row: two seconds.
+    expect(await at(2999)).toBe(2);
+    expect(await at(3000)).toBe(3);
+    // The sweep that succeeded starts the count again.
+    expect(await at(3999)).toBe(3);
+    expect(await at(4000)).toBe(4);
+  });
+
+  test('a failed sweep of one named namespace leaves the poll of every namespace where it was', async () => {
+    const fetcher = fetcherOf(
+      async () => undefined,
+      [source, other],
+      async () => true,
+      () => 0.5,
+    );
+    const start = Temporal.Instant.from('2026-03-01T08:00:00Z');
+    const at = async (milliseconds: number): Promise<string> => {
+      await fetcher.tick(start.add({ milliseconds }));
+      return seam.swept.join(' ');
+    };
+    // The first poll sweeps both namespaces and sets the next one a second later.
+    expect(await at(0)).toBe('n1 n2');
+    // A wake names n1 and its sweep fails: the poll of n1 and n2 was not part of it.
+    fetcher.wake('n1');
+    seam.refused = 1;
+    expect(await at(500)).toBe('n1 n2 n1');
+    // The poll is still due at one second, though the failed sweep came at 500 ms; it sweeps both.
+    expect(await at(999)).toBe('n1 n2 n1');
+    expect(await at(1000)).toBe('n1 n2 n1 n1 n2');
   });
 });

@@ -44,4 +44,13 @@ describe('bootApp', () => {
     await booted.stop(750);
     expect(stop).toHaveBeenCalledExactlyOnceWith(750);
   });
+
+  test('hands its signal to the runtime, which ends a start that waits for the database with it', async () => {
+    const start = vi.mocked(startRuntime);
+    start.mockResolvedValueOnce(fakeRuntime(async () => undefined));
+    const abort = new AbortController();
+    await bootApp(definition, { ...options, signal: abort.signal });
+    const [, runtimeOptions] = start.mock.calls.at(-1) as [DeploymentDefinition, RuntimeOptions];
+    expect(runtimeOptions.signal).toBe(abort.signal);
+  });
 });

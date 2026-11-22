@@ -107,8 +107,6 @@ export interface PostgresBroadcastSettings {
   readonly log: Logger;
   /** Milliseconds a new connection may take to open; default 10000. */
   readonly connectionTimeoutMs?: number;
-  /** Milliseconds before a lost listen session is opened again; default 1000. */
-  readonly retryMs?: number;
 }
 
 export interface PostgresBroadcast {
@@ -176,7 +174,6 @@ export function createPostgresBroadcast(settings: PostgresBroadcastSettings): Po
       connectionTimeoutMs,
       heartbeat,
       log: settings.log,
-      ...(settings.retryMs === undefined ? {} : { retryMs: settings.retryMs }),
       onNotification: deliver,
       onListening: () => {
         if (state !== 'closed') state = 'listening';

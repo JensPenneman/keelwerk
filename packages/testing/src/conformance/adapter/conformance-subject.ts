@@ -21,6 +21,8 @@ export interface ConformanceSubject {
   adapter(): DataAdapter;
   namespace(): NamespaceRef;
   capabilities(): AdapterCapabilities;
+  /** Ends every connection of the adapter on the server's side; only a networked target has one. */
+  endConnections(): Promise<void>;
   /** A read-write unit on the target's namespace. */
   run<T>(scope: StorageScope, fn: (unit: Unit) => Promise<T>, options?: UnitOptions): Promise<T>;
   /** A read-only unit. */

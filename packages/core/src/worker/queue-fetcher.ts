@@ -2,6 +2,7 @@ import { isKeelwerkError } from '../errors/is-keelwerk-error.ts';
 import { coreError } from '../http/core-error.ts';
 import type { Job } from '../jobs/job.ts';
 import type { WorkerOptions } from '../jobs/worker-options.ts';
+import { backgroundRetryMs } from '../runtime/background-retry-ms.ts';
 import type { StoredJob } from '../storage/stored-job.ts';
 import type { KernelQueueOptions } from './create-kernel-queue.ts';
 import { defaultHeartbeatSeconds } from './default-heartbeat-seconds.ts';
@@ -16,9 +17,6 @@ import type { SourceReadiness } from './source-readiness.ts';
 import { takeBatch } from './take-batch.ts';
 import { workerSlots } from './worker-slots.ts';
 
-/** The poll that backs up the wake-ups, in milliseconds, and the jitter around it. */
-const pollMs = 1000;
-const pollJitter = 0.2;
 /** The lease a take asks for: three of the default heartbeats (D3). */
 const takeLeaseMs = 30_000;
 const maxRetakes = 3;
@@ -100,6 +98,8 @@ export function queueFetcher(input: {
   let draining = false;
   let saturated = false;
   let nextPollAt: Temporal.Instant | undefined;
+  /** The sweeps that failed in a row. */
+  let failures = 0;
   let rotation = 0;
   let seenAt: Temporal.Instant | undefined;
   let releasing: Promise<void> = Promise.resolve();
@@ -179,6 +179,8 @@ export function queueFetcher(input: {
         heartbeatMs === defaultHeartbeatSeconds * 1000
           ? now
           : now.subtract({ milliseconds: heartbeatMs }),
+      renewFailures: 0,
+      renewRetryAt: undefined,
     };
     held.set(key, entry);
     mine.add(entry);
@@ -282,25 +284,34 @@ export function queueFetcher(input: {
       if (!wakePending() && !pollDue) return;
       const gate = Promise.withResolvers<void>();
       sweeping = gate.promise;
+      /** What the sweep under way covers: every namespace, or only those a wake named. */
+      let only: ReadonlySet<string> | undefined;
       try {
         let polled = pollDue;
         do {
-          // A poll covers every namespace, as a wake without a name does; a sweep of some namespaces
-          // leaves the next poll where it is, so a busy namespace never defers the poll of the others.
-          const only = wakeEverywhere || polled ? undefined : new Set(wakeNamespaces);
+          // A poll covers every namespace, as a wake without a name does; a sweep of some
+          // namespaces, whether it ends or fails, leaves the next poll where it is, so a namespace
+          // that is busy or whose sweep failed never defers the poll of the others.
+          only = wakeEverywhere || polled ? undefined : new Set(wakeNamespaces);
           polled = false;
           wakeEverywhere = false;
           wakeNamespaces.clear();
-          if (only === undefined) {
-            nextPollAt = now.add({
-              milliseconds: Math.round(pollMs * (1 - pollJitter + 2 * pollJitter * random())),
-            });
-            seenAt = now;
-          }
+          if (only === undefined) seenAt = now;
           if (!(await sweep(only))) seenAt = undefined;
+          failures = 0;
+          if (only === undefined) {
+            nextPollAt = now.add({ milliseconds: backgroundRetryMs(failures, random) });
+          }
         } while (wakePending() && !draining);
       } catch (error) {
         seenAt = undefined;
+        // The server is probably away: the next poll comes later the longer it stays away. A sweep
+        // of named namespaces only is no reason to move the poll of the others; the namespaces it
+        // covered are swept by the next poll, where that is.
+        if (only === undefined) {
+          failures += 1;
+          nextPollAt = now.add({ milliseconds: backgroundRetryMs(failures, random) });
+        }
         log.error('a sweep of the queue failed', { queue, cause: error });
       } finally {
         sweeping = undefined;

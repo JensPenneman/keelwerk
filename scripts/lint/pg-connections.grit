@@ -1,0 +1,103 @@
+// A pool or a client of `pg` is created in one place per package, where its errors are handled: an
+// 'error' event that nobody listens to ends the process. In the PostgreSQL adapter that place is
+// `src/connections/`; the plugin's `includes` in biome.json leaves it and the tests out. Outside
+// the place a source file may import the driver's modules (`pg`, `pg-pool` and their subpaths) for
+// types only. What a source file needs from the driver at run time comes from the place. A use that
+// cannot go through it states its reason: `// biome-ignore lint/plugin: <reason>`.
+//
+// Its reach: the rule guards against a forgotten or careless import, not against an author who
+// hides the name; no lint can stop that, and every spelling built in makes the rule harder to read,
+// so none is added. It reads a module name that is written out as one literal (as built: also with
+// an escape, and also anywhere inside the first argument of a dynamic import or a require). It does
+// not see a module name that is put together when the code runs (a template literal with a
+// substitution or a tag, a concatenation, a variable): of the first argument it reads the literals
+// one by one, as written, so `'p' + 'g'` and `${prefix}g` pass. It does not see a `require` that is
+// not called by its own name, and a value that the place or another package hands on. The forms the
+// rule is shown to refuse or to allow are the lists of its test
+// (`scripts/test/support/pg-connection-forms-*.ts`), and nothing beyond them is claimed.
+//
+// The module of a form is read from its own node (the module source, the first argument of a call),
+// so comments and spacing around it do not matter. For a call it is any string or template literal
+// inside the first argument, wherever it stands (in parentheses, with `as`, `satisfies` or `!`,
+// after a comma, in a condition). In a value form a literal with a backslash counts as the
+// driver, because an escape sequence can spell its name. A call is a require when its callee is the
+// name `require`, in parentheses or not. A form is type-only when its clause, or each of its
+// specifiers, carries the `type` keyword; a type-only form is allowed, with an escape in its module
+// name too. The plugin language cannot read that keyword as a field: a clause is matched by the
+// code snippet that has it, a specifier by its tokens (`type`, a name, and `as` with a second name;
+// the name may be a string). What is not recognised as type-only is refused. A pattern matches the
+// whole text of a node, comments inside it included.
+pattern pg_module() {
+  or {
+    r"['\"`](?:pg|pg-pool)(?:/[^'\"`]*)?['\"`]",
+    r"(?s)['\"`].*\\.*['\"`]"
+  }
+}
+
+pattern module_in_argument() {
+  contains or {
+    JsStringLiteralExpression(),
+    JsTemplateExpression()
+  } as $l where { $l <: pg_module() }
+}
+
+pattern type_specifier() {
+  r"(?s)type(?:\s|/\*.*?\*/|//[^\n]*)+(?:'[^']*'|\"[^\"]*\"|[\w\x24]+)(?:(?:\s|/\*.*?\*/|//[^\n]*)*as(?:\s|/\*.*?\*/|//[^\n]*)+(?:'[^']*'|\"[^\"]*\"|[\w\x24]+))?"
+}
+
+pattern require_name() { r"(?s)(?:\s|\(|/\*.*?\*/|//[^\n]*)*require(?:\s|\)|/\*.*?\*/|//[^\n]*)*" }
+
+or {
+  JsImport() as $n where {
+    $n <: contains JsModuleSource() as $m where { $m <: pg_module() },
+    or {
+      $n <: contains JsImportCombinedClause(),
+      and {
+        not { $n <: `import type $a from $b` },
+        or {
+          not {
+            $n <: contains or {
+              JsShorthandNamedImportSpecifier(),
+              JsNamedImportSpecifier()
+            }
+          },
+          $n <: contains or {
+            JsShorthandNamedImportSpecifier(),
+            JsNamedImportSpecifier()
+          } as $s where { not { $s <: type_specifier() } }
+        }
+      }
+    }
+  },
+  JsExport() as $n where {
+    $n <: contains or {
+      JsExportFromClause(),
+      JsExportNamedFromClause()
+    },
+    $n <: contains JsModuleSource() as $m where { $m <: pg_module() },
+    not {
+      $n <: or {
+        `export type { $a } from $b`,
+        `export type * from $b`,
+        `export type * as $a from $b`
+      }
+    },
+    or {
+      not { $n <: contains JsExportNamedFromSpecifier() },
+      $n <: contains JsExportNamedFromSpecifier() as $s where { not { $s <: type_specifier() } }
+    }
+  },
+  TsImportEqualsDeclaration() as $n where {
+    $n <: contains JsModuleSource() as $m where { $m <: pg_module() },
+    not { $n <: `import type $a = require($b)` }
+  },
+  JsImportCallExpression(arguments=JsCallArguments(args=[$m, ...])) as $n where {
+    $m <: module_in_argument()
+  },
+  JsCallExpression(callee=$c, arguments=JsCallArguments(args=[$m, ...])) as $n where {
+    $c <: require_name(),
+    $m <: module_in_argument()
+  }
+} as $found where {
+  register_diagnostic(span=$found, message="pg-connections: outside packages/adapter-postgres/src/connections a source file may import the driver (pg, pg-pool) for types only; a value import of a module whose name holds a backslash is refused as well. Create a pool or a client with createPostgresPool or createPostgresClient there, which handle its errors: a connection nobody handles ends the process when the server ends it.", severity="error")
+}

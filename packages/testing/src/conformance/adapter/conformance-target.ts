@@ -14,6 +14,12 @@ export interface ConformanceTarget {
    * A target without one makes those cases wait on real time.
    */
   readonly clock?: ConformanceClock | undefined;
+  /**
+   * A target that reaches its data over a connection (`networked`) ends, on the server's side,
+   * every connection the adapter holds, the one an open unit uses included. The cases then show
+   * that such a unit fails with `core.unavailable` and that the next unit commits.
+   */
+  endConnections?(): Promise<void>;
   reset(): Promise<void>;
   close(): Promise<void>;
 }

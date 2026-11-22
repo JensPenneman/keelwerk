@@ -50,6 +50,12 @@ export interface TestRuntimeOptions<Name extends string = 'acme' | 'globex'> {
         readonly capabilities?: readonly string[];
         readonly egress?: EgressPolicy;
       };
+  /**
+   * Ends a start that waits for a database that is not reachable (the runtime's `signal`, section
+   * 3.3): the start then rejects with `core.unavailable`. It has no effect once the start has
+   * connected.
+   */
+  readonly signal?: AbortSignal;
   /** The seconds `stop` gives the running services before it abandons them (the runtime's `drainSeconds`, default 60); only with workers. */
   readonly drainSeconds?: number;
   /**

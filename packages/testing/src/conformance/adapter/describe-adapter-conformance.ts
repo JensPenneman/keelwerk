@@ -15,6 +15,7 @@ import { commitTailQuotaCases } from './commit-tail-quota-cases.ts';
 import { conditionCases } from './condition-cases.ts';
 import type { ConformanceSubject } from './conformance-subject.ts';
 import type { ConformanceTarget } from './conformance-target.ts';
+import { connectionLossCases } from './connection-loss-cases.ts';
 import { consumerCases } from './consumer-cases.ts';
 import { encryptedQueryCases } from './encrypted-query-cases.ts';
 import { eventStoreCases } from './event-store-cases.ts';
@@ -102,6 +103,13 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
         if (capabilities === undefined) throw new Error('the adapter is not connected');
         return capabilities;
       },
+      endConnections: async () => {
+        const { endConnections } = current();
+        if (endConnections === undefined) {
+          throw new Error('a networked conformance target provides endConnections');
+        }
+        await endConnections();
+      },
       run: (scope, fn, unitOptions) => unit(scope, false)(fn, unitOptions),
       read: (scope, fn) => unit(scope, true)(fn),
     };
@@ -145,5 +153,7 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
       storedRecordCases(subject);
       queuedCapAdmissionCases(subject);
     });
+    // Last: the server ends the adapter's wake-up sessions too, and they open again after a pause.
+    describe('lost connections', () => connectionLossCases(subject));
   });
 }

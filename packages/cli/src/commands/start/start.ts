@@ -22,7 +22,8 @@ function roleOf(value: unknown): ProcessRole {
 /**
  * `start [--role serve|work|all] [--config <file>]` (section 16.9.7): runs one process of the
  * deployment the file describes, the way the compose file of `keelwerk init` does. Logs go to
- * standard output as JSON lines (section 11); an interrupt or `SIGTERM` starts the stop phase.
+ * standard output as JSON lines (section 11); an interrupt or `SIGTERM` starts the stop phase, or
+ * ends a start that is still waiting for its database.
  */
 export const startCommand: Command<CliContext> = buildCommand<
   Readonly<Record<string, unknown>>,
@@ -56,6 +57,7 @@ export const startCommand: Command<CliContext> = buildCommand<
         environment: 'production',
         env: this.host.env,
         logger,
+        signal: this.signal,
       }).catch((error: unknown) => {
         if (error instanceof KeelwerkError) {
           throw localFailure(error.kind, error.code, error.message);

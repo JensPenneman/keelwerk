@@ -5,6 +5,7 @@ import { coreError } from '../http/core-error.ts';
 import type { Job } from '../jobs/job.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { Logger } from '../observability/logger.ts';
+import { backgroundRetryMs } from '../runtime/background-retry-ms.ts';
 import type { WorkClassStats } from '../storage/work-class-stats.ts';
 import { eventLoopTurn } from './event-loop-turn.ts';
 import type { HeldJob } from './held-job.ts';
@@ -53,7 +54,8 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
   const renewing = new Set<HeldJob>();
   const sourceOfJob = new WeakMap<Job, QueueSource>();
   const waiters: (() => void)[] = [];
-  const readiness = sourceReadiness(clock, log);
+  const random = options.random ?? Math.random;
+  const readiness = sourceReadiness(clock, log, undefined, random);
   const stopped = new AbortController();
   const drained = new Set<QueueFetcher>();
   let settled = 0;
@@ -73,19 +75,33 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
     for (const resolve of waiters.splice(0)) resolve();
   };
 
+  /**
+   * When the entry's lease is next renewed: one heartbeat after the last renewal, later after a
+   * failed one.
+   */
+  const renewalDueAt = (entry: HeldJob): Temporal.Instant => {
+    const due = entry.renewedAt.add({ milliseconds: entry.heartbeatMs });
+    return entry.renewRetryAt !== undefined && Temporal.Instant.compare(entry.renewRetryAt, due) > 0
+      ? entry.renewRetryAt
+      : due;
+  };
+
   const tick = (): void => {
     const now = clock.now();
     const due = [...held.values()].filter(
-      (entry) =>
-        !renewing.has(entry) &&
-        Temporal.Instant.compare(now, entry.renewedAt.add({ milliseconds: entry.heartbeatMs })) >=
-          0,
+      (entry) => !renewing.has(entry) && Temporal.Instant.compare(now, renewalDueAt(entry)) >= 0,
     );
     if (due.length > 0) {
       for (const entry of due) renewing.add(entry);
-      void renewLeases(due, worker, now, (error) => {
-        log.warn('a lease renewal failed; the next tick asks again', { cause: error });
-      })
+      void renewLeases(
+        due,
+        worker,
+        now,
+        (failures) => backgroundRetryMs(failures, random),
+        (error) => {
+          log.warn('a lease renewal failed; it is asked again after a pause', { cause: error });
+        },
+      )
         .then((lost) => {
           for (const entry of lost) entry.abort.abort(jobLeaseLost());
         })
@@ -112,8 +128,9 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
     const now = clock.now();
     let delay = maxTickMs;
     for (const entry of held.values()) {
-      const dueAt = entry.renewedAt.add({ milliseconds: entry.heartbeatMs });
-      const wait = dueAt.epochMilliseconds - now.epochMilliseconds;
+      // A renewal in flight is not due again until it ends: counting it would spin the tick.
+      if (renewing.has(entry)) continue;
+      const wait = renewalDueAt(entry).epochMilliseconds - now.epochMilliseconds;
       delay = Math.min(delay, Math.max(0, wait));
     }
     return delay;

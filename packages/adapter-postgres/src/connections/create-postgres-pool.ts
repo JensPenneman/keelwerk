@@ -1,6 +1,6 @@
 import type { Logger } from '@keelwerk/core';
 import pg from 'pg';
-import type { PostgresPlacementOptions } from './postgres-placement-options.ts';
+import type { PostgresPlacementOptions } from '../postgres-placement-options.ts';
 
 /** What `createPostgresPool` takes. */
 export interface PostgresPoolSettings {
@@ -13,12 +13,13 @@ export interface PostgresPoolSettings {
 }
 
 /**
- * The placement's connection pool. Every session ends a transaction left idle (section 14.3.6) and
- * is tagged in `pg_stat_activity`. An error on a connection, idle or in use (the server restarted
- * or ended it), is logged once as a warning with its message only; the pool drops that connection
- * and the next unit opens another. A connection lost at a unit's first statement makes that unit
- * begin again on another connection (`runPostgresSession`); a connection lost while the unit's work
- * runs fails it with `core.unavailable`.
+ * The one place a pool is created: the placement's connection pool, in which every client gets its
+ * own handler of errors. Every session ends a transaction left idle (section 14.3.6) and is tagged
+ * in `pg_stat_activity`. An error on a connection, idle or in use (the server restarted or ended
+ * it), is logged once as a warning with its message only; the pool drops that connection and the
+ * next unit opens another. A connection lost at a unit's first statement makes that unit begin
+ * again on another connection (`runPostgresSession`); a connection lost while the unit's work runs
+ * fails it with `core.unavailable`.
  */
 export function createPostgresPool(settings: PostgresPoolSettings): pg.Pool {
   const pool = new pg.Pool({

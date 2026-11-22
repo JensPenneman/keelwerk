@@ -1,4 +1,5 @@
 import type { ChangeFeedSource, NamespaceRef, Position } from '@keelwerk/core';
+import { backgroundRetryMs } from '@keelwerk/core';
 import type { PollChangeFeedOptions } from './poll-change-feed-options.ts';
 
 type Wake = { readonly namespace: string; readonly scopeIds: readonly string[] };
@@ -9,16 +10,18 @@ type Wake = { readonly namespace: string; readonly scopeIds: readonly string[] }
  * start empty, so the first wake-up of a namespace names every scope that has events: the feed
  * cannot know what the reader has read, and a commit between the reader's first read and a later
  * baseline would otherwise be lost. A poll that fails is reported and repeated, which costs
- * latency and never an event.
+ * latency and never an event; while polls keep failing, the pause grows by `backgroundRetryMs`.
  */
 export function pollChangeFeed(options: PollChangeFeedOptions): ChangeFeedSource {
   const intervalMs = options.intervalMs ?? 1000;
   const pageSize = options.pageSize ?? 1000;
+  const random = options.random ?? Math.random;
   const sweep = async (
     namespace: NamespaceRef,
     marks: Map<string, Position>,
-  ): Promise<readonly string[]> => {
+  ): Promise<{ readonly moved: readonly string[]; readonly failed: boolean }> => {
     const moved: string[] = [];
+    let failed = false;
     try {
       for (;;) {
         const page = await options.moved(namespace, marks, pageSize);
@@ -29,9 +32,10 @@ export function pollChangeFeed(options: PollChangeFeedOptions): ChangeFeedSource
         if (page.length < pageSize) break;
       }
     } catch (error) {
+      failed = true;
       options.onError?.(namespace, error);
     }
-    return moved;
+    return { moved, failed };
   };
   return {
     level: 'poll',
@@ -41,13 +45,20 @@ export function pollChangeFeed(options: PollChangeFeedOptions): ChangeFeedSource
       );
       const marksOf = (namespace: NamespaceRef): Map<string, Position> =>
         marks.get(namespace.id) ?? new Map();
+      let failures = 0;
       while (!signal.aborted) {
+        let failed = false;
         for (const namespace of namespaces) {
           if (signal.aborted) return;
-          const moved = await sweep(namespace, marksOf(namespace));
-          if (moved.length > 0) yield { namespace: namespace.id, scopeIds: moved };
+          const swept = await sweep(namespace, marksOf(namespace));
+          failed ||= swept.failed;
+          if (swept.moved.length > 0) yield { namespace: namespace.id, scopeIds: swept.moved };
         }
-        await options.sleep(intervalMs, signal);
+        failures = failed ? failures + 1 : 0;
+        await options.sleep(
+          failed ? Math.max(intervalMs, backgroundRetryMs(failures, random)) : intervalMs,
+          signal,
+        );
       }
     },
     // The workers' own poll is the net: this feed names no queue.

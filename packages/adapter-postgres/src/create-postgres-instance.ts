@@ -16,13 +16,14 @@ import { Kysely, PostgresDialect } from 'kysely';
 import type pg from 'pg';
 import { checkRole } from './check-role.ts';
 import { checkServerVersion } from './check-server-version.ts';
+import { createPostgresPool } from './connections/create-postgres-pool.ts';
+import { mapPostgresError } from './map-postgres-error.ts';
 import type { PostgresAdapterInstance } from './postgres-adapter-instance.ts';
 import type { PostgresAdapterOptions } from './postgres-adapter-options.ts';
 import { postgresCapabilities } from './postgres-capabilities.ts';
 import { postgresIdentity } from './postgres-identity.ts';
 import { postgresNotWired } from './postgres-not-wired.ts';
 import { postgresOptionsSchema } from './postgres-options-schema.ts';
-import { createPostgresPool } from './postgres-pool.ts';
 import { runPostgresUnit } from './postgres-unit.ts';
 import type { PostgresUnitRequest } from './postgres-unit-request.ts';
 import { resolvePostgresClock } from './resolve-postgres-clock.ts';
@@ -140,7 +141,10 @@ export function createPostgresInstance(
         }
       } catch (error) {
         await pool.end();
-        throw error;
+        // A start waits on `core.unavailable` and ends at once on anything else, so a connection
+        // that could not be opened is mapped here; a refused password or a missing database stays
+        // the driver's.
+        throw mapPostgresError(error);
       }
       connection = { pool, db: new Kysely<SqlDb>({ dialect: new PostgresDialect({ pool }) }) };
       return postgresCapabilities();

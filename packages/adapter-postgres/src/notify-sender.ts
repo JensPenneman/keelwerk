@@ -1,5 +1,6 @@
 import type { Logger } from '@keelwerk/core';
-import pg from 'pg';
+import type pg from 'pg';
+import { createPostgresClient } from './connections/create-postgres-client.ts';
 
 /** What `notifySender` needs. */
 export interface NotifySenderSettings {
@@ -23,9 +24,20 @@ export interface NotifySender {
  */
 export function notifySender(settings: NotifySenderSettings): NotifySender {
   let client: Promise<pg.Client> | undefined;
+  /** The connection `client` holds once it is open. */
+  let live: pg.Client | undefined;
   let closed = false;
   const connect = async (): Promise<pg.Client> => {
-    const created = new pg.Client({
+    const created = createPostgresClient({
+      onError: (error) => {
+        // The driver reports one ended connection twice (the server's message, then the end of the
+        // socket), and the second report can come after the next wake-up opened another connection:
+        // only the connection that is held is dropped, and only once.
+        if (live !== created) return;
+        live = undefined;
+        client = undefined;
+        settings.log.warn('postgres notifier: the connection failed', { message: error.message });
+      },
       connectionString: settings.url,
       // biome-ignore lint/style/useNamingConvention: the key is the driver's option name
       application_name: `${settings.applicationName}-notify`,
@@ -34,11 +46,8 @@ export function notifySender(settings: NotifySenderSettings): NotifySender {
       // biome-ignore lint/style/useNamingConvention: the key is the driver's option name
       query_timeout: 5000,
     });
-    created.on('error', (error) => {
-      settings.log.warn('postgres notifier: the connection failed', { message: error.message });
-      client = undefined;
-    });
     await created.connect();
+    live = created;
     if (closed) {
       // The sender was closed while this connection was opening: nothing will use it.
       created.end().catch(() => undefined);
@@ -65,6 +74,7 @@ export function notifySender(settings: NotifySenderSettings): NotifySender {
         if (client !== undefined && (await client.catch(() => undefined)) === connected) {
           client = undefined;
         }
+        if (live === connected) live = undefined;
         connected.end().catch(() => undefined);
         throw error;
       }
@@ -73,6 +83,7 @@ export function notifySender(settings: NotifySenderSettings): NotifySender {
       closed = true;
       const current = client;
       client = undefined;
+      live = undefined;
       if (current === undefined) return;
       await (await current.catch(() => undefined))?.end().catch(() => undefined);
     },

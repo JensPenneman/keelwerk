@@ -83,4 +83,89 @@ describe('sourceReadiness', () => {
     expect(await before).toBe(true);
     expect(await readiness.ready(source)).toBe(true);
   });
+
+  test('a check that cannot read the track is asked again after the pause of the policy, not after a minute', async () => {
+    let now = Temporal.Instant.from('2026-01-01T00:00:00Z');
+    let reads = 0;
+    const source = {
+      ...behind,
+      handle: {
+        adapter: {
+          schema: {
+            history: () => {
+              reads += 1;
+              return Promise.reject(new Error('the database is away'));
+            },
+          },
+        },
+      },
+    } as unknown as QueueSource;
+    const readiness = sourceReadiness(
+      { now: () => now } as Clock,
+      { warn: () => undefined } as unknown as Logger,
+      undefined,
+      () => 0.5,
+    );
+    const asked = async (milliseconds: number): Promise<number> => {
+      now = Temporal.Instant.from('2026-01-01T00:00:00Z').add({ milliseconds });
+      expect(await readiness.ready(source)).toBe(false);
+      return reads;
+    };
+    expect(await asked(0)).toBe(1);
+    expect(await asked(999)).toBe(1);
+    expect(await asked(1000)).toBe(2);
+    // The second failure in a row waits twice as long.
+    expect(await asked(2999)).toBe(2);
+    expect(await asked(3000)).toBe(3);
+  });
+
+  test('a check that read the track, ready or not, starts the failures again', async () => {
+    let now = Temporal.Instant.from('2026-01-01T00:00:00Z');
+    let reads = 0;
+    let readable = false;
+    const source = {
+      ...behind,
+      handle: {
+        adapter: {
+          schema: {
+            history: () => {
+              reads += 1;
+              return readable ? Promise.resolve([]) : Promise.reject(new Error('away'));
+            },
+          },
+        },
+      },
+    } as unknown as QueueSource;
+    const readiness = sourceReadiness(
+      { now: () => now } as Clock,
+      { warn: () => undefined } as unknown as Logger,
+      undefined,
+      () => 0.5,
+    );
+    const at = (milliseconds: number): void => {
+      now = Temporal.Instant.from('2026-01-01T00:00:00Z').add({ milliseconds });
+    };
+    // Two failures in a row: the next check waits two seconds.
+    await readiness.ready(source);
+    at(1000);
+    await readiness.ready(source);
+    expect(reads).toBe(2);
+    // The track is read at last (and found behind); an explicit wake checks again at once.
+    readable = true;
+    at(3000);
+    await readiness.ready(source);
+    expect(reads).toBe(3);
+    // Failing again counts from one: a pause of a second.
+    readable = false;
+    readiness.recheck();
+    at(3001);
+    await readiness.ready(source);
+    expect(reads).toBe(4);
+    at(4000);
+    await readiness.ready(source);
+    expect(reads).toBe(4);
+    at(4001);
+    await readiness.ready(source);
+    expect(reads).toBe(5);
+  });
 });

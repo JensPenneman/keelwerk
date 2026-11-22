@@ -1,5 +1,6 @@
 import { errors } from '../errors/errors.ts';
 import type { Logger } from '../observability/logger.ts';
+import { backgroundRetryMs } from '../runtime/background-retry-ms.ts';
 import type { RuntimeService } from '../runtime/runtime-service.ts';
 import { isKernelQueue } from '../worker/is-kernel-queue.ts';
 import type { QueueSource } from '../worker/queue-source.ts';
@@ -17,6 +18,8 @@ interface Namespace {
   readonly source: QueueSource;
   readonly state: SchedulePassState;
   readonly trigger: () => Promise<void>;
+  /** The timer's trigger: nothing while the pause after a failed pass has not passed. */
+  readonly paced: () => Promise<void>;
   /** The pass in flight. */
   running(): Promise<void> | undefined;
 }
@@ -40,16 +43,21 @@ function newState(): SchedulePassState {
 /**
  * The schedule ticker `core.schedules` (9.5.6, S-118, S-165), roles ['work']. `start` keeps one
  * `SchedulePassState` per app namespace of `context.namespaces` (the control namespace and the
- * registries without schedules left out), gated by `sourceReadiness` (framework step 0002), starts one
- * pass per namespace at once without waiting for it, then every `passEveryMs` on an unref'd wall timer, never two passes of
- * one namespace at a time (a trigger while one runs reruns it once after). On a kernel queue it
- * calls `queue.attend(...)` with a run that triggers every namespace's pass, repeats while rows stay
- * due beyond the bounds, and settles when those passes and every backend task settled. `stop` clears
- * the timer, starts nothing more, waits for the running tasks until the deadline and leaves the
- * rest: their late rejection is caught and logged once ('a schedule tick was abandoned at the stop
- * deadline'); a unit still open then is aborted through its signal and commits nothing.
+ * registries without schedules left out), gated by `sourceReadiness` (framework step 0002), starts
+ * one pass per namespace at once without waiting for it, then every `passEveryMs` on an unref'd
+ * wall timer (a namespace whose pass failed is skipped until `backgroundRetryMs` of its failures in
+ * a row have passed on the runtime clock), never two passes of one namespace at a time (a trigger
+ * while one runs reruns it once after). On a kernel queue it calls `queue.attend(...)` with a run
+ * that triggers every namespace's pass, repeats while rows stay due beyond the bounds, and settles
+ * when those passes and every backend task settled. `stop` clears the timer, starts nothing more,
+ * waits for the running tasks until the deadline and leaves the rest: their late rejection is
+ * caught and logged once ('a schedule tick was abandoned at the stop deadline'); a unit still open
+ * then is aborted through its signal and commits nothing.
  */
-export function createScheduleTicker(limits?: Partial<ScheduleLimits>): RuntimeService {
+export function createScheduleTicker(
+  limits?: Partial<ScheduleLimits>,
+  random: () => number = Math.random,
+): RuntimeService {
   const bounds: ScheduleLimits = { ...defaultScheduleLimits, ...limits };
   const served: Namespace[] = [];
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -78,6 +86,8 @@ export function createScheduleTicker(limits?: Partial<ScheduleLimits>): RuntimeS
         const state = newState();
         let running: Promise<void> | undefined;
         let again = false;
+        let failures = 0;
+        let retryAt: Temporal.Instant | undefined;
         const pass = async (): Promise<void> => {
           if (!(await readiness.ready(source))) return;
           await runSchedulePass({ context, source, served: app, limits: bounds, state });
@@ -92,7 +102,13 @@ export function createScheduleTicker(limits?: Partial<ScheduleLimits>): RuntimeS
               again = false;
               try {
                 await pass();
+                failures = 0;
+                retryAt = undefined;
               } catch (error) {
+                failures += 1;
+                retryAt = context.clock
+                  .now()
+                  .add({ milliseconds: backgroundRetryMs(failures, random) });
                 // A pass cut short by the stop is reported once by `stop`, not as a failure.
                 if (!stopping) context.log.error('a schedule pass failed', { cause: error });
               }
@@ -103,10 +119,17 @@ export function createScheduleTicker(limits?: Partial<ScheduleLimits>): RuntimeS
           running = run;
           return run;
         };
-        served.push({ source, state, trigger, running: () => running });
+        const paced = (): Promise<void> =>
+          retryAt !== undefined && Temporal.Instant.compare(context.clock.now(), retryAt) < 0
+            ? Promise.resolve()
+            : trigger();
+        served.push({ source, state, trigger, paced, running: () => running });
       }
       const triggerAll = async (): Promise<void> => {
         await Promise.all(served.map(({ trigger }) => trigger()));
+      };
+      const tickAll = async (): Promise<void> => {
+        await Promise.all(served.map(({ paced }) => paced()));
       };
       const attended = async (): Promise<void> => {
         for (let round = 0; round < maxRounds && !stopping; round += 1) {
@@ -124,7 +147,7 @@ export function createScheduleTicker(limits?: Partial<ScheduleLimits>): RuntimeS
       });
       if (!stopping && served.length > 0) {
         timer = setInterval(() => {
-          void triggerAll();
+          void tickAll();
         }, bounds.passEveryMs);
         timer.unref();
       }

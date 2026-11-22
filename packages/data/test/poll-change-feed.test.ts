@@ -76,3 +76,76 @@ test('a failing poll is reported and the next round carries on', async () => {
   expect(errors).toHaveLength(1);
   stop.abort();
 });
+
+test('the pause between polls is one interval after a good poll and grows by the policy while polls fail', async () => {
+  const stop = new AbortController();
+  const pauses: number[] = [];
+  // The polls, in order: good, failed, failed, failed, good.
+  const outcomes = ['good', 'failed', 'failed', 'failed', 'good'];
+  let calls = 0;
+  const feed = pollChangeFeed({
+    moved: async () => {
+      calls += 1;
+      if (outcomes[calls - 1] === 'failed') throw new Error('down');
+      return calls === 5 ? [{ scopeId: 'a', head: 1n }] : [];
+    },
+    sleep: async (ms) => {
+      pauses.push(ms);
+    },
+    random: () => 0.5,
+    onError: () => undefined,
+  });
+  const wakes = feed.wake([namespace], stop.signal)[Symbol.asyncIterator]();
+  // The fifth poll is the first to name a scope.
+  expect((await wakes.next()).value).toEqual({ namespace: 'ns-1', scopeIds: ['a'] });
+  expect(pauses).toEqual([1000, 1000, 2000, 4000]);
+  stop.abort();
+});
+
+test('a pause after a failed poll is never shorter than the interval', async () => {
+  const stop = new AbortController();
+  const pauses: number[] = [];
+  let calls = 0;
+  const feed = pollChangeFeed({
+    intervalMs: 5000,
+    moved: async () => {
+      calls += 1;
+      if (calls < 3) throw new Error('down');
+      return [{ scopeId: 'a', head: 1n }];
+    },
+    sleep: async (ms) => {
+      pauses.push(ms);
+    },
+    random: () => 0.5,
+    onError: () => undefined,
+  });
+  const wakes = feed.wake([namespace], stop.signal)[Symbol.asyncIterator]();
+  expect((await wakes.next()).value).toEqual({ namespace: 'ns-1', scopeIds: ['a'] });
+  expect(pauses).toEqual([5000, 5000]);
+  stop.abort();
+});
+
+test('a poll that succeeds starts the failures again: the next failure pauses one interval', async () => {
+  const stop = new AbortController();
+  const pauses: number[] = [];
+  // The polls, in order: failed, failed, good (names a scope), failed, good (names another).
+  const outcomes = ['failed', 'failed', 'good', 'failed', 'good'];
+  let calls = 0;
+  const feed = pollChangeFeed({
+    moved: async () => {
+      calls += 1;
+      if (outcomes[calls - 1] === 'failed') throw new Error('down');
+      return [{ scopeId: `scope-${calls}`, head: 1n }];
+    },
+    sleep: async (ms) => {
+      pauses.push(ms);
+    },
+    random: () => 0.5,
+    onError: () => undefined,
+  });
+  const wakes = feed.wake([namespace], stop.signal)[Symbol.asyncIterator]();
+  await wakes.next();
+  await wakes.next();
+  expect(pauses).toEqual([1000, 2000, 1000, 1000]);
+  stop.abort();
+});

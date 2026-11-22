@@ -1,6 +1,8 @@
 import { errors } from '../errors/errors.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import type { Registry } from '../registry/registry.ts';
+import type { StartWait } from '../runtime/connect-while-unavailable.ts';
+import { connectWhileUnavailable } from '../runtime/connect-while-unavailable.ts';
 import type { SchemaPlanner } from '../runtime/schema-planner.ts';
 import type { AdapterEnvironment } from '../storage/adapter-environment.ts';
 import type { DataAdapterFactory } from '../storage/data-adapter-factory.ts';
@@ -18,7 +20,8 @@ const probeId = '00000000-0000-7000-8000-000000000000';
  * `kw__control` root as the one record of the `keelwerk.deployment` track; every later boot reads
  * it back. It is never derived from the url, so rotating a password or moving the host keeps the
  * control store visible. The adapter needs the id when it is created, so a short probe connection
- * reads or records it first and closes again. Concurrent first boots keep the earliest id.
+ * reads or records it first and closes again; its connect waits while the database is not
+ * reachable. Concurrent first boots keep the earliest id.
  */
 export async function resolveDeploymentId(input: {
   readonly factory: DataAdapterFactory;
@@ -28,10 +31,16 @@ export async function resolveDeploymentId(input: {
   readonly planner: SchemaPlanner | undefined;
   readonly registry: Registry;
   readonly adapterName: string;
+  /** The start's wait for a database that is not reachable yet. */
+  readonly wait: StartWait;
 }): Promise<string> {
   const probe = input.factory.create(input.config, { ...input.environment, deploymentId: probeId });
   try {
-    const capabilities = await probe.connect();
+    const capabilities = await connectWhileUnavailable(
+      'control',
+      () => probe.connect(),
+      input.wait,
+    );
     if (input.planner === undefined) {
       if (capabilities.dialect !== 'memory') {
         throw errors.validation(

@@ -25,7 +25,16 @@ export interface TickerKit {
   readonly spy: JobSpy;
   /** Pins the clock at `at`, then runs the ticker and the jobs until both are quiet. */
   advanceTo(at: Temporal.Instant): Promise<number>;
-  call<T = unknown>(tenant: TickerTenant, action: string, input: unknown): Promise<Outcome<T>>;
+  /**
+   * Invokes `action` in a tenant; `commandId` is the id a caller sends again after an outcome it
+   * does not know.
+   */
+  call<T = unknown>(
+    tenant: TickerTenant,
+    action: string,
+    input: unknown,
+    commandId?: string,
+  ): Promise<Outcome<T>>;
   /** The rows of an entity in a tenant's scope, or in the backend's scope. */
   rows(scope: TickerTenant | 'backend', entity: string): Promise<readonly StorageRow[]>;
   scopeOf(scope: TickerTenant | 'backend'): Scope;
@@ -36,7 +45,7 @@ export interface TickerKit {
 export async function bootTicker(
   options: Pick<
     TestRuntimeOptions<TickerTenant>,
-    'adapter' | 'external' | 'join' | 'logger' | 'eventWorkers' | 'drainSeconds'
+    'adapter' | 'external' | 'join' | 'logger' | 'eventWorkers' | 'drainSeconds' | 'signal'
   > & {
     readonly at?: Temporal.Instant;
     readonly secondTicker?: boolean;
@@ -94,10 +103,11 @@ export async function bootTicker(
       : {}),
     ...rest,
   });
-  const call: TickerKit['call'] = (tenant, action, input) =>
+  const call: TickerKit['call'] = (tenant, action, input, commandId) =>
     runtime.invoker.invoke({
       action,
       input,
+      ...(commandId === undefined ? {} : { commandId }),
       carrier: testCarrier(runtime.tenants[tenant], testPrincipal(tickerOwner)),
       requestId: crypto.randomUUID(),
       signal: new AbortController().signal,

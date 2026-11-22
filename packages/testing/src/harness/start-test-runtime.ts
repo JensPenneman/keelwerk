@@ -168,6 +168,7 @@ export async function startTestRuntime<
       ...(options.timers === undefined ? {} : { timers: options.timers }),
       ...(options.keyCache === undefined ? {} : { keyCache: options.keyCache }),
       ...(options.logger === undefined ? {} : { logger: options.logger }),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
       ...(options.workers === undefined
         ? {}
         : {

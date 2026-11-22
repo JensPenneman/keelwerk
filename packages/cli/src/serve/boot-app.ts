@@ -8,6 +8,8 @@ export interface BootOptions {
   readonly environment: NonNullable<RuntimeOptions['environment']>;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly logger: Logger;
+  /** Ends a start that waits for a database that is not reachable (`RuntimeOptions.signal`). */
+  readonly signal?: AbortSignal;
 }
 
 /**
@@ -25,6 +27,7 @@ export async function bootApp(
     environment: options.environment,
     env: options.env,
     logger: options.logger,
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
   });
   return {
     runtime,

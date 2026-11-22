@@ -5,7 +5,11 @@ import { createApplicationRole } from './create-application-role.ts';
 import { deadlockCount } from './deadlock-count.ts';
 import { declaredDeadlocks } from './declared-deadlocks.ts';
 import { postgresImage } from './postgres-image.ts';
+import { restartControls } from './restart-controls.ts';
+import type { RestartablePostgres } from './restartable-postgres.ts';
 import type { RunningPostgres } from './running-postgres.ts';
+import { serverOptions } from './server-options.ts';
+import { supervisorScript } from './supervisor-script.ts';
 
 /**
  * Starts one PostgreSQL 18 container with the image's default durability settings and
@@ -19,16 +23,28 @@ import type { RunningPostgres } from './running-postgres.ts';
  * way. A file that declared deadlocks and stops more than one checked container fails: a declaration
  * belongs to the file, so opt one container out with `checkDeadlocks: false` or split the file.
  * Only a caller whose files the connection guard already checks one by one, and a test of this rule,
- * opts out.
+ * opts out. With `restartable: true` the server runs under a supervising shell and the result has
+ * `stopServer` and `startServer` (`RestartablePostgres`); the container stops as any other.
  */
+export async function startPostgres(options: {
+  readonly checkDeadlocks?: boolean;
+  readonly restartable: true;
+}): Promise<RestartablePostgres>;
+export async function startPostgres(options?: {
+  readonly checkDeadlocks?: boolean;
+  readonly restartable?: false;
+}): Promise<RunningPostgres>;
 export async function startPostgres(
-  options: { readonly checkDeadlocks?: boolean } = {},
-): Promise<RunningPostgres> {
-  const container = await new PostgreSqlContainer(postgresImage)
-    .withCommand(['postgres', '-c', 'max_connections=200'])
+  options: { readonly checkDeadlocks?: boolean; readonly restartable?: boolean } = {},
+): Promise<RunningPostgres | RestartablePostgres> {
+  const image = new PostgreSqlContainer(postgresImage)
+    .withCommand(['postgres', ...serverOptions])
     .withLabels({ 'keelwerk-test': 'postgres' })
-    .withTmpFs({ '/var/lib/postgresql': 'rw' })
-    .start();
+    .withTmpFs({ '/var/lib/postgresql': 'rw' });
+  const container = await (options.restartable === true
+    ? image.withEntrypoint(['sh', '-c', supervisorScript, 'supervisor'])
+    : image
+  ).start();
   try {
     await createApplicationRole(container);
     const versionResult = await container.exec([
@@ -54,7 +70,7 @@ export async function startPostgres(
     const deadlocksBefore = checkDeadlocks ? await deadlockCount(cluster) : 0;
     const declaredBefore = declaredDeadlocks.count;
     if (checkDeadlocks) declaredDeadlocks.checked += 1;
-    return {
+    const running: RunningPostgres = {
       adminUrl,
       appUrl,
       version: versionResult.output.trim(),
@@ -85,6 +101,7 @@ export async function startPostgres(
         }
       },
     };
+    return options.restartable === true ? { ...running, ...restartControls(cluster) } : running;
   } catch (error) {
     await container.stop();
     throw error;

@@ -17,6 +17,17 @@
       "!packages/biome-config/plugins/fixtures"
     ]
   },
+  "plugins": [
+    {
+      "path": "./scripts/lint/pg-connections.grit",
+      "includes": [
+        "**/src/**",
+        "!**/packages/adapter-postgres/src/connections/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts"
+      ]
+    }
+  ],
   "overrides": [
     {
       "includes": ["**"],

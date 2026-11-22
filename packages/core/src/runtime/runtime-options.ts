@@ -36,6 +36,12 @@ export interface RuntimeOptions {
   readonly keyCache?: { readonly ttlMs?: number };
   /** The waits of live carriers, of the usage flusher and of the runtime services (heartbeat, maximum duration, the minute between flushes, the interval of the retention worker); default: timers on the runtime's clock (change note, WP-94). */
   readonly timers?: LiveTimers;
+  /**
+   * Ends a start that waits for a database that is not reachable (section 3.3): the start then
+   * rejects with `core.unavailable`. It has no effect once the start has connected. Without one the
+   * wait ends only when the database answers or a connect fails with another error.
+   */
+  readonly signal?: AbortSignal;
   /** What a process with the `work` role works: slots, capabilities and the drain (section 21.1). */
   readonly work?: WorkOptions;
 }

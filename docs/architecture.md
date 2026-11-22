@@ -321,6 +321,25 @@ hook appends `core.tenant.hookFailed { hook }` to the tenant's stream, which doc
 `rerunTenantHooks` reruns only the failed hooks and appends `hookCompleted` for each that then
 succeeds, so `hookCompleted` is written on a rerun only.)
 
+Added 2026-11-21 (breaking): the connects of the `connect` phase (the probe that reads the
+deployment id, the control adapter and the adapter of each placement) wait for a database that is
+not reachable yet. A connect that rejects with `unavailable`, `core.unavailable` is repeated after
+the pause of section 9.5.6, with one warning per wait that names the placement, the pause and the
+code of the cause as the driver or the system gave it (`ECONNREFUSED`, `ENOTFOUND`, `57P03`, or
+`no code`), and nothing of the connection string, the user or the password; any other error ends
+the start at once (a refused password, a database that does not exist, a server version the adapter
+refuses), and so does a failure after the connects (a step of the framework track, a migration, a
+second live process on a single-process adapter). A host name that does not resolve waits like a
+refused port: under a container runtime that is a database whose container is not up yet, and the
+code in each warning shows a mistyped host. The wait has no limit of its own:
+`RuntimeOptions.signal` ends it, and the start then rejects with the last `core.unavailable`;
+`keelwerk start` passes the signal that its interrupt and `SIGTERM` raise. A start that was not
+given a signal and whose database never answers waits until it does. An adapter whose units reach
+their data over a connection answers `core.unavailable` for a connection that could not be opened
+(section 14.3.6), because the wait keys on that code. A `connect` that rejected with
+`core.unavailable` is called again on the same adapter instance, so it must leave the instance able
+to connect.
+
 A process boots through one entry point of the core, which runs the phases above in order:
 
 ```ts
@@ -332,6 +351,7 @@ export interface RuntimeOptions {
   readonly apps?: readonly string[]            // default: every app of the deployment
   readonly logger?: Logger                     // default: the core's no-op logger (section 11)
   readonly clock?: { now(): Temporal.Instant } // tests: a fixed or stepped clock
+  readonly signal?: AbortSignal                // ends a start that waits for its database
 }
 
 export interface Runtime {
@@ -4511,6 +4531,36 @@ Making the two the same number is open work.
   without a wake-up). A job made takeable while a drain runs may be left to the next drain; a store
   double that holds a take back answers it with a skipped lane, not with no job, and its test
   keeps real timers: the retake after a skipped lane waits on `setTimeout`.
+- Added 2026-11-21 (breaking): the background loops try again after a failure by one policy,
+  `backgroundRetryMs` of `@keelwerk/core`: one second doubled for each failure in a row, at most ten
+  seconds, times a draw between 0.8 and 1.2, and a success starts the count again. It sets the next
+  poll of a fetcher after a sweep that failed (after a sweep that did not fail the poll is the same
+  formula at no failure, a second a fifth either way), except that a failed sweep of only the
+  namespaces a wake named leaves the poll where it was, and those namespaces are tried at that poll;
+  when the lease renewal of a namespace's attempts failed, the time before their next renewal (the
+  attempts stay due, are asked for again only once the pause has passed on the runtime clock, and a
+  renewal in flight does not shorten the wait for the next tick); the wait before the framework
+  check of a source whose track could not be read is asked again (an explicit wake still checks at
+  once); the pass of the schedule ticker for a namespace whose pass failed (its timer skips the
+  namespace until the pause has passed; the first pass and the passes of the test probe are not
+  held); a consumer's next turn for a scope whose turn failed, and the next call of a consumer's
+  lease after a call that failed; the reopen of a `LISTEN` session (section 14.3.7); the poll of a
+  feed that polls the heads (never shorter than its interval); and each wait of the start (section
+  3.3). The process heartbeat (ten seconds) and the erasure worker keep their fixed intervals. A
+  pause is the least time before a loop's next try, not the time of it: the schedule ticker looks at
+  its pause on its timer of one second, the fetcher and the renewal on the kernel tick, so a try can
+  come up to a second after its pause has passed, and a try that fails again makes the next pause
+  longer. A lease that passes while the database is away is returned by the reclaim of the next take
+  (section 9.5.2), so an attempt may run again, as after any lost lease (section 9.5.4). A lease can
+  also end inside the pause of a failed renewal although the database answers again: the renewal is
+  paced by this policy and by nothing else, and its pause is not shortened as the lease's end comes
+  near. The attempt can then be reclaimed and run again, as the contract of a job allows. A renewal
+  that arrives after the lease's end still keeps an attempt that no take has reclaimed: its
+  statement renews by worker, attempt and state `running` and does not compare the end of the lease.
+  A wake-up makes a fetcher sweep at once, or right after the sweep under way; after a sweep that
+  failed, at the next tick of the kernel (at most a second); whatever its poll says (a reopened
+  `LISTEN` session of `kw_jobs` wakes every fetcher); the pauses of the other loops are not cut
+  short by it.
 - Added 2026-11-11: a worker takes no job from a namespace until step 0002 of the framework's
   migration track (`keelwerk.framework`, the M2 framework tables) is recorded there; it warns once
   that the jobs wait for `keelwerk db apply`.
@@ -6340,6 +6390,17 @@ always admitted.
   assumes a tenant and its backend are co-placed.
 - Added 2026-11-11: a unit that has ended refuses every statement, on every adapter, so work that
   resumes after its deadline can write nothing.
+- Added 2026-11-21: while its database is away a unit fails with `unavailable`, `core.unavailable`
+  (retryable), whatever state its connection was in: a connection that could not be opened, one the
+  server ended while the unit ran, one found dead at the unit's first statement (that unit begins
+  again on another connection and succeeds when the server answers). The error carries the driver's
+  error only as `cause`, for logs; transports send the wire form, which has none. A unit that fails
+  with it at its `commit` may have committed, because the server's answer can be what was lost: a
+  caller that does not know sends the same command id again, and the receipt of section 7.4 answers
+  the recorded outcome of a command that committed and runs one that did not. The in-memory adapter
+  and PGlite hold no connection that a server could end; an author of a store whose units reach
+  their data over a connection answers `core.unavailable` in the same cases, and the conformance kit
+  shows it through `endConnections` of a networked target.
 
 #### 14.3.7 How each adapter fits
 
@@ -6361,6 +6422,35 @@ queue, which a list past the payload limit also becomes). The first reader of `j
 kw_jobs` session of its own, so a process that serves requests only holds none, and each time that
 session listens (first and reopen) every reader gets a wake-up that names no queue. Nothing about a
 tenant goes into the payload: the namespace id and the app's queue names only.
+
+Added 2026-11-21: every connection the PostgreSQL adapter creates or holds has an owner that handles
+its errors from the moment it exists, because an `error` event that nobody listens to ends the
+process. A pool is created by `createPostgresPool` and any other client by `createPostgresClient`
+(both in `src/connections/`), which attach the handler before they return; the lint rule
+`pg-connections` guards against a forgotten or careless import, not against an author who hides the
+name: elsewhere in a package's `src` (tests are outside it) a file may import the driver's modules,
+`pg` and `pg-pool`, for types only. The rule reads a module name that is written out as one literal
+(also with an escape sequence, which counts as the driver in a value import because it can spell it,
+and also anywhere inside the first argument of a dynamic import or a `require`: in parentheses, with
+`as`, `satisfies` or `!`, after a comma, in a condition) and refuses a value import of it. It does
+not see a module name that is put together when the code runs (a template literal with a
+substitution or a tag, a concatenation, a variable; of the first argument of a call it reads the
+literals one by one, as written), a `require` that is not called by its own name, and a value that
+the place or another package hands on. A use that cannot go through the place states its reason
+(`biome-ignore lint/plugin: <reason>`). The pool's handler is per client, because pg-pool removes
+its own when it hands a client out; a `LISTEN` session that was lost opens again by the policy of
+section 9.5.6, and on `kw_jobs` wakes its readers once it listens (the heads of `kw_events` are
+recovered by their poll, and a broadcast subscription ends with `core.unavailable`); the notify
+connection is dropped when the driver reports it ended (once, however many times the driver reports
+it) and the next wake-up opens another; the schema connection logs. A wake-up that fails to send is
+logged and costs latency only, as before. The adapter's `connect` maps a connection that could not
+be opened to `core.unavailable`, so a start waits (section 3.3), and leaves the driver's own error
+for what waiting cannot cure (28P01, 3D000). A network that goes silent without closing the
+connection is bounded only as built: a connect by `connectionTimeoutMs` (ten seconds), a `NOTIFY` by
+a five-second `query_timeout`, a `LISTEN` session by TCP keepalive (first probe after ten seconds)
+and the broadcast session by its heartbeat (every five seconds). A unit's deadline is set as the
+server's `statement_timeout`, which a network that went silent never delivers, so nothing on the
+client side bounds a statement or the connection of a pool under a command or a running unit.
 
 **PostgreSQL.** The reference adapter. `connect` refuses a server older than PostgreSQL 18, the
 only major verified. Units set `keelwerk.tenant_id` (or `keelwerk.backend_id`)

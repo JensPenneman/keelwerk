@@ -33,6 +33,8 @@ import type { PlacementConfig } from '../storage/placement-config.ts';
 import { buildManifestOf } from './build-manifest-of.ts';
 import { checkControlNamespace } from './check-control-namespace.ts';
 import type { Composed } from './compose-phase.ts';
+import type { StartWait } from './connect-while-unavailable.ts';
+import { connectWhileUnavailable } from './connect-while-unavailable.ts';
 import type { Connected } from './connected.ts';
 import type { DeploymentDefinition } from './deployment-definition.ts';
 import { keyCacheOptionsOf } from './key-cache-options-of.ts';
@@ -100,7 +102,8 @@ export interface ConnectInput {
  * `connect` (section 3.3): the secrets and the master key, the identity of this process (node id,
  * build), the control adapter and the key service over it, the control namespace, the placements
  * the process opens, and `core.placement` and `core.process`. A single-process adapter refuses a
- * second live process. Everything opened is closed again when a step fails.
+ * second live process. Each adapter's connect waits while its database is not reachable
+ * (`connectWhileUnavailable`). Everything opened is closed again when a step fails.
  */
 export async function connectPhase(input: ConnectInput): Promise<Connected> {
   const { deployment, composed, served, log, clock } = input;
@@ -137,6 +140,7 @@ export async function connectPhase(input: ConnectInput): Promise<Connected> {
     signal: input.signal,
     clock,
   };
+  const wait: StartWait = { log, signal: input.options.signal };
   const controlRegistry = served[0]?.registry;
   if (controlRegistry === undefined) throw errors.internal('The process serves no app.');
   const deploymentId = await resolveDeploymentId({
@@ -147,6 +151,7 @@ export async function connectPhase(input: ConnectInput): Promise<Connected> {
     planner,
     registry: controlRegistry,
     adapterName: deployment.control.adapter,
+    wait,
   });
 
   let keys: ForkableKeyService | undefined;
@@ -180,7 +185,11 @@ export async function connectPhase(input: ConnectInput): Promise<Connected> {
       environment,
     );
     opened.push(controlAdapter);
-    const controlCapabilities = await controlAdapter.connect();
+    const controlCapabilities = await connectWhileUnavailable(
+      'control',
+      () => controlAdapter.connect(),
+      wait,
+    );
     const recordFallbacks = (placement: string, capabilities: AdapterCapabilities): void => {
       for (const row of composed.infrastructure.fallbackReporter?.report(capabilities) ?? []) {
         log.info('the adapter lacks a capability; the kernel path runs in its place', {
@@ -239,7 +248,7 @@ export async function connectPhase(input: ConnectInput): Promise<Connected> {
         environment,
       );
       opened.push(adapter);
-      const capabilities = await adapter.connect();
+      const capabilities = await connectWhileUnavailable(name, () => adapter.connect(), wait);
       recordFallbacks(name, capabilities);
       // The kernel reaches a placement through the sealing layer: personal values are sealed and
       // queried by tag on the way to the adapter (14.7.9).

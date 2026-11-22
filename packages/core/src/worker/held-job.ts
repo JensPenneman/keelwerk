@@ -14,4 +14,11 @@ export interface HeldJob {
   readonly expiresAt: Temporal.Instant | undefined;
   /** The last renewal on the runtime clock: the take, or one heartbeat earlier when `heartbeatMs` is not 10 000 (renewed at the next tick). */
   renewedAt: Temporal.Instant;
+  /** The renewals that failed in a row; 0 after a renewal that succeeded. */
+  renewFailures: number;
+  /**
+   * After a failed renewal: the runtime clock's reading before which the next try is not made; once
+   * passed it holds nothing back.
+   */
+  renewRetryAt: Temporal.Instant | undefined;
 }

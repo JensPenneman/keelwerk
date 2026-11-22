@@ -9,7 +9,7 @@ import { testScopes } from './support/test-scopes.ts';
 
 const seen: PostgresUnitRequest[] = [];
 
-vi.mock('../src/postgres-pool.ts', () => ({
+vi.mock('../src/connections/create-postgres-pool.ts', () => ({
   createPostgresPool: () => ({
     options: { max: 1 },
     connect: async () => ({ release: () => undefined, query: async () => ({ rows: [] }) }),

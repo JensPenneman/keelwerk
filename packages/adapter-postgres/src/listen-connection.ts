@@ -1,5 +1,7 @@
 import type { Logger } from '@keelwerk/core';
-import pg from 'pg';
+import { backgroundRetryMs } from '@keelwerk/core';
+import type pg from 'pg';
+import { createPostgresClient } from './connections/create-postgres-client.ts';
 
 /** What `openListenConnection` needs. */
 export interface ListenConnectionSettings {
@@ -16,8 +18,8 @@ export interface ListenConnectionSettings {
   onListening?(): void;
   /** Called each time a connection is lost or an attempt fails, before the reopen is scheduled. */
   onLost?(error: unknown): void;
-  /** Milliseconds before a lost connection is opened again; default 1000. */
-  readonly retryMs?: number;
+  /** Default `Math.random`: the jitter of the pause before a lost connection is opened again. */
+  readonly random?: () => number;
   /**
    * A session that only reads notices a peer that vanished without a reset (a lost host, a dropped
    * NAT or balancer entry) only through the heartbeat: every `intervalMs` the session runs
@@ -34,9 +36,10 @@ export interface ListenConnection {
 /**
  * The dedicated `LISTEN` session of 14.3.7 on `channel` (default `kw_events`), a direct connection
  * or a session-mode pooler, never a transaction-mode pooler. A lost connection is opened again after
- * a pause. On `kw_events`, wake-ups sent meanwhile are recovered by polling the heads, so the gap
- * costs latency only; other callers learn of the gap through `onLost`.
- * A first attempt that fails is logged and retried the same way.
+ * a pause of `backgroundRetryMs`, longer for each attempt in a row that fails. On `kw_events`,
+ * wake-ups sent meanwhile are recovered by polling the heads, so the gap costs latency only; other
+ * callers learn of the gap through `onLost`. A first attempt that fails is logged and retried the
+ * same way.
  */
 export async function openListenConnection(
   settings: ListenConnectionSettings,
@@ -44,7 +47,9 @@ export async function openListenConnection(
   const channel = settings.channel ?? 'kw_events';
   if (!/^[a-z_][a-z0-9_]*$/.test(channel))
     throw new TypeError('a listen channel is a lower-case identifier');
-  const retryMs = settings.retryMs ?? 1000;
+  const random = settings.random ?? Math.random;
+  /** The connections lost or refused since the last `LISTEN` that succeeded. */
+  let failures = 0;
   let closed = false;
   let current: pg.Client | undefined;
   let retry: ReturnType<typeof setTimeout> | undefined;
@@ -65,10 +70,14 @@ export async function openListenConnection(
     dead?.end().catch(() => undefined);
     if (!closed) settings.onLost?.(error);
     if (closed || retry !== undefined) return;
-    retry = setTimeout(() => {
-      retry = undefined;
-      void attempt();
-    }, retryMs);
+    failures += 1;
+    retry = setTimeout(
+      () => {
+        retry = undefined;
+        void attempt();
+      },
+      backgroundRetryMs(failures, random),
+    );
   };
 
   const startBeat = (client: pg.Client): void => {
@@ -94,7 +103,9 @@ export async function openListenConnection(
 
   const attempt = async (): Promise<void> => {
     if (closed) return;
-    const client = new pg.Client({
+    // The owner of this client from its creation on: an error in any state ends in `lost`.
+    const client = createPostgresClient({
+      onError: lost,
       connectionString: settings.url,
       // biome-ignore lint/style/useNamingConvention: the key is the driver's option name
       application_name: `${settings.applicationName}-listen`,
@@ -105,7 +116,6 @@ export async function openListenConnection(
       // biome-ignore lint/style/useNamingConvention: the key is the driver's option name
       ...(settings.heartbeat === undefined ? {} : { query_timeout: settings.heartbeat.timeoutMs }),
     });
-    client.on('error', lost);
     client.on('end', () => {
       if (current === client) lost(new Error('the connection ended'));
     });
@@ -117,6 +127,7 @@ export async function openListenConnection(
       await client.connect();
       await client.query(`listen ${channel}`);
       if (current === client) {
+        failures = 0;
         settings.onListening?.();
         startBeat(client);
       }
