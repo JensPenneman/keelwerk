@@ -4,6 +4,7 @@ import { decodeInstant } from './decode-instant.ts';
 import { encodeInstant } from './encode-instant.ts';
 import { jobCapabilitySet } from './job-capability-set.ts';
 import { jobPriority } from './job-priority.ts';
+import { queuedJobStates } from './postgres/queued-job-states.ts';
 import { quoteIdentifier } from './postgres/quote-identifier.ts';
 import { provisionJobGroup } from './provision-job-group.ts';
 import { runSql } from './run-sql.ts';
@@ -43,8 +44,6 @@ function sameScope(unit: StorageScope, job: Scope): boolean {
   }
 }
 
-const pending = `('scheduled', 'available', 'waiting')`;
-
 /** The job store of a unit (14.3.9), plus the provisioning of namespace groups. */
 export interface SqlJobStore
   extends Pick<
@@ -80,7 +79,8 @@ export interface SqlJobStore
  * group's counter row, and inserts the job: `available` when due, `scheduled` when its time has
  * not come, `waiting` behind an earlier job of the same key when the queue orders by key. A job
  * that becomes available moves its lane's `enqueued` counter at the commit tail (`runCommitTail`),
- * beside the scope's position counter. Concurrent units that enqueue under one key serialise on a
+ * beside the scope's position counter; a job with a queued cap has the queue's queued jobs (section 9.5.5) counted
+ * there against it. Concurrent units that enqueue under one key serialise on a
  * transaction-scoped advisory lock of lane and key, so the policy sees every earlier decision. The
  * units that end the key's head or remove its jobs (a completion, a purge, a replace, a cancel by
  * key) take the same lock, and a take that ends a dead head tries it, so a job appended under a key
@@ -134,7 +134,7 @@ export function sqlJobStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): SqlJo
               ? []
               : await runSql(ctx.db, {
                   sql: `select id::text as id, state, run_at, ordering, input->'input'->>'position' as position from ${root}.kw_jobs
-where scope_id = $3::uuid and lane_id = $1::bigint and key = $2 and state in ${pending}
+where scope_id = $3::uuid and lane_id = $1::bigint and key = $2 and state in ${queuedJobStates}
 order by id limit 1 for update`,
                   parameters: [laneId, key.value, scopeId],
                 });
@@ -152,7 +152,7 @@ where id = $1::bigint and scope_id = $4::uuid`,
                 parameters: [foundId, encodeInstant(earliest), String(becomesDue), scopeId],
               });
               if (becomesDue) {
-                buffer.moveLane(laneId, 1, spec.queuedCap);
+                buffer.moveLane(laneId, 1);
                 buffer.ready(spec.queue);
               }
               return foundId;
@@ -221,8 +221,10 @@ returning id::text as id`,
           ],
         });
         if (inserted === undefined) throw errors.internal('the job insert answered nothing');
+        // The commit tail counts the queue's queued jobs (section 9.5.5) against the cap, whatever state this one entered.
+        if (spec.queuedCap !== undefined) buffer.capQueue(spec.queue, spec.queuedCap);
         if (state === 'available') {
-          buffer.moveLane(laneId, 1, spec.queuedCap);
+          buffer.moveLane(laneId, 1);
           buffer.ready(spec.queue);
         }
         return String(inserted.id);

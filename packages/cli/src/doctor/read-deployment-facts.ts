@@ -38,7 +38,6 @@ export async function readDeploymentFacts(input: DeploymentInput): Promise<Deplo
     name,
     queued: depths.get(name)?.queued ?? 0,
     running: depths.get(name)?.running ?? 0,
-    queuedCap: caps.queued,
     runningCap: caps.running,
     workers: workersOf(definition, name),
   }));

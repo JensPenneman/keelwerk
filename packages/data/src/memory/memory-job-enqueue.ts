@@ -8,9 +8,9 @@ import {
 } from '@keelwerk/core';
 import { memoryAdjustLane } from './memory-adjust-lane.ts';
 import { memoryCapabilitySet } from './memory-capability-set.ts';
-import type { MemoryJob } from './memory-job.ts';
 import { memoryJobFinish } from './memory-job-finish.ts';
 import { memoryJobGroups } from './memory-job-groups.ts';
+import { memoryJobIsQueued } from './memory-job-is-queued.ts';
 import { memoryJobRelease } from './memory-job-release.ts';
 import { memoryJobTables } from './memory-job-tables.ts';
 import type { MemoryLane } from './memory-lane.ts';
@@ -35,18 +35,18 @@ function sameScope(unit: StorageScope, job: Scope): boolean {
 }
 
 /**
- * Notes the queued cap of a lane that gained an available job, for the commit tail; the smallest
- * cap of the unit wins.
+ * Notes the queued cap of a queue that gained a job, in whatever state, for the commit tail; the
+ * smallest cap of the unit wins.
  */
 function recordQueuedCap(
   ctx: MemoryUnitContext,
   scopeId: string,
-  laneKey: string,
+  queue: string,
   cap: number | undefined,
 ): void {
   if (cap === undefined) return;
   const caps = ctx.tx.write<number>(`~queuedcap/${scopeId}`);
-  caps.set(laneKey, Math.min(cap, caps.get(laneKey) ?? cap));
+  caps.set(queue, Math.min(cap, caps.get(queue) ?? cap));
 }
 
 /**
@@ -104,11 +104,10 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
 
   const runAt = spec.runAt ?? now;
   const key = spec.key;
-  const pending = (job: MemoryJob): boolean =>
-    job.state === 'scheduled' || job.state === 'available' || job.state === 'waiting';
   if (key !== undefined && key.onConflict !== 'append') {
     const found = [...tables.jobs().values()].find(
-      (job) => job.laneKey === laneKey && job.spec.key?.value === key.value && pending(job),
+      (job) =>
+        job.laneKey === laneKey && job.spec.key?.value === key.value && memoryJobIsQueued(job),
     );
     if (found !== undefined) {
       if (key.onConflict === 'keep') return String(found.id);
@@ -119,7 +118,6 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
         if (due) {
           memoryAdjustLane(tables, laneKey, (lane) => ({ ...lane, enqueued: lane.enqueued + 1 }));
           ctx.readied.ready(spec.queue);
-          recordQueuedCap(ctx, scopeId, laneKey, spec.queuedCap);
         }
         return String(found.id);
       }
@@ -190,10 +188,10 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
     lostLeases: 0,
     startedAt: null,
   });
+  recordQueuedCap(ctx, scopeId, spec.queue, queuedCap);
   if (state === 'available') {
     memoryAdjustLane(tables, laneKey, (lane) => ({ ...lane, enqueued: lane.enqueued + 1 }));
     ctx.readied.ready(spec.queue);
-    recordQueuedCap(ctx, scopeId, laneKey, queuedCap);
   }
   return String(id);
 }

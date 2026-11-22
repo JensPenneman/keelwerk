@@ -35,6 +35,11 @@ export async function prepareNamespaces(adminUrl: string): Promise<void> {
       if (fourth !== undefined) {
         statements.push(...fourth.ddl(root, options), ...fourth.grants(root, 'kw_app', options));
       }
+      // Step 0005 adds the index of the jobs that wait to run, which the queued cap reads.
+      const fifth = frameworkSteps.find((step) => step.id === '0005');
+      if (fifth !== undefined) {
+        statements.push(...fifth.ddl(root, options), ...fifth.grants(root, 'kw_app', options));
+      }
       for (const statement of statements) await admin.query(statement);
     }
   } finally {

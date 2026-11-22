@@ -111,7 +111,7 @@ describe('fresh roots on PostgreSQL', () => {
     await admin?.end();
   });
 
-  test('a fresh namespace gets all three steps', async () => {
+  test('a fresh namespace gets every step', async () => {
     const history = (await schemaOf(postgres).history(fresh)).filter(
       (row) => row.track === frameworkTrack,
     );

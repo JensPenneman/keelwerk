@@ -16,8 +16,8 @@ const namespaceScope = { level: 'namespace', reason: 'conformance' } as const;
 
 /**
  * The commit tail's storage charges and queued cap (12.2, 9.5.5, 15.1.4): what a unit's charges do
- * to the counters of `kw_usage`, when the unit is refused and rolls back, and how the queued cap of
- * an enqueue reads the available jobs of the queue, against every adapter.
+ * to the counters of `kw_usage`, when the unit is refused and rolls back, and that the queued cap
+ * refuses an enqueue past it (what it counts is in `queuedCapCountCases`), against every adapter.
  */
 export function commitTailQuotaCases(
   subject: Pick<ConformanceSubject, 'run' | 'read' | 'clock'>,
@@ -181,7 +181,7 @@ export function commitTailQuotaCases(
 
   describe('the queued cap', () => {
     const capped = (n: number, cap: number, over = {}) => numbered(n, { queuedCap: cap, ...over });
-    const available = (scope: typeof tenantA): Promise<number> =>
+    const queued = (scope: typeof tenantA): Promise<number> =>
       subject.run(scope, (unit: Unit) => unit.jobs.queued('commands', 100));
 
     test('the next enqueue over the queued cap is core.queue_full with retryAfter 1 and rolls back, and another tenant enqueues', async () => {
@@ -192,20 +192,9 @@ export function commitTailQuotaCases(
       expect(refused.retryable).toBe(true);
       expect(refused.retryAfter).toBe(1);
       expect(refused.details).toEqual({ queue: 'commands', limit: 2, value: 3 });
-      expect(await available(tenantA)).toBe(2);
+      expect(await queued(tenantA)).toBe(2);
       await enqueue([capped(4, 2)], tenantB);
-      expect(await available(tenantB)).toBe(1);
-    });
-
-    test('the cap counts available jobs of every lane of the queue, not scheduled or taken ones', async () => {
-      await enqueue([
-        capped(1, 2, { priority: 'high' }),
-        capped(2, 2, { priority: 'low' }),
-        capped(3, 2, { runAt: (subject.clock?.now() ?? Temporal.Now.instant()).add({ hours: 1 }) }),
-      ]);
-      await take('w1', { limit: 1 });
-      await enqueue([capped(4, 2)]);
-      expect((await quotaRejection(enqueue([capped(5, 2)]))).code).toBe('core.queue_full');
+      expect(await queued(tenantB)).toBe(1);
     });
 
     test('a job spec without queuedCap is never refused and a taken job has no queuedCap', async () => {

@@ -4,6 +4,4 @@ export interface CommitTailLane {
   readonly laneId: string;
   /** Jobs that became available (positive) or left the available state (negative). */
   readonly delta: number;
-  /** The queued cap of the lane's queue in the unit's scope; set only when delta > 0. */
-  readonly queuedCap?: number;
 }

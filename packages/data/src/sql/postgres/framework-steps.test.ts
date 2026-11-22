@@ -6,6 +6,7 @@ import { commandReceiptTable } from './command-receipt-table.ts';
 import type { FrameworkStep } from './framework-step.ts';
 import { frameworkStepChecksum } from './framework-step-checksum.ts';
 import { frameworkSteps } from './framework-steps.ts';
+import { queuedJobStates } from './queued-job-states.ts';
 
 const render = (statements: readonly string[]): string =>
   `${statements.map((statement) => `${statement};`).join('\n\n')}\n`;
@@ -125,6 +126,30 @@ test('step 0004 keeps the index, adds the purge function and the run columns, an
   }
 });
 
+test('step 0005 of a namespace and of the control store is the stored format', async () => {
+  await expect(renderStep(stepOf('0005'), 'example', {})).toMatchFileSnapshot(
+    './golden/namespace-0005.sql',
+  );
+  await expect(renderStep(stepOf('0005'), 'kw__control', control)).toMatchFileSnapshot(
+    './golden/control-0005.sql',
+  );
+});
+
+test('step 0005 indexes the jobs that wait to run by scope and queue, with the set of states the reads use', () => {
+  for (const [root, options] of [
+    ['example', {}],
+    ['kw__control', control],
+  ] as const) {
+    expect(stepOf('0005').ddl(root, options)).toEqual([
+      `create index kw_jobs_queued on "${root}".kw_jobs (scope_id, queue) where state in ${queuedJobStates}`,
+    ]);
+  }
+  expect(queuedJobStates).toBe("('scheduled', 'available', 'waiting')");
+  expect(stepOf('0005').ddl('kw__root', control)).toEqual(stepOf('0005').ddl('kw__root', {}));
+  expect(stepOf('0005').marker).toBe('kw_jobs_queued');
+  expect(stepOf('0005').grants('example', 'kw_app', {})).toEqual([]);
+});
+
 test('the purge function is owner-owned, pins its search path and names every table with its schema', () => {
   for (const [root, options] of [
     ['example', {}],
@@ -203,7 +228,10 @@ test('the root appears only as the quoted schema, so the template checksum stand
         sha256(canonicalizeJson(step.ddl('kw__root', options))),
       );
     }
-    expect(frameworkStepChecksum(step, control)).not.toBe(frameworkStepChecksum(step, {}));
+    // Step 0005 indexes `kw_jobs`, which both kinds of root have alike: one statement, one checksum.
+    if (step.id !== '0005') {
+      expect(frameworkStepChecksum(step, control)).not.toBe(frameworkStepChecksum(step, {}));
+    }
   }
 });
 

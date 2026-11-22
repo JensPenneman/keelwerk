@@ -41,12 +41,11 @@ export interface HookFailureFact {
   readonly tenantId: string;
 }
 
-/** A queue's depth against its caps, and how many processes work it. */
+/** A queue's depth against its running cap, and how many processes work it. */
 export interface QueueFact {
   readonly name: string;
   readonly queued: number;
   readonly running: number;
-  readonly queuedCap: number | undefined;
   readonly runningCap: number | undefined;
   readonly workers: number;
 }

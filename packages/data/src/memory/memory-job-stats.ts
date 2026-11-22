@@ -1,4 +1,5 @@
 import type { WorkClassStats } from '@keelwerk/core';
+import { memoryJobIsQueued } from './memory-job-is-queued.ts';
 import { memoryJobScopes } from './memory-job-scopes.ts';
 import type { MemoryUnitContext } from './memory-unit-context.ts';
 
@@ -50,12 +51,7 @@ export function memoryJobStats(ctx: MemoryUnitContext, queue?: string): readonly
         arrivalsPerSecond: (before?.arrivalsPerSecond ?? 0) + arrivals / 60,
         meanRunSeconds: Math.max(before?.meanRunSeconds ?? 0, meanRunSeconds),
         running: (before?.running ?? 0) + (lane.taken - lane.done),
-        queued:
-          (before?.queued ?? 0) +
-          jobs.filter(
-            (job) =>
-              job.state === 'available' || job.state === 'scheduled' || job.state === 'waiting',
-          ).length,
+        queued: (before?.queued ?? 0) + jobs.filter(memoryJobIsQueued).length,
         nextDueAt:
           before?.nextDueAt == null ||
           (upcoming !== undefined && Temporal.Instant.compare(upcoming, before.nextDueAt) < 0)

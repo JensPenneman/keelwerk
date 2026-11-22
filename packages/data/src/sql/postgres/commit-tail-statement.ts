@@ -1,5 +1,6 @@
 import type { PostgresStatement } from './begin-unit-statements.ts';
 import type { CommitTailInput } from './commit-tail-input.ts';
+import { queuedJobsCount } from './queued-jobs-count.ts';
 import { quoteIdentifier } from './quote-identifier.ts';
 
 const eventColumns = [
@@ -36,11 +37,15 @@ const eventColumns = [
  * unit that charges or gives back usage (in ascending dimension, a give-back being a negative delta);
  * `lanes`, the number of counter rows it moved, which must equal the number of lanes: an update that
  * row-level security hides matches nothing and would otherwise lose the count silently; and, for a
- * lane with a queued cap, `queued`, the available jobs of its queue. The lane counters are matched
- * against the unit's scope.
+ * queue with a queued cap, `queued`, the queued jobs of the queue in the unit's scope (section
+ * 9.5.5, `queuedJobStates`), as the unit leaves them, counted up to the cap plus one by an index
+ * range scan that locks no row. The lane counters are matched against the unit's scope.
  *
- * The parts take their locks in the order of the final select list: the positions row, the event
- * versions, the usage rows by dimension, then the `enqueued` rows by lane id. The order is what the
+ * The `queued` part is the first item of the select list, so the count runs before the statement
+ * locks any row; it needs nothing from the other parts, which share its snapshot. (The statement
+ * takes its relation locks earlier, when it is analysed.) The other parts lock their rows in the
+ * order of the rest of the select list: the positions row, the event versions, the usage rows by
+ * dimension, then the `enqueued` rows by lane id. The order is what the
  * PostgreSQL executor does with the select-list subqueries, in the order they are written; the
  * documentation of PostgreSQL does not promise it for data-modifying CTEs.
  * `commit-tail-lock-order.postgres.test.ts` pins only that the usage rows are locked before the
@@ -61,8 +66,7 @@ export function commitTailStatement(input: CommitTailInput): PostgresStatement {
   if (count > 0 && input.scopeId === null) {
     throw new TypeError('the events of a commit tail need the scope of their unit');
   }
-  const capped = input.lanes.filter((lane) => lane.queuedCap !== undefined);
-  if ((input.usage.length > 0 || capped.length > 0) && input.scopeId === null) {
+  if ((input.usage.length > 0 || input.caps.length > 0) && input.scopeId === null) {
     throw new TypeError(
       'the usage and the queued caps of a commit tail need the scope of their unit',
     );
@@ -125,26 +129,29 @@ export function commitTailStatement(input: CommitTailInput): PostgresStatement {
   from unnest(${ids}, ${deltas}) as x (lane_id, delta)
   where c.lane_id = x.lane_id::bigint and c.kind = 'enqueued'${scopeOf('c')}
     and c.lane_id in (select lane_id from locked)
-  returning ${capped.length > 0 ? 'c.lane_id, c.value' : '1'}
+  returning 1
 )`,
     );
   }
-  if (capped.length > 0 && scope !== null) {
-    const cappedIds = bind(
-      capped.map((lane) => lane.laneId),
+  if (input.caps.length > 0 && scope !== null) {
+    const queues = bind(
+      input.caps.map((entry) => entry.queue),
       'text[]',
     );
-    // The value is what the unit leaves available in the queue: the counter rows the update just
-    // moved are read from its answer, every other lane from the statement's snapshot.
+    const caps = bind(
+      input.caps.map((entry) => String(entry.cap)),
+      'text[]',
+    );
+    // The jobs are read from the statement's snapshot, which holds the unit's own writes, so the
+    // value is what the unit leaves in the queue, cancels and replaces included.
+    const queuedCount = queuedJobsCount(root, {
+      queue: 'x.queue',
+      scope,
+      limit: 'x.cap::bigint + 1',
+    });
     ctes.push(
       `queued as (
-  select x.lane_id, o.queue, sum(coalesce(m.value, e.value) - l.taken) as value
-  from unnest(${cappedIds}) as x (lane_id)
-  join ${root}.kw_job_lanes o on o.id = x.lane_id::bigint and o.scope_id = ${scope}
-  join ${root}.kw_job_lanes l on l.scope_id = o.scope_id and l.queue = o.queue
-  join ${root}.kw_job_lane_counts e on e.lane_id = l.id and e.kind = 'enqueued'
-  left join enqueued m on m.lane_id = l.id
-  group by x.lane_id, o.queue
+  select x.queue, (${queuedCount}) as value from unnest(${queues}, ${caps}) as x (queue, cap)
 )`,
     );
   }
@@ -166,7 +173,9 @@ export function commitTailStatement(input: CommitTailInput): PostgresStatement {
 )`,
     );
   }
-  if (ctes.length === 0) throw new TypeError('a commit tail needs events, lane counts or usage');
+  if (ctes.length === 0) {
+    throw new TypeError('a commit tail needs events, lane counts, queued caps or usage');
+  }
   const first = count > 0 ? '(select first::text from counter)' : 'null::text';
   const appended =
     count > 0
@@ -174,15 +183,15 @@ export function commitTailStatement(input: CommitTailInput): PostgresStatement {
       : 'null::text';
   const lanes = input.lanes.length > 0 ? '(select count(*) from enqueued)::text' : `'0'::text`;
   const queued =
-    capped.length > 0
-      ? `, (select coalesce(json_agg(json_build_array(lane_id::text, queue, value::text)), '[]'::json) from queued)::text as queued`
+    input.caps.length > 0
+      ? `(select coalesce(json_agg(json_build_array(queue, value::text)), '[]'::json) from queued)::text as queued, `
       : '';
   const usage =
     input.usage.length > 0
       ? `, (select coalesce(json_agg(json_build_array(dimension, value::text)), '[]'::json) from usage)::text as usage`
       : '';
   return {
-    sql: `with ${ctes.join(', ')}\nselect ${first} as first, ${appended} as appended${usage}, ${lanes} as lanes${queued}`,
+    sql: `with ${ctes.join(', ')}\nselect ${queued}${first} as first, ${appended} as appended${usage}, ${lanes} as lanes`,
     parameters,
   };
 }

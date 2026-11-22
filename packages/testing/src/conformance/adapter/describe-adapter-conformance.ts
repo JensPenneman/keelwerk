@@ -32,6 +32,7 @@ import { paginationCases } from './pagination-cases.ts';
 import { processStreamCases } from './process-stream-cases.ts';
 import { queueScenarioCases } from './queue-scenario-cases.ts';
 import { queuedCapAdmissionCases } from './queued-cap-admission-cases.ts';
+import { queuedCapCountCases } from './queued-cap-count-cases.ts';
 import { restoreDetectionCases } from './restore-detection-cases.ts';
 import { retentionCases } from './retention-cases.ts';
 import { rowCases } from './row-cases.ts';
@@ -153,6 +154,7 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
     describe('commit tail quotas', () => {
       commitTailQuotaCases(subject);
       storedRecordCases(subject);
+      queuedCapCountCases(subject);
       queuedCapAdmissionCases(subject);
     });
     // Last: the server ends the adapter's wake-up sessions too, and they open again after a pause.

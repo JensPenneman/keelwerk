@@ -16,6 +16,11 @@ export interface CommitTailInput {
   readonly events: readonly CommitTailEvent[];
   /** Per lane, summed; empty when the unit made no job available. */
   readonly lanes: readonly CommitTailLane[];
+  /**
+   * The queued cap of each queue in which the unit inserted a capped job, the smallest of them,
+   * sorted by queue; empty when it inserted none. Needs the unit's scope.
+   */
+  readonly caps: readonly { readonly queue: string; readonly cap: number }[];
   /** Net usage changes, sorted by dimension; empty when the unit charged nothing. */
   readonly usage: readonly { readonly dimension: string; readonly delta: string }[];
 }

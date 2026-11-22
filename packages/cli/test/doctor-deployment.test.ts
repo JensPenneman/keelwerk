@@ -86,7 +86,7 @@ describe('the deployment', () => {
     expect(checkDeployment(unset)).toEqual([]);
   });
 
-  test('queues that hold work and have no worker (S-24), and queued caps past 80 percent', async () => {
+  test('queues that hold work and have no worker (S-24)', async () => {
     const definition = definitionOf({
       queues: { mail: { queued: 10 }, reports: {} },
       processes: { web: { roles: ['serve'] }, jobs: { roles: ['work'], slots: { reports: 2 } } },
@@ -107,9 +107,10 @@ describe('the deployment', () => {
     expect(checkQueuesWithoutWorkers(facts.queues).map((finding) => finding.subject)).toEqual([
       'mail',
     ]);
-    expect(checkDeployment(facts).map((finding) => finding.message)).toContain(
-      'queue mail holds 9 of 10 queued jobs (over 80 percent)',
-    );
+    // A queued cap is a limit per tenant and queue: no line compares a deployment-wide depth with it.
+    expect(
+      checkDeployment(facts).filter((finding) => finding.message.includes('queued jobs')),
+    ).toEqual([]);
   });
 
   test('anchors: stale, rewound and refused (S-35)', async () => {

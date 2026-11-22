@@ -7,6 +7,7 @@ import { memoryEnvelope } from './memory-envelope.ts';
 import { memoryJobTables } from './memory-job-tables.ts';
 import type { MemoryLoggedEvent } from './memory-logged-event.ts';
 import type { MemoryPendingEvent } from './memory-pending-event.ts';
+import { memoryQueuedCount } from './memory-queued-count.ts';
 import { memoryStreamKey } from './memory-stream-key.ts';
 import type { MemoryUnitContext } from './memory-unit-context.ts';
 
@@ -30,17 +31,12 @@ function appendBufferedEvents(ctx: MemoryUnitContext, scopeId: string): void {
   counters.set('counter', { next: counter.next + BigInt(buffered.length), epoch: counter.epoch });
 }
 
-/** Refuses the unit when a lane that gained available jobs leaves its queue above its cap. */
+/** Refuses the unit when it leaves a queue it inserted a capped job into with more jobs waiting to run than its cap. */
 function refuseFullQueues(ctx: MemoryUnitContext, scopeId: string): void {
-  const lanes = memoryJobTables(ctx, scopeId).lanes();
-  for (const [laneKey, cap] of ctx.tx.read<number>(`~queuedcap/${scopeId}`)) {
-    const lane = lanes.get(laneKey);
-    if (lane === undefined) continue;
-    let value = 0;
-    for (const other of lanes.values()) {
-      if (other.queue === lane.queue) value += other.enqueued - other.taken;
-    }
-    if (value > cap) throw queueFull(lane.queue, cap, value);
+  const scopes = [memoryJobTables(ctx, scopeId)];
+  for (const [queue, cap] of ctx.tx.read<number>(`~queuedcap/${scopeId}`)) {
+    const value = memoryQueuedCount(scopes, queue, cap);
+    if (value > cap) throw queueFull(queue, cap, value);
   }
 }
 
@@ -62,7 +58,7 @@ function addUsage(ctx: MemoryUnitContext, scopeId: string): void {
  * The commit tail of a unit (15.1.4): advances the scope's counter by the number of buffered
  * events and writes them at consecutive positions, so positions follow commit order and a
  * rolled-back allocation is reused. Runs inside the unit, before its collections are installed.
- * Then it checks the queued caps of the lanes that gained jobs and adds the usage charges to the
+ * Then it checks the queued caps of the queues that gained jobs and adds the usage charges to the
  * counters; both refuse the unit by throwing.
  */
 export function memoryCommitTail(ctx: MemoryUnitContext): void {

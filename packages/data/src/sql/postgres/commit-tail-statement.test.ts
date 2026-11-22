@@ -25,7 +25,7 @@ const event = (n: number): CommitTailEvent => ({
   hash: 'ab',
 });
 
-const base = { root: 'app', scopeId: 's', backendId: 'b', usage: [] };
+const base = { root: 'app', scopeId: 's', backendId: 'b', usage: [], caps: [] };
 
 describe('commitTailStatement', () => {
   test('events: the counter, the insert and the answer in one statement, text arrays per column', () => {
@@ -119,43 +119,70 @@ describe('the usage upsert and the queued read', () => {
     expect(statement.parameters).toEqual(['s', ['core.eventBytes', 'core.rows'], ['120', '1']]);
   });
 
-  test("a capped lane adds the queued read over the scope's lanes of its queue", () => {
+  test("a capped queue adds the count of the queue's queued jobs (section 9.5.5) in the unit's scope", () => {
     const statement = commitTailStatement({
       ...base,
       events: [],
-      lanes: [
-        { laneId: '4', delta: 1, queuedCap: 2 },
-        { laneId: '5', delta: 1 },
-      ],
+      lanes: [{ laneId: '4', delta: 1 }],
+      caps: [{ queue: 'commands', cap: 2 }],
       usage: [],
     });
-    expect(statement.sql).toContain('returning c.lane_id, c.value');
     expect(statement.sql).toMatch(/\bqueued as \(/);
-    expect(statement.sql).toContain('left join enqueued m on m.lane_id = l.id');
+    expect(statement.sql).toContain('from unnest($4::text[], $5::text[]) as x (queue, cap)');
+    expect(statement.sql).toContain("and j.state in ('scheduled', 'available', 'waiting')");
+    expect(statement.sql).toContain('limit x.cap::bigint + 1');
     expect(statement.sql).toContain('as queued');
     expect(statement.sql).not.toContain('as usage');
-    expect(statement.parameters.at(-1)).toEqual(['4']);
+    expect(statement.parameters.slice(-2)).toEqual([['commands'], ['2']]);
     const plain = commitTailStatement({
       ...base,
       events: [],
       lanes: [{ laneId: '4', delta: 1 }],
       usage: [],
     });
-    expect(plain.sql).toContain('returning 1');
     expect(plain.sql).not.toMatch(/\bqueued as \(/);
   });
 
-  test('the capped statement locks counter rows only: a lane row is read and no lock clause names it', () => {
+  test('a unit that enqueued a scheduled job sends the count and no counter part', () => {
+    const statement = commitTailStatement({
+      ...base,
+      events: [],
+      lanes: [],
+      caps: [{ queue: 'commands', cap: 2 }],
+      usage: [],
+    });
+    expect(statement.sql).not.toContain('kw_job_lane_counts');
+    expect(statement.sql).toContain("'0'::text as lanes");
+    expect(statement.sql).toMatch(/\bqueued as \(/);
+  });
+
+  test('the count is the first item of the select list, before any part that locks', () => {
     const statement = commitTailStatement({
       ...base,
       events: [event(1)],
-      lanes: [{ laneId: '4', delta: 1, queuedCap: 2 }],
+      lanes: [{ laneId: '4', delta: 1 }],
+      caps: [{ queue: 'commands', cap: 2 }],
+      usage: [{ dimension: 'core.eventBytes', delta: '10' }],
+    });
+    const list = statement.sql.slice(statement.sql.lastIndexOf('\nselect ') + 8);
+    expect(list.startsWith('(select coalesce(json_agg(json_build_array(queue, value::text))')).toBe(
+      true,
+    );
+    expect(list.indexOf('as queued')).toBeLessThan(list.indexOf('from counter'));
+  });
+
+  test('the capped statement locks no row of the jobs it counts or of any lane', () => {
+    const statement = commitTailStatement({
+      ...base,
+      events: [event(1)],
+      lanes: [{ laneId: '4', delta: 1 }],
+      caps: [{ queue: 'commands', cap: 2 }],
       usage: [{ dimension: 'core.eventBytes', delta: '10' }],
     });
     // The take locks `kw_job_lanes` and `kw_jobs` rows, whatever the lock mode of the lane rows
     // is; the settle locks the `done` counters and then lane rows. The tail writes the position
     // row, locks the `enqueued` counters, writes the events and the usage rows, and never locks a
-    // lane row itself.
+    // lane row or a job row itself: the count of the queue is a plain read.
     const locks = [...statement.sql.matchAll(/\bfor (?:no key )?update\b/g)];
     expect(locks).toHaveLength(1);
     const lockedSelect = statement.sql.slice(statement.sql.indexOf('locked as ('), locks[0]?.index);
@@ -164,6 +191,7 @@ describe('the usage upsert and the queued read', () => {
     expect(statement.sql).not.toMatch(/\bfor (?:key )?share\b/);
     expect(statement.sql).toContain("c.kind = 'enqueued'");
     expect(statement.sql).not.toContain("'done'");
+    expect(statement.sql).not.toContain('kw_job_lanes');
   });
 
   test('usage or a cap without a scope is refused', () => {
@@ -175,7 +203,8 @@ describe('the usage upsert and the queued read', () => {
         ...base,
         scopeId: null,
         events: [],
-        lanes: [{ laneId: '4', delta: 1, queuedCap: 2 }],
+        lanes: [],
+        caps: [{ queue: 'commands', cap: 2 }],
         usage: [],
       }),
     ).toThrow(TypeError);
@@ -187,7 +216,8 @@ describe('the usage upsert and the queued read', () => {
       scopeId: '00000000-0000-7000-8000-000000000f01',
       backendId: '00000000-0000-7000-8000-000000000b01',
       events: [event(1)],
-      lanes: [{ laneId: '4', delta: 1, queuedCap: 2 }],
+      lanes: [{ laneId: '4', delta: 1 }],
+      caps: [{ queue: 'commands', cap: 2 }],
       usage,
     });
     await expect(`${statement.sql}\n`).toMatchFileSnapshot(
@@ -247,6 +277,7 @@ describe('the stored event encoding', () => {
       backendId: '00000000-0000-7000-8000-000000000b01',
       events: [pendingTailEvent(pending)],
       lanes: [],
+      caps: [],
       usage: [],
     });
     await expect(

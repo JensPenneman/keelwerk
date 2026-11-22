@@ -5,6 +5,7 @@ import { memoryJobComplete } from './memory-job-complete.ts';
 import { memoryJobEnqueue } from './memory-job-enqueue.ts';
 import { memoryJobFinish } from './memory-job-finish.ts';
 import { memoryJobGroups } from './memory-job-groups.ts';
+import { memoryJobIsQueued } from './memory-job-is-queued.ts';
 import { memoryJobKeyed } from './memory-job-keyed.ts';
 import { memoryJobPurgeHistory } from './memory-job-purge-history.ts';
 import { memoryJobQueued } from './memory-job-queued.ts';
@@ -64,10 +65,7 @@ export function memoryJobStore(ctx: MemoryUnitContext): MemoryJobStore {
           // command wins. In any other queue the command may commit in another scope's unit, so a
           // running job is left to finish.
           const cancellable =
-            job.state === 'scheduled' ||
-            job.state === 'available' ||
-            job.state === 'waiting' ||
-            (job.state === 'running' && cancelsRunningAttempt(queue));
+            memoryJobIsQueued(job) || (job.state === 'running' && cancelsRunningAttempt(queue));
           if (cancellable && job.spec.queue === queue && job.spec.key?.value === key) {
             if (job.state === 'running') memoryReleaseJobGroup(ctx, job);
             memoryJobFinish(ctx, tables, job, 'cancelled', null);

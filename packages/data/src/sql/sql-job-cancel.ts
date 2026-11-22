@@ -1,6 +1,7 @@
 import { cancelsRunningAttempt } from '@keelwerk/core';
 import { encodeInstant } from './encode-instant.ts';
 import { groupKeyOfJob } from './group-key-of-job.ts';
+import { queuedJobStates } from './postgres/queued-job-states.ts';
 import { quoteIdentifier } from './postgres/quote-identifier.ts';
 import type { SqlRow } from './run-sql.ts';
 import { runSql } from './run-sql.ts';
@@ -60,8 +61,8 @@ export async function sqlJobCancel(
     };
     const conditions = [
       'ids' in target || !cancelsRunningAttempt(target.queue)
-        ? `state in ('scheduled', 'available', 'waiting')`
-        : `state in ('scheduled', 'available', 'waiting', 'running')`,
+        ? `state in ${queuedJobStates}`
+        : `(state in ${queuedJobStates} or state = 'running')`,
     ];
     if ('ids' in target) {
       conditions.push(`id = any (${bind(target.ids, 'bigint[]')})`);

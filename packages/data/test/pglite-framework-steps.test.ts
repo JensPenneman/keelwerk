@@ -100,7 +100,7 @@ describe('the framework track on PGlite', { timeout: 30_000 }, () => {
     }
   });
 
-  test('the M1 dump migrates: 0001 is recognised, 0002 adds the tables, 0003 the ledger indexes and 0004 the transient purge', async () => {
+  test('the M1 dump migrates: 0001 is recognised, 0002 adds the tables, 0003 the ledger indexes, 0004 the transient purge and 0005 the index of the jobs that wait', async () => {
     const adapter = await open();
     await adapter.asOwner(async (database) => database.exec(dump));
     const before = await counts(adapter);
@@ -116,6 +116,11 @@ describe('the framework track on PGlite', { timeout: 30_000 }, () => {
         `select to_regclass('"${root}".kw_consumers') is not null as present`,
       );
       expect(tables[0]?.present).toBe(true);
+      const index = await rowsOf(
+        adapter,
+        `select to_regclass('"${root}".kw_jobs_queued')::text as t`,
+      );
+      expect(index[0]?.t).toBe(`${root}.kw_jobs_queued`);
     }
     const ledger = await rowsOf(
       adapter,
@@ -222,9 +227,10 @@ describe('the framework track on PGlite', { timeout: 30_000 }, () => {
     ).rejects.toMatchObject({ kind: 'conflict' });
   });
 
-  test('steps 0002 to 0004 are in the track, in order, with their markers', () => {
+  test('steps 0002 to 0005 are in the track, in order, with their markers', () => {
     const ids = frameworkSteps.map((step) => step.id);
-    expect(ids.slice(0, 4)).toEqual(['0001', '0002', '0003', '0004']);
+    expect(ids.slice(0, 5)).toEqual(['0001', '0002', '0003', '0004', '0005']);
+    expect(stepOf('0005').marker).toBe('kw_jobs_queued');
     expect(stepOf('0004').marker).toBe('kw_events_transient');
     expect(stepOf('0002').marker).toBe('kw_consumers');
     expect(stepOf('0003').marker).toBe('kw_ledger_erasure_identity');

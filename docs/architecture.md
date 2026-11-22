@@ -4272,6 +4272,7 @@ create table <root>.kw_jobs (
 create index kw_jobs_take on <root>.kw_jobs (lane_id, run_at, id) where state = 'available';
 create index kw_jobs_promote on <root>.kw_jobs (queue, run_at) where state = 'scheduled';        -- added 2026-11-05
 create index kw_jobs_reclaim on <root>.kw_jobs (queue, lease_until) where state = 'running';     -- added 2026-11-05
+create index kw_jobs_queued on <root>.kw_jobs (scope_id, queue) where state in ('scheduled', 'available', 'waiting');   -- framework step 0005: the count of the jobs that wait to run
 create table <root>.kw_job_history (
   scope_id        uuid,
   job_id          bigint,
@@ -4469,7 +4470,7 @@ The job side of the quota model (section 12.2):
 |---|---|---|---|
 | running jobs per tenant and queue (the lane's cap) | `queues.<q>.running` (a number or a share of live slots), per backend with tenant overrides | the take | jobs wait |
 | running jobs per backend and queue | `core.quota.set` per backend | an implicit group `backend:<id>` | jobs wait |
-| queued jobs per tenant and queue | `queues.<q>.queued`, default 10,000; backend and tenant overrides | the enqueue's commit tail | commands: `rate_limited` (`core.queue_full`, `retryAfter`); the reaction dispatcher pauses the scope until the lane is below 90 percent; timers and schedules are bounded by keys |
+| queued jobs per tenant and queue | `queues.<q>.queued`, default 10,000; backend and tenant overrides | the enqueue's commit tail, counting the jobs that wait to run | commands: `rate_limited` (`core.queue_full`, `retryAfter`); the reaction dispatcher pauses the scope until the lane is below 90 percent; timers and schedules are bounded by keys |
 | share | weight per backend and tenant, default 1, operator only | the take's order | |
 | priority | module code: `high` for liveness timers, `low` for bulk work | the take's order | lower classes wait; their age drives the scaler |
 | destination concurrency and rate | `group` options of executors and actions, from module configuration | the take, under the group's row lock; `scope: 'deployment'` groups (M5) through control-store permits | jobs wait for a slot or a token |
@@ -4479,13 +4480,62 @@ Without a cap the take is work-conserving: one tenant may fill idle slots, and t
 the next free one to the least-served lane. Tenants cannot raise their own weight or caps (gap G10
 configuration cannot reach them); `keelwerk jobs lanes` and `keelwerk doctor` show them.
 
-Added 2026-11-11: the job statistics (`JobQueue.stats`, section 21.4) carry a `queued` count, the
-available, scheduled and waiting jobs, never running or dead ones.
+The queued jobs of a queue in a scope are the jobs that wait to run: scheduled for later, available
+now, or waiting behind a key; never a running or a dead job. One set of states defines them for
+each kind of store (`queuedJobStates` for SQL, `memoryJobIsQueued` for memory), and the readers of
+it are the queued cap, the job statistics (`JobQueue.stats`, section 21.4, which carry the count as
+`queued` since 2026-11-11), `JobStore.queued` (the count that the dispatcher's hold at 90 percent of
+a reactions lane reads), the pending reads of the key policy and of a cancel, and, on PostgreSQL,
+the partial index of step 0005. A case reads the cap's count from a refusal, the statistics and
+`JobStore.queued` for one state of a store and finds one number, on every adapter.
 
-Limit of the queued cap as built: it counts the jobs that can be taken now. A scheduled job and a
-follower under a key pass the cap uncounted and are not checked when they become available, so the
-count the cap uses differs from the `queued` count of the job statistics, which includes them.
-Making the two the same number is open work.
+The cap refuses a unit that inserts a capped job into a queue which then holds more than its cap.
+It is checked at the commit tail of the unit, in whatever state the job enters, and the unit is
+refused with `core.queue_full`. The queue is counted as the unit leaves it, so a cancel or a replace
+in the same unit lowers the count (a count at the cap is admitted). `details.value` is that count
+read up to the cap plus one, so a refusal always says `limit + 1`; the true count is
+`JobStore.queued`. An enqueue that inserts no job (a keep that finds its job, a coalesce into a job
+that is there) is not refused by the cap, whatever the count: it adds nothing, and refusing it would
+fail a caller whose job already exists. What the framework moves with work it admitted is never
+refused: a promotion, a key's next job, a retry, a release at a drain and a reclaim leave the count
+true, so it can stand above the cap, and new capped enqueues are refused until it has fallen. A
+refused enqueue changes nothing and wakes nothing.
+
+On PostgreSQL the count is one more part of the statement the commit tail sends: a range scan of the
+partial index `kw_jobs_queued` (framework step 0005) for the scope and queue that stops after the
+cap plus one counted jobs. It reads nothing of other scopes or queues. It reads at most one entry
+more than the cap of jobs that are in the queued states, and besides them the entries that its
+snapshot does not count and that the database has not cleaned up yet, until vacuum removes them: the
+entries of row versions that an update or a delete replaced (a take, because the state stands in the
+index's predicate, so the update leaves the old entry; a promotion and a key's next job alike; a
+cancel and a purge, which delete rows; a coalesce can), and the entries of rows that units rolled
+back (every refused enqueue leaves one) or have not committed yet. A release at a drain and a retry
+start from a row version that is not in the index, so they add an entry and leave none. It also
+makes a heap visit for each entry whose page the visibility map does not mark all-visible. It was
+measured once, as the count alone (explain analyze) at 9,000 queued jobs of the scope, nine tenths
+of the default cap, beside 12,000 of another scope, on a table whose pages were all visible: an
+index-only scan on `kw_jobs_queued` with its condition on scope and queue, Heap Fetches 0, 10
+buffers, 1.640 ms of execution. It locks no row (it holds only the access-share lock that every read
+takes on the table), and the take, the promotion and the reclaim are unchanged. The count is the
+first item of the statement's select list, so it runs before the statement locks any row. The unit
+reads the committed jobs its statement's snapshot shows plus its own, so units whose tail statements
+start before each other's commits do not see each other: each is admitted when its own count is
+within the cap, and together they can pass the cap by the jobs of all of them but the largest (one
+job each: their number less one), at most one unit per pool connection, in one lane or in several. A
+unit at a stronger isolation level counts its own snapshot. The memory adapter and PGlite run one
+unit at a time and are exact.
+
+Framework step 0005 builds the index inside the provision's transaction, so the step stays atomic.
+The build asks for a share lock on `kw_jobs`: it first waits for whatever holds a lock that
+conflicts with it, such as an open unit that has run a write on the table (even one that changed no
+row) or a vacuum or an analyze under way (PostgreSQL cancels an automatic one after
+`deadlock_timeout` unless it guards against wraparound), then reads the whole table. Every writer
+that comes later, a take and an enqueue among them, waits behind it until the provision commits. It
+happens once per root, at the upgrade that brings the step: short for a small table and no open
+unit, long for a large table or a unit that stays open. Stopping the app's other processes before
+the upgrade removes the units it would wait for. A build that holds no writer needs steps that can
+run outside a transaction, which the runner of the steps cannot do yet. That is a later work
+package, to be done before a deployment with a large jobs table upgrades.
 
 #### 9.5.6 Workers, scopes and schedules
 
@@ -4884,7 +4934,7 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
 | concurrent invocations per tenant | as above | per process, reconciled through leases in the control store | `admit` |
 | storage: rows, event bytes and blob bytes per tenant | as above; modules may declare finer dimensions (`mail-store`'s bytes per mail account) | usage counters per scope, updated in the commit tail of the unit that changes them (blob bytes when a blob is adopted or purged) | the admission of a command with a prepare step (before `prepare` runs; the commit tail of its unit declares no storage limit) and the commit tail of the unit of a command without a prepare step, for an action that is not a core action: `rate_limited` with code `core.quota_exceeded`, not retryable |
 | running jobs per tenant and queue | `queues.<q>.running` per backend, with tenant overrides (section 9.5.5) | the lane's `taken` and `done` counters | the take, by the lane's cap: excess jobs wait |
-| queued jobs per tenant and queue | `queues.<q>.queued` (default 10,000), with backend and tenant overrides | the lane counters (section 9.5.2) | the enqueue's commit tail: `rate_limited` with code `core.queue_full` and `retryAfter` |
+| queued jobs per tenant and queue | `queues.<q>.queued` (default 10,000), with backend and tenant overrides | the jobs that wait to run: queued jobs (section 9.5.5) | the enqueue's commit tail: `rate_limited` with code `core.queue_full` and `retryAfter` |
 | share of a queue | a weight per backend and tenant (default 1), operator only | the lane's virtual time | the take's order |
 | live subscriptions and connections per tenant | as above | deployment-wide, through leases in the control store; per-process counters for the fast path | `admit` at subscribe time |
 
@@ -5722,8 +5772,8 @@ Checks the environment and the project, then the running backends:
   reindex jobs and backups still holding plaintext of fields made personal later;
 - the deployment: operator socket permissions, master key present, control store reachable, the
   control store on a different database cluster than the placements or an erasure-ledger sink
-  configured (section 14.7.6), external-table drift, dead letters and parked streams, queued caps
-  above 80 percent, capped lanes and unplaceable work (sections 9.5.5 and 21.2), queues that hold
+  configured (section 14.7.6), external-table drift, dead letters and parked streams, capped lanes
+  and unplaceable work (sections 9.5.5 and 21.2), queues that hold
   work and have no worker (section 9.5.6), and tenant lifecycle hooks that failed (section 3.3);
   then `app.health` and `app.ready` per backend;
 - the data layer's fallbacks: per placement, every capability its adapter lacks that a selected app
@@ -8741,13 +8791,16 @@ with counter as (
 ), enqueued as (                                                   -- only when the unit made jobs available (section 9.5.2)
   update <root>.kw_job_lane_counts c set value = c.value + x.n
   from unnest($lanes, $counts) as x(lane_id, n) where c.lane_id = x.lane_id and c.kind = 'enqueued' and c.scope_id = $scope
+), queued as (                                                     -- only when the unit inserted a capped job (section 9.5.5): a plain read, no row lock
+  select x.queue, (select count(*) from (select 1 from <root>.kw_jobs j where j.queue = x.queue and j.scope_id = $scope
+    and j.state in ('scheduled', 'available', 'waiting') limit x.cap + 1) q) as value from unnest($queues, $caps) as x(queue, cap)
 ), usage as (                                                      -- only when the unit charged or gave back usage (section 12.2)
   insert into <root>.kw_usage as u (scope_id, dimension, value)
   select $scope, x.dimension, x.delta from unnest($dimensions, $deltas) as x(dimension, delta)   -- ascending dimension; a give-back is a negative delta
   on conflict (scope_id, dimension) do update set value = u.value + excluded.value
   returning u.dimension, u.value
 )
-select first, <appended positions>, <usage counters>, <lane rows moved>;   -- in this order: the executor evaluates the select list in this order and so takes the locks in it; the lane rows moved must equal the lanes: a row RLS hides moves nothing
+select <queued counts>, first, <appended positions>, <usage counters>, <lane rows moved>;   -- in this order: the executor evaluates the select list in this order and so takes the locks in it; the lane rows moved must equal the lanes: a row RLS hides moves nothing
 commit;
 commit;
 -- after commit: the unit's afterCommit hook hands ($namespace, $scope) to the process's notifier (section 14.3.7)
@@ -8761,7 +8814,8 @@ Properties:
   committed in the scope, and 0 for a scope that never appended; positioned loads read it in the
   same statement, and a locked load in the first statement after the lock (section 7.9.4).
 - Every tail takes its locks in one order, the order in which the executor evaluates the select list
-  of the statement (PostgreSQL does not promise it for data-modifying CTEs; the case
+  of the statement (the queued count, when the unit inserted a capped job, is its first item and
+  locks no row; PostgreSQL does not promise the order for data-modifying CTEs; the case
   `commit-tail-lock-order.postgres.test.ts` pins only that the usage rows are locked before the
   `enqueued` rows, and nothing pins the order of the first three): the positions row, the stream
   versions of its events, the `kw_usage` rows by dimension, then the `enqueued` rows of its lanes by
@@ -8771,7 +8825,7 @@ Properties:
   holds one of these rows, until that tail commits, and for a take that holds an `enqueued` row
   of its lane (a take can be a namespace-scope unit), which ends without waiting (WP-197); nothing
   else locks the `kw_usage` rows, and the admission of a command reads them without a lock.
-- A unit that appended nothing sends only its lane and usage parts and never touches the positions counter. Job
+- A unit that appended nothing sends only its lane, usage and queued-count parts, whichever it has, and never touches the positions counter. Job
   groups that span the namespace's scopes are created and re-limited only in namespace-scope units
   (`JobStore.provisionGroup`, section 9.5.2), so a tenant unit never writes a row other tenants'
   units wait on.

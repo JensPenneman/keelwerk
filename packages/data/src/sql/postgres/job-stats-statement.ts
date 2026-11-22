@@ -1,10 +1,11 @@
 import type { PostgresStatement } from './begin-unit-statements.ts';
+import { queuedJobStates } from './queued-job-states.ts';
 import { quoteIdentifier } from './quote-identifier.ts';
 
 /**
  * Statistics per queue and capability set (21.4): the running count is the lane's `taken` less its
  * `done`; due jobs, the oldest wait, the next time and the arrivals of the last minute come from the
- * queue's jobs; the queued count (scheduled, available and waiting jobs) from the same scan; the
+ * queue's jobs; the queued count (the jobs that wait to run, `queuedJobStates`) from the same scan; the
  * mean run time from the history rows with a start, of the asked queue only. The SLO is configuration the
  * store does not hold. Times are seconds as double precision; counts are text.
  */
@@ -24,7 +25,7 @@ export function jobStatsStatement(
   select j.lane_id,
     count(*) filter (where j.state = 'available' and j.run_at <= $2::timestamptz) as due,
     max(extract(epoch from ($2::timestamptz - j.run_at))) filter (where j.state = 'available' and j.run_at <= $2::timestamptz) as oldest,
-    count(*) filter (where j.state in ('scheduled', 'available', 'waiting')) as queued,
+    count(*) filter (where j.state in ${queuedJobStates}) as queued,
     count(*) filter (where j.created_at >= $2::timestamptz - interval '60 seconds') as arrivals,
     min(j.run_at) filter (where j.state in ('scheduled', 'available')) as next_due
   from ${root}.kw_jobs j

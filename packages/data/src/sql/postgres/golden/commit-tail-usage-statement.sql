@@ -25,19 +25,18 @@ with counter as (
   where c.lane_id = x.lane_id::bigint and c.kind = 'enqueued'
     and c.scope_id = $1::uuid
     and c.lane_id in (select lane_id from locked)
-  returning c.lane_id, c.value
+  returning 1
 ), queued as (
-  select x.lane_id, o.queue, sum(coalesce(m.value, e.value) - l.taken) as value
-  from unnest($22::text[]) as x (lane_id)
-  join "app".kw_job_lanes o on o.id = x.lane_id::bigint and o.scope_id = $1::uuid
-  join "app".kw_job_lanes l on l.scope_id = o.scope_id and l.queue = o.queue
-  join "app".kw_job_lane_counts e on e.lane_id = l.id and e.kind = 'enqueued'
-  left join enqueued m on m.lane_id = l.id
-  group by x.lane_id, o.queue
+  select x.queue, (select count(*) from (
+  select 1 from "app".kw_jobs j
+  where j.queue = x.queue and ($1::uuid is null or j.scope_id = $1::uuid)
+    and j.state in ('scheduled', 'available', 'waiting')
+  limit x.cap::bigint + 1
+) q) as value from unnest($22::text[], $23::text[]) as x (queue, cap)
 ), usage as (
   insert into "app".kw_usage as u (scope_id, dimension, value)
-  select $1::uuid, x.dimension, x.delta::bigint from unnest($23::text[], $24::text[]) as x (dimension, delta)
+  select $1::uuid, x.dimension, x.delta::bigint from unnest($24::text[], $25::text[]) as x (dimension, delta)
   on conflict (scope_id, dimension) do update set value = u.value + excluded.value
   returning u.dimension, u.value
 )
-select (select first::text from counter) as first, (select coalesce(json_agg(position::text), '[]'::json) from appended)::text as appended, (select coalesce(json_agg(json_build_array(dimension, value::text)), '[]'::json) from usage)::text as usage, (select count(*) from enqueued)::text as lanes, (select coalesce(json_agg(json_build_array(lane_id::text, queue, value::text)), '[]'::json) from queued)::text as queued
+select (select coalesce(json_agg(json_build_array(queue, value::text)), '[]'::json) from queued)::text as queued, (select first::text from counter) as first, (select coalesce(json_agg(position::text), '[]'::json) from appended)::text as appended, (select coalesce(json_agg(json_build_array(dimension, value::text)), '[]'::json) from usage)::text as usage, (select count(*) from enqueued)::text as lanes

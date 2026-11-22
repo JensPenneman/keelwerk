@@ -18,8 +18,12 @@ export interface StoredJobSpec extends JobSpec {
   readonly laneWeight?: number;
   readonly createdAt: Temporal.Instant;
   /**
-   * `queues.<q>.queued` of a command job's scope, checked at the enqueue's commit tail; absent: no
-   * cap. An enqueue instruction, never stored: a job of 0.1.0 or 0.2.0 reads as uncapped.
+   * `queues.<q>.queued` of a command job's scope, checked at the commit tail of the unit that
+   * inserts the job, in whatever state it enters: the unit is refused when it leaves more queued
+   * jobs (section 9.5.5) in the queue than the cap. A
+   * safe whole number from 0, which a store refuses otherwise with `core.malformed_request`
+   * (`checkLaneMembers`). Absent: no cap. An enqueue instruction, never stored: a job of 0.1.0 or
+   * 0.2.0 reads as uncapped.
    */
   readonly queuedCap?: number;
 }

@@ -2,7 +2,7 @@ import type { DeploymentFacts } from './deployment-facts.ts';
 import type { DoctorFinding } from './doctor-finding.ts';
 import { findingOf } from './finding-of.ts';
 
-/** External-table drift, dead letters, parked streams, capped lanes, unplaceable work and queues past 80 percent of a cap. */
+/** External-table drift, dead letters, parked streams, capped lanes, and unplaceable work. */
 export function workFindings(facts: DeploymentFacts): readonly DoctorFinding[] {
   const found: DoctorFinding[] = [];
   const check = 'deployment';
@@ -61,19 +61,6 @@ export function workFindings(facts: DeploymentFacts): readonly DoctorFinding[] {
         'declare the capability on a process (section 21.2)',
       ),
     );
-  }
-  for (const queue of facts.queues) {
-    if (queue.queuedCap !== undefined && queue.queued > queue.queuedCap * 0.8) {
-      found.push(
-        findingOf(
-          check,
-          'warning',
-          queue.name,
-          `queue ${queue.name} holds ${queue.queued} of ${queue.queuedCap} queued jobs (over 80 percent)`,
-          `raise queues.${queue.name}.queued or drain the queue`,
-        ),
-      );
-    }
   }
   return found;
 }
