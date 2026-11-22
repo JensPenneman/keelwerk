@@ -35,6 +35,11 @@ The preset also configures Biome's own rules for the package-kind boundaries: `n
 and `noRestrictedImports` in module packages (allowed under `src/executors/`), `noProcessEnv`,
 `noProcessGlobal` and `noGlobalAssign` everywhere except `keelwerk.config.ts`.
 
+An override in your own `biome.json` that gives a rule as an object (a level, with or without options)
+replaces the preset's options of that rule for every file it matches; a level given as a plain string
+keeps them. To add a restriction of your own, use a plugin of the lint, or repeat in your override the
+options of every preset override that matches the same files.
+
 ## Fixtures and tests
 
 `plugins/fixtures/<rule>/` is a small project per plugin, with a `biome.json` that extends the

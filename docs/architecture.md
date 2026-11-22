@@ -4186,9 +4186,9 @@ id of a process instance forever. Build a job key from ids, never from a persona
   deadlocks and starts more than one checked container fails at its stops, because a declaration
   belongs to the file. Opted out (`checkDeadlocks: false`, each with its reason in the
   code): the global setups of the four guarded projects, whose files the guard checks one by one,
-  and one case of the rule's own test. A lint rule (`noRestrictedImports`, root `biome.json`)
-  refuses the container libraries and anything under them outside the testing package's `postgres`
-  folder; it does not reach the spikes, where the linter is off: `spikes/write-path`, which keeps
+  and one case of the rule's own test. A plugin of the lint (`scripts/lint/testcontainers.grit`,
+  registered in the root `biome.json`) refuses the container libraries and anything under them outside
+  the testing package's `postgres` folder; it does not reach the spikes, where the linter is off: `spikes/write-path`, which keeps
   its own starter, applies the rule in its test file through the shared functions and reads the
   counter only after no client connection is left, `spikes/queue-real-handlers` uses `startPostgres`, and
   `spikes/interpreter-overhead` starts a container of its own for a measurement, not a test, and is

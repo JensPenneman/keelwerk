@@ -1,0 +1,53 @@
+// A PostgreSQL test container is started in one place: `startPostgres` of `@keelwerk/testing/postgres`
+// (`packages/testing/src/postgres/`), whose stop applies the deadlock rule. Everywhere else, in
+// sources, tests, scripts and configuration files alike, no file imports `testcontainers` or
+// `@testcontainers/postgresql` (subpaths included). The plugin's `includes` in biome.json leaves that
+// place out. A type-only form is refused as well: the rule has no exemption.
+//
+// Its reach: the rule guards against a forgotten or careless import, not against an author who
+// hides the name; no lint can stop that, and every spelling built in makes the rule harder to read,
+// so none is added. It reads a module name that is written out as one literal: of an import, a
+// re-export with a `from` clause, an import-equals declaration, and of the first argument of a
+// dynamic import or of a call of `require` (any string or template literal inside that argument,
+// one by one, as written). It does not see a module name that is put together when the code runs (a
+// template literal with a tag or with a substitution inside the package name, a concatenation, a
+// variable, `'test' + 'containers'`), a name spelled with an escape sequence, a `require` that is
+// not called by its own name, and a value that another package hands on. A pattern matches the
+// whole text of a node, comments inside it included.
+pattern testcontainers_module() {
+  r"['\"`](?:testcontainers|@testcontainers/postgresql)(?:/[^'\"`]*)?['\"`]"
+}
+
+pattern module_in_argument() {
+  contains or {
+    JsStringLiteralExpression(),
+    JsTemplateExpression()
+  } as $l where { $l <: testcontainers_module() }
+}
+
+pattern require_name() { r"(?s)(?:\s|\(|/\*.*?\*/|//[^\n]*)*require(?:\s|\)|/\*.*?\*/|//[^\n]*)*" }
+
+or {
+  JsImport() as $n where {
+    $n <: contains JsModuleSource() as $m where { $m <: testcontainers_module() }
+  },
+  JsExport() as $n where {
+    $n <: contains or {
+      JsExportFromClause(),
+      JsExportNamedFromClause()
+    },
+    $n <: contains JsModuleSource() as $m where { $m <: testcontainers_module() }
+  },
+  TsImportEqualsDeclaration() as $n where {
+    $n <: contains JsModuleSource() as $m where { $m <: testcontainers_module() }
+  },
+  JsImportCallExpression(arguments=JsCallArguments(args=[$m, ...])) as $n where {
+    $m <: module_in_argument()
+  },
+  JsCallExpression(callee=$c, arguments=JsCallArguments(args=[$m, ...])) as $n where {
+    $c <: require_name(),
+    $m <: module_in_argument()
+  }
+} as $found where {
+  register_diagnostic(span=$found, message="Start a PostgreSQL test container with startPostgres of @keelwerk/testing/postgres: its stop applies the deadlock rule.", severity="error")
+}

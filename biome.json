@@ -26,38 +26,13 @@
         "!**/*.test.ts",
         "!**/*.test-d.ts"
       ]
+    },
+    {
+      "path": "./scripts/lint/testcontainers.grit",
+      "includes": ["**", "!packages/testing/src/postgres/**"]
     }
   ],
   "overrides": [
-    {
-      "includes": ["**"],
-      "linter": {
-        "rules": {
-          "style": {
-            "noRestrictedImports": {
-              "level": "error",
-              "options": {
-                "patterns": [
-                  {
-                    "group": [
-                      "@testcontainers/postgresql",
-                      "@testcontainers/postgresql/**",
-                      "testcontainers",
-                      "testcontainers/**"
-                    ],
-                    "message": "Start a PostgreSQL test container with startPostgres of @keelwerk/testing/postgres: its stop applies the deadlock rule."
-                  }
-                ]
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "includes": ["packages/testing/src/postgres/**"],
-      "linter": { "rules": { "style": { "noRestrictedImports": "off" } } }
-    },
     {
       "includes": ["packages/*/migrations/*/0*.ts"],
       "linter": {

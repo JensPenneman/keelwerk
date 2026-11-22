@@ -57,10 +57,9 @@ beforeAll(() => {
     'dir',
   );
   mkdirSync(join(scratch, 'scripts', 'lint'), { recursive: true });
-  cpSync(
-    join(repositoryRoot, 'scripts', 'lint', 'pg-connections.grit'),
-    join(scratch, 'scripts', 'lint', 'pg-connections.grit'),
-  );
+  cpSync(join(repositoryRoot, 'scripts', 'lint'), join(scratch, 'scripts', 'lint'), {
+    recursive: true,
+  });
   const config = JSON.parse(readFileSync(join(repositoryRoot, 'biome.json'), 'utf8')) as Record<
     string,
     unknown
