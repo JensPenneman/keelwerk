@@ -139,23 +139,25 @@ export async function trpcClientHost(options: { readonly websocket?: boolean } =
    * A client whose socket carries no header and no cookie: its credentials are the `token` of tRPC's
    * `connectionParams`, sent as the first message. A refused token closes the socket 4401; the client
    * waits a minute before it would connect again, so only `close` ends what it does after that.
+   * `closed` settles with the code of the first close the client sees: a case awaits that signal and
+   * makes no call, because tRPC fails such a call only if it tried to send it before it handled the close
+   * (sent, or refused by a socket already closing); a call still waiting to be sent when the close is
+   * handled is kept for the next connection.
    */
-  function tokenSocketClientOf(
-    token: string,
-    on: { readonly onClose?: (code: number) => void } = {},
-  ) {
+  function tokenSocketClientOf(token: string) {
+    const closed = Promise.withResolvers<number>();
     const socket = createWSClient({
       url: socketUrl,
       // biome-ignore lint/style/useNamingConvention: the option is tRPC's own name
       WebSocket: trpcWebSocket(WebSocket),
       connectionParams: { token },
       retryDelayMs: () => 60_000,
-      onClose: (event) => on.onClose?.(event?.code ?? 0),
+      onClose: (event) => closed.resolve(event?.code ?? 0),
     });
     const client = createTRPCClient<TrpcRouter>({
       links: [wsLink({ client: socket, transformer: keelwerkSuperjson() })],
     });
-    return { client, close: () => socket.close() };
+    return { client, closed: closed.promise, close: () => socket.close() };
   }
   /** The socket class a client uses while `gate` is shut: its attempts go to the path the host refuses. */
   const gatedWebSocket = (gate: { open: boolean }): typeof WebSocket =>

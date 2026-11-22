@@ -32,10 +32,7 @@ describe('what one socket may carry and run at once', () => {
     // The same over the whole handler: the close, and no answer and no call after the turns.
     const { socket, mounted } = await served({ config: { maxBodyBytes: 1024 } });
     socket.message(oversized);
-    await vi.waitFor(
-      () => expect(socket.closedWith).toEqual({ code: 4400, reason: 'core.payload_too_large' }),
-      waitOptions,
-    );
+    expect(await socket.closed).toEqual({ code: 4400, reason: 'core.payload_too_large' });
     await turns();
     expect(socket.sent).toEqual([]);
     expect(mounted.calls).toEqual([]);

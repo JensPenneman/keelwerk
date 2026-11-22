@@ -83,11 +83,7 @@ describe('what a socket that does not read can make the host hold', () => {
       if (sent % 500 === 0) await pause();
     }
     client.socket.resume();
-    const outcome = await Promise.race([
-      client.closed.then(() => 'closed' as const),
-      new Promise<'open'>((resolve) => setTimeout(() => resolve('open'), 5_000)),
-    ]);
-    expect(outcome).toBe('closed');
+    await client.closed;
     expect(written.length).toBeGreaterThan(0);
     expect(Math.max(...written)).toBeLessThanOrEqual(65_536);
   });

@@ -75,10 +75,7 @@ describe('the keelwerk.trpc.v1 handler over the host session', () => {
   ])('a first message %s closes 4000 protocol_error and opens nothing', async (_name, text) => {
     const { socket, held } = await served({ url: 'wss://portal.example/trpc?connectionParams=1' });
     socket.message(text);
-    await vi.waitFor(
-      () => expect(socket.closedWith).toEqual({ code: 4000, reason: 'protocol_error' }),
-      waitOptions,
-    );
+    expect(await socket.closed).toEqual({ code: 4000, reason: 'protocol_error' });
     expect(held.opened).toEqual([]);
   });
 
@@ -268,10 +265,7 @@ describe('the keelwerk.trpc.v1 handler over the host session', () => {
       surfaces: versionProjection(['2026-11-11'], () => trpcConformanceSurface()),
     });
     socket.message(JSON.stringify({ method: 'connectionParams', data: { token: 'secret-token' } }));
-    await vi.waitFor(
-      () => expect(socket.closedWith).toEqual({ code: 1011, reason: 'internal_error' }),
-      waitOptions,
-    );
+    expect(await socket.closed).toEqual({ code: 1011, reason: 'internal_error' });
     const logged = JSON.stringify(mounted.lines);
     expect(logged).toContain('The tRPC socket failed.');
     expect(logged).not.toContain('secret-token');

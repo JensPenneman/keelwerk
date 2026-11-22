@@ -58,12 +58,16 @@ describe('a transport socket on the host', () => {
 
   test('the web socket delivers messages and one close event, and refuses binary sends', async () => {
     const closes: CloseEvent[] = [];
+    const closed = Promise.withResolvers<CloseEvent>();
     const { port } = await start({
       open(socket) {
         socket.addEventListener('message', (event) => {
           socket.send(`echo:${String(event.data)}`);
         });
-        socket.addEventListener('close', (event) => closes.push(event));
+        socket.addEventListener('close', (event) => {
+          closes.push(event);
+          closed.resolve(event);
+        });
         try {
           socket.send(new Uint8Array(1));
         } catch (failure) {
@@ -79,7 +83,12 @@ describe('a transport socket on the host', () => {
     expect(await client.next()).toBe('echo:b');
     client.socket.close(1000);
     await client.closed;
-    await vi.waitFor(() => expect(closes).toHaveLength(1));
+    // The host's side of the socket reports its close in its own turn: the signal is the event it hands over.
+    // The length below shows that no second event came in the same run of dispatching as the first; that
+    // one event is all that is dispatched rests on web-socket-of.ts, which dispatches from a single promise
+    // reaction. A later duplicate is not what this length shows, and nothing here sleeps for one.
+    await closed.promise;
+    expect(closes).toHaveLength(1);
     expect(closes.map((event) => event.code)).toEqual([1000]);
   });
 

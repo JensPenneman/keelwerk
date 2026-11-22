@@ -98,12 +98,9 @@ describe('over a real socket', () => {
       if (port === undefined) throw new Error('the host has no port');
       // The server's side of the connection is the socket whose local port is the listener's.
       const original = Socket.prototype.destroy;
-      let serverSocketDestroyed: () => void = () => undefined;
-      const destroyedByServer = new Promise<void>((resolve) => {
-        serverSocketDestroyed = resolve;
-      });
+      let serverSocketDestroyed = false;
       vi.spyOn(Socket.prototype, 'destroy').mockImplementation(function (this: Socket, ...args) {
-        if (this.localPort === port) serverSocketDestroyed();
+        if (this.localPort === port) serverSocketDestroyed = true;
         return original.apply(this, args);
       });
       const client = connect(port, '127.0.0.1');
@@ -121,13 +118,11 @@ describe('over a real socket', () => {
       // queue passes its bound, and the stall ends the carrier's writes and destroys the socket, while
       // the client has still read nothing.
       await carrierDone;
-      // Left alone, the server's own socket timeout would close it after about five seconds: the
-      // stall must have closed it long before.
-      const early = await Promise.race([
-        destroyedByServer.then(() => true),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2500)),
-      ]);
-      expect(early).toBe(true);
+      // The stall ends the carrier's writes and destroys the socket in one synchronous run, and the
+      // carrier is told in a later turn: so a destroy of the server socket has happened by the time the
+      // carrier knows. Without the stall's destroy none has happened by then, so this fails at once
+      // when the stall does not destroy. Nothing waits for a time here.
+      expect(serverSocketDestroyed).toBe(true);
       client.resume();
       await closed;
       expect(client.destroyed).toBe(true);

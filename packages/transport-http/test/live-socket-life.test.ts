@@ -1,7 +1,7 @@
 import type { InvocationSession, LiveFrame } from '@keelwerk/core';
 import { coreError } from '@keelwerk/core/http';
-import { type LoggedLine, recordingLogger } from '@keelwerk/testing';
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import { announcedLines } from './support/announced-lines.ts';
 import { libraryActions } from './support/library-actions.ts';
 import type { LiveSocketClient } from './support/live-socket-client.ts';
 import { quietHub } from './support/quiet-hub.ts';
@@ -170,23 +170,19 @@ describe('the life of a socket', () => {
   });
 
   test('log lines and spans of a socket hold ids and counts only', async () => {
-    const lines: LoggedLine[] = [];
-    const made = await started(quietHub({ open: 0 }), { deps: { log: recordingLogger(lines) } });
+    const { lines, log, logged } = announcedLines();
+    const made = await started(quietHub({ open: 0 }), { deps: { log } });
     const client = await helloed(made, { token: 'SECRET-TOKEN', traceparent: 'SECRET-TRACE' });
     subscribe(client, 'a', { input: { key: 'SECRET-INPUT' }, after: 'SECRET-AFTER!' });
     await client.until((message) => message.type === 'error');
     client.send({ type: 'invoke', id: 'i', request: { action: 'SECRET-ACTION' } });
     await client.until((message) => message.type === 'result');
     await client.close();
-    await vi.waitFor(() =>
-      expect(lines.some((line) => line.message === 'live socket closed')).toBe(true),
-    );
-    const closing = lines.find((line) => line.message === 'live socket closed');
-    expect(Object.keys(closing?.fields ?? {}).sort()).toEqual([
-      'code',
-      'connectionId',
-      'subscriptions',
-    ]);
+    // The host writes the line when its side of the socket has ended: that is the signal, not the client's close.
+    const closing = await logged('live socket closed');
+    // The secrets check below reads `lines`: it proves nothing over an empty list, so the line is in it.
+    expect(lines).toContain(closing);
+    expect(Object.keys(closing.fields).sort()).toEqual(['code', 'connectionId', 'subscriptions']);
     const text = JSON.stringify([lines, made.telemetry.spans]);
     expect(text).not.toContain('SECRET');
   });

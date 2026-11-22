@@ -107,9 +107,11 @@ describe('@trpc/client over keelwerk.trpc.v1', () => {
   });
 
   test('over wsLink with connectionParams, as a browser sends them: the token is the only credential, a query and a subscription run as its user, and a refused token closes the socket 4401 which the client sees', async () => {
-    // Every wait below is on loopback with the host in this process: a run needs a few tens of milliseconds
-    // for each (the 10 s bound is about 100 times that, and ends the case with its message instead of the
-    // test's 60 s); a wait that ends at its bound has found a real fault, not a slow machine.
+    // Every polled wait below is on loopback with the host in this process: a run needs a few tens of
+    // milliseconds for each (the 10 s bound is about 100 times that, and ends the case with its message
+    // instead of the test's 60 s); a wait that ends at its bound has found a real fault, not a slow machine.
+    // The wait for the refused client's close is a signal and has no bound of its own: a close that does
+    // not come ends the case at the test's limit.
     const subject = freshName('ada');
     const trusted = host.tokenSocketClientOf(tokenOf(subject));
     onTestFinished(() => trusted.close());
@@ -124,14 +126,13 @@ describe('@trpc/client over keelwerk.trpc.v1', () => {
     expect(await trusted.client.library.findByIsbn.query({ isbn: freshName('isbn') })).toEqual({});
     await lend(host.clientOf(subject));
     await vi.waitFor(() => expect(JSON.stringify(seen)).toContain('"loanId"'), { timeout: 10_000 });
-    // A token that resolves to nobody: the host closes 4401 after the first message, the query fails with it.
-    const closes: number[] = [];
-    const refused = host.tokenSocketClientOf('nobody', { onClose: (code) => closes.push(code) });
+    // A token that resolves to nobody: the host closes 4401 after the first message, and the client sees
+    // the close. The case makes no call on this client: tRPC fails such a call only if it tried to send it
+    // before it handled the close (sent, or refused by a socket already closing); a call still waiting to
+    // be sent when the close is handled is kept for the next connection.
+    const refused = host.tokenSocketClientOf('nobody');
     onTestFinished(() => refused.close());
-    await expect(
-      refused.client.library.findByIsbn.query({ isbn: freshName('isbn') }),
-    ).rejects.toThrow();
-    await vi.waitFor(() => expect(closes).toContain(4401), { timeout: 10_000 });
+    expect(await refused.closed).toBe(4401);
   });
 
   test("an attempt refused by the shut gate is an answer of the server: its close reaches a listener added after tRPC's client adds its own", async () => {
@@ -171,7 +172,6 @@ describe('@trpc/client over keelwerk.trpc.v1', () => {
       // The host ends the socket at its maximum duration; the client may reconnect only after the item is written.
       gate.open = false;
       await host.advance(86_400_000);
-      await vi.waitFor(() => expect(closes).toBeGreaterThan(0), wait);
       const written = await lend(host.clientOf(subject));
       lent = true;
       gate.open = true;

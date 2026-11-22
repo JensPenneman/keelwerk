@@ -1,5 +1,8 @@
 import { vi } from 'vitest';
 
+/** How a socket was closed. */
+type Closed = { code: number | undefined; reason: string | undefined };
+
 /** One message tRPC's connection handler sent over the fake socket, parsed. */
 export type SocketMessage = Readonly<Record<string, unknown>>;
 
@@ -8,13 +11,19 @@ export class FakeTrpcSocket extends EventTarget {
   readonly protocol = 'keelwerk.trpc.v1';
   readyState = 1;
   readonly sent: (SocketMessage | 'PONG')[] = [];
-  closedWith: { code: number | undefined; reason: string | undefined } | undefined;
+  closedWith: Closed | undefined;
+  /** Settles with the code and reason of the first close; a case awaits it instead of polling `closedWith`. */
+  readonly closed: Promise<Closed>;
+  readonly #settleClosed: (closed: Closed) => void;
 
   readonly url: string;
 
   constructor(url = 'wss://portal.example/trpc') {
     super();
     this.url = url;
+    const closed = Promise.withResolvers<Closed>();
+    this.closed = closed.promise;
+    this.#settleClosed = closed.resolve;
   }
 
   send(data: string): void {
@@ -25,6 +34,7 @@ export class FakeTrpcSocket extends EventTarget {
     if (this.closedWith !== undefined) return;
     this.closedWith = { code, reason };
     this.readyState = 3;
+    this.#settleClosed(this.closedWith);
     this.dispatchEvent(new CloseEvent('close', { code: code ?? 1000, reason: reason ?? '' }));
   }
 
