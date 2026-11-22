@@ -1,5 +1,6 @@
 // biome-ignore-all lint/style/useNamingConvention: the keys are the column names of the framework tables
 import type { BucketStore } from '@keelwerk/core';
+import { bucketLevel } from './bucket-level.ts';
 import { decodeInstant } from './decode-instant.ts';
 import { encodeInstant } from './encode-instant.ts';
 import { malformedQuery } from './malformed-query.ts';
@@ -11,7 +12,8 @@ import type { SqlUnitContext } from './sql-unit-context.ts';
  * time up to `capacity`, one take per call. The caller passes the keyed hash of the bucket key as
  * `bucket` and the store keeps its UTF-8 bytes; it never sees the plain identifier. The row is
  * locked from the read to the write, so concurrent takes of one bucket queue up, and a refused
- * take reports the seconds until enough tokens have refilled.
+ * take reports the seconds until enough tokens have refilled. A row dated ahead of the reading
+ * clock is never credited the difference (see `bucketLevel`).
  */
 export function sqlBucketStore(ctx: SqlUnitContext): BucketStore {
   const table = ctx.table('kw_rate_buckets');
@@ -31,21 +33,14 @@ export function sqlBucketStore(ctx: SqlUnitContext): BucketStore {
           .select(['tokens', 'refilled_at'])
           .where('bucket', '=', key)
           .executeTakeFirst();
-        const elapsed =
+        return bucketLevel(
           row === undefined
-            ? 0
-            : Math.max(
-                0,
-                ctx.clock.now().epochMilliseconds -
-                  decodeInstant(row.refilled_at).epochMilliseconds,
-              ) / 1000;
-        const available =
-          row === undefined
-            ? capacity
-            : Math.min(capacity, Number(row.tokens) + elapsed * refillPerSecond);
-        return available >= cost
-          ? { ok: true }
-          : { ok: false, retryAfter: (cost - available) / refillPerSecond };
+            ? undefined
+            : { tokens: Number(row.tokens), refilledAt: decodeInstant(row.refilled_at) },
+          ctx.clock.now(),
+          cost,
+          limits,
+        ).answer;
       });
     },
     take: async (bucket, cost, limits) => {
@@ -72,23 +67,21 @@ export function sqlBucketStore(ctx: SqlUnitContext): BucketStore {
           .forUpdate()
           .executeTakeFirstOrThrow();
         // Read after the lock: a take that waited for another must not write an older instant over it.
-        const at = ctx.clock.now();
-        const elapsed =
-          Math.max(0, at.epochMilliseconds - decodeInstant(row.refilled_at).epochMilliseconds) /
-          1000;
-        const available = Math.min(capacity, Number(row.tokens) + elapsed * refillPerSecond);
-        const granted = available >= cost;
+        const level = bucketLevel(
+          { tokens: Number(row.tokens), refilledAt: decodeInstant(row.refilled_at) },
+          ctx.clock.now(),
+          cost,
+          limits,
+        );
         await db
           .updateTable(table)
           .set({
-            tokens: granted ? available - cost : available,
-            refilled_at: encodeInstant(at),
+            tokens: level.answer.ok ? level.available - cost : level.available,
+            refilled_at: encodeInstant(level.refilledAt),
           })
           .where('bucket', '=', key)
           .execute();
-        return granted
-          ? { ok: true }
-          : { ok: false, retryAfter: (cost - available) / refillPerSecond };
+        return level.answer;
       });
     },
   };

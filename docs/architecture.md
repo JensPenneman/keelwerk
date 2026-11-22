@@ -4888,6 +4888,41 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
 | share of a queue | a weight per backend and tenant (default 1), operator only | the lane's virtual time | the take's order |
 | live subscriptions and connections per tenant | as above | deployment-wide, through leases in the control store; per-process counters for the fast path | `admit` at subscribe time |
 
+- Request rate. The request rate counts requests where they enter, at `admit`: one check for each
+  invocation that comes in through a transport or a direct invoke, and one when a subscription is
+  set up. Three kinds of invocation have no check: one in the deployment scope, one with no target
+  scope, and `core.explain` itself, which is answered before the invoker; a dry run of `explain`
+  runs the admission checks of the command it explains, reads the levels of the rate buckets and
+  takes nothing. The work of a request that is already counted, and the work of the queue, is not
+  counted: a job, the prepare step of a command, an effect that runs inline, a command that an
+  effect invokes inside a request (at any depth) and an inline reaction. A request that reaches the
+  check is counted whatever a later stage does with it: a command id that is sent again is a
+  request, also when it only gets its receipt, and a request that a later stage refuses (the
+  storage admission of a command with a prepare step, validation, authorization) has spent its
+  tokens. A request that is refused before the check (by a closed kill switch, a restore hold,
+  its session or the locating of its action) takes nothing: the rate check is the last of the
+  admission checks, and it comes before the storage admission and before the receipt of a command
+  id is read. A refusal by the rate is not pinned to
+  the command id: the same id sent again later is judged anew. A request takes one token of the
+  principal's bucket (`core.principalRequestRate`; an anonymous caller has the bucket of its client
+  address, an IPv6 address by its /64), of its action class's bucket (`core.commandRate`,
+  `core.queryRate`, `core.subscribeRate`) and of the tenant's `core.requestRate`, in that order; the
+  first bucket that refuses stops the rest and a refused request takes no token of the shared
+  buckets. A caller over a rate gets `rate_limited` with `core.rate_limited` and `retryAfter`, in
+  whole seconds rounded up; a caller whose tokens could not be taken because the store is away gets
+  `unavailable` with `core.unavailable`, which is retryable. Each process draws up to a tenth of a
+  bucket's capacity (at most 10 tokens; none beyond its own below a capacity of 20) in the unit
+  that takes its own token, holds them for one second and never returns them to the store, so at
+  most 9 tokens per process and bucket can sit unused in other processes, and what a process
+  admits beyond the rate is bounded the same way. If the unit that takes the tokens fails with an
+  unknown outcome at its commit, the store may have given the draw while the process holds none of
+  it: up to 10 tokens per bucket are lost, on the closed side. A process holds at most 10,000
+  buckets; beyond that it drops the least recently used bucket of the scope that holds the most,
+  with at most 9 tokens, so a scope that adds buckets faster than it uses them (an anonymous caller
+  that changes its address with every request) drops its own once it holds the most, and before that
+  cuts another scope only while that scope holds at least as many buckets as the flooding scope (so
+  to at most one fewer), then drops its own. A bucket's row is kept: rows of `kw_rate_buckets` are
+  not swept yet.
 - Quota dimensions are declared like configuration (`quotas: { storageBytes: quota.bytes().default('10GiB') }`
   on a module or on the core) and changed through operator actions (`core.quota.set`), or through
   tenant-editable configuration where a backend allows it.
@@ -6645,7 +6680,8 @@ export type JobId = string
 /** What the queue stores: a JobSpec (section 9.5.1) with its kind, its lane's cap and its creation time. */
 export interface StoredJobSpec extends JobSpec {
   readonly kind: 'action' | 'effect'
-  readonly laneCap: number                                    // queues.<q>.running for an upserted lane (section 9.5.2)
+  readonly laneCap: number                                    // queues.<q>.running for an upserted lane (section 9.5.2): a whole number from 0 to 2147483647, else a store refuses with core.malformed_request (checkLaneMembers)
+  readonly laneWeight?: number                                // queues.<q>.weight: a whole number from 1 to 2147483647, checked the same way; absent: 1 for a new lane, an existing lane keeps its weight
   readonly createdAt: Temporal.Instant
 }
 /** A taken job: its row, with the attempt the worker now holds. */

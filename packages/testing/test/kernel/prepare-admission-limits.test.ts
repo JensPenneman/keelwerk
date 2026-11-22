@@ -145,6 +145,11 @@ describe('admission before prepare', () => {
   test('the admission waits for no read-write unit: a refusal comes while another unit of the namespace is open', async () => {
     const { world, adapter, invoke } = boot();
     expect((await invoke('library.grow', { isbn: 'g-1' })).ok).toBe(true);
+    // A second request is sent first because the draw of the request rate is a read-write unit that
+    // the memory adapter, which serialises read-write units, would hold behind the open one, so the
+    // next call finds its three tokens held and opens no unit, and the case still shows what its
+    // title says of the storage admission.
+    expect((await invoke('library.grow', { isbn: 'g-2' })).ok).toBe(true);
     world.rows = 0;
     // A read-write unit of the namespace holds its lock until the test releases it, which it does
     // only after the refusal came: an admission in a read-write unit would wait for it, so the call

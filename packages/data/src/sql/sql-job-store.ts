@@ -1,5 +1,5 @@
 import type { JobGroup, JobId, JobStore, Scope, StorageScope, StoredJobSpec } from '@keelwerk/core';
-import { errors, jobPositionOf, reactionQueue } from '@keelwerk/core';
+import { checkLaneMembers, errors, jobPositionOf, reactionQueue } from '@keelwerk/core';
 import { decodeInstant } from './decode-instant.ts';
 import { encodeInstant } from './encode-instant.ts';
 import { jobCapabilitySet } from './job-capability-set.ts';
@@ -99,6 +99,7 @@ export function sqlJobStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): SqlJo
     readied: () => buffer.readied(),
     enqueue: async (spec: StoredJobSpec): Promise<JobId> => {
       ctx.writable();
+      checkLaneMembers(spec);
       const scopeId = ctx.scopeId();
       if (!sameScope(ctx.scope, spec.scope)) {
         throw scopeForbidden('a job is enqueued in a unit of its own scope', {
@@ -116,10 +117,12 @@ export function sqlJobStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): SqlJo
           capabilitySet: jobCapabilitySet(spec.capability),
           priority: jobPriority(spec.priority),
           cap: spec.laneCap,
+          ...(spec.laneWeight === undefined ? {} : { weight: spec.laneWeight }),
         });
         const laneId = lane.id;
-        // A new cap can make waiting jobs of the lane takeable, whatever this job's own time.
-        if (lane.capChanged) buffer.ready(spec.queue);
+        // A new cap or weight can make waiting jobs of the lane takeable, whatever this job's own
+        // time, and a taker that met the lane's held row skipped the lane (see `sqlJobLane`).
+        if (lane.written) buffer.ready(spec.queue);
         const runAt = spec.runAt ?? now;
         const due = Temporal.Instant.compare(runAt, now) <= 0;
         const key = spec.key;

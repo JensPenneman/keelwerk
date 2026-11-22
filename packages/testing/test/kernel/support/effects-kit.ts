@@ -32,7 +32,6 @@ const effectEntry = servedRegistry.entities.get('core.effect');
 if (effectEntry === undefined) throw new Error('the fixture has no core.effect');
 const receiptEntry = servedRegistry.entities.get('core.commandReceipt');
 if (receiptEntry === undefined) throw new Error('the fixture has no core.commandReceipt');
-const receiptEntity = receiptEntry.descriptor;
 function invoker(
   registry: Registry,
   adapter: DataAdapter,
@@ -93,6 +92,7 @@ async function jobsOf(unit: Unit, queues: readonly string[]): Promise<readonly S
 }
 
 export const effectEntity = effectEntry.descriptor;
+export const receiptEntity = receiptEntry.descriptor;
 
 /** What a test adds to the fixture's registry. */
 export interface Parts {

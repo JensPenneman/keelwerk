@@ -4,6 +4,8 @@ import { describe, expect, test } from 'vitest';
 import type { ConformanceSubject } from './conformance-subject.ts';
 import { conformanceWait } from './conformance-wait.ts';
 import { jobStoreHelpers } from './job-store-helpers.ts';
+import { jobStoreLaneCapCases } from './job-store-lane-cap-cases.ts';
+import { jobStoreLaneWeightCases } from './job-store-lane-weight-cases.ts';
 import { jobStoreLostLeaseCases } from './job-store-lost-lease-cases.ts';
 import { jobStorePendingCases } from './job-store-pending-cases.ts';
 import { jobStoreTenantCases } from './job-store-tenant-cases.ts';
@@ -32,6 +34,8 @@ export function jobStoreCases(subject: Pick<ConformanceSubject, 'run' | 'clock'>
   describe('job store (9.5, 14.3.9)', () => {
     jobStoreTenantCases(subject);
     jobStorePendingCases(subject);
+    jobStoreLaneCapCases(subject);
+    jobStoreLaneWeightCases(subject);
     jobStoreLostLeaseCases(subject);
 
     test('a taken job carries its spec, its scope and the attempt the worker holds', async () => {

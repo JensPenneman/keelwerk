@@ -4,6 +4,7 @@ import { describe, expect, test } from 'vitest';
 import { behaviours, bookEntity, loanEntity } from './support/command-kit.ts';
 import { command, effectEntity, registryWith } from './support/effects-kit.ts';
 import { ada, call, kit, otherTenant, otherTenantId } from './support/invoker-kit.ts';
+import { withRequestRates } from './support/rate-quota-kit.ts';
 import { namespace, open, tenant } from './support/run-read-kit.ts';
 import { storedRecords } from './support/stored-bytes.ts';
 
@@ -59,10 +60,10 @@ function fakeQuotas(
   const isOther = (scope: { level: string; tenantId?: string }) => scope.tenantId === otherTenantId;
   return {
     rows,
-    limitOf: (_registry, scope, ref): QuotaLimit => {
+    limitOf: withRequestRates((_registry, scope, ref): QuotaLimit => {
       const own = isOther(scope) ? rows.b : rows.a;
       return ref === 'core.rows' ? { kind: 'count', value: own } : { kind: 'bytes', value: bytes };
-    },
+    }),
     queueOf: (scope) => ({
       running: 4,
       queued: isOther(scope) ? queued.b : queued.a,

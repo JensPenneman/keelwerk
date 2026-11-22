@@ -156,6 +156,18 @@ export function jobWakeCases(
     expect(await enqueuing(capped(5, 4))).toEqual(['cap']);
   });
 
+  test('an enqueue that changes only the weight of a lane names its queue also for a job of later', async () => {
+    const weighted = (n: number, over = {}) => numbered(n, { queue: 'weight', ...over });
+    const later = { runAt: now().add({ hours: 1 }) };
+    expect(await enqueuing(weighted(1, { laneWeight: 2, ...later }))).toEqual([]);
+    expect(await enqueuing(weighted(2, { laneWeight: 2, ...later }))).toEqual([]);
+    expect(await enqueuing(weighted(3, { laneWeight: 3, ...later }))).toEqual(['weight']);
+    // a spec without a weight leaves the lane's weight as it is and names nothing
+    expect(await enqueuing(weighted(4, later))).toEqual([]);
+    expect(await enqueuing(weighted(5, { laneWeight: 3, ...later }))).toEqual([]);
+    expect(await enqueuing(weighted(6, { laneWeight: 4 }))).toEqual(['weight']);
+  });
+
   test('a savepoint that fails takes back a changed limit and a changed cap', async () => {
     const refused = new Error('refused');
     const later = { runAt: now().add({ hours: 1 }) };

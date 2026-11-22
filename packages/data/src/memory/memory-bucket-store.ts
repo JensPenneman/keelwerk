@@ -1,4 +1,5 @@
 import type { BucketStore } from '@keelwerk/core';
+import { bucketLevel } from '../sql/bucket-level.ts';
 import { malformedQuery } from '../sql/malformed-query.ts';
 import type { MemoryUnitContext } from './memory-unit-context.ts';
 
@@ -11,7 +12,8 @@ interface Bucket {
  * The shared token buckets of the unit's scope (S-36): created full at `capacity`, refilled by
  * time up to `capacity`, one take per call. The key is the keyed hash the caller derived; the
  * store never sees the plain identifier. A refused take reports the seconds until enough tokens
- * have refilled.
+ * have refilled. A row dated ahead of the reading clock is never credited the difference (see
+ * `bucketLevel`).
  */
 export function memoryBucketStore(ctx: MemoryUnitContext): BucketStore {
   return {
@@ -23,18 +25,7 @@ export function memoryBucketStore(ctx: MemoryUnitContext): BucketStore {
         );
       }
       const existing = ctx.tx.read<Bucket>(`buckets/${ctx.scopeId()}`).get(bucket);
-      const elapsed =
-        existing === undefined
-          ? 0
-          : Math.max(0, ctx.clock.now().epochMilliseconds - existing.refilledAt.epochMilliseconds) /
-            1000;
-      const available =
-        existing === undefined
-          ? capacity
-          : Math.min(capacity, existing.tokens + elapsed * refillPerSecond);
-      return available >= cost
-        ? { ok: true }
-        : { ok: false, retryAfter: (cost - available) / refillPerSecond };
+      return bucketLevel(existing, ctx.clock.now(), cost, limits).answer;
     },
     take: async (bucket, cost, limits) => {
       ctx.writable();
@@ -45,22 +36,12 @@ export function memoryBucketStore(ctx: MemoryUnitContext): BucketStore {
         );
       }
       const table = ctx.tx.write<Bucket>(`buckets/${ctx.scopeId()}`);
-      const now = ctx.clock.now();
-      const existing = table.get(bucket);
-      const elapsed =
-        existing === undefined
-          ? 0
-          : Math.max(0, now.epochMilliseconds - existing.refilledAt.epochMilliseconds) / 1000;
-      const available =
-        existing === undefined
-          ? capacity
-          : Math.min(capacity, existing.tokens + elapsed * refillPerSecond);
-      if (available >= cost) {
-        table.set(bucket, { tokens: available - cost, refilledAt: now });
-        return { ok: true };
-      }
-      table.set(bucket, { tokens: available, refilledAt: now });
-      return { ok: false, retryAfter: (cost - available) / refillPerSecond };
+      const level = bucketLevel(table.get(bucket), ctx.clock.now(), cost, limits);
+      table.set(bucket, {
+        tokens: level.answer.ok ? level.available - cost : level.available,
+        refilledAt: level.refilledAt,
+      });
+      return level.answer;
     },
   };
 }

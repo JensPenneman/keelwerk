@@ -25,6 +25,21 @@ const readerEntity = 'core.commandReceipt';
 type Phase = 'new' | 'joining' | 'live' | 'ended';
 
 /**
+ * What the join of a pokes subscription decided: `silent` (joined, nothing sent for the gap between
+ * the token and the head: a write after this reaches the subscription as a poke of its own),
+ * `poked` (joined, one poke at the head sent for that gap) or `ended` (the stream ended at the
+ * join: a `reset`, a failure or the hub closing).
+ */
+type PokesJoin = 'silent' | 'poked' | 'ended';
+
+/**
+ * Told, for each pokes subscription, the moment its reader has joined and decided what it sends for
+ * the gap. Internal: for the tests of the live module, never exported from the package; a hub
+ * built without one behaves the same.
+ */
+export type PokesJoinObserver = (session: InvocationSession, join: PokesJoin) => void;
+
+/**
  * The hub's `pokes` member (15.2.5): a view-less listener on the reader of the session's own scope.
  * Per batch whose events name an entity of the view: one item `{ upto, changed }` with the new
  * state token of each entity named, whose state is `upto`. A resume is judged at the join: a token
@@ -34,7 +49,11 @@ type Phase = 'new' | 'joining' | 'live' | 'ended';
  * whose view has another key sends `reset` `resync` without a state and ends. The hub closing ends
  * the stream without a frame.
  */
-export function createPokesSource(readers: ScopeReaders, hub: LiveSourceHub): LiveHub['pokes'] {
+export function createPokesSource(
+  readers: ScopeReaders,
+  hub: LiveSourceHub,
+  observe?: PokesJoinObserver,
+): LiveHub['pokes'] {
   const { limits } = hub;
   return (bound: InvocationSession, resume?: StateToken): AsyncIterable<LiveFrame<Poke>> => ({
     [Symbol.asyncIterator]: () => {
@@ -146,6 +165,7 @@ export function createPokesSource(readers: ScopeReaders, hub: LiveSourceHub): Li
         const now = view;
         if (now === undefined) return;
         floor = at;
+        let sentAtJoin = false;
         try {
           if (resume !== undefined) {
             const since = now.judge(resume, at);
@@ -156,6 +176,7 @@ export function createPokesSource(readers: ScopeReaders, hub: LiveSourceHub): Li
             if (since < at && now.entities.size > 0) {
               const poke = pokeAt(now, at, now.entities);
               if (!emit({ event: poke, state: poke.upto })) return;
+              sentAtJoin = true;
             }
           }
           phase = 'live';
@@ -164,6 +185,8 @@ export function createPokesSource(readers: ScopeReaders, hub: LiveSourceHub): Li
           if (ended()) return;
           if (error instanceof KeelwerkError) fail(error);
           else fail(errors.unavailable('The live stream is not available now.'));
+        } finally {
+          observe?.(session, ended() ? 'ended' : sentAtJoin ? 'poked' : 'silent');
         }
       };
 

@@ -1,5 +1,11 @@
 import type { JobId, Scope, StorageScope, StoredJobSpec } from '@keelwerk/core';
-import { errors, jobPositionOf, KeelwerkError, reactionQueue } from '@keelwerk/core';
+import {
+  checkLaneMembers,
+  errors,
+  jobPositionOf,
+  KeelwerkError,
+  reactionQueue,
+} from '@keelwerk/core';
 import { memoryAdjustLane } from './memory-adjust-lane.ts';
 import { memoryCapabilitySet } from './memory-capability-set.ts';
 import type { MemoryJob } from './memory-job.ts';
@@ -51,6 +57,7 @@ function recordQueuedCap(
  */
 export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): JobId {
   ctx.writable();
+  checkLaneMembers(spec);
   const scopeId = ctx.scopeId();
   if (!sameScope(ctx.scope, spec.scope)) {
     throw new KeelwerkError({
@@ -78,7 +85,7 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
       capabilitySet,
       priority,
       cap: spec.laneCap,
-      weight: 1,
+      weight: spec.laneWeight ?? 1,
       taken: 0,
       vtime: 0,
       enqueued: 0,
@@ -86,9 +93,13 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
     };
     tables.putLane(laneKey, lane);
   } else {
-    tables.putLane(laneKey, { ...existingLane, cap: spec.laneCap });
-    // A new cap can make waiting jobs of the lane takeable, whatever this job's own time.
-    if (existingLane.cap !== spec.laneCap) ctx.readied.ready(spec.queue);
+    const weight = spec.laneWeight ?? existingLane.weight;
+    tables.putLane(laneKey, { ...existingLane, cap: spec.laneCap, weight });
+    // A new cap or weight can make waiting jobs of the lane takeable, whatever this job's own time,
+    // and the SQL adapter reports the queue for the same change, for the reason `sqlJobLane` gives.
+    if (existingLane.cap !== spec.laneCap || existingLane.weight !== weight) {
+      ctx.readied.ready(spec.queue);
+    }
   }
 
   const runAt = spec.runAt ?? now;
@@ -163,8 +174,9 @@ export function memoryJobEnqueue(ctx: MemoryUnitContext, spec: StoredJobSpec): J
   const state = follower ? 'waiting' : due ? 'available' : 'scheduled';
   ctx.state.sequences.job += 1;
   const id = ctx.state.sequences.job;
-  // The cap is an instruction for the commit tail: a stored job, like a SQL row, never holds it.
-  const { queuedCap, ...stored } = spec;
+  // The cap is an instruction for the commit tail and the weight lives on the lane: a stored job,
+  // like a SQL row, never holds either.
+  const { laneWeight: _laneWeight, queuedCap, ...stored } = spec;
   tables.putJob({
     id,
     scopeId,

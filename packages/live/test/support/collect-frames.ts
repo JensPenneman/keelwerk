@@ -6,6 +6,9 @@ export interface CollectedFrames<T = unknown> {
   /** The error `next()` threw, when it did. */
   failure(): KeelwerkError | undefined;
   ended(): boolean;
+  /** Resolves when the stream has ended, with or without a failure. */
+  whenEnded(): Promise<void>;
+  /** Waits until `test` holds; `ms` is the limit (15 s by default), `Infinity` is none. */
   until(test: (frames: readonly LiveFrame<T>[]) => boolean, ms?: number): Promise<void>;
   /** Waits for the `head` frame: everything written later reaches the stream. */
   ready(): Promise<void>;
@@ -19,6 +22,10 @@ export function collectFrames<T>(iterable: AsyncIterable<LiveFrame<T>>): Collect
   let failure: KeelwerkError | undefined;
   let done = false;
   let wake: (() => void) | undefined;
+  let finish!: () => void;
+  const finished = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
   void (async () => {
     try {
       for (;;) {
@@ -31,6 +38,7 @@ export function collectFrames<T>(iterable: AsyncIterable<LiveFrame<T>>): Collect
       failure = error as KeelwerkError;
     } finally {
       done = true;
+      finish();
       wake?.();
     }
   })();
@@ -38,6 +46,7 @@ export function collectFrames<T>(iterable: AsyncIterable<LiveFrame<T>>): Collect
     frames,
     failure: () => failure,
     ended: () => done,
+    whenEnded: () => finished,
     ready: () => collected.until((got) => got.some((frame) => 'control' in frame)),
     until: async (test, ms = 15_000) => {
       const deadline = Date.now() + ms;

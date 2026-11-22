@@ -1,7 +1,17 @@
 import { type Clock, errors, type QuotaLimits } from '@keelwerk/core';
-import { command, effectsKit, externalEffect, reaction, registryWith } from './effects-kit.ts';
+import { bookEntity, loanEntity } from './command-kit.ts';
+import {
+  command,
+  effectEntity,
+  effectsKit,
+  externalEffect,
+  reaction,
+  receiptEntity,
+  registryWith,
+} from './effects-kit.ts';
 import { type InlinePrepareContext, pingDraft } from './inline-kit.ts';
-import { namespace, tenant } from './run-read-kit.ts';
+import { tokensTaken, withRequestRates } from './rate-quota-kit.ts';
+import { namespace, open, tenant } from './run-read-kit.ts';
 
 // The admission of a command with `prepare` against the storage counters, on the in-memory adapter
 // with limits the test sets. What decides each case: the committed store and the executor's count
@@ -26,12 +36,15 @@ interface World {
 }
 
 /** The limits the write path reads: the test's numbers, the same for every scope. */
-function limitsOf(world: World): QuotaLimits {
+function limitsOf(world: World, rates?: Readonly<Record<string, number>>): QuotaLimits {
   return {
-    limitOf: (_registry, _scope, ref) =>
-      ref === 'core.rows'
-        ? { kind: 'count', value: world.rows }
-        : { kind: 'bytes', value: world.bytes },
+    limitOf: withRequestRates(
+      (_registry, _scope, ref) =>
+        ref === 'core.rows'
+          ? { kind: 'count', value: world.rows }
+          : { kind: 'bytes', value: world.bytes },
+      rates,
+    ),
     queueOf: () => ({ running: 4, queued: world.queued, weight: 1 }),
     fresh: async () => undefined,
   };
@@ -90,7 +103,14 @@ const echo = reaction('library.echo', 'library.book.created', ((
  * A tenant with `library.grow` (a command without `prepare` that stores a book, so the counters
  * move) and `library.probe` (a command with `prepare` that performs the inline effect `ping`).
  */
-export function boot(options: { readonly echo?: boolean; readonly relay?: boolean } = {}) {
+export function boot(
+  options: {
+    readonly echo?: boolean;
+    readonly relay?: boolean;
+    /** The capacities of the request rates by ref (15 where none is named); default: rates no case reaches. */
+    readonly rates?: Readonly<Record<string, number>>;
+  } = {},
+) {
   const world: World = {
     now: start,
     runs: 0,
@@ -134,6 +154,8 @@ export function boot(options: { readonly echo?: boolean; readonly relay?: boolea
       command('relayDeep', relaysTo('library.relayPlain') as never, {
         prepare: performsPing as never,
       }),
+      // A command whose policy no rule grants: the authorization refuses it.
+      command('guarded', (() => []) as never, { auth: 'policy' }),
       // A command with `prepare` whose decision enqueues the job of `library.slow`, which carries
       // the queued cap of the scope.
       command(
@@ -189,7 +211,12 @@ export function boot(options: { readonly echo?: boolean; readonly relay?: boolea
       ...(options.relay === true ? [relayer] : []),
     ],
   });
-  const { adapter, invoke } = effectsKit(registry, { clock, quotas: limitsOf(world) });
+  const counted = tokensTaken(open([bookEntity, loanEntity, effectEntity, receiptEntity], clock));
+  const { adapter, invoke } = effectsKit(registry, {
+    adapter: counted.adapter,
+    clock,
+    quotas: limitsOf(world, options.rates),
+  });
   /** Both counters of the tenant, read in one unit. */
   const read = () =>
     adapter.unit(
@@ -200,5 +227,14 @@ export function boot(options: { readonly echo?: boolean; readonly relay?: boolea
         await unit.usage.get('core.rows'),
       ],
     );
-  return { world, adapter, invoke, read, registry, unlimited: huge };
+  return {
+    world,
+    adapter,
+    invoke,
+    read,
+    registry,
+    unlimited: huge,
+    taken: counted.taken,
+    away: counted.away,
+  };
 }

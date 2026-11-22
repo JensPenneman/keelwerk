@@ -937,6 +937,7 @@ export { cancelsRunningAttempt } from './storage/cancels-running-attempt.ts';
 export type { Catalogue } from './storage/catalogue.ts';
 export type { ChangeFeedSource, JobWake } from './storage/change-feed-source.ts';
 export { checkBroadcastChannel } from './storage/check-broadcast-channel.ts';
+export { checkLaneMembers } from './storage/check-lane-members.ts';
 export type { ColumnSpec } from './storage/column-spec.ts';
 export type { ConsumerStore } from './storage/consumer-store.ts';
 export type { CounterStore } from './storage/counter-store.ts';

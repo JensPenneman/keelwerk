@@ -4,6 +4,7 @@ import { describe, expect, test } from 'vitest';
 import { bootKeys, storedName, withRules } from './support/admission-kit.ts';
 import { bookEntity, loanEntity, withCommand } from './support/command-kit.ts';
 import { ada, backendId, call, failure, kit, tenantId } from './support/invoker-kit.ts';
+import { tenantOnly } from './support/rate-quota-kit.ts';
 import { namespace, open, tenant } from './support/run-read-kit.ts';
 
 describe('dry run', () => {
@@ -23,13 +24,18 @@ describe('dry run', () => {
       onDeclaredError: [],
     },
   });
-  const prepare = async () => {
+  const prepare = async (rules = true, quotas = false) => {
     const keys = await bootKeys();
     const probe = withCommand('dryProbe', () => ({}), 'library.addBook', {
       input: shape({ who: field.string() }),
     });
     const adapter = open([bookEntity, loanEntity]);
-    const made = kit({ registry: withRules(probe.registry, [everyone]), adapter, keys });
+    const made = kit({
+      registry: rules ? withRules(probe.registry, [everyone]) : probe.registry,
+      adapter,
+      keys,
+      ...(quotas ? { quotas: tenantOnly({ 'core.requestRate': 2 }) } : {}),
+    });
     const explaining = answerExplain(made.invoker, {
       options: made.options,
       hybridClock: {} as never,
@@ -77,6 +83,38 @@ describe('dry run', () => {
       expect(outcome.ok === false && outcome.error.kind).not.toBe('rate_limited');
     }
     const stored = await storedName(keys, tenant, 'everyone');
+    const full = await adapter.unit(namespace, tenant, (unit) =>
+      unit.buckets.check(stored, 2, { capacity: 2, refillPerSecond: 0.001 }),
+    );
+    expect(full.ok).toBe(true);
+  });
+
+  test('checks the request rate and reports rate_limited without taking a token', async () => {
+    const { keys, adapter, made, probe, dry } = await prepare(false, true);
+    for (let n = 0; n < 2; n++) {
+      const served = await made.invoker.invoke(call(probe.ref, { who: 'x' }, { carrier: ada }));
+      expect(served.ok === false && served.error.kind).not.toBe('rate_limited');
+    }
+    const stored = await storedName(keys, tenant, 'core.requestRate', 'core');
+    const level = () =>
+      adapter.unit(namespace, tenant, (unit) =>
+        unit.buckets.check(stored, 1, { capacity: 2, refillPerSecond: 0.001 }),
+      );
+    const before = await level();
+    expect(before.ok).toBe(false);
+    const refused = failure(await dry());
+    expect(refused.kind).toBe('rate_limited');
+    expect(refused.retryAfter).toBeGreaterThan(0);
+    expect(await level()).toEqual(before);
+  });
+
+  test('takes no token of the request rate', async () => {
+    const { keys, adapter, dry } = await prepare(false, true);
+    for (let n = 0; n < 4; n++) {
+      const outcome = await dry();
+      expect(outcome.ok === false && outcome.error.kind).not.toBe('rate_limited');
+    }
+    const stored = await storedName(keys, tenant, 'core.requestRate', 'core');
     const full = await adapter.unit(namespace, tenant, (unit) =>
       unit.buckets.check(stored, 2, { capacity: 2, refillPerSecond: 0.001 }),
     );

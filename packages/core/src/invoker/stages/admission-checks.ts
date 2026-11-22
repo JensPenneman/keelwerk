@@ -2,6 +2,7 @@ import type { AdmissionRun } from '../../admission/run-admission.ts';
 import { countApiUsage } from '../../api-versions/count-api-usage.ts';
 import { checkRestoreHold } from '../../control/check-restore-hold.ts';
 import { checkKillSwitches } from '../../flags/check-kill-switches.ts';
+import { checkRequestRate } from '../../quotas/request-rate-admission.ts';
 import type { InvokerEnv } from '../invoker-env.ts';
 
 /**
@@ -12,4 +13,5 @@ export const admissionChecks: readonly ((env: InvokerEnv, run: AdmissionRun) => 
   checkKillSwitches,
   countApiUsage,
   checkRestoreHold,
+  checkRequestRate,
 ];

@@ -210,7 +210,10 @@ export function createQuotaCache(options: QuotaCacheOptions): QuotaLimits {
     if (member === 'queued') return limit.value;
     // A stored row or configured value outside what the queue lanes can hold is clamped, never passed on.
     return Math.min(
-      Math.max(limit.value, member === 'weight' ? queueMemberBounds.minWeight : 0),
+      Math.max(
+        limit.value,
+        member === 'weight' ? queueMemberBounds.minWeight : queueMemberBounds.minCap,
+      ),
       queueMemberBounds.max,
     );
   };

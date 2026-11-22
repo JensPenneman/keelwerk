@@ -9,13 +9,14 @@ import {
 } from '@keelwerk/testing';
 import { library, loans } from '@keelwerk/testing/fixtures';
 import { afterAll, describe, expect, test, vi } from 'vitest';
-import { live } from '../../src/live-module.ts';
-import { attachPokes, pokes, pokesNaming } from '../support/attach-pokes.ts';
 import { collectFrames } from '../support/collect-frames.ts';
+import { followerOf, joinWatch } from '../support/follow-pokes.ts';
+import { pokes, pokesNaming } from '../support/poke-frames.ts';
 
 vi.setConfig({ testTimeout: 60_000 });
 
-const app = defineApp({ id: 'receipts', modules: [live, library, loans] });
+const joins = joinWatch();
+const app = defineApp({ id: 'receipts', modules: [joins.live, library, loans] });
 const runtime = await startTestRuntime(app, { operators: true, workers: true });
 afterAll(() => runtime.stop());
 
@@ -161,18 +162,16 @@ describe('core.commandReceipt.watch', () => {
   });
 
   test("the receipts of other users' commands are never poked", async () => {
-    const stream = collectFrames(bea.subscribe('live.pokes' as never, {} as never));
-    const lendAndRun = async () => {
-      await askLend(crypto.randomUUID());
-      await runtime.drainJobs();
-    };
+    const stream = await joins.followPokes(followerOf(acme, testPrincipal('bea')), () =>
+      bea.subscribe('live.pokes' as never, {} as never),
+    );
     try {
       // Bea is poked for her loans only; every receipt written on the way is written in her scope too.
-      const base = await attachPokes(stream, 'loans.loan', lendAndRun);
       await askCloseAll(crypto.randomUUID());
       await runtime.drainJobs();
-      await lendAndRun();
-      await stream.until((frames) => pokesNaming(frames, 'loans.loan').length > base);
+      await askLend(crypto.randomUUID());
+      await runtime.drainJobs();
+      await stream.until((frames) => pokesNaming(frames, 'loans.loan').length > 0);
       const types = pokes(stream.frames).flatMap((poke) => Object.keys(poke.changed));
       expect(types).toContain('loans.loan');
       expect(types).not.toContain('core.commandReceipt');

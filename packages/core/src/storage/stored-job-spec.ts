@@ -3,8 +3,19 @@ import type { JobSpec } from '../jobs/job-spec.ts';
 /** What the queue stores: a JobSpec (section 9.5.1) with its kind, its lane's cap and its creation time (section 14.3.9). */
 export interface StoredJobSpec extends JobSpec {
   readonly kind: 'action' | 'effect';
-  /** `queues.<q>.running` for an upserted lane (section 9.5.2). */
+  /**
+   * `queues.<q>.running` for an upserted lane (section 9.5.2): a whole number from 0 (a lane held:
+   * nothing of it is taken) to 2,147,483,647, which a store refuses otherwise with
+   * `core.malformed_request`; `checkLaneMembers` is the one check, and a store calls it first.
+   */
   readonly laneCap: number;
+  /**
+   * The weight of the lane an enqueue upserts (section 12.2, `queues.<q>.weight`): a whole number
+   * from 1 to 2,147,483,647, which a store refuses otherwise with `core.malformed_request` (the
+   * same `checkLaneMembers`); absent: 1 for a new lane, an existing lane keeps its weight. No
+   * enqueue path of the kernel sets it yet.
+   */
+  readonly laneWeight?: number;
   readonly createdAt: Temporal.Instant;
   /**
    * `queues.<q>.queued` of a command job's scope, checked at the enqueue's commit tail; absent: no
