@@ -71,6 +71,7 @@ export async function tickBackend(input: {
           build: context.build,
           apiVersion,
           clock,
+          quotas: context.quotas,
           signal: options.signal,
           timeoutMs: options.timeoutMs,
         }),

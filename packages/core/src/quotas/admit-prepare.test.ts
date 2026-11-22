@@ -3,17 +3,16 @@ import type { Registry } from '../registry/registry.ts';
 import type { UnitOptions } from '../storage/unit-options.ts';
 import type { RunCommandInput } from '../write-path/run-command-input.ts';
 import { admitPrepare } from './admit-prepare.ts';
-import type { QuotaLimits } from './quota-limits.ts';
+import type { QuotaView } from './quota-view.ts';
 
 // The admission against a double of the adapter that records how it was asked for its unit. What
 // decides each case: the answer of the call and the options the unit was opened with.
 
 const registry = { entities: new Map() } as unknown as Registry;
-const noLimit: QuotaLimits = {
+const noLimit: QuotaView = {
   limitOf: (_registry, _scope, ref) =>
     ref === 'core.rows' ? { kind: 'count', value: 0 } : { kind: 'bytes', value: 0 },
   queueOf: () => ({ running: 4, queued: 10, weight: 1 }),
-  fresh: async () => undefined,
 };
 
 /** A run of a command with `prepare` of `module`, whose tenant stands above both limits. */

@@ -31,6 +31,8 @@ function setup(
     readonly fields: Record<string, unknown> | undefined;
   }[] = [];
   const conditions: unknown[] = [];
+  /** The opening of each unit; a cache from `cacheOf(events)` adds its asks, so the order shows. */
+  const events: string[] = [];
   const unit = {
     rows: {
       find: async (
@@ -84,7 +86,10 @@ function setup(
       namespace: { id: 'ns' },
       handle: {
         adapter: {
-          unit: async (_ns: unknown, _scope: unknown, fn: (u: unknown) => unknown) => fn(unit),
+          unit: async (_ns: unknown, _scope: unknown, fn: (u: unknown) => unknown) => {
+            events.push('unit');
+            return fn(unit);
+          },
         },
       },
     },
@@ -114,7 +119,7 @@ function setup(
     directory: { backend: async () => ({ id: backendId, app: 'app', config: undefined }) },
     apps: new Map([['app', { source: { modules: [] } }]]),
   };
-  return { input: input as never, enqueued, warned, conditions };
+  return { input: input as never, enqueued, warned, conditions, events };
 }
 
 describe('the effects a restore left requested', () => {
@@ -258,5 +263,53 @@ describe('the effects a restore left requested', () => {
     const { input, enqueued } = setup(rows);
     expect(await reenqueueUnsettledEffects(input)).toBe(230);
     expect(enqueued).toHaveLength(230);
+  });
+
+  describe('the lanes and the queued cap', () => {
+    const roomy = { limitOf: () => ({ kind: 'count', value: 0 }) };
+    /** A cache that answers the limits of each queue only after it was asked, and counts the asks. */
+    const cacheOf = (events: string[]) => {
+      const asked: string[] = [];
+      const quotas = {
+        fresh: async () => {
+          asked.push('fresh');
+          events.push('ask');
+          return {
+            ...roomy,
+            queueOf: (_scope: unknown, queue: string) =>
+              queue === 'timers'
+                ? { running: 2, queued: 1, weight: 5 }
+                : { running: 6, queued: 1, weight: 3 },
+          };
+        },
+      };
+      return { quotas, asked };
+    };
+
+    test('an effect job takes the lane its queue has for the tenant and carries no queued cap: it is counted and never refused', async () => {
+      const { input, enqueued, events } = setup([row('e1', 'hooks.post'), row('e2', 'hooks.post')]);
+      const { quotas, asked } = cacheOf(events);
+      await reenqueueUnsettledEffects({ ...(input as object), quotas } as never);
+      expect(enqueued).toHaveLength(2);
+      for (const job of enqueued) {
+        expect(job).toMatchObject({ queue: 'effects', laneCap: 6, laneWeight: 3 });
+        expect(job).not.toHaveProperty('queuedCap');
+      }
+      // Asked for each job's unit, so a long restore never works on rows older than the cache allows.
+      expect(asked).toEqual(['fresh', 'fresh']);
+      // Each ask comes before the unit that enqueues: the read of the page, then ask and unit for each job.
+      expect(events).toEqual(['unit', 'ask', 'unit', 'ask', 'unit']);
+    });
+
+    test('a deadline timer takes the lane of the timers queue and carries no queued cap', async () => {
+      const deadline = Temporal.Instant.from('2026-11-20T08:00:00Z');
+      const { input, enqueued, events } = setup([
+        row('e1', 'hooks.post', { performer: 'external', deadline }),
+      ]);
+      const { quotas } = cacheOf(events);
+      await reenqueueUnsettledEffects({ ...(input as object), quotas } as never);
+      expect(enqueued[0]).toMatchObject({ queue: 'timers', laneCap: 2, laneWeight: 5 });
+      expect(enqueued[0]).not.toHaveProperty('queuedCap');
+    });
   });
 });

@@ -12,7 +12,14 @@ export async function watchedHooks(
   start: Temporal.Instant,
   cleanup: (() => Promise<void>)[],
   answer?: (index: number) => number | 'hang',
-  options: { readonly operators?: true; readonly logger?: Logger } = {},
+  options: {
+    readonly operators?: true;
+    readonly logger?: Logger;
+    /** `config.core.quotas` of the backend: limit texts by dimension. */
+    readonly quotas?: Readonly<Record<string, string>>;
+    /** Starts no workers: this runtime only requests. */
+    readonly serveOnly?: boolean;
+  } = {},
 ) {
   const descriptors = new Map(
     [...hooksApp.registry.entities].map(([ref, entry]) => [ref, entry.descriptor] as const),

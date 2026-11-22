@@ -4,6 +4,7 @@ import type { JobQueue } from '../jobs/job-queue.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { LedgerSink } from '../kernel/ledger-sink.ts';
 import type { LiveTimers } from '../live/live-timers.ts';
+import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import type { QueueSource } from '../worker/queue-source.ts';
 import type { Connected } from './connected.ts';
 import type { ServedApp } from './served-app.ts';
@@ -28,6 +29,8 @@ export interface RuntimeServiceContext
   readonly directory: ScopeLookup;
   /** `RuntimeInfrastructure.ledgers`. */
   readonly ledgers: readonly LedgerSink[];
+  /** The process's quota cache: a service that enqueues asks it for fresh limits before the unit that enqueues; absent in a bare start. */
+  readonly quotas?: QuotaLimits;
   /** The runtime clock; every timer of a service reads it (plan rule 13). */
   readonly clock: Clock;
   /**

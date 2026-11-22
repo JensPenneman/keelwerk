@@ -10,7 +10,7 @@ import { sqlJobDeleteUnderKeyLocks } from './sql-job-delete-under-key-locks.ts';
 import type { SqlJobKeyRef } from './sql-job-key-locks.ts';
 import { sqlLaneChanges } from './sql-lane-changes.ts';
 import { sqlReleaseGroups } from './sql-release-groups.ts';
-import { sqlSettleLanes } from './sql-settle-lanes.ts';
+import { sqlSettleDone } from './sql-settle-done.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
 
 /** Which pending jobs to cancel: those of a queue with a key, or those with these ids. */
@@ -126,7 +126,7 @@ where queue = $1::text and key = $2 and ordering = 'fifo-per-key'${scoped ? ' an
     buffer.defer(async () => {
       const lanes = sqlLaneChanges();
       for (const row of running) lanes.done(String(row.lane_id), 1);
-      await sqlSettleLanes(ctx, lanes);
+      await sqlSettleDone(ctx, lanes);
       const groups = running.flatMap((row) => {
         const group = groupKeyOfJob(
           row.group_id === null ? null : String(row.group_id),

@@ -1,7 +1,8 @@
 import type { ControlQuotas, QuotaRow } from '../src/control/control-quotas.ts';
 import type { Logger } from '../src/observability/logger.ts';
-import { createQuotaCache } from '../src/quotas/create-quota-cache.ts';
+import { createQuotaCache, type QuotaCache } from '../src/quotas/create-quota-cache.ts';
 import { quotaSlotOf } from '../src/quotas/quota-slot-of.ts';
+import type { QuotaView } from '../src/quotas/quota-view.ts';
 import type { QuotaEntry } from '../src/registry/quota-entry.ts';
 import type { Registry } from '../src/registry/registry.ts';
 import type { DeploymentDefinition } from '../src/runtime/deployment-definition.ts';
@@ -64,6 +65,9 @@ export function quotaRig(
   let releaseBackend: (() => void) | undefined;
   let waiter: (() => void) | undefined;
   let queuedWakes = 0;
+  /** What a subscription to the feed does: wait for wakes, fail at once, or give one wake and end. */
+  let feed: 'wait' | 'fail' | 'wake-then-end' = 'wait';
+  let subscribes = 0;
   const errors: string[] = [];
   const debugged: { readonly message: string; readonly fields: unknown }[] = [];
   const log: Logger = {
@@ -86,6 +90,12 @@ export function quotaRig(
     },
     changes: (signal) => ({
       [Symbol.asyncIterator]: async function* () {
+        subscribes++;
+        if (feed === 'fail') throw new Error('the feed is down');
+        if (feed === 'wake-then-end') {
+          yield 'wake';
+          return;
+        }
         const stop = (): void => waiter?.();
         signal.addEventListener('abort', stop);
         while (!signal.aborted) {
@@ -98,7 +108,7 @@ export function quotaRig(
     }),
   };
   const controller = new AbortController();
-  const cache = createQuotaCache({
+  const real = createQuotaCache({
     quotas: controlQuotas,
     backendQuotas: async () => {
       backendLoads++;
@@ -110,12 +120,34 @@ export function quotaRig(
     clock: { now: () => Temporal.Instant.fromEpochMilliseconds(now) },
     log,
     signal: controller.signal,
+    // A factor of 1 on every pause of the feed: the jitter of `backgroundRetryMs` does not decide a case.
+    random: () => 0.5,
   });
+  // The cache hands out its view through `fresh()` only; the rig keeps the newest one so a case can
+  // read the limits after it asked, as code in a unit does.
+  let latest: QuotaView | undefined;
+  const viewed = (): QuotaView => {
+    if (latest === undefined) throw new Error('the case read a limit before it asked fresh()');
+    return latest;
+  };
+  const cache: QuotaCache & QuotaView = {
+    fresh: async () => {
+      latest = await real.fresh();
+      return latest;
+    },
+    firstLoad: () => real.firstLoad(),
+    limitOf: (registry, scope, ref) => viewed().limitOf(registry, scope, ref),
+    queueOf: (scope, queue) => viewed().queueOf(scope, queue),
+  };
   return {
     cache,
     errors,
     debugged,
     loads: () => loads,
+    subscribes: () => subscribes,
+    feed: (value: 'wait' | 'fail' | 'wake-then-end') => {
+      feed = value;
+    },
     backendLoads: () => backendLoads,
     advance: (ms: number) => {
       now += ms;

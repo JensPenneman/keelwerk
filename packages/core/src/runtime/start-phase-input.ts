@@ -1,6 +1,7 @@
 import type { RestoreHold } from '../control/restore-hold.ts';
 import type { Invoker } from '../invoker/invoker.ts';
 import type { Clock } from '../kernel/clock.ts';
+import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import type { Composed } from './compose-phase.ts';
 import type { Connected } from './connected.ts';
 import type { Migrated } from './migrate-phase.ts';
@@ -21,6 +22,8 @@ export interface StartPhaseInput {
   readonly invoker: Invoker;
   /** The runtime clock (plan rule 13). */
   readonly clock: Clock;
+  /** The process's quota cache, loaded at the start: the services ask it before they enqueue. */
+  readonly quotas: QuotaLimits | undefined;
   /** Closed by a service that finds a restore under the running process; absent in a bare start. */
   readonly gate?: ServiceGate;
   /** The tenants a restore holds: the workers give their effect and deadline jobs back. */

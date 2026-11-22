@@ -1,4 +1,4 @@
-import type { DataAdapter, QuotaLimit, QuotaLimits } from '@keelwerk/core';
+import type { DataAdapter, QuotaLimit, QuotaLimits, QuotaView } from '@keelwerk/core';
 import { errors } from '@keelwerk/core';
 import { tenantId } from './invoker-kit.ts';
 
@@ -11,16 +11,19 @@ const requestRates: ReadonlySet<string> = new Set([
   'core.requestRate',
 ]);
 
+/** The quota cache of a test: it always answers `view`, as a cache that loaded once. */
+export const quotasOf = (view: QuotaView): QuotaLimits => ({ fresh: () => Promise.resolve(view) });
+
 /** Quotas whose rates give the tenant `capacities` by ref (100 where none is named) and every other scope 100. */
-export const tenantOnly = (capacities: Readonly<Record<string, number>>): QuotaLimits => ({
-  limitOf: (_registry, scope, ref): QuotaLimit => {
-    const own = scope.level === 'tenant' && scope.tenantId === tenantId;
-    const capacity = own ? (capacities[ref] ?? 100) : 100;
-    return { kind: 'rate', capacity, refillPerSecond: 0.001 };
-  },
-  queueOf: () => ({ running: 4, queued: 10_000, weight: 1 }),
-  fresh: () => Promise.resolve(),
-});
+export const tenantOnly = (capacities: Readonly<Record<string, number>>): QuotaLimits =>
+  quotasOf({
+    limitOf: (_registry, scope, ref): QuotaLimit => {
+      const own = scope.level === 'tenant' && scope.tenantId === tenantId;
+      const capacity = own ? (capacities[ref] ?? 100) : 100;
+      return { kind: 'rate', capacity, refillPerSecond: 0.001 };
+    },
+    queueOf: () => ({ running: 4, queued: 10_000, weight: 1 }),
+  });
 
 /**
  * `limitOf` of a test that sets storage limits, with the request rate it does not test given a
@@ -31,9 +34,9 @@ export const tenantOnly = (capacities: Readonly<Record<string, number>>): QuotaL
  */
 export const withRequestRates =
   (
-    limitOf: QuotaLimits['limitOf'],
+    limitOf: QuotaView['limitOf'],
     capacities?: Readonly<Record<string, number>>,
-  ): QuotaLimits['limitOf'] =>
+  ): QuotaView['limitOf'] =>
   (registry, scope, ref) => {
     if (!requestRates.has(ref)) return limitOf(registry, scope, ref);
     return capacities === undefined

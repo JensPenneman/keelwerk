@@ -1,4 +1,4 @@
-import type { ConsumerSpec } from '@keelwerk/core';
+import type { ConsumerSpec, RuntimeServiceContext } from '@keelwerk/core';
 import { isKeelwerkError } from '@keelwerk/core';
 import { startTestRuntime } from '@keelwerk/testing';
 import { libraryApp } from '@keelwerk/testing/fixtures';
@@ -114,5 +114,44 @@ describe('the reaction dispatcher', () => {
     } finally {
       await runtime.stop();
     }
+  });
+
+  test('a batch asks the quota cache before its unit opens, and then derives its key secret', async () => {
+    const order: string[] = [];
+    const context = {
+      namespaces: [],
+      quotas: {
+        fresh: async () => {
+          order.push('fresh');
+          return { limitOf: () => ({ kind: 'count', value: 0 }), queueOf: () => undefined };
+        },
+      },
+      keys: {
+        derive: async () => {
+          order.push('derive');
+          return new Uint8Array(32);
+        },
+      },
+    } as unknown as RuntimeServiceContext;
+    const build = reactionDispatcher() as unknown as (
+      context: RuntimeServiceContext,
+    ) => ConsumerSpec;
+    const prepared = await build(context).beforeBatch?.({ level: 'tenant' } as never);
+    // The lanes of the reaction jobs of the batch take the limits the cache answers now.
+    expect(order).toEqual(['fresh', 'derive']);
+    expect(prepared).toBeInstanceOf(Uint8Array);
+  });
+
+  test('without a quota cache the batch derives its key secret only', async () => {
+    const context = {
+      namespaces: [],
+      keys: { derive: async () => new Uint8Array(32) },
+    } as unknown as RuntimeServiceContext;
+    const build = reactionDispatcher() as unknown as (
+      context: RuntimeServiceContext,
+    ) => ConsumerSpec;
+    await expect(
+      build(context).beforeBatch?.({ level: 'tenant' } as never),
+    ).resolves.toBeInstanceOf(Uint8Array);
   });
 });

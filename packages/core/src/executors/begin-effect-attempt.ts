@@ -58,6 +58,7 @@ export async function beginEffectAttempt(
   const attempt = stored.attempt.attempt;
   const declared = declaredErrorCodesOf(registry, entry?.module);
   const descriptor = registry.entities.get('core.effect')?.descriptor;
+  const limits = await context.quotas?.fresh();
   const began: BeginUnitResult = await source.handle.adapter.unit(
     source.namespace,
     stored.scope,
@@ -107,6 +108,7 @@ export async function beginEffectAttempt(
             cause: stored,
             writer,
             clock,
+            limits,
             ...(entry === undefined ? { continuation: 'skip' as const } : {}),
           },
           () => Promise.resolve({ status, error: projection }),

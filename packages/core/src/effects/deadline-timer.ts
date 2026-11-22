@@ -29,5 +29,6 @@ export async function enqueueDeadlineTimer(
     now: scene.clock.now(),
     effectId: id,
     deadline,
+    limits: run.quotas,
   });
 }

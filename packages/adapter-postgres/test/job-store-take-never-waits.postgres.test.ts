@@ -2,7 +2,8 @@
 import type { StoredJob } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
 import { eventHarness } from './support/event-harness.ts';
-import { spec } from './support/job-store-fixtures.ts';
+import { spec, tenant } from './support/job-store-fixtures.ts';
+import { taggedUnit } from './support/tagged-unit.ts';
 import type { Observed } from './support/take-kit.ts';
 import { takeKit } from './support/take-kit.ts';
 
@@ -20,6 +21,7 @@ const {
   stateOf,
   rowsOf,
 } = takeKit(harness);
+const { run } = harness;
 
 /*
  * What decides every case below: the unit or the client that holds a lock is opened and ended by the
@@ -33,7 +35,7 @@ const {
  */
 
 describe('a take inside a unit that holds what the reclaim needs', () => {
-  test('a unit that changed the lane cap and then appends under the key of an expired head: the take does not wait for the lane, reports no skipped lane, and the append is not deadlocked', async () => {
+  test('a unit that changed the lane cap and then appends under the key of an expired head: the row is not held before its end, so the take reclaims the head at once, and the append is not deadlocked', async () => {
     await enqueueFor([fifo(1)]);
     await expireLeases(1);
     let bodies = 0;
@@ -46,12 +48,53 @@ describe('a take inside a unit that holds what the reclaim needs', () => {
       await jobs.enqueue(fifo(2, { laneCap: 11 }));
     });
     expect(bodies).toBe(1);
-    expect(await inside?.promise).toEqual({ jobs: [], skippedLanes: 0 });
+    const taken = await inside?.promise;
+    expect(inputs(taken?.jobs ?? [])).toEqual([1]);
+    expect(taken?.skippedLanes).toBe(0);
     expect(await stateOf('chain')).toEqual([
-      { state: 'running', lost_leases: 0 },
+      { state: 'running', lost_leases: 1 },
       { state: 'waiting', lost_leases: 0 },
     ]);
-    expect(inputs((await takeAll('take-after-cap')).jobs)).toEqual([1, 8]);
+    expect(inputs((await takeAll('take-after-cap')).jobs)).toEqual([8]);
+  });
+
+  test('a unit in its end that changed the lane cap holds the row: the take of an expired head does not wait for it, reports no skipped lane, and the next take hands the head out', async () => {
+    await enqueueFor([fifo(1)]);
+    await run(tenant(0), async (unit) => {
+      await unit.jobs.enqueue(
+        spec(3, { queue: 'other', runAt: harness.clock.now().add({ hours: 1 }) }),
+      );
+    });
+    await expireLeases(1);
+    const lanes = await rowsOf(`select id::text as id, queue from app.kw_job_lanes order by id`);
+    const other = String(lanes.find((lane) => lane.queue === 'other')?.id);
+    let unit: Observed<void> | undefined;
+    let inside: Observed<{ jobs: readonly StoredJob[]; skippedLanes: number }> | undefined;
+    await holdingCount(
+      'enqueued',
+      async () => {
+        // A cap change in the first lane, and a ready job in the second, whose tail waits for the owner.
+        unit = await observe('end-cap', () =>
+          taggedUnit(
+            harness.adapter(),
+            harness.clock,
+            tenant(0),
+            'job-store:end-cap',
+            async (u) => {
+              await u.jobs.enqueue(spec(8, { laneCap: 11 }));
+              await u.jobs.enqueue(spec(9, { queue: 'other' }));
+            },
+          ),
+        );
+        if (!unit.waited) throw new Error('the unit did not wait in its end');
+        inside = await observe('take-end-cap', () => takeAll('take-end-cap'));
+        if (inside.waited) throw new Error('the take waited for the unit in its end');
+      },
+      other,
+    );
+    await unit?.promise;
+    expect(await inside?.promise).toEqual({ jobs: [], skippedLanes: 0 });
+    expect(inputs((await takeAll('take-after-end-cap')).jobs)).toEqual([1, 8]);
   });
 
   test('a unit that re-limited the group of an expired head and then appends under its key: the take does not wait for the group row, reports no skipped lane, and the append is not deadlocked', async () => {

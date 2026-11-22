@@ -63,9 +63,10 @@ async function setTimer(scene: EffectScene, effect: SetTimerEffect, id: string):
       },
       build: run.build,
       now,
+      queue: timerQueue,
+      limits: run.quotas,
     }),
     kind: 'action',
-    queue: timerQueue,
     run: commandJobRun(
       action.ref,
       await sealJobInput(unit, run.registry, commandId, action, input),

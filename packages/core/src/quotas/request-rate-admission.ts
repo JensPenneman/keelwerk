@@ -54,11 +54,10 @@ function principalKeyOf(principal: Principal, address: string | undefined): stri
  * with the store's `core.unavailable`, and the tokens the process held for the request go back.
  */
 export async function checkRequestRate(env: InvokerEnv, run: AdmissionRun): Promise<void> {
-  const { quotas } = env.options;
   const { target } = run.details.resolved;
-  if (quotas === undefined || run.details.carrier.job !== undefined) return;
+  if (env.options.quotas === undefined || run.details.carrier.job !== undefined) return;
   if (target === null || target.scope.level === 'deployment') return;
-  await quotas.fresh();
+  const quotas = await env.options.quotas.fresh();
   const { registry } = env.appOf(run.details.resolved.app);
   const names: { ref: string; bucket: string }[] = [];
   const principalKey = principalKeyOf(

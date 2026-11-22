@@ -40,6 +40,7 @@ describe('settleEffect', () => {
           cause,
           writer: untouched as ControlStore['writer'],
           clock: { now: () => Temporal.Instant.from('2026-03-01T08:00:00Z') },
+          limits: undefined,
         },
         { status: 'succeeded', output: {} },
         1,
@@ -74,6 +75,7 @@ describe('settleEffect, under the row lock', () => {
         cause,
         writer: untouched as ControlStore['writer'],
         clock: { now: () => Temporal.Instant.from('2026-03-01T08:00:00Z') },
+        limits: undefined,
       },
       { status: 'succeeded', output: {} },
       1,
@@ -93,6 +95,7 @@ describe('enqueueContinuation', () => {
         outcome,
         cause,
         now: Temporal.Instant.from('2026-03-01T08:00:00Z'),
+        limits: undefined,
       }),
     ).resolves.toBeUndefined();
   });
@@ -106,6 +109,7 @@ describe('enqueueContinuation', () => {
         outcome,
         cause,
         now: Temporal.Instant.from('2026-03-01T08:00:00Z'),
+        limits: undefined,
       }),
     ).rejects.toMatchObject({ kind: 'internal' });
   });
@@ -148,6 +152,7 @@ describe('enqueueContinuation, idempotence', () => {
       outcome,
       cause,
       now: Temporal.Instant.from('2026-03-01T08:00:00Z'),
+      limits: undefined,
     });
 
   test('one effect enqueues one job, however often it is handed over, with the derived command id', async () => {
@@ -175,9 +180,35 @@ describe('enqueueContinuation, idempotence', () => {
       outcome,
       cause,
       now: Temporal.Instant.from('2026-03-01T08:00:00Z'),
+      limits: undefined,
     });
     const job = jobs.get('core.continuation:e1');
     expect(job?.principal).toEqual({ resolver: 'core.module', principalId: 'courier.system' });
     expect(job?.causation).toMatchObject({ commandId: 'c1', eventId: 'v9' });
+  });
+
+  test('a continuation takes the lane its queue has for the scope and carries no queued cap: it is counted and never refused', async () => {
+    const { unit, jobs } = queueingUnit();
+    const tenant = { level: 'tenant', backendId: 'b1', tenantId: 't1' } as const;
+    const asked: [unknown, string][] = [];
+    await enqueueContinuation(unit, {
+      registry,
+      row,
+      settledEventId: 'v1',
+      outcome,
+      cause: { ...cause, scope: tenant },
+      now: Temporal.Instant.from('2026-03-01T08:00:00Z'),
+      limits: {
+        limitOf: () => ({ kind: 'count', value: 0 }),
+        queueOf: (scope, queue) => {
+          asked.push([scope, queue]);
+          return { running: 6, queued: 1, weight: 3 };
+        },
+      },
+    });
+    const job = jobs.get('core.continuation:e1');
+    expect(job).toMatchObject({ queue: 'commands', laneCap: 6, laneWeight: 3 });
+    expect(job).not.toHaveProperty('queuedCap');
+    expect(asked).toEqual([[tenant, 'commands']]);
   });
 });

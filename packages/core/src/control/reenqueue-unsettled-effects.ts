@@ -5,6 +5,7 @@ import { timerQueue } from '../effects/timer-queue.ts';
 import { effectConfigOf } from '../executors/effect-config-of.ts';
 import type { ScopeTarget } from '../invoker/scope-target.ts';
 import type { Clock } from '../kernel/clock.ts';
+import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { Connected } from '../runtime/connected.ts';
@@ -24,6 +25,8 @@ const pageSize = 100;
  * deadline timer again; an outside performer's effect without a deadline has no job to restore.
  * The jobs act as the module's service principal and carry the cause of the request: the command,
  * the actor, the cause event and the reaction lineage of its `requested` event (`effectCauseOf`).
+ * The jobs take their lane's cap and weight from the limits the process's quota cache gives when asked just before
+ * (`quotas`), and carry no queued cap: the framework accepted them already, so they are counted and never refused (9.5.5).
  * An effect type the registry lacks is logged (effect id and type) and skipped; a store or
  * configuration failure rejects, so the restore check fails the start and finds the restore again.
  * Answers the jobs enqueued.
@@ -36,6 +39,8 @@ export async function reenqueueUnsettledEffects(input: {
   /** The backend rows and the served apps the effects' configuration is read from. */
   readonly directory: RuntimeServiceContext['directory'];
   readonly apps: RuntimeServiceContext['apps'];
+  /** The process's quota cache: asked for fresh limits before each job's unit, so the lane takes the scope's cap and weight. */
+  readonly quotas: QuotaLimits | undefined;
 }): Promise<number> {
   const { connected, target, registry } = input;
   const { scope } = target;
@@ -71,6 +76,7 @@ export async function reenqueueUnsettledEffects(input: {
           },
         });
       const commandId = String(row.commandId);
+      const limits = await input.quotas?.fresh();
       if (row.performer === 'external') {
         if (row.deadline === undefined || row.deadline === null) continue;
         if (effect === undefined) {
@@ -91,6 +97,8 @@ export async function reenqueueUnsettledEffects(input: {
             now: input.clock.now(),
             effectId,
             deadline: row.deadline as Temporal.Instant,
+            limits,
+            exempt: 'accepted',
           });
           return true;
         });
@@ -124,6 +132,8 @@ export async function reenqueueUnsettledEffects(input: {
           ...(await effectCauseOf(unit, effectId, commandId)),
           build: connected.build,
           now,
+          limits,
+          exempt: 'accepted',
           ...(row.runAt === undefined || row.runAt === null
             ? {}
             : { runAt: row.runAt as Temporal.Instant }),

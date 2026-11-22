@@ -52,6 +52,7 @@ export async function settleAfterFailedEnd(
   const descriptor = registry.entities.get('core.effect')?.descriptor;
   const now = clock.now();
   try {
+    const limits = await context.quotas?.fresh();
     await source.handle.adapter.unit(source.namespace, stored.scope, async (unit) => {
       if (descriptor === undefined) throw errors.internal('the app has no core.effect entity');
       const row = await unit.rows.findOne(descriptor, {
@@ -90,7 +91,7 @@ export async function settleAfterFailedEnd(
         const output = sealed;
         await settleKeepingContinuation(
           unit,
-          { registry, entry, row, cause: stored, writer, clock },
+          { registry, entry, row, cause: stored, writer, clock, limits },
           () => Promise.resolve({ status: 'succeeded', output }),
           began.started,
         );
@@ -119,7 +120,7 @@ export async function settleAfterFailedEnd(
       // The continuation is known and still valid unless the nested settle says otherwise.
       const settled = await settleKeepingContinuation(
         unit,
-        { registry, entry, row, cause: stored, writer, clock },
+        { registry, entry, row, cause: stored, writer, clock, limits },
         () => Promise.resolve({ status: acted ? 'abandoned' : 'failed', error }),
         began.started,
       );

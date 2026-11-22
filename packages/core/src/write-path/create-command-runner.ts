@@ -64,7 +64,7 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
     // apply to the commands that start after the cache has read them again: a feed wake starts
     // that read in the background, and a command that starts before the read ends may still see
     // the old limits; with the feed down or behind, the refresh period starts it.
-    await run.quotas?.fresh();
+    const quotas = await run.quotas?.fresh();
     const input: RunCommandInput = {
       registry: run.registry,
       adapter: run.target.handle.adapter,
@@ -99,7 +99,7 @@ export function createCommandRunner(options: CommandRunnerOptions): CommandRunne
       ...(run.concurrentUnits === undefined ? {} : { concurrentUnits: run.concurrentUnits }),
       ...(run.namespaceOf === undefined ? {} : { namespaceOf: run.namespaceOf }),
       ...(run.quotaChecked === true ? { quotaChecked: true } : {}),
-      ...(run.quotas === undefined ? {} : { quotas: run.quotas }),
+      ...(quotas === undefined ? {} : { quotas }),
       hybridClock: processClock,
       ...(options.egress === undefined ? {} : { egress: options.egress }),
       ...(options.retry === undefined ? {} : { retry: options.retry }),

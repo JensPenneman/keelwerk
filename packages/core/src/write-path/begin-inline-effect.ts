@@ -145,6 +145,7 @@ export async function beginInlineEffect(
         },
         build: run.build,
         now,
+        limits: run.quotas,
         runAt: now.add({ milliseconds: inlineTimeoutMs(executor) + inlineGuardGraceMs }),
       });
       const opened = await openEffectInput(

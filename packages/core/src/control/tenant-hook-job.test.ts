@@ -17,7 +17,16 @@ const build = { id: 'build-1', revision: 3 };
 
 describe('the job of an onTenantCreated hook', () => {
   test('golden: queue, key, run, command id, principal reference, no API version and no retry', () => {
-    expect(tenantHookJob({ hook, tenant: { id: 't1', name: 'Acme' }, scope, build, now })).toEqual({
+    expect(
+      tenantHookJob({
+        hook,
+        tenant: { id: 't1', name: 'Acme' },
+        scope,
+        build,
+        now,
+        limits: undefined,
+      }),
+    ).toEqual({
       kind: 'action',
       laneCap: 4,
       createdAt: now,

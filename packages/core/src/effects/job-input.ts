@@ -1,51 +1,42 @@
-import type { ActorRef } from '../principals/actor-ref.ts';
-import type { Principal } from '../principals/principal.ts';
 import { laneLimitsOf } from '../quotas/lane-limits-of.ts';
-import type { QueueLimits } from '../quotas/queue-limits.ts';
-import type { ReactionLineage } from '../reactions/reaction-lineage.ts';
-import type { Scope } from '../storage/scope.ts';
+import { queuedCapOf } from '../quotas/queued-cap-of.ts';
+import type { QuotaView } from '../quotas/quota-view.ts';
 import type { StoredJobSpec } from '../storage/stored-job-spec.ts';
-import { checkServiceCaller } from './check-service-caller.ts';
-import { principalRefOf } from './principal-ref-of.ts';
+import { type JobCauseOptions, jobCauseOf } from './job-cause-of.ts';
 
-/** What the common members of a job row are built from. */
-export interface JobInputOptions {
-  readonly scope: Scope;
-  /** Who the job acts as: stored as a reference and resolved again when it runs (section 7.4). */
-  readonly principal: Principal;
-  /** Who caused the job (the command's principal, or the actor of the event a reaction decided on); the principal's own when absent. */
-  readonly actor?: ActorRef;
-  /** The command and event that caused the job. */
-  readonly causation: {
-    readonly commandId?: string;
-    readonly eventId?: string;
-    /** The lineage of the invocation that causes the job; absent at depth 0. */
-    readonly lineage?: ReactionLineage;
-  };
-  /** The module whose code builds the job (section 7.7): the service principal of a module is not handed to another module's code for that module's own action. */
-  readonly caller: string;
-  /** The command the job runs, when it runs one; absent for a job that runs an executor or a reaction. */
-  readonly action?: { readonly module: string; readonly ref: string };
-  /** The enqueuer's build (section 19.2). */
-  readonly build: { readonly id: string; readonly revision: number };
-  /** The API version the input is expressed in (external callers). */
-  readonly apiVersion?: string;
-  readonly now: Temporal.Instant;
-  /** `queues.<q>` of the job's queue in its scope; absent (as every caller leaves it for now): the default lane cap and no weight. */
-  readonly limits?: QueueLimits;
+/** What a job of a worker's queue is built from: the common members and the queue's limits. */
+export interface JobInputOptions extends JobCauseOptions {
+  /** The queue the job joins: its lane's cap and weight, and its queued cap, come from the limits of this queue in the job's scope. */
+  readonly queue: string;
+  /**
+   * What the limits are read from, asked for fresh rows before the unit that enqueues (`QuotaLimits.fresh`);
+   * `undefined` only where a process runs without quotas: the default lane and no queued cap.
+   */
+  readonly limits: QuotaView | undefined;
+  /**
+   * Why the job does not carry the queued cap of its queue (9.5.5): it is counted, never refused.
+   * `accepted`: the framework has accepted it already (a continuation, the re-enqueue at a restore).
+   * `definition`: the app's own definition asks for it and it must not be lost (a schedule's tick, a tenant hook).
+   * Absent: what a decision or a request asks for anew, which meets the cap.
+   */
+  readonly exempt?: 'accepted' | 'definition';
 }
 
 /**
- * The members every job the write path enqueues shares (F-12): the scope, the principal reference,
- * the causation with the actor, the enqueuer's build, the API version and the creation time. The
- * queue, the `run` and the options of the job come from the caller.
+ * The members every job a unit enqueues in a worker's queue shares: those of `jobCauseOf`, the
+ * queue, the lane's cap and weight from the limits of the queue in the job's scope
+ * (`laneLimitsOf`) and, unless `exempt` says why not, the queued cap (`queuedCapOf`). `queue` and
+ * `limits` are required, so a path cannot leave the limits out without saying so. The `run` and
+ * the options of the job come from the caller.
  */
 export function jobInput(
   options: JobInputOptions,
 ): Pick<
   StoredJobSpec,
+  | 'queue'
   | 'laneCap'
   | 'laneWeight'
+  | 'queuedCap'
   | 'createdAt'
   | 'scope'
   | 'principal'
@@ -53,19 +44,15 @@ export function jobInput(
   | 'build'
   | 'apiVersion'
 > {
-  const { principal } = options;
-  if (options.action !== undefined) checkServiceCaller(principal, options.action, options.caller);
-  const ref = principalRefOf(principal);
+  const { scope, queue, limits } = options;
+  const cap =
+    options.exempt === undefined
+      ? queuedCapOf(limits, scope, queue, options.action?.module ?? options.caller)
+      : undefined;
   return {
-    ...laneLimitsOf(options.limits),
-    createdAt: options.now,
-    scope: options.scope,
-    principal: ref,
-    causation: {
-      ...options.causation,
-      actor: options.actor ?? { kind: principal.kind, id: ref.principalId, via: principal.via },
-    },
-    build: options.build,
-    ...(options.apiVersion === undefined ? {} : { apiVersion: options.apiVersion }),
+    ...jobCauseOf(options),
+    queue,
+    ...laneLimitsOf(limits, scope, queue),
+    ...(cap === undefined ? {} : { queuedCap: cap }),
   };
 }

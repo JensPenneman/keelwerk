@@ -110,6 +110,7 @@ export async function recordExternalEffect(
     },
     build: scene.run.build,
     now: scene.clock.now(),
+    limits: scene.run.quotas,
     ...(requested.runAt === undefined ? {} : { runAt: requested.runAt }),
   });
 }

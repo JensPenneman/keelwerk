@@ -76,6 +76,7 @@ export function settleInlineEffect(
           },
           writer: { hybridClock: processClock, build: run.build },
           clock: input.clock,
+          limits: run.quotas,
         },
         settled,
         1,

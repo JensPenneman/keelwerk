@@ -25,18 +25,18 @@ test('on the embedded SQL adapter core.quota rows are written, read back by Cont
     limit: String(2 * mebibyte),
     version: 1,
   });
-  await limits.fresh();
+  const view = await limits.fresh();
   const acme = {
     level: 'tenant',
     backendId: runtime.backendId,
     tenantId: runtime.tenants.acme.id,
   } as const;
   const globex = { ...acme, tenantId: runtime.tenants.globex.id } as const;
-  expect(limits.limitOf(registry, acme, 'notes.noteBytes')).toEqual({
+  expect(view.limitOf(registry, acme, 'notes.noteBytes')).toEqual({
     kind: 'bytes',
     value: 2 * mebibyte,
   });
-  expect(limits.limitOf(registry, globex, 'notes.noteBytes')).toEqual({
+  expect(view.limitOf(registry, globex, 'notes.noteBytes')).toEqual({
     kind: 'bytes',
     value: 4 * mebibyte,
   });
@@ -45,7 +45,7 @@ test('on the embedded SQL adapter core.quota rows are written, read back by Cont
   expect(cleared).toMatchObject({ ok: true, value: { version: 2 } });
   await vi.waitFor(
     () =>
-      expect(limits.limitOf(registry, acme, 'notes.noteBytes')).toEqual({
+      expect(view.limitOf(registry, acme, 'notes.noteBytes')).toEqual({
         kind: 'bytes',
         value: 4 * mebibyte,
       }),

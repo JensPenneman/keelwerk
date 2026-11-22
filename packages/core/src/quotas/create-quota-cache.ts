@@ -3,10 +3,9 @@ import { errors } from '../errors/errors.ts';
 import { targetingMostOpenReads } from '../flags/targeting-most-open-reads.ts';
 import { targetingReadTimeoutMs } from '../flags/targeting-read-timeout-ms.ts';
 import { targetingRefreshMs } from '../flags/targeting-refresh-ms.ts';
-import { targetingResubscribeMaxMs } from '../flags/targeting-resubscribe-max-ms.ts';
-import { targetingResubscribeMs } from '../flags/targeting-resubscribe-ms.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { Logger } from '../observability/logger.ts';
+import { backgroundRetryMs } from '../runtime/background-retry-ms.ts';
 import type { DeploymentDefinition } from '../runtime/deployment-definition.ts';
 import { withinSignal } from '../schedules/within-signal.ts';
 import type { Scope } from '../storage/scope.ts';
@@ -14,6 +13,7 @@ import type { QueueLimits } from './queue-limits.ts';
 import { queueMemberBounds } from './queue-member-bounds.ts';
 import { queueQuotaEntry } from './queue-quota-entry.ts';
 import type { QuotaLimits } from './quota-limits.ts';
+import type { QuotaView } from './quota-view.ts';
 import { resolveLimits } from './resolve-limits.ts';
 
 /** The most rows a load names in its debug record (those new or changed since the load before). */
@@ -28,6 +28,19 @@ export interface QuotaCacheOptions {
   readonly clock: Clock;
   readonly log: Logger;
   readonly signal: AbortSignal;
+  /** Default `Math.random`: the jitter of the feed's pauses (`backgroundRetryMs`). */
+  readonly random?: () => number;
+}
+
+/** The quota cache: the limits' ask (`fresh`) and the first load a start waits for. */
+export interface QuotaCache extends QuotaLimits {
+  /**
+   * Starts following the feed and loads the rows once, or rejects with the failure of the read
+   * (`core.unavailable` for a read that did not end within `targetingReadTimeoutMs` or while two
+   * reads that timed out are still open), so a start can wait by its own rule for a database that
+   * is away. Until a load succeeds the declared defaults serve.
+   */
+  firstLoad(): Promise<void>;
 }
 
 /**
@@ -36,15 +49,19 @@ export interface QuotaCacheOptions {
  * of the control store. Both are read together and swapped together, or not at all. Until a load
  * succeeds the declared defaults serve; after it, rows and values that can no longer be read keep
  * serving for good, because falling back to the defaults could raise a limit an operator lowered.
- * Nothing runs before the first `fresh()`.
+ * Nothing runs before the first `fresh()` or `firstLoad()`. A process whose reads fail keeps its
+ * last rows until a read succeeds: two processes disagree on a tenant's limits for at most the age
+ * the cache allows plus one read, except while a process's reads fail.
  */
-export function createQuotaCache(options: QuotaCacheOptions): QuotaLimits {
+export function createQuotaCache(options: QuotaCacheOptions): QuotaCache {
   const { quotas, queues, clock, log } = options;
   let rows: ReadonlyMap<string, QuotaRow> = new Map();
   let backendQuotas: ReadonlyMap<string, ReadonlyMap<string, string>> = new Map();
   let loaded = false;
   let loadedAt = 0;
   let failedAt: number | null = null;
+  /** Why the newest load did not load; read by `firstLoad`. */
+  let failure: unknown;
   let inFlight: Promise<void> | undefined;
   let again = false;
   /** Reads handed to the store that have not settled, also those the cache stopped waiting for. */
@@ -94,7 +111,10 @@ export function createQuotaCache(options: QuotaCacheOptions): QuotaLimits {
 
   const attempt = async (): Promise<void> => {
     // Reads that timed out are still running in the adapter: no new one while two are open.
-    if (openReads >= targetingMostOpenReads) return;
+    if (openReads >= targetingMostOpenReads) {
+      failure = errors.unavailable('Reads of the quota rows that timed out are still open.');
+      return;
+    }
     const started = now();
     try {
       const { stored, configured } = await withinSignal(
@@ -118,9 +138,14 @@ export function createQuotaCache(options: QuotaCacheOptions): QuotaLimits {
       loaded = true;
       loadedAt = started;
       failedAt = null;
+      failure = undefined;
       log.debug('the quota rows were loaded', { rows: next.size, changed });
     } catch (error) {
       failedAt = now();
+      failure =
+        error instanceof DOMException && error.name === 'TimeoutError'
+          ? errors.unavailable('The quota rows were not read in time.', { cause: error })
+          : error;
       log.error('the quota rows could not be loaded; the last rows keep serving', {
         cause: error,
       });
@@ -161,19 +186,18 @@ export function createQuotaCache(options: QuotaCacheOptions): QuotaLimits {
     });
 
   /**
-   * Follows the feed until `signal` aborts. A feed that fails or ends is subscribed again after a
-   * wait (the first wait doubles with each failure up to `targetingResubscribeMaxMs`, and starts
-   * over once a wake came or the subscription lived that long), and the rows are loaded once for
-   * what the gap may have missed.
+   * Follows the feed until `signal` aborts. A feed that fails or ends is subscribed again after
+   * the pause of the one policy of the background loops (`backgroundRetryMs`; a wake counts as a
+   * success and starts the count again), and the rows are loaded once for what the gap may have
+   * missed.
    */
   const follow = async (signal: AbortSignal): Promise<void> => {
-    let wait = targetingResubscribeMs;
+    let failures = 0;
     for (let resubscribed = false; !signal.aborted; resubscribed = true) {
       if (resubscribed) void load(true);
-      const subscribedAt = now();
       try {
         for await (const _wake of quotas.changes(signal)) {
-          wait = targetingResubscribeMs;
+          failures = 0;
           void load(true);
         }
         if (!signal.aborted) log.error('the quota change feed ended; it is subscribed again');
@@ -182,9 +206,8 @@ export function createQuotaCache(options: QuotaCacheOptions): QuotaLimits {
           log.error('the quota change feed failed; it is subscribed again', { cause: error });
         }
       }
-      if (now() - subscribedAt >= targetingResubscribeMaxMs) wait = targetingResubscribeMs;
-      await pause(wait, signal);
-      wait = Math.min(wait * 2, targetingResubscribeMaxMs);
+      failures += 1;
+      await pause(backgroundRetryMs(failures, options.random), signal);
     }
   };
 
@@ -218,7 +241,7 @@ export function createQuotaCache(options: QuotaCacheOptions): QuotaLimits {
     );
   };
 
-  return {
+  const view: QuotaView = {
     limitOf: (registry, scope, ref) => {
       const entry = registry.quotas.get(ref);
       if (entry === undefined) throw errors.internal(`The registry declares no quota ${ref}.`);
@@ -229,21 +252,30 @@ export function createQuotaCache(options: QuotaCacheOptions): QuotaLimits {
       queued: queueMember(scope, queue, 'queued'),
       weight: queueMember(scope, queue, 'weight'),
     }),
+  };
+
+  const follows = (): void => {
+    if (following) return;
+    following = true;
+    void follow(options.signal);
+  };
+
+  return {
     fresh: async () => {
-      if (!following) {
-        following = true;
-        void follow(options.signal);
+      follows();
+      if (loaded && now() - loadedAt < targetingRefreshMs) return view;
+      // A load already in flight is awaited, so the rows the caller reads are no older than that
+      // load's read; after a failure the last rows serve until the refresh period has passed.
+      if (inFlight === undefined && failedAt !== null && now() - failedAt < targetingRefreshMs) {
+        return view;
       }
-      if (!loaded) {
-        if (inFlight === undefined && failedAt !== null && now() - failedAt < targetingRefreshMs)
-          return;
-        await awaitLoad(load(false));
-        return;
-      }
-      if (now() - loadedAt < targetingRefreshMs) return;
-      if (inFlight !== undefined) return;
-      if (failedAt !== null && now() - failedAt < targetingRefreshMs) return;
       await awaitLoad(load(false));
+      return view;
+    },
+    firstLoad: async () => {
+      follows();
+      await load(false);
+      if (!loaded) throw failure;
     },
   };
 }

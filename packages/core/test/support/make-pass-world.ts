@@ -1,3 +1,4 @@
+import type { QuotaLimits } from '../../src/quotas/quota-limits.ts';
 import type { ScheduleEntry } from '../../src/registry/schedule-entry.ts';
 import type { RuntimeServiceContext } from '../../src/runtime/runtime-service-context.ts';
 import type { ServedApp } from '../../src/runtime/served-app.ts';
@@ -25,6 +26,7 @@ const namespace = { id: 'ns-app', placementId: 'p', appId: 'tickerapp', tenantId
 export function makePassWorld(
   tenants: Readonly<Record<string, readonly string[]>>,
   entryOver: Partial<ScheduleEntry> = {},
+  quotas?: QuotaLimits,
 ): PassWorld {
   const clock = { now: T0 };
   const rows: PassWorld['rows'] = new Map();
@@ -160,6 +162,7 @@ export function makePassWorld(
   const context = {
     clock: { now: () => clock.now },
     build: { id: 'build', revision: 1 },
+    ...(quotas === undefined ? {} : { quotas }),
     log: { info: log('info'), warn: log('warn'), error: log('error'), debug: log('debug') },
     directory: {
       backend: async (id: string) => {

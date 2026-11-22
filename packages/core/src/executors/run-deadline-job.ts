@@ -16,7 +16,7 @@ import { settleKeepingContinuation } from './settle-keeping-continuation.ts';
  * deletes a running attempt: the completion here then finds its lease gone and the unit rolls back
  * having written nothing.
  */
-export function runDeadlineJob(job: Job, context: RunJobContext): Promise<void> {
+export async function runDeadlineJob(job: Job, context: RunJobContext): Promise<void> {
   const { stored } = job;
   if (!('effectDeadline' in stored.run)) {
     return Promise.reject(errors.internal('A deadline job carries no effect.'));
@@ -25,6 +25,7 @@ export function runDeadlineJob(job: Job, context: RunJobContext): Promise<void> 
   const { source, worker, writer, clock } = context;
   const { registry } = source;
   const descriptor = registry.entities.get('core.effect')?.descriptor;
+  const limits = await context.quotas?.fresh();
   return source.handle.adapter.unit(source.namespace, stored.scope, async (unit) => {
     if (descriptor === undefined) throw errors.internal('the app has no core.effect entity');
     const held = { attempt: stored.attempt, worker };
@@ -42,6 +43,7 @@ export function runDeadlineJob(job: Job, context: RunJobContext): Promise<void> 
           cause: stored,
           writer,
           clock,
+          limits,
           ...(entry === undefined ? { continuation: 'skip' as const } : {}),
         },
         () =>

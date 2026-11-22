@@ -39,7 +39,7 @@ export type AttemptResult =
  * completion goes through `completeJob`, so a worker that lost its lease changes nothing. Only the
  * closed projection of a failure is stored, never the executor's text.
  */
-export function endEffectAttempt(
+export async function endEffectAttempt(
   context: RunJobContext,
   target: EffectAttemptJob,
   began: Extract<BeganAttempt, { readonly kind: 'run' }>,
@@ -49,6 +49,7 @@ export function endEffectAttempt(
   const { source, worker, writer, clock, random } = context;
   const declared = declaredErrorCodesOf(registry, entry?.module);
   const held = { attempt: stored.attempt, worker };
+  const limits = await context.quotas?.fresh();
   const descriptor = registry.entities.get('core.effect')?.descriptor;
   return source.handle.adapter.unit(source.namespace, stored.scope, async (unit) => {
     if (descriptor === undefined || entry === undefined) {
@@ -72,7 +73,7 @@ export function endEffectAttempt(
         ? Promise.resolve(false)
         : settleEffect(
             unit,
-            { registry, entry, row, cause: stored, writer, clock },
+            { registry, entry, row, cause: stored, writer, clock, limits },
             settled,
             began.started,
           );

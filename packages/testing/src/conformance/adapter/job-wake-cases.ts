@@ -194,6 +194,27 @@ export function jobWakeCases(
     ).toEqual([]);
   });
 
+  test('a savepoint that fails takes back the cap it gave a lane, one that succeeds keeps it: a take hands out jobs up to the cap the lane has', async () => {
+    const refused = new Error('refused');
+    const inLane = (n: number, laneCap: number) => numbered(n, { queue: 'undo-cap', laneCap });
+    await enqueue([inLane(1, 1), inLane(2, 1)]);
+    await subject.run(tenantA, async (unit) => {
+      await unit
+        .nested(async (inner) => {
+          await inner.jobs.enqueue({ ...inLane(3, 2), scope: tenantA });
+          throw refused;
+        })
+        .catch((error: unknown) => {
+          if (error !== refused) throw error;
+        });
+    });
+    expect(await take('w1', { queue: 'undo-cap' })).toHaveLength(1);
+    await subject.run(tenantA, (unit) =>
+      unit.nested((inner) => inner.jobs.enqueue({ ...inLane(4, 2), scope: tenantA })),
+    );
+    expect(await take('w1', { queue: 'undo-cap' })).toHaveLength(1);
+  });
+
   test('a savepoint that fails takes back what it recorded, one that succeeds keeps it', async () => {
     const refused = new Error('refused');
     expect(

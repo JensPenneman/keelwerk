@@ -3,6 +3,7 @@ import { sealJobInput } from '../effects/seal-job-input.ts';
 import { validateEffectInput } from '../effects/validate-effect-input.ts';
 import { errors } from '../errors/errors.ts';
 import type { Clock } from '../kernel/clock.ts';
+import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import type { ScheduleEntry } from '../registry/schedule-entry.ts';
 import type { StoredSchedule } from '../storage/stored-schedule.ts';
 import type { QueueSource } from '../worker/queue-source.ts';
@@ -32,6 +33,8 @@ export async function runScheduleTick(input: {
   readonly build: { readonly id: string; readonly revision: number };
   readonly apiVersion: string;
   readonly clock: Clock;
+  /** The process's quota cache: asked before the unit, so the tick's lane takes the scope's cap and weight. */
+  readonly quotas: QuotaLimits | undefined;
   /** Aborted at the stop deadline or when the unit is too slow: the unit then ends without committing. */
   readonly signal?: AbortSignal;
   /** How long the unit may wait for its turn. */
@@ -57,6 +60,7 @@ export async function runScheduleTick(input: {
   }
   const commandId = scheduleCommandId(entry.ref, target.scopeId, durationMs(entry.every), tick);
   try {
+    const limits = await input.quotas?.fresh();
     return await source.handle.adapter.unit(
       source.namespace,
       target.scope,
@@ -77,6 +81,7 @@ export async function runScheduleTick(input: {
             build: input.build,
             apiVersion: input.apiVersion,
             now,
+            limits,
           }),
         );
         return 'enqueued' as const;

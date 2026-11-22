@@ -1,4 +1,4 @@
-import { jobInput } from '../effects/job-input.ts';
+import { jobCauseOf } from '../effects/job-cause-of.ts';
 import { errors } from '../errors/errors.ts';
 import type { StoredEvent } from '../events/stored-event.ts';
 import { kernelCommandId } from '../ids/kernel-command-id.ts';
@@ -73,7 +73,7 @@ export function reactionJob(options: ReactionJobOptions): JobSpec {
       tenant: scope.level === 'tenant' ? scope.tenantId : null,
     },
   });
-  const common = jobInput({
+  const common = jobCauseOf({
     scope,
     principal,
     actor: event.actor,

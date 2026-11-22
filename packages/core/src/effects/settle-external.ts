@@ -141,6 +141,7 @@ export async function settleExternal(scene: EffectScene, effect: SettleEffect): 
       },
       writer: { hybridClock: scene.hybridClock, build: run.build },
       clock: scene.clock,
+      limits: run.quotas,
     },
     async (inner) =>
       checked.ok

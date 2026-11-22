@@ -1,8 +1,6 @@
 import { startAnchoring } from '../anchors/start-anchoring.ts';
-import { type VersionProjection, versionProjection } from '../api-versions/version-projection.ts';
 import { setProcessState } from '../control/set-process-state.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
-import { defineApp } from '../dsl/define-app.ts';
 import { answerExplain } from '../explain/answer-explain.ts';
 import { explainDecisions } from '../explain/explain-decisions.ts';
 import { explainStream } from '../explain/explain-stream.ts';
@@ -12,9 +10,6 @@ import { createTargetingCache } from '../flags/targeting-cache.ts';
 import { createInvoker } from '../invoker/create-invoker.ts';
 import { liveTimersOf } from '../live/live-timers-of.ts';
 import type { RuntimeLiveHub } from '../live/runtime-live-hub.ts';
-import type { ApiSurface } from '../surface/api-surface.ts';
-import { deriveSurface } from '../surface/derive-surface.ts';
-import type { SurfaceSource } from '../surface/surface-source.ts';
 import { answerRuntimeQueries } from './answer-runtime-queries.ts';
 import { AppNotServedError } from './app-not-served-error.ts';
 import { composePhase } from './compose-phase.ts';
@@ -36,11 +31,12 @@ import { restoreCheck } from './restore-check.ts';
 import type { Runtime } from './runtime.ts';
 import { runtimeEnvironment } from './runtime-environment.ts';
 import type { RuntimeOptions } from './runtime-options.ts';
-import type { ServedApp } from './served-app.ts';
 import { servedRegistry } from './served-registry.ts';
+import { servedSurfaces } from './served-surfaces.ts';
 import { setupPhase } from './setup-phase.ts';
 import type { Started } from './start-phase.ts';
 import { startPhase } from './start-phase.ts';
+import { startQuotaCache } from './start-quota-cache.ts';
 import { stopPhase } from './stop-phase.ts';
 
 /**
@@ -83,11 +79,19 @@ export async function startRuntime(
   try {
     log.debug('phase', { phase: 'migrate' });
     const migrated = await migratePhase({ deployment, composed, served, connected, development });
+    const quotas = await startQuotaCache({
+      deployment,
+      connected,
+      clock,
+      log,
+      signal: options.signal,
+    });
     const restore = await restoreCheck({
       connected,
       migrated,
       served,
       sinks: composed.infrastructure.ledgers,
+      quotas,
       clock,
       log,
     });
@@ -100,7 +104,7 @@ export async function startRuntime(
       head: coreApiVersions.dates.at(-1) ?? '',
       api: coreApiVersions,
     });
-    const controlPath = createControlPath({ deployment, served, connected, migrated });
+    const controlPath = createControlPath({ deployment, served, connected, migrated, quotas });
     const streamOptions = {
       env: options.env ?? {},
       development,
@@ -132,6 +136,7 @@ export async function startRuntime(
       decisions,
       flagProviders,
       targeting,
+      quotas,
       environment,
       clock,
       log,
@@ -160,49 +165,7 @@ export async function startRuntime(
       ),
     );
 
-    // A deployment-scope session (the operator socket) belongs to the app `core`, which the
-    // invoker answers from the one served app, or else from the registry of the control app.
-    const coreHead = coreApiVersions.dates.at(-1) ?? '';
-    let coreApp: SurfaceSource | undefined;
-    const coreSource = (): SurfaceSource => {
-      if (sole !== undefined) return sole.source;
-      coreApp ??= defineApp({ id: 'core', modules: [], execution: {}, api: coreApiVersions });
-      return coreApp;
-    };
-    // One surface per declared version of each app, derived at first use and kept, so the host, the
-    // transports' mounts and `runtime.surface` serve the same document (hash and ETag included).
-    const projections = new Map<string, VersionProjection<ApiSurface>>();
-    const datesOf = (app: ServedApp): readonly string[] => app.source.api?.dates ?? [app.head];
-    const projectionOf = (
-      id: string,
-      source: SurfaceSource,
-      versions: readonly string[],
-    ): VersionProjection<ApiSurface> => {
-      let projection = projections.get(id);
-      if (projection === undefined) {
-        projection = versionProjection(
-          versions,
-          (version) => deriveSurface(source, version).surface,
-        );
-        projections.set(id, projection);
-      }
-      return projection;
-    };
-    const surface = (appId: string, version?: string): ApiSurface => {
-      const app = served.find((candidate) => candidate.id === appId);
-      if (app !== undefined)
-        return projectionOf(app.id, app.source, datesOf(app)).at(version ?? app.head);
-      if (appId !== 'core') {
-        throw new AppNotServedError(appId);
-      }
-      // A session of the app `core` carries a version of the operator endpoint's own calendar, which
-      // the one served app need not declare; both calendars are served.
-      const head = sole?.head ?? coreHead;
-      const dates = [
-        ...new Set([...coreApiVersions.dates, ...(sole?.source.api?.dates ?? [])]),
-      ].sort();
-      return projectionOf('core', coreSource(), dates).at(version ?? head);
-    };
+    const { surface, surfacesOf } = servedSurfaces(served, sole);
 
     log.debug('phase', { phase: 'start' });
     const ready = startPhase({
@@ -213,6 +176,7 @@ export async function startRuntime(
       apps: servedById,
       invoker: draining.invoker,
       clock,
+      quotas,
       gate,
       restoreHold: restore.hold,
     });
@@ -242,7 +206,7 @@ export async function startRuntime(
           clock,
           timers: options.timers ?? liveTimersOf(clock),
           surface,
-          surfaces: (app) => projectionOf(app.id, app.source, datesOf(app)),
+          surfaces: surfacesOf,
         })
       : { host: undefined, instance: undefined, mounts: [] };
     await setProcessState(connected.control, connected.processId, 'ready');
@@ -262,7 +226,14 @@ export async function startRuntime(
       ...(listening.operatorSocket === undefined
         ? {}
         : { operatorSocket: listening.operatorSocket }),
-      control: createRuntimeControl({ path: controlPath, served, connected, migrated, anchoring }),
+      control: createRuntimeControl({
+        path: controlPath,
+        served,
+        connected,
+        migrated,
+        quotas,
+        anchoring,
+      }),
       stop: (deadlineMs) => {
         log.debug('phase', { phase: 'stop' });
         stopping ??= (async () => {

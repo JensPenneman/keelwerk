@@ -43,21 +43,17 @@ describe('core.quota.set', () => {
       limit: '2MiB',
       reason: 'a trial tenant',
     });
-    await limits.fresh();
-    expect(limits.limitOf(registry, tenantScope(runtime, 'acme'), 'notes.noteBytes')).toEqual(
+    const view = await limits.fresh();
+    expect(view.limitOf(registry, tenantScope(runtime, 'acme'), 'notes.noteBytes')).toEqual(
       bytes(2 * mebibyte),
     );
-    expect(limits.limitOf(registry, tenantScope(runtime, 'globex'), 'notes.noteBytes')).toEqual(
+    expect(view.limitOf(registry, tenantScope(runtime, 'globex'), 'notes.noteBytes')).toEqual(
       bytes(4 * mebibyte),
     );
     expect(
-      limits.limitOf(
-        registry,
-        { level: 'backend', backendId: runtime.backendId },
-        'notes.noteBytes',
-      ),
+      view.limitOf(registry, { level: 'backend', backendId: runtime.backendId }, 'notes.noteBytes'),
     ).toEqual(bytes(4 * mebibyte));
-    expect(limits.limitOf(registry, { level: 'deployment' }, 'notes.noteBytes')).toEqual(
+    expect(view.limitOf(registry, { level: 'deployment' }, 'notes.noteBytes')).toEqual(
       bytes(mebibyte),
     );
   });
@@ -94,15 +90,15 @@ describe('core.quota.set', () => {
       tenantId: runtime.tenants.acme.id,
     };
     const first = await mustSet(runtime, { ...base, limit: '2MiB', reason: 'trial' });
-    await limits.fresh();
+    const view = await limits.fresh();
     const acme = tenantScope(runtime, 'acme');
-    expect(limits.limitOf(registry, acme, 'notes.noteBytes')).toEqual(bytes(2 * mebibyte));
+    expect(view.limitOf(registry, acme, 'notes.noteBytes')).toEqual(bytes(2 * mebibyte));
     expect(await mustSet(runtime, { ...base, limit: 'default', reason: 'back' })).toEqual({
       id: first.id,
       version: 2,
     });
     await vi.waitFor(
-      () => expect(limits.limitOf(registry, acme, 'notes.noteBytes')).toEqual(bytes(4 * mebibyte)),
+      () => expect(view.limitOf(registry, acme, 'notes.noteBytes')).toEqual(bytes(4 * mebibyte)),
       waitFor,
     );
     const stored = await storedQuota(runtime, first.id);

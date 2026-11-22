@@ -6,6 +6,7 @@ import type { RestoreHold } from '../control/restore-hold.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { LedgerSink } from '../kernel/ledger-sink.ts';
 import type { Logger } from '../observability/logger.ts';
+import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import { queueSources } from '../worker/queue-sources.ts';
 import { anchorScopes } from './anchor-scopes.ts';
 import { applyNamespace } from './apply-namespace.ts';
@@ -43,6 +44,8 @@ export async function restoreCheck(input: {
   readonly migrated: Migrated;
   readonly served: readonly ServedApp[];
   readonly sinks: readonly LedgerSink[];
+  /** The process's quota cache, loaded before the check: the re-enqueued effects take their lanes' limits from it. */
+  readonly quotas: QuotaLimits | undefined;
   readonly clock: Clock;
   readonly log: Logger;
 }): Promise<{
@@ -117,6 +120,7 @@ export async function restoreCheck(input: {
             clock,
             directory,
             apps,
+            quotas: input.quotas,
           });
         }
       }

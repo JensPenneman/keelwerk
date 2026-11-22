@@ -1,7 +1,7 @@
 import { errors } from '../errors/errors.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { Scope } from '../storage/scope.ts';
-import type { QuotaLimits } from './quota-limits.ts';
+import type { QuotaView } from './quota-view.ts';
 
 /** The storage limits of a scope (12.2): the bytes `core.eventBytes` counts and the rows `core.rows` counts. */
 export interface StorageLimits {
@@ -19,7 +19,7 @@ export interface StorageLimits {
 export function storageLimits(input: {
   readonly registry: Registry;
   readonly scope: Scope;
-  readonly quotas: QuotaLimits | undefined;
+  readonly quotas: QuotaView | undefined;
   readonly exempt: boolean;
 }): StorageLimits | null {
   const { registry, scope, quotas, exempt } = input;

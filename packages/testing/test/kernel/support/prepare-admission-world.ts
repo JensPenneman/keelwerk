@@ -10,7 +10,7 @@ import {
   registryWith,
 } from './effects-kit.ts';
 import { type InlinePrepareContext, pingDraft } from './inline-kit.ts';
-import { tokensTaken, withRequestRates } from './rate-quota-kit.ts';
+import { quotasOf, tokensTaken, withRequestRates } from './rate-quota-kit.ts';
 import { namespace, open, tenant } from './run-read-kit.ts';
 
 // The admission of a command with `prepare` against the storage counters, on the in-memory adapter
@@ -37,7 +37,7 @@ interface World {
 
 /** The limits the write path reads: the test's numbers, the same for every scope. */
 function limitsOf(world: World, rates?: Readonly<Record<string, number>>): QuotaLimits {
-  return {
+  return quotasOf({
     limitOf: withRequestRates(
       (_registry, _scope, ref) =>
         ref === 'core.rows'
@@ -46,8 +46,7 @@ function limitsOf(world: World, rates?: Readonly<Record<string, number>>): Quota
       rates,
     ),
     queueOf: () => ({ running: 4, queued: world.queued, weight: 1 }),
-    fresh: async () => undefined,
-  };
+  });
 }
 
 interface GrowContext {

@@ -13,6 +13,7 @@ import type { LedgerSink } from '../kernel/ledger-sink.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Meter } from '../observability/meter.ts';
 import type { Tracer } from '../observability/tracer.ts';
+import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import type { ServedApp } from '../runtime/served-app.ts';
 import type { QueueSource } from './queue-source.ts';
 import { refusalOfHold } from './refusal-of-hold.ts';
@@ -45,6 +46,8 @@ export interface RunJobContext {
   readonly control: ControlStore;
   /** The deployment's ledger sinks (`RuntimeInfrastructure.ledgers`). */
   readonly ledgers: readonly LedgerSink[];
+  /** The process's quota cache: asked before the unit that settles an effect, so a continuation's lane takes its cap and weight from it; undefined in a bare start. */
+  readonly quotas: QuotaLimits | undefined;
   /** The tenants a restore holds (14.7.6); absent in a bare start, where none is held. */
   readonly restoreHold?: RestoreHold;
 }

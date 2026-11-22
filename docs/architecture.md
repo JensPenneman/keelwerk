@@ -4130,6 +4130,19 @@ id of a process instance forever. Build a job key from ids, never from a persona
   count the same way. A take locks only lane rows to pick, so an enqueue burst never makes takers skip
   a lane for the pick, and a stale `done` only lowers a lane's room; a promotion and a reclaim, which
   lock counter rows, do skip a lane whose row another unit holds (next bullets).
+- A unit that gives an existing lane another cap or weight (every enqueue in a tenant's or a
+  backend's scope does when the lane's limits changed, section 9.5.5) does not write the lane's row
+  at the enqueue: it records the change, and the last value it gave a lane is written at the end of
+  the unit, after the unit's own work and before its commit tail, one `update` for each lane in
+  ascending lane id. So the row is held only from that step to the end of the unit, and two units
+  that changed two lanes in opposite order wait for each other's rows in one order and never in a
+  cycle. Each settle of a unit takes its `done` counters before its groups' rows (the slots a
+  completion gives back), and the lane rows come after all of the settles, whether the unit completes jobs and
+  changes lanes (the end step) or a drain releases attempts (the lane rows are written last). A
+  take that meets a held row skips the lane (next bullets) and the commit reports the queue
+  as takeable. A new lane is still inserted at its first enqueue: two units that create two new
+  lanes in opposite order can still deadlock on the lanes' unique key, and so can units that take
+  two key locks in opposite orders (below).
 - A job due now is `available` and counted at its cause's commit tail, beside the scope's position
   counter (section 15.1.4); a later `runAt` (timers, retries, delayed sends) stays `scheduled` until
   the queue's fetcher promotes it, which counts it on its lane in the promoting statement, so lanes
@@ -4470,7 +4483,7 @@ The job side of the quota model (section 12.2):
 |---|---|---|---|
 | running jobs per tenant and queue (the lane's cap) | `queues.<q>.running` (a number or a share of live slots), per backend with tenant overrides | the take | jobs wait |
 | running jobs per backend and queue | `core.quota.set` per backend | an implicit group `backend:<id>` | jobs wait |
-| queued jobs per tenant and queue | `queues.<q>.queued`, default 10,000; backend and tenant overrides | the enqueue's commit tail, counting the jobs that wait to run | commands: `rate_limited` (`core.queue_full`, `retryAfter`); the reaction dispatcher pauses the scope until the lane is below 90 percent; timers and schedules are bounded by keys |
+| queued jobs per tenant and queue | `queues.<q>.queued`, default 10,000; backend and tenant overrides | the enqueue's commit tail, counting the jobs that wait to run | what a request, a decision or a resolver asks for anew (a resolver's timer excepted, below): `rate_limited` (`core.queue_full`, `retryAfter`); the reaction dispatcher holds the scope while its `reactions` lane is above 90 percent of the dispatcher's own `queued` option (not this limit); what the framework accepted already is counted and never refused (below) |
 | share | weight per backend and tenant, default 1, operator only | the take's order | |
 | priority | module code: `high` for liveness timers, `low` for bulk work | the take's order | lower classes wait; their age drives the scaler |
 | destination concurrency and rate | `group` options of executors and actions, from module configuration | the take, under the group's row lock; `scope: 'deployment'` groups (M5) through control-store permits | jobs wait for a slot or a token |
@@ -4485,7 +4498,7 @@ now, or waiting behind a key; never a running or a dead job. One set of states d
 each kind of store (`queuedJobStates` for SQL, `memoryJobIsQueued` for memory), and the readers of
 it are the queued cap, the job statistics (`JobQueue.stats`, section 21.4, which carry the count as
 `queued` since 2026-11-11), `JobStore.queued` (the count that the dispatcher's hold at 90 percent of
-a reactions lane reads), the pending reads of the key policy and of a cancel, and, on PostgreSQL,
+its own `queued` option reads for a reactions lane), the pending reads of the key policy and of a cancel, and, on PostgreSQL,
 the partial index of step 0005. A case reads the cap's count from a refusal, the statistics and
 `JobStore.queued` for one state of a store and finds one number, on every adapter.
 
@@ -4500,6 +4513,49 @@ fail a caller whose job already exists. What the framework moves with work it ad
 refused: a promotion, a key's next job, a retry, a release at a drain and a reclaim leave the count
 true, so it can stand above the cap, and new capped enqueues are refused until it has fallen. A
 refused enqueue changes nothing and wakes nothing.
+
+Which enqueues carry the cap. What a request, a decision or a resolver asks for anew meets the cap
+of its queue in its scope, whatever its due time: a command job (an accepted asynchronous command,
+an `enqueue` effect, a deferred `invoke`, and the command jobs of a principal resolver), a timer
+that a decision sets, and the job of an effect that a decision requests in its executor's queue (an
+inline effect's guard job and an external effect's deadline timer among them; the deadline timer
+is asked for anew in the unit of the decision that requests the effect, so the effect and its
+timer are admitted or refused together). What the framework accepted already is never refused, and
+neither is what the app's own definition asks for and must not lose; those jobs are counted and
+can stand above the cap: a continuation, the effect job and the deadline timer that a restore or a
+rebuild enqueues again for an effect admitted in an earlier unit, the tick of a schedule, the job
+of a tenant hook, a reaction job (the dispatcher's hold at 90 percent of its own `queued` option is its
+mechanism) and the moves listed above. A job in the deployment scope never carries the cap, and
+nor does a job of an action of the `core` module, or a job without an action (an effect job, a
+deadline timer) that a decision of the `core` module requests.
+
+A command that enqueues itself keeps its queue as long as it
+started: each run takes a job and enqueues one, so the count does not grow, and the lane's running
+cap bounds how many of its jobs run at once; a command that enqueues two for each run, or a decision
+that sets a timer under a new key on every call, reaches the cap and is refused.
+
+One exception to the rule that what a resolver asks for anew meets the cap: a timer that a principal
+resolver sets is counted and never refused. The edge runs before every request of a session, so a
+refusal there would refuse every request of a tenant whose timers queue is full of timers due far
+ahead, the requests that cancel timers included, and nothing but the passing of time or an operator
+would end it. The framework limits neither how many timers one resolution returns nor their keys,
+and a resolver runs before the admission checks, so a request that the request rate refuses has
+already set its resolver's timers. A resolver therefore keys its timers by what it resolved: auth
+keys its idle extension by session, so one waits for each session, and API keys key theirs by key,
+so two wait for each key. A command job that a resolver enqueues keeps the cap: a backlog of command
+jobs drains through the workers, and the refusal is the backpressure wanted there.
+
+A limit of the count: a tenant's timers that are due far ahead count against the cap of the timers
+queue for as long as they wait, so an app that keeps many timers for each tenant sets
+`queues.timers.queued` accordingly.
+
+Every enqueue in a tenant's or a backend's scope gives its lane the cap and the weight that the
+limits of that scope and queue name (`queues.<q>.running` and `.weight`, section 12.2): a path that
+enqueues asks the process's quota cache for fresh limits before the unit that enqueues (the type of
+the cache lets it hand out limits only that way). The one exception is the kernel queue: it keeps
+the view the runtime started it with, which is live and reads the cache's current rows without an
+ask of its own, so the reaction dispatcher asks the cache before each batch. A lane in the deployment scope keeps cap 4 and its weight. A lane that has none of these
+limits set has cap 4 and weight 1.
 
 On PostgreSQL the count is one more part of the statement the commit tail sends: a range scan of the
 partial index `kw_jobs_queued` (framework step 0005) for the scope and queue that stops after the
@@ -4982,6 +5038,18 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
   counters are both per scope (section 15.1.4).
 - Usage is a metric per tenant and dimension; `keelwerk doctor` lists tenants above 80 percent
   of a limit.
+- Where the limits are read. Every process holds one cache of the quota rows and of the values
+  configured for each backend, loaded at the start before the restore check (a database that is
+  away is waited for by the policy of the background loops, any other error ends the start), woken
+  by the control feed and read again when its rows are older than a second. Code that reads a limit
+  asks the cache first and reads the view it answers (`QuotaLimits.fresh`), which is why such a
+  path cannot read a limit without having asked: the request, the job's settle, a schedule's tick, a
+  tenant's hook and the restore's re-enqueue each ask before their unit. The kernel queue is the
+  exception: it keeps the view the runtime started it with, which reads the cache's current rows
+  without an ask of its own, so the reaction dispatcher asks before each batch. Two
+  processes disagree on a tenant's limits for at most the age the cache allows plus one read, except
+  while a process's reads fail, when it keeps its last rows until a read succeeds. A feed that
+  fails or ends is subscribed again after the pause of the one policy of the background loops.
 - What a storage counter counts, and when it goes down. `core.eventBytes` counts every event
   and every stream record a unit stores in a tenant or a backend scope, receipt change records
   included, and not the process state cache, which is replaced at every fold. The adapter charges
@@ -5024,9 +5092,9 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
   deadline job, the settle unit of an inline effect, the release of a job at a drain, the end of an
   exhausted command job, the steps of an erasure, a dispatcher pass. Other holds still reach such a
   unit, and none of them is a storage limit: a unit that enqueues a job carrying a queued cap
-  (`commandQueuedCap`; for example the accept of an asynchronous command) can be refused with
-  `core.queue_full`, and a dispatcher pass is held at 90 percent of the scope's `reactions` lane
-  (section 9.5.5). The queued cap of a job that a unit enqueues is checked at the commit tail of
+  (`queuedCapOf`; for example the accept of an asynchronous command) can be refused with
+  `core.queue_full`, and a dispatcher pass is held while the scope's `reactions` lane is above 90 percent of the dispatcher's
+  own `queued` option (section 9.5.5). The queued cap of a job that a unit enqueues is checked at the commit tail of
   that unit also for a command with a prepare step: it can refuse the unit with the retryable
   `core.queue_full` after the prepare step ran, the refusal is not pinned to the command id, and the
   same id sent again with room completes without a second effect (a case shows it).

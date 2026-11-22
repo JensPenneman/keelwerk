@@ -1,4 +1,4 @@
-import type { LaneSettlement } from './postgres/settle-lanes-statement.ts';
+import type { LaneSettlement } from './postgres/settle-done-statement.ts';
 
 /** The running load changes of lanes, summed per lane before they are written. */
 export interface SqlLaneChanges {

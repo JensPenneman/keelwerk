@@ -6,6 +6,7 @@ import { sealJobInput } from '../effects/seal-job-input.ts';
 import { errors } from '../errors/errors.ts';
 import { kernelCommandId } from '../ids/kernel-command-id.ts';
 import type { EffectOutcome } from '../model/effect-outcome.ts';
+import type { QuotaView } from '../quotas/quota-view.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
 import { reactionLineageOf } from '../reactions/reaction-lineage-of.ts';
 import type { Registry } from '../registry/registry.ts';
@@ -35,6 +36,8 @@ export async function enqueueContinuation(
     readonly outcome: EffectOutcome<Readonly<Record<string, unknown>>>;
     readonly cause: Pick<StoredJobSpec, 'scope' | 'causation' | 'build'>;
     readonly now: Temporal.Instant;
+    /** The quota view asked for before the unit (`QuotaLimits.fresh`). */
+    readonly limits: QuotaView | undefined;
   },
 ): Promise<void> {
   const { registry, row, cause } = input;
@@ -71,9 +74,11 @@ export async function enqueueContinuation(
       action,
       build: cause.build,
       now: input.now,
+      queue: commandQueue,
+      limits: input.limits,
+      exempt: 'accepted',
     }),
     kind: 'action',
-    queue: commandQueue,
     run: commandJobRun(
       action.ref,
       await sealJobInput(unit, registry, commandId, action, { ...extra, outcome: input.outcome }),

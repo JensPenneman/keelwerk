@@ -1,5 +1,6 @@
 import { jobInput } from '../effects/job-input.ts';
 import { kernelCommandId } from '../ids/kernel-command-id.ts';
+import type { QuotaView } from '../quotas/quota-view.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
 import type { HookEntry } from '../registry/hook-entry.ts';
 import type { Scope } from '../storage/scope.ts';
@@ -16,6 +17,8 @@ export interface TenantHookJobOptions {
   /** The enqueuer's build (section 19.2). */
   readonly build: { readonly id: string; readonly revision: number };
   readonly now: Temporal.Instant;
+  /** The quota view asked for before the unit (`QuotaLimits.fresh`). */
+  readonly limits: QuotaView | undefined;
 }
 
 /**
@@ -42,9 +45,11 @@ export function tenantHookJob(options: TenantHookJobOptions): StoredJobSpec {
       causation: {},
       build: options.build,
       now: options.now,
+      queue: hookQueue,
+      limits: options.limits,
+      exempt: 'definition',
     }),
     kind: 'action',
-    queue: hookQueue,
     run: {
       action: hook.id,
       input: { id: tenant.id, name: tenant.name },

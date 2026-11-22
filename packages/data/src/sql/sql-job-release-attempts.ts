@@ -7,7 +7,7 @@ import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
 import { sqlLaneChanges } from './sql-lane-changes.ts';
 import type { GroupRelease } from './sql-release-groups.ts';
 import { sqlReleaseGroups } from './sql-release-groups.ts';
-import { sqlSettleLanes } from './sql-settle-lanes.ts';
+import { sqlSettleTaken } from './sql-settle-taken.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
 
 /**
@@ -15,7 +15,7 @@ import type { SqlUnitContext } from './sql-unit-context.ts';
  * running attempts back to `available` and the queues are recorded as takeable (`readied` answers
  * `undefined`, cannot name, when a job is in a group, as for a completion); the lanes' `taken`
  * counts and the groups' running slots follow at the end of the unit, before the commit tail, as a
- * completion's do.
+ * completion's do, the groups' rows before the lane rows.
  */
 export async function sqlJobReleaseAttempts(
   ctx: SqlUnitContext,
@@ -47,8 +47,10 @@ export async function sqlJobReleaseAttempts(
   if (releases.length > 0) buffer.readyAnywhere();
   for (const queue of queues) buffer.ready(queue);
   buffer.defer(async () => {
-    await sqlSettleLanes(ctx, lanes);
+    // The order of 9.5.2, as a completion's and the end step's: counters, groups, lane rows. A release
+    // moves no counter.
     await sqlReleaseGroups(ctx, releases);
+    await sqlSettleTaken(ctx, lanes);
   });
   const moved = new Set(rows.map((row) => `${String(row.id)}:${Number(row.attempt)}`));
   return valid.filter((attempt) => moved.has(`${attempt.jobId}:${attempt.attempt}`));

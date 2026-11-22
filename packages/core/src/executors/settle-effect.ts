@@ -4,6 +4,7 @@ import { settledEffectDraft } from '../effects/settled-effect-draft.ts';
 import { writeEffectRecord } from '../effects/write-effect-record.ts';
 import { errors } from '../errors/errors.ts';
 import type { Clock } from '../kernel/clock.ts';
+import type { QuotaView } from '../quotas/quota-view.ts';
 import { reactionLineageOf } from '../reactions/reaction-lineage-of.ts';
 import type { EffectEntry } from '../registry/effect-entry.ts';
 import type { Registry } from '../registry/registry.ts';
@@ -35,6 +36,8 @@ export async function settleEffect(
     readonly cause: Pick<StoredJobSpec, 'scope' | 'causation' | 'build'>;
     readonly writer: ControlStore['writer'];
     readonly clock: Clock;
+    /** The quota view asked for before the unit (`QuotaLimits.fresh`): the continuation's lane takes its cap and weight from it. */
+    readonly limits: QuotaView | undefined;
   },
   settled:
     | { readonly status: 'succeeded'; readonly output: Readonly<Record<string, unknown>> }
@@ -98,6 +101,7 @@ export async function settleEffect(
           : { ok: false, error: effectJobError(settled.error) },
       cause: target.cause,
       now,
+      limits: target.limits,
     });
   }
   return true;

@@ -5,6 +5,7 @@ import { errors } from '../errors/errors.ts';
 import { moduleConfigOf } from '../invoker/module-config-of.ts';
 import { moduleConfigShapes } from '../invoker/module-config-shapes.ts';
 import { runtimeOperator } from '../principals/runtime-operator.ts';
+import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import type { Connected } from './connected.ts';
 import type { ControlPath } from './control-path.ts';
 import type { Migrated } from './migrate-phase.ts';
@@ -18,6 +19,8 @@ export function createRuntimeControl(input: {
   readonly served: readonly ServedApp[];
   readonly connected: Connected;
   readonly migrated: Migrated;
+  /** The process's quota cache, asked before the reruns of hooks and the rebuild's re-enqueues. */
+  readonly quotas: QuotaLimits | undefined;
   readonly anchoring?: Anchoring;
 }): RuntimeControl {
   const { served, connected, migrated, path } = input;
@@ -36,7 +39,8 @@ export function createRuntimeControl(input: {
       const config = (await lookup.backend(id))?.config;
       return { id, ...(config === undefined ? {} : { config }) };
     },
-    rebuild: (scopeId) => rebuildScope({ connected, migrated, served, scopeId }),
+    rebuild: (scopeId) =>
+      rebuildScope({ connected, migrated, served, quotas: input.quotas, scopeId }),
     createTenant: async (tenant) => {
       const { id } = await path.createTenant(tenant, { principal: runtimeOperator });
       return { id };
@@ -84,6 +88,7 @@ export function createRuntimeControl(input: {
         config: configOf(app, backend.config),
         rerun: true,
         only,
+        quotas: input.quotas,
       });
     },
   };

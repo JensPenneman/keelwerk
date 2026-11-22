@@ -15,6 +15,7 @@ import { moduleConfigOf } from '../invoker/module-config-of.ts';
 import { moduleConfigShapes } from '../invoker/module-config-shapes.ts';
 import type { ScopeTarget } from '../invoker/scope-target.ts';
 import { checkedQuotaValue } from '../quotas/checked-quota-value.ts';
+import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import { checkListedTenants } from './check-listed-tenants.ts';
 import { checkQuotaInput } from './check-quota-input.ts';
 import type { Connected } from './connected.ts';
@@ -39,8 +40,10 @@ export function createControlPath(input: {
   readonly served: readonly ServedApp[];
   readonly connected: Connected;
   readonly migrated: Migrated;
+  /** The process's quota cache, asked before the hooks of a new backend or tenant. */
+  readonly quotas: QuotaLimits | undefined;
 }): ControlPath {
-  const { deployment, served, connected, migrated } = input;
+  const { deployment, served, connected, migrated, quotas } = input;
   const { control } = connected;
   const lookup = migrated.directory.lookup;
   const placementHosts = (name: string, app: string): void => {
@@ -193,6 +196,7 @@ export function createControlPath(input: {
         target,
         head: app.head,
         config: configOf(app, record.config),
+        quotas,
       });
       return created;
     },
@@ -238,6 +242,7 @@ export function createControlPath(input: {
           handle,
         },
         tenant: { id: created.id, name: tenant.name },
+        quotas,
       });
       return created;
     },

@@ -1,5 +1,6 @@
 {
   "laneCap": 4,
+  "laneWeight": 1,
   "createdAt": "2026-01-01T00:05:00Z",
   "scope": {
     "level": "tenant",

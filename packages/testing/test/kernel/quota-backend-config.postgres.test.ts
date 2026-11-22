@@ -24,17 +24,17 @@ test('on PostgreSQL the backend configuration holds the quota values, the reader
   stops.push(() => runtime.stop());
   const { limits } = followQuotas(runtime);
   const registry = runtime.app.registry;
-  await limits.fresh();
+  const view = await limits.fresh();
   const acme = {
     level: 'tenant',
     backendId: runtime.backendId,
     tenantId: runtime.tenants.acme.id,
   } as const;
-  expect(limits.limitOf(registry, acme, 'notes.noteBytes')).toEqual({
+  expect(view.limitOf(registry, acme, 'notes.noteBytes')).toEqual({
     kind: 'bytes',
     value: 4 * mebibyte,
   });
-  expect(limits.queueOf(acme, 'commands').weight).toBe(3);
+  expect(view.queueOf(acme, 'commands').weight).toBe(3);
   const [backend] = await storedBackends(runtime);
   expect(backend?.config).toEqual({
     core: { quotas: { 'notes.noteBytes': '4194304', 'queue:commands.weight': '3' } },

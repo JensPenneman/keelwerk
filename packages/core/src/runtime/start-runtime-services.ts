@@ -82,12 +82,15 @@ export function startRuntimeServices(
     ).then(() => undefined);
   const running = (async (): Promise<readonly RuntimeService[]> => {
     const sources = await queueSources(input);
+    // The view is live over the cache's rows: the dispatcher asks the cache before each batch.
+    const quotas = await input.quotas?.fresh();
     const queue = createKernelQueue({
       sources,
       worker: connected.processId,
       clock: input.clock,
       log: connected.log,
       writer: connected.control.writer,
+      ...(quotas === undefined ? {} : { quotas }),
     });
     const context: RuntimeServiceContext = {
       build: connected.build,
@@ -103,6 +106,7 @@ export function startRuntimeServices(
       directory: input.migrated.directory.lookup,
       ledgers: input.composed.infrastructure.ledgers,
       clock: input.clock,
+      ...(input.quotas === undefined ? {} : { quotas: input.quotas }),
       timers: options.timers ?? liveTimersOf(input.clock),
     };
     // A service stops its work when `signal` aborts: at teardown, or when the process gate closes

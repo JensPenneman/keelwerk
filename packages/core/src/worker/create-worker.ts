@@ -48,6 +48,7 @@ export function createWorker(input: StartPhaseInput): RuntimeService {
                 tracer: trace.getTracer('keelwerk'),
                 control: connected.control,
                 ledgers: input.composed.infrastructure.ledgers,
+                quotas: context.quotas,
                 ...(input.restoreHold === undefined ? {} : { restoreHold: input.restoreHold }),
               }),
             { slots, capabilitySets: role.capabilitySets, revision: role.revision },

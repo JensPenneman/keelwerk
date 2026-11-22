@@ -3,6 +3,7 @@ import { jobKeyDigest } from '../../effects/job-key-digest.ts';
 import { isKernelCommandId } from '../../ids/is-kernel-command-id.ts';
 import type { Principal } from '../../principals/principal.ts';
 import type { AnyEffect } from '../../protocol/any-effect.ts';
+import type { QuotaView } from '../../quotas/quota-view.ts';
 import type { StoredJobSpec } from '../../storage/stored-job-spec.ts';
 import type { InvokerEnv } from '../invoker-env.ts';
 import type { ScopeTarget } from '../scope-target.ts';
@@ -212,39 +213,51 @@ test('a keyed enqueue without the module of its resolver is refused, does not na
   expect(jobs).toEqual([]);
 });
 
-const quotas = {
+const view = {
   limitOf: () => ({ kind: 'count', value: 0 }),
-  queueOf: () => ({ running: 4, queued: 7, weight: 1 }),
-  fresh: async () => undefined,
-} as unknown as NonNullable<InvokerEnv['options']['quotas']>;
+  queueOf: (_scope: unknown, queue: string) =>
+    queue === 'timers'
+      ? { running: 2, queued: 5, weight: 3 }
+      : { running: 6, queued: 7, weight: 1 },
+} as unknown as QuotaView;
+const quotas = { fresh: async () => view } as NonNullable<InvokerEnv['options']['quotas']>;
 
-test('an enqueue of a session carries the queued cap of its scope, without quotas none', async () => {
+test('an enqueue of a session takes its lane and queued cap from its queue and scope, without quotas the default and none', async () => {
   const { jobs, env, target, principal, enqueue } = setup('backend', 'tenant');
   await performResolverEffects(env, target, principal, [enqueue], 'auth');
   expect(jobs[0]?.queuedCap).toBeUndefined();
+  expect(jobs[0]?.laneCap).toBe(4);
   const limited = { ...env, options: { ...env.options, quotas } } as InvokerEnv;
   await performResolverEffects(limited, target, principal, [enqueue], 'auth');
   expect(jobs[1]?.queuedCap).toBe(7);
+  expect(jobs[1]?.laneCap).toBe(6);
+  expect(jobs[1]?.laneWeight).toBe(1);
 });
 
-test('a timer of a resolver carries no queued cap', async () => {
+test('a timer of a resolver takes the lane of the timers queue and carries no queued cap: it is counted, never refused', async () => {
   const { jobs, env, target, principal, timer } = setup();
   const limited = { ...env, options: { ...env.options, quotas } } as InvokerEnv;
   await performResolverEffects(limited, target, principal, [timer], 'auth');
+  expect(jobs[0]?.queue).toBe('timers');
+  // The view answers a queued cap of 5 for the timers queue: a command job would carry it.
   expect(jobs[0]?.queuedCap).toBeUndefined();
+  expect(jobs[0]?.laneCap).toBe(2);
+  expect(jobs[0]?.laneWeight).toBe(3);
 });
 
-test('the cap of an enqueue is the one read after the quota cache has been refreshed', async () => {
+test('the limits of an enqueue are the ones the cache answers when asked before the unit', async () => {
   const { jobs, env, target, principal, enqueue } = setup('backend', 'tenant');
   let loaded = false;
   const cold = {
-    ...quotas,
     // Until the first load the declared default serves, as in a process that has run no command yet.
-    queueOf: () => ({ running: 4, queued: loaded ? 7 : 10_000, weight: 1 }),
     fresh: async () => {
       loaded = true;
+      return {
+        limitOf: view.limitOf,
+        queueOf: () => ({ running: 6, queued: loaded ? 7 : 10_000, weight: 1 }),
+      };
     },
-  } as unknown as NonNullable<InvokerEnv['options']['quotas']>;
+  } as NonNullable<InvokerEnv['options']['quotas']>;
   const limited = { ...env, options: { ...env.options, quotas: cold } } as InvokerEnv;
   await performResolverEffects(limited, target, principal, [enqueue], 'auth');
   expect(jobs[0]?.queuedCap).toBe(7);

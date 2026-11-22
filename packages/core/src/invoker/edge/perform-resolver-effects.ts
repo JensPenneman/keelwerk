@@ -18,8 +18,9 @@ import type { JobGroup } from '../../jobs/job-group.ts';
 import type { Principal } from '../../principals/principal.ts';
 import type { PrincipalRef } from '../../principals/principal-ref.ts';
 import type { AnyEffect } from '../../protocol/any-effect.ts';
-import { commandQueuedCap } from '../../quotas/command-queued-cap.ts';
 import { laneLimitsOf } from '../../quotas/lane-limits-of.ts';
+import { queuedCapOf } from '../../quotas/queued-cap-of.ts';
+import type { QuotaView } from '../../quotas/quota-view.ts';
 import { moduleServicePrincipal } from '../../reactions/module-service-principal.ts';
 import type { ActionEntry } from '../../registry/action-entry.ts';
 import type { StoredJobSpec } from '../../storage/stored-job-spec.ts';
@@ -53,6 +54,7 @@ function jobOf(
   effect: AnyEffect,
   module: string | undefined,
   keySecret: Uint8Array,
+  limits: QuotaView | undefined,
 ): StoredJobSpec {
   const principalRef: PrincipalRef = principal.ref ?? {
     resolver: principal.via,
@@ -60,7 +62,6 @@ function jobOf(
   };
   const common = {
     kind: 'action',
-    ...laneLimitsOf(undefined),
     createdAt: env.options.clock.now(),
     scope: target.scope,
     principal: principalRef,
@@ -77,6 +78,7 @@ function jobOf(
     return {
       ...common,
       queue: commandQueue,
+      ...laneLimitsOf(limits, target.scope, commandQueue),
       run: commandJobRun(effect.action, effect.input, kernelCommandId('effect', newUuidV7())),
       ...(effect.runAt === undefined ? {} : { runAt: effect.runAt }),
       ...(effect.key === undefined || module === undefined
@@ -104,6 +106,7 @@ function jobOf(
       ...common,
       principal: principalRefOf(moduleServicePrincipal(module, principal)),
       queue: timerQueue,
+      ...laneLimitsOf(limits, target.scope, timerQueue),
       run: commandJobRun(effect.action, effect.input, kernelCommandId('timer', newUuidV7())),
       runAt,
       key: {
@@ -165,11 +168,11 @@ export async function performResolverEffects(
 ): Promise<void> {
   if (effects.length === 0) return;
   const keySecret = await env.options.keys.derive(target.scope, jobKeyInfo, 32);
-  // The cap the enqueue below carries is the operator's value, not the declared default, also in a
-  // process whose first request opens a session.
-  await env.options.quotas?.fresh();
+  // The lane and the cap the enqueues below carry are the operator's values, not the declared
+  // defaults, also in a process whose first request opens a session.
+  const limits = await env.options.quotas?.fresh();
   const jobs = effects.map((effect) => {
-    const job = jobOf(env, target, principal, effect, module, keySecret);
+    const job = jobOf(env, target, principal, effect, module, keySecret, limits);
     return { job, command: commandOf(env, target, principal, job) };
   });
   await target.handle.adapter.unit(target.namespace, target.scope, async (unit) => {
@@ -185,11 +188,14 @@ export async function performResolverEffects(
         command.action,
         job.run.input,
       );
-      // Only a command job carries the cap (a timer is not queued work of the commands lane).
-      const { quotas } = env.options;
+      // Only a command job meets the queued cap: its backlog drains through the workers, so the
+      // refusal is the backpressure wanted there. A timer of a resolver is counted and never
+      // refused (9.5.5): the edge runs before every request of a session, so a refusal there would
+      // refuse every request of a tenant whose timers queue is full of timers due far ahead, those
+      // that cancel timers included.
       const cap =
-        job.queue === commandQueue && quotas !== undefined
-          ? commandQueuedCap({ quotas, scope: job.scope }, command.action)
+        job.queue === commandQueue
+          ? queuedCapOf(limits, job.scope, job.queue, command.action.module)
           : undefined;
       await unit.jobs.enqueue({
         ...job,

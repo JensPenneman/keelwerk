@@ -12,13 +12,13 @@ export interface StoredJobSpec extends JobSpec {
   /**
    * The weight of the lane an enqueue upserts (section 12.2, `queues.<q>.weight`): a whole number
    * from 1 to 2,147,483,647, which a store refuses otherwise with `core.malformed_request` (the
-   * same `checkLaneMembers`); absent: 1 for a new lane, an existing lane keeps its weight. No
-   * enqueue path of the kernel sets it yet.
+   * same `checkLaneMembers`); absent: 1 for a new lane, an existing lane keeps its weight. Every
+   * enqueue in a tenant's or a backend's scope sets it from the scope's limits (`laneLimitsOf`).
    */
   readonly laneWeight?: number;
   readonly createdAt: Temporal.Instant;
   /**
-   * `queues.<q>.queued` of a command job's scope, checked at the commit tail of the unit that
+   * `queues.<q>.queued` of the job's queue in its scope, set by what a request, a decision or a resolver's command job asks for anew (`queuedCapOf`; a resolver's timer carries none), checked at the commit tail of the unit that
    * inserts the job, in whatever state it enters: the unit is refused when it leaves more queued
    * jobs (section 9.5.5) in the queue than the cap. A
    * safe whole number from 0, which a store refuses otherwise with `core.malformed_request`

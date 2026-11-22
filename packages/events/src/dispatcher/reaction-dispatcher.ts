@@ -61,7 +61,12 @@ export function reactionDispatcher(
       // The job key secret is derived here, before the unit opens, and handed to `consume`: the
       // scope key must exist by then, and a derivation inside the unit would open a second unit
       // once the key service's cache expired.
-      beforeBatch: (scope) => context.keys.derive(scope, jobKeyInfo, 32),
+      beforeBatch: async (scope) => {
+        // Asked before the batch's unit, so the lanes of the reaction jobs it enqueues take the
+        // limits of the cache as they are now (the kernel queue reads them, `createKernelQueue`).
+        await context.quotas?.fresh();
+        return context.keys.derive(scope, jobKeyInfo, 32);
+      },
       consume: async (events, unit, prepared) => {
         const registry = registries.get(unit.namespace.id);
         if (registry === undefined) {

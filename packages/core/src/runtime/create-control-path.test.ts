@@ -66,6 +66,7 @@ function pathOver(rows: readonly FlagTargetingRow[], reads: { count: number } = 
     served: [app],
     connected,
     migrated,
+    quotas: undefined,
   });
 }
 

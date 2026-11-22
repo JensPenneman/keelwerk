@@ -10,7 +10,7 @@ import { sqlJobKeyLock } from './sql-job-key-lock.ts';
 import { sqlJobRelease } from './sql-job-release.ts';
 import { sqlLaneChanges } from './sql-lane-changes.ts';
 import { sqlReleaseGroups } from './sql-release-groups.ts';
-import { sqlSettleLanes } from './sql-settle-lanes.ts';
+import { sqlSettleDone } from './sql-settle-done.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
 
 /**
@@ -73,7 +73,7 @@ where id = $1::bigint and state = 'running' and ordering = 'fifo-per-key' and ke
   buffer.defer(async () => {
     const lanes = sqlLaneChanges();
     lanes.done(laneId, 1);
-    await sqlSettleLanes(ctx, lanes);
+    await sqlSettleDone(ctx, lanes);
     if (group !== undefined) {
       await sqlReleaseGroups(ctx, [
         {

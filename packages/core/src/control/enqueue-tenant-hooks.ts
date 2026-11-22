@@ -1,4 +1,5 @@
 import type { ScopeTarget } from '../invoker/scope-target.ts';
+import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { ControlStore } from './control-store.ts';
 import { recordHookEvent } from './record-hook-event.ts';
@@ -10,6 +11,8 @@ export interface EnqueueTenantHooksInput {
   readonly registry: Registry;
   readonly target: ScopeTarget;
   readonly tenant: { readonly id: string; readonly name: string };
+  /** The process's quota cache: asked before the unit, so the hooks' lane takes the tenant's cap and weight. */
+  readonly quotas: QuotaLimits | undefined;
 }
 
 /**
@@ -25,6 +28,7 @@ export async function enqueueTenantHooks(input: EnqueueTenantHooksInput): Promis
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   if (hooks.length === 0) return;
   try {
+    const limits = await input.quotas?.fresh();
     const now = store.clock.now();
     await target.handle.adapter.unit(target.namespace, target.scope, async (unit) => {
       for (const hook of hooks) {
@@ -35,6 +39,7 @@ export async function enqueueTenantHooks(input: EnqueueTenantHooksInput): Promis
             scope: target.scope,
             build: store.writer.build,
             now,
+            limits,
           }),
         );
       }

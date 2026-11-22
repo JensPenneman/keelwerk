@@ -1,6 +1,7 @@
 import { commandJobRun } from '../effects/command-job-run.ts';
 import { durationMs } from '../effects/duration-ms.ts';
 import { jobInput } from '../effects/job-input.ts';
+import type { QuotaView } from '../quotas/quota-view.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import type { ScheduleEntry } from '../registry/schedule-entry.ts';
@@ -27,6 +28,8 @@ export function scheduleTickJob(input: {
   readonly build: { readonly id: string; readonly revision: number };
   readonly apiVersion: string;
   readonly now: Temporal.Instant;
+  /** The quota view asked for before the unit (`QuotaLimits.fresh`). */
+  readonly limits: QuotaView | undefined;
 }): StoredJobSpec {
   const { entry, action, target, tick } = input;
   const commandId = scheduleCommandId(entry.ref, target.scopeId, durationMs(entry.every), tick);
@@ -46,9 +49,11 @@ export function scheduleTickJob(input: {
       build: input.build,
       apiVersion: input.apiVersion,
       now: input.now,
+      queue: scheduleQueue,
+      limits: input.limits,
+      exempt: 'definition',
     }),
     kind: 'action',
-    queue: scheduleQueue,
     run: commandJobRun(action.ref, input.sealedInput, commandId),
     runAt: tick.add({
       milliseconds: scheduleJitter(entry.ref, target.scopeId, tick, entry.jitter),

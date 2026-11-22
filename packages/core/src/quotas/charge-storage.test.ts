@@ -4,7 +4,7 @@ import type { Scope } from '../storage/scope.ts';
 import type { WrittenRow } from '../write-path/written-row.ts';
 import { chargeStorage } from './charge-storage.ts';
 import type { QuotaLimit } from './quota-limit.ts';
-import type { QuotaLimits } from './quota-limits.ts';
+import type { QuotaView } from './quota-view.ts';
 
 const tenant: Scope = { level: 'tenant', backendId: 'b', tenantId: 't' };
 const registry = { quotas: new Map() } as unknown as Registry;
@@ -13,10 +13,9 @@ function written(created: boolean, tenancy: 'tenant' | 'invocation'): WrittenRow
   return { created, entry: { descriptor: { tenancy } }, events: [] } as unknown as WrittenRow;
 }
 
-const limits = (answer: QuotaLimit): QuotaLimits => ({
+const limits = (answer: QuotaLimit): QuotaView => ({
   limitOf: () => answer,
   queueOf: () => ({ running: 4, queued: 10, weight: 1 }),
-  fresh: async () => undefined,
 });
 
 describe('chargeStorage', () => {

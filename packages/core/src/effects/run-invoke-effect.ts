@@ -1,7 +1,6 @@
 import { kernelCommandId } from '../ids/kernel-command-id.ts';
 import { refuseRequest } from '../interpreter/refuse-request.ts';
 import type { InvokeEffect } from '../protocol/invoke-effect.ts';
-import { commandQueuedCap } from '../quotas/command-queued-cap.ts';
 import { maxReactionDepth } from '../reactions/max-reaction-depth.ts';
 import { reactionDepthError } from '../reactions/reaction-depth-error.ts';
 import { authorizeInvoke } from './authorize-invoke.ts';
@@ -67,7 +66,6 @@ export async function runInvokeEffect(
   checkInvokeErrors(effect, action, run.action, deferred);
   if (deferred) {
     const commandId = kernelCommandId('effect', id);
-    const cap = commandQueuedCap(run, action);
     await unit.jobs.enqueue({
       ...jobInput({
         actor: scene.causeActor,
@@ -82,10 +80,10 @@ export async function runInvokeEffect(
         },
         build: run.build,
         now: scene.clock.now(),
+        queue: commandQueue,
+        limits: run.quotas,
       }),
       kind: 'action',
-      queue: commandQueue,
-      ...(cap === undefined ? {} : { queuedCap: cap }),
       run: commandJobRun(
         action.ref,
         await sealJobInput(unit, run.registry, commandId, action, input),

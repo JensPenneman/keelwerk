@@ -6,7 +6,7 @@ import type { Job } from '../jobs/job.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { Logger } from '../observability/logger.ts';
 import { laneLimitsOf } from '../quotas/lane-limits-of.ts';
-import type { QuotaLimits } from '../quotas/quota-limits.ts';
+import type { QuotaView } from '../quotas/quota-view.ts';
 import { backgroundRetryMs } from '../runtime/background-retry-ms.ts';
 import type { WorkClassStats } from '../storage/work-class-stats.ts';
 import { eventLoopTurn } from './event-loop-turn.ts';
@@ -34,8 +34,11 @@ export interface KernelQueueOptions {
   readonly random?: () => number;
   /** `queues.<q>.takeLanes`; default the batch size. */
   readonly takeLanes?: Readonly<Record<string, number>>;
-  /** The queue limits of section 12.2 for the lanes of the jobs it enqueues; without them (as the runtime builds it for now) the default lane cap. */
-  readonly quotas?: Pick<QuotaLimits, 'queueOf'>;
+  /**
+   * The limits of section 12.2 for the lanes of the jobs it enqueues, as the quota cache's view
+   * reads them now; the dispatcher asks the cache before each batch. Without them the default lane cap.
+   */
+  readonly quotas?: QuotaView;
 }
 
 /**
@@ -248,7 +251,7 @@ export function createKernelQueue(options: KernelQueueOptions): KernelQueue {
       unit.jobs.enqueue({
         ...job,
         kind: 'action' in job.run ? 'action' : 'effect',
-        ...laneLimitsOf(options.quotas?.queueOf(job.scope, job.queue)),
+        ...laneLimitsOf(options.quotas, job.scope, job.queue),
         createdAt: clock.now(),
       }),
     cancel: (queue, key, unit) => unit.jobs.cancel(queue, key),

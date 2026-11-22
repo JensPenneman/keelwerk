@@ -65,7 +65,7 @@ export interface ReactionsKit {
 export async function bootReactions(
   options: Pick<
     TestRuntimeOptions<'acme' | 'globex'>,
-    'adapter' | 'external' | 'logger' | 'join' | 'operators' | 'tenantApiVersions'
+    'adapter' | 'external' | 'logger' | 'join' | 'operators' | 'tenantApiVersions' | 'config'
   > & {
     readonly queued?: number;
     readonly holdMs?: number;

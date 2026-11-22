@@ -1,5 +1,6 @@
 import { reenqueueUnsettledEffects } from '../control/reenqueue-unsettled-effects.ts';
 import { errors } from '../errors/errors.ts';
+import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import { rebuildFromChain } from '../replay/rebuild-from-chain.ts';
 import { registryBehaviours } from '../write-path/registry-behaviours.ts';
 import { anchorScopes } from './anchor-scopes.ts';
@@ -19,6 +20,8 @@ export async function rebuildScope(input: {
   readonly connected: Connected;
   readonly migrated: Migrated;
   readonly served: readonly ServedApp[];
+  /** The process's quota cache, asked before each re-enqueue. */
+  readonly quotas: QuotaLimits | undefined;
   readonly scopeId: string;
 }): Promise<RebuildReport> {
   const { connected, migrated, served, scopeId } = input;
@@ -47,6 +50,7 @@ export async function rebuildScope(input: {
     clock: connected.control.clock,
     directory: migrated.directory.lookup,
     apps: new Map(served.map((candidate) => [candidate.id, candidate] as const)),
+    quotas: input.quotas,
   });
   connected.log.info('a scope was rebuilt from its chain', { scope: scopeId, entities, enqueued });
   return { scopeId, entities, enqueued };

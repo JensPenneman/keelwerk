@@ -1,14 +1,16 @@
-import type { Registry } from '../registry/registry.ts';
-import type { Scope } from '../storage/scope.ts';
-import type { QueueLimits } from './queue-limits.ts';
-import type { QuotaLimit } from './quota-limit.ts';
+import type { QuotaView } from './quota-view.ts';
 
-/** What every consumer of the quotas reads: the invoker, the write path and the live limits. */
+/**
+ * What a runtime's code asks for the limits: the process's one quota cache. A path that hands
+ * limits to an enqueue or checks one calls `fresh()` before the unit it works in and reads the
+ * view it answers. The one other way to read a limit is the kernel queue's view of the cache, which
+ * is live and asks nothing: the reaction dispatcher asks the cache before each batch.
+ */
 export interface QuotaLimits {
-  /** Synchronous, from memory; `internal` for a ref the registry does not declare. */
-  limitOf(registry: Pick<Registry, 'quotas'>, scope: Scope, ref: string): QuotaLimit;
-  /** `queues.<q>` of the deployment (running ?? 4, queued ?? 10,000, weight 1) under the same rows and clamp. */
-  queueOf(scope: Scope, queue: string): QueueLimits;
-  /** Starts following the control feed, never rejects, waits at most `targetingReadTimeoutMs`. */
-  fresh(): Promise<void>;
+  /**
+   * Starts following the control feed, loads the rows when they were never loaded or have aged
+   * out, and answers the view of the rows as they are then. Never rejects, waits at most
+   * `targetingReadTimeoutMs`; a load that fails keeps the last rows in the view.
+   */
+  fresh(): Promise<QuotaView>;
 }

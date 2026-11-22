@@ -1,5 +1,6 @@
 import { quoteIdentifier } from './postgres/quote-identifier.ts';
 import { runSql } from './run-sql.ts';
+import type { SqlCommitBuffer } from './sql-commit-buffer.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
 
 /** The lane a job joins: scope, queue, capability set and priority class (9.5.2). */
@@ -15,16 +16,20 @@ export interface SqlJobLaneKey {
 
 /**
  * The id of the lane of the unit's scope, created with its weight (1 when none is given) and its
- * two counter rows when it is new (S-07). The common path is one read: a lane that exists with the
- * same cap is not written, because a write would hold its row lock until the unit ends and make
- * every taker skip the lane while an enqueue burst lasts (9.5.2). A changed cap, or a given weight
- * that differs from the lane's, is written; a lane another unit creates at the same time is found
- * again after the insert loses. `written` says the row of an existing lane was written: the
- * caller reports the queue as made takeable, because a taker that met the held row skipped the
- * lane and nothing else would bring it back before the poll (both adapters report it alike).
+ * two counter rows when it is new (S-07). An existing lane is only read: a changed cap, or a given
+ * weight that differs from the lane's, is handed to the commit buffer, which writes the lanes'
+ * rows at the end of the unit in the order of their ids (`sqlWriteLaneLimits`), because a write
+ * here would hold the row's lock from the enqueue to the end of the unit, make every taker skip
+ * the lane while an enqueue burst lasts and let two units that change two lanes in opposite order
+ * wait for each other (9.5.2). What the unit gave the lane before counts as its cap and weight:
+ * the last value given is the one written. A lane another unit creates at the same time is found
+ * again after the insert loses. `written` says the row of an existing lane is to be written: the
+ * caller reports the queue as made takeable, because a taker that met the held row skips the lane
+ * and nothing else would bring it back before the poll (both adapters report it alike).
  */
 export async function sqlJobLane(
   ctx: SqlUnitContext,
+  buffer: SqlCommitBuffer,
   key: SqlJobLaneKey,
 ): Promise<{ readonly id: string; readonly written: boolean }> {
   const root = quoteIdentifier(ctx.namespace.root);
@@ -41,14 +46,10 @@ where scope_id = $1::uuid and queue = $2 and capability_set = $3 and priority = 
   };
   const found = await find();
   if (found !== undefined) {
-    const weight = key.weight ?? found.weight;
-    const written = found.cap !== key.cap || found.weight !== weight;
-    if (written) {
-      await runSql(ctx.db, {
-        sql: `update ${root}.kw_job_lanes set cap = $2::integer, weight = $4::integer where id = $1::bigint and scope_id = $3::uuid`,
-        parameters: [found.id, String(key.cap), scopeId, String(weight)],
-      });
-    }
+    const current = buffer.limitOf(found.id) ?? found;
+    const weight = key.weight ?? current.weight;
+    const written = current.cap !== key.cap || current.weight !== weight;
+    if (written) buffer.limitLane({ laneId: found.id, cap: key.cap, weight });
     return { id: found.id, written };
   }
   const [created] = await runSql(ctx.db, {

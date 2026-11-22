@@ -48,14 +48,16 @@ function world(): World {
     events,
     derived,
     limits: (table = {}) => ({
-      limitOf: (_registry, _scope, ref) => {
-        events.push(`limit:${ref}`);
-        asked.push(ref);
-        return table[ref] ?? rate(100);
-      },
-      queueOf: () => ({ running: 4, queued: 1, weight: 1 }),
       fresh: async () => {
         events.push('fresh');
+        return {
+          limitOf: (_registry, _scope, ref) => {
+            events.push(`limit:${ref}`);
+            asked.push(ref);
+            return table[ref] ?? rate(100);
+          },
+          queueOf: () => ({ running: 4, queued: 1, weight: 1 }),
+        };
       },
     }),
     env: (over = {}) =>

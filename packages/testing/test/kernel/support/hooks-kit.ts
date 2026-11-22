@@ -31,13 +31,18 @@ export async function bootHooks(
     readonly capabilities?: readonly string[];
     /** Starts no workers: this runtime only requests. */
     readonly serveOnly?: boolean;
+    /** `config.core.quotas` of the backend: limit texts by dimension. */
+    readonly quotas?: Readonly<Record<string, string>>;
   } & Pick<TestRuntimeOptions<'acme'>, 'external' | 'join' | 'clock' | 'logger' | 'operators'>,
 ) {
-  const { adapter, endpoint, capabilities, serveOnly, ...rest } = options;
+  const { adapter, endpoint, capabilities, serveOnly, quotas, ...rest } = options;
   const runtime = await startTestRuntime(hooksApp, {
     tenants: ['acme'],
     adapter,
-    config: { hooks: { endpoint, signingKey } },
+    config: {
+      hooks: { endpoint, signingKey },
+      ...(quotas === undefined ? {} : { core: { quotas } }),
+    },
     ...(serveOnly === true
       ? {}
       : {

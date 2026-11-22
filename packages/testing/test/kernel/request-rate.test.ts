@@ -11,7 +11,7 @@ import {
   publicQuery,
   tenantId,
 } from './support/invoker-kit.ts';
-import { tenantOnly } from './support/rate-quota-kit.ts';
+import { quotasOf, tenantOnly } from './support/rate-quota-kit.ts';
 import { namespace, tenant, userOf } from './support/run-read-kit.ts';
 
 async function setup(capacities: Readonly<Record<string, number>>) {
@@ -256,11 +256,10 @@ describe('what a caller is told by the request rate', () => {
     const { invoker } = kit({
       registry: probe.registry,
       keys,
-      quotas: {
+      quotas: quotasOf({
         limitOf: () => ({ kind: 'rate', capacity: 1, refillPerSecond: 3 }),
         queueOf: () => ({ running: 4, queued: 10_000, weight: 1 }),
-        fresh: () => Promise.resolve(),
-      },
+      }),
     });
     expect((await invoker.invoke(call(probe.ref, { who: 'x' }, { carrier: ada }))).ok).toBe(true);
     const refused = failure(await invoker.invoke(call(probe.ref, { who: 'x' }, { carrier: ada })));

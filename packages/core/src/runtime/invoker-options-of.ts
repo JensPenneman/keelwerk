@@ -1,6 +1,5 @@
 import type { RowEnvironment } from '../authorization/row-environment.ts';
 import { latestTenantEntry } from '../control/latest-tenant-entry.ts';
-import { readBackendQuotas } from '../control/read-backend-quotas.ts';
 import type { RestoreHold } from '../control/restore-hold.ts';
 import type { ExplainDecisions } from '../explain/explain-decisions.ts';
 import type { FlagProvider } from '../flags/flag-provider.ts';
@@ -9,7 +8,6 @@ import type { InvokerOptions } from '../invoker/invoker-options.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { Logger } from '../observability/logger.ts';
 import { createOperatorTokenResolver } from '../principals/operator-token-resolver.ts';
-import { createQuotaCache } from '../quotas/create-quota-cache.ts';
 import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import type { Connected } from './connected.ts';
 import { controlCommandsOf } from './control-commands-of.ts';
@@ -34,6 +32,8 @@ export function invokerOptionsOf(input: {
   readonly decisions: ExplainDecisions | undefined;
   readonly flagProviders: readonly FlagProvider[];
   readonly targeting: TargetingCache;
+  /** The process's quota cache, built and loaded at the start (`startRuntime`). */
+  readonly quotas: QuotaLimits;
   readonly environment: RowEnvironment;
   readonly clock: Clock;
   readonly log: Logger;
@@ -65,14 +65,7 @@ export function invokerOptionsOf(input: {
     compute: connected.compute,
     log,
     apiUsage: connected.control.apiUsage,
-    quotas: createQuotaCache({
-      quotas: connected.control.quotas,
-      backendQuotas: () => readBackendQuotas(connected.control),
-      queues: deployment.queues,
-      clock,
-      log,
-      signal: connected.signal,
-    }),
+    quotas: input.quotas,
     environment: input.environment,
     flagProviders: input.flagProviders,
     targeting: input.targeting,

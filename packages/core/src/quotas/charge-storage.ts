@@ -2,7 +2,7 @@ import type { Registry } from '../registry/registry.ts';
 import type { Scope } from '../storage/scope.ts';
 import type { UsageCharge } from '../storage/usage-charge.ts';
 import type { WrittenRow } from '../write-path/written-row.ts';
-import type { QuotaLimits } from './quota-limits.ts';
+import type { QuotaView } from './quota-view.ts';
 import { storageLimits } from './storage-limits.ts';
 
 /**
@@ -36,7 +36,7 @@ import { storageLimits } from './storage-limits.ts';
  * `attemptCommand` or an inline reaction of it (12.2 names them by that rule); only those two call
  * this function, so such a unit declares no storage limit and the tail never refuses it by one.
  * Other holds reach such a unit, and none is a storage limit: a unit that enqueues a job carrying a
- * queued cap (`commandQueuedCap`; for example the accept of an asynchronous command) can be refused
+ * queued cap (`queuedCapOf`; for example the accept of an asynchronous command) can be refused
  * with `core.queue_full`, and a dispatcher pass is held at 90 percent of the scope's `reactions`
  * lane (`core.queue_full`: the batch rolls back and the scope resumes by itself).
  *
@@ -48,7 +48,7 @@ export function chargeStorage(input: {
   readonly registry: Registry;
   readonly scope: Scope;
   readonly written: readonly WrittenRow[];
-  readonly quotas: QuotaLimits | undefined;
+  readonly quotas: QuotaView | undefined;
   readonly exempt: boolean;
 }): readonly UsageCharge[] {
   const { scope, written } = input;

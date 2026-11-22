@@ -13,17 +13,22 @@ const count = (value: number) => ({ kind: 'count', value });
 const backendScope = { level: 'backend', backendId: 'b1' } as const;
 
 describe('createQuotaCache', () => {
-  test('before the first load the declared defaults serve; fresh() loads rows and backend values', async () => {
+  test('until a load succeeds the declared defaults serve; the next load brings rows and backend values', async () => {
     const r = quotaRig(
       [storedQuotaRow('notes.rows', '30')],
       undefined,
       backendValuesOf({ 'notes.rows': '40' }),
     );
     expect(r.loads()).toBe(0);
-    expect(r.cache.limitOf(registry, quotaTenantScope, 'notes.rows')).toEqual(count(50));
+    r.fail(true);
     await r.cache.fresh();
     expect(r.loads()).toBe(1);
-    expect(r.backendLoads()).toBe(1);
+    expect(r.cache.limitOf(registry, quotaTenantScope, 'notes.rows')).toEqual(count(50));
+    r.fail(false);
+    r.advance(1000);
+    await r.cache.fresh();
+    expect(r.loads()).toBe(2);
+    expect(r.backendLoads()).toBe(2);
     expect(r.cache.limitOf(registry, quotaTenantScope, 'notes.rows')).toEqual(count(30));
     expect(r.cache.limitOf(registry, backendScope, 'notes.rows')).toEqual(count(40));
     r.stop();
@@ -89,11 +94,11 @@ describe('createQuotaCache', () => {
     await r.cache.fresh();
     r.fail(true);
     r.advance(1_000);
-    await expect(r.cache.fresh()).resolves.toBeUndefined();
+    await expect(r.cache.fresh()).resolves.toBeDefined();
     expect(r.errors).toEqual(['the quota rows could not be loaded; the last rows keep serving']);
     // Far past any age the rows could be served for: the lowered limit still holds.
     r.advance(24 * 3_600_000);
-    await expect(r.cache.fresh()).resolves.toBeUndefined();
+    await expect(r.cache.fresh()).resolves.toBeDefined();
     expect(r.cache.limitOf(registry, quotaTenantScope, 'notes.rows')).toEqual(count(40));
     r.stop();
   });
@@ -109,7 +114,7 @@ describe('createQuotaCache', () => {
     r.set([storedQuotaRow('notes.rows', '5', { version: 2 })]);
     r.setBackend(backendValuesOf({ 'notes.rows': '8' }));
     r.advance(1_000);
-    await expect(r.cache.fresh()).resolves.toBeUndefined();
+    await expect(r.cache.fresh()).resolves.toBeDefined();
     expect(r.errors).toEqual(['the quota rows could not be loaded; the last rows keep serving']);
     expect(r.cache.limitOf(registry, quotaTenantScope, 'notes.rows')).toEqual(count(30));
     expect(r.cache.limitOf(registry, backendScope, 'notes.rows')).toEqual(count(40));
@@ -166,11 +171,15 @@ describe('createQuotaCache', () => {
       { commands: { running: 8 } },
       backendValuesOf({ 'queue:commands.weight': '2' }),
     );
+    r.fail(true);
+    await r.cache.fresh();
     expect(r.cache.queueOf(quotaTenantScope, 'commands')).toEqual({
       running: 8,
       queued: 10_000,
       weight: 1,
     });
+    r.fail(false);
+    r.advance(1000);
     await r.cache.fresh();
     expect(r.cache.queueOf(quotaTenantScope, 'commands')).toEqual({
       running: 8,
@@ -205,8 +214,9 @@ describe('createQuotaCache', () => {
     r.stop();
   });
 
-  test('limitOf of an undeclared ref is internal', () => {
+  test('limitOf of an undeclared ref is internal', async () => {
     const r = quotaRig([]);
+    await r.cache.fresh();
     expect(() => r.cache.limitOf(registry, quotaTenantScope, 'notes.missing')).toThrow(
       expect.objectContaining({ kind: 'internal' }),
     );

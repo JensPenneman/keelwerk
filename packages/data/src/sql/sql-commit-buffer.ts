@@ -1,6 +1,7 @@
 import type { Position, UsageCharge } from '@keelwerk/core';
 import { readiedQueues } from '../job-wake/readied-queues.ts';
 import type { CommitTailLane } from './postgres/commit-tail-lane.ts';
+import type { SqlLaneLimit } from './sql-lane-limit.ts';
 import type { SqlPendingEvent } from './sql-pending-event.ts';
 import type { SqlQueueCap } from './sql-queue-cap.ts';
 import { sqlStreamKey } from './sql-stream-key.ts';
@@ -10,6 +11,7 @@ interface SqlCommitMark {
   readonly events: number;
   readonly lanes: number;
   readonly caps: number;
+  readonly limits: number;
   readonly readied: number;
   readonly usage: number;
   readonly work: number;
@@ -30,6 +32,8 @@ export interface SqlCommitBuffer {
   readonly lanes: readonly CommitTailLane[];
   /** The queued caps of the queues a capped job was inserted into, in order, not yet reduced. */
   readonly caps: readonly SqlQueueCap[];
+  /** The cap and weight the unit gave existing lanes, in order; the last of a lane is the one written at the end. */
+  readonly limits: readonly SqlLaneLimit[];
   /** Usage charges in order, not yet summed. */
   readonly usage: readonly UsageCharge[];
   /** The positions the tail assigned. */
@@ -45,6 +49,10 @@ export interface SqlCommitBuffer {
   charge(charges: readonly UsageCharge[]): void;
   /** A lane's `enqueued` counter changes by `delta` at the tail. */
   moveLane(laneId: string, delta: number): void;
+  /** The cap and weight the unit gave a lane last, if it gave any. */
+  limitOf(laneId: string): SqlLaneLimit | undefined;
+  /** The lane's row gets this cap and weight when the unit's work is done, before the commit tail. */
+  limitLane(limit: SqlLaneLimit): void;
   /** The tail checks that the unit leaves at most `cap` jobs waiting to run in `queue`. */
   capQueue(queue: string, cap: number): void;
   /** A job of `queue` became takeable, or a lane slot of `queue` came back. */
@@ -61,12 +69,13 @@ export interface SqlCommitBuffer {
 
 /**
  * An empty buffer for one unit. `guard` throws once the unit may no longer hand anything to its
- * commit tail: `push`, `defer`, `moveLane`, `capQueue` and `restore` call it first, so a savepoint abandoned by its unit cannot take back what the commit tail is about to write.
+ * commit tail: `push`, `defer`, `moveLane`, `capQueue`, `limitLane` and `restore` call it first, so a savepoint abandoned by its unit cannot take back what the commit tail is about to write.
  */
 export function sqlCommitBuffer(guard: () => void = () => undefined): SqlCommitBuffer {
   const events: SqlPendingEvent[] = [];
   const lanes: CommitTailLane[] = [];
   const caps: SqlQueueCap[] = [];
+  const limits: SqlLaneLimit[] = [];
   const usage: UsageCharge[] = [];
   const work: (() => Promise<void>)[] = [];
   const versions = new Map<string, number>();
@@ -75,6 +84,7 @@ export function sqlCommitBuffer(guard: () => void = () => undefined): SqlCommitB
     events,
     lanes,
     caps,
+    limits,
     usage,
     assigned: [],
     versionOf: (type, id) => versions.get(sqlStreamKey({ type, id })),
@@ -96,6 +106,11 @@ export function sqlCommitBuffer(guard: () => void = () => undefined): SqlCommitB
       guard();
       lanes.push({ laneId, delta });
     },
+    limitOf: (laneId) => limits.findLast((limit) => limit.laneId === laneId),
+    limitLane: (limit) => {
+      guard();
+      limits.push(limit);
+    },
     capQueue: (queue, cap) => {
       guard();
       caps.push({ queue, cap });
@@ -116,6 +131,7 @@ export function sqlCommitBuffer(guard: () => void = () => undefined): SqlCommitB
       events: events.length,
       lanes: lanes.length,
       caps: caps.length,
+      limits: limits.length,
       readied: readied.mark(),
       usage: usage.length,
       work: work.length,
@@ -129,6 +145,7 @@ export function sqlCommitBuffer(guard: () => void = () => undefined): SqlCommitB
       }
       lanes.length = mark.lanes;
       caps.length = mark.caps;
+      limits.length = mark.limits;
       readied.restore(mark.readied);
       usage.length = mark.usage;
       work.length = mark.work;

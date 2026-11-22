@@ -31,18 +31,14 @@ describe('config.core.quotas of a backend', () => {
     const runtime = await bootQuotas({ config: withQuotas({ 'notes.noteBytes': '4MiB' }) });
     const { limits } = followQuotas(runtime);
     const registry = runtime.app.registry;
-    await limits.fresh();
+    const view = await limits.fresh();
     expect(
-      limits.limitOf(
-        registry,
-        { level: 'backend', backendId: runtime.backendId },
-        'notes.noteBytes',
-      ),
+      view.limitOf(registry, { level: 'backend', backendId: runtime.backendId }, 'notes.noteBytes'),
     ).toEqual(bytes(4 * mebibyte));
-    expect(limits.limitOf(registry, tenantScope(runtime, 'acme'), 'notes.noteBytes')).toEqual(
+    expect(view.limitOf(registry, tenantScope(runtime, 'acme'), 'notes.noteBytes')).toEqual(
       bytes(4 * mebibyte),
     );
-    expect(limits.limitOf(registry, { level: 'deployment' }, 'notes.noteBytes')).toEqual(
+    expect(view.limitOf(registry, { level: 'deployment' }, 'notes.noteBytes')).toEqual(
       bytes(mebibyte),
     );
     // Stored in its canonical form.
@@ -55,13 +51,13 @@ describe('config.core.quotas of a backend', () => {
       config: withQuotas({ 'queue:commands.running': '7', 'queue:commands.weight': '3' }),
     });
     const { limits } = followQuotas(runtime);
-    await limits.fresh();
-    expect(limits.queueOf(tenantScope(runtime, 'acme'), 'commands')).toEqual({
+    const view = await limits.fresh();
+    expect(view.queueOf(tenantScope(runtime, 'acme'), 'commands')).toEqual({
       running: 7,
       queued: 10_000,
       weight: 3,
     });
-    expect(limits.queueOf(tenantScope(runtime, 'acme'), 'reactions')).toEqual({
+    expect(view.queueOf(tenantScope(runtime, 'acme'), 'reactions')).toEqual({
       running: 4,
       queued: 10_000,
       weight: 1,
@@ -76,8 +72,8 @@ describe('config.core.quotas of a backend', () => {
       }),
     });
     const { limits } = followQuotas(runtime);
-    await limits.fresh();
-    expect(limits.queueOf(tenantScope(runtime, 'acme'), 'commands')).toEqual({
+    const view = await limits.fresh();
+    expect(view.queueOf(tenantScope(runtime, 'acme'), 'commands')).toEqual({
       running: 2_147_483_647,
       queued: 10_000,
       weight: 2_147_483_647,
@@ -88,7 +84,7 @@ describe('config.core.quotas of a backend', () => {
     const runtime = await bootQuotas();
     const { limits } = followQuotas(runtime);
     const registry = runtime.app.registry;
-    await limits.fresh();
+    const view = await limits.fresh();
     const created = await createBackend(
       runtime,
       'later',
@@ -97,7 +93,7 @@ describe('config.core.quotas of a backend', () => {
     if (!created.ok) throw created.error;
     const later = { level: 'backend', backendId: created.value.id as string } as const;
     await vi.waitFor(
-      () => expect(limits.limitOf(registry, later, 'notes.noteBytes')).toEqual(bytes(8 * mebibyte)),
+      () => expect(view.limitOf(registry, later, 'notes.noteBytes')).toEqual(bytes(8 * mebibyte)),
       waitFor,
     );
   });
@@ -126,11 +122,11 @@ describe('config.core.quotas of a backend', () => {
     for (const config of [undefined, { core: { introspection: 'public' } }]) {
       const runtime = await bootQuotas(config === undefined ? {} : { config });
       const { limits } = followQuotas(runtime);
-      await limits.fresh();
+      const view = await limits.fresh();
       expect(
-        limits.limitOf(runtime.app.registry, tenantScope(runtime, 'acme'), 'notes.noteBytes'),
+        view.limitOf(runtime.app.registry, tenantScope(runtime, 'acme'), 'notes.noteBytes'),
       ).toEqual(bytes(mebibyte));
-      expect(limits.queueOf(tenantScope(runtime, 'acme'), 'commands').weight).toBe(1);
+      expect(view.queueOf(tenantScope(runtime, 'acme'), 'commands').weight).toBe(1);
     }
   });
 

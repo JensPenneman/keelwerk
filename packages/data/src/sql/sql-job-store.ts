@@ -112,7 +112,7 @@ export function sqlJobStore(ctx: SqlUnitContext, buffer: SqlCommitBuffer): SqlJo
       }
       return sqlGuard(async () => {
         const now = ctx.clock.now();
-        const lane = await sqlJobLane(ctx, {
+        const lane = await sqlJobLane(ctx, buffer, {
           queue: spec.queue,
           capabilitySet: jobCapabilitySet(spec.capability),
           priority: jobPriority(spec.priority),

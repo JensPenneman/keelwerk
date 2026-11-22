@@ -1,5 +1,6 @@
 import type { ActorRef } from '../principals/actor-ref.ts';
 import type { Principal } from '../principals/principal.ts';
+import type { QuotaView } from '../quotas/quota-view.ts';
 import type { ReactionLineage } from '../reactions/reaction-lineage.ts';
 import type { EffectEntry } from '../registry/effect-entry.ts';
 import type { ExecutorEntry } from '../registry/executor-entry.ts';
@@ -33,6 +34,10 @@ export interface EffectJob {
   readonly build: { readonly id: string; readonly revision: number };
   readonly now: Temporal.Instant;
   readonly runAt?: Temporal.Instant;
+  /** The quota view asked for before the unit (`QuotaLimits.fresh`). */
+  readonly limits: QuotaView | undefined;
+  /** Why the job does not carry the queued cap (see `JobInputOptions.exempt`): the re-enqueue at a restore. */
+  readonly exempt?: 'accepted';
 }
 
 /**
@@ -54,9 +59,11 @@ export async function enqueueEffectJob(unit: Unit, job: EffectJob): Promise<void
       causation: job.causation,
       build: job.build,
       now: job.now,
+      queue: executor.queue,
+      limits: job.limits,
+      ...(job.exempt === undefined ? {} : { exempt: job.exempt }),
     }),
     kind: 'effect',
-    queue: executor.queue,
     run: { executor: executor.ref, effect: job.effectId },
     capability,
     ...(job.runAt === undefined ? {} : { runAt: job.runAt }),

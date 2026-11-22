@@ -2,6 +2,7 @@ import { trace } from '@opentelemetry/api';
 import { effectiveRules } from '../authorization/effective-rules.ts';
 import type { HookPayloads } from '../dsl/define-hook.ts';
 import type { ScopeTarget } from '../invoker/scope-target.ts';
+import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
 import type { Registry } from '../registry/registry.ts';
 import { registryBehaviours } from '../write-path/registry-behaviours.ts';
@@ -36,6 +37,8 @@ export interface TenantHooksInput {
   readonly rerun?: boolean;
   /** Runs only the hooks with these ids. */
   readonly only?: ReadonlySet<string>;
+  /** The process's quota cache: asked once before the hooks run, so what a hook's decision enqueues takes its lane's limits and meets its queue's cap. */
+  readonly quotas: QuotaLimits | undefined;
 }
 
 /**
@@ -51,6 +54,7 @@ export async function runTenantHooks(input: TenantHooksInput): Promise<readonly 
     .filter((hook) => hook.hook === input.hook && (input.only?.has(hook.id) ?? true))
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const tenantId = tenantIdOf(input.hook, input.payload);
+  const limits = await input.quotas?.fresh();
   for (const hook of hooks) {
     const principal = moduleServicePrincipal(hook.module, {
       scope: {
@@ -89,6 +93,7 @@ export async function runTenantHooks(input: TenantHooksInput): Promise<readonly 
         behaviours: registryBehaviours(registry),
         hybridClock: store.writer.hybridClock,
         concurrentUnits: target.handle.capabilities?.processes !== 'single',
+        ...(limits === undefined ? {} : { quotas: limits }),
       });
     } catch (error) {
       span.recordException(error instanceof Error ? error : new Error(String(error)));

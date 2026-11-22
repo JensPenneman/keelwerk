@@ -54,6 +54,7 @@ import { sqlSubjectKeyStore } from './sql-subject-key-store.ts';
 import type { SqlUnitContext } from './sql-unit-context.ts';
 import { sqlUnitContext } from './sql-unit-context.ts';
 import { sqlUsageStore } from './sql-usage-store.ts';
+import { sqlWriteLaneLimits } from './sql-write-lane-limits.ts';
 
 /** Thrown inside a read-only savepoint to roll it back, which also restores its settings. */
 class EndReadOnlySavepoint extends Error {}
@@ -278,6 +279,7 @@ export function sqlUnit(session: SqlSession, parts: SqlUnitParts): SqlUnit {
     if (ran) await runSql(session.db, { sql: 'select 1', parameters: [] });
     if (tail !== undefined) {
       try {
+        await sqlWriteLaneLimits(tail, root.limits);
         await runCommitTail(tail, root);
       } catch (error) {
         // A commit the tail refuses changes nothing and wakes nothing.
