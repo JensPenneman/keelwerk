@@ -315,9 +315,9 @@ module's service principal and return a decision: events that provision per-tena
 root, a default team) and effects the kernel performs, never migrations: tenant creation is a data
 operation, the schema is already there. A tenant is created by a deployment-scope unit and a unit
 never spans scopes (section 12.3), so each `onTenantCreated` hook decides in a tenant-scope unit
-of its own, right after the creating unit has committed; a hook that fails is logged and listed by
-`keelwerk doctor`, and the tenant stays created. (Amended 2026-11-05, entries 377 and 404: a failed
-hook appends `core.tenant.hookFailed { hook }` to the tenant's stream, which doctor reads;
+of its own, right after the creating unit has committed; a hook that fails is logged, and the tenant stays created; the doctor check for it is described in
+section 13.12. (Amended 2026-11-05, entries 377 and 404: a failed
+hook appends `core.tenant.hookFailed { hook }` to the tenant's stream, which that check reads;
 `rerunTenantHooks` reruns only the failed hooks and appends `hookCompleted` for each that then
 succeeds, so `hookCompleted` is written on a rerun only.)
 
@@ -2419,7 +2419,8 @@ synchronously (gate stage), recorded as an `accepted` receipt in the same unit a
 answered with `{ commandId, status: 'accepted' }`. Its progress is observable through
 `core.commandReceipt.get` and `core.commandReceipt.watch`, and its result through the receipt. The
 receipt stays `accepted` until a worker takes the job; a queue that holds work and has no worker in
-any process is listed at boot and by `keelwerk doctor` (section 9.5.6). A receipt is taken over
+any process is meant to be listed at boot (section 9.5.6); section 13.12 says what `keelwerk doctor`
+checks as built. A receipt is taken over
 only by its own job, one of the same command id, principal reference and fingerprint (added
 2026-11-11).
 The job stores a principal reference (resolver id, principal id and the fields the resolving
@@ -2694,8 +2695,8 @@ gets its job for an event of a backend or of a tenant, in that scope's own unit.
   2026-11-11); a coalescing reaction whose newer job already ran can still run an older event of a
   replayed parked stream last.
   A failing reaction is retried by the queue and never blocks the checkpoint; a job that
-  exhausts its retries is parked as a dead letter, which is a metric, an alert and a line in
-  `keelwerk doctor`. Delivery is at least once; a reaction is idempotent by
+  exhausts its retries is parked as a dead letter, which is a metric and an alert (section 13.12 says
+  whether `keelwerk doctor` lists them). Delivery is at least once; a reaction is idempotent by
   `(reaction id, event id)`, from which the ids of its effects derive (section 7.9.5). Module code
   never receives a namespace-scope unit. A deployment whose app mounts an async reaction is refused at
   boot with the named problem `asyncReactionsUnavailable` when no event worker (`consumers(...)` of
@@ -4465,7 +4466,8 @@ with `skip locked` (section 9.5.2).
 - Three consecutive lost leases make a job a dead letter, so a poison job cannot take the fleet down
   one process at a time. `expireInSeconds` aborts an attempt through its abort signal with
   `core.timeout` (retryable).
-- Dead letters are a metric, an alert and a `keelwerk doctor` line; `keelwerk jobs
+- Dead letters are a metric and an alert (section 13.12 says whether `keelwerk doctor` lists
+  them); `keelwerk jobs
   replay|discard` handles them. Added 2026-11-19: dead jobs are to show in the job statistics
   (`keelwerk jobs stats`), so that none waits unseen; `WorkClassStats` (section 21.4) has no member
   for them yet. A dead job's receipt stays `accepted` until a discard completes it as `failed`; a
@@ -4491,7 +4493,7 @@ The job side of the quota model (section 12.2):
 
 Without a cap the take is work-conserving: one tenant may fill idle slots, and the fair order gives
 the next free one to the least-served lane. Tenants cannot raise their own weight or caps (gap G10
-configuration cannot reach them); `keelwerk jobs lanes` and `keelwerk doctor` show them.
+configuration cannot reach them); `keelwerk jobs lanes` shows them (section 13.12 says whether `keelwerk doctor` does).
 
 The queued jobs of a queue in a scope are the jobs that wait to run: scheduled for later, available
 now, or waiting behind a key; never a running or a dead job. One set of states defines them for
@@ -4695,8 +4697,8 @@ package, to be done before a deployment with a large jobs table upgrades.
   (`ScheduleStore.remove(scheduleId, scopeId)`); a row whose scope it finds at the other level is
   claimed an hour ahead without a job, so during a rolling deploy that changes a schedule's scope a
   tick can come up to an hour late.
-- A queue that holds work while no process of the deployment slots it keeps its jobs: boot and
-  `keelwerk doctor` list every such queue (section 13.12).
+- A queue that holds work while no process of the deployment slots it keeps its jobs; listing such
+  queues at boot is meant, and section 13.12 says what `keelwerk doctor` does.
 - Timers that a principal resolver's effects set run under a module's service principal, since a
   resolver belongs to no command (added 2026-11-05, register entry 335): the one the kernel mints for
   the module whose resolver set them (`<module>.system`), not the core module's (amended
@@ -4947,7 +4949,8 @@ contract and are never reused.
   (gap G12); the chain itself is the audit trail of what changed. An `audit` module can persist
   them.
 - Health: `app.health` (liveness) and `app.ready` (readiness: control store, placements, queue)
-  are app-level actions every transport exposes; `keelwerk doctor` runs them from the CLI.
+  are app-level actions every transport exposes; section 13.12 says whether `keelwerk doctor` runs
+  them.
 - Development: the invoker can emit a per-invocation explanation (stages, timings, plan, matched
   rules) when `KEELWERK_EXPLAIN=1`. (Amended 2026-11-05, register entry 359 and open point 450: in
   M1 the stream is on in development only, read through `RuntimeOptions.env`, and its line is
@@ -5036,8 +5039,8 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
   value)`, primary key `(scope_id, dimension)`), so they commit with the data they
   count; the counters of one tenant never contend with another tenant's, because positions and
   counters are both per scope (section 15.1.4).
-- Usage is a metric per tenant and dimension; `keelwerk doctor` lists tenants above 80 percent
-  of a limit.
+- Usage is a metric per tenant and dimension; a doctor line for tenants above 80 percent of a limit
+  is meant (section 13.12 says which checks doctor has).
 - Where the limits are read. Every process holds one cache of the quota rows and of the values
   configured for each backend, loaded at the start before the restore check (a database that is
   away is waited for by the policy of the background loops, any other error ends the start), woken
@@ -5815,7 +5818,7 @@ the manifest's type cost fails the budget like any other change.
 
 ### 13.12 `keelwerk doctor`
 
-Checks the environment and the project, then the running backends:
+Checks the environment and the project, then the deployment:
 
 - Node 26 or later (the baseline, section 13.2); TypeScript 7.0 for builds (and 6.0 only where
   attest runs); the pnpm version;
@@ -5833,22 +5836,78 @@ Checks the environment and the project, then the running backends:
   `base.ts`, and the package shape (section 23.13);
 - flags past their expiry or otherwise stale, and release or experiment flags expiring more than
   40 days after their first build (section 20.7);
-- the personal-data pass (section 14.7.9.12): each personal field's capabilities, leaks, key scope
-  and normaliser and, on a running deployment, its index rows and bytes per tenant, with warnings
-  for equality indexes on low-entropy fields, `prefix.min` below 3, `contains.bits` above 12, every
-  `order` field, tenant-keyed search indexes, indexes built under another Unicode version, failed
-  reindex jobs and backups still holding plaintext of fields made personal later;
-- the deployment: operator socket permissions, master key present, control store reachable, the
-  control store on a different database cluster than the placements or an erasure-ledger sink
-  configured (section 14.7.6), external-table drift, dead letters and parked streams, capped lanes
-  and unplaceable work (sections 9.5.5 and 21.2), queues that hold
-  work and have no worker (section 9.5.6), and tenant lifecycle hooks that failed (section 3.3);
-  then `app.health` and `app.ready` per backend;
-- the data layer's fallbacks: per placement, every capability its adapter lacks that a selected app
-  uses, the kernel path that replaces it and its cost (section 14.3.3, brief addendum 5);
-- chain anchors: a scope whose newest anchor is older than its cadence, a scope whose head is
-  below its newest anchor (rewound, section 14.7.6), and a ledger sink that refused an append
-  (section 15.1.8).
+- the personal-data pass (section 14.7.9.12): each personal field's capabilities, key scope and
+  normaliser, with warnings for equality indexes on `boolean` and `enum` fields, `prefix.min` below
+  3, `contains.bits` above 12, every `order` field and tenant-keyed search indexes;
+- the deployment, by the rule below.
+
+The deployment checks follow one rule. Each check names the facts it needs. When doctor has them, a
+check that doctor can judge judges them. When it does not, that check prints one line of severity
+`not-checked` with the reason, and a fix that says what the operator can do about it, and says
+nothing else about that check; a check that runs once per placement prints one such line for each
+placement it looks at whose capabilities it could not read, in place of one. A fact doctor cannot
+get is absent, never zero or empty, so a check that could not run never looks as if it ran. A fact
+that is known and empty is judged like any other value. For some checks the emptiness is the finding
+(examples: a deployment that declares no master key is an error; a control store that shares a
+cluster with a placement while no ledger sink is configured is a warning). For others it means that
+the check does not concern the deployment, and it prints nothing (example: no operator socket
+declared).
+
+`not-checked` means one thing: a check doctor has did not get a fact it needs on this run. A check
+for which no source exists in the repository is another matter: no run of this version of doctor can
+run it, so a line about it says nothing about the deployment. Doctor prints a note that it does not
+check it, with the reason, and never `not-checked`. It prints that note on every run, or only when
+the deployment has something for the check to look at; when a fact that decides this is absent it
+prints the note, because doctor cannot tell that the check does not concern the deployment and the
+note is true either way (examples: the anchor checks print their note only when a ledger sink is
+configured; `app.health` and `app.ready` print theirs on every run). The docs keep no list of
+them: a run names those that concern it, and `deploymentCheckList` in the doctor's source is the
+authority for which checks exist and which of them are fed.
+
+What doctor reads of a deployment as built:
+
+- the deployment file and the environment, against which `env()` urls and secret references resolve
+  (a secret provider is asked whether it holds the master key);
+- the mode of the operator socket's file, on the machine doctor runs on;
+- the declarations of the selected apps: personal fields, reactions that observe every event, and
+  the raw-SQL dialect a module declares in `data.sql` or in a `{ sql }` entry of `data.needs`;
+- the capabilities of the adapter of the control store and of each placement: doctor creates the
+  adapter, connects it without migrating and closes it. It never opens the adapter `pglite`: an
+  embedded database can be read only by the process that runs it, and its factory creates the
+  directory and a role where they are missing. A placement whose capabilities it cannot read (no
+  factory, an unset variable in its url, a failed create or connect, a close that fails after a
+  connect, `pglite`) is `not-checked` for each check that needs its capabilities and has something
+  to say about that placement.
+
+What doctor does not read as built: the rows of the control store, the rows of the placements, the
+ledger sinks, and a connection to a running deployment. The command passes no reader of the control
+store yet, so the checks that read it (whether the store answers, the process rows, failed tenant
+hooks, epoch bumps and held tenants) are `not-checked` with that reason. A check that needs one of
+the others has no source, and the rule above applies to it.
+
+The checks that judge as built include operator socket permissions; master key present; the control
+store on another database cluster than the placements or a ledger sink configured (section 14.7.6);
+a module that needs a raw-SQL dialect, judged on each placement that hosts its app; the fallbacks
+per placement (section 14.3.3, brief addendum 5); the personal-data pass; observers; and, once the
+command reads the control store, the checks listed above as needing it.
+
+The result:
+
+- When there are findings, the text summary ends with the number of findings of each severity,
+  `not-checked` last (`n not checked`): it counts lines. As text, a run with no findings prints
+  `doctor: no findings` (`layout: no findings` with `--layout`) and no summary. `--output json`
+  prints the findings as an array, the empty array for a run with none; `severity` is `error`,
+  `warning`, `note` or `not-checked`, and `check` names the group of the check.
+- The exit code is 1 when a finding is an error and 0 otherwise; `not-checked` does not change it.
+  With `--strict` the exit code is also 1 when a finding has the severity `not-checked`, that is,
+  when a check doctor has did not run. In this version that is every run that loads a deployment
+  (the command passes no reader of the control store, so the checks that read it did not run) and a
+  run without a deployment file; a `--layout` run without an error exits 0. A placement on an
+  embedded database is `not-checked` as well, so `--strict` cannot pass on such a deployment. This
+  is the state of this version, not a promise about a later one.
+- A missing deployment file gives one `not-checked` line for the deployment checks.
+- `--profile`, `--backend`, `--tenant` and `--socket` are accepted and have no effect on doctor yet;
+  for each that is given doctor prints a note saying so.
 
 As built in M1 (added 2026-11-05, register entries 376 and 377):
 
@@ -5856,12 +5915,9 @@ As built in M1 (added 2026-11-05, register entries 376 and 377):
   files, enough for every drift kind of section 23.13; comparing with a registry a probe composes
   is M2. The core module is a sugar root for the pass; fixture modules without a migrations folder
   are exempt from the "adds data" check.
-- Doctor judges the deployment file statically and opens each placement's adapter without
-  migrating to list the fallbacks; the checks that need a connection run against a running
-  deployment.
-- The ledger sink counts the appends it refused and exposes the count to the control reader doctor
-  uses; failed tenant hooks are read from the tenant stream's `core.tenant.hookFailed` and
-  `hookCompleted` events; a ledger sink on a placement's volume is reported.
+- Failed tenant hooks are recorded in the tenant stream's `core.tenant.hookFailed` and
+  `hookCompleted` events, which the failed-hook check reads through the control store once the
+  command has a reader.
 - The flag-expiry check above is not built in M1 (flags answer their defaults until M2).
 
 ## 14. Data layer
@@ -6327,7 +6383,8 @@ The adapter contract of section 14.3.2 is the only coupling between application 
 datastore (brief addendum 5; decision 12a of 2026-10-26). A capability is an acceleration, never a
 condition for running: for every capability an adapter may lack, the kernel has a path that gives
 the same results at a cost. `keelwerk explain` names the path a plan takes, and `keelwerk
-doctor` lists per placement the fallbacks the selected apps use and their cost (section 13.12).
+doctor` lists per placement the fallbacks the selected apps use and their cost, for each
+placement it could open (section 13.12).
 Choosing the path is core code (the planner, the write path, the feed); what runs below the
 contract when a capability is missing (the polling feed, capability masks, the fallback report's
 rows and costs) is in `@keelwerk/data`, under `src/fallbacks/`.
@@ -6374,8 +6431,9 @@ Checks run at three moments; none refuses for a missing acceleration:
 
 As built in M1 (added 2026-11-05, register entry 357 and open point 471): the fallbacks are
 recorded and logged per placement at `connect` (`FallbackReporter`), and `keelwerk doctor` lists
-them; the raw-SQL dialect refusal needs a module's `data.needs`, which no M1 module declares, so it
-is not exercised before M5.
+them for each placement it could open. A module's `data.needs` or `data.sql` is read by doctor
+alone, which reports a placement that lacks the dialect; nothing in the kernel reads them, so no
+refusal at `connect` exists.
 
 #### 14.3.4 Conditions: one AST, fixed semantics
 
@@ -6780,8 +6838,8 @@ template fragments are available only in a request that names a reason,
 `ctx.load.sql(build, { as: system(reason) })`, which is logged. Kysely is pre-1.0; the hatch exposes
 its types to module authors, which is accepted for an escape hatch and pinned to an exact version.
 
-No M1 module declares `data.needs`, so the dialect check at `connect` is not exercised before M5
-(added 2026-11-05, register open point 471).
+Only doctor reads `data.needs` and `data.sql`, to report a placement that lacks the dialect; no check
+at `connect` reads them (added 2026-11-05, register open point 471).
 
 #### 14.3.9 The job store
 
@@ -7326,8 +7384,9 @@ personal field without an `eq` capability cannot be indexed, a plan-time problem
   backfill (a reindex job that unseals each row and writes the new tags while writers write both), a
   read switch and a contract step that drops the old tags, with uniqueness held on both. Making a
   plaintext field personal runs the same steps (add the sealed and index columns, backfill, switch,
-  drop the plaintext column) plus a vacuum, and `keelwerk doctor` states that older backups keep
-  the plaintext until their retention passes (section 14.7.9.7).
+  drop the plaintext column) plus a vacuum, and older backups keep
+  the plaintext until their retention passes (section 14.7.9.7; doctor does not read backups,
+  section 13.12).
 - As built in M1 (added 2026-11-05, register entries 362 and 423): the production `migrate` phase
   only verifies; the slices apply migrations by booting once in `test` mode against the same
   database. `db apply`, `db status` and `db verify` run against the deployment file only (a profile
@@ -7416,7 +7475,7 @@ per-tenant overrides, stored in the control store and changed through operator a
 anything or failed is recorded in the control store, one row per namespace and scope (the rules the
 scope began and, for an adopted rule, who adopted it, what was removed, the new horizons;
 `kw_retention_runs`, below). Modules may declare
-suggested rules on their entities (`retention: { suggest: [...] }`), which `keelwerk doctor` lists;
+suggested rules on their entities (`retention: { suggest: [...] }`), which doctor does not list as built (section 13.12);
 a suggestion has no effect until adopted. Launchway's modules suggest none (decision 47c,
 2026-10-27): deployment records, logs, preview records and the attempt records of effects are kept
 until Jens adopts a rule, so that they can be looked back on years later, and the mail server's
@@ -7874,7 +7933,8 @@ positions from before and after the restore. Three mechanisms keep both true:
   and it runs steps 3 to 5 of the erasure again, because a backup taken before an erasure lacks its
   `erased` events.
   `keelwerk doctor` warns when the control store and a placement share a database cluster and no
-  ledger sink is configured, because restoring that cluster rewinds both.
+  ledger sink is configured, because restoring that cluster rewinds both (section 13.12 says when
+  it cannot judge).
 - **Epochs from what a restore changes.** The control store records, per namespace, the database
   cluster's identity (on PostgreSQL the system identifier and the timeline) and, per scope, a
   high-water mark of positions and serials, updated every minute and at shutdown. At `connect` the
@@ -7885,8 +7945,8 @@ positions from before and after the restore. Three mechanisms keep both true:
   and moves its counters past the recorded marks, so tokens of the old epoch get `reset`, positions
   and UIDs are never reused under an old epoch, and the mail server announces a new `uidValidity`.
   In M1 the control store keeps no identities or marks yet: `connect` compares each scope's head
-  with its newest anchor, logs a rewound scope without bumping its epoch, `keelwerk doctor` lists
-  it and `keelwerk db verify` fails on it; the epoch bump and the mark tables come in M2.
+  with its newest anchor, logs a rewound scope without bumping its epoch and `keelwerk db verify`
+  fails on it (the doctor check for it is in section 13.12); the epoch bump and the mark tables come in M2.
 - **Effects across a restore.** A restore or a rebuild folds the `core.effect` streams like any
   chain entity, and the kernel then enqueues again every effect that is `requested` and not
   `settled`: external effects are at least once across restores as well, and their idempotency keys
@@ -7928,7 +7988,8 @@ Added 2026-11-18: the hold. Every process that starts holds each tenant with an 
 has no completion at the tenant's current epoch, whichever process copied the record, and refuses
 that tenant with `core.unavailable`; the hold ends when the completion is appended. Both ends are
 logged at warn, with the tenant id only. A refused job of a held tenant waits one second and keeps
-its attempt, and `keelwerk doctor` names the held tenants (check `held-tenants`).
+its attempt; the doctor check `held-tenants` names the held tenants once doctor reads the control
+store (section 13.12).
 
 Added 2026-11-18: a restore under running processes. The minute loop detects it: a position below
 the last one seen, or a changed adapter identity. The process then logs at error, refuses with
@@ -8041,7 +8102,8 @@ declares, so the flag lists only what its indexes add.
 - Uniqueness (`.unique()`, unique entity indexes, merge `exclusive`) needs the full 128-bit tag under
   a tenant key; `eq.bits` and `keys: 'subject'` are refused on such fields at `defineEntity`.
 - Every other capability is opt-in, costs storage and writes and reveals what the matrix says;
-  `keelwerk doctor` reports both.
+  the leaks are part of the field's type (`PersonalFlags.leaks`); no type carries the storage cost
+  (section 13.12 says what doctor reports).
 - `contains` requires a declared `maxLength` of at most 1,024 characters; longer text uses `search`
   (these defaults, with 12-bit trigram tags and operands of at least three characters, are decision
   point 72).
@@ -8066,7 +8128,7 @@ Every operator, uniqueness and search tokens use it; the stored value keeps its 
 - custom: changing its id or version rebuilds the field's indexes.
 
 Normalisers follow the runtime's Unicode tables (17.0 on Node 24.21.0 and on Node 26.13.0; NFKC followed by
-lower case of U+1E9E U+0130 gives `ßi̇` on both); each index records its version, and `keelwerk doctor` warns on a mismatch.
+lower case of U+1E9E U+0130 gives `ßi̇` on both); each index records its version; the doctor warning on a mismatch is meant (section 13.12 says whether it runs).
 
 As built in M1 (added 2026-11-05, register entry 383): derived index columns record the Unicode
 version their normaliser used (`ColumnSpec.derived { query, kind, unicode }`), and custom
@@ -8281,8 +8343,8 @@ filters and sorts in memory up to `maxScan`, and with `tagSets: 'table'` the tag
 tables. With `tagSets: false`, a `prefix`, `contains` or token condition on a personal field runs
 as the same bounded scan over the rows the rest of the condition selects (past `maxScan`,
 `core.scan_limit`); the field keeps its declared queries, and a reindex (section 14.6.4) writes
-their tags once the adapter has them. `keelwerk doctor` lists the fields that use a fallback, and
-nothing refuses at `connect`. The in-memory adapter stores sealed values and tags as SQL adapters do,
+their tags once the adapter has them. The fields that use a fallback are meant to be listed by
+`keelwerk doctor` (section 13.12 says what it lists), and nothing refuses at `connect`. The in-memory adapter stores sealed values and tags as SQL adapters do,
 so tests exercise the rewrite. The reference semantics are "unseal and evaluate": the conformance
 kit's oracle unseals every row and evaluates the original condition with the core interpreter, and
 the dual-evaluation suite requires each adapter's rewritten, verified result to equal the oracle's
@@ -8313,16 +8375,16 @@ hides index columns and refuses writes to both.
 
 ##### 14.7.9.12 `keelwerk doctor`
 
-The personal-data pass lists each personal field's capabilities, leaks, key scope and normaliser
-and, on a running deployment, its index rows and bytes per tenant. It warns about equality indexes on
-`boolean` and `enum` kinds or on fields with fewer than 1,000 distinct values in a tenant (sampled by
-unsealing, with an `eq.bits` range from the rule `2 ≤ collisions < √P`), `prefix.min` below 3,
-`contains.bits` above 12, every `order` field, search indexes with `keys: 'tenant'`, indexes built
-under another Unicode version, failed reindex jobs, and backups still holding plaintext of fields
-made personal later.
+The personal-data pass lists each personal field's capabilities, key scope and normaliser from the
+declarations, and warns about equality indexes on `boolean` and `enum` kinds, `prefix.min` below 3,
+`contains.bits` above 12, every `order` field and search indexes with `keys: 'tenant'`.
 
-Added 2026-11-05 (register entry 377): the ledger sink counts the appends it refused and exposes
-the count to the control reader doctor uses, so the refused-append check can fire.
+It is meant to go further, with index rows and bytes per tenant, equality indexes on fields with
+fewer than 1,000 distinct values in a tenant (sampled by unsealing, with an `eq.bits` range from the
+rule `2 ≤ collisions < √P`), indexes built under another Unicode version, failed reindex jobs and
+backups still holding plaintext of fields made personal later. Doctor has no source for those facts
+as built, so it does not check them: for a deployment that has a personal field it prints notes that
+say so (section 13.12).
 
 ##### 14.7.9.13 Worked example: accounts and the mail store
 
@@ -8355,7 +8417,7 @@ or subject is refused, and `preview` and `mimeTree` are only shown. The api-sket
 requires three characters (`minLength: 3`) and sends `'Jen'`, the prefix minimum, which answers the
 question whether the field should declare `prefix: { min: 2 }` instead. On an adapter without
 `tagSets`, its `startsWith` on `email` takes the bounded scan of section 14.7.9.10, which
-`keelwerk doctor` lists among the fallbacks.
+`keelwerk doctor` lists among the fallbacks of a placement it could open.
 
 ### 14.8 Live types
 
@@ -8681,13 +8743,13 @@ suite (criterion 4) and accelerations-off run (criterion 10) pass on PostgreSQL 
 | Storage grows: before-images, three indexes on `kw_events`, transient records. | Default expiry of the change records of receipts (those of state entities grow without bound until before-images exist, accepted on 2026-11-19, section 15.1.10); compaction rules; table partitioning when measurements ask for it. |
 | Client clocks are wrong or hostile. | The skew bound, offset estimation, and server-authored writes always winning. |
 | Erasure is incomplete: unmarked free text, copies on clients and in old backups. | Documentation, the erasure ledger replayed at restore, scrub instructions in sync, backup retention stated in operations. |
-| Parked streams and dead-letter jobs hide failures. | Metrics, alerts and `keelwerk doctor` list them. |
+| Parked streams and dead-letter jobs hide failures. | Metrics and alerts; a doctor line is meant (section 13.12). |
 | A restore rewinds the ledger together with the data. | Ledger sinks outside the placement, a doctor warning for shared clusters, epochs derived from the cluster identity and high-water marks (section 14.7.6). |
 | Schema-per-tenant migrations take long with many tenants. | Bounded parallelism, unavailable lagging namespaces, shared tables as the default. |
 | MySQL has no row-level security. | The scoping plugin and adversarial tests; PostgreSQL recommended for multi-tenant production. |
 | Module authors misread what the indexes of a personal field leak. | The leaks are part of the field's type, every capability beyond equality is opt-in, and the personal-data pass of `keelwerk doctor` lists and warns (section 14.7.9). |
-| Indexes over personal fields grow: prefix, trigram and token tags cost storage and writes (5 to 10 KB per filed message on PostgreSQL, estimated). | Opt-in capabilities, index sizes per tenant in `keelwerk doctor`, a measurement on a fixture mailbox in the mail foundations milestone (parked). |
-| A Node upgrade changes the Unicode tables the normalisers follow. | Each index records its Unicode version, `keelwerk doctor` warns on a mismatch and `keelwerk db reindex` rebuilds (section 14.7.9.3). |
+| Indexes over personal fields grow: prefix, trigram and token tags cost storage and writes (5 to 10 KB per filed message on PostgreSQL, estimated). | Opt-in capabilities, index sizes per tenant in `keelwerk doctor` (meant; section 13.12 says what doctor reports), a measurement on a fixture mailbox in the mail foundations milestone (parked). |
+| A Node upgrade changes the Unicode tables the normalisers follow. | Each index records its Unicode version, a `keelwerk doctor` warning on a mismatch is meant (section 13.12 says what doctor reports) and `keelwerk db reindex` rebuilds (section 14.7.9.3). |
 | An own ORE implementation is flawed. | Order is opt-in, PostgreSQL only and M5, after a spike on operator-class installation and a review of the implementation; `keelwerk doctor` warns on every `order` field. |
 
 ## 15. Events, sync and live updates
@@ -9204,9 +9266,9 @@ open point 456). This settles register open point 322.
   `keelwerk db verify` compares the chain with the anchors: the event at each anchored position
   must exist with the anchored hash, and the scope's head must be at or past its newest anchor, so a
   chain rewritten or rewound inside the placement is found even when its links are consistent;
-  `connect` reads the newest anchor as one more rewind signal (section 14.7.6), and `keelwerk
-  doctor` warns when a scope's newest anchor is older than its cadence, which means a sink is
-  missing or failing (section 13.12). An anchor pins the stream that held the scope's head at that
+  `connect` reads the newest anchor as one more rewind signal (section 14.7.6), and a doctor
+  warning when a scope's newest anchor is older than its cadence, which means a sink is
+  missing or failing, is meant (section 13.12 says what doctor checks as built). An anchor pins the stream that held the scope's head at that
   moment and carries the scope's latest position and hash only, no digest over every stream head of
   the scope (decision 89a, 2026-10-28).
 - Always on for chain entities: one SHA-256 per event is negligible next to the write itself.
@@ -12448,7 +12510,7 @@ the command's code after a completed stop, and on SIGINT with 130.
 | `keelwerk call <ref> [--input ...]` | any | the action commands: invokes any action by its dotted reference, with flags from its input fields (sections 16.9.2 and 16.9.4) |
 | `keelwerk watch <ref> [--input ...]` | any | `call <ref> --follow` for subscriptions |
 | `keelwerk explain <ref> [--input ...] [--as <principal>] [--dry-run]`, `explain --trace <command, event or effect id>`, `explain --redecide <command id>` | operator socket, development | shows the authorization decision without executing (section 8.6); `--dry-run` runs admission, `prepare` and `decide` in a unit that rolls back and prints events, effects and the decision record; `--trace` prints a command's events, effects with outcomes and the continuations they caused; `--redecide` re-runs a recorded decision with the current build and compares (section 7.9.6); `--as` evaluates everywhere and executes only in development (decision 17a) |
-| `keelwerk doctor` | any | the checks of section 13.12, then `app.health` and `app.ready` |
+| `keelwerk doctor [--layout] [--strict]` | any | the checks of section 13.12 |
 | `keelwerk login\|logout\|profile ...` | remote | profiles and credentials |
 | `keelwerk completion bash\|zsh\|fish` | none | prints a completion script |
 
@@ -12655,7 +12717,7 @@ The dry run's output is redacted the same way: hidden, personal and secret field
 `keelwerk dev` renders it, `--explain` requests it for one CLI call, and `keelwerk explain`
 shows the authorization decision without executing. `/_keelwerk/health` and `/_keelwerk/ready`
 serve orchestrators; `app.health` and `app.ready` serve per-backend checks through every transport;
-`keelwerk doctor` runs all of them.
+`keelwerk doctor` runs none of them yet (section 13.12).
 
 In M1 (added 2026-11-05, open point 450) the explain line is `<transport> -> <action> <ok|code>
 <n> ms`, without stages, plan or matched rule ids, and `subscribe` writes none. Amended 2026-11-11:
@@ -16115,7 +16177,7 @@ export interface NodeRecord {                         // core.node, deployment s
 - Unplaceable work fails closed: a static capability that no named process declares is refused at
   boot (`unplaceableCapability`), a computed one at enqueue (`unsupported`,
   `core.capability_unplaceable`). Declared but not live: jobs wait in their lane while the scaler
-  starts a process that declares it, if a provider can; otherwise `keelwerk doctor` names it and
+  starts a process that declares it, if a provider can; otherwise a doctor line that names it is meant (section 13.12) and
   `giveUpAfter` applies.
 - Singleton work (reconcilers, the finalizer of section 19.4, the scaler) holds leases with a
   fencing epoch in the control store (ADR 0018); a draining process hands them over.

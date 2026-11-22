@@ -1,42 +1,27 @@
-import type { FallbackReporter } from '@keelwerk/core';
 import { fallbackReport } from '@keelwerk/data';
-import type { PlacementFact } from './deployment-facts.ts';
-import type { DoctorFinding } from './doctor-finding.ts';
+import { definePlacementCheck } from './define-placement-check.ts';
+import type { DeploymentCheck } from './deployment-check.ts';
 import { findingOf } from './finding-of.ts';
 
 /**
- * The data layer's fallbacks (section 14.3.3): per placement, every capability its adapter lacks
- * that a selected app uses, the kernel path that replaces it and what that costs. `reporter` is the
- * deployment's `FallbackReporter` entry, else the table of `@keelwerk/data`. A placement doctor has
- * no capabilities for (it did not open the adapter) is named, not guessed at. `used` limits the rows
- * to the capabilities the apps lean on; undefined lists every absent capability.
+ * The data layer's fallbacks (section 14.3.3): per placement, the control store included, every
+ * capability its adapter lacks that a selected app uses, the kernel path that replaces it and what
+ * that costs. The report is the deployment's `FallbackReporter` entry, else the table of
+ * `@keelwerk/data`. The rows are limited to the capabilities the apps lean on; with no app composed
+ * every absent capability is listed. A placement doctor could not open is 'not-checked'.
  */
-export function checkFallbacks(
-  placements: readonly PlacementFact[],
-  reporter: FallbackReporter | undefined,
-  used: ReadonlySet<string> | undefined,
-): readonly DoctorFinding[] {
-  const report =
-    reporter === undefined
-      ? fallbackReport
-      : (capabilities: Parameters<typeof fallbackReport>[0]) => reporter.report(capabilities);
-  const found: DoctorFinding[] = [];
-  for (const placement of placements) {
-    if (placement.capabilities === undefined) {
-      found.push(
-        findingOf(
-          'fallbacks',
-          'note',
-          placement.name,
-          `the ${placement.adapter} adapter was not opened, so its fallbacks are unknown`,
-          'run doctor against a running deployment',
-        ),
-      );
-      continue;
-    }
-    for (const row of report(placement.capabilities)) {
-      if (used !== undefined && !used.has(row.capability)) continue;
-      found.push(
+export const fallbacksCheck: DeploymentCheck = definePlacementCheck({
+  group: 'fallbacks',
+  name: 'fallbacks',
+  needs: ['fallbackReporter', 'capabilitiesUsed'],
+  judge: ({ fallbackReporter, capabilitiesUsed }, placement) => {
+    const rows =
+      fallbackReporter === undefined
+        ? fallbackReport(placement.capabilities)
+        : fallbackReporter.report(placement.capabilities);
+    return rows
+      .filter((row) => capabilitiesUsed === undefined || capabilitiesUsed.has(row.capability))
+      .map((row) =>
         findingOf(
           'fallbacks',
           row.capability === 'rowLevelSecurity' ? 'warning' : 'note',
@@ -47,7 +32,5 @@ export function checkFallbacks(
             : 'none needed; use an adapter that has the capability to remove the cost',
         ),
       );
-    }
-  }
-  return found;
-}
+  },
+});

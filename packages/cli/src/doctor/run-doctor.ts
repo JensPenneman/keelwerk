@@ -12,7 +12,6 @@ export interface DoctorRun extends ProjectChecksInput {
   readonly layoutOnly: boolean;
   /** The deployment to judge; undefined when there is none to load. */
   readonly deployment: DeploymentInput | undefined;
-  readonly now: Temporal.Instant;
 }
 
 /** Runs doctor: the layout pass alone, or the environment, the project and, when given, the deployment. */
@@ -21,5 +20,5 @@ export async function runDoctor(run: DoctorRun): Promise<readonly DoctorFinding[
   const project = await projectChecks(run);
   return run.deployment === undefined
     ? project
-    : [...project, ...(await deploymentChecks(run.deployment, run.now))];
+    : [...project, ...(await deploymentChecks(run.deployment))];
 }

@@ -1,5 +1,6 @@
-import type { DeploymentFacts } from './deployment-facts.ts';
-import type { DeploymentInput } from './deployment-input.ts';
+import type { ScopeMark } from '@keelwerk/core';
+import { defineCheck } from './define-check.ts';
+import type { DeploymentCheck } from './deployment-check.ts';
 import type { DoctorFinding } from './doctor-finding.ts';
 import { findingOf } from './finding-of.ts';
 
@@ -8,15 +9,10 @@ import { findingOf } from './finding-of.ts';
  * restore the runtime detected at `connect`, so the tokens issued before it answer reset. A bump
  * that has happened needs no action, and the mark's `updatedAt` is rewritten every minute so it
  * dates nothing: one note per namespace (in id order) counts the scopes and names the highest
- * epoch; the warning at connect, one per scope with its reason, is the alert. A reader that cannot
- * list the marks, or a deployment with none above 0, gives nothing.
+ * epoch; the warning at connect, one per scope with its reason, is the alert. A deployment
+ * with none above 0 gives nothing.
  */
-export async function checkEpochBumps(
-  input: DeploymentInput,
-  _facts: DeploymentFacts,
-  _now: Temporal.Instant,
-): Promise<readonly DoctorFinding[]> {
-  const marks = (await input.reader?.bumpedMarks?.()) ?? [];
+function epochBumpFindings(marks: readonly ScopeMark[]): readonly DoctorFinding[] {
   const namespaces = new Map<string, { scopes: number; highest: number }>();
   for (const mark of marks) {
     const known = namespaces.get(mark.namespaceId) ?? { scopes: 0, highest: 0 };
@@ -37,3 +33,10 @@ export async function checkEpochBumps(
       ),
     );
 }
+
+export const epochBumpsCheck: DeploymentCheck = defineCheck({
+  group: 'epoch-bumps',
+  name: 'epoch bumps',
+  needs: ['bumpedMarks'],
+  judge: ({ bumpedMarks }) => epochBumpFindings(bumpedMarks),
+});

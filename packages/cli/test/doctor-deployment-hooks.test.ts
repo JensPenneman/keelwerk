@@ -1,12 +1,13 @@
 import type { Unit } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
-import { checkDeployment } from '../src/doctor/check-deployment.ts';
+import { deploymentGroup } from '../src/doctor/check-deployment.ts';
 import { hookEventTypes } from '../src/doctor/hook-event-types.ts';
 import { hookFailuresOf } from '../src/doctor/hook-failures-of.ts';
-import { readDeploymentFacts } from '../src/doctor/read-deployment-facts.ts';
-import { definitionOf, keyEnvironment } from './support/deployment-definition-of.ts';
+import { known } from '../src/doctor/known.ts';
+import { runDeploymentChecks } from '../src/doctor/run-deployment-checks.ts';
+import { factsOf } from './support/facts-of.ts';
 
-describe('failed tenant hooks (S-27)', () => {
+describe('failed tenant hooks', () => {
   function unitOf(events: readonly { type: string; id: string; hook: unknown }[]): Unit {
     return {
       events: {
@@ -31,19 +32,8 @@ describe('failed tenant hooks (S-27)', () => {
     ]);
     const failures = await hookFailuresOf(unit);
     expect(failures).toEqual([{ hookId: 'billing.onTenantCreated', tenantId: 'tnt_2' }]);
-    const facts = await readDeploymentFacts({
-      definition: definitionOf(),
-      env: keyEnvironment,
-      modeOf: async () => 0o600,
-      registries: [],
-      capabilities: new Map(),
-      reader: {
-        reachable: async () => ({ reachable: true, detail: '' }),
-        processes: async () => [],
-        hookFailures: async () => failures,
-      },
-    });
-    expect(checkDeployment(facts).map((finding) => finding.message)).toContain(
+    const found = runDeploymentChecks(deploymentGroup, factsOf({ hookFailures: known(failures) }));
+    expect(found.map((finding) => finding.message)).toContain(
       'the lifecycle hook billing.onTenantCreated failed for tenant tnt_2',
     );
   });

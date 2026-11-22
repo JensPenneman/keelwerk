@@ -19,12 +19,6 @@ export function personalFieldsOf(registries: readonly Registry[]): readonly Pers
           searchKeys: entry.descriptor.searchIndexes
             .filter((index) => index.fields.includes(name) && index.keys !== null)
             .map((index) => (index.keys === 'tenant' ? 'tenant' : 'subject')),
-          distinctValues: undefined,
-          indexRows: undefined,
-          indexBytes: undefined,
-          failedReindexJobs: 0,
-          plaintextBackups: false,
-          otherUnicodeVersion: false,
         });
       }
     }

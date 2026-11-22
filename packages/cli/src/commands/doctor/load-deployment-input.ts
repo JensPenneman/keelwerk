@@ -6,7 +6,7 @@ import type { DeploymentInput } from '../../doctor/deployment-input.ts';
 import type { DoctorFinding } from '../../doctor/doctor-finding.ts';
 import { findingOf } from '../../doctor/finding-of.ts';
 import { modeOf } from '../../doctor/mode-of.ts';
-import { openCapabilities } from '../../doctor/open-capabilities.ts';
+import { openPlacements } from '../../doctor/open-placements.ts';
 import { registryOfApp } from '../../doctor/registry-of-app.ts';
 
 function isDefinition(value: unknown): value is DeploymentDefinition {
@@ -29,8 +29,9 @@ export interface LoadedDeployment {
 
 /**
  * Loads the deployment file of project mode (section 16.9.1) and reads what can be judged without
- * the control store's rows (none, while doctor has no connection): the definition, its apps' registries, the environment and the
- * capabilities of each adapter, which are connected without migrating and closed again.
+ * the control store's rows (doctor passes no reader): the definition, its apps' registries, the
+ * environment and the placements with the capabilities of each adapter except `pglite`, which are
+ * connected without migrating and closed again.
  */
 export async function loadDeploymentInput(
   host: CliHost,
@@ -43,9 +44,9 @@ export async function loadDeploymentInput(
       findings: [
         findingOf(
           'deployment',
-          'note',
+          'not-checked',
           'deployment file',
-          'no keelwerk.config.ts or .launchway/deployment.ts was found, so the deployment checks were skipped',
+          'no keelwerk.config.ts or .launchway/deployment.ts was found, so the deployment checks did not run',
           'run doctor in a project, or pass --config',
         ),
       ],
@@ -57,17 +58,16 @@ export async function loadDeploymentInput(
     if (!isDefinition(definition)) {
       throw new Error('the default export is not a deployment');
     }
-    const opened = await openCapabilities(definition, host.env);
     return {
       input: {
         definition,
         env: host.env,
         modeOf,
         registries: definition.apps.flatMap((app) => registryOfApp(app) ?? []),
-        capabilities: opened.capabilities,
+        placements: await openPlacements(definition, host.env),
         reader: undefined,
       },
-      findings: opened.findings,
+      findings: [],
     };
   } catch (error) {
     return {

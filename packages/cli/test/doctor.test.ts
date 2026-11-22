@@ -14,6 +14,7 @@ import { loadWorkspace } from '../src/layout/load-workspace.ts';
 import clean from './layout-fixtures/clean.json' with { type: 'json' };
 import { materialise, removeTrees, writeManifests } from './layout-fixtures/materialise-tree.ts';
 import { createFakeHost } from './support/fake-host.ts';
+import { pnpmAnswer } from './support/pnpm-answer.ts';
 import { runCliWith } from './support/run-cli-with.ts';
 
 const goodEnvironment = {
@@ -267,6 +268,7 @@ describe('the doctor command', () => {
   async function run(argv: readonly string[], edit: Readonly<Record<string, string>> = {}) {
     const space = await workspace(edit);
     const host = createFakeHost({
+      spawn: pnpmAnswer,
       cwd: space.dir,
       files: { [`${space.dir}/pnpm-workspace.yaml`]: 'packages:\n  - packages/*\n' },
     });

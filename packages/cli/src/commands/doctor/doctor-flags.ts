@@ -1,7 +1,7 @@
 import { commonFlags } from '../../routes/common-flags.ts';
 import type { FlagParameter } from '../../routes/flag-parameter.ts';
 
-/** The flags of `doctor` (section 16.9.7): the connection and output flags every command shares, and `--layout`. */
+/** The flags of `doctor` (section 16.9.7): the connection and output flags every command shares, `--layout` and `--strict`. */
 export function doctorFlags(): Readonly<Record<string, FlagParameter>> {
   const common = commonFlags();
   return {
@@ -15,6 +15,12 @@ export function doctorFlags(): Readonly<Record<string, FlagParameter>> {
     layout: {
       kind: 'boolean',
       brief: 'Run the layout pass alone (section 23.13).',
+      optional: true,
+      withNegated: false,
+    } as unknown as FlagParameter,
+    strict: {
+      kind: 'boolean',
+      brief: 'Exit 1 also when a check that doctor has did not run.',
       optional: true,
       withNegated: false,
     } as unknown as FlagParameter,

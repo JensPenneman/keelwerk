@@ -1,5 +1,6 @@
-import type { DeploymentFacts } from './deployment-facts.ts';
-import type { DeploymentInput } from './deployment-input.ts';
+import type { Registry } from '@keelwerk/core';
+import { defineCheck } from './define-check.ts';
+import type { DeploymentCheck } from './deployment-check.ts';
 import type { DoctorFinding } from './doctor-finding.ts';
 import { findingOf } from './finding-of.ts';
 
@@ -8,13 +9,9 @@ import { findingOf } from './finding-of.ts';
  * one with the event types it never receives. One note per `on: 'all'` reaction of every composed
  * app, in reaction-id order.
  */
-export async function checkObservers(
-  input: DeploymentInput,
-  _facts: DeploymentFacts,
-  _now: Temporal.Instant,
-): Promise<readonly DoctorFinding[]> {
+function observerFindings(registries: readonly Registry[]): readonly DoctorFinding[] {
   const observers = new Map<string, readonly string[]>();
-  for (const registry of input.registries) {
+  for (const registry of registries) {
     for (const reaction of registry.reactions.values()) {
       if (reaction.on === 'all') observers.set(reaction.id, [...(reaction.except ?? [])].sort());
     }
@@ -31,3 +28,10 @@ export async function checkObservers(
       ),
     );
 }
+
+export const observersCheck: DeploymentCheck = defineCheck({
+  group: 'observers',
+  name: 'observers',
+  needs: ['registries'],
+  judge: ({ registries }) => observerFindings(registries),
+});

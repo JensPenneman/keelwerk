@@ -1,77 +1,116 @@
-import type { SecretRef } from '@keelwerk/core';
+import type { DeploymentDefinition, SecretRef } from '@keelwerk/core';
+import { absent } from './absent.ts';
+import { capabilitiesUsed } from './capabilities-used.ts';
 import { clusterOf } from './cluster-of.ts';
-import type { DeploymentFacts, PlacementFact, QueueFact, WorkFact } from './deployment-facts.ts';
+import type { ControlReader } from './control-reader.ts';
+import type { DeploymentFacts } from './deployment-facts.ts';
 import type { DeploymentInput } from './deployment-input.ts';
+import type { Fact } from './fact.ts';
+import { fallbackReporterOf } from './fallback-reporter-of.ts';
+import { known } from './known.ts';
+import { messageOf } from './message-of.ts';
 import { personalFieldsOf } from './personal-fields-of.ts';
-import { readAnchorFacts } from './read-anchor-facts.ts';
 import { secretPresent } from './secret-present.ts';
-import { workersOf } from './workers-of.ts';
+import { sqlNeedsOf } from './sql-needs-of.ts';
 
-const NO_WORK: WorkFact = {
-  deadLetters: 0,
-  parkedStreams: 0,
-  cappedLanes: 0,
-  unplaceable: 0,
-  externalTableDrift: [],
-};
+const noReader = "doctor does not read the control store's rows";
+const noReaderFix = 'nothing to do: doctor does not read the control store yet';
+
+/** A fact read through the control reader: absent without a reader, and absent with the message when the read fails. */
+async function readerFact<T>(
+  reader: ControlReader | undefined,
+  read: (reader: ControlReader) => Promise<T>,
+): Promise<Fact<T>> {
+  if (reader === undefined) return absent(noReader, noReaderFix);
+  try {
+    return known(await read(reader));
+  } catch (error) {
+    return absent(
+      `the control store could not be read: ${messageOf(error)}`,
+      'check that the control store answers at the url of the deployment file, then run doctor again',
+    );
+  }
+}
+
+async function socketFact(input: DeploymentInput): Promise<DeploymentFacts['socket']> {
+  const path = input.definition.operator?.socket;
+  if (path === undefined) return known(null);
+  const mode = await input.modeOf(path);
+  return mode === undefined
+    ? absent(
+        `the operator socket ${path} is declared and there is no file there where doctor runs`,
+        'run doctor on the machine that serves the operator socket, or correct `operator.socket`',
+      )
+    : known({ path, mode });
+}
+
+async function masterKeyFact(input: DeploymentInput): Promise<DeploymentFacts['masterKey']> {
+  const ref: SecretRef | undefined = input.definition.keys?.masterKey;
+  if (ref === undefined) return known({ declared: false, present: false });
+  try {
+    return known({
+      declared: true,
+      present: await secretPresent(ref, input.definition.infrastructure, input.env),
+    });
+  } catch (error) {
+    return absent(
+      `a secret provider failed to answer: ${messageOf(error)}`,
+      'repair the secret provider named in the deployment file, then run doctor again',
+    );
+  }
+}
+
+function clustersFact(input: DeploymentInput): DeploymentFacts['clusters'] {
+  const { definition, env } = input;
+  const control = clusterOf(definition.control, env);
+  const placements = Object.entries(definition.placements).map(([name, entry]) => ({
+    name,
+    cluster: clusterOf(entry, env),
+  }));
+  const located = placements.flatMap((entry) =>
+    entry.cluster === undefined ? [] : [{ name: entry.name, cluster: entry.cluster }],
+  );
+  if (control === undefined || located.length < placements.length) {
+    const unset = [
+      ...(control === undefined ? ['control'] : []),
+      ...placements.filter((entry) => entry.cluster === undefined).map((entry) => entry.name),
+    ];
+    return absent(
+      `the url of ${unset.join(', ')} reads an environment variable that is not set`,
+      'set the environment variable the url reads, then run doctor again',
+    );
+  }
+  return known({ control, placements: located });
+}
+
+function ledgerSinksOf(definition: DeploymentDefinition): number {
+  return definition.infrastructure.filter(
+    (entry) => typeof entry === 'object' && entry !== null && 'append' in entry && 'read' in entry,
+  ).length;
+}
 
 /**
- * Collects what the checks judge: the deployment definition (socket, master key, placements,
- * queues, anchors cadence) and, when a reader is given, the running state of its control store.
- * Without a reader the running facts stay empty and `controlReachable` is undefined.
+ * Collects what the checks judge, every fact a value or a reason: the deployment definition, the
+ * environment, the apps' declarations, the capabilities of the adapters doctor opened and, through
+ * the reader, the rows of the control store. A fact doctor has no source for is absent.
  */
 export async function readDeploymentFacts(input: DeploymentInput): Promise<DeploymentFacts> {
-  const { definition, reader } = input;
-  const placementFact = (
-    name: string,
-    entry: { readonly adapter: string; readonly [member: string]: unknown },
-  ): PlacementFact => ({
-    name,
-    adapter: entry.adapter,
-    cluster: clusterOf(entry, input.env),
-    capabilities: input.capabilities.get(name),
-  });
-  const socketPath = definition.operator?.socket;
-  const masterKey: SecretRef | undefined = definition.keys?.masterKey;
-  const depths = (await reader?.queueDepths?.()) ?? new Map();
-  const queues: QueueFact[] = Object.entries(definition.queues ?? {}).map(([name, caps]) => ({
-    name,
-    queued: depths.get(name)?.queued ?? 0,
-    running: depths.get(name)?.running ?? 0,
-    runningCap: caps.running,
-    workers: workersOf(definition, name),
-  }));
+  const { definition, reader, registries } = input;
   return {
-    socket:
-      socketPath === undefined
-        ? undefined
-        : { path: socketPath, mode: await input.modeOf(socketPath) },
-    masterKey: {
-      declared: masterKey !== undefined,
-      present:
-        masterKey !== undefined &&
-        (await secretPresent(masterKey, definition.infrastructure, input.env)),
-    },
-    controlReachable: await reader?.reachable(),
-    control: placementFact('control', definition.control),
-    placements: Object.entries(definition.placements).map(([name, entry]) =>
-      placementFact(name, entry),
-    ),
-    ledgerSinks: definition.infrastructure.filter(
-      (entry) =>
-        typeof entry === 'object' && entry !== null && 'append' in entry && 'read' in entry,
-    ).length,
-    hookFailures: (await reader?.hookFailures()) ?? [],
-    work: (await reader?.work?.()) ?? NO_WORK,
-    sqlNeeds: input.sqlNeeds ?? [],
-    queues,
-    processes: (await reader?.processes()) ?? [],
-    anchors: await readAnchorFacts(
-      definition.infrastructure,
-      definition.anchors?.every,
-      reader?.heads?.bind(reader),
-      reader?.anchorSinks?.(),
-    ),
-    personal: personalFieldsOf(input.registries),
+    socket: await socketFact(input),
+    masterKey: await masterKeyFact(input),
+    clusters: clustersFact(input),
+    ledgerSinks: known(ledgerSinksOf(definition)),
+    controlReachable: await readerFact(reader, (source) => source.reachable()),
+    hookFailures: await readerFact(reader, (source) => source.hookFailures()),
+    processes: await readerFact(reader, (source) => source.processes()),
+    bumpedMarks: await readerFact(reader, (source) => source.bumpedMarks()),
+    heldTenants: await readerFact(reader, (source) => source.heldTenants()),
+    registries: known(registries),
+    personalFields: known(personalFieldsOf(registries)),
+    sqlNeeds: known(sqlNeedsOf(definition.apps)),
+    fallbackReporter: known(fallbackReporterOf(definition.infrastructure)),
+    capabilitiesUsed: known(registries.length === 0 ? undefined : capabilitiesUsed(registries)),
+    placements: input.placements,
   };
 }

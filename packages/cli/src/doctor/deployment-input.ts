@@ -1,6 +1,6 @@
-import type { AdapterCapabilities, DeploymentDefinition, Registry } from '@keelwerk/core';
+import type { DeploymentDefinition, Registry } from '@keelwerk/core';
 import type { ControlReader } from './control-reader.ts';
-import type { SqlNeedFact } from './deployment-facts.ts';
+import type { PlacementFacts } from './deployment-facts.ts';
 
 /** What doctor is given about a deployment. */
 export interface DeploymentInput {
@@ -11,9 +11,8 @@ export interface DeploymentInput {
   readonly modeOf: (path: string) => Promise<number | undefined>;
   /** The composed registries of the selected apps, for the personal-data pass and the fallbacks they use. */
   readonly registries: readonly Registry[];
-  /** What each placement's adapter does natively, when the adapter was opened. Placement `control` is the control store. */
-  readonly capabilities: ReadonlyMap<string, AdapterCapabilities>;
+  /** Every placement, the control store first (named `control`), with the apps it hosts and what its adapter does natively or why doctor could not open it. */
+  readonly placements: readonly PlacementFacts[];
+  /** The control store's rows; undefined while doctor reads none. */
   readonly reader: ControlReader | undefined;
-  /** Modules that declare `data.needs` (section 14.3.8); none can until the declaration exists. */
-  readonly sqlNeeds?: readonly SqlNeedFact[];
 }

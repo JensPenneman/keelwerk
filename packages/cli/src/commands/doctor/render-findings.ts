@@ -1,6 +1,6 @@
 import type { DoctorFinding } from '../../doctor/doctor-finding.ts';
 
-/** Findings as text: one block per finding with its fix, then a count. */
+/** Findings as text: one block per finding with its fix, then the number of findings of each severity. */
 export function renderFindings(findings: readonly DoctorFinding[], layoutOnly: boolean): string {
   if (findings.length === 0) return layoutOnly ? 'layout: no findings' : 'doctor: no findings';
   const lines = findings.flatMap((finding) => [
@@ -10,7 +10,7 @@ export function renderFindings(findings: readonly DoctorFinding[], layoutOnly: b
   const count = (severity: DoctorFinding['severity']): number =>
     findings.filter((finding) => finding.severity === severity).length;
   lines.push(
-    `${count('error')} error(s), ${count('warning')} warning(s), ${count('note')} note(s)`,
+    `${count('error')} error(s), ${count('warning')} warning(s), ${count('note')} note(s), ${count('not-checked')} not checked`,
   );
   return lines.join('\n');
 }

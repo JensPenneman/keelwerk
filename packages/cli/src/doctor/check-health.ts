@@ -1,3 +1,5 @@
+import { defineCheck } from './define-check.ts';
+import type { DeploymentCheck } from './deployment-check.ts';
 import type { ProcessFact } from './deployment-facts.ts';
 import type { DoctorFinding } from './doctor-finding.ts';
 import { findingOf } from './finding-of.ts';
@@ -8,20 +10,7 @@ import { processGoneAfterMs } from './process-gone-after-ms.ts';
  * is not `ready`, or whose heartbeat is older than the presumed-gone age. A deployment with no
  * process row has no running process.
  */
-export function checkHealth(
-  processes: readonly ProcessFact[],
-  connected = true,
-): readonly DoctorFinding[] {
-  const gap = findingOf(
-    'health',
-    'note',
-    'app.health',
-    connected
-      ? 'app.health and app.ready are not invoked per backend: only the core.process rows are judged (sections 13.12 and 16.9.7)'
-      : 'health was not checked: doctor has no connection to a running deployment, so core.process, app.health and app.ready were not read (sections 13.12 and 16.9.7)',
-    'run doctor against a connected deployment once the CLI connects (WP-58)',
-  );
-  if (!connected) return [gap];
+function healthFindings(processes: readonly ProcessFact[]): readonly DoctorFinding[] {
   if (processes.length === 0) {
     return [
       findingOf(
@@ -31,7 +20,6 @@ export function checkHealth(
         'the control store lists no process',
         'start the deployment with keelwerk start',
       ),
-      gap,
     ];
   }
   const found: DoctorFinding[] = [];
@@ -60,5 +48,12 @@ export function checkHealth(
       );
     }
   }
-  return [...found, gap];
+  return found;
 }
+
+export const healthCheck: DeploymentCheck = defineCheck({
+  group: 'health',
+  name: 'processes',
+  needs: ['processes'],
+  judge: ({ processes }) => healthFindings(processes),
+});

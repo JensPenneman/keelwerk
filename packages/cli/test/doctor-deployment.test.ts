@@ -1,259 +1,176 @@
-import type { AdapterCapabilities, DeploymentDefinition, LedgerRecord } from '@keelwerk/core';
+import type { DeploymentDefinition } from '@keelwerk/core';
 import { env } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
-import { checkAnchors } from '../src/doctor/check-anchors.ts';
-import { checkDeployment } from '../src/doctor/check-deployment.ts';
-import { checkHealth } from '../src/doctor/check-health.ts';
-import { checkPersonalFields } from '../src/doctor/check-personal-fields.ts';
-import { checkQueuesWithoutWorkers } from '../src/doctor/check-queues-without-workers.ts';
-import { readDeploymentFacts } from '../src/doctor/read-deployment-facts.ts';
-import { definitionOf, keyEnvironment } from './support/deployment-definition-of.ts';
+import type { ControlReader } from '../src/doctor/control-reader.ts';
+import { deploymentChecks } from '../src/doctor/deployment-checks.ts';
+import type { DeploymentInput } from '../src/doctor/deployment-input.ts';
+import type { DoctorFinding } from '../src/doctor/doctor-finding.ts';
+import { unfedChecks } from '../src/doctor/unfed-checks.ts';
+import { definitionOf } from './support/deployment-definition-of.ts';
+import { input, judged, notChecked, sink, unfedNotes } from './support/deployment-input-of.ts';
 
-const anchor = (scopeId: string, position: string, recordedAt: string): LedgerRecord => ({
-  type: 'anchor',
-  scopeId,
-  position,
-  hash: 'h',
-  stream: { type: 'core.tenant', id: scopeId },
-  recordedAt,
-  writer: { process: 'p', build: 'b' },
-});
-
-describe('the deployment', () => {
-  const input = (definition: DeploymentDefinition, mode: number | undefined = 0o600) => ({
-    definition,
-    env: keyEnvironment,
-    modeOf: async () => mode,
-    registries: [],
-    capabilities: new Map<string, AdapterCapabilities>(),
-    reader: undefined,
-  });
-
-  test('a sound deployment has no error', async () => {
-    const facts = await readDeploymentFacts(
-      input(
-        definitionOf({
-          infrastructure: [{ id: 's', append: async () => undefined, read: async function* () {} }],
-        }),
-      ),
+describe('the deployment checks', () => {
+  test('a sound deployment has nothing but lines for the checks that did not run and notes for the checks doctor does not have', async () => {
+    const found = await deploymentChecks(input(definitionOf({ infrastructure: [sink()] })));
+    expect(judged(found)).toEqual([]);
+    expect(notChecked(found).length).toBeGreaterThan(0);
+    // a sink is configured and no app declares a personal field: the anchor entries apply, the sampled ones do not
+    expect(unfedNotes(found).map((finding) => finding.subject)).toEqual(
+      unfedChecks.filter((check) => check.group !== 'personal-fields').map((check) => check.name),
     );
-    expect(checkDeployment(facts)).toEqual([]);
   });
 
-  test('an open socket, a missing master key and a control store sharing the placements cluster', async () => {
-    const facts = await readDeploymentFacts({
-      ...input(definitionOf(), 0o666),
-      env: {},
-    });
-    expect(checkDeployment(facts).map((finding) => [finding.severity, finding.message])).toEqual([
-      ['error', 'the operator socket has mode 666, so other users can reach it'],
-      ['error', 'the master key secret is not available to this process'],
+  test('the operator socket: no file where doctor runs is not checked, an open mode is an error, no socket is nothing', async () => {
+    const named = (found: readonly DoctorFinding[]) =>
+      found.filter(
+        (finding) =>
+          finding.subject === 'operator socket mode' || finding.subject === '/run/keelwerk.sock',
+      );
+    const missing = await deploymentChecks(
+      input(definitionOf(), { modeOf: async () => undefined }),
+    );
+    expect(
+      named(missing).map((finding) => [finding.severity, finding.message, finding.fix]),
+    ).toEqual([
       [
-        'warning',
-        'the control store shares a cluster with main and no ledger sink is configured, so a restored backup cannot be detected',
+        'not-checked',
+        'the operator socket /run/keelwerk.sock is declared and there is no file there where doctor runs',
+        'run doctor on the machine that serves the operator socket, or correct `operator.socket`',
       ],
     ]);
+    const open = await deploymentChecks(input(definitionOf(), { modeOf: async () => 0o666 }));
+    expect(named(open).map((finding) => [finding.severity, finding.message])).toEqual([
+      ['error', 'the operator socket has mode 666, so other users can reach it'],
+    ]);
+    const { operator: _operator, ...none } = definitionOf();
+    expect(named(await deploymentChecks(input(none, { modeOf: async () => undefined })))).toEqual(
+      [],
+    );
+  });
+
+  test('the master key: not declared and not available are errors; a provider that rejects is not checked', async () => {
     const { keys: _keys, ...keyless } = definitionOf();
-    const none = await readDeploymentFacts(input(keyless));
-    expect(checkDeployment(none).map((finding) => finding.subject)).toContain('keys.masterKey');
-  });
-
-  test('urls read through env() resolve against the environment before the clusters compare', async () => {
-    const urls = (control: string, main: string) =>
-      readDeploymentFacts({
-        ...input(
-          definitionOf({
-            control: { adapter: 'postgres', url: env('CONTROL_URL') },
-            placements: { main: { adapter: 'postgres', url: env('MAIN_URL') } },
-          }),
-        ),
-        env: Object.fromEntries([
-          ['KW_KEY', 'x'],
-          ['CONTROL_URL', control],
-          ['MAIN_URL', main],
-        ]),
-      });
-    const apart = await urls('postgres://db1:5432/c', 'postgres://db2:5432/a');
-    expect(apart.control.cluster).toBe('postgres://db1:5432');
-    expect(apart.placements[0]?.cluster).toBe('postgres://db2:5432');
-    expect(checkDeployment(apart).map((finding) => finding.severity)).toEqual([]);
-    const together = await urls('postgres://db1:5432/c', 'postgres://db1:5432/a');
-    expect(checkDeployment(together).map((finding) => finding.severity)).toEqual(['warning']);
-    const unset = await readDeploymentFacts({
-      ...input(definitionOf({ control: { adapter: 'postgres', url: env('NOT_SET') } })),
-    });
-    expect(unset.control.cluster).toBeUndefined();
-    expect(checkDeployment(unset)).toEqual([]);
-  });
-
-  test('queues that hold work and have no worker (S-24)', async () => {
-    const definition = definitionOf({
-      queues: { mail: { queued: 10 }, reports: {} },
-      processes: { web: { roles: ['serve'] }, jobs: { roles: ['work'], slots: { reports: 2 } } },
-    });
-    const facts = await readDeploymentFacts({
-      ...input(definition),
-      reader: {
-        reachable: async () => ({ reachable: true, detail: '' }),
-        processes: async () => [],
-        hookFailures: async () => [],
-        queueDepths: async () =>
-          new Map([
-            ['mail', { queued: 9, running: 0 }],
-            ['reports', { queued: 3, running: 1 }],
-          ]),
-      },
-    });
-    expect(checkQueuesWithoutWorkers(facts.queues).map((finding) => finding.subject)).toEqual([
-      'mail',
+    const subjects = async (definition: DeploymentDefinition, over: Partial<DeploymentInput>) =>
+      (await deploymentChecks(input(definition, over))).filter(
+        (finding) => finding.subject === 'keys.masterKey' || finding.subject === 'master key',
+      );
+    expect((await subjects(keyless, {})).map((finding) => finding.message)).toEqual([
+      'the deployment declares no master key',
     ]);
-    // A queued cap is a limit per tenant and queue: no line compares a deployment-wide depth with it.
-    expect(
-      checkDeployment(facts).filter((finding) => finding.message.includes('queued jobs')),
-    ).toEqual([]);
-  });
-
-  test('anchors: stale, rewound and refused (S-35)', async () => {
-    const sink = {
-      id: 'ledger',
-      append: async () => undefined,
-      read: async function* () {
-        yield anchor('t1', '10', '2026-11-05T09:00:00Z');
-        yield anchor('t1', '12', '2026-11-05T09:30:00Z');
-        yield anchor('t2', '5', '2026-11-05T09:59:00Z');
-      },
-    };
-    const facts = await readDeploymentFacts({
-      ...input(definitionOf({ infrastructure: [sink], anchors: { every: 'PT15M' } })),
-      reader: {
-        reachable: async () => ({ reachable: true, detail: '' }),
-        processes: async () => [],
-        hookFailures: async () => [],
-        heads: async () =>
-          new Map([
-            ['t1', '9'],
-            ['t2', '5'],
-          ]),
-      },
-    });
-    expect(
-      facts.anchors.scopes.map((scope) => [scope.scopeId, scope.anchored, scope.head]),
-    ).toEqual([
-      ['t1', '12', '9'],
-      ['t2', '5', '5'],
-    ]);
-    const found = checkAnchors(
-      {
-        ...facts.anchors,
-        refusedAppends: 1,
-        refusedSinks: [
-          {
-            sink: 'ledger',
-            refusedAppends: 1,
-            lastFailure: { at: '2026-11-05T09:58:00Z', message: 'disk full' },
+    expect((await subjects(definitionOf(), { env: {} })).map((finding) => finding.message)).toEqual(
+      ['the master key secret is not available to this process'],
+    );
+    const failing = definitionOf({
+      infrastructure: [
+        {
+          resolve: async () => {
+            throw new Error('the vault does not answer');
           },
-        ],
-      },
-      Temporal.Instant.from('2026-11-05T10:00:00Z'),
-    );
-    expect(found.map((finding) => [finding.severity, finding.subject])).toEqual([
-      ['error', 't1'],
-      ['warning', 't1'],
-      ['error', 'ledger'],
-    ]);
-    expect(found.at(-1)?.message).toContain('disk full');
-  });
-
-  test('the personal-data pass warns about weak settings', () => {
-    const base = {
-      kind: 'string',
-      queries: ['eq'],
-      keys: 'subject' as const,
-      normalizer: 'email/1',
-      prefixMin: 3,
-      containsBits: 8,
-      searchKeys: [],
-      distinctValues: undefined,
-      indexRows: undefined,
-      indexBytes: undefined,
-      failedReindexJobs: 0,
-      plaintextBackups: false,
-      otherUnicodeVersion: false,
-    };
-    const found = checkPersonalFields([
-      { ...base, field: 'a.b.flag', kind: 'boolean' },
-      { ...base, field: 'a.b.few', distinctValues: 12 },
-      {
-        ...base,
-        field: 'a.b.name',
-        queries: ['prefix', 'contains', 'order'],
-        prefixMin: 1,
-        containsBits: 16,
-        searchKeys: ['tenant' as const],
-        failedReindexJobs: 2,
-        plaintextBackups: true,
-        otherUnicodeVersion: true,
-      },
-      { ...base, field: 'a.b.ok' },
-    ]);
-    const notes = found.filter((finding) => finding.severity === 'note');
-    expect(notes.map((finding) => finding.subject)).toEqual([
-      'a.b.flag',
-      'a.b.few',
-      'a.b.name',
-      'a.b.ok',
-    ]);
-    expect(notes.at(3)?.message).toContain('key scope:');
-    expect(notes.at(3)?.message).toContain('normaliser:');
-    expect(notes.at(3)?.message).toContain('leaks: none');
-    expect(notes.at(2)?.message).toContain('leaks: prefix.min is 1');
-    expect(
-      found.filter((finding) => finding.severity === 'warning').map((finding) => finding.subject),
-    ).toEqual([
-      'a.b.flag',
-      'a.b.few',
-      'a.b.name',
-      'a.b.name',
-      'a.b.name',
-      'a.b.name',
-      'a.b.name',
-      'a.b.name',
-      'a.b.name',
-    ]);
-  });
-
-  test('health: not ready and presumed gone', () => {
-    const process = {
-      id: 'p',
-      name: 'web',
-      roles: ['serve'],
-      state: 'ready',
-      heartbeatAgeMs: 1000,
-    };
-    expect(checkHealth([process]).map((finding) => finding.severity)).toEqual(['note']);
-    expect(checkHealth([process], false).map((finding) => finding.message)).toEqual([
-      expect.stringContaining('doctor has no connection to a running deployment'),
-    ]);
-    expect(checkHealth([{ ...process, state: 'starting' }])[0]?.message).toBe(
-      'process web is starting, not ready',
-    );
-    expect(checkHealth([{ ...process, heartbeatAgeMs: 45_000 }])[0]?.message).toContain(
-      'presumed gone',
-    );
-    expect(checkHealth([])[0]?.subject).toBe('processes');
-  });
-
-  test('raw-SQL needs: a module that needs a dialect its placement lacks', async () => {
-    const capabilities = new Map<string, AdapterCapabilities>([
-      ['main', { sql: false } as AdapterCapabilities],
-    ]);
-    const facts = await readDeploymentFacts({
-      ...input(definitionOf()),
-      capabilities,
-      sqlNeeds: [{ module: 'mail-store', dialect: 'postgres' }],
+        },
+      ],
     });
-    expect(checkDeployment(facts).map((finding) => finding.message)).toContain(
-      'module mail-store needs raw SQL (postgres) and the postgres adapter of placement main offers none',
+    expect(
+      (await subjects(failing, {})).map((finding) => [
+        finding.severity,
+        finding.message,
+        finding.fix,
+      ]),
+    ).toEqual([
+      [
+        'not-checked',
+        'a secret provider failed to answer: the vault does not answer',
+        'repair the secret provider named in the deployment file, then run doctor again',
+      ],
+    ]);
+  });
+
+  test('urls read through env() resolve before the clusters compare; one that cannot resolve is not checked', async () => {
+    const definition = definitionOf({
+      control: { adapter: 'postgres', url: env('CONTROL_URL') },
+      placements: { main: { adapter: 'postgres', url: env('MAIN_URL') } },
+    });
+    const cluster = async (control: string | undefined, main: string | undefined) =>
+      (
+        await deploymentChecks(
+          input(definition, {
+            env: Object.fromEntries([
+              ['KW_KEY', 'x'],
+              ...(control === undefined ? [] : [['CONTROL_URL', control]]),
+              ...(main === undefined ? [] : [['MAIN_URL', main]]),
+            ]),
+          }),
+        )
+      ).filter(
+        (finding) =>
+          finding.subject === 'control store shares a cluster' ||
+          finding.subject === 'control store',
+      );
+    expect(await cluster('postgres://db1:5432/c', 'postgres://db2:5432/a')).toEqual([]);
+    const shared = await cluster('postgres://db1:5432/c', 'postgres://db1:5432/a');
+    expect(shared.map((finding) => finding.severity)).toEqual(['warning']);
+    expect(shared[0]?.message).toContain('shares a cluster with main and no ledger sink');
+    const placementUnset = await cluster('postgres://db1:5432/c', undefined);
+    expect(placementUnset.map((finding) => [finding.severity, finding.message])).toEqual([
+      ['not-checked', 'the url of main reads an environment variable that is not set'],
+    ]);
+    const unset = await cluster(undefined, 'postgres://db1:5432/a');
+    expect(unset.map((finding) => [finding.severity, finding.message, finding.fix])).toEqual([
+      [
+        'not-checked',
+        'the url of control reads an environment variable that is not set',
+        'set the environment variable the url reads, then run doctor again',
+      ],
+    ]);
+  });
+
+  test('a ledger sink in the infrastructure silences the shared cluster warning', async () => {
+    const found = await deploymentChecks(input(definitionOf({ infrastructure: [sink()] })));
+    expect(found.map((finding) => finding.subject)).not.toContain('control store');
+  });
+
+  test('without a reader every check of the control store is not checked with the one reason, and nothing else is said of them', async () => {
+    const found = await deploymentChecks(input(definitionOf({ infrastructure: [sink()] })));
+    const reasons = notChecked(found).filter(
+      (finding) => finding.message === "doctor does not read the control store's rows",
+    );
+    expect(reasons.map((finding) => finding.subject).sort()).toEqual([
+      'control store reachable',
+      'epoch bumps',
+      'failed tenant hooks',
+      'held tenants',
+      'processes',
+    ]);
+    expect(found.map((finding) => finding.message).join('\n')).not.toContain('lists no process');
+  });
+
+  test('a reader that fails on one member leaves the others judged', async () => {
+    const reader: ControlReader = {
+      reachable: async () => ({ reachable: true, detail: 'answered' }),
+      processes: async () => {
+        throw new Error('the read timed out');
+      },
+      hookFailures: async () => [{ hookId: 'billing.onTenantCreated', tenantId: 'tnt_2' }],
+      bumpedMarks: async () => [],
+      heldTenants: async () => [],
+    };
+    const found = await deploymentChecks(
+      input(definitionOf({ infrastructure: [sink()] }), { reader }),
+    );
+    expect(
+      found
+        .filter((finding) => finding.check === 'health')
+        .map((finding) => [finding.severity, finding.subject, finding.message, finding.fix]),
+    ).toContainEqual([
+      'not-checked',
+      'processes',
+      'the control store could not be read: the read timed out',
+      'check that the control store answers at the url of the deployment file, then run doctor again',
+    ]);
+    expect(found.map((finding) => finding.message)).toContain(
+      'the lifecycle hook billing.onTenantCreated failed for tenant tnt_2',
+    );
+    expect(found.map((finding) => finding.message)).not.toContain(
+      'the control store lists no process',
     );
   });
 });

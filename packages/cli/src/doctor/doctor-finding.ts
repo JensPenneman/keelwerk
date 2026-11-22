@@ -1,5 +1,9 @@
-/** How serious a finding is: an error fails `keelwerk doctor`, a warning does not, a note informs. */
-export type DoctorSeverity = 'error' | 'note' | 'warning';
+/**
+ * How serious a finding is: an error fails `keelwerk doctor`, a warning does not, a note informs.
+ * `not-checked` says a check doctor has did not get a fact it needs on this run, with the reason;
+ * it fails doctor only under `--strict`. A check that no source feeds is a note, never this.
+ */
+export type DoctorSeverity = 'error' | 'note' | 'not-checked' | 'warning';
 
 /** One thing doctor found, with the fix it names. Doctor never edits. */
 export interface DoctorFinding {

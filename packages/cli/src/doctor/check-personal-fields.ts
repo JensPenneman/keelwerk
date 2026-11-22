@@ -1,11 +1,11 @@
+import { defineCheck } from './define-check.ts';
+import type { DeploymentCheck } from './deployment-check.ts';
 import type { PersonalFieldFact } from './deployment-facts.ts';
 import type { DoctorFinding } from './doctor-finding.ts';
 import { findingOf } from './finding-of.ts';
 
-/** The personal-data pass (section 14.7.9.12): a note per personal field with its capabilities, key scope, normaliser and index size, then a warning for each leak or weak setting. */
-export function checkPersonalFields(
-  fields: readonly PersonalFieldFact[],
-): readonly DoctorFinding[] {
+/** The personal-data pass (section 14.7.9.12): a note per personal field with its capabilities, key scope and normaliser, then a warning for each leak or weak setting the declarations show. */
+function personalFieldFindings(fields: readonly PersonalFieldFact[]): readonly DoctorFinding[] {
   const found: DoctorFinding[] = [];
   const check = 'personal-fields';
   for (const field of fields) {
@@ -17,15 +17,6 @@ export function checkPersonalFields(
       warn(
         `an equality index on a ${field.kind} field reveals the value to anyone who sees the index`,
         'drop the personal declaration, or the equality queries',
-      );
-    } else if (
-      field.queries.includes('eq') &&
-      field.distinctValues !== undefined &&
-      field.distinctValues < 1000
-    ) {
-      warn(
-        `an equality index on a field with ${field.distinctValues} distinct values (under 1,000)`,
-        'truncate eq.bits so collisions hide the value (2 <= collisions < sqrt(P)), or drop the index',
       );
     }
     if (field.queries.includes('prefix') && field.prefixMin < 3) {
@@ -46,29 +37,7 @@ export function checkPersonalFields(
         'key the index by subject',
       );
     }
-    if (field.otherUnicodeVersion) {
-      warn(
-        'its indexes were built under another Unicode version',
-        'reindex the field (keelwerk db reindex)',
-      );
-    }
-    if (field.failedReindexJobs > 0) {
-      warn(
-        `${field.failedReindexJobs} reindex job(s) failed`,
-        'fix the cause and run the reindex again',
-      );
-    }
-    if (field.plaintextBackups) {
-      warn(
-        'a backup still holds plaintext of the field, made personal later',
-        'expire or re-encrypt the backup',
-      );
-    }
     const leaks = found.slice(before).map((finding) => finding.message);
-    const index =
-      field.indexRows === undefined || field.indexBytes === undefined
-        ? 'not sampled'
-        : `${field.indexRows} rows, ${field.indexBytes} bytes`;
     found.splice(
       before,
       0,
@@ -76,10 +45,17 @@ export function checkPersonalFields(
         check,
         'note',
         field.field,
-        `capabilities: ${field.queries.join(', ') || 'none'}; key scope: ${field.keys}; normaliser: ${field.normalizer}; index: ${index}; leaks: ${leaks.length === 0 ? 'none' : leaks.join('; ')}`,
+        `capabilities: ${field.queries.join(', ') || 'none'}; key scope: ${field.keys}; normaliser: ${field.normalizer}; leaks: ${leaks.length === 0 ? 'none' : leaks.join('; ')}`,
         'none needed',
       ),
     );
   }
   return found;
 }
+
+export const personalFieldsCheck: DeploymentCheck = defineCheck({
+  group: 'personal-fields',
+  name: 'personal fields',
+  needs: ['personalFields'],
+  judge: ({ personalFields }) => personalFieldFindings(personalFields),
+});

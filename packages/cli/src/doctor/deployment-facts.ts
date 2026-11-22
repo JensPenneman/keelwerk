@@ -1,29 +1,16 @@
-import type { AdapterCapabilities, AnchorSinkStatus } from '@keelwerk/core';
+import type { AdapterCapabilities, FallbackReporter, Registry, ScopeMark } from '@keelwerk/core';
+import type { Fact } from './fact.ts';
 
-/** The operator socket: where it is and its file mode, undefined when the file is not there. */
+/** The operator socket: where it is and its file mode. */
 interface SocketFact {
   readonly path: string;
-  readonly mode: number | undefined;
+  readonly mode: number;
 }
 
-/** One scope against its newest anchor in the ledger sinks (S-35). */
-interface AnchorFact {
-  readonly scopeId: string;
-  /** Decimal position of the newest anchor. */
-  readonly anchored: string;
-  readonly anchoredAt: string;
-  /** Decimal head position now; undefined when the scope could not be read. */
-  readonly head: string | undefined;
-}
-
-/** A placement, the control store included: which adapter, which cluster, and what the adapter does natively. */
-export interface PlacementFact {
-  readonly name: string;
-  readonly adapter: string;
-  /** Adapter and host; two placements with the same cluster share a database server. Undefined when the url cannot be resolved. */
-  readonly cluster: string | undefined;
-  /** Undefined when the adapter was not opened (doctor does not connect on its own). */
-  readonly capabilities: AdapterCapabilities | undefined;
+/** The cluster of the control store and of each placement: adapter and host. */
+interface ClustersFact {
+  readonly control: string;
+  readonly placements: readonly { readonly name: string; readonly cluster: string }[];
 }
 
 /** One row of `core.process`. */
@@ -35,42 +22,15 @@ export interface ProcessFact {
   readonly heartbeatAgeMs: number;
 }
 
-/** A lifecycle hook that failed for a tenant and has not completed since (S-27). */
+/** A lifecycle hook that failed for a tenant and has not completed since. */
 export interface HookFailureFact {
   readonly hookId: string;
   readonly tenantId: string;
 }
 
-/** A queue's depth against its running cap, and how many processes work it. */
-export interface QueueFact {
-  readonly name: string;
-  readonly queued: number;
-  readonly running: number;
-  readonly runningCap: number | undefined;
-  readonly workers: number;
-}
-
-/** Counters of work that is stuck (sections 9.5.5 and 21.2). */
-export interface WorkFact {
-  readonly deadLetters: number;
-  readonly parkedStreams: number;
-  readonly cappedLanes: number;
-  readonly unplaceable: number;
-  readonly externalTableDrift: readonly string[];
-}
-
-export interface AnchorFacts {
-  /** The cadence in milliseconds; undefined for `'batch'` or when the deployment sets none. */
-  readonly cadenceMs: number | undefined;
-  readonly scopes: readonly AnchorFact[];
-  /** Appends the ledger sinks refused, summed over the sinks. */
-  readonly refusedAppends: number;
-  /** The sinks that refused at least one append, with the last failure of each. */
-  readonly refusedSinks: readonly AnchorSinkStatus[];
-}
-
-/** A module that needs a raw-SQL dialect (`data.needs`, section 14.3.8). */
+/** A module of an app that needs a raw-SQL dialect (`data.sql`, or a `{ sql }` entry of `data.needs`). */
 export interface SqlNeedFact {
+  readonly app: string;
   readonly module: string;
   readonly dialect: string;
 }
@@ -86,30 +46,42 @@ export interface PersonalFieldFact {
   readonly containsBits: number;
   /** The key scope of each token search index that covers the field. */
   readonly searchKeys: readonly ('subject' | 'tenant')[];
-  /** Distinct values in a tenant, when the deployment was sampled. */
-  readonly distinctValues: number | undefined;
-  readonly indexRows: number | undefined;
-  readonly indexBytes: number | undefined;
-  /** Reindex jobs that failed, backups holding plaintext of the field, indexes built under another Unicode version. */
-  readonly failedReindexJobs: number;
-  readonly plaintextBackups: boolean;
-  readonly otherUnicodeVersion: boolean;
 }
 
-/** What doctor knows of a deployment before it judges it. */
-export interface DeploymentFacts {
-  readonly socket: SocketFact | undefined;
+/**
+ * Every deployment-wide fact a check can ask for, as a plain type. `DeploymentFacts` makes each
+ * one a `Fact`, so a fact that doctor cannot get is a reason and never a default.
+ */
+export interface FactValues {
+  /** `null` when the deployment declares no operator socket. */
+  readonly socket: SocketFact | null;
   readonly masterKey: { readonly declared: boolean; readonly present: boolean };
-  /** Undefined when doctor had no control store to ask. */
-  readonly controlReachable: { readonly reachable: boolean; readonly detail: string } | undefined;
-  readonly control: PlacementFact;
-  readonly placements: readonly PlacementFact[];
+  readonly clusters: ClustersFact;
   readonly ledgerSinks: number;
+  readonly controlReachable: { readonly reachable: boolean; readonly detail: string };
   readonly hookFailures: readonly HookFailureFact[];
-  readonly work: WorkFact;
-  readonly sqlNeeds: readonly SqlNeedFact[];
-  readonly queues: readonly QueueFact[];
   readonly processes: readonly ProcessFact[];
-  readonly anchors: AnchorFacts;
-  readonly personal: readonly PersonalFieldFact[];
+  readonly bumpedMarks: readonly ScopeMark[];
+  readonly heldTenants: readonly string[];
+  readonly registries: readonly Registry[];
+  readonly personalFields: readonly PersonalFieldFact[];
+  readonly sqlNeeds: readonly SqlNeedFact[];
+  readonly fallbackReporter: FallbackReporter | undefined;
+  /** The capabilities the apps lean on; undefined when no app registry is composed. */
+  readonly capabilitiesUsed: ReadonlySet<string> | undefined;
 }
+
+/** A placement, the control store included (named `control`). */
+export interface PlacementFacts {
+  readonly name: string;
+  readonly adapter: string;
+  /** The ids of the apps the placement hosts; none for the control store. */
+  readonly apps: readonly string[];
+  /** What the adapter does natively, when doctor could open it. */
+  readonly capabilities: Fact<AdapterCapabilities>;
+}
+
+/** What doctor knows of a deployment before it judges it: every fact, each a value or a reason. */
+export type DeploymentFacts = { readonly [K in keyof FactValues]: Fact<FactValues[K]> } & {
+  readonly placements: readonly PlacementFacts[];
+};

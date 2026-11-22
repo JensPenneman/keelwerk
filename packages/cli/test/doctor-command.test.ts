@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import clean from './layout-fixtures/clean.json' with { type: 'json' };
 import { materialise, removeTrees, writeManifests } from './layout-fixtures/materialise-tree.ts';
 import { createFakeHost } from './support/fake-host.ts';
+import { pnpmAnswer } from './support/pnpm-answer.ts';
 import { runCliWith } from './support/run-cli-with.ts';
 
 afterEach(removeTrees);
@@ -44,6 +45,7 @@ describe('the doctor command on a deployment', () => {
       const config = join(configDir, 'keelwerk.config.ts');
       await writeFile(config, configText);
       const host = createFakeHost({
+        spawn: pnpmAnswer,
         cwd: dir,
         files: {
           [`${dir}/pnpm-workspace.yaml`]: 'packages:\n  - packages/*\n',
@@ -56,11 +58,12 @@ describe('the doctor command on a deployment', () => {
       );
       const findings = JSON.parse(result.stdout) as {
         check: string;
+        severity: string;
         subject: string;
         message: string;
       }[];
       const fallbacks = findings.filter((finding) => finding.check === 'fallbacks');
-      expect(fallbacks.some((finding) => finding.message.includes('was not opened'))).toBe(false);
+      expect(fallbacks.some((finding) => finding.severity === 'not-checked')).toBe(false);
       expect(
         fallbacks.filter((finding) => finding.subject === 'main').map((finding) => finding.message),
       ).toContainEqual(expect.stringContaining('rowLocks is absent'));

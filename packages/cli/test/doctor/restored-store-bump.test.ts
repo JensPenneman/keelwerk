@@ -9,10 +9,11 @@ import {
 } from '@keelwerk/testing';
 import { libraryApp } from '@keelwerk/testing/fixtures';
 import { afterEach, expect, test } from 'vitest';
-import { checkEpochBumps } from '../../src/doctor/check-epoch-bumps.ts';
+import { epochBumpsCheck } from '../../src/doctor/check-epoch-bumps.ts';
 import { controlReaderOf } from '../../src/doctor/control-reader-of.ts';
-import type { DeploymentFacts } from '../../src/doctor/deployment-facts.ts';
-import type { DeploymentInput } from '../../src/doctor/deployment-input.ts';
+import { known } from '../../src/doctor/known.ts';
+import { runDeploymentChecks } from '../../src/doctor/run-deployment-checks.ts';
+import { factsOf } from '../support/facts-of.ts';
 
 const roots: string[] = [];
 const stops: (() => Promise<void>)[] = [];
@@ -70,10 +71,9 @@ test('doctor lists the bump of a restored placement, read through the control st
     },
     () => Temporal.Now.instant(),
   );
-  const found = await checkEpochBumps(
-    { reader } as unknown as DeploymentInput,
-    {} as DeploymentFacts,
-    Temporal.Now.instant(),
+  const found = runDeploymentChecks(
+    [epochBumpsCheck],
+    factsOf({ bumpedMarks: known(await reader.bumpedMarks()) }),
   );
   expect(found.length).toBeGreaterThan(0);
   expect(found.every((finding) => finding.check === 'epoch-bumps')).toBe(true);
