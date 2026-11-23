@@ -82,6 +82,10 @@ export const coreErrorCodes: Readonly<Record<CoreErrorCode, ErrorSpec>> = Object
     message: 'The history before this point was compacted.',
   },
   'core.queue_full': { kind: 'rate_limited', message: 'The queue is full.' },
+  'core.concurrency_limited': {
+    kind: 'rate_limited',
+    message: 'Too many invocations, subscriptions or connections are open.',
+  },
   'core.command_id_reserved': {
     kind: 'validation',
     message: 'The command id is in the form the kernel reserves for its own commands.',

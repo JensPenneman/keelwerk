@@ -30,6 +30,11 @@ interface HostDeps {
   readonly timers?: LiveTimers;
   /** The fill of `core.liveCarriers` named `name` of a served app; undefined without one. */
   liveCarrier?(appId: string, name: string): LiveCarrier | undefined;
+  /**
+   * Counts a stream or socket of the session against the deployment-wide `core.liveConnections`;
+   * answers its release; refuses past the limit.
+   */
+  holdConnection?(session: InvocationSession): Promise<() => void>;
 }
 
 /** The running host: the transports' `TransportHost` plus the lifecycle the runtime drives. */

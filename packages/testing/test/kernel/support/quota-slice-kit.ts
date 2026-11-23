@@ -11,6 +11,7 @@ import {
   field,
   setTimer,
   shape,
+  targetingRefreshMs,
 } from '@keelwerk/core';
 import { memoryAdapter } from '@keelwerk/data';
 import { onTestFinished } from 'vitest';
@@ -18,6 +19,7 @@ import { startTestRuntime } from '../../../src/harness/start-test-runtime.ts';
 import { testCarrier } from '../../../src/harness/test-carrier.ts';
 import { testPrincipal } from '../../../src/harness/test-principal.ts';
 import type { TestRuntimeOptions } from '../../../src/harness/test-runtime-options.ts';
+import { movableClock } from './movable-clock.ts';
 
 const note = defineEntity({ prefix: 'sln', fields: { text: field.string({ maxLength: 80 }) } });
 const sliceBase = defineModuleBase({ id: 'slice', version: '0.1.0', entities: { note } });
@@ -176,8 +178,12 @@ interface StoreOp {
   readonly queue: string;
 }
 
-/** The in-memory adapter whose job store logs each enqueue, take and completion in one list, in order. */
-function loggedStore(log: StoreOp[]): DataAdapterFactory {
+/**
+ * The in-memory adapter whose job store logs each enqueue, take and completion in one list, in
+ * order. `hold`, when given, is awaited before each enqueue is made, with the tenant it is for: a
+ * test keeps a command inside its unit there.
+ */
+function loggedStore(log: StoreOp[], hold?: (tenant: string) => Promise<void>): DataAdapterFactory {
   const base = memoryAdapter({
     entities: (ref) => sliceApp.registry.entities.get(ref)?.descriptor,
   });
@@ -200,6 +206,7 @@ function loggedStore(log: StoreOp[]): DataAdapterFactory {
                 jobs: {
                   ...unit.jobs,
                   enqueue: async (job) => {
+                    await hold?.(tenantOf(job.scope));
                     const id = await unit.jobs.enqueue(job);
                     log.push({ op: 'enqueue', tenant: tenantOf(job.scope), queue: job.queue });
                     return id;
@@ -235,22 +242,30 @@ function loggedStore(log: StoreOp[]): DataAdapterFactory {
 async function bootSlice(
   options: TestRuntimeOptions<'acme' | 'globex'> & {
     readonly log?: StoreOp[];
+    /** Awaited before each enqueue of the job store, with the tenant it is for (see `loggedStore`). */
+    readonly hold?: (tenant: string) => Promise<void>;
     /** The slice app with a resolver of the test's own added. */
     readonly app?: typeof sliceApp;
   } = {},
 ) {
-  const { log, app = sliceApp, ...rest } = options;
+  const { log, hold, app = sliceApp, ...rest } = options;
+  const moving = movableClock('2026-11-22T08:00:00Z');
   const runtime = await startTestRuntime(app, {
     operators: true,
     tenants: ['acme', 'globex'],
-    clock: { now: () => Temporal.Instant.from('2026-11-22T08:00:00Z') },
-    ...(log === undefined
+    clock: moving.clock,
+    ...(log === undefined && hold === undefined
       ? {}
-      : { external: { factory: loggedStore(log), url: 'memory://quota-slice' } }),
+      : { external: { factory: loggedStore(log ?? [], hold), url: 'memory://quota-slice' } }),
     ...rest,
   });
   onTestFinished(() => runtime.stop());
-  return runtime;
+  // The start writes the limits of `config.core.quotas` to the control store, and the quota cache
+  // reads them when its feed wakes or when its rows are older than the bound: the clock moves past
+  // it, so the first request reads them whichever of the two comes first.
+  moving.step(targetingRefreshMs + 1);
+  // From here the clock stands still until a case moves it (`setFreshLimit` does).
+  return Object.assign(runtime, { step: moving.step });
 }
 
 type SliceRuntime = Awaited<ReturnType<typeof bootSlice>>;
@@ -272,6 +287,28 @@ function setTenantLimit(
   });
 }
 
+/**
+ * `setTenantLimit`, then the case's clock moves past the refresh bound of the quota cache. The
+ * cache follows the control feed, but a request that comes while a reload is still running joins
+ * that reload and may read the rows from before the set. The step makes the reload old by a bound,
+ * so the cache loads once more for each request that joined it (and a request that comes with no
+ * reload running loads at once), whichever of the feed's wake and the requests comes first.
+ */
+async function setFreshLimit(
+  runtime: {
+    readonly invoker: Invoker;
+    readonly backendId: string;
+    readonly step: (ms: number) => void;
+  },
+  tenantId: string,
+  dimension: string,
+  limit: string,
+) {
+  const set = await setTenantLimit(runtime, tenantId, dimension, limit);
+  runtime.step(targetingRefreshMs + 1);
+  return set;
+}
+
 /** One call as the tenant's user. */
 function callAs(
   runtime: SliceRuntime,
@@ -291,4 +328,4 @@ function callAs(
 }
 
 export type { SliceRuntime, StoreOp };
-export { bootSlice, callAs, loggedStore, setTenantLimit, sliceApp };
+export { bootSlice, callAs, loggedStore, setFreshLimit, setTenantLimit, sliceApp };

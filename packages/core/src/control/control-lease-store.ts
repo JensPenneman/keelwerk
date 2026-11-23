@@ -14,6 +14,17 @@ export interface ControlLeaseStore {
    * answer only their own units (exact in a unit at read committed, the default of a writing unit).
    */
   hold(lease: Omit<ControlLease, 'expiresAt'>, ttlMs: number): Promise<{ readonly total: number }>;
+  /**
+   * Moves the expiry of this holder's unexpired leases of the listed (kind, key) pairs to now +
+   * `ttlMs`, in one statement, without the lock `hold` takes and without changing a unit count;
+   * answers the listed pairs it found no unexpired lease for, which a caller holds again through
+   * `hold`.
+   */
+  renew(
+    holder: string,
+    leases: readonly { readonly kind: ControlLease['kind']; readonly key: string }[],
+    ttlMs: number,
+  ): Promise<readonly { readonly kind: ControlLease['kind']; readonly key: string }[]>;
   /** Deletes this holder's lease of (kind, key); a lease that is not there is no error. */
   release(kind: ControlLease['kind'], key: string, holder: string): Promise<void>;
   /**

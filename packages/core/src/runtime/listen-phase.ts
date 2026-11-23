@@ -2,6 +2,7 @@ import { metrics, trace } from '@opentelemetry/api';
 import type { VersionProjection } from '../api-versions/version-projection.ts';
 import type { ControlStore } from '../control/control-store.ts';
 import { errors } from '../errors/errors.ts';
+import type { InvocationSession } from '../invoker/invocation-session.ts';
 import type { Invoker } from '../invoker/invoker.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { LiveTimers } from '../live/live-timers.ts';
@@ -43,6 +44,8 @@ export async function listenPhase(input: {
   readonly control: ControlStore;
   readonly clock: Clock;
   readonly timers: LiveTimers;
+  /** Counts a stream or socket of a session against the deployment-wide `core.liveConnections`; answers its release. */
+  readonly holdConnection: (session: InvocationSession) => Promise<() => void>;
   readonly surface: (appId: string, version?: string) => ApiSurface;
   /** The app's surface at each declared version: the one the runtime's `surface` serves, so a mount and the host answer the same document. */
   readonly surfaces: (app: ServedApp) => VersionProjection<ApiSurface>;
@@ -82,6 +85,7 @@ export async function listenPhase(input: {
     ...(input.development ? { development: true } : {}),
     clock: input.clock,
     timers: input.timers,
+    holdConnection: input.holdConnection,
   });
   const host = instance ?? input.host;
   if (host === undefined) {

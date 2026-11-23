@@ -3,7 +3,7 @@ import type { RuntimeServiceContext } from './runtime-service-context.ts';
 
 /**
  * A kernel or event service started after `start` and stopped at `stop` in processes whose role is
- * listed (S-154): 'core.workers', 'core.schedules', 'core.marks', 'events.consumers',
+ * listed (S-154): 'core.workers', 'core.schedules', 'core.marks', 'core.leases', 'events.consumers',
  * 'events.retention', 'events.erasure'.
  */
 export interface RuntimeService {

@@ -61,6 +61,8 @@ export function quotaRig(
   let loads = 0;
   let backendLoads = 0;
   let hold = false;
+  /** The rows are read at once and the read ends when `release` is called: the load's rows are old when it ends. */
+  let holdAfterRead = false;
   let release: (() => void) | undefined;
   let releaseBackend: (() => void) | undefined;
   let waiter: (() => void) | undefined;
@@ -84,6 +86,11 @@ export function quotaRig(
   const controlQuotas: ControlQuotas = {
     rows: async () => {
       loads++;
+      if (holdAfterRead) {
+        const read = stored;
+        await new Promise<void>((resolve) => (release = resolve));
+        return read;
+      }
       if (hold) await new Promise<void>((resolve) => (release = resolve));
       if (failing) throw new Error('control store down');
       return stored;
@@ -170,6 +177,9 @@ export function quotaRig(
     },
     hold: (value: boolean) => {
       hold = value;
+    },
+    holdAfterRead: (value: boolean) => {
+      holdAfterRead = value;
     },
     release: () => {
       release?.();

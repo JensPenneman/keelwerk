@@ -41,6 +41,21 @@ export function memoryControlLeases(ctx: MemoryUnitContext): ControlLeaseStore {
       });
       return { total: totalOf(lease.kind, lease.key) };
     },
+    renew: async (holder, leases, ttlMs) => {
+      checkLeaseParts({ holder, ttlMs });
+      for (const lease of leases) checkLeaseParts(lease);
+      ctx.writable();
+      const at = now();
+      const table = ctx.tx.write<ControlLease>(collection);
+      const stored = ctx.tx.read<ControlLease>(collection);
+      return leases.filter((lease) => {
+        const id = keyOf(lease.kind, lease.key, holder);
+        const row = stored.get(id);
+        if (row === undefined || Temporal.Instant.compare(row.expiresAt, at) <= 0) return true;
+        table.set(id, { ...row, expiresAt: at.add({ milliseconds: ttlMs }) });
+        return false;
+      });
+    },
     release: async (kind, key, holder) => {
       checkLeaseParts({ kind, key, holder });
       ctx.writable();

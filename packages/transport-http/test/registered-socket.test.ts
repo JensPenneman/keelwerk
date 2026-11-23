@@ -243,6 +243,57 @@ describe('a transport socket on the host', () => {
     expect(await seen.promise).toBe(4_321);
   });
 
+  test('a client that leaves while its deployment slot is taken gives both slots back when the take answers', async () => {
+    // Take the `signal.aborted` check after `takeStreamSlot` out of open-socket-session.ts: the slot
+    // is never given back.
+    const hold = Promise.withResolvers<() => void>();
+    const given: string[] = [];
+    let holds = 0;
+    const serverClosed = Promise.withResolvers<void>();
+    const outcomes = [
+      Promise.withResolvers<{ ok: boolean; code?: string }>(),
+      Promise.withResolvers<{ ok: boolean; code?: string }>(),
+    ];
+    let sockets = 0;
+    const made = setup(
+      { listen: { port: 0 }, live: { maxStreamsPerPrincipal: 1 } },
+      createFakeInvoker(),
+      {
+        liveCarrier,
+        // The upgrade's own take answers at once; the hello's waits for the case.
+        holdConnection: () => {
+          holds += 1;
+          return holds === 1 ? Promise.resolve(() => given.push('upgrade')) : hold.promise;
+        },
+      },
+    );
+    made.host.upgrade(
+      { app: 'library', transport: 'chat', path: '/chat', protocols: [protocol] },
+      {
+        open(socket, _ctx, connection) {
+          const outcome = outcomes[sockets++];
+          socket.addEventListener('close', () => serverClosed.resolve());
+          void connection
+            .open({ token: 'fresh' })
+            .then((answer) =>
+              outcome?.resolve(answer.ok ? { ok: true } : { ok: false, code: answer.error.code }),
+            );
+        },
+      },
+    );
+    const { port } = await made.host.listen();
+    const client = opened(await connectRegisteredSocket(port ?? 0));
+    client.socket.close(1000);
+    await serverClosed.promise;
+    hold.resolve(() => given.push('deployment'));
+    expect(await outcomes[0]?.promise).toEqual({ ok: false, code: 'core.unavailable' });
+    expect(given).toEqual(['upgrade', 'deployment']);
+    // The per-process slot is back too: a second socket of the principal meets no bound of one.
+    const second = opened(await connectRegisteredSocket(port ?? 0));
+    onTestFinished(() => second.socket.close(1000));
+    expect(await outcomes[1]?.promise).toEqual({ ok: true });
+  });
+
   test('stop closes the socket 1001', async () => {
     const { port, host } = await start({ open: () => undefined });
     const client = opened(await connectRegisteredSocket(port));

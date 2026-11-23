@@ -16945,7 +16945,7 @@
   },
   "info": {
     "title": "versioned",
-    "version": "sha256-QMaRpEU0IyqcPgHDqcWT-kAsM1W_5iAwwUh4_UOqqWg"
+    "version": "sha256-KZatLtoJqZ-_XUreBiWYEDuZeonxU37Rcyv_M7ljk2Q"
   },
   "openapi": "3.1.1",
   "paths": {
@@ -26146,6 +26146,6 @@
     "apiVersion": "2026-11-11",
     "format": "keelwerk.openapi/1",
     "producer": "@keelwerk/transport-rest",
-    "surface": "sha256-QMaRpEU0IyqcPgHDqcWT-kAsM1W_5iAwwUh4_UOqqWg"
+    "surface": "sha256-KZatLtoJqZ-_XUreBiWYEDuZeonxU37Rcyv_M7ljk2Q"
   }
 }

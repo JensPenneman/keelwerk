@@ -49,6 +49,7 @@ export interface QuotaCache extends QuotaLimits {
  * of the control store. Both are read together and swapped together, or not at all. Until a load
  * succeeds the declared defaults serve; after it, rows and values that can no longer be read keep
  * serving for good, because falling back to the defaults could raise a limit an operator lowered.
+ * A request that joins a load that succeeded and began a bound or more ago waits for one more load.
  * Nothing runs before the first `fresh()` or `firstLoad()`. A process whose reads fail keeps its
  * last rows until a read succeeds: two processes disagree on a tenant's limits for at most the age
  * the cache allows plus one read, except while a process's reads fail.
@@ -269,7 +270,22 @@ export function createQuotaCache(options: QuotaCacheOptions): QuotaCache {
       if (inFlight === undefined && failedAt !== null && now() - failedAt < targetingRefreshMs) {
         return view;
       }
+      const joined = inFlight;
       await awaitLoad(load(false));
+      // A load that was already running began before this call, possibly before a change that the
+      // caller's own request follows, and is dated by its start: when that start is a bound old the
+      // rows may not show the change, so one more load reads them (one that a wake or another
+      // request started meanwhile is joined, not skipped). A load that failed or is still running
+      // at the read bound (the load in flight is the one joined) is not repeated; the last rows
+      // serve until the refresh period has passed.
+      if (
+        joined !== undefined &&
+        inFlight !== joined &&
+        failedAt === null &&
+        now() - loadedAt >= targetingRefreshMs
+      ) {
+        await awaitLoad(load(false));
+      }
       return view;
     },
     firstLoad: async () => {

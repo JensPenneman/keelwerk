@@ -56,8 +56,138 @@ describe('createQuotaCache loading', () => {
     r.release();
     await Promise.all([starter, caller]);
     expect(answered).toBe(true);
+    // The load the caller joined began this very moment, so no further load is made for it.
+    expect(r.loads()).toBe(2);
     expect(r.cache.limitOf(registry, quotaTenantScope, 'notes.rows')).toEqual(count(10));
     r.stop();
+  });
+
+  test('a request that joins a load that began a bound ago waits for one more load and is served the change, with no wake', async () => {
+    const r = quotaRig([storedQuotaRow('notes.rows', '40')]);
+    await r.cache.fresh();
+    r.advance(1000);
+    // A load begins and reads the rows as they stand, and does not end yet.
+    r.holdAfterRead(true);
+    const began = r.cache.fresh();
+    await vi.waitFor(() => expect(r.loads()).toBe(2), { timeout: 10_000 });
+    r.holdAfterRead(false);
+    // The change is stored, a bound passes, and a request joins the load that is still open.
+    r.set([storedQuotaRow('notes.rows', '10', { version: 2 })]);
+    r.advance(1000);
+    const joined = r.cache.fresh();
+    r.release();
+    await Promise.all([began, joined]);
+    // The load is dated by its start, a bound old: the joined request waits for a third load.
+    expect(r.loads()).toBe(3);
+    expect(r.cache.limitOf(registry, quotaTenantScope, 'notes.rows')).toEqual(count(10));
+    r.stop();
+  });
+
+  test('two requests that join the same old load are both served the new limit, though the further load is still running when the first of them has started it', async () => {
+    const turns = async (count: number): Promise<void> => {
+      for (let turn = 0; turn < count; turn += 1) await Promise.resolve();
+    };
+    const r = quotaRig([storedQuotaRow('notes.rows', '40')]);
+    await r.cache.fresh();
+    r.advance(1000);
+    r.holdAfterRead(true);
+    const began = r.cache.fresh();
+    await vi.waitFor(() => expect(r.loads()).toBe(2), { timeout: 10_000 });
+    r.holdAfterRead(false);
+    r.set([storedQuotaRow('notes.rows', '10', { version: 2 })]);
+    r.advance(1000);
+    // Both join the load that read the old rows; the load after it is held at the barrier.
+    const served: unknown[] = [];
+    const answer = async (): Promise<void> => {
+      await r.cache.fresh();
+      served.push(r.cache.limitOf(registry, quotaTenantScope, 'notes.rows'));
+    };
+    const first = answer();
+    const second = answer();
+    r.hold(true);
+    r.release();
+    await vi.waitFor(() => expect(r.loads()).toBe(3), { timeout: 10_000 });
+    await turns(100);
+    // Neither is answered while the further load runs, and neither was given the old rows.
+    expect(served).toEqual([]);
+    r.hold(false);
+    r.release();
+    await Promise.all([began, first, second]);
+    expect(r.loads()).toBe(3);
+    expect(served).toEqual([count(10), count(10)]);
+    r.stop();
+  });
+
+  test('a request that began its own load is not given a further load when that load ran for a bound', async () => {
+    const r = quotaRig([storedQuotaRow('notes.rows', '40')]);
+    await r.cache.fresh();
+    r.advance(1000);
+    r.hold(true);
+    const own = r.cache.fresh();
+    await vi.waitFor(() => expect(r.loads()).toBe(2), { timeout: 10_000 });
+    r.advance(1000);
+    r.hold(false);
+    r.release();
+    await own;
+    expect(r.loads()).toBe(2);
+    r.stop();
+  });
+
+  test('a request that joins a load that fails is not given a further load', async () => {
+    const r = quotaRig([storedQuotaRow('notes.rows', '40')]);
+    await r.cache.fresh();
+    r.advance(1000);
+    r.hold(true);
+    const began = r.cache.fresh();
+    await vi.waitFor(() => expect(r.loads()).toBe(2), { timeout: 10_000 });
+    r.fail(true);
+    r.advance(1000);
+    const joined = r.cache.fresh();
+    r.hold(false);
+    r.release();
+    await Promise.all([began, joined]);
+    expect(r.loads()).toBe(2);
+    expect(r.cache.limitOf(registry, quotaTenantScope, 'notes.rows')).toEqual(count(40));
+    r.stop();
+  });
+
+  test('a request whose wait for a load that is still running ends at the read bound is not given a further wait', async () => {
+    const turns = async (count: number): Promise<void> => {
+      for (let turn = 0; turn < count; turn += 1) await Promise.resolve();
+    };
+    const timeouts: AbortController[] = [];
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => {
+      const controller = new AbortController();
+      timeouts.push(controller);
+      return controller.signal;
+    });
+    try {
+      const r = quotaRig([storedQuotaRow('notes.rows', '40')]);
+      await r.cache.fresh();
+      r.advance(1000);
+      r.hold(true);
+      const began = r.cache.fresh();
+      await vi.waitFor(() => expect(r.loads()).toBe(2), { timeout: 10_000 });
+      r.advance(1000);
+      let answered = false;
+      const joined = r.cache.fresh().then(() => {
+        answered = true;
+      });
+      await turns(100);
+      expect(answered).toBe(false);
+      // The read bound of this caller's wait runs out while the load is still held (its own read
+      // bound, the newest signal made, is not the load's).
+      timeouts.at(-1)?.abort(new DOMException('slow', 'TimeoutError'));
+      await turns(100);
+      expect(answered).toBe(true);
+      expect(r.loads()).toBe(2);
+      r.hold(false);
+      r.release();
+      await Promise.all([began, joined]);
+      r.stop();
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 
   test('firstLoad loads once and starts the feed; it rejects with the error of a read that failed', async () => {

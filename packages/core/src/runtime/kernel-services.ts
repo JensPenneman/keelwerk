@@ -1,6 +1,7 @@
 import { flushUsage } from '../api-versions/flush-usage.ts';
 import { createScheduleTicker } from '../schedules/schedule-ticker.ts';
 import { createWorker } from '../worker/create-worker.ts';
+import { keepLeases } from './keep-leases.ts';
 import { recordMarks } from './record-marks.ts';
 import type { RuntimeService } from './runtime-service.ts';
 import type { StartPhaseInput } from './start-phase-input.ts';
@@ -15,4 +16,5 @@ export const kernelServices: readonly ((input: StartPhaseInput) => RuntimeServic
   () => createScheduleTicker(),
   flushUsage,
   recordMarks,
+  keepLeases,
 ];

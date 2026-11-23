@@ -4,7 +4,7 @@ import {
   bootSlice,
   callAs,
   type SliceRuntime,
-  setTenantLimit,
+  setFreshLimit,
   sliceApp,
 } from './support/quota-slice-kit.ts';
 import { sliceSessionCarrier, withSliceSession } from './support/slice-session-resolver.ts';
@@ -15,15 +15,16 @@ import { sliceSessionCarrier, withSliceSession } from './support/slice-session-r
 // A command job of a resolver still meets the cap of the commands queue. The resolver is the
 // test's own (`slice.session`): it returns the effects its carrier holds, as auth's session
 // resolver returns its idle extension. The clock stands still, so a timer due in an hour never
-// falls due and no worker runs. What decides each case: the answers of the calls and the number of
-// jobs waiting in the queue afterwards, as the job store counts them; nothing else.
+// falls due and no worker runs; it moves only by the second after each limit that is set, which the
+// quota cache needs to read the rows again. What decides each case: the answers of the calls and
+// the number of jobs waiting in the queue afterwards, as the job store counts them; nothing else.
 
 const app = withSliceSession(sliceApp);
 const timerOf = (key: string) =>
   setTimer({ key, invoke: 'slice.ticker', input: { left: 0 }, after: '1h' });
 
 async function mustSet(runtime: SliceRuntime, dimension: string, limit: string) {
-  const set = await setTenantLimit(runtime, runtime.tenants.acme.id, dimension, limit);
+  const set = await setFreshLimit(runtime, runtime.tenants.acme.id, dimension, limit);
   if (!set.ok) throw set.error;
 }
 

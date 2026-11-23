@@ -12,6 +12,7 @@ import { errorResponse } from './error-response.ts';
 import { parseSubscribeRequest } from './parse-subscribe-request.ts';
 import { servedSurfaceOf } from './served-surface-of.ts';
 import { sseConnection } from './sse-connection.ts';
+import { takeStreamSlot } from './take-stream-slot.ts';
 import { wireErrorOf } from './wire-error-of.ts';
 
 /** The protocol version the `welcome` event announces (15.4.6). */
@@ -22,9 +23,11 @@ const protocolVersion = 1;
  * response. In order: the app has a live carrier; the request is parsed (tokens are hostile input);
  * the action is a subscription of the request's API version; its input, and the filter in it, is
  * decoded like any input; the open streams of the principal, the tenant and the process are within
- * their bounds; the invoker subscribes (it translates each item once for this version); the frames are
- * wire encoded; the carrier serves them on a connection the host owns. The stream ends `going_away` at
- * stop. A failure of the setup after the subscription started is an `error` event, not a status.
+ * their bounds, and the tenant's `core.liveConnections` across the deployment holds one more
+ * (`takeStreamSlot`); the invoker subscribes (it translates each item once for this version); the
+ * frames are wire encoded; the carrier serves them on a connection the host owns. The stream ends
+ * `going_away` at stop. A failure of the setup after the subscription started is an `error` event,
+ * not a status.
  */
 export async function subscribeEndpoint(call: EndpointCall): Promise<Response> {
   const { host, state, session, carrier, request } = call;
@@ -55,10 +58,16 @@ export async function subscribeEndpoint(call: EndpointCall): Promise<Response> {
     );
   }
   const input = decodeActionInput(surface, action, asked.input);
-  const release = host.limits.take(
-    session,
-    carrier.connection?.remote.address ?? unknownClientAddress,
-  );
+  let release: () => void;
+  try {
+    release = await takeStreamSlot(
+      host,
+      session,
+      carrier.connection?.remote.address ?? unknownClientAddress,
+    );
+  } catch (failure) {
+    return errorResponse(host, state, asKeelwerkError(failure));
+  }
   const abort = new AbortController();
   const clock = host.deps.clock ?? { now: () => Temporal.Now.instant() };
   const timers = host.deps.timers ?? liveTimersOf(clock);

@@ -10,6 +10,8 @@ import { createTargetingCache } from '../flags/targeting-cache.ts';
 import { createInvoker } from '../invoker/create-invoker.ts';
 import { liveTimersOf } from '../live/live-timers-of.ts';
 import type { RuntimeLiveHub } from '../live/runtime-live-hub.ts';
+import { createConcurrencyLeases } from '../quotas/concurrency-leases.ts';
+import { createConnectionSlot } from '../quotas/connection-slot.ts';
 import { answerRuntimeQueries } from './answer-runtime-queries.ts';
 import { AppNotServedError } from './app-not-served-error.ts';
 import { composePhase } from './compose-phase.ts';
@@ -104,6 +106,10 @@ export async function startRuntime(
       head: coreApiVersions.dates.at(-1) ?? '',
       api: coreApiVersions,
     });
+    const leases = createConcurrencyLeases({
+      holder: connected.processId,
+      run: (fn) => connected.control.writeLeases(fn),
+    });
     const controlPath = createControlPath({ deployment, served, connected, migrated, quotas });
     const streamOptions = {
       env: options.env ?? {},
@@ -137,6 +143,7 @@ export async function startRuntime(
       flagProviders,
       targeting,
       quotas,
+      leases,
       environment,
       clock,
       log,
@@ -177,6 +184,7 @@ export async function startRuntime(
       invoker: draining.invoker,
       clock,
       quotas,
+      leases,
       gate,
       restoreHold: restore.hold,
     });
@@ -205,6 +213,12 @@ export async function startRuntime(
           control: connected.control,
           clock,
           timers: options.timers ?? liveTimersOf(clock),
+          holdConnection: createConnectionSlot({
+            leases,
+            quotas,
+            registryOf: (appId) =>
+              served.find((app) => app.id === appId)?.registry ?? connected.control.registry,
+          }),
           surface,
           surfaces: surfacesOf,
         })

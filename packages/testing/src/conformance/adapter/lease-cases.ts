@@ -110,6 +110,57 @@ export function leaseCases(subject: ConformanceSubject): void {
       expect(await read((leases) => leases.total('topic', key))).toBe(3);
     });
 
+    test("renew extends only the holder's listed unexpired leases, keeps their units, and answers a listed pair with no lease", async () => {
+      const [k1, k2, k3, none] = [fresh(), fresh(), fresh(), fresh()] as const;
+      await hold('subscriptions', k1, 'p1', 2);
+      await hold('subscriptions', k2, 'p1', 1);
+      await hold('subscriptions', k3, 'p2', 4);
+      clock().advance(ttlMs - 1_000);
+      const missing = await run((leases) =>
+        leases.renew(
+          'p1',
+          [
+            { kind: 'subscriptions', key: k1 },
+            { kind: 'subscriptions', key: k3 },
+            { kind: 'subscriptions', key: none },
+          ],
+          ttlMs,
+        ),
+      );
+      expect(missing).toEqual([
+        { kind: 'subscriptions', key: k3 },
+        { kind: 'subscriptions', key: none },
+      ]);
+      clock().advance(2_000);
+      expect(await read((leases) => leases.total('subscriptions', k1))).toBe(2);
+      expect(await read((leases) => leases.total('subscriptions', k2))).toBe(0);
+      expect(await read((leases) => leases.total('subscriptions', k3))).toBe(0);
+    });
+
+    test('renew answers a lease that has expired as missing and does not bring it back', async () => {
+      const key = fresh();
+      await hold('invocations', key, 'p1', 3);
+      clock().advance(ttlMs + 1);
+      expect(
+        await run((leases) => leases.renew('p1', [{ kind: 'invocations', key }], ttlMs)),
+      ).toEqual([{ kind: 'invocations', key }]);
+      expect(await read((leases) => leases.total('invocations', key))).toBe(0);
+    });
+
+    test('renew of no pair answers none, a bad part is validation and a read-only unit refuses it', async () => {
+      const key = fresh();
+      expect(await run((leases) => leases.renew('p1', [], ttlMs))).toEqual([]);
+      await expect(
+        run((leases) => leases.renew('p1', [{ kind: 'topic', key: 'a\u0000b' }], ttlMs)),
+      ).rejects.toMatchObject({ kind: 'validation', code: 'core.validation' });
+      await expect(
+        run((leases) => leases.renew('p1', [{ kind: 'topic', key }], 0)),
+      ).rejects.toMatchObject({ kind: 'validation', code: 'core.validation' });
+      await expect(
+        read((leases) => leases.renew('p1', [{ kind: 'topic', key }], ttlMs)),
+      ).rejects.toMatchObject({ kind: 'internal' });
+    });
+
     test('two concurrent first holds of one key never both answer only their own units', async () => {
       for (let round = 0; round < 5; round += 1) {
         const key = fresh();

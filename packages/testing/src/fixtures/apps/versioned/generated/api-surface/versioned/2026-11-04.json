@@ -13390,6 +13390,12 @@
       "retryable": true
     },
     {
+      "code": "core.concurrency_limited",
+      "kind": "rate_limited",
+      "message": "Too many invocations, subscriptions or connections are open.",
+      "retryable": true
+    },
+    {
       "code": "core.conflict",
       "kind": "conflict",
       "message": "The request conflicts with the current state.",
@@ -13935,7 +13941,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-d-te9R3ZGtrnEcbHXiQAO2XR9KFzMuxTaoN2u9VG460",
+  "hash": "sha256-4xd3dXoxQsAWZKpoVoFyZmw20YPbTuRjVUOuQ__khpU",
   "modules": [
     {
       "id": "core",

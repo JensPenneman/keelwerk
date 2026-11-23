@@ -221,6 +221,7 @@ export function createInvoker(options: InvokerOptions): Invoker {
         };
       }
       const { admitted } = state;
+      admitted?.release?.();
       if (admitted?.target != null && state.action !== undefined) {
         await chargeFailureBuckets(env, {
           action: state.action,

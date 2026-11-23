@@ -80,6 +80,7 @@ describe('coreErrorCodes', () => {
         ['core.row_outside_plan', 'internal', false],
         ['core.history_compacted', 'not_found', false],
         ['core.queue_full', 'rate_limited', true],
+        ['core.concurrency_limited', 'rate_limited', true],
         ['core.job_lease_lost', 'unavailable', true],
         ['core.capability_unplaceable', 'unsupported', false],
         ['core.personal_operator', 'unsupported', false],

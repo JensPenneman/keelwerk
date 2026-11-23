@@ -42,6 +42,11 @@ export interface Admitted {
   readonly target: ScopeTarget | null;
   /** Charged after the outcome when the invocation fails with a declared error. */
   readonly onDeclaredError: readonly ModuleCharge[];
+  /**
+   * Gives back the slot of the deployment-wide counts that `admit` took; once, when the invocation
+   * or the subscription ends.
+   */
+  readonly release?: () => void;
 }
 
 /**

@@ -36,6 +36,27 @@ export function sqlControlLeases(ctx: SqlUnitContext): ControlLeaseStore {
         return { total: await totalOf(lease.kind, lease.key) };
       });
     },
+    renew: async (holder, leases, ttlMs) => {
+      checkLeaseParts({ holder, ttlMs });
+      for (const lease of leases) checkLeaseParts(lease);
+      ctx.writable();
+      if (leases.length === 0) return [];
+      const expiresAt = encodeInstant(ctx.clock.now().add({ milliseconds: ttlMs }));
+      const found = await sqlGuard(() =>
+        runSql(ctx.db, {
+          sql: `update ${table} l set expires_at = $4::timestamptz from unnest($1::text[], $2::text[]) as p (kind, key) where l.kind = p.kind and l.key = p.key and l.holder = $3 and l.expires_at > $5::timestamptz returning l.kind, l.key`,
+          parameters: [
+            leases.map((lease) => lease.kind),
+            leases.map((lease) => lease.key),
+            holder,
+            expiresAt,
+            now(),
+          ],
+        }),
+      );
+      const renewed = new Set(found.map((row) => `${String(row.kind)}\u0000${String(row.key)}`));
+      return leases.filter((lease) => !renewed.has(`${lease.kind}\u0000${lease.key}`));
+    },
     release: async (kind, key, holder) => {
       checkLeaseParts({ kind, key, holder });
       ctx.writable();

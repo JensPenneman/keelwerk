@@ -17,6 +17,7 @@ import { createControlLedger } from './create-control-ledger.ts';
 import { createControlMarks } from './create-control-marks.ts';
 import { createControlQuotas } from './create-control-quotas.ts';
 import { createControlRetention } from './create-control-retention.ts';
+import { createLeaseUnit } from './create-lease-unit.ts';
 
 /** What the control store is built from. */
 export interface ControlStoreOptions {
@@ -61,6 +62,7 @@ export function createControlStore(options: ControlStoreOptions): ControlStore {
     identities: createControlIdentities(adapter, namespace),
     marks: createControlMarks(adapter, namespace, epochs),
     leases: createControlLeases(adapter, namespace),
+    writeLeases: createLeaseUnit(adapter, namespace),
     epochs: () => epochs,
     epochOf: (scope) =>
       epochs.get(

@@ -26,6 +26,7 @@ export type CoreErrorCode =
   | 'core.row_outside_plan'
   | 'core.history_compacted'
   | 'core.queue_full'
+  | 'core.concurrency_limited'
   | 'core.command_id_reserved'
   | 'core.process_instance_key_invalid'
   | 'core.reaction_key_invalid'

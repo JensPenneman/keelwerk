@@ -4877,6 +4877,7 @@ kind unless the column says otherwise. The prose above stays the description of 
 | `core.rate_limited` | `rate_limited` | kind (`retryAfter`) | the kind-level code; an exhausted bucket at `admit`, failure buckets included (entry 387) | 12.2 |
 | `core.quota_exceeded` | `rate_limited` | no | an exhausted quota | 12.2 |
 | `core.queue_full` | `rate_limited` | kind (`retryAfter`) | a queue's queued cap at enqueue | 9.5.5 |
+| `core.concurrency_limited` | `rate_limited` | kind (`retryAfter`) | a tenant's invocations in flight, open subscriptions or open connections past the deployment-wide limit | 12.2, 15.4.10 |
 | `core.not_implemented` | `not_implemented` | kind | a module or action not part of the app; generated writes M1 does not serve | 6.7 |
 | `core.unavailable` | `unavailable` | kind | the kind-level code; suspended backend or tenant, an unserved app | 3.3, 18.3 |
 | `core.timeout` | `unavailable` | kind | a unit or statement over its timeout, a PGlite unit queued past `timeoutMs` (entry 361) | 14.3.6 |
@@ -4990,13 +4991,45 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
 | Dimension | Configured | Counted | Enforced |
 |---|---|---|---|
 | request rate (per tenant, per principal, per action class) | `core` quota configuration per backend, with tenant overrides | token buckets in the tenant's namespace (`kw_rate_buckets`, below), refilled by time; each process takes a small allowance at a time so the shared row is touched rarely | `admit`: `rate_limited` with `retryAfter` |
-| concurrent invocations per tenant | as above | per process, reconciled through leases in the control store | `admit` |
+| concurrent invocations per tenant | `core.concurrentInvocations`, as above | across the deployment, through one lease for each process, kind and scope in `kw_leases` (below) | `admit`: `rate_limited` with code `core.concurrency_limited` and `retryAfter` |
 | storage: rows, event bytes and blob bytes per tenant | as above; modules may declare finer dimensions (`mail-store`'s bytes per mail account) | usage counters per scope, updated in the commit tail of the unit that changes them (blob bytes when a blob is adopted or purged) | the admission of a command with a prepare step (before `prepare` runs; the commit tail of its unit declares no storage limit) and the commit tail of the unit of a command without a prepare step, for an action that is not a core action: `rate_limited` with code `core.quota_exceeded`, not retryable |
 | running jobs per tenant and queue | `queues.<q>.running` per backend, with tenant overrides (section 9.5.5) | the lane's `taken` and `done` counters | the take, by the lane's cap: excess jobs wait |
 | queued jobs per tenant and queue | `queues.<q>.queued` (default 10,000), with backend and tenant overrides | the jobs that wait to run: queued jobs (section 9.5.5) | the enqueue's commit tail: `rate_limited` with code `core.queue_full` and `retryAfter` |
 | share of a queue | a weight per backend and tenant (default 1), operator only | the lane's virtual time | the take's order |
-| live subscriptions and connections per tenant | as above | deployment-wide, through leases in the control store; per-process counters for the fast path | `admit` at subscribe time |
+| live subscriptions and connections per tenant | `core.liveSubscriptions` and `core.liveConnections`, as above | across the deployment, through the same leases; the slots of a process are counted in memory | `admit` at subscribe time for a subscription, the host's stream or socket for a connection: `rate_limited` with code `core.concurrency_limited` and `retryAfter` |
 
+- Concurrent work. A tenant's invocations in flight, its open subscriptions and its open
+  connections are counted across the deployment. Each process keeps, for every kind and scope (the
+  tenant, or the backend for an action of backend scope), the slots it uses and the units its lease
+  row in `kw_leases` holds, and the limit is decided in that one place. `admit` takes a slot after
+  its checks and before the admission rules, for every invocation that the request rate counts and
+  that is not a dry run; the invoker gives it back when the invocation ends, a subscription's
+  when its stream ends, and a refusal of the rules or of the setup gives it back at once. A take
+  within the held units costs no write; one beyond them waits for the next write of its pair, which
+  answers all the takes that wait in one unit of the control store: it holds the units wanted, and
+  when the total of all holders stands above the limit it holds only what fits, so no other process
+  reads the excess, and the takes that do not fit are refused with `rate_limited`, code
+  `core.concurrency_limited`, `retryAfter` 1. A store that is away refuses the takes that need a
+  write with its own error; the slots already held are still used. Every `heartbeatEveryMs` the
+  service `core.leases` renews the leases of the process in one statement, writes the pairs whose
+  open count fell or whose row is gone, and deletes the expired leases of the three kinds.
+  Across the deployment a tenant has at most its limit of each kind open, with these exceptions. A
+  lowered limit closes nothing: a process admits within the slots it holds whatever the limit, and
+  each pass gives up only those not in use at that moment, so the total comes down to the limit only
+  as work ends faster than the process takes it again, and not at all while a tenant's work keeps
+  its count. This is a known gap and not a rule: the pass does not know the limit yet. A slot that
+  ended counts until the next pass of its process reaches its pair, and at most until its lease lapses, thirty seconds after the process
+  last wrote or renewed it. A stopped process counts until its leases expire after thirty seconds,
+  and one that did not write or renew a lease for that long (its store away, or a pass longer than
+  twenty seconds) is not counted elsewhere until it writes again, at what is in use whatever the
+  limit says; the total can then pass the limit until enough work has ended. The clocks of the
+  processes are taken to agree: a process whose clock runs more than twenty seconds ahead of
+  another's can read that one's leases as lapsed and then does not count its slots. Two processes
+  can differ on a limit for as long as the quota cache of one keeps a row the other has replaced:
+  one second and one read of the rows, and without bound while its reads of the rows fail. While the
+  control store is away, a take that needs a write is refused with the store's error, and a take
+  within the slots already held is admitted.
+  The host's bounds per process (section 15.4.10) are taken first and refuse with their own code.
 - Request rate. The request rate counts requests where they enter, at `admit`: one check for each
   invocation that comes in through a transport or a direct invoke, and one when a subscription is
   set up. Three kinds of invocation have no check: one in the deployment scope, one with no target
@@ -10318,11 +10351,14 @@ raise `maxBodyBytes` for that action's transports.
 - A subscription is bound to the scope of its session; the change feed is filtered by scope in the
   data layer; tokens are bound to the principal and the selector (section 15.2.6), so a token presented
   by anyone else resynchronises instead of disclosing.
-- Admission runs in the pipeline's `admit` stage at subscribe time: concurrent subscriptions per
-  tenant (default 1,000), connections per principal (20) and subscriptions per WebSocket (100).
-  Subscription and connection limits are counted deployment-wide through leases in the control
-  store, with per-process counters for the fast path (section 12.2); defaults are per backend with
-  per-tenant overrides.
+- Admission runs in the pipeline's `admit` stage at subscribe time. Two kinds of bound apply to a
+  stream or a socket and each refuses with its own code. The bounds of the host are per process and
+  settings of the host: streams per principal, per tenant and per anonymous address, in total, and
+  subscriptions per socket, refusing with `core.quota_exceeded`. The tenant's limits are across the
+  deployment, counted through leases in the control store (section 12.2): `core.liveSubscriptions` for
+  its subscriptions, taken at `admit`, and `core.liveConnections` for its streams and sockets, taken
+  by the host after its own bounds, refusing with `core.concurrency_limited`. Their defaults are per
+  backend with per-tenant overrides; one number is never used for both kinds.
 - The hub has bounds of its own in each process (added 2026-11-11). A scope is counted per tenant,
   so tenants of one backend that watch a backend entity are bounded and fail on their own. At most
   200 plan groups (distinct read plans) per scope: a subscription with a new plan past them is

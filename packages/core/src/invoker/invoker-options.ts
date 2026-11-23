@@ -12,6 +12,7 @@ import type { Logger } from '../observability/logger.ts';
 import type { Meter } from '../observability/meter.ts';
 import type { Tracer } from '../observability/tracer.ts';
 import type { OperatorPrincipal } from '../principals/operator-principal.ts';
+import type { ConcurrencyLeases } from '../quotas/concurrency-leases.ts';
 import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import type { Scope } from '../storage/scope.ts';
 import type { CommandRunner } from './command-runner.ts';
@@ -73,6 +74,11 @@ export interface InvokerOptions {
   readonly apiUsage?: Pick<ControlApiUsage, 'record'>;
   /** The resolved quota limits (12.2); without it nothing is limited. */
   readonly quotas?: QuotaLimits;
+  /**
+   * The process's slots of the counts the deployment keeps (12.2, 15.4.10): `admit` takes one per
+   * invocation and per subscription. Without it, or without `quotas`, nothing is counted.
+   */
+  readonly leases?: ConcurrencyLeases;
   /** The command write path (WP-38); without it a command is `not_implemented`. */
   readonly commands?: CommandRunner;
   /**

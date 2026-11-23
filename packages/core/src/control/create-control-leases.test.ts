@@ -3,6 +3,7 @@ import type { DataAdapter } from '../storage/data-adapter.ts';
 import type { NamespaceRef } from '../storage/namespace-ref.ts';
 import type { UnitOptions } from '../storage/unit-options.ts';
 import { createControlLeases } from './create-control-leases.ts';
+import { createLeaseUnit } from './create-lease-unit.ts';
 
 interface Opened {
   readonly scope: unknown;
@@ -18,6 +19,10 @@ function over(withLeases: boolean) {
           hold: async () => {
             calls.push('hold');
             return { total: 3 };
+          },
+          renew: async () => {
+            calls.push('renew');
+            return [];
           },
           release: async () => {
             calls.push('release');
@@ -44,24 +49,37 @@ function over(withLeases: boolean) {
       return run(unit);
     },
   } as unknown as DataAdapter;
-  const leases = createControlLeases(adapter, { id: 'ns-control' } as unknown as NamespaceRef);
-  return { leases, opened, calls };
+  const namespace = { id: 'ns-control' } as unknown as NamespaceRef;
+  const leases = createControlLeases(adapter, namespace);
+  return { leases, leaseUnit: createLeaseUnit(adapter, namespace), opened, calls };
 }
 
 const lease = { kind: 'topic', scopeId: null, key: 'k', holder: 'h', units: 1 } as const;
 
 describe('createControlLeases', () => {
-  test('hold, release and expire each run in a writing deployment unit of the control namespace', async () => {
+  test('hold, renew, release and expire each run in a writing deployment unit of the control namespace', async () => {
     const { leases, opened, calls } = over(true);
     expect(await leases.hold(lease, 10_000)).toEqual({ total: 3 });
+    expect(await leases.renew('h', [{ kind: 'topic', key: 'k' }], 10_000)).toEqual([]);
     await leases.release('topic', 'k', 'h');
     expect(await leases.expire('topic', 10)).toEqual([]);
-    expect(calls).toEqual(['hold', 'release', 'expire']);
+    expect(calls).toEqual(['hold', 'renew', 'release', 'expire']);
     expect(opened).toEqual([
       { scope: { level: 'deployment' }, options: undefined },
       { scope: { level: 'deployment' }, options: undefined },
       { scope: { level: 'deployment' }, options: undefined },
+      { scope: { level: 'deployment' }, options: undefined },
     ]);
+  });
+
+  test('a lease unit runs every call of its function in one writing deployment unit', async () => {
+    const { leaseUnit, opened, calls } = over(true);
+    await leaseUnit(async (leases) => {
+      await leases.hold(lease, 10_000);
+      await leases.hold(lease, 10_000);
+    });
+    expect(calls).toEqual(['hold', 'hold']);
+    expect(opened).toEqual([{ scope: { level: 'deployment' }, options: undefined }]);
   });
 
   test('total runs in a read-only deployment unit', async () => {

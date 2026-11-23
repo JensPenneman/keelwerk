@@ -8,16 +8,23 @@ import { asKeelwerkError, coreError } from '@keelwerk/core/http';
 import { enrichCarrier } from './enrich-carrier.ts';
 import type { LiveSocketState } from './live-socket-state.ts';
 import { originCheck } from './origin-check.ts';
+import { takeStreamSlot } from './take-stream-slot.ts';
+
+function socketClosed(): KeelwerkError {
+  return coreError('core.unavailable', { message: 'The socket is closed.', retryable: false });
+}
 
 /**
  * The session a hello asks for. A hello that names none of a token, a backend, a tenant and an API
  * version keeps the upgrade's session. Otherwise a new carrier is the upgrade's with the three
  * selector headers from the hello, and with the token set and the cookie and authorization headers
  * dropped when the hello brings one (one credential per session, as a stream ticket is). The invoker
- * opens it, a cookie session meets the origin rule of the tenant it now belongs to and of the route's transport (the rule the upgrade met), and the slot of the
- * upgrade is released before the new session's is taken, so one socket never counts twice; a take past
- * a bound refuses the hello and the socket closes. The open hangs on the connection's signal: a client
- * that leaves while it runs aborts it, and a session that opens after that is dropped.
+ * opens it, a cookie session meets the origin rule of the tenant it now belongs to and of the
+ * route's transport (the rule the upgrade met), and the slot of the upgrade is released before the
+ * new session's is taken, so one socket never counts twice; a take past a bound refuses the hello
+ * and the socket closes. The open hangs on the connection's signal: a client that leaves while it
+ * runs, or while its slot is taken, aborts it: a session that opens after that is dropped and its
+ * slot given back.
  */
 export async function openSocketSession(
   state: LiveSocketState,
@@ -51,15 +58,7 @@ export async function openSocketSession(
   const signal = AbortSignal.any([state.everything.signal, state.open.connection.signal]);
   try {
     const opened = await host.deps.invoker.open(enrichCarrier(host, carrier), { signal });
-    if (signal.aborted) {
-      return {
-        ok: false,
-        error: coreError('core.unavailable', {
-          message: 'The socket is closed.',
-          retryable: false,
-        }),
-      };
-    }
+    if (signal.aborted) return { ok: false, error: socketClosed() };
     if (!opened.ok) return { ok: false, error: opened.error };
     const session = opened.value;
     const plain = new URL(request.url).protocol === 'http:';
@@ -75,7 +74,13 @@ export async function openSocketSession(
     const address = carrier.connection?.remote.address ?? unknownClientAddress;
     state.release();
     state.release = () => undefined;
-    state.release = host.limits.take(session, address);
+    const release = await takeStreamSlot(host, session, address);
+    // The take can wait on a control write; the socket's cleanup has run by then and found no slot to give back.
+    if (signal.aborted) {
+      release();
+      return { ok: false, error: socketClosed() };
+    }
+    state.release = release;
     state.session = session;
     state.socketCarrier = carrier;
     return { ok: true };

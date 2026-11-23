@@ -15,7 +15,8 @@ import type { SubscriptionSetupState } from './subscription-setup-state.ts';
  * the hub of the app. Every item is translated once for the API version of the request that opened
  * the stream; control frames pass unchanged. A failure of the setup carries its stage; a failure
  * later belongs to the stream and is never a second decision. Either is a `KeelwerkError` thrown
- * from `next()` as the version shows it. An aborted `inv.signal` returns the hub's iterator.
+ * from `next()` as the version shows it. The slot of the deployment-wide count that `admit` took is
+ * given back when the stream ends, whichever way. An aborted `inv.signal` returns the hub's iterator.
  */
 export function routeSubscribe<E>(
   env: InvokerEnv,
@@ -27,12 +28,14 @@ export function routeSubscribe<E>(
       let inner: AsyncIterator<LiveFrame<unknown>> | undefined;
       let opening: Promise<OpenedSubscription> | undefined;
       let ended = false;
+      let release: (() => void) | undefined;
       const state: SubscriptionSetupState = {
         stage: 'open',
         log: env.options.log.child({ requestId: inv.requestId, action: inv.action }),
       };
       const stop = (): void => {
         ended = true;
+        release?.();
         void inner?.return?.().catch(() => undefined);
       };
       const aborted = (): void => stop();
@@ -40,6 +43,7 @@ export function routeSubscribe<E>(
       const finish = (): void => {
         ended = true;
         inv.signal.removeEventListener('abort', aborted);
+        release?.();
       };
       const fail = async (
         error: unknown,
@@ -65,6 +69,7 @@ export function routeSubscribe<E>(
           try {
             opening ??= setUpSubscription(env, inv, resume, state);
             opened = await opening;
+            release = opened.release;
           } catch (error) {
             return fail(error, undefined);
           }

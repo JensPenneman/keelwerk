@@ -35,6 +35,8 @@ export async function startStreamRuntime(
     readonly timers?: LiveTimers;
     /** The API version each named tenant is pinned to (`acme` is the first tenant). */
     readonly tenantApiVersions?: Readonly<Record<string, string>>;
+    /** The backend's configuration by module id. */
+    readonly config?: Readonly<Record<string, unknown>>;
   } = {},
 ): Promise<StreamRuntime> {
   const lines: LoggedLine[] = [];
@@ -46,6 +48,7 @@ export async function startStreamRuntime(
     ...(over.clock === undefined ? {} : { clock: over.clock }),
     ...(over.timers === undefined ? {} : { timers: over.timers }),
     ...(over.tenantApiVersions === undefined ? {} : { tenantApiVersions: over.tenantApiVersions }),
+    ...(over.config === undefined ? {} : { config: over.config }),
   });
   const target = transportTargetOf(runtime, protocolCodec, ['https://app.example.test'], true);
   const name = Object.keys(runtime.domains)[0] ?? 'acme';

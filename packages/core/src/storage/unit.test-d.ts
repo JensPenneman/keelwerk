@@ -58,8 +58,10 @@ test('Unit has exactly the members of S-03', () => {
   expectTypeOf<Unit['streams']>().toEqualTypeOf<StreamRecordStore>();
 });
 
-test('ControlLeaseStore has hold, release, total and expire', () => {
-  expectTypeOf<keyof ControlLeaseStore>().toEqualTypeOf<'hold' | 'release' | 'total' | 'expire'>();
+test('ControlLeaseStore has hold, renew, release, total and expire', () => {
+  expectTypeOf<keyof ControlLeaseStore>().toEqualTypeOf<
+    'hold' | 'renew' | 'release' | 'total' | 'expire'
+  >();
 });
 
 test('JobStore has the members of S-03, the schedules (M2) and the erasure purge', () => {

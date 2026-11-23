@@ -44,6 +44,7 @@ import { locate } from './stages/locate.ts';
 import { targetOf } from './stages/target-of.ts';
 import { translate } from './stages/translate.ts';
 import { validate } from './stages/validate.ts';
+import { subscriptionItemOf } from './subscription-item-of.ts';
 import type { SubscriptionSetupState } from './subscription-setup-state.ts';
 
 function liveUnavailable(): KeelwerkError {
@@ -73,6 +74,8 @@ export async function setUpSubscription(
       : propagation.extract(context.active(), { traceparent: inv.traceparent }),
   );
   let outcome: Outcome<undefined> = { ok: true, value: undefined };
+  // The slot of the deployment-wide count `admit` took: handed to the opened subscription, else given back here.
+  let release: (() => void) | undefined;
   try {
     state.stage = 'open';
     const opened = await sessionOf(env, inv);
@@ -128,7 +131,14 @@ export async function setUpSubscription(
       telemetry: env.flagTelemetry,
       span,
     });
-    await admit(env, { action, session, details, invocation: inv, span, flags });
+    ({ release } = await admit(env, {
+      action,
+      session,
+      details,
+      invocation: inv,
+      span,
+      flags,
+    }));
     state.stage = 'validate';
     const validated = await validate(action, inv.input, translation);
     state.stage = 'translate';
@@ -264,23 +274,8 @@ export async function setUpSubscription(
     const frames = runLiveSource(hub, bound, plan, drive);
     return {
       frames,
-      itemOf: async (frame) => {
-        if ('control' in frame) return frame;
-        let event = frame.event;
-        // A custom subscription's items are what its maps made: they must fit the declared event shape.
-        // The kernel builds the items of a generated watch.
-        if (action.generated === undefined) {
-          const result = await action.output['~standard'].validate(event);
-          if (result.issues !== undefined) {
-            throw errors.internal(`An item of "${action.ref}" does not fit its event shape.`);
-          }
-          event = result.value;
-        }
-        const translated = await translate(translation, 'output', action, event);
-        return frame.state === undefined
-          ? { event: translated }
-          : { event: translated, state: frame.state };
-      },
+      release: () => release?.(),
+      itemOf: subscriptionItemOf(action, translation),
       failure: (error) => {
         const mapped = mapUnknownError(error, env.options.environment, action.errors);
         if (mapped.kind === 'internal') log.error(mapped.message, { cause: mapped.cause });
@@ -288,6 +283,7 @@ export async function setUpSubscription(
       },
     };
   } catch (error) {
+    release?.();
     outcome = {
       ok: false,
       error: mapUnknownError(error, env.options.environment, state.action?.errors),

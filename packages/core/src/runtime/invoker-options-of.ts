@@ -8,6 +8,7 @@ import type { InvokerOptions } from '../invoker/invoker-options.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { Logger } from '../observability/logger.ts';
 import { createOperatorTokenResolver } from '../principals/operator-token-resolver.ts';
+import type { ConcurrencyLeases } from '../quotas/concurrency-leases.ts';
 import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import type { Connected } from './connected.ts';
 import { controlCommandsOf } from './control-commands-of.ts';
@@ -34,6 +35,8 @@ export function invokerOptionsOf(input: {
   readonly targeting: TargetingCache;
   /** The process's quota cache, built and loaded at the start (`startRuntime`). */
   readonly quotas: QuotaLimits;
+  /** The process's slots of the deployment-wide counts (`startRuntime`). */
+  readonly leases: ConcurrencyLeases;
   readonly environment: RowEnvironment;
   readonly clock: Clock;
   readonly log: Logger;
@@ -66,6 +69,7 @@ export function invokerOptionsOf(input: {
     log,
     apiUsage: connected.control.apiUsage,
     quotas: input.quotas,
+    leases: input.leases,
     environment: input.environment,
     flagProviders: input.flagProviders,
     targeting: input.targeting,

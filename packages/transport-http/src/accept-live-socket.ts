@@ -5,15 +5,17 @@ import { errorResponse } from './error-response.ts';
 import type { LiveSocketState } from './live-socket-state.ts';
 import type { OpenLiveSocket } from './open-live-socket.ts';
 import type { PendingUpgrade } from './pending-upgrade.ts';
+import { takeStreamSlot } from './take-stream-slot.ts';
 import { websocketConnection } from './websocket-connection.ts';
 
 /**
  * The part of a socket's upgrade that every WebSocket protocol of the host shares, after the session,
  * the origin and the ticket checks: the app has a websocket carrier (else `core.not_found`); the socket
- * takes one stream slot of the principal, the tenant and the process (429 before the handshake is
- * accepted); the handshake is accepted with `protocol`; the socket's connection is made and kept in
- * `host.sockets` for `stop`. A refused handshake gives the slot back. Answers the state of the
- * socket's life, or the refusal.
+ * takes one stream slot of the principal, the tenant and the process and one of the tenant's
+ * `core.liveConnections` across the deployment (429 before the handshake is accepted); the
+ * handshake is accepted with `protocol`; the socket's connection is made and kept in `host.sockets`
+ * for `stop`. A refused handshake gives the slot back. Answers the state of the socket's life, or
+ * the refusal.
  */
 export async function acceptLiveSocket(
   call: EndpointCall,
@@ -31,7 +33,11 @@ export async function acceptLiveSocket(
   }
   let release: () => void;
   try {
-    release = host.limits.take(session, carrier.connection?.remote.address ?? unknownClientAddress);
+    release = await takeStreamSlot(
+      host,
+      session,
+      carrier.connection?.remote.address ?? unknownClientAddress,
+    );
   } catch (failure) {
     return errorResponse(host, state, asKeelwerkError(failure));
   }

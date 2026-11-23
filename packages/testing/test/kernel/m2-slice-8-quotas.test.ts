@@ -1,17 +1,18 @@
 import { describe, expect, test } from 'vitest';
 import type { SliceRuntime, StoreOp } from './support/quota-slice-kit.ts';
-import { bootSlice, callAs, setTenantLimit } from './support/quota-slice-kit.ts';
+import { bootSlice, callAs, setFreshLimit } from './support/quota-slice-kit.ts';
 
 // SLICE M2-8 on the in-memory adapter, two tenants, the clock pinned: what the limits of a tenant do
 // to its requests, its writes and its jobs while the other tenant carries on. What decides each
 // case: the answers of the calls, the rows and jobs the store holds, and counts of what the job
 // store did, in the order it did it; no case waits for a time to pass, because the clock stands
-// still (a rate bucket does not refill, a job for later never falls due).
+// still (a rate bucket does not refill, a job for later never falls due) except for the second
+// after each limit that is set, which the quota cache needs to read the rows again.
 
 const namespaceScope = { level: 'namespace', reason: 'test' } as const;
 
 async function mustSet(runtime: SliceRuntime, tenant: 'acme' | 'globex', dim: string, v: string) {
-  const set = await setTenantLimit(runtime, runtime.tenants[tenant].id, dim, v);
+  const set = await setFreshLimit(runtime, runtime.tenants[tenant].id, dim, v);
   if (!set.ok) throw set.error;
 }
 

@@ -40,4 +40,10 @@ export interface HttpHostDeps {
   readonly timers?: LiveTimers;
   /** The fill of `core.liveCarriers` named `name` of a served app; undefined without one. */
   liveCarrier?(appId: string, name: string): LiveCarrier | undefined;
+  /**
+   * Counts a stream or socket of the session against the deployment-wide `core.liveConnections`;
+   * answers its release, once; past the limit it rejects with `core.concurrency_limited`. Absent:
+   * only the host's own bounds per process count.
+   */
+  holdConnection?(session: InvocationSession): Promise<() => void>;
 }

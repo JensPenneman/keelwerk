@@ -523,6 +523,7 @@ export type {
   FlagVariant,
 } from './flags/flag-targeting.ts';
 export { splitHash } from './flags/split-hash.ts';
+export { targetingRefreshMs } from './flags/targeting-refresh-ms.ts';
 export type { RunGeneratedReadInput } from './generated-actions/run-generated-read.ts';
 export { runGeneratedRead } from './generated-actions/run-generated-read.ts';
 export type { BlobRef } from './ids/blob-ref.ts';
