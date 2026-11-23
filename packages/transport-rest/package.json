@@ -29,7 +29,7 @@
   "dependencies": {
     "@keelwerk/core": "workspace:*",
     "@scalar/hono-api-reference": "0.12.23",
-    "hono": "4.13.19"
+    "hono": "4.13.20"
   },
   "devDependencies": {
     "@keelwerk/live": "workspace:*",

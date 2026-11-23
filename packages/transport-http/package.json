@@ -29,7 +29,7 @@
   "dependencies": {
     "@hono/node-server": "2.1.11",
     "@keelwerk/core": "workspace:*",
-    "hono": "4.13.19",
+    "hono": "4.13.20",
     "ws": "8.23.0"
   },
   "devDependencies": {
