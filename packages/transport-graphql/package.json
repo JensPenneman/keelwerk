@@ -38,6 +38,6 @@
     "@keelwerk/live": "workspace:*",
     "@keelwerk/testing": "workspace:*",
     "@keelwerk/transport-http": "workspace:*",
-    "vitest": "5.1.0"
+    "vitest": "5.1.1"
   }
 }

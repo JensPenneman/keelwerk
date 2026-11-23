@@ -39,6 +39,6 @@
     "@trpc/client": "11.28.3",
     "@types/ws": "8.18.2",
     "eventsource": "5.1.5",
-    "vitest": "5.1.0"
+    "vitest": "5.1.1"
   }
 }
