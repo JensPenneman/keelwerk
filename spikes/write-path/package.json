@@ -10,7 +10,7 @@
   },
   "devDependencies": {
     "@keelwerk/testing": "workspace:*",
-    "@testcontainers/postgresql": "12.2.1",
+    "@testcontainers/postgresql": "12.2.2",
     "@types/node": "26.6.6",
     "@types/pg": "8.23.1",
     "pg": "8.23.1",

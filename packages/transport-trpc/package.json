@@ -30,7 +30,7 @@
   "dependencies": {
     "@keelwerk/core": "workspace:*",
     "@trpc/server": "11.28.3",
-    "superjson": "2.2.6"
+    "superjson": "2.2.7"
   },
   "devDependencies": {
     "@keelwerk/live": "workspace:*",

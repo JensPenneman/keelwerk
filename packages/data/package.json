@@ -45,19 +45,19 @@
     "dist"
   ],
   "dependencies": {
-    "@electric-sql/pglite": "0.5.16",
+    "@electric-sql/pglite": "0.5.17",
     "@keelwerk/core": "workspace:*",
     "kysely": "0.29.9"
   },
   "devDependencies": {
     "@keelwerk/testing": "workspace:*",
     "@types/pg": "8.23.1",
-    "fast-check": "4.10.3",
+    "fast-check": "4.11.0",
     "pg": "8.23.1",
     "vitest": "5.1.0"
   },
   "peerDependencies": {
-    "fast-check": "4.10.3"
+    "fast-check": "4.11.0"
   },
   "peerDependenciesMeta": {
     "fast-check": {
