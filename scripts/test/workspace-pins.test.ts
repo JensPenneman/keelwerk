@@ -55,3 +55,7 @@ test('the testing peer range admits the workspace Vitest and its next patch rele
   expect(admits(range, pinned), range).toBe(true);
   expect(admits(range, `${major}.${minor}.${(patch ?? 0) + 1}`), range).toBe(true);
 });
+
+test('the workspace file denies agent skills of dependencies with an empty list of directories', async () => {
+  expect(await readText('pnpm-workspace.yaml')).toMatch(/^skills:\n {2}dirs: \[\]$/m);
+});

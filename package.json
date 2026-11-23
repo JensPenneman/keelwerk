@@ -5,7 +5,7 @@
   "description": "The keelwerk framework workspace.",
   "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
-  "packageManager": "pnpm@11.28.12",
+  "packageManager": "pnpm@12.21.0",
   "pins": {
     "npm": "11.21.3"
   },

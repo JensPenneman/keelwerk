@@ -5278,7 +5278,7 @@ by `keelwerk db introspect --check`.
 | TypeScript | 7.0.2 (builds and checks; still the latest on 2026-10-28, with `lib.es2025` and `lib.esnext.temporal` bundled); 6.0.3 pinned only for tools that need the compiler API: attest in the private package `packages/type-budgets/`, which has its own exact `typescript` 6.0.3, and the CLI, which imports the compiler API as `typescript-6` (the alias `npm:typescript@6.0.3`), so the workspace's `tsc` stays 7.0.2; 5.9.3 used for cross-checks | `tsc -b` with project references |
 | Node.js | 26 (26.13.0, checked on 2026-11-04) | runs `.ts` sources directly through type stripping; ships `Temporal` natively, so no polyfill (decision 19b); `node:crypto` provides Argon2id and AES-256-GCM |
 | `@types/node` | 26.6.6 (2026-10-28, checked 2026-11-18) | the Node 26 declarations that `"types": ["node"]` loads |
-| pnpm | 11.28.12 locally | workspace |
+| pnpm | 12.21.0 locally | workspace |
 | Biome | 2.6.8 | the only formatter and linter |
 | Vitest | 5.1.1 with `--typecheck`; expect-type 1.4.0 | unit, integration and type tests |
 | @ark/attest | 0.58.0 (alpha; needs TypeScript 6) | instantiation budgets on the composition types, in `packages/type-budgets/` |
@@ -18170,7 +18170,7 @@ registry on 2026-11-18; the rows moved by the update of 2026-11-23 on that day. 
 | `hono` / `@hono/node-server` / `ws` | 4.13.19 / 2.1.11 / 8.23.0 | 2026-11-16 / 2026-11-20 / 2026-11-12 | the HTTP host |
 | `kysely` / `@electric-sql/pglite` | 0.29.9 / 0.5.17 | 2026-11-12 / 2026-11-19 | the SQL family substrate and the embedded database |
 | `eventsource` | 5.1.5 | 2026-11-08 | the server-sent events client of the tests |
-| pnpm | 11.28.12 (the `packageManager` pin; 12 follows on its own) | 2026-11-13 | the workspace |
+| pnpm | 12.21.0 (the `packageManager` pin) | 2026-11-13 | the workspace |
 | npm | 11.21.3 (release workflow) | 2026-11-18 | the release job that stages packages |
 | Node.js image | the tag in `pins/node.Dockerfile`, its source (the Debian variant: the root `prepare` script needs git) | 2026-11-11 (the date of `node:26.13.1-trixie`, the pin on 2026-11-18) | the container of `.launchway/compose.yaml` |
 | PostgreSQL image | the tag in `pins/postgres.Dockerfile`, its source | not recorded | the tests of `@keelwerk/testing` |

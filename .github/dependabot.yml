@@ -14,7 +14,7 @@ updates:
       time: "06:00"
       timezone: Europe/Brussels
     open-pull-requests-limit: 10
-    # Versions must be at least one day old, which matches pnpm 11's minimumReleaseAge
+    # Versions must be at least one day old, which matches pnpm's minimumReleaseAge
     # (one day by default, applied in frozen installs): a pull request is installable
     # when it opens. The two-week wait returns from 1.0.0.
     cooldown:

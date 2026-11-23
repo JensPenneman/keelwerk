@@ -84,7 +84,7 @@ discussions are welcome.
 ## Working on keelwerk
 
 The repository is a pnpm workspace (`packages/*`, `examples/*`, `spikes/*`). You need the current
-Node.js LTS (`.nvmrc` is `lts/*`, `engines.node` is `>=26`) and pnpm 11.28.12 (`npm install -g pnpm@11.28.12`,
+Node.js LTS (`.nvmrc` is `lts/*`, `engines.node` is `>=26`) and pnpm 12.21.0 (`npm install -g pnpm@12.21.0`,
 after which pnpm follows `packageManager`).
 
 ```sh
