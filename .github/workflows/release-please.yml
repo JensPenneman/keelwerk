@@ -100,7 +100,7 @@ jobs:
       - name: npm with stage commands
         if: steps.release.outputs.run == 'true'
         run: |
-          npm install -g npm@11.21.2
+          npm install -g npm@11.21.3
           npm --version
 
       - name: Install dependencies

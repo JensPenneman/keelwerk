@@ -43,11 +43,11 @@
   "devDependencies": {
     "@keelwerk/cli": "workspace:*",
     "@keelwerk/testing": "workspace:*",
-    "@orpc/client": "1.16.3",
-    "@trpc/client": "11.28.3",
+    "@orpc/client": "1.16.4",
+    "@trpc/client": "11.29.7",
     "@types/pg": "8.23.1",
     "eventsource": "5.1.5",
     "pg": "8.23.1",
-    "vitest": "5.1.0"
+    "vitest": "5.1.1"
   }
 }

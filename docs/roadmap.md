@@ -91,7 +91,7 @@ Packages and artefacts:
   setup rather than by `engines` fields, which Dependabot's updater refuses while it runs Node 24,
   see the note in `.github/dependabot.yml`): pnpm 11 workspace,
   TypeScript 7.0.2 with project references and the base configuration of architecture.md section
-  13.3, Biome 2.6.8, Vitest 5.1.0 with type checking, CI on GitHub Actions on Node 26 (the
+  13.3, Biome 2.6.8, Vitest 5.1.1 with type checking, CI on GitHub Actions on Node 26 (the
   repository private or public, as Jens chooses, decision 83), branch protection that requires
   signed commits, `LICENSE.md` from the first commit, `CONTRIBUTING.md` (signed commits; no outside
   contributions until a contributor licence agreement exists, decision 85), and release and

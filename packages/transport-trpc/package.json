@@ -29,16 +29,16 @@
   ],
   "dependencies": {
     "@keelwerk/core": "workspace:*",
-    "@trpc/server": "11.28.3",
-    "superjson": "2.2.6"
+    "@trpc/server": "11.29.7",
+    "superjson": "2.2.7"
   },
   "devDependencies": {
     "@keelwerk/live": "workspace:*",
     "@keelwerk/testing": "workspace:*",
     "@keelwerk/transport-http": "workspace:*",
-    "@trpc/client": "11.28.3",
+    "@trpc/client": "11.29.7",
     "@types/ws": "8.18.2",
     "eventsource": "5.1.5",
-    "vitest": "5.1.0"
+    "vitest": "5.1.1"
   }
 }

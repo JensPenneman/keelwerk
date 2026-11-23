@@ -26,9 +26,9 @@ export function rootPackageJson(names: InitNames): unknown {
       '@keelwerk/biome-config': version,
       '@keelwerk/cli': version,
       '@types/node': '26.6.6',
-      knip: '6.45.1',
+      knip: '6.47.0',
       typescript: '7.0.2',
-      vitest: '5.1.0',
+      vitest: '5.1.1',
     },
   };
 }
