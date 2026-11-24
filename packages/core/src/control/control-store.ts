@@ -65,8 +65,6 @@ export interface ControlStore {
   readonly quotas: ControlQuotas;
   /** The runs of the retention worker (14.7.1): kw_retention_runs, each call in its own deployment unit. */
   readonly retention: ControlRetention;
-  /** kw_leases, each call in its own deployment unit of the control namespace (S-120). */
-  readonly leases: ControlLeaseStore;
   /** Runs `fn` in one writing deployment unit of the control namespace, with the lease store of that unit. */
   writeLeases<T>(fn: (leases: ControlLeaseStore) => Promise<T>): Promise<T>;
   /** Runs `fn` in a read-only deployment-scope unit. */

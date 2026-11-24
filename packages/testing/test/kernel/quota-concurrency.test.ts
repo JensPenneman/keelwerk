@@ -128,7 +128,7 @@ describe('the subscriptions of a tenant', () => {
     return stream;
   }
 
-  test('a lowered limit closes nothing: the take within the slots the process holds is admitted until its pass, the next one is refused after it, and one is admitted again once enough has ended, while the other tenant carries on', async () => {
+  test('a lowered limit closes nothing and binds: the slots that stay open keep receiving, no further one is admitted while they stand at the limit, and one is admitted once they have ended, while the other tenant carries on', async () => {
     const { runtime, limit, pass } = await bootFlow();
     expect((await limit('3')).ok).toBe(true);
     // The other tenant keeps one stream open from here to the end: it counts in its own pair and in no other.
@@ -140,28 +140,24 @@ describe('the subscriptions of a tenant', () => {
     // Three are open under a limit of one, and all three still receive what happens in the tenant.
     expect((await callFlow(runtime, 'acme', 'flow.add', { text: 'one' })).ok).toBe(true);
     for (const stream of [first, second, third]) expect(await stream.next()).toBeDefined();
-    first.close();
-    second.close();
-    // The process holds the slots of the two that ended until its next pass: one more is admitted.
-    const fourth = await opened(runtime, 'acme');
-    await pass(10_000);
-    const refused = await openNotes(runtime, 'acme');
-    expect(refused).toMatchObject({
+    const refusal = {
       error: {
         kind: 'rate_limited',
         code: 'core.concurrency_limited',
         retryAfter: 1,
         details: { dimension: 'core.liveSubscriptions', limit: 1 },
       },
-    });
-    // The pass gave up the slots that were not in use and closed nothing.
-    expect((await callFlow(runtime, 'acme', 'flow.add', { text: 'two' })).ok).toBe(true);
-    for (const stream of [third, fourth]) expect(await stream.next()).toBeDefined();
-    // One more ends and the count stands at the limit: still refused. When the last has ended, admitted.
-    third.close();
+    };
+    first.close();
+    second.close();
+    // One stream is open under the limit of one: the process refuses the next before any pass.
+    expect(await openNotes(runtime, 'acme')).toMatchObject(refusal);
     await pass(10_000);
-    expect(await openNotes(runtime, 'acme')).toHaveProperty('error');
-    fourth.close();
+    expect(await openNotes(runtime, 'acme')).toMatchObject(refusal);
+    // The open stream still receives: nothing was closed.
+    expect((await callFlow(runtime, 'acme', 'flow.add', { text: 'two' })).ok).toBe(true);
+    expect(await third.next()).toBeDefined();
+    third.close();
     await pass(10_000);
     // Admitted while the other tenant's stream is open, and that stream has received what happened to its tenant.
     expect(await openNotes(runtime, 'acme')).toHaveProperty('close');

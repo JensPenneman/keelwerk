@@ -139,6 +139,42 @@ describe('the subscriptions of a tenant across processes', () => {
   });
 });
 
+describe('a lowered limit across processes', () => {
+  test('binds in both processes: a slot is admitted in the window before the pass of its process, then none while the open ones stand at the limit, and the total of the store comes down as they end', async () => {
+    const { a, b } = await pair([['acme', 'core.liveSubscriptions', '3']]);
+    const bystander = await openNotes(b.runtime, 'globex');
+    expect(bystander).toHaveProperty('close');
+    const inA = await openNotes(a.runtime, 'acme');
+    const inB = await openNotes(b.runtime, 'acme');
+    const moreInB = await openNotes(b.runtime, 'acme');
+    for (const stream of [inA, inB, moreInB]) expect(stream).toHaveProperty('close');
+    expect(await total(a, 'subscriptions')).toBe(3);
+    expect((await limit(a, 'acme', 'core.liveSubscriptions', '1')).ok).toBe(true);
+    // A's last answer from the store was a total of 1: its slot that ended is taken again in the window.
+    if ('close' in inA) inA.close();
+    const window = await openNotes(a.runtime, 'acme');
+    expect(window).toHaveProperty('close');
+    await a.pass(ten);
+    expect(await total(a, 'subscriptions')).toBe(3);
+    // After the pass of A: refused, with the two slots of B and the one of A open, nothing closed.
+    if ('close' in window) window.close();
+    expect(await openNotes(a.runtime, 'acme')).toMatchObject({ error: refusal.error });
+    expect(await total(a, 'subscriptions')).toBe(2);
+    if ('close' in inB) inB.close();
+    expect(await openNotes(b.runtime, 'acme')).toMatchObject({ error: refusal.error });
+    await b.pass(ten);
+    expect(await total(a, 'subscriptions')).toBe(1);
+    expect(await openNotes(a.runtime, 'acme')).toMatchObject({ error: refusal.error });
+    if ('close' in moreInB) moreInB.close();
+    await b.pass(ten);
+    expect(await total(a, 'subscriptions')).toBe(0);
+    expect(await openNotes(a.runtime, 'acme')).toHaveProperty('close');
+    // The other tenant's stream was open in B throughout and receives what happens to its tenant.
+    expect((await add(b, 'globex')).ok).toBe(true);
+    if ('next' in bystander) expect(await bystander.next()).toBeDefined();
+  });
+});
+
 describe('the leases of a process', () => {
   test('a pass renews them: while their holder keeps passing, the other process is refused far past the time to live', async () => {
     const { a, b } = await pair([['acme', 'core.liveSubscriptions', '2']]);

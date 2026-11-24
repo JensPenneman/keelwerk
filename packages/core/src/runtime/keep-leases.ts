@@ -5,11 +5,12 @@ import type { RuntimeService } from './runtime-service.ts';
 import type { StartPhaseInput } from './start-phase-input.ts';
 
 /**
- * Service `core.leases`, roles `['serve', 'work']` (12.2, 15.4.10): every `heartbeatEveryMs` of the
- * runtime clock (`input.options.timers ?? liveTimersOf(input.clock)`) runs the pass of the process's
- * slots of the deployment-wide counts: it renews the leases, writes the ones that changed and sweeps
- * the expired leases of every process. A failure is logged at warn and the loop goes on; `stop` ends
- * the loop and leaves the leases to expire. A start without slots (`input.leases`) has nothing to do.
+ * Service `core.leases`, roles `['serve', 'work']` (12.2, 15.4.10): `heartbeatEveryMs` of the
+ * runtime clock (`input.options.timers ?? liveTimersOf(input.clock)`) after a pass has ended, the
+ * next pass of the process's slots of the deployment-wide counts runs: it sets the leases to the slots in use, in parts of at most
+ * 1,000 pairs, and sweeps the expired leases of every process. A failure is logged at warn and the
+ * loop goes on; `stop` ends the loop and leaves the leases to expire. A start without slots
+ * (`input.leases`) has nothing to do.
  */
 export function keepLeases(input: StartPhaseInput): RuntimeService {
   const timers = input.options.timers ?? liveTimersOf(input.clock);

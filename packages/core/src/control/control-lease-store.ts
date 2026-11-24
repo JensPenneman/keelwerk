@@ -1,7 +1,7 @@
 import type { ControlLease } from './control-lease.ts';
 
 /**
- * Deployment-wide counts through leases (S-120), `ControlStore.leases`. A key names one count
+ * Deployment-wide counts through leases (S-120), `Unit.leases`. A key names one count
  * across the deployment; a caller whose count is per scope or per tenant puts that scope or tenant
  * in the key. `scopeId` is stored and answered by `expire`, never part of a match. Now is the unit's clock.
  */
@@ -15,16 +15,20 @@ export interface ControlLeaseStore {
    */
   hold(lease: Omit<ControlLease, 'expiresAt'>, ttlMs: number): Promise<{ readonly total: number }>;
   /**
-   * Moves the expiry of this holder's unexpired leases of the listed (kind, key) pairs to now +
-   * `ttlMs`, in one statement, without the lock `hold` takes and without changing a unit count;
-   * answers the listed pairs it found no unexpired lease for, which a caller holds again through
-   * `hold`.
+   * Sets this holder's leases of the listed (kind, key) pairs in one statement, without the lock
+   * `hold` takes: a pair with `units` above 0 is written with `expiresAt` = now + `ttlMs`, one with
+   * 0 units is deleted. A lease that had lapsed or been swept is held anew at the units given,
+   * whatever the other holders hold. Answers, in the order listed, this holder's units plus the
+   * other holders' unexpired units as the statement read them, and whether this holder had no
+   * unexpired lease before; the read takes no lock and can miss a lease another holder wrote beside
+   * it, and for a lease held anew that holder may not have counted this one, so a caller reads such
+   * a total as a lower bound. At most 1,000 pairs, each once: validation.
    */
   renew(
     holder: string,
-    leases: readonly { readonly kind: ControlLease['kind']; readonly key: string }[],
+    leases: readonly Omit<ControlLease, 'holder' | 'expiresAt'>[],
     ttlMs: number,
-  ): Promise<readonly { readonly kind: ControlLease['kind']; readonly key: string }[]>;
+  ): Promise<readonly { readonly total: number; readonly lapsed: boolean }[]>;
   /** Deletes this holder's lease of (kind, key); a lease that is not there is no error. */
   release(kind: ControlLease['kind'], key: string, holder: string): Promise<void>;
   /**

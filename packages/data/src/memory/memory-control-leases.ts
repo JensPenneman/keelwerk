@@ -1,5 +1,6 @@
 import type { ControlLease, ControlLeaseStore } from '@keelwerk/core';
 import { checkLeaseParts } from '../sql/check-lease-parts.ts';
+import { checkLeaseRenewal } from '../sql/check-lease-renewal.ts';
 import { floorInstant } from './floor-instant.ts';
 import { memoryM2Collections } from './memory-m2-collections.ts';
 import type { MemoryUnitContext } from './memory-unit-context.ts';
@@ -42,19 +43,28 @@ export function memoryControlLeases(ctx: MemoryUnitContext): ControlLeaseStore {
       return { total: totalOf(lease.kind, lease.key) };
     },
     renew: async (holder, leases, ttlMs) => {
-      checkLeaseParts({ holder, ttlMs });
-      for (const lease of leases) checkLeaseParts(lease);
+      checkLeaseRenewal(holder, leases, ttlMs);
       ctx.writable();
       const at = now();
-      const table = ctx.tx.write<ControlLease>(collection);
-      const stored = ctx.tx.read<ControlLease>(collection);
-      return leases.filter((lease) => {
-        const id = keyOf(lease.kind, lease.key, holder);
-        const row = stored.get(id);
-        if (row === undefined || Temporal.Instant.compare(row.expiresAt, at) <= 0) return true;
-        table.set(id, { ...row, expiresAt: at.add({ milliseconds: ttlMs }) });
-        return false;
+      const others = new Map<string, number>();
+      const own = new Set<string>();
+      for (const row of rows()) {
+        if (Temporal.Instant.compare(row.expiresAt, at) <= 0) continue;
+        const pair = `${row.kind}\u0000${row.key}`;
+        if (row.holder === holder) own.add(pair);
+        else others.set(pair, (others.get(pair) ?? 0) + row.units);
+      }
+      const answers = leases.map((lease) => {
+        const pair = `${lease.kind}\u0000${lease.key}`;
+        return { total: lease.units + (others.get(pair) ?? 0), lapsed: !own.has(pair) };
       });
+      const table = ctx.tx.write<ControlLease>(collection);
+      for (const lease of leases) {
+        const id = keyOf(lease.kind, lease.key, holder);
+        if (lease.units === 0) table.delete(id);
+        else table.set(id, { ...lease, holder, expiresAt: at.add({ milliseconds: ttlMs }) });
+      }
+      return answers;
     },
     release: async (kind, key, holder) => {
       checkLeaseParts({ kind, key, holder });

@@ -5,6 +5,8 @@ import { KeelwerkError } from '../errors/keelwerk-error.ts';
 
 const kinds: readonly ConcurrencyKind[] = ['subscriptions', 'connections', 'invocations'];
 const sweepLimit = 1_000;
+/** The most pairs one renew carries (the lease store's rule); a pass cuts what it holds into parts of this size. */
+const partSize = 1_000;
 
 interface Waiting {
   readonly request: ConcurrencyTake;
@@ -12,12 +14,18 @@ interface Waiting {
   readonly reject: (error: unknown) => void;
 }
 
-/** One (kind, scope): the slots in use, the units its lease row holds, and the takes the next write answers. */
+/**
+ * One (kind, scope): the slots in use, the units its lease row holds, the units of all holders the
+ * store last answered for it (`total`, `Infinity` after a lease held anew), the renew of the pass
+ * that is writing it, and the takes the next write answers.
+ */
 interface Pair {
   readonly kind: ConcurrencyKind;
   readonly scopeId: string;
   used: number;
   held: number;
+  total: number;
+  renewal: Promise<void> | undefined;
   writing: boolean;
   waiting: Waiting[];
 }
@@ -41,10 +49,15 @@ function refusal(request: ConcurrencyTake): KeelwerkError {
   });
 }
 
-/** The three counts the deployment keeps through leases (12.2, 15.4.10), the kind of their lease rows. */
-export type ConcurrencyKind = 'subscriptions' | 'connections' | 'invocations';
+/** The one rule that decides a limit: a count of slots is within it when it does not pass it. */
+function within(count: number, limit: number): boolean {
+  return count <= limit;
+}
 
-/** This process's slots of the counts the deployment keeps (design of WP-117). */
+/** The three counts the deployment keeps through leases (12.2, 15.4.10), the kind of their lease rows. */
+type ConcurrencyKind = 'subscriptions' | 'connections' | 'invocations';
+
+/** This process's slots of the counts the deployment keeps (design of WP-117 and WP-216). */
 export interface ConcurrencyLeases {
   /**
    * Answers the release of one slot, once; past the limit across the deployment: `rate_limited`
@@ -52,8 +65,8 @@ export interface ConcurrencyLeases {
    */
   take(request: ConcurrencyTake): Promise<() => void>;
   /**
-   * The periodic pass: renews the leases, writes what changed since the last write, sweeps the
-   * expired leases of the three kinds.
+   * The periodic pass: sets the leases to the slots in use, in parts of at most 1,000 pairs, and
+   * sweeps the expired leases of the three kinds.
    */
   pass(): Promise<void>;
 }
@@ -65,19 +78,27 @@ export interface ConcurrencyLeasesInput {
 }
 
 /**
- * The one place that decides the limits of the three counts across the deployment. Each process keeps
- * for every (kind, scope) the slots it uses and the units its lease row holds; a slot that ends is
- * only counted down, and a take within the held units costs no write. A take beyond them waits for
- * the next write of its pair, which answers every take that waits at once in one unit of the control
- * store: it holds the units wanted, and when the total of all holders is above the limit it holds
- * only what fits (at least what is in use), so no other holder reads the excess. At most one write
- * of a pair is in flight. A failed write refuses the takes it answered with the store's error and
- * leaves the pair as it was; the takes that arrived while it ran get the next write of the pair,
- * except after a failed write that answered no take of its own, which refuses them with its error.
+ * The one place that decides the limits of the three counts across the deployment, by `within`.
+ * Each process keeps for every (kind, scope) the slots it uses, the units its lease row holds and
+ * the total of all holders the store last answered. A take is refused at once when the slots this
+ * process uses already stand at its limit: they are part of every total, so no store could answer
+ * lower. It costs no write when the pair holds a unit it does not use and the last total is within
+ * the limit of the take: a reuse keeps that total. A pair with a write in flight and a pair whose
+ * lease was held anew (it has no total to trust) send the take to a write. Every other take waits
+ * for the next write of its pair, which answers every take that waits at once in one unit of the
+ * control store: it holds the units wanted and decides each take in order by the units of the other
+ * holders and the units granted so far, against the limit of that take; it then holds the units
+ * in use plus those granted. At most one write of a pair is in flight. A failed write refuses the
+ * takes it answered with the store's error and leaves the pair as it was; the takes that arrived
+ * while it ran get the next write.
  *
- * The limit of a take is decided only in a write, so a lowered limit closes nothing: a take within
- * the held units is admitted whatever the limit now is, the pass gives the units that are not in use
- * back, and a lease that lapsed is held again at what is in use.
+ * The pass sets the lease of every pair without a write in flight (that write sets it) to the
+ * slots in use. A slot that ended counts until a write or a pass of its process that began after
+ * it ended has set the lease of its pair, and at most until its lease lapses. When the total last
+ * answered for a pair passes the limit of a take, only a write can admit that take, and the write
+ * counts every holder, whatever the churn. The pass learns the total of each pair from the
+ * statement that sets its lease.
+ * Nothing that is open is closed.
  */
 export function createConcurrencyLeases(input: ConcurrencyLeasesInput): ConcurrencyLeases {
   const { holder, run } = input;
@@ -95,36 +116,37 @@ export function createConcurrencyLeases(input: ConcurrencyLeasesInput): Concurre
   };
 
   /**
-   * One unit: the pair's lease holds `used` and the takes waiting, trimmed to the limit. Answers the
-   * function that settles those takes; a failed write with no take to refuse throws.
+   * One unit: the pair's lease holds the slots in use and the takes waiting, then only those that
+   * fit, each take judged by its own limit. Answers the function that settles those takes.
    */
   const writeOnce = async (pair: Pair): Promise<() => void> => {
     const takes = pair.waiting.splice(0);
     const inUse = pair.used;
     const wanted = inUse + takes.length;
-    const limit = takes.at(-1)?.request.limit;
     const lease = { kind: pair.kind, scopeId: pair.scopeId, key: pair.scopeId, holder } as const;
     try {
-      const units = await run(async (leases) => {
-        if (wanted === 0) {
-          await leases.release(pair.kind, pair.scopeId, holder);
-          return 0;
-        }
+      const outcome = await run(async (leases) => {
         const { total } = await leases.hold({ ...lease, units: wanted }, presumedGoneAfterMs);
-        if (limit === undefined || total <= limit) return wanted;
-        const fitting = Math.max(inUse, wanted - (total - limit));
-        if (fitting === 0) await leases.release(pair.kind, pair.scopeId, holder);
-        else await leases.hold({ ...lease, units: fitting }, presumedGoneAfterMs);
-        return fitting;
+        const others = total - wanted;
+        let units = inUse;
+        const admitted = takes.map((take) => {
+          const fits = within(others + units + 1, take.request.limit);
+          if (fits) units += 1;
+          return fits;
+        });
+        if (units === wanted) return { units, others, admitted };
+        if (units === 0) await leases.release(pair.kind, pair.scopeId, holder);
+        else await leases.hold({ ...lease, units }, presumedGoneAfterMs);
+        return { units, others, admitted };
       });
-      pair.held = units;
+      pair.held = outcome.units;
+      pair.total = outcome.others + outcome.units;
       return () =>
         takes.forEach((take, index) => {
-          if (index < units - inUse) take.resolve(grantOf(pair));
+          if (outcome.admitted[index]) take.resolve(grantOf(pair));
           else take.reject(refusal(take.request));
         });
     } catch (error) {
-      if (takes.length === 0) throw error;
       return () => {
         for (const take of takes) take.reject(error);
       };
@@ -138,23 +160,21 @@ export function createConcurrencyLeases(input: ConcurrencyLeasesInput): Concurre
   };
 
   /**
-   * Writes until no take waits; the caller found the pair idle. The pair is idle again before the
-   * takes of the last write are answered, so a take that follows its answer finds the held units.
+   * Writes until no take waits; the caller found the pair idle. A renew of the pass that is
+   * writing the pair finishes first, so a write and a renew of one row never run side by side. The
+   * pair is idle again before the takes of the last write are answered, so a take that follows its
+   * answer finds the held units.
    */
   const settle = async (pair: Pair): Promise<void> => {
     pair.writing = true;
     try {
+      if (pair.renewal !== undefined) await pair.renewal;
       for (let more = true; more; ) {
         const answer = await writeOnce(pair);
         more = pair.waiting.length > 0;
         pair.writing = more;
         answer();
       }
-    } catch (error) {
-      // A write with no take of its own failed: the takes that arrived while it ran get its error, none stays waiting.
-      pair.writing = false;
-      for (const waiting of pair.waiting.splice(0)) waiting.reject(error);
-      throw error;
     } finally {
       forgetIfIdle(pair);
     }
@@ -163,47 +183,70 @@ export function createConcurrencyLeases(input: ConcurrencyLeasesInput): Concurre
   const take = (request: ConcurrencyTake): Promise<() => void> => {
     const id = keyOf(request.kind, request.scopeId);
     let pair = pairs.get(id);
+    if (!within((pair?.used ?? 0) + 1, request.limit)) return Promise.reject(refusal(request));
     if (pair === undefined) {
       pair = {
         kind: request.kind,
         scopeId: request.scopeId,
         used: 0,
         held: 0,
+        total: 0,
+        renewal: undefined,
         writing: false,
         waiting: [],
       };
       pairs.set(id, pair);
     }
-    if (!pair.writing && pair.used < pair.held) return Promise.resolve(grantOf(pair));
+    if (!pair.writing && pair.used < pair.held && within(pair.total, request.limit)) {
+      return Promise.resolve(grantOf(pair));
+    }
     const target = pair;
     return new Promise<() => void>((resolve, reject) => {
       target.waiting.push({ request, resolve, reject });
-      if (!target.writing) {
-        // The takes' own promises carry a failure; `settle` throws only for a write with no take.
-        void settle(target).catch(() => undefined);
-      }
+      if (!target.writing) void settle(target);
     });
   };
 
-  const renewMissing = async (idle: readonly Pair[]): Promise<readonly Pair[]> => {
-    const missing = await run((leases) =>
-      leases.renew(
-        holder,
-        idle.map((pair) => ({ kind: pair.kind, key: pair.scopeId })),
-        presumedGoneAfterMs,
-      ),
-    );
-    const lost = new Set(missing.map((one) => keyOf(one.kind, one.key)));
-    return idle.filter((pair) => lost.has(keyOf(pair.kind, pair.scopeId)));
+  /**
+   * One part of the pass, in one unit: the lease of each pair is set to the slots in use at this
+   * moment, which are also the units the fast path may reuse from now on. The pair is then known by
+   * the total the store answered, or by none when its lease had lapsed: the answer can miss a take
+   * another process admitted beside the renew, so the next take of that pair asks the store.
+   */
+  const renewPart = async (part: readonly Pair[]): Promise<void> => {
+    let done!: () => void;
+    const renewal = new Promise<void>((resolve) => {
+      done = resolve;
+    });
+    const leases = part.map((pair) => {
+      pair.renewal = renewal;
+      pair.held = pair.used;
+      return { kind: pair.kind, scopeId: pair.scopeId, key: pair.scopeId, units: pair.used };
+    });
+    try {
+      const answers = await run((store) => store.renew(holder, leases, presumedGoneAfterMs));
+      part.forEach((pair, index) => {
+        const answer = answers[index];
+        if (answer !== undefined)
+          pair.total = answer.lapsed ? Number.POSITIVE_INFINITY : answer.total;
+      });
+    } finally {
+      for (const pair of part) {
+        pair.renewal = undefined;
+        forgetIfIdle(pair);
+      }
+      done();
+    }
   };
 
   const pass = async (): Promise<void> => {
-    const idle = [...pairs.values()].filter((pair) => !pair.writing);
-    const slack = idle.filter((pair) => pair.held > pair.used);
-    const whole = idle.filter((pair) => pair.held <= pair.used);
-    const lost = whole.length === 0 ? [] : await renewMissing(whole);
-    for (const pair of [...slack, ...lost]) {
-      if (!pair.writing) await settle(pair);
+    const listed = [...pairs.values()];
+    for (let from = 0; from < listed.length; from += partSize) {
+      // Built when the part starts: a pair that began a write meanwhile sets its own units, and a pair forgotten meanwhile is gone.
+      const part = listed
+        .slice(from, from + partSize)
+        .filter((pair) => !pair.writing && pairs.get(keyOf(pair.kind, pair.scopeId)) === pair);
+      if (part.length > 0) await renewPart(part);
     }
     await run(async (leases) => {
       for (const kind of kinds) await leases.expire(kind, sweepLimit);

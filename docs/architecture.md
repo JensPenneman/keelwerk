@@ -5000,35 +5000,59 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
 
 - Concurrent work. A tenant's invocations in flight, its open subscriptions and its open
   connections are counted across the deployment. Each process keeps, for every kind and scope (the
-  tenant, or the backend for an action of backend scope), the slots it uses and the units its lease
-  row in `kw_leases` holds, and the limit is decided in that one place. `admit` takes a slot after
-  its checks and before the admission rules, for every invocation that the request rate counts and
-  that is not a dry run; the invoker gives it back when the invocation ends, a subscription's
-  when its stream ends, and a refusal of the rules or of the setup gives it back at once. A take
-  within the held units costs no write; one beyond them waits for the next write of its pair, which
-  answers all the takes that wait in one unit of the control store: it holds the units wanted, and
-  when the total of all holders stands above the limit it holds only what fits, so no other process
-  reads the excess, and the takes that do not fit are refused with `rate_limited`, code
-  `core.concurrency_limited`, `retryAfter` 1. A store that is away refuses the takes that need a
-  write with its own error; the slots already held are still used. Every `heartbeatEveryMs` the
-  service `core.leases` renews the leases of the process in one statement, writes the pairs whose
-  open count fell or whose row is gone, and deletes the expired leases of the three kinds.
-  Across the deployment a tenant has at most its limit of each kind open, with these exceptions. A
-  lowered limit closes nothing: a process admits within the slots it holds whatever the limit, and
-  each pass gives up only those not in use at that moment, so the total comes down to the limit only
-  as work ends faster than the process takes it again, and not at all while a tenant's work keeps
-  its count. This is a known gap and not a rule: the pass does not know the limit yet. A slot that
-  ended counts until the next pass of its process reaches its pair, and at most until its lease lapses, thirty seconds after the process
-  last wrote or renewed it. A stopped process counts until its leases expire after thirty seconds,
-  and one that did not write or renew a lease for that long (its store away, or a pass longer than
-  twenty seconds) is not counted elsewhere until it writes again, at what is in use whatever the
-  limit says; the total can then pass the limit until enough work has ended. The clocks of the
-  processes are taken to agree: a process whose clock runs more than twenty seconds ahead of
-  another's can read that one's leases as lapsed and then does not count its slots. Two processes
-  can differ on a limit for as long as the quota cache of one keeps a row the other has replaced:
-  one second and one read of the rows, and without bound while its reads of the rows fail. While the
-  control store is away, a take that needs a write is refused with the store's error, and a take
-  within the slots already held is admitted.
+  tenant, or the backend for an action of backend scope), the slots it uses, the units its lease
+  row in `kw_leases` holds and the total of all holders that the store last answered, and the limit
+  is decided in that one place, by the same rule on every path: a count is within a limit when it
+  does not pass it. `admit` takes a slot after its checks and before the admission rules, for every
+  invocation that the request rate counts and that is not a dry run; the invoker gives it back when
+  the invocation ends, a subscription's when its stream ends, and a refusal of the rules or of the
+  setup gives it back at once. A take is refused at once, with no write, when the slots the process
+  uses already stand at the limit of the take: they are part of every total. A take costs no write
+  when the process holds a unit it does not use and the total last answered is within the limit of
+  the take, because reusing a held unit keeps that total; it does write when a write of its pair is
+  in flight, and after a lease held anew, which has no total to trust. Every other take waits for
+  the next write of its pair, which answers all the takes that wait in one unit of the control
+  store: it holds the units wanted, decides each take in order against its own limit by the units
+  of the other holders and the units granted so far, and holds the units in use plus those granted,
+  so no other process reads the excess; the takes that do not fit are refused with `rate_limited`,
+  code `core.concurrency_limited`, `retryAfter` 1, naming the limit that refused them. A store that
+  is away refuses the takes that need a write with its own error. `heartbeatEveryMs` after a pass
+  has ended, the service `core.leases` starts the next: it sets the lease of every pair of the
+  process to the slots in use, except a pair with a write in flight, which that write sets. It does
+  so in parts of at most 1,000 pairs, one renew each: it writes the units, deletes the lease of a
+  pair that uses nothing, holds anew a lease that had lapsed, and reads the total of each pair; it
+  then deletes the expired leases of the three kinds. What a pass costs follows the number of its
+  pairs and not what changed.
+
+  Across the deployment a tenant has at most its limit of each kind open, with these exceptions.
+
+  A lowered limit closes nothing: work open under the old limit stays open, and no further slot is
+  admitted while the tenant's open slots stand at or over the new limit, so the count comes down as
+  work ends; a process whose last write or pass came before another took slots under the old limit
+  can still admit within the slots it holds until its next pass.
+
+  A slot that ended counts until a write or a pass of its process that began after it ended has set
+  the lease of its pair (a pass sets every pair with no write in flight), and at most until its
+  lease lapses, thirty seconds after the process last wrote or renewed it.
+
+  A stopped process counts until its leases expire after thirty seconds, and one that did not write
+  or renew a lease for that long (its store away, or a pass longer than twenty seconds) is not
+  counted elsewhere until it writes again, at what is in use whatever the limit says; the total can
+  then pass the limit until enough work has ended.
+
+  The clocks of the processes are taken to agree: a process whose clock runs ahead of another's by
+  more than twenty seconds, less the length of that one's pass, can read that one's leases as
+  lapsed and then does not count its slots.
+
+  Two processes can differ on a limit for as long as the quota cache of one keeps a row the other
+  has replaced: one second and one read of the rows, and without bound while its reads of the rows
+  fail.
+
+  While the control store is away, a take that needs a write is refused with the store's error, and
+  a take within the slots already held is admitted while the total the store last answered is
+  within its limit, except a take of a pair whose lease was held anew or that has a write in flight,
+  which waits for a write.
+
   The host's bounds per process (section 15.4.10) are taken first and refuse with their own code.
 - Request rate. The request rate counts requests where they enter, at `admit`: one check for each
   invocation that comes in through a transport or a direct invoke, and one when a subscription is

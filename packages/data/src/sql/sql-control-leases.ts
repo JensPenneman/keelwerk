@@ -1,5 +1,6 @@
 import type { ControlLeaseStore } from '@keelwerk/core';
 import { checkLeaseParts } from './check-lease-parts.ts';
+import { checkLeaseRenewal } from './check-lease-renewal.ts';
 import { encodeInstant } from './encode-instant.ts';
 import { runSql } from './run-sql.ts';
 import { sqlGuard } from './sql-guard.ts';
@@ -37,25 +38,25 @@ export function sqlControlLeases(ctx: SqlUnitContext): ControlLeaseStore {
       });
     },
     renew: async (holder, leases, ttlMs) => {
-      checkLeaseParts({ holder, ttlMs });
-      for (const lease of leases) checkLeaseParts(lease);
+      checkLeaseRenewal(holder, leases, ttlMs);
       ctx.writable();
       if (leases.length === 0) return [];
       const expiresAt = encodeInstant(ctx.clock.now().add({ milliseconds: ttlMs }));
-      const found = await sqlGuard(() =>
+      const rows = await sqlGuard(() =>
         runSql(ctx.db, {
-          sql: `update ${table} l set expires_at = $4::timestamptz from unnest($1::text[], $2::text[]) as p (kind, key) where l.kind = p.kind and l.key = p.key and l.holder = $3 and l.expires_at > $5::timestamptz returning l.kind, l.key`,
+          sql: `with p as (select kind, key, scope_id, units, ord from unnest($1::text[], $2::text[], $3::text[], $4::int[]) with ordinality as t (kind, key, scope_id, units, ord)), before as (select l.kind, l.key from ${table} l join p on l.kind = p.kind and l.key = p.key where l.holder = $5 and l.expires_at > $6::timestamptz), gone as (delete from ${table} l using p where l.kind = p.kind and l.key = p.key and l.holder = $5 and p.units = 0 returning 1), written as (insert into ${table} (kind, scope_id, key, holder, units, expires_at) select kind, scope_id::uuid, key, $5, units, $7::timestamptz from p where units > 0 on conflict (kind, key, holder) do update set scope_id = excluded.scope_id, units = excluded.units, expires_at = excluded.expires_at returning 1) select p.ord, not exists (select 1 from before b where b.kind = p.kind and b.key = p.key) as lapsed, (p.units + coalesce((select sum(x.units) from ${table} x where x.kind = p.kind and x.key = p.key and x.holder <> $5 and x.expires_at > $6::timestamptz), 0))::text as total from p order by p.ord`,
           parameters: [
             leases.map((lease) => lease.kind),
             leases.map((lease) => lease.key),
+            leases.map((lease) => lease.scopeId),
+            leases.map((lease) => lease.units),
             holder,
-            expiresAt,
             now(),
+            expiresAt,
           ],
         }),
       );
-      const renewed = new Set(found.map((row) => `${String(row.kind)}\u0000${String(row.key)}`));
-      return leases.filter((lease) => !renewed.has(`${lease.kind}\u0000${lease.key}`));
+      return rows.map((row) => ({ total: Number(row.total), lapsed: row.lapsed === true }));
     },
     release: async (kind, key, holder) => {
       checkLeaseParts({ kind, key, holder });
