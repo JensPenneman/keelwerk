@@ -17,6 +17,7 @@ import { isStreamRequest } from './is-stream-request.ts';
 import { isStreamResponse } from './is-stream-response.ts';
 import { mountPathOf } from './mount-path-of.ts';
 import { originCheck } from './origin-check.ts';
+import { serveSseStream } from './serve-sse-stream.ts';
 import { socketFacts } from './socket-facts.ts';
 import { spendRefusedTickets } from './spend-refused-tickets.ts';
 import { subscribeEndpoint } from './subscribe-endpoint.ts';
@@ -105,6 +106,11 @@ async function mounted(call: EndpointCall, path: string, streams: boolean): Prom
     : request;
   // The one rule of path handling: the host strips the mount's prefix, the transport never does.
   const relative = mountPathOf(match.prefix, path);
+  // Only a request the host counts as a stream (it holds its slot) may be answered on the carrier.
+  const live =
+    streams && asksForEventStream(request)
+      ? host.deps.liveCarrier?.(session.app, 'sse')
+      : undefined;
   const run = (): Promise<Response> =>
     match.handler(forwarded, {
       session,
@@ -114,6 +120,9 @@ async function mounted(call: EndpointCall, path: string, streams: boolean): Prom
       signal: request.signal,
       path: relative.path,
       basePath: `${session.tenantPrefix ?? ''}${relative.basePath}`,
+      ...(live !== undefined && {
+        serveStream: (frames, options) => serveSseStream(call, frames, { live, ...options }),
+      }),
     });
   // The stream gate is the host's: a request its route counts as a stream passed the stream origin
   // check and holds a stream slot until the body ends; a route that streams without it is refused.
@@ -192,12 +201,10 @@ export async function serveRequest(
   // but the one that carries it is spent at once, so a ticket that a wrong request left in a log is
   // dead; on a mounted path the request then goes on as if the member were not a ticket.
   const refusedTicket = ticketRefusal(request, requestUrl);
+  const facts = socketFacts(host, request, bindings);
   if (refusedTicket !== null || !carriesTicket(request, requestUrl)) {
-    await spendRefusedTickets(
-      request,
-      requestUrl,
-      socketFacts(host, request, bindings),
-      (carrier) => open(host, carrier, request.signal),
+    await spendRefusedTickets(request, requestUrl, facts, (carrier) =>
+      open(host, carrier, request.signal),
     );
   }
   if (refusedTicket !== null) return errorResponse(host, state, refusedTicket);
@@ -219,11 +226,29 @@ export async function serveRequest(
   } catch (failure) {
     return errorResponse(host, state, asKeelwerkError(failure));
   }
-  const carrier = fillCarrier(request, socketFacts(host, request, bindings));
+  const carrier = fillCarrier(request, facts);
   state.carrier = carrier;
   const opened = await open(host, carrier, request.signal);
   if ('error' in opened) {
-    return errorResponse(host, state, opened.error);
+    // A ticket refused on the one request that carries it is spent as well, with its binding not
+    // checked, so a ticket offered for another subscription is dead for its own. The refusal of the
+    // ticket itself spends, and so does a failure of the server (internal, unavailable): another
+    // resolver's error on the same request is kept and thrown in place of `core.ticket_invalid`, and
+    // would leave a ticket that a log has seen redeemable. A matching ticket returns at its redemption
+    // before any kept error is thrown, so none that opened is spent here. Version, rate, scope and the
+    // other refusals do not judge it.
+    const { error } = opened;
+    if (
+      carriesTicket(request, requestUrl) &&
+      (error.code === 'core.ticket_invalid' ||
+        error.kind === 'internal' ||
+        error.kind === 'unavailable')
+    ) {
+      await spendRefusedTickets(request, requestUrl, facts, (spent) =>
+        open(host, spent, request.signal),
+      );
+    }
+    return errorResponse(host, state, error);
   }
   const { session } = opened;
   state.session = session;

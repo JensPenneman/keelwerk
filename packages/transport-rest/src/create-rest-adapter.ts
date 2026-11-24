@@ -23,7 +23,7 @@ export function createRestAdapter(
   ];
   return {
     name: 'rest',
-    capabilities: { streaming: [], batching: false, binary: false },
+    capabilities: { streaming: ['sse'], batching: false, binary: false },
     static: fixed,
     check: (surface) => checkRestSurface(surface, fixed),
     artifacts,

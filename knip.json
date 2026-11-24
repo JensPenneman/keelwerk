@@ -47,7 +47,7 @@
     "packages/cli": {
       "entry": ["src/**/*.test-d.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@keelwerk/live", "tsc"]
+      "ignoreDependencies": ["tsc"]
     },
     "packages/module-accounts": {
       "entry": ["src/**/*.test-d.ts"],
@@ -63,8 +63,7 @@
     },
     "packages/client": {
       "entry": ["src/**/*.test-d.ts"],
-      "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["@keelwerk/live"]
+      "project": ["src/**/*.ts"]
     },
     "packages/data": {
       "entry": ["src/**/*.test-d.ts"],

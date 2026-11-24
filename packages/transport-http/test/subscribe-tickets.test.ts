@@ -1,62 +1,12 @@
 import { lendCall, readEventStream } from '@keelwerk/testing';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import { createFakeHost } from './support/create-fake-host.ts';
 import { createFakeInvoker } from './support/fake-invoker.ts';
 import { fakeSession } from './support/fake-session.ts';
 import { fakeSurface } from './support/fake-surface.ts';
-import { type StreamRuntime, startStreamRuntime } from './support/stream-runtime.ts';
+import { advancingClock, useTicketKit } from './support/use-ticket-kit.ts';
 
-vi.setConfig({ testTimeout: 60_000 });
-
-const running: StreamRuntime[] = [];
-const closers: (() => Promise<void>)[] = [];
-afterEach(async () => {
-  await Promise.all(closers.splice(0).map((close) => close()));
-  await Promise.all(running.splice(0).map((started) => started.runtime.stop()));
-});
-
-const start = Temporal.Instant.from('2026-11-11T12:00:00Z');
-/** A clock the test moves. */
-function movingClock() {
-  let at = start;
-  return { clock: { now: () => at }, advance: (seconds: number) => (at = at.add({ seconds })) };
-}
-
-const principalHeader = (subject: string) => ({
-  'x-test-principal': JSON.stringify({ subject, roles: [], claims: {} }),
-});
-
-async function boot(adapter: 'memory' | 'pglite', clock = movingClock()) {
-  const made = await startStreamRuntime({}, { pglite: adapter === 'pglite', clock: clock.clock });
-  running.push(made);
-  const issue = async (subject: string, action?: string): Promise<string> => {
-    const response = await made.target.fetch(
-      new Request(`${made.origin}/_keelwerk/v1/invoke`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', ...principalHeader(subject) },
-        body: JSON.stringify({
-          action: 'live.ticket',
-          input: action === undefined ? {} : { action },
-        }),
-      }),
-    );
-    const body = (await response.json()) as { ok: boolean; value: { ticket: string } };
-    expect(body.ok).toBe(true);
-    return body.value.ticket;
-  };
-  const open = (
-    ticket: string,
-    headers: Record<string, string> = {},
-    action = 'loans.loanEvents',
-  ) =>
-    made.target.fetch(
-      new Request(
-        `${made.origin}/_keelwerk/v1/subscribe?action=${action}&input=%7B%7D&ticket=${ticket}`,
-        { headers },
-      ),
-    );
-  return { ...made, issue, open, clock };
-}
+const { boot, closers } = useTicketKit();
 
 describe.each(['memory', 'pglite'] as const)('stream tickets on %s', (adapter) => {
   test('a ticket opens one stream as its principal', async () => {
@@ -90,7 +40,7 @@ describe.each(['memory', 'pglite'] as const)('stream tickets on %s', (adapter) =
   });
 
   test('a ticket 61 s old is 401', async () => {
-    const clock = movingClock();
+    const clock = advancingClock();
     const kit = await boot(adapter, clock);
     const ticket = await kit.issue('ada');
     clock.advance(61);
@@ -142,6 +92,37 @@ describe.each(['memory', 'pglite'] as const)('stream tickets on %s', (adapter) =
     expect((await kit.open(bound)).status).toBe(401);
   });
 
+  test('a ticket bound to one subscription and offered for another is 401 and spent at once', async () => {
+    const kit = await boot(adapter);
+    const ticket = await kit.issue('ada', 'loans.loanEvents');
+    const wrong = await kit.open(ticket, {}, 'loans.loanTicker');
+    expect(wrong.status).toBe(401);
+    expect(((await wrong.json()) as { error: { code: string } }).error.code).toBe(
+      'core.ticket_invalid',
+    );
+    // The ticket is dead for its own subscription too: whoever reads the wrong URL gets nothing.
+    const own = await kit.open(ticket);
+    expect(own.status).toBe(401);
+    expect(((await own.json()) as { error: { code: string } }).error.code).toBe(
+      'core.ticket_invalid',
+    );
+  });
+
+  test('a forged secret with the public id of a ticket spends nothing', async () => {
+    const kit = await boot(adapter);
+    const ticket = await kit.issue('ada', 'loans.loanEvents');
+    const [prefix, id, secret = ''] = ticket.split('_');
+    const forged = [...secret].map((character) => (character === 'a' ? 'b' : 'a')).join('');
+    expect(forged).toHaveLength(secret.length);
+    expect(forged).not.toBe(secret);
+    const refused = await kit.open(`${prefix}_${id}_${forged}`, {}, 'loans.loanTicker');
+    expect(refused.status).toBe(401);
+    // The spend verifies the secret, so nobody burns a ticket from its public id alone.
+    const real = await kit.open(ticket);
+    expect(real.status).toBe(200);
+    closers.push(async () => void (await real.body?.cancel()));
+  });
+
   test('a ticket sent on a wrong path beside a bearer is spent at once too', async () => {
     const kit = await boot(adapter);
     const ticket = await kit.issue('ada');
@@ -158,49 +139,6 @@ describe.each(['memory', 'pglite'] as const)('stream tickets on %s', (adapter) =
     expect(response.status).toBe(401);
     // The bearer on the refused request must not keep the ticket from being redeemed.
     expect((await kit.open(ticket)).status).toBe(401);
-  });
-
-  test('a ticket sent to a REST mount path is spent at once and the request answers as without it', async () => {
-    const kit = await boot(adapter);
-    kit.runtime.runtime.host?.route(
-      { app: 'streams', transport: 'rest', prefix: '/api' },
-      async () => new Response('mounted', { status: 200 }),
-    );
-    const onGet = await kit.issue('ada');
-    const onPost = await kit.issue('ada', 'loans.loanEvents');
-    const plain = await kit.target.fetch(new Request(`${kit.origin}/api/books`));
-    const withTicket = await kit.target.fetch(
-      new Request(`${kit.origin}/api/books?ticket=${onGet}`),
-    );
-    const posted = await kit.target.fetch(
-      new Request(`${kit.origin}/api/books?ticket=${onPost}`, { method: 'POST', body: '{}' }),
-    );
-    for (const response of [withTicket, posted]) {
-      expect(response.status).toBe(plain.status);
-      expect(await response.text()).toBe('mounted');
-    }
-    // Neither ticket is any use afterwards on the endpoint it was made for.
-    for (const ticket of [onGet, onPost]) {
-      const again = await kit.open(ticket);
-      expect(again.status).toBe(401);
-      expect(((await again.json()) as { error: { code: string } }).error.code).toBe(
-        'core.ticket_invalid',
-      );
-    }
-  });
-
-  test('a value that is no ticket on a mount path is no credential and the request goes on', async () => {
-    const kit = await boot(adapter);
-    kit.runtime.runtime.host?.route(
-      { app: 'streams', transport: 'rest', prefix: '/api' },
-      async () => new Response('mounted', { status: 200 }),
-    );
-    for (const value of ['Not-A-Ticket!', 'abc_def', 'kwst_short_short']) {
-      const response = await kit.target.fetch(
-        new Request(`${kit.origin}/api/books?ticket=${value}`),
-      );
-      expect(response.status).toBe(200);
-    }
   });
 
   test('a ticket that is not well formed is refused like any other', async () => {

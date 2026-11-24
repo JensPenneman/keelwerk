@@ -1,3 +1,4 @@
+import type { LiveLegEvent, LiveLegRequest } from '@keelwerk/client';
 import type {
   CapabilitiesDocument,
   DeprecationNotice,
@@ -26,4 +27,11 @@ export interface DeploymentLink {
   /** `GET /surface`, revalidated with `If-None-Match` when `hash` is given. */
   surface(hash?: string, options?: LinkOptions): Promise<SurfaceLookup>;
   capabilities(options?: LinkOptions): Promise<CapabilitiesDocument>;
+  /**
+   * Opens one connection of a subscription (the contract of the client's live leg): resolves once the
+   * deployment accepted it, rejects with `cli.unreachable`, `interrupted` or the wire error it answered
+   * (`core.live_unavailable` when it runs no live module); the events end with the connection, and
+   * `return()` closes it. Items stay in their wire form.
+   */
+  subscribe(request: LiveLegRequest, options?: LinkOptions): Promise<AsyncIterable<LiveLegEvent>>;
 }

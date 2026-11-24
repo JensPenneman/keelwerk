@@ -261,14 +261,6 @@ describe('call: routes and flags for every field kind', () => {
     expect(refs).toContain('auth.sessionEvents');
   });
 
-  test('a subscription ends with the unavailable error of this release (exit 10)', async () => {
-    const fake = setup();
-    const run = await runCliWith(['call', 'auth.sessionEvents', '--output', 'text'], fake.host);
-    expect(run.code).toBe(10);
-    expect(run.stderr).toContain('error[core.live_unavailable]');
-    expect(invokeBodies(fake.sent)).toEqual([]);
-  });
-
   test('--async asks for a receipt and prints the command id', async () => {
     const fake = setup((body) =>
       json({

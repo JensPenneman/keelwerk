@@ -2,12 +2,15 @@ import type { SurfaceAction } from '@keelwerk/core';
 import type { CliContext } from '../context/cli-context.ts';
 import { CliFailure } from '../context/cli-failure.ts';
 import { localFailure } from '../context/local-failure.ts';
+import { usageFailure } from '../context/usage-failure.ts';
 import { assembleInput } from './assemble-input.ts';
 import { deprecationWarning } from './deprecation-warning.ts';
 import type { FlagEntry } from './flag-entry.ts';
+import { followSubscription } from './follow-subscription.ts';
 import type { PositionalSlot } from './positional-slot.ts';
 import { resendOf } from './resend-of.ts';
 import { traceHeader } from './trace-header.ts';
+import { waitEffects } from './wait-effects.ts';
 import { waitForReceipt } from './wait-for-receipt.ts';
 
 function printReceipt(output: CliContext['output'], receipt: unknown): void {
@@ -29,18 +32,17 @@ export async function runAction(
   positionals: readonly unknown[],
 ): Promise<void> {
   if (action.kind === 'subscription') {
-    throw localFailure(
-      'unavailable',
-      'core.live_unavailable',
-      'Live updates are not available in this release.',
-    );
+    for (const flag of ['async', 'wait', 'wait-effects'] as const) {
+      if (flags[flag] !== undefined && flags[flag] !== false) {
+        throw usageFailure(`--${flag} does not apply to a subscription.`);
+      }
+    }
+  } else if (flags.follow === true) {
+    throw usageFailure('--follow applies to subscriptions only.');
   }
-  if (flags['wait-effects'] !== undefined) {
-    throw localFailure(
-      'unavailable',
-      'core.live_unavailable',
-      '--wait-effects needs live updates, which are not available in this release.',
-    );
+  if (flags.async === true && flags['wait-effects'] !== undefined && flags.wait === undefined) {
+    // An accepted command has no effects to wait on until its result is known.
+    throw usageFailure('--wait-effects needs the result of the command: add --wait.');
   }
   if (flags.explain === true) {
     throw localFailure(
@@ -51,14 +53,21 @@ export async function runAction(
   }
   const output = context.output;
   const input = await assembleInput(context, action, entries, slots, flags, positionals);
+  if (action.kind === 'subscription') {
+    await followSubscription(context, action, input, flags.follow === true);
+    return;
+  }
   const trace = flags.trace === true ? traceHeader(context.host) : undefined;
   if (trace !== undefined) {
     output.note(`trace id: ${trace.traceId}`);
   }
   const prefer = flags.async === true ? ('async' as const) : undefined;
+  // Minted here, not inside the client: a wait that fails after the commit names it on standard error.
+  const commandId =
+    typeof flags['command-id'] === 'string' ? flags['command-id'] : context.host.newId();
   const first = await context.client.invoke(action.ref, input, {
     signal: context.signal,
-    ...(typeof flags['command-id'] === 'string' && { commandId: flags['command-id'] }),
+    commandId,
     ...(prefer !== undefined && { prefer }),
     ...(trace !== undefined && { traceparent: trace.traceparent }),
     onDeprecation: (notice) => output.note(deprecationWarning(notice)),
@@ -85,11 +94,18 @@ export async function runAction(
   }
   if (response.receipt !== undefined) {
     printReceipt(output, response.receipt);
-    return;
-  }
-  if (response.value !== undefined && response.value !== null) {
+  } else if (response.value !== undefined && response.value !== null) {
     output.value(response.value);
   } else if (output.format === 'json') {
     output.value(null);
+  }
+  // The value is printed first: the command has committed whatever the wait finds.
+  if (flags['wait-effects'] !== undefined) {
+    await waitEffects(
+      context,
+      response.effects ?? [],
+      typeof flags['wait-effects'] === 'number' ? flags['wait-effects'] : null,
+      commandId,
+    );
   }
 }

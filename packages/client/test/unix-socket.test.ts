@@ -83,4 +83,29 @@ describe('unixSocketFetch', () => {
       code: 'core.unavailable',
     });
   });
+
+  it('the body streams before the response ends', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'kw-client-'));
+    const socket = join(directory, 'stream.sock');
+    let finish: (() => void) | undefined;
+    const server: Server = createServer((_request, response) => {
+      response.writeHead(200, { 'content-type': 'text/event-stream' });
+      response.write('data: first\n\n');
+      finish = () => response.end('data: last\n\n');
+    });
+    await new Promise<void>((resolve) => server.listen(socket, resolve));
+    cleanup.push(
+      () => new Promise<void>((resolve) => server.close(() => resolve())),
+      () => rm(directory, { recursive: true, force: true }),
+    );
+    const response = await unixSocketFetch(socket)('http://localhost/events');
+    expect(response.status).toBe(200);
+    const reader = response.body?.getReader();
+    const first = await reader?.read();
+    expect(new TextDecoder().decode(first?.value)).toBe('data: first\n\n');
+    finish?.();
+    const rest = await reader?.read();
+    expect(new TextDecoder().decode(rest?.value)).toBe('data: last\n\n');
+    expect((await reader?.read())?.done).toBe(true);
+  });
 });

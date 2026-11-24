@@ -1,4 +1,5 @@
 import { request } from 'node:http';
+import { Readable } from 'node:stream';
 
 const bodiless: ReadonlySet<number> = new Set([101, 204, 205, 304]);
 
@@ -31,24 +32,23 @@ export function unixSocketFetch(
           signal: source.signal,
         },
         (incoming) => {
-          const chunks: Buffer[] = [];
-          incoming.on('data', (chunk: Buffer) => chunks.push(chunk));
-          incoming.on('error', reject);
-          incoming.on('end', () => {
-            const status = incoming.statusCode ?? 502;
-            const answer = new Headers();
-            for (const [name, value] of Object.entries(incoming.headers)) {
-              for (const item of Array.isArray(value) ? value : [value]) {
-                if (item !== undefined) answer.append(name, item);
-              }
+          // The response resolves at its head and the body streams, so a long-lived answer (server-sent events) is usable.
+          const status = incoming.statusCode ?? 502;
+          const answer = new Headers();
+          for (const [name, value] of Object.entries(incoming.headers)) {
+            for (const item of Array.isArray(value) ? value : [value]) {
+              if (item !== undefined) answer.append(name, item);
             }
-            resolve(
-              new Response(bodiless.has(status) ? null : Buffer.concat(chunks), {
-                status,
-                headers: answer,
-              }),
-            );
-          });
+          }
+          if (bodiless.has(status)) incoming.resume();
+          resolve(
+            new Response(
+              bodiless.has(status)
+                ? null
+                : (Readable.toWeb(incoming) as unknown as ReadableStream<Uint8Array>),
+              { status, headers: answer },
+            ),
+          );
         },
       );
       outgoing.on('error', reject);

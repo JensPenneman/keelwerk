@@ -2,7 +2,7 @@ import {
   type Call,
   decodeAnswer,
   originOf,
-  protocolCodec,
+  readEventStream,
   requestHeaders,
   type TransportCodec,
 } from '@keelwerk/testing';
@@ -27,12 +27,34 @@ function compactSort(value: unknown): string {
 export const restCodec: TransportCodec = {
   name: 'REST',
   endpoint: '/api/loans/lend',
-  subscribePath: '/_keelwerk/v1/subscribe',
-  /** REST's own stream routes answer core.live_unavailable; a REST client subscribes on the protocol's endpoint of the same host. */
-  subscribe(target, call) {
-    const open = protocolCodec.subscribe;
-    if (open === undefined) throw new Error('The protocol codec has no stream endpoint.');
-    return open(target, call);
+  subscribePath: '/api/loans/loan-events',
+  /** A subscription on its own route (15.4.8): `GET`, the input members and `after` in the query, `Last-Event-ID` as the header. */
+  async subscribe(target, call) {
+    const route = restRoutes[call.action];
+    if (route?.stream !== true) {
+      throw new Error(`The suite has no REST stream route for '${call.action}'.`);
+    }
+    if (call.method === 'POST') throw new Error('A REST subscription is opened with GET.');
+    if (call.ticket !== undefined) throw new Error('A REST subscription path takes no ticket.');
+    const caller = call.caller ?? {};
+    const headers = requestHeaders(caller);
+    headers.set('accept', 'text/event-stream');
+    if (call.lastEventId !== undefined) headers.set('last-event-id', call.lastEventId);
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries((call.input ?? {}) as Record<string, unknown>)) {
+      if (Array.isArray(value)) for (const item of value) params.append(key, String(item));
+      else params.set(key, typeof value === 'string' ? value : JSON.stringify(value));
+    }
+    if (call.after !== undefined) params.set('after', call.after);
+    const query = params.size === 0 ? '' : `?${params.toString()}`;
+    const options = call.remoteAddress === undefined ? {} : { remoteAddress: call.remoteAddress };
+    const response = await target.fetch(
+      new Request(`${originOf(target, caller)}${caller.pathPrefix ?? ''}${route.path}${query}`, {
+        headers,
+      }),
+      options,
+    );
+    return readEventStream(response);
   },
   async send(target, call) {
     const route = restRoutes[call.action];

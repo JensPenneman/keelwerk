@@ -1,9 +1,16 @@
-import type { ApiSurface, CapabilitiesDocument, InvokeResponse } from '@keelwerk/core';
+import { ClientError, type LiveLegEvent, liveLegEventsOf } from '@keelwerk/client';
+import type {
+  ApiSurface,
+  CapabilitiesDocument,
+  DeprecationNotice,
+  InvokeResponse,
+} from '@keelwerk/core';
 import { version } from '../version.ts';
 import { CliFailure } from './cli-failure.ts';
 import type { CliHost, HostRequest } from './cli-host.ts';
 import type { DeploymentLink, LinkOptions } from './deployment-link.ts';
 import { deprecationOfHeaders } from './deprecation-of-headers.ts';
+import { kindOfStatus } from './kind-of-status.ts';
 import { localFailure } from './local-failure.ts';
 import type { ResolvedProfile } from './resolved-profile.ts';
 
@@ -15,7 +22,7 @@ async function readJson(response: Response): Promise<unknown> {
     return JSON.parse(text);
   } catch {
     throw localFailure(
-      response.status >= 500 ? 'unavailable' : 'internal',
+      kindOfStatus(response.status),
       'cli.bad_response',
       `The deployment answered ${response.status} with a body that is not JSON.`,
     );
@@ -31,7 +38,46 @@ function failureOf(body: unknown, status: number): CliFailure {
   if (error !== undefined && typeof error.code === 'string') {
     return new CliFailure(error, error.message);
   }
-  return localFailure('unavailable', 'cli.bad_response', `The deployment answered ${status}.`);
+  return localFailure(
+    kindOfStatus(status),
+    'cli.bad_response',
+    `The deployment answered ${status}.`,
+  );
+}
+
+/** A malformed stream event is a failure of the deployment's answer: the CLI renders it, not rethrows it. */
+function cliFailureOf(failure: unknown): unknown {
+  return failure instanceof ClientError
+    ? new CliFailure(
+        {
+          kind: failure.kind,
+          code: failure.code,
+          message: failure.message,
+          retryable: failure.retryable,
+          requestId: failure.requestId ?? '',
+        },
+        failure.message,
+      )
+    : failure;
+}
+
+function renderedFailures(events: AsyncIterable<LiveLegEvent>): AsyncIterable<LiveLegEvent> {
+  return {
+    [Symbol.asyncIterator]: () => {
+      const iterator = events[Symbol.asyncIterator]();
+      return {
+        next: async () => {
+          try {
+            return await iterator.next();
+          } catch (failure) {
+            throw cliFailureOf(failure);
+          }
+        },
+        return: async (value) =>
+          iterator.return === undefined ? { done: true, value } : await iterator.return(value),
+      };
+    },
+  };
 }
 
 type InvokeResponseError = Extract<InvokeResponse, { ok: false }>['error'];
@@ -80,7 +126,15 @@ export function createHttpLink(host: CliHost, profile: ResolvedProfile): Deploym
       });
       const notice = deprecationOfHeaders(response.headers, request.action);
       if (notice !== undefined) options?.onDeprecation?.(notice);
-      return (await readJson(response)) as InvokeResponse;
+      const body = await readJson(response);
+      // An answer that is no envelope (a gate, a proxy, a server that is starting) is the status's failure.
+      const error = (body as { readonly error?: InvokeResponseError } | null)?.error;
+      const envelope =
+        (body as { readonly ok?: unknown } | null)?.ok === true ||
+        ((body as { readonly ok?: unknown } | null)?.ok === false &&
+          typeof error?.code === 'string');
+      if (!envelope) throw failureOf(body, response.status);
+      return body as InvokeResponse;
     },
     async surface(hash, options) {
       const response = await send('/surface', {
@@ -96,6 +150,54 @@ export function createHttpLink(host: CliHost, profile: ResolvedProfile): Deploym
         throw failureOf(body, response.status);
       }
       return { modified: true, surface: body as ApiSurface };
+    },
+    async subscribe(request, options) {
+      const response = await send('/subscribe', {
+        method: 'POST',
+        headers: headers(options, {
+          'content-type': 'application/json',
+          accept: 'text/event-stream',
+        }),
+        body: JSON.stringify({
+          action: request.action,
+          ...(request.input !== undefined && { input: request.input }),
+          ...(request.after !== undefined && { after: request.after }),
+        }),
+        ...signalOf(options),
+      });
+      if (response.status !== 200 || response.body === null) {
+        const body = await readJson(response).catch(() => undefined);
+        const code = (body as { readonly error?: { readonly code?: unknown } } | undefined)?.error
+          ?.code;
+        if (response.status === 404 && code === 'core.not_found') {
+          throw localFailure(
+            'unavailable',
+            'core.live_unavailable',
+            'The deployment does not run the live module.',
+          );
+        }
+        throw failureOf(body, response.status);
+      }
+      if (
+        !(response.headers.get('content-type') ?? '').toLowerCase().startsWith('text/event-stream')
+      ) {
+        // A gate's login page after a redirect: no frame would come, and a follow would reopen for ever.
+        await response.body.cancel().catch(() => undefined);
+        throw localFailure(
+          'internal',
+          'cli.bad_response',
+          'The deployment answered 200 with something that is not an event stream.',
+        );
+      }
+      return renderedFailures(
+        liveLegEventsOf(response.body, (data) => {
+          try {
+            options?.onDeprecation?.(JSON.parse(data) as DeprecationNotice);
+          } catch {
+            // A notice that cannot be read is dropped: it only warns.
+          }
+        }),
+      );
     },
     async capabilities(options) {
       const response = await send('/capabilities', {

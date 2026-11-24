@@ -49,6 +49,7 @@ export type { TransportCodec } from './conformance/transport/transport-codec.ts'
 export type { TransportRuntime } from './conformance/transport/transport-runtime.ts';
 export type { TransportTarget } from './conformance/transport/transport-target.ts';
 export { transportTargetOf } from './conformance/transport/transport-target-of.ts';
+export { waitEffectsCases } from './conformance/transport/wait-effects-cases.ts';
 export { created } from './drive/created.ts';
 export type { DraftMatcher } from './drive/draft-matcher.ts';
 export { drive } from './drive/drive.ts';

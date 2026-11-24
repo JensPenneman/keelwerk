@@ -10250,7 +10250,10 @@ it holds. The 24-hour maximum (section 15.4.5) ends the subscription with the st
   `verifier`, `endpoint`, `principalResolver` and `principalId` (amended 2026-11-11). A stream
   opened with a ticket does not reconnect with it: the ticket is spent, so the browser's reconnect
   is refused (401), and the client takes a new ticket and opens the stream with its last token as
-  `after`.
+  `after`. A host that is draining answers every request 503 `core.unavailable` before it looks at
+  it, so a ticket in that request is neither refused nor spent: it stays valid until its own expiry
+  (at most 60 seconds), and a client that meets a restart may offer the same ticket to another
+  instance. That is defined behaviour, not a gap.
 - One SSE stream carries one subscription. Clients with many subscriptions use the WebSocket
   carrier or HTTP/2, which removes the per-host connection limit of HTTP/1.1.
 
@@ -12518,6 +12521,22 @@ As built in M1 (added 2026-11-05, register entries 418 and 436): `--wait` exits 
 `cli.wait_timeout` at its timeout, exits with 11 and `cli.wait_unavailable` when the answer carries
 no `receiptId`, and a bare `--wait` waits until interrupted (130). `keelwerk` exits on SIGTERM with
 the command's code after a completed stop, and on SIGINT with 130.
+
+As built with WP-113 (added 24 Nov 2026): `--wait-effects` waits on `core.effectStatusWatch` after
+the command committed and prints one note per status on standard error. An effect that failed or
+was abandoned ends the command with its own kind and code, or with 1 and `cli.effect_failed` when it
+has none; an effect the watch does not know ends it with 6 and `cli.effect_not_found`, a wait past
+its limit with 10 and `cli.wait_timeout`, and any other failure of the wait with 10 and
+`cli.wait_failed`. The last three are not retryable, say on standard error that the command
+committed under its command id, and carry `committed` and the command id in their details with
+`--output json`. `--wait-effects` with `--async` needs `--wait`; without it the command is refused
+with 2 before anything is sent. `--follow` reopens on a dropped connection, a request that fails,
+a 408 or any 5xx and a 429; it ends with the exit code of the refusal on an `error` event, on a
+gate's 401, 403 or 404 without an error code, and on a 200 that is not an event stream
+(`cli.bad_response`); a gap frame is a note on standard error. Any answer of a deployment without
+an error code (a gate, a proxy, a server that is starting) exits by its status with
+`cli.bad_response`: 401 is 4, 403 is 5, 404 is 6, 429 is 8, 408 and every 5xx are 10, any other
+status is 1.
 
 #### 16.9.6 Profiles and credentials
 

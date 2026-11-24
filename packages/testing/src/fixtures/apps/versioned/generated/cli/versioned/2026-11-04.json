@@ -2745,6 +2745,7 @@
     "config",
     "explain",
     "fields",
+    "follow",
     "if-version",
     "input",
     "output",

@@ -1,0 +1,198 @@
+import type { HttpContext, LiveFrame } from '@keelwerk/core';
+import { readEventStream } from '@keelwerk/testing';
+import { afterEach, describe, expect, test } from 'vitest';
+import { createFakeHost, type FakeHost } from './support/create-fake-host.ts';
+import { fakeAction, stringNode } from './support/fake-surface.ts';
+import { realSseCarrier } from './support/real-sse-carrier.ts';
+
+const hosts: FakeHost[] = [];
+afterEach(async () => {
+  await Promise.all(hosts.splice(0).map((made) => made.host.stop(100)));
+});
+
+const action = fakeAction('loans.loanEvents', { kind: 'subscription', output: stringNode });
+
+/** What the mounted route does: serves a quiet source, serves one that fails after its first frame, answers a refusal, or throws. */
+type Route = 'quiet' | 'fails' | 'refused' | 'throws';
+
+/** A host with one mounted route that serves a frame source through `serveStream`, when the context has it. */
+function mountedHost(options: { live?: boolean; route?: Route; notStream?: boolean } = {}) {
+  const contexts: HttpContext[] = [];
+  const returns = Array.from({ length: 4 }, () => Promise.withResolvers<void>());
+  let returnedCount = 0;
+  const made = createFakeHost(
+    { live: { maxStreamsPerPrincipal: 1 } },
+    options.live === false ? {} : { deps: { liveCarrier: () => realSseCarrier() } },
+  );
+  hosts.push(made);
+  made.host.route(
+    {
+      app: 'library',
+      transport: 'rest',
+      prefix: '/api',
+      ...(options.notStream === true && { streams: () => false }),
+    },
+    async (_request, ctx) => {
+      contexts.push(ctx);
+      if (ctx.serveStream === undefined) return new Response('no stream', { status: 400 });
+      if (options.route === 'refused') return new Response('refused', { status: 403 });
+      if (options.route === 'throws') throw new Error('the route failed before it served');
+      const frames: AsyncIterable<LiveFrame<unknown>> = {
+        [Symbol.asyncIterator]: () => {
+          let sent = false;
+          return {
+            next: () => {
+              if (!sent) {
+                sent = true;
+                return Promise.resolve({ done: false, value: { event: 'one' } });
+              }
+              if (options.route === 'fails') return Promise.reject(new Error('the source failed'));
+              return new Promise<IteratorResult<LiveFrame<unknown>>>(() => undefined);
+            },
+            return: () => {
+              returns[returnedCount++]?.resolve();
+              return Promise.resolve({ done: true, value: undefined });
+            },
+          };
+        },
+      };
+      return ctx.serveStream(frames, { action, surfaceHash: 'hash-1' });
+    },
+  );
+  return { ...made, contexts, returned: (count: number) => returns[count - 1]?.promise };
+}
+
+const get = (made: FakeHost, headers: Record<string, string> = {}, signal?: AbortSignal) =>
+  made.host.fetch(
+    new Request('https://library.example/api/loans', { headers, ...(signal && { signal }) }),
+    { remoteAddress: '198.18.0.5' },
+  );
+
+const asksStream = { accept: 'text/event-stream' };
+
+describe('a mounted route that serves a stream on the host', () => {
+  test('a request that asks for an event stream gets serveStream and opens with retry and welcome', async () => {
+    const made = mountedHost();
+    const response = await get(made, { accept: 'text/event-stream' });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/event-stream');
+    const events = readEventStream(response);
+    const first = await events.next();
+    expect(first).toMatchObject({ event: 'welcome', data: { surfaceHash: 'hash-1' } });
+    expect(await events.next()).toMatchObject({ event: 'data', data: 'one' });
+    await events.close();
+  });
+
+  test('without the Accept there is no serveStream, and neither without a live carrier', async () => {
+    const plain = mountedHost();
+    expect((await get(plain)).status).toBe(400);
+    expect(plain.contexts[0]?.serveStream).toBeUndefined();
+    const noLive = mountedHost({ live: false });
+    expect((await get(noLive, { accept: 'text/event-stream' })).status).toBe(400);
+    expect(noLive.contexts[0]?.serveStream).toBeUndefined();
+  });
+
+  test('a route that its own predicate does not count as a stream gets no serveStream', async () => {
+    const made = mountedHost({ notStream: true });
+    expect((await get(made, asksStream)).status).toBe(400);
+    expect(made.contexts[0]?.serveStream).toBeUndefined();
+  });
+
+  test('a mounted stream holds the one stream slot and gives it back when the body is cancelled', async () => {
+    const made = mountedHost();
+    const first = await get(made, { accept: 'text/event-stream' });
+    expect(first.status).toBe(200);
+    const refused = await get(made, { accept: 'text/event-stream' });
+    expect(refused.status).toBe(429);
+    await first.body?.cancel();
+    await made.returned(1);
+    const again = await get(made, { accept: 'text/event-stream' });
+    expect(again.status).toBe(200);
+    await again.body?.cancel();
+  });
+
+  test('a mounted stream gives its slot back when the request aborts', async () => {
+    const made = mountedHost();
+    const abort = new AbortController();
+    const first = await get(made, asksStream, abort.signal);
+    expect(first.status).toBe(200);
+    expect((await get(made, asksStream)).status).toBe(429);
+    abort.abort();
+    // The verdict is the source's return, or fifty turns of the event loop without it: never a time limit.
+    let returned = false;
+    void made.returned(1)?.then(() => {
+      returned = true;
+    });
+    for (let turn = 0; turn < 50 && !returned; turn += 1) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+    expect(returned).toBe(true);
+    const again = await get(made, asksStream);
+    expect(again.status).toBe(200);
+    await again.body?.cancel();
+  });
+
+  test('a mounted stream gives its slot back when its source fails, and the failure is an error event', async () => {
+    const made = mountedHost({ route: 'fails' });
+    const first = await get(made, asksStream);
+    expect(first.status).toBe(200);
+    expect((await get(made, asksStream)).status).toBe(429);
+    expect(await first.text()).toContain('event: error');
+    const again = await get(made, asksStream);
+    expect(again.status).toBe(200);
+    await again.body?.cancel();
+  });
+
+  test('a route that refuses before it serves, or throws, holds no slot once its answer is read', async () => {
+    for (const route of ['refused', 'throws'] as const) {
+      const made = mountedHost({ route });
+      const status = route === 'refused' ? 403 : 500;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const answer = await get(made, asksStream);
+        expect(answer.status).toBe(status);
+        await answer.text();
+      }
+    }
+  });
+
+  test('a mounted stream ends going_away at stop', async () => {
+    const made = mountedHost();
+    const response = await get(made, { accept: 'text/event-stream' });
+    const events = readEventStream(response);
+    await events.next();
+    expect(await events.next()).toMatchObject({ event: 'data', data: 'one' });
+    const stopping = made.host.stop(1000);
+    const frames = await events.until((frame) => frame.event === 'end');
+    await stopping;
+    expect(frames.at(-1)).toMatchObject({ event: 'end', data: { reason: 'going_away' } });
+  });
+
+  test('an event whose own member is called control arrives as data and signals nothing', async () => {
+    const release = Promise.withResolvers<void>();
+    const made = createFakeHost({}, { deps: { liveCarrier: () => realSseCarrier() } });
+    hosts.push(made);
+    made.host.route(
+      { app: 'library', transport: 'rest', prefix: '/api' },
+      async (_request, ctx) => {
+        const events = ['reset', 'head', 'gap'];
+        async function* frames(): AsyncGenerator<LiveFrame<unknown>> {
+          for (const control of events) yield { event: { control } };
+          await release.promise;
+          yield { event: { control: 'later' } };
+          await new Promise<void>(() => undefined);
+        }
+        return ctx.serveStream?.(frames(), { action, surfaceHash: 'hash-1' }) ?? new Response(null);
+      },
+    );
+    const response = await get(made, { accept: 'text/event-stream' });
+    const events = readEventStream(response);
+    expect((await events.next())?.event).toBe('welcome');
+    for (const control of ['reset', 'head', 'gap']) {
+      expect(await events.next()).toMatchObject({ event: 'data', data: { control } });
+    }
+    // Nothing of an event's content is a control signal: no reset, head or end was written, and a later event still comes.
+    release.resolve();
+    expect(await events.next()).toMatchObject({ event: 'data', data: { control: 'later' } });
+    await events.close();
+  });
+});

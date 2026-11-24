@@ -11,4 +11,11 @@ export type InvocationResult =
       /** The effect references the envelope reported; absent when it listed none. */
       readonly effects?: EffectReferences;
     }
-  | { readonly ok: false; readonly error: ClientError };
+  | {
+      readonly ok: false;
+      readonly error: ClientError;
+      /** Set when the command committed and only the wait for its effects failed: the id to reuse, never a new one. */
+      readonly commandId?: string;
+      /** Set with `commandId`: the effects the committed command listed. */
+      readonly effects?: EffectReferences;
+    };
