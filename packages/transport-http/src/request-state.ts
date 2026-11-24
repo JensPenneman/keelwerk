@@ -4,7 +4,7 @@ import type { Carrier, InvocationSession } from '@keelwerk/core';
 export interface RequestState {
   readonly requestId: string;
   readonly traceparent?: string;
-  /** The `Keelwerk-Version` the client sent, echoed when no session exists. */
+  /** The API version the client named (header or query parameter), echoed when no session exists. */
   readonly requestedVersion?: string;
   carrier?: Carrier;
   session?: InvocationSession;

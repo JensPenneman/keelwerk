@@ -17,6 +17,7 @@ import { isStreamRequest } from './is-stream-request.ts';
 import { isStreamResponse } from './is-stream-response.ts';
 import { mountPathOf } from './mount-path-of.ts';
 import { originCheck } from './origin-check.ts';
+import { requestedVersionOf } from './requested-version-of.ts';
 import { serveSseStream } from './serve-sse-stream.ts';
 import { socketFacts } from './socket-facts.ts';
 import { spendRefusedTickets } from './spend-refused-tickets.ts';
@@ -226,6 +227,8 @@ export async function serveRequest(
   } catch (failure) {
     return errorResponse(host, state, asKeelwerkError(failure));
   }
+  const { refusal } = requestedVersionOf(request);
+  if (refusal !== undefined) return errorResponse(host, state, refusal);
   const carrier = fillCarrier(request, facts);
   state.carrier = carrier;
   const opened = await open(host, carrier, request.signal);

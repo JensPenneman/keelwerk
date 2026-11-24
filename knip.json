@@ -21,10 +21,7 @@
         "@keelwerk/cli",
         "@keelwerk/data",
         "@keelwerk/module-audit",
-        "@keelwerk/module-members",
-        "@orpc/client",
-        "@trpc/client",
-        "eventsource"
+        "@keelwerk/module-members"
       ]
     },
     "packages/type-budgets": {

@@ -70,7 +70,8 @@ function setsAnswerHeaders(mount: TrpcVersionMount, paths: readonly string[]): b
  * The `HttpHandler` the host routes the tRPC mount to (section 16.7): it takes the router of the
  * session's API version and runs the gate before tRPC: after the mount closes, a request is
  * answered `unavailable`; the body is bounded; a subscription runs only alone and with
- * `Accept: text/event-stream`, else it is refused 406; an `Idempotency-Key` names one command.
+ * `Accept: text/event-stream`, else it is refused 406; a URL with `connectionParams` is refused
+ * `core.validation` (they are read on the WebSocket only); an `Idempotency-Key` names one command.
  * Then `fetchRequestHandler` runs the router against a request that carries the one `Accept` the
  * host counted. A JSON-lines batch that calls a command or an action with a cookie hint is read to
  * its end and sent with the headers its procedures set (`Set-Cookie`, the command id), which
@@ -112,6 +113,15 @@ export function createTrpcHandler(deps: TrpcHandlerDeps): HttpHandler {
     }
     try {
       const url = new URL(request.url);
+      if (url.searchParams.has('connectionParams')) {
+        return refuse(
+          coreError('core.validation', {
+            message:
+              'connectionParams are read on the WebSocket only. Over HTTP pin the API version with the Keelwerk-Version header or the keelwerk-version query parameter.',
+            issues: [{ path: ['query', 'connectionParams'], message: 'Not read over HTTP.' }],
+          }),
+        );
+      }
       const batch = url.searchParams.get('batch') === '1';
       const paths = pathsOf(url.origin, ctx.path, batch);
       if (paths === undefined) {

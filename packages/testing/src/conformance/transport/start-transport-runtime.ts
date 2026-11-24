@@ -20,8 +20,10 @@ import type { DrainState } from '../../harness/drain-state.ts';
 import type { TestApp } from '../../harness/test-app.ts';
 import { testMasterKeyName } from '../../harness/test-master-key-name.ts';
 import type { TestPrincipalBook } from '../../harness/test-principal-book.ts';
+import type { TestRuntimeOptions } from '../../harness/test-runtime-options.ts';
 import { testSecrets } from '../../harness/test-secrets.ts';
 import { withTestResolver } from '../../harness/with-test-resolver.ts';
+import { keepIdleClients } from '../../postgres/keep-idle-clients.ts';
 import { clientConnectOf } from './client-connect-of.ts';
 import { transportBoundsOf } from './transport-bounds-of.ts';
 import { transportPglite } from './transport-pglite.ts';
@@ -42,6 +44,11 @@ export interface TransportRuntimeOptions {
   readonly host: InfrastructureEntry;
   /** The data adapter of the control store and the placement; default `'memory'`. */
   readonly adapter?: 'memory' | 'pglite';
+  /**
+   * Serves the app on an adapter factory and the database it names (a PostgreSQL started by the
+   * test), for the control store and the placement, instead of `adapter`.
+   */
+  readonly external?: TestRuntimeOptions['external'];
   /** The backend's `config`, by module id (the REST module's `cors` and `docs`). */
   readonly config?: Readonly<Record<string, unknown>>;
   /** The tenants to create, by name; each gets the domain `<name>.example.test`. */
@@ -78,9 +85,14 @@ export async function startTransportRuntime(
     [...app.registry.entities].map(([ref, entry]) => [ref, entry.descriptor] as const),
   );
   const lookup = (ref: string): EntityDescriptor | undefined => descriptors.get(ref);
-  const id = options.adapter ?? 'memory';
+  const { external } = options;
   const factory: DataAdapterFactory =
-    id === 'pglite' ? transportPglite({ entities: lookup }) : memoryAdapter({ entities: lookup });
+    external?.factory ??
+    (options.adapter === 'pglite'
+      ? transportPglite({ entities: lookup })
+      : memoryAdapter({ entities: lookup }));
+  const id = factory.id;
+  const database = external === undefined ? {} : { url: external.url, pool: keepIdleClients };
   const book: TestPrincipalBook = { seen: new Map(), revoked: new Set() };
   const names = options.tenants ?? ['acme', 'globex'];
   const directory = await mkdtemp(join(tmpdir(), 'kw-transport-'));
@@ -98,8 +110,8 @@ export async function startTransportRuntime(
         ...(options.eventWorkers ?? []),
         options.host,
       ],
-      control: { adapter: id },
-      placements: { main: { adapter: id, strategy: 'shared-tables' } },
+      control: { adapter: id, ...database },
+      placements: { main: { adapter: id, strategy: 'shared-tables', ...database } },
       operator: { socket },
       tenantResolution: [
         { kind: 'hostname' },

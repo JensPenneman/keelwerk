@@ -131,6 +131,32 @@ describe('subscriptions over server-sent events', () => {
     expect(mounted.subscribed).toEqual([]);
   });
 
+  test('connectionParams in the URL are refused: they are read on the socket only', async () => {
+    const mounted = await mountedTrpc(
+      trpcConformanceSurface(),
+      () => ({ ok: true, value: undefined }),
+      {
+        subscribe: async function* () {},
+      },
+    );
+    const response = await sendTrpc(mounted.handler, 'loans.loanEvents', {
+      headers: open,
+      search: `connectionParams=1`,
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: {
+        json: {
+          data: { keelwerk: { kind: 'validation', code: 'core.validation' } },
+          message: expect.stringMatching(
+            /Keelwerk-Version header.*keelwerk-version query parameter/,
+          ),
+        },
+      },
+    });
+    expect(mounted.subscribed).toEqual([]);
+  });
+
   test('leaving the stream ends the invocation', async () => {
     let signal: AbortSignal | undefined;
     let finished = false;

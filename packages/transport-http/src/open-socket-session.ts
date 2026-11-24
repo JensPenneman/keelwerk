@@ -9,6 +9,7 @@ import { enrichCarrier } from './enrich-carrier.ts';
 import type { LiveSocketState } from './live-socket-state.ts';
 import { originCheck } from './origin-check.ts';
 import { takeStreamSlot } from './take-stream-slot.ts';
+import { versionConflictOf } from './version-conflict-of.ts';
 
 function socketClosed(): KeelwerkError {
   return coreError('core.unavailable', { message: 'The socket is closed.', retryable: false });
@@ -16,7 +17,8 @@ function socketClosed(): KeelwerkError {
 
 /**
  * The session a hello asks for. A hello that names none of a token, a backend, a tenant and an API
- * version keeps the upgrade's session. Otherwise a new carrier is the upgrade's with the three
+ * version keeps the upgrade's session. A hello whose API version differs from the one the upgrade
+ * named (header or query parameter) is refused `core.validation`. Otherwise a new carrier is the upgrade's with the three
  * selector headers from the hello, and with the token set and the cookie and authorization headers
  * dropped when the hello brings one (one credential per session, as a stream ticket is). The invoker
  * opens it, a cookie session meets the origin rule of the tenant it now belongs to and of the
@@ -39,6 +41,14 @@ export async function openSocketSession(
     return { ok: true };
   }
   const { host, carrier: upgraded, request } = state.upgrade;
+  const upgradeVersion = upgraded.headers?.['keelwerk-version'];
+  if (
+    hello.apiVersion !== undefined &&
+    upgradeVersion !== undefined &&
+    upgradeVersion !== hello.apiVersion
+  ) {
+    return { ok: false, error: versionConflictOf([upgradeVersion, hello.apiVersion]) };
+  }
   const headers: Record<string, string> = { ...upgraded.headers };
   if (hello.backend !== undefined) headers['x-keelwerk-backend'] = hello.backend;
   if (hello.tenant !== undefined) headers['x-keelwerk-tenant'] = hello.tenant;

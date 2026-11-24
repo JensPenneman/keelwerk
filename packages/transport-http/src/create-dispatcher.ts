@@ -11,6 +11,7 @@ import { readyResponse } from './ready-response.ts';
 import { requestId } from './request-id.ts';
 import type { RequestState } from './request-state.ts';
 import type { RequestTelemetry } from './request-telemetry.ts';
+import { requestedVersionOf } from './requested-version-of.ts';
 import { serveRequest } from './serve-request.ts';
 import { traceContext } from './trace-context.ts';
 /**
@@ -40,11 +41,7 @@ export function createDispatcher(host: HostContext, telemetry: RequestTelemetry)
   );
   return {
     async handle(request, extras) {
-      const requestedVersion =
-        request.headers.get('keelwerk-version') ??
-        (request.method === 'GET'
-          ? new URL(request.url).searchParams.get('keelwerk-version')
-          : null);
+      const { version: requestedVersion } = requestedVersionOf(request);
       const traceparent = traceContext(request.headers.get('traceparent'));
       const state: RequestState = {
         requestId: requestId(),

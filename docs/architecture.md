@@ -10367,7 +10367,7 @@ export interface PresencePeer {
 | invocation protocol | SSE `/_keelwerk/v1/subscribe`; WebSocket `keelwerk.live.v1` | `Last-Event-ID` or `after` | header, cookie, ticket; `hello.token` |
 | REST | SSE on the subscription's own path | `Last-Event-ID` | header, cookie (a ticket presented there is spent, section 15.4.6; amended 2026-11-11) |
 | GraphQL | GraphQL over SSE (Yoga); graphql-ws 6.4.2 | `after` argument, `state` field | header, cookie; `connectionParams` |
-| tRPC | `httpSubscriptionLink` (SSE); `wsLink` when enabled | `tracked()` ids as `lastEventId` | cookie, header through an `EventSource` ponyfill; `connectionParams` over WebSocket |
+| tRPC | `httpSubscriptionLink` (SSE); `wsLink` when enabled | `tracked()` ids as `lastEventId` | cookie, header through an `EventSource` ponyfill; `connectionParams` over WebSocket only (refused in an HTTP URL) |
 | CLI | invocation protocol SSE | automatic, from the last token | profile credential |
 
 Amended 2026-11-17: graphql-ws runs through its `makeServer`, not `graphql-ws/use/ws` (section
@@ -12185,10 +12185,11 @@ Subscriptions are async generators over SSE (`httpSubscriptionLink`), yielding `
 so that the client's automatic `lastEventId` resumes the stream from the stream token. WebSocket
 (`wsLink`) is available when the backend enables it: the transport registers tRPC's WebSocket
 handler (`@trpc/server/adapters/ws`) on the host's upgrade table under `/trpc`. Authentication for
-SSE uses cookies or an `EventSource` ponyfill with headers; tRPC's URL `connectionParams` are not
-recommended, because they end up in logs. A stream ticket is a credential only on
-`GET /_keelwerk/v1/subscribe`, so one presented on `/trpc` is spent (section 15.4.6, amended
-2026-11-11).
+SSE uses cookies or an `EventSource` ponyfill with headers; tRPC's `connectionParams` are read
+on the WebSocket only, and a URL that carries them is refused `core.validation` (400), so a
+version is pinned over SSE with the header or the `keelwerk-version` query parameter. A stream
+ticket is a credential only on `GET /_keelwerk/v1/subscribe`, so one presented on `/trpc` is
+spent (section 15.4.6, amended 2026-11-11).
 
 #### 16.7.6 What is generated when
 
@@ -15704,8 +15705,10 @@ order (additive changes reach every version, and released entries are never edit
 
 The session's version is the first of:
 
-1. the request: header `Keelwerk-Version`, query parameter `keelwerk-version` on `GET`
-   (`EventSource` sends no headers), `hello.apiVersion` on WebSocket, `--api-version` in the CLI;
+1. the request: header `Keelwerk-Version`, or query parameter `keelwerk-version` on a request of
+   any method (`EventSource` sends no headers, and a client pinned by its URL pins every call of
+   a link); `hello.apiVersion` on WebSocket, `connectionParams.apiVersion` on a GraphQL or tRPC
+   WebSocket, `--api-version` in the CLI;
 2. the credential: an API key created with a version, so an integration does not move with its
    tenant;
 3. the tenant's pin, set at creation to the backend's default;
@@ -15724,9 +15727,10 @@ rise. (Amended 2026-11-05, register entries 356, 373, 374 and 404: in M1 `core.t
 runs at deployment scope, checks the pin against the app's versions, refuses retired versions and
 answers `unavailable` for an app the process does not serve; generated writes on `core.*` refuse
 `apiVersion` members. The version travels in the `Keelwerk-Version` header only: the HTTP host
-copies a `GET`'s `keelwerk-version` query parameter into it, and the WebSocket hello is M2. A
-version is retired below the oldest declared version or past its entry's sunset (410); any other
-undeclared date is unknown (400); a pin follows the same rules, so a retired or unknown pin fails
+copies a `GET`'s `keelwerk-version` query parameter into it (amended 2026-11-24: of every
+method), and the WebSocket hello is M2. A version is retired below the oldest declared version or
+past its entry's sunset (410); any other undeclared date is unknown (400); a pin follows the same
+rules, so a retired or unknown pin fails
 the request, and the re-pin event of section 18.5 is M2. `openSession` passes the principal to
 `resolveVersion`, and the deployment-level core app serves `coreApiVersions`.) The typed client, the CLI and the Launchway agent also send
 `Keelwerk-Client: <name>/<version>`.
@@ -15737,6 +15741,26 @@ target of that pin, the oldest served version newer than it (the head when there
 `Keelwerk-Version` header says so; a retired version the request names itself is
 `core.api_version_retired` (410). So there is no outage between a sunset and the operator's
 `surface retire`, which still writes the re-pin and its events (section 18.5).
+
+Amended 2026-11-24: a client that names an API version is answered at it over REST, GraphQL,
+tRPC, oRPC and the invocation protocol, for queries, commands and subscriptions, and a
+subscription it reopens stays at that version. One function of the HTTP host reads the version a
+request names: the header, else the query parameter, on every method. The same version named
+twice is accepted. A request whose header and parameter, or whose parameter given twice, name two
+different versions is refused `core.validation` (422), naming them, and so is a WebSocket whose
+hello names another version than its upgrade did (the socket closes with that code). A header
+sent twice arrives as one joined value that no version matches: `core.api_version_invalid`
+(400). What a pin does not cover:
+
+- A stream token holds no pin: a client sends its pin again on every reopen. A reopen that names
+  none is served at the version the session would have without a request (the credential's, the
+  tenant's or the backend's), and a token issued at another version is answered with a `reset`
+  event (reason `resync`).
+- A command accepted for later is stored in head form and run without translation; its receipt
+  reads the same at every version and names the version it was accepted at.
+- tRPC reads `connectionParams` on its WebSocket only: the HTTP handler refuses a URL that
+  carries them (`core.validation`, 400), because the member was ignored there before. Pin over
+  HTTP with the header or the query parameter.
 
 ### 18.4 Compatibility per transport
 

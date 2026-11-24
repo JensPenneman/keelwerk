@@ -60,6 +60,63 @@ describe('the carrier', () => {
     expect(response.headers.get('keelwerk-version')).toBe('2026-11-01');
   });
 
+  it('copies the version query parameter of a POST into the headers', async () => {
+    const { host, invoker } = setup();
+    await host.fetch(
+      postJson('/_keelwerk/v1/invoke?keelwerk-version=2026-02-02', { action: 'library.lookup' }),
+    );
+    expect(invoker.opened[0]?.headers?.['keelwerk-version']).toBe('2026-02-02');
+  });
+
+  it('accepts the same version in the header and the query parameter', async () => {
+    const { host, invoker } = setup();
+    await host.fetch(
+      postJson(
+        '/_keelwerk/v1/invoke?keelwerk-version=2026-02-02',
+        { action: 'library.lookup' },
+        { 'keelwerk-version': '2026-02-02' },
+      ),
+    );
+    expect(invoker.opened[0]?.headers?.['keelwerk-version']).toBe('2026-02-02');
+  });
+
+  it('refuses a request that names two versions and names both', async () => {
+    const { host, invoker } = setup();
+    const response = await host.fetch(
+      postJson(
+        '/_keelwerk/v1/invoke?keelwerk-version=2026-03-03',
+        { action: 'library.lookup' },
+        { 'keelwerk-version': '2026-02-02' },
+      ),
+    );
+    expect(response.status).toBe(422);
+    const body = JSON.stringify(await response.json());
+    expect(body).toContain('core.validation');
+    expect(body).toContain('2026-02-02');
+    expect(body).toContain('2026-03-03');
+    expect(response.headers.get('keelwerk-version')).toBeNull();
+    expect(invoker.opened).toEqual([]);
+  });
+
+  it('refuses a parameter given twice with two versions and accepts the same one twice', async () => {
+    const { host, invoker } = setup();
+    const refused = await host.fetch(
+      new Request(
+        'https://library.example/_keelwerk/v1/surface?keelwerk-version=2026-02-02&keelwerk-version=2026-03-03',
+      ),
+    );
+    expect(refused.status).toBe(422);
+    expect(JSON.stringify(await refused.json())).toContain('2026-03-03');
+    expect(refused.headers.get('keelwerk-version')).toBeNull();
+    expect(invoker.opened).toEqual([]);
+    await host.fetch(
+      new Request(
+        'https://library.example/_keelwerk/v1/surface?keelwerk-version=2026-02-02&keelwerk-version=2026-02-02',
+      ),
+    );
+    expect(invoker.opened[0]?.headers?.['keelwerk-version']).toBe('2026-02-02');
+  });
+
   it('lets the enrichers name a scope key before the scope is resolved', async () => {
     const invoker = createFakeInvoker({ actions: libraryActions });
     const { host } = setup({}, invoker, {

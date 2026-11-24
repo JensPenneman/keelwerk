@@ -1,4 +1,5 @@
 import type { Carrier } from '@keelwerk/core';
+import { requestedVersionOf } from './requested-version-of.ts';
 import type { SocketFacts } from './socket-facts.ts';
 
 function hostOf(url: URL): string {
@@ -21,7 +22,7 @@ function ticketOf(request: Request, url: URL): Carrier['ticket'] {
 
 /**
  * Fills the carrier of an HTTP request (section 16.4.10): host, path, lower-case headers, the
- * bearer token and the connection. `local.socket` is set on the operator socket only, so no
+ * bearer token, the connection and the API version the request names (`requestedVersionOf`). `local.socket` is set on the operator socket only, so no
  * header or path can claim it.
  */
 export function fillCarrier(request: Request, facts: SocketFacts): Carrier {
@@ -39,9 +40,9 @@ export function fillCarrier(request: Request, facts: SocketFacts): Carrier {
     delete headers.authorization;
   }
   headers.host ??= url.host;
-  const queryVersion = url.searchParams.get('keelwerk-version');
-  if (request.method === 'GET' && queryVersion !== null) {
-    headers['keelwerk-version'] ??= queryVersion;
+  const { version } = requestedVersionOf(request);
+  if (version !== null) {
+    headers['keelwerk-version'] = version;
   }
   const token = ticket === undefined ? bearerToken(headers.authorization) : undefined;
   return {
