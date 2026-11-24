@@ -485,13 +485,14 @@ describe.each(['memory', 'pglite'] as const)(
       try {
         expect((await operator.attempt('oes.end', { itemId })).ok).toBe(true);
         await settle();
-        expect(erasures(await ledger())).toEqual([]);
-        expect(await keyLive(itemId)).toBe(true);
+        // The failed read is seen by its warning. Whether the retry has run by now depends on the gap
+        // it drew at random, so nothing is asserted about the ledger yet: the later record is the proof.
         expect(putOff).toEqual([{ commandId: expect.any(String), kind: 'ownership' }]);
         await current?.advanceTo(current.clock.now().add({ hours: 2 }));
         await settle();
         expect(erasures(await ledger())).toHaveLength(1);
         expect(await keyLive(itemId)).toBe(false);
+        expect(putOff).toHaveLength(1);
       } finally {
         restore();
       }
