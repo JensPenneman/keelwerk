@@ -1,10 +1,68 @@
 import { describe, expect, test } from 'vitest';
-import { snapshotInput, snapshotScope } from '../../test/flag-snapshot-kit.ts';
+import { snapshotInput, snapshotRegistry, snapshotScope } from '../../test/flag-snapshot-kit.ts';
+import { effectiveRules } from '../authorization/effective-rules.ts';
 import { placeholderPrincipal } from '../invoker/edge/placeholder-principal.ts';
+import type { ActionEntry } from '../registry/action-entry.ts';
+import type { ModuleEntry } from '../registry/module-entry.ts';
+import type { Registry } from '../registry/registry.ts';
+import type { RuleEntry } from '../registry/rule-entry.ts';
 import { buildSnapshot } from './build-snapshot.ts';
 import { envFlagProvider } from './env-flag-provider.ts';
 import type { FlagContext } from './flag-context.ts';
 import type { FlagProvider } from './flag-provider.ts';
+
+const payAction = { ref: 'shop.pay', module: 'shop', name: 'pay', kind: 'command' } as ActionEntry;
+
+function flagsOf(...names: readonly string[]): ModuleEntry['flags'] {
+  return Object.fromEntries(
+    names.map((name) => [name, { kind: 'boolean', level: 'tenant', default: false }]),
+  );
+}
+
+function moduleOf(id: string, extra: Partial<ModuleEntry> = {}): ModuleEntry {
+  const base = snapshotRegistry.modules.find((entry) => entry.id === 'other') as ModuleEntry;
+  return { ...base, id, requires: [], flags: {}, ...extra };
+}
+
+function ruleOf(id: string, module: string, extra: Partial<RuleEntry>): RuleEntry {
+  return {
+    id,
+    module,
+    effect: 'deny',
+    reason: 'held',
+    subject: { module: 'shop' },
+    actions: ['pay'],
+    disabled: false,
+    ...extra,
+  } as RuleEntry;
+}
+
+/** The snapshot registry with its own module entries and rules, the rules of the core and the others left out. */
+function registryWith(modules: readonly ModuleEntry[], rules: readonly RuleEntry[]): Registry {
+  const shop = snapshotRegistry.modules.find((entry) => entry.id === 'shop') as ModuleEntry;
+  return {
+    ...snapshotRegistry,
+    modules: [shop, ...modules],
+    rules: new Map(rules.map((rule) => [rule.id, rule])),
+  };
+}
+
+function remoteProvider(asked: string[]): FlagProvider {
+  return {
+    id: 'remote',
+    sync: false,
+    start: () => Promise.resolve(),
+    resolve: <T>(flag: { readonly key: string }) => {
+      asked.push(flag.key);
+      return Promise.resolve({
+        value: true,
+        variant: 'true',
+        reason: 'STATIC',
+        provider: 'remote',
+      } as never as T);
+    },
+  };
+}
 
 describe('buildSnapshot', () => {
   test('synchronous providers resolve a flag on its first read, once', async () => {
@@ -69,6 +127,71 @@ describe('buildSnapshot', () => {
       errorCode: 'GENERAL',
     });
     expect(asked).toHaveLength(3);
+  });
+
+  test('with an asynchronous provider the flags of a module whose rule covers the action are resolved before the snapshot is answered', async () => {
+    const asked: string[] = [];
+    const registry = registryWith(
+      [
+        moduleOf('other', { requires: ['third'], flags: flagsOf('unrelated') }),
+        moduleOf('third', { flags: flagsOf('held') }),
+        moduleOf('relay', { flags: flagsOf('on') }),
+      ],
+      [
+        ruleOf('other.shop.denyPay', 'other', { principal: 'service' }),
+        ruleOf('relay.selector.allowPay', 'relay', {
+          effect: 'allow',
+          subject: { kinds: ['command'], transports: ['http'] },
+        }),
+      ],
+    );
+    const { input: built } = snapshotInput([remoteProvider(asked)]);
+    const snapshot = await buildSnapshot({
+      ...built,
+      registry,
+      rules: effectiveRules(registry),
+      action: payAction,
+      principal: { ...placeholderPrincipal(snapshotScope), kind: 'user', subject: 'u1' } as never,
+    });
+    expect([...asked].sort()).toEqual([
+      'other.unrelated',
+      'relay.on',
+      'shop.banner',
+      'shop.beta',
+      'shop.checkout',
+      'third.held',
+    ]);
+    expect(snapshot.evaluations).toEqual([]);
+    expect(snapshot.read('other.unrelated')).toMatchObject({ value: true, provider: 'remote' });
+    expect(snapshot.evaluations.map((read) => read.key)).toEqual(['other.unrelated']);
+  });
+
+  test('with an asynchronous provider a rule that does not cover the action, a disabled rule and the core default rules add no flag', async () => {
+    const asked: string[] = [];
+    const core = snapshotRegistry.modules.find((entry) => entry.id === 'core') as ModuleEntry;
+    const registry = registryWith(
+      [{ ...core, flags: flagsOf('quiet') }, moduleOf('other', { flags: flagsOf('unrelated') })],
+      [
+        ruleOf('other.shop.denyRefund', 'other', { actions: ['refund'] }),
+        ruleOf('other.selector.denyQuery', 'other', { subject: { kinds: ['query'] } }),
+        ruleOf('other.cart.denyPay', 'other', { subject: { module: 'shop', entity: 'cart' } }),
+        ruleOf('other.shop.disabled', 'other', { disabled: true }),
+      ],
+    );
+    const { input: built } = snapshotInput([remoteProvider(asked)]);
+    const snapshot = await buildSnapshot({
+      ...built,
+      registry,
+      rules: effectiveRules(registry),
+      action: payAction,
+      principal: { ...placeholderPrincipal(snapshotScope), kind: 'user', subject: 'u1' } as never,
+    });
+    expect([...asked].sort()).toEqual(['shop.banner', 'shop.beta', 'shop.checkout']);
+    expect(snapshot.read('other.unrelated')).toMatchObject({
+      value: false,
+      reason: 'ERROR',
+      errorCode: 'GENERAL',
+    });
   });
 
   test("an anonymous principal's targeting key is the client id", async () => {

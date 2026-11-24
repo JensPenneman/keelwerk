@@ -1,4 +1,5 @@
 import type { RestoreHold } from '../control/restore-hold.ts';
+import type { FlagProvider } from '../flags/flag-provider.ts';
 import type { Invoker } from '../invoker/invoker.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { ConcurrencyLeases } from '../quotas/concurrency-leases.ts';
@@ -27,6 +28,10 @@ export interface StartPhaseInput {
   readonly quotas: QuotaLimits | undefined;
   /** The process's slots of the deployment-wide counts, kept by `core.leases`; absent in a bare start. */
   readonly leases?: ConcurrencyLeases;
+  /** The ordered flag providers of the process (the invoker's), which the workers read a hold's flags through. */
+  readonly flagProviders?: readonly FlagProvider[];
+  /** The process's targeting cache: a job that reads a hold's flags awaits its `fresh` first, as an invocation does. */
+  readonly targeting?: { fresh(): Promise<void> };
   /** Closed by a service that finds a restore under the running process; absent in a bare start. */
   readonly gate?: ServiceGate;
   /** The tenants a restore holds: the workers give their effect and deadline jobs back. */

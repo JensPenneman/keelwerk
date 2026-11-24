@@ -315,6 +315,7 @@ export type { EnqueueOptions } from './dsl/enqueue.ts';
 export { enqueue } from './dsl/enqueue.ts';
 export type { EnvRef } from './dsl/env.ts';
 export { env } from './dsl/env.ts';
+export { eraseOwnSubject } from './dsl/erase-own-subject.ts';
 export type {
   ExtensionMode,
   ExtensionPoint,

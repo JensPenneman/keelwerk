@@ -49,6 +49,10 @@ export function createWorker(input: StartPhaseInput): RuntimeService {
                 control: connected.control,
                 ledgers: input.composed.infrastructure.ledgers,
                 quotas: context.quotas,
+                ...(input.flagProviders === undefined
+                  ? {}
+                  : { flagProviders: input.flagProviders }),
+                ...(input.targeting === undefined ? {} : { targeting: input.targeting }),
                 ...(input.restoreHold === undefined ? {} : { restoreHold: input.restoreHold }),
               }),
             { slots, capabilitySets: role.capabilitySets, revision: role.revision },

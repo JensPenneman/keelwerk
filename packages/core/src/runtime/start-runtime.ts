@@ -185,6 +185,8 @@ export async function startRuntime(
       clock,
       quotas,
       leases,
+      flagProviders,
+      targeting,
       gate,
       restoreHold: restore.hold,
     });

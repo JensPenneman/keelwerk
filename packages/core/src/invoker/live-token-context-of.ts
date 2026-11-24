@@ -38,6 +38,7 @@ export async function liveTokenContextOf(input: {
     principal: other.principal,
     clientId: flagClientIdOf(input.otherDetails.carrier),
     providers: env.options.flagProviders ?? [],
+    rules: input.rules,
     log: input.log,
     targeting: env.options.targeting,
     telemetry: env.flagTelemetry,

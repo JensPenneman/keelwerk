@@ -1,3 +1,6 @@
+import type { NormalizedRule } from '../authorization/normalized-rule.ts';
+import { ownModuleRulePrefix } from '../authorization/own-module-rule-prefix.ts';
+import { ruleCovers } from '../authorization/rule-covers.ts';
 import type { FlagResolution } from '../contexts/flag-resolution.ts';
 import type { FlagRead } from '../events/flag-read.ts';
 import type { Logger } from '../observability/logger.ts';
@@ -36,15 +39,32 @@ function strictlySynchronous(provider: FlagProvider): FlagProvider {
   };
 }
 
-/** The flags the invoked module's contexts can read (7.6), plus the keys of the action's gates. */
-function keysToResolve(registry: Registry, action: ActionEntry): readonly string[] {
-  const owner = registry.modules.find(
-    (entry) => entry.id === (action.contributedBy ?? action.module),
-  );
+/**
+ * The flags to resolve before the snapshot is answered on the asynchronous path: the invoked
+ * module's (7.6); those of each module whose enabled rule covers the action, whatever the
+ * principal, the transport and the input (a rule reads the flags of its own module, 8.1); those of
+ * the modules each of those requires; and the gate keys. The core's default rules add nothing:
+ * their module is the core and their `when` reads no flag.
+ */
+function keysToResolve(
+  registry: Registry,
+  action: ActionEntry,
+  rules: readonly NormalizedRule[],
+): readonly string[] {
   const keys = new Set<string>();
-  for (const id of [owner?.id, ...(owner?.requires ?? [])]) {
-    const module = registry.modules.find((entry) => entry.id === id);
-    for (const name of Object.keys(module?.flags ?? {})) keys.add(`${module?.id}.${name}`);
+  const addFlagsOf = (id: string): void => {
+    const owner = registry.modules.find((entry) => entry.id === id);
+    if (owner === undefined) return;
+    for (const wanted of [owner.id, ...owner.requires]) {
+      const module = registry.modules.find((entry) => entry.id === wanted);
+      for (const name of Object.keys(module?.flags ?? {})) keys.add(`${module?.id}.${name}`);
+    }
+  };
+  addFlagsOf(action.contributedBy ?? action.module);
+  for (const rule of rules) {
+    if (!rule.id.startsWith(ownModuleRulePrefix) && ruleCovers(rule, action)) {
+      addFlagsOf(rule.module);
+    }
   }
   for (const gate of compileGate(registry, action)) keys.add(gate.key);
   return [...keys];
@@ -59,6 +79,8 @@ export interface BuildSnapshotInput {
   /** flagClientIdOf(invocation.carrier). */
   readonly clientId: string | null;
   readonly providers: readonly FlagProvider[];
+  /** The registry's effective rules, which the caller has computed once for the attempt. */
+  readonly rules: readonly NormalizedRule[];
   /** Logs at error level once per key a provider failed for (the default was served with ERROR). */
   readonly log: Logger;
   /** Awaited first, so the targeting is no older than its refresh bound (WP-98). */
@@ -72,10 +94,11 @@ export interface BuildSnapshotInput {
 /**
  * One snapshot per invocation (20.3). While every provider is synchronous a key resolves on its
  * first read and is kept, so a flag that flips afterwards is not seen. With an asynchronous
- * provider the flags of the invoked module, the modules it requires and the action's gates are
- * resolved before the snapshot is answered, and a later read of another key serves its default
- * with `ERROR`/`GENERAL`. A key no module declares answers `FLAG_NOT_FOUND` and is not listed in
- * `evaluations`.
+ * provider the flags of the invoked module, of each module whose enabled rule covers the action
+ * (whatever the principal, transport or input) and of the modules those require, and the action's
+ * gates, are resolved before the snapshot is answered, and a later read of another key serves its
+ * default with `ERROR`/`GENERAL`. A key no module declares answers `FLAG_NOT_FOUND` and is not
+ * listed in `evaluations`; nor is a key resolved early that no read touched.
  */
 export async function buildSnapshot(input: BuildSnapshotInput): Promise<FlagSnapshot> {
   await input.targeting?.fresh();
@@ -112,7 +135,7 @@ export async function buildSnapshot(input: BuildSnapshotInput): Promise<FlagSnap
     );
 
   if (asynchronous) {
-    const specs = keysToResolve(registry, input.action).flatMap((key) => {
+    const specs = keysToResolve(registry, input.action, input.rules).flatMap((key) => {
       const spec = flagSpecOf(registry, key);
       return spec === undefined ? [] : [spec];
     });

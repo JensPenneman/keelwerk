@@ -1,3 +1,4 @@
+import { effectiveRules } from '../src/authorization/effective-rules.ts';
 import { defineFlag } from '../src/dsl/define-flag.ts';
 import type { FlagProvider } from '../src/flags/flag-provider.ts';
 import { placeholderPrincipal } from '../src/invoker/edge/placeholder-principal.ts';
@@ -79,6 +80,7 @@ export function snapshotInput(
       principal,
       clientId: null,
       providers,
+      rules: effectiveRules(snapshotRegistry),
       log,
     },
   };

@@ -1,5 +1,6 @@
 import type { CancelTimerEffect } from './cancel-timer-effect.ts';
 import type { EnqueueEffect } from './enqueue-effect.ts';
+import type { EraseOwnSubjectEffect } from './erase-own-subject-effect.ts';
 import type { ExternalEffect } from './external-effect.ts';
 import type { InvokeEffect } from './invoke-effect.ts';
 import type { SetTimerEffect } from './set-timer-effect.ts';
@@ -12,4 +13,5 @@ export type AnyEffect =
   | SetTimerEffect
   | CancelTimerEffect
   | SettleEffect
-  | ExternalEffect;
+  | ExternalEffect
+  | EraseOwnSubjectEffect;

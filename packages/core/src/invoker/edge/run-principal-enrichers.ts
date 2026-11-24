@@ -16,7 +16,10 @@ function isEnricher(value: unknown): value is PrincipalEnricher {
 /**
  * Adds the roles and memberships the app's principal enrichers return, once per session
  * (section 8.5). Users and services are enriched; anonymous, operator and system principals are
- * returned as they are.
+ * returned as they are. A membership's kind starts with the id of the module whose enricher
+ * returns it, followed by a dot: another module's kind is refused as `internal`, because a module's
+ * authorization helpers trust its own kinds. The rule holds for enrichers: memberships that a
+ * principal resolver returns are taken as they are. Roles are a convenience and stay unchecked.
  */
 export async function runPrincipalEnrichers(
   kit: ResolverKit,
@@ -38,7 +41,16 @@ export async function runPrincipalEnrichers(
       readonly memberships?: readonly Membership[];
     }>(value.enrich(principal), module, principal);
     for (const role of added.roles ?? []) roles.add(role);
-    memberships.push(...(added.memberships ?? []));
+    for (const membership of added.memberships ?? []) {
+      if (!membership.kind.startsWith(`${module}.`)) {
+        throw new KeelwerkError({
+          kind: 'internal',
+          code: 'core.internal',
+          message: `A fill of core.principalEnrichers by "${module}" returned a membership of kind "${membership.kind}", which is not a kind of "${module}".`,
+        });
+      }
+      memberships.push(membership);
+    }
   }
   return { ...principal, roles: [...roles], memberships };
 }

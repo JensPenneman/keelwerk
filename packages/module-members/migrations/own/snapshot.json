@@ -1,0 +1,671 @@
+{
+  "entities": {
+    "members.invitation": {
+      "events": {},
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "acceptedAt": {
+          "codec": null,
+          "column": "accepted_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 9,
+          "unique": false
+        },
+        "email": {
+          "codec": null,
+          "column": "email",
+          "constraints": {
+            "format": "email"
+          },
+          "hidden": false,
+          "indexed": true,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": {
+            "keys": "tenant",
+            "normalize": {
+              "id": "email",
+              "version": 1
+            },
+            "params": {
+              "contains": {
+                "bits": 12
+              },
+              "eq": {
+                "bits": 128
+              },
+              "order": {
+                "bytes": 16
+              },
+              "prefix": {
+                "max": 32,
+                "min": 3
+              }
+            },
+            "queries": ["eq"],
+            "subject": "subject"
+          },
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 2,
+          "unique": false
+        },
+        "expiresAt": {
+          "codec": null,
+          "column": "expires_at",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "instant",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 8,
+          "unique": false
+        },
+        "invitedBy": {
+          "codec": null,
+          "column": "invited_by",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "subject",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 5,
+          "unique": false
+        },
+        "publicId": {
+          "codec": null,
+          "column": "public_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "string",
+          "maskable": false,
+          "merge": "exclusive",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 6,
+          "unique": true
+        },
+        "role": {
+          "codec": null,
+          "column": "role",
+          "constraints": {
+            "values": ["owner", "admin", "member", "viewer"]
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "enum",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 3,
+          "unique": false
+        },
+        "status": {
+          "codec": null,
+          "column": "status",
+          "constraints": {
+            "values": ["pending", "accepted", "withdrawn", "expired"]
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "enum",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 4,
+          "unique": false
+        },
+        "subject": {
+          "codec": null,
+          "column": "subject",
+          "constraints": {},
+          "hidden": false,
+          "indexed": true,
+          "inner": null,
+          "kind": "subject",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": false
+        },
+        "tokenVerifier": {
+          "codec": null,
+          "column": "token_verifier",
+          "constraints": {},
+          "hidden": {
+            "history": false
+          },
+          "indexed": false,
+          "inner": null,
+          "kind": "verifier",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": true,
+          "stateOnly": false,
+          "tag": 7,
+          "unique": false
+        }
+      },
+      "history": "state",
+      "mergeState": false,
+      "renames": []
+    },
+    "members.membership": {
+      "events": {},
+      "evolveHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "fields": {
+        "invitationId": {
+          "codec": null,
+          "column": "invitation_id",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "ref",
+          "maskable": false,
+          "merge": "lww",
+          "optional": true,
+          "personal": false,
+          "ref": {
+            "entity": "members.invitation",
+            "foreignKey": true
+          },
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 3,
+          "unique": false
+        },
+        "role": {
+          "codec": null,
+          "column": "role",
+          "constraints": {
+            "values": ["owner", "admin", "member", "viewer"]
+          },
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "enum",
+          "maskable": false,
+          "merge": "lww",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 2,
+          "unique": false
+        },
+        "subject": {
+          "codec": null,
+          "column": "subject",
+          "constraints": {},
+          "hidden": false,
+          "indexed": false,
+          "inner": null,
+          "kind": "subject",
+          "maskable": false,
+          "merge": "exclusive",
+          "optional": false,
+          "personal": false,
+          "ref": null,
+          "sealed": false,
+          "stateOnly": false,
+          "tag": 1,
+          "unique": true
+        }
+      },
+      "history": "chain",
+      "mergeState": false,
+      "renames": []
+    }
+  },
+  "format": "keelwerk.snapshot/1",
+  "tables": [
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "tenant_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "created_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "updated_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "archived_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": 1,
+          "field": null,
+          "kind": "integer",
+          "name": "version",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hlc",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hash",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "kw_erased_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "subject",
+          "kind": "subject",
+          "name": "subject",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "email",
+          "kind": "sealed",
+          "name": "email",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "derived": {
+            "kind": "binary",
+            "query": "eq",
+            "unicode": "17.0"
+          },
+          "field": "email",
+          "kind": "tags",
+          "name": "email__eq",
+          "nullable": true
+        },
+        {
+          "constraints": {
+            "values": ["owner", "admin", "member", "viewer"]
+          },
+          "default": null,
+          "field": "role",
+          "kind": "enum",
+          "name": "role",
+          "nullable": false
+        },
+        {
+          "constraints": {
+            "values": ["pending", "accepted", "withdrawn", "expired"]
+          },
+          "default": null,
+          "field": "status",
+          "kind": "enum",
+          "name": "status",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "invitedBy",
+          "kind": "subject",
+          "name": "invited_by",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "publicId",
+          "kind": "string",
+          "name": "public_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "tokenVerifier",
+          "kind": "verifier",
+          "name": "token_verifier",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "expiresAt",
+          "kind": "instant",
+          "name": "expires_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "acceptedAt",
+          "kind": "instant",
+          "name": "accepted_at",
+          "nullable": true
+        }
+      ],
+      "foreignKeys": [],
+      "indexes": [
+        {
+          "columns": ["tenant_id", "subject"],
+          "method": "btree",
+          "name": "members__invitation__subject_ix",
+          "unique": false,
+          "where": null
+        },
+        {
+          "columns": ["tenant_id", "email__eq"],
+          "method": "btree",
+          "name": "members__invitation__email__eq_ix",
+          "unique": false,
+          "where": null
+        },
+        {
+          "columns": ["tenant_id", "public_id"],
+          "method": "btree",
+          "name": "members__invitation__public_id_uq",
+          "unique": true,
+          "where": {
+            "field": "archivedAt",
+            "op": "isNull",
+            "value": true
+          }
+        },
+        {
+          "columns": ["tenant_id", "email__eq"],
+          "method": "btree",
+          "name": "members__invitation__email_uq",
+          "unique": true,
+          "where": {
+            "conditions": [
+              {
+                "field": "status",
+                "op": "eq",
+                "value": "pending"
+              },
+              {
+                "field": "archivedAt",
+                "op": "isNull",
+                "value": true
+              }
+            ],
+            "op": "and"
+          }
+        },
+        {
+          "columns": ["tenant_id", "role"],
+          "method": "btree",
+          "name": "members__invitation__role_uq",
+          "unique": true,
+          "where": {
+            "conditions": [
+              {
+                "field": "role",
+                "op": "eq",
+                "value": "owner"
+              },
+              {
+                "field": "status",
+                "op": "eq",
+                "value": "pending"
+              },
+              {
+                "field": "archivedAt",
+                "op": "isNull",
+                "value": true
+              }
+            ],
+            "op": "and"
+          }
+        }
+      ],
+      "name": "members__invitation",
+      "primaryKey": ["tenant_id", "id"],
+      "scoped": "tenant"
+    },
+    {
+      "columns": [
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "tenant_id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "uuid",
+          "name": "id",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "created_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "updated_at",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "archived_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": 1,
+          "field": null,
+          "kind": "integer",
+          "name": "version",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hlc",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "framework",
+          "name": "kw_last_hash",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": null,
+          "kind": "instant",
+          "name": "kw_erased_at",
+          "nullable": true
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "subject",
+          "kind": "subject",
+          "name": "subject",
+          "nullable": false
+        },
+        {
+          "constraints": {
+            "values": ["owner", "admin", "member", "viewer"]
+          },
+          "default": null,
+          "field": "role",
+          "kind": "enum",
+          "name": "role",
+          "nullable": false
+        },
+        {
+          "constraints": {},
+          "default": null,
+          "field": "invitationId",
+          "kind": "ref",
+          "name": "invitation_id",
+          "nullable": true
+        }
+      ],
+      "foreignKeys": [
+        {
+          "columns": ["tenant_id", "invitation_id"],
+          "name": "members__membership__invitation_id_fk",
+          "references": {
+            "columns": ["tenant_id", "id"],
+            "table": "members__invitation"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "columns": ["tenant_id", "subject"],
+          "method": "btree",
+          "name": "members__membership__subject_uq",
+          "unique": true,
+          "where": {
+            "field": "archivedAt",
+            "op": "isNull",
+            "value": true
+          }
+        },
+        {
+          "columns": ["tenant_id", "role"],
+          "method": "btree",
+          "name": "members__membership__role_uq",
+          "unique": true,
+          "where": {
+            "conditions": [
+              {
+                "field": "role",
+                "op": "eq",
+                "value": "owner"
+              },
+              {
+                "field": "archivedAt",
+                "op": "isNull",
+                "value": true
+              }
+            ],
+            "op": "and"
+          }
+        }
+      ],
+      "name": "members__membership",
+      "primaryKey": ["tenant_id", "id"],
+      "scoped": "tenant"
+    }
+  ],
+  "track": "members",
+  "version": 1
+}

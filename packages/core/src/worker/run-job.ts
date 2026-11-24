@@ -4,6 +4,7 @@ import { errors } from '../errors/errors.ts';
 import type { EgressPolicy } from '../executors/egress-policy.ts';
 import { runDeadlineJob } from '../executors/run-deadline-job.ts';
 import { runEffectJob } from '../executors/run-effect-job.ts';
+import type { FlagProvider } from '../flags/flag-provider.ts';
 import type { Invoker } from '../invoker/invoker.ts';
 import type { ScopeLookup } from '../invoker/scope-lookup.ts';
 import type { Job } from '../jobs/job.ts';
@@ -48,6 +49,10 @@ export interface RunJobContext {
   readonly ledgers: readonly LedgerSink[];
   /** The process's quota cache: asked before the unit that settles an effect, so a continuation's lane takes its cap and weight from it; undefined in a bare start. */
   readonly quotas: QuotaLimits | undefined;
+  /** The process's ordered flag providers: a hold on an own-subject erasure reads its flags through them. */
+  readonly flagProviders?: readonly FlagProvider[];
+  /** The process's targeting cache, awaited before the flags of a hold are read. */
+  readonly targeting?: { fresh(): Promise<void> };
   /** The tenants a restore holds (14.7.6); absent in a bare start, where none is held. */
   readonly restoreHold?: RestoreHold;
 }
