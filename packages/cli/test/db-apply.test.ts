@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { DeploymentDefinition } from '@keelwerk/core';
@@ -18,15 +18,69 @@ const configText = (root: string): string => `import { secret } from '@keelwerk/
 import { schemaPlanner } from '@keelwerk/data';
 import { demo } from './apps/demo/src/app.ts';
 import { durablePgliteFactory } from '@keelwerk/testing';
+import { existsSync } from 'node:fs';
+
+/** While a file of this name exists in the project root, that call of the control store fails. */
+const unreadableControl = (factory) => ({
+  ...factory,
+  create: (placement, env) => {
+    const adapter = factory.create(placement, env);
+    if (placement.url !== ${JSON.stringify(join(root, 'data/control'))}) return adapter;
+    const guarded = (name, call) => (...args) =>
+      existsSync(${JSON.stringify(root)} + '/' + name) ? Promise.reject(new Error(name)) : call(...args);
+    return {
+      ...adapter,
+      unit: guarded('unit-down', adapter.unit),
+      schema: {
+        ...adapter.schema,
+        history: guarded('history-down', adapter.schema.history),
+        introspect: guarded('introspect-down', adapter.schema.introspect),
+      },
+    };
+  },
+});
 
 export default {
   apps: [demo],
   keys: { masterKey: secret('KW_APPLY_KEY') },
-  infrastructure: [durablePgliteFactory({ dataDirOf: (placement) => placement.url }), schemaPlanner()],
+  infrastructure: [unreadableControl(durablePgliteFactory({ dataDirOf: (placement) => placement.url })), schemaPlanner()],
   control: { adapter: 'pglite', url: ${JSON.stringify(join(root, 'data/control'))} },
   placements: { main: { adapter: 'pglite', strategy: 'shared-tables', url: ${JSON.stringify(join(root, 'data/main'))} } },
 };
 `;
+
+async function setProcess(configPath: string, buildId: string | undefined): Promise<string> {
+  const opened = await openDeployment(configPath, env);
+  try {
+    const entity = opened.apps[0]?.registry.entities.get('core.process')?.descriptor;
+    if (entity === undefined) throw new Error('core.process is not registered');
+    const live = Temporal.Instant.fromEpochMilliseconds(Date.parse('2026-11-05T09:29:50Z'));
+    return await opened.control.adapter.unit(
+      opened.control.namespace,
+      { level: 'deployment' },
+      async (unit) => {
+        const row = (await unit.rows.find(entity, {})).rows[0];
+        if (row === undefined) throw new Error('the runtime left no process row');
+        const next = {
+          ...row,
+          state: 'ready',
+          heartbeatAt: live,
+          buildId: buildId ?? row.buildId,
+        };
+        await unit.rows.update(entity, [
+          {
+            id: String(row.id),
+            expectedVersion: Number(row.version),
+            values: { ...next, version: Number(row.version) + 1 },
+          },
+        ]);
+        return String(row.buildId);
+      },
+    );
+  } finally {
+    await opened.close();
+  }
+}
 
 async function renamedProject() {
   const first = await newProject();
@@ -117,49 +171,50 @@ test('--contract waits for no live process on another build, and the build id eq
     await firstOpen.close();
   }
 
-  const setProcess = async (buildId: string | undefined): Promise<string> => {
-    const opened = await openDeployment(configPath, env);
-    try {
-      const entity = opened.apps[0]?.registry.entities.get('core.process')?.descriptor;
-      if (entity === undefined) throw new Error('core.process is not registered');
-      const live = Temporal.Instant.fromEpochMilliseconds(Date.parse('2026-11-05T09:29:50Z'));
-      return await opened.control.adapter.unit(
-        opened.control.namespace,
-        { level: 'deployment' },
-        async (unit) => {
-          const row = (await unit.rows.find(entity, {})).rows[0];
-          if (row === undefined) throw new Error('the runtime left no process row');
-          const next = {
-            ...row,
-            state: 'ready',
-            heartbeatAt: live,
-            buildId: buildId ?? row.buildId,
-          };
-          await unit.rows.update(entity, [
-            {
-              id: String(row.id),
-              expectedVersion: Number(row.version),
-              values: { ...next, version: Number(row.version) + 1 },
-            },
-          ]);
-          return String(row.buildId);
-        },
-      );
-    } finally {
-      await opened.close();
-    }
-  };
-
-  const runtimeBuild = await setProcess('a-build-that-is-not-this-one');
+  const runtimeBuild = await setProcess(configPath, 'a-build-that-is-not-this-one');
   const refused = await db('apply', '--contract');
   expect(refused.code).not.toBe(0);
   expect(refused.stderr).toContain('core.rollout_not_finalized');
   expect((await db('status')).stdout).toContain('pending  shop 0003-rename-total-contract');
 
-  await setProcess(runtimeBuild);
+  await setProcess(configPath, runtimeBuild);
   const allowed = await db('apply', '--contract');
   expect(allowed.stderr).toBe('');
   expect(allowed.stdout).toContain('main/demo: applied shop 0003-rename-total-contract');
+}, 240_000);
+
+test('--contract is refused, the contract step stays pending, when the recorded id or the live processes cannot be read', async () => {
+  const { project, configPath, db } = await renamedProject();
+  expect((await db('apply')).code).toBe(0);
+  const loaded: { default: DeploymentDefinition } = await import(pathToFileURL(configPath).href);
+  const runtime = await startRuntime(loaded.default, {
+    role: 'all',
+    listen: false,
+    environment: 'test',
+    env,
+  });
+  await runtime.stop(1000);
+  await setProcess(configPath, 'a-build-that-is-not-this-one');
+
+  const pending = 'pending  shop 0003-rename-total-contract';
+  const refuse = async (flag: string, code: string, message: string) => {
+    const file = join(project.root, flag);
+    await writeFile(file, '');
+    const refused = await db('apply', '--contract');
+    expect(refused.code).not.toBe(0);
+    expect(refused.stderr).toContain(`error[${code}]: ${message}`);
+    await rm(file);
+    expect((await db('status')).stdout).toContain(pending);
+  };
+  const idUnread = (cause: string) =>
+    `control: the recorded deployment id could not be read (${cause}); the database was not changed. Make the control store readable, then run the command again`;
+  await refuse('history-down', 'cli.deployment_id_unread', idUnread('history-down'));
+  await refuse('introspect-down', 'cli.deployment_id_unread', idUnread('introspect-down'));
+  await refuse(
+    'unit-down',
+    'cli.live_processes_unread',
+    'main/demo: the live processes could not be read (unit-down), so the contract step of shop 0003-rename-total-contract was not applied; steps applied earlier in this run stay applied. Make the control store readable, then run db apply --contract again',
+  );
 }, 240_000);
 
 test('live processes are the rows that are neither stopped nor silent for 30 seconds', async () => {
@@ -188,4 +243,6 @@ test('live processes are the rows that are neither stopped nor silent for 30 sec
   } as never;
   expect(await liveBuildIds(opened, app, now)).toEqual(['other-build', 'draining-build']);
   expect(await liveBuildIds({ ...opened, deploymentId: undefined }, app, now)).toEqual([]);
+  const bare = { registry: { entities: new Map() } } as never;
+  await expect(liveBuildIds(opened, bare, now)).rejects.toThrow('core.process');
 });

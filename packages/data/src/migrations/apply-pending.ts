@@ -4,8 +4,11 @@ import type { TrackFiles } from './check-migration-history.ts';
 import { checkMigrationHistory } from './check-migration-history.ts';
 import { classifyContractSteps } from './classify-contract-steps.ts';
 
-async function openContractGate(gate: ContractGate): Promise<void> {
-  const running = await gate.liveBuildIds();
+async function openContractGate(
+  gate: ContractGate,
+  step: { readonly track: string; readonly id: string },
+): Promise<void> {
+  const running = await gate.liveBuildIds(step);
   if (running.some((build) => build !== gate.buildId)) {
     throw new KeelwerkError({
       kind: 'conflict',
@@ -19,8 +22,11 @@ async function openContractGate(gate: ContractGate): Promise<void> {
 export interface ContractGate {
   /** The build id of the process that applies. */
   readonly buildId: string;
-  /** The build ids of every live `core.process`. */
-  readonly liveBuildIds: () => Promise<readonly string[]>;
+  /** The build ids of every live `core.process`, read for the file whose contract step waits. */
+  readonly liveBuildIds: (step: {
+    readonly track: string;
+    readonly id: string;
+  }) => Promise<readonly string[]>;
 }
 
 /** How `applyPending` runs. */
@@ -70,7 +76,7 @@ export async function applyPending(
           continue;
         }
         if (contract && options.contract !== undefined && !gateOpen) {
-          await openContractGate(options.contract);
+          await openContractGate(options.contract, { track, id: file.id });
           gateOpen = true;
         }
         if (newest !== undefined && file.id < newest) {

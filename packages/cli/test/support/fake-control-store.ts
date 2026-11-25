@@ -33,6 +33,8 @@ export interface FakeControlOptions {
   readonly connect?: (created: number) => Promise<void>;
   /** The message the read of the recorded id fails with. */
   readonly readFails?: string;
+  /** A control root without tables: the introspection finds none and the history read fails. */
+  readonly empty?: boolean;
   /** The calls that never answer: the read of the recorded id, a unit, a close. */
   readonly silent?: readonly ('connect' | 'history' | 'unit' | 'close')[];
 }
@@ -67,7 +69,9 @@ export function fakeControlStore(options: FakeControlOptions = {}): FakeControlS
             store.closing.splice(store.closing.indexOf(index), 1);
           },
           schema: {
+            introspect: async () => ({ tables: options.empty === true ? [] : [{}] }),
             history: async () => {
+              if (options.empty === true) throw new Error('relation does not exist');
               if (options.silent?.includes('history')) await silence();
               if (options.readFails !== undefined) throw new Error(options.readFails);
               return options.recorded === undefined

@@ -1,9 +1,9 @@
 import type { AdapterEnvironment, DataAdapter } from '@keelwerk/core';
-import { recordedDeploymentId } from '@keelwerk/core';
 import type { CliHost } from '../context/cli-host.ts';
 import { localFailure } from '../context/local-failure.ts';
 import { adapterEnvironmentOf } from '../doctor/adapter-environment-of.ts';
 import { factoryOf } from '../doctor/factory-of.ts';
+import { messageOf } from '../doctor/message-of.ts';
 import { placementConfigOf } from '../doctor/placement-config-of.ts';
 import { connectAdapter } from './connect-adapter.ts';
 import { controlRootNamespace } from './control-root-namespace.ts';
@@ -12,6 +12,7 @@ import { loadDefinition } from './load-definition.ts';
 import type { OpenedDeployment } from './opened-deployment.ts';
 import type { OpenedPlacement } from './opened-placement.ts';
 import { probeId } from './probe-id.ts';
+import { recordedIdOf } from './recorded-id-of.ts';
 
 /** The data commands wait for a connect as long as the adapter does: a schedule whose timer never fires. */
 const noDeadline: CliHost['schedule'] = () => () => undefined;
@@ -52,7 +53,13 @@ async function probeDeploymentId(
   });
   try {
     if (probe.dialect === 'memory') return undefined;
-    return await recordedDeploymentId(probe.adapter, controlRootNamespace).catch(() => undefined);
+    return await recordedIdOf(probe.adapter);
+  } catch (error) {
+    throw localFailure(
+      'unavailable',
+      'cli.deployment_id_unread',
+      `control: the recorded deployment id could not be read (${messageOf(error)}); the database was not changed. Make the control store readable, then run the command again`,
+    );
   } finally {
     await probe.adapter.close(1000).catch(() => undefined);
   }

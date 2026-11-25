@@ -70,6 +70,12 @@ describe('opening the control store to read it', () => {
     expect(store.closed).toEqual([0]);
   });
 
+  test('a control root without tables is a deployment that never started, though the history read fails', async () => {
+    const store = fakeControlStore({ empty: true });
+    const opened = await openControl(definitionOver(store), {}, [registry], schedule);
+    expect(opened.reader.known ? '' : opened.reader.reason).toContain('never started');
+  });
+
   test('the recorded id opens the store a second time, read-only with the time limit, and close closes it', async () => {
     const store = fakeControlStore({ recorded });
     const opened = await openControl(definitionOver(store), {}, [registry], schedule);

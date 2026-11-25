@@ -1,6 +1,8 @@
 import { KeelwerkError } from '@keelwerk/core';
 import { applyPending } from '@keelwerk/data';
+import { CliFailure } from '../context/cli-failure.ts';
 import { localFailure } from '../context/local-failure.ts';
+import { messageOf } from '../doctor/message-of.ts';
 import { buildIdOf } from './build-id-of.ts';
 import { hostedApps } from './hosted-apps.ts';
 import { jobGroupsOf } from './job-groups-of.ts';
@@ -48,7 +50,14 @@ export async function applyDeployment(
               ? {
                   contract: {
                     buildId,
-                    liveBuildIds: () => liveBuildIds(opened, app, options.now),
+                    liveBuildIds: (step) =>
+                      liveBuildIds(opened, app, options.now).catch((cause: unknown) => {
+                        throw localFailure(
+                          'unavailable',
+                          'cli.live_processes_unread',
+                          `${placement.name}/${app.id}: the live processes could not be read (${messageOf(cause)}), so the contract step of ${step.track} ${step.id} was not applied; steps applied earlier in this run stay applied. Make the control store readable, then run db apply --contract again`,
+                        );
+                      }),
                   },
                 }
               : {}),
@@ -63,6 +72,7 @@ export async function applyDeployment(
           warnings,
         });
       } catch (error) {
+        if (error instanceof CliFailure) throw error;
         const message = `${placement.name}/${app.id}: ${error instanceof Error ? error.message : String(error)}`;
         throw error instanceof KeelwerkError
           ? localFailure(error.kind, error.code, message)

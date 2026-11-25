@@ -1,9 +1,9 @@
 import type { DeploymentDefinition, Registry } from '@keelwerk/core';
-import { recordedDeploymentId } from '@keelwerk/core';
 import type { CliHost } from '../context/cli-host.ts';
 import { connectAdapter } from '../db/connect-adapter.ts';
 import { controlRootNamespace } from '../db/control-root-namespace.ts';
 import { probeId } from '../db/probe-id.ts';
+import { recordedIdOf } from '../db/recorded-id-of.ts';
 import { absent } from './absent.ts';
 import { adapterEnvironmentOf } from './adapter-environment-of.ts';
 import { controlReaderOf } from './control-reader-of.ts';
@@ -89,11 +89,7 @@ export async function openControl(
     let deploymentId: string | undefined;
     let answered = false;
     try {
-      deploymentId = await withinDeadline(
-        schedule,
-        recordedDeploymentId(probe.adapter, controlRootNamespace),
-        unanswered,
-      );
+      deploymentId = await withinDeadline(schedule, recordedIdOf(probe.adapter), unanswered);
       answered = true;
     } finally {
       const closing = probe.adapter.close(1000);
