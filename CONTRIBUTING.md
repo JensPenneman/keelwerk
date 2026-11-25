@@ -78,8 +78,12 @@ Every file defines one thing and is named after it, in kebab-case: `add-minutes.
 - no barrel files, no `export *`, no `import * as`, no default exports (tool configuration files
   excepted), no enums, namespaces or parameter properties;
 - a library package has one curated entry, `src/index.ts`, of named re-exports;
-- exports come last in a file; relative imports carry the `.ts` extension; a file is a warning
-  from 300 lines on;
+- exports come last in a file; relative imports carry the `.ts` extension; a file of more than 300
+  lines of code, counted as the rule `lint/style/noExcessiveLinesPerFile` counts them, fails the
+  check, tests included. Exempt are the library entries (`src/index.ts`, `src/*/index.ts`) and what
+  keelwerk writes (`migrations/*/NNNN-<name>.ts`, `src/module.generated.ts`,
+  `src/keelwerk.generated.ts`); a file that
+  must stay whole says why with `// biome-ignore-all lint/style/noExcessiveLinesPerFile: <reason>`;
 - no import-time side effects (enforced by the planned `no-import-effects` plugin, not yet shipped).
 
 ## Git hooks

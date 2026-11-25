@@ -34,16 +34,6 @@
   ],
   "overrides": [
     {
-      "includes": ["packages/*/migrations/*/0*.ts"],
-      "linter": {
-        "rules": {
-          "style": {
-            "noExcessiveLinesPerFile": "off"
-          }
-        }
-      }
-    },
-    {
       "includes": ["spikes/**"],
       "linter": {
         "enabled": false

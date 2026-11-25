@@ -11,6 +11,7 @@ import type { HeldJob } from './held-job.ts';
 import { jobOutcomeOfError } from './job-outcome-of-error.ts';
 import type { QueueSource } from './queue-source.ts';
 import { releaseAttempts } from './release-attempts.ts';
+import { releaseLeftBehind } from './release-left-behind.ts';
 import { settleExhaustedJob } from './settle-exhausted-job.ts';
 import { settleJobAttempt } from './settle-job-attempt.ts';
 import type { SourceReadiness } from './source-readiness.ts';
@@ -21,8 +22,6 @@ import { workerSlots } from './worker-slots.ts';
 const takeLeaseMs = 30_000;
 const maxRetakes = 3;
 const pacingMs = 25;
-/** How long a drain waits (wall clock) for aborted handlers before it releases (D4). */
-const releaseGraceMs = 1000;
 
 /** What a kernel queue drives for each queue it works. */
 export interface QueueFetcher {
@@ -129,28 +128,6 @@ export function queueFetcher(input: {
 
   const unreleased = (error: unknown): void => {
     log.warn('attempts could not be released; their leases will expire', { queue, cause: error });
-  };
-
-  const releaseLeft = async (leftBehind: readonly HeldJob[]): Promise<void> => {
-    let grace: ReturnType<typeof setTimeout> | undefined;
-    try {
-      await Promise.race([
-        Promise.allSettled([...running]),
-        new Promise<void>((resolve) => {
-          grace = setTimeout(resolve, releaseGraceMs);
-          grace.unref();
-        }),
-      ]);
-    } finally {
-      clearTimeout(grace);
-    }
-    const released = await releaseAttempts(leftBehind, worker, unreleased);
-    log.warn('attempts were still running at the deadline', {
-      queue,
-      attempts: leftBehind.length,
-      released,
-      leftToTheirLeases: leftBehind.length - released,
-    });
   };
 
   const start = (stored: StoredJob, source: QueueSource): void => {
@@ -354,7 +331,10 @@ export function queueFetcher(input: {
       }
       if (leftBehind.length > 0) {
         // Set before the first await: a drain that finds the attempts claimed already waits for this one.
-        releasing = Promise.all([releasing, releaseLeft(leftBehind)]).then(() => undefined);
+        releasing = Promise.all([
+          releasing,
+          releaseLeftBehind({ leftBehind, running, queue, worker, log, onError: unreleased }),
+        ]).then(() => undefined);
       }
       // A take in flight is awaited even past the deadline: its batch is released inside the sweep
       // (one take and one release unit), and that release has ended when the drain answers.

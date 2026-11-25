@@ -5682,7 +5682,7 @@ compares strings today. The preset enables these rules as errors:
 | `useNamingConvention` (style), `strictCase` | identifiers without consecutive capitals, so the name mapping reads back |
 | `noBarrelFile`, `noReExportAll`, `noNamespaceImport` (performance); `noExportedImports` (style) | no re-exporting files, `export *`, `import * as` or exported imports (section 23.3) |
 | `useExportsLast` (style) | a file's exports are its last statements |
-| `noExcessiveLinesPerFile` (style), 300 non-blank lines, as a warning | a file long enough to hold two purposes |
+| `noExcessiveLinesPerFile` (style), more than 300 lines of code, counted as the rule counts them, as an error, tests included; library entries, generated migrations and the two generated files exempt | a file long enough to hold two purposes |
 
 Biome's recommended `noBannedTypes` (complexity) stays on everywhere, core type modules included,
 with no relaxation in the preset. The type model needs the empty object type, so the core defines
@@ -17275,7 +17275,7 @@ layout pass.
 | `noBarrelFile`, `noReExportAll` (performance); `noExportedImports` (style) | re-exporting files, `export * from`, exported imports | everywhere except library entry files |
 | `noNamespaceImport` (performance) | `import * as` | everywhere |
 | `useExportsLast` (style) | a statement after an export | source files |
-| `noExcessiveLinesPerFile` (style), 300 non-blank lines, warning | a file long enough to hold two purposes | source files except tests |
+| `noExcessiveLinesPerFile` (style), more than 300 lines of code, counted as the rule counts them, error | a file long enough to hold two purposes | every file, tests included, except library entries (`src/index.ts`, `src/*/index.ts`), generated migrations (`migrations/*/{0,1,2,3,4,5,6,7,8,9}*-*.ts`), `src/module.generated.ts`, `src/keelwerk.generated.ts` and a file with `biome-ignore-all` and a reason; proved by `packages/biome-config/test/plugins.test.ts` |
 | `noRestrictedImports` (style), per directory | declaration files importing `base.ts`, the manifest or parts; `lib/` importing parts; any file but a test importing `module.generated.ts` | preset overrides, finalised against fixtures |
 | `one-export.grit` | a second exported value | `**/src/**/*.ts` minus assembly files, generated files, library entries and tests |
 | `no-import-effects.grit` | top-level expression statements, `await`, bare imports | `**/src/**/*.ts` minus tests and benchmark files (`**/*.bench.ts`) |

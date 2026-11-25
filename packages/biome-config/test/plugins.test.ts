@@ -7,15 +7,17 @@ import {
   readFileSync,
   rmSync,
   symlinkSync,
+  writeFileSync,
 } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import process from 'node:process';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
 interface BiomeDiagnostic {
   readonly category: string;
+  readonly severity: string;
   readonly message: string;
   readonly location: { readonly path: string; readonly start: { readonly line: number } };
 }
@@ -143,5 +145,60 @@ describe('fixtures of the Biome preset and its GritQL plugins', () => {
       expect(expected.some((found) => found.length > 0)).toBe(true);
       expect(expected.some((found) => found.length === 0)).toBe(true);
     });
+  });
+});
+
+// The line limit is a lint rule of the preset, not a plugin: a project that extends the preset the
+// way `keelwerk init` writes it gets a file of the sizes below, and only the files the preset does
+// not exempt fail. The files are written into a temporary directory of the suite's own, so no
+// fixture holds 300 lines.
+describe('the line limit of the preset', () => {
+  const limit = 300;
+  const body = (lines: number): string =>
+    Array.from({ length: lines }, (_, i) => `export const value${i} = ${i};`).join('\n');
+  const files: Record<string, string> = {
+    'src/over-limit.ts': body(limit + 1),
+    'test/over-limit.test.ts': body(limit + 1),
+    'src/at-limit.ts': body(limit),
+    'modules/notes/migrations/own/0001-initial.ts': body(limit + 1),
+    'modules/notes/migrations/own/1000-later.ts': body(limit + 1),
+    'modules/notes/src/module.generated.ts': body(limit + 1),
+    'src/keelwerk.generated.ts': body(limit + 1),
+    'src/index.ts': body(limit + 1),
+    'src/sub/index.ts': body(limit + 1),
+    'src/with-reason.ts': `// biome-ignore-all lint/style/noExcessiveLinesPerFile: a table that reads best whole\n${body(limit + 1)}`,
+  };
+  const own = mkdtempSync(join(tmpdir(), 'keelwerk-biome-line-limit-'));
+  let flagged: string[] = [];
+
+  afterAll(() => {
+    rmSync(own, { recursive: true, force: true });
+  });
+
+  beforeAll(() => {
+    const workdir = join(own, 'project');
+    mkdirSync(join(workdir, 'node_modules', '@keelwerk'), { recursive: true });
+    symlinkSync(packageRoot, join(workdir, 'node_modules', '@keelwerk', 'biome-config'), 'dir');
+    writeFileSync(
+      join(workdir, 'biome.json'),
+      JSON.stringify({
+        vcs: { enabled: false },
+        extends: ['@keelwerk/biome-config/biome'],
+        files: { includes: ['**', '!**/dist', '!**/generated'] },
+      }),
+    );
+    for (const [name, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(workdir, name)), { recursive: true });
+      writeFileSync(join(workdir, name), text);
+    }
+    workdirs.set('line-limit', workdir);
+    flagged = lint('line-limit')
+      .diagnostics.filter((d) => d.category === 'lint/style/noExcessiveLinesPerFile')
+      .map((d) => `${d.severity} ${d.location.path}`)
+      .sort();
+  });
+
+  test('a source file and a test file over the limit fail as errors; migrations, generated files, entries and a reason pass', () => {
+    expect(flagged).toEqual(['error src/over-limit.ts', 'error test/over-limit.test.ts']);
   });
 });
