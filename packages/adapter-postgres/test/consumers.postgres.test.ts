@@ -96,57 +96,37 @@ describe('the consumer store under concurrency', () => {
     ).toBe(20n);
   });
 
-  test("advance holds the checkpoint row until its unit ends: a second unit's advance waits for it", async () => {
+  test("a second advance is refused as locked while the first's unit has not ended; after it, the first's advance stands and the row is free", async () => {
     await run(scopeA, (unit) => unit.consumers.advance('test.hold', tenantA, 3n));
-    const order: string[] = [];
     const gate = Promise.withResolvers<void>();
     const holding = Promise.withResolvers<void>();
     const first = run(scopeA, async (unit) => {
       await unit.consumers.advance('test.hold', tenantA, 5n);
       holding.resolve();
       await gate.promise;
-    }).then(() => order.push('first'));
-    await holding.promise;
-    const second = run(scopeA, (unit) => unit.consumers.advance('test.hold', tenantA, 9n)).then(
-      () => order.push('second'),
-    );
-    await lockWaiting();
-    expect(order).toEqual([]);
-    gate.resolve();
-    await Promise.all([first, second]);
-    expect(order).toEqual(['first', 'second']);
+    });
+    try {
+      await holding.promise;
+      // The gate is shut: the first unit still holds the row, so the product's own lock wait ends the
+      // second advance. Load can only make this slower; the gate opens after the answer.
+      await expect(
+        run(scopeA, (unit) => unit.consumers.advance('test.hold', tenantA, 9n)),
+      ).rejects.toMatchObject({
+        kind: 'unavailable',
+        message: 'The checkpoint is locked by another unit.',
+      });
+    } finally {
+      gate.resolve();
+      await first;
+    }
+    // The first's advance stood and the refused one moved nothing; the row is free again now that the
+    // first's unit has ended.
     expect(
       await run(namespaceScope, (unit) => unit.consumers.checkpoint('test.hold', tenantA)),
-    ).toBe(9n);
-  });
-
-  // The one test here that waits on real time: the lock timeout of an advance (500 ms) is a
-  // PostgreSQL setting that no clock of the test can move.
-  test('an advance waits for a held checkpoint row only briefly and then answers unavailable', async () => {
-    await run(scopeA, (unit) => unit.consumers.advance('test.timeout', tenantA, 3n));
-    const gate = Promise.withResolvers<void>();
-    const holding = Promise.withResolvers<void>();
-    const first = run(scopeA, async (unit) => {
-      await unit.consumers.advance('test.timeout', tenantA, 5n);
-      holding.resolve();
-      await gate.promise;
-    });
-    await holding.promise;
-    const began = Date.now();
-    await expect(
-      run(scopeA, (unit) => unit.consumers.advance('test.timeout', tenantA, 9n)),
-    ).rejects.toMatchObject({ kind: 'unavailable' });
-    expect(Date.now() - began).toBeLessThan(5000);
-    gate.resolve();
-    await first;
-    // The holder's advance stands; the refused unit moved nothing.
-    expect(
-      await run(namespaceScope, (unit) => unit.consumers.checkpoint('test.timeout', tenantA)),
     ).toBe(5n);
-    // A later advance is not bounded by the earlier refusal.
-    await run(scopeA, (unit) => unit.consumers.advance('test.timeout', tenantA, 9n));
+    await run(scopeA, (unit) => unit.consumers.advance('test.hold', tenantA, 9n));
     expect(
-      await run(namespaceScope, (unit) => unit.consumers.checkpoint('test.timeout', tenantA)),
+      await run(namespaceScope, (unit) => unit.consumers.checkpoint('test.hold', tenantA)),
     ).toBe(9n);
   });
 
