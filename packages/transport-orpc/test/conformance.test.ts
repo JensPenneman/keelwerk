@@ -1,11 +1,13 @@
 import {
   describeTransportConformance,
+  expectSteppedClockBounds,
   pinnedTransportClock,
   startTransportRuntime,
+  steppedClockLiveSocket,
   transportTargetOf,
 } from '@keelwerk/testing';
 import { httpHost } from '@keelwerk/transport-http';
-import { afterAll, describe, vi } from 'vitest';
+import { afterAll, describe, test, vi } from 'vitest';
 import { orpcCodec } from './support/orpc-codec.ts';
 import { orpcConformanceApp, orpcConformanceVersions } from './support/orpc-conformance-app.ts';
 
@@ -18,7 +20,8 @@ const options = {
   host: httpHost({
     listen: { port: 0 },
     trustedProxies: ['127.0.0.1'],
-    liveSocket: { revalidateMs: 10_000_000 },
+    // The bounds sit far beyond the steps of the pinned clock (see steppedClockLiveSocket).
+    liveSocket: steppedClockLiveSocket,
   }),
   config: { orpc: { cors: origins } },
   tenants: ['acme', 'globex', 'legacy'],
@@ -56,4 +59,10 @@ describe('on PGlite', () => {
   describeTransportConformance(
     transportTargetOf(pglite, orpcCodec, origins, true, pgliteClock.advance),
   );
+});
+describe('the live socket bounds of the runner', () => {
+  test('sit beyond the longest loop of steps of the pinned clock', () => {
+    expectSteppedClockBounds(memory.bounds);
+    expectSteppedClockBounds(pglite.bounds);
+  });
 });
