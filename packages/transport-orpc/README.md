@@ -167,8 +167,10 @@ the session. Both documents describe the same schemas (`toJsonSchema` of the sur
 `test/generated/orpc/orpc-conformance/comparison.json` holds what the two OpenAPI documents of the
 conformance app say (format `keelwerk.orpc-comparison/1`): the document of `@keelwerk/transport-rest`
 against oRPC's own, as counts and name lists for problem details, pagination, execution modes and
-receipts and version headers. `comparison.test.ts` checks it like any generated file and the
-following command writes it:
+receipts and version headers. `comparison.test.ts` checks it like any generated file and checks that
+section 16.7.7 of `docs/architecture.md` in the repository holds the same table. The following
+command writes the file; the case on 16.7.7 fails when the table there no longer matches and prints
+the rows to change:
 
 ```sh
 pnpm vitest run --project transport-orpc test/comparison.test.ts -u

@@ -12200,11 +12200,11 @@ spent (section 15.4.6, amended 2026-11-11).
 
 #### 16.7.7 oRPC
 
-`@keelwerk/transport-orpc` (module id `orpc`) serves oRPC (`@orpc/server` 1.16.4, published
-2026-11-19) at `/orpc` through its fetch handler inside the host handler. Jens included it in the
-first release on 2026-10-26 (decision 15b), to judge its implementation and quality on real use
-despite its youth; it ships in M2 beside GraphQL and tRPC, passes the same conformance suite
-(section 16.3.8), and like every transport it is a module an app may leave out.
+`@keelwerk/transport-orpc` (module id `orpc`) serves oRPC (`@orpc/server`) at `/orpc` through its
+fetch handler inside the host handler. Jens included it in the first release on 2026-10-26 (decision
+15b), to judge its implementation and quality on real use despite its youth; it ships in M2 beside
+GraphQL and tRPC, passes the same conformance suite (section 16.3.8), and like every transport it is
+a module an app may leave out.
 
 - **Projection of the surface.** As for tRPC, the router is built at `listen` from the surface: one
   nested router per module and entity, one procedure per exposed action. Procedures pass the raw
@@ -12212,11 +12212,14 @@ despite its youth; it ships in M2 beside GraphQL and tRPC, passes the same confo
   table of section 16.4.6. Module ids are camel-cased in paths, since paths are property names.
 - **Typed client.** `OrpcRouterOf<App>` is derived from `AppActionTree<App>` in the same two
   levels as `TrpcRouterOf` (section 16.7.2) and exported from the app's generated file as a type
-  fragment, so `@orpc/client` 1.16.4 gives a typed client with no router value and no code
+  fragment, so `@orpc/client` gives a typed client with no router value and no code
   generation. Declared errors become each procedure's typed error map, so a client narrows on the
-  error code per procedure, which tRPC cannot. That oRPC's client types accept the derived type at
-  a cost like the tRPC listing's (Appendix B) is checked when the transport is built in M2; it was
-  not verified within this pass.
+  error code per procedure, which tRPC cannot.
+  `packages/transport-orpc/test/orpc-client.test-d.ts` type-checks such a client over the oRPC
+  conformance app in steps 3 and 4 of section 13.8: a query's input and output, a command's output
+  or receipt, a subscription's items and stream controls, the generated entity actions, a declared
+  error narrowed to its code and details, the `json` wire, and the refusal of an unknown procedure
+  and of a wrong input. The type budget `orpc-client` bounds the client's instantiations in step 8.
 - **Wire.** oRPC's serialiser carries `bigint`, `Set`, `Map` and binary values; `Temporal.Instant`
   and `Temporal.PlainDate` are registered as custom serialisers, and the static option
   `serializer: 'json'` switches to the plain JSON of section 16.4.2, as tRPC's `transformer: 'json'`
@@ -12225,11 +12228,30 @@ despite its youth; it ships in M2 beside GraphQL and tRPC, passes the same confo
   event id, so a reconnecting client resumes from it, and control frames (`head`, `reset`, `gap`)
   arrive as items, as in tRPC.
 - **Its OpenAPI handler, compared with the own emitter.** oRPC can serve the same procedures as
-  REST-style routes with a document of its own (`@orpc/openapi` 1.16.4). The transport offers that
-  handler as an option, and CI generates both documents for the conformance fixture app and reports
-  their differences from the own emitter of section 16.5.5 (problem details, pagination, execution
-  modes and receipts, version headers), so the comparison is measured rather than assumed.
-  `transport-rest` keeps its own emitter; the comparison is information for Jens, not a switch.
+  REST-style routes with a document of its own (`@orpc/openapi`). The transport offers that handler
+  as an option. `packages/transport-orpc/test/comparison.test.ts` builds both documents of the oRPC
+  conformance app at its head API version, the own emitter's of section 16.5.5 and oRPC's, counts
+  what each says about problem details, pagination, execution modes and receipts, and version
+  headers (`test/support/openapi-comparison.ts` defines each count), and fails when the counts
+  differ from the committed `test/generated/orpc/orpc-conformance/comparison.json` or from the
+  table below. `transport-rest` keeps its own emitter; the comparison is information for Jens, not
+  a switch.
+
+| orpc-conformance at 2026-11-11, 112 actions | `@keelwerk/transport-rest` | `@orpc/openapi` |
+|---|---|---|
+| openapi | `"3.1.1"` | `"3.1.1"` |
+| operations | `138` | `112` |
+| schemas | `277` | `0` |
+| problemDetails.errorMediaTypes | `["application/problem+json"]` | `["application/json"]` |
+| problemDetails.operationsWithDeclaredErrors | `3` | `3` |
+| problemDetails.declaredCodesDocumented | `2` | `2` |
+| pagination.pagedOperations | `26` | `13` |
+| pagination.linkHeader | `true` | `false` |
+| executionModes.acceptedResponses | `3` | `0` |
+| executionModes.preferHeader | `1` | `0` |
+| executionModes.idempotencyKeyHeader | `31` | `0` |
+| executionModes.receiptSchema | `true` | `false` |
+| versionHeaders.responseHeaders | `["keelwerk-version","link"]` | `[]` |
 
 | What | When | Where |
 |---|---|---|
@@ -18036,8 +18058,9 @@ Interfaces:
   `core.flag.evaluate` is typed, and how should `keelwerk surface diff` classify removing one?
 - At an older version, is an action that a version change renamed also reachable under its new
   name, as additive changes would suggest?
-- Do oRPC's client types accept the derived `OrpcRouterOf<App>` at a cost like the tRPC listing's?
-  Not verified within this pass; M2 checks it when the transport is built (section 16.7.7).
+- Answered in M2 (section 16.7.7): oRPC's client types accept `OrpcRouterOf<App>`, which
+  `orpc-client.test-d.ts` type-checks. The type budget entry `orpc-client` holds the client's type
+  cost for the conformance app; that cost was not compared with the tRPC listing's at equal size.
 - Answered with the strict rewrite of `docs/api-sketch.ts`: the profile search requires three
   characters and sends `'Jen'`, so the field keeps the default prefix minimum (section 14.7.9.13).
 
@@ -18183,7 +18206,7 @@ Checked on 2026-10-11 with `npm view` (packages) or the project's repository (co
 | `wildduck` | 1.46.1 | EUPL-1.2 | examined, not used |
 | `pg-boss` | 12.37.1 (12.38.0 on 2026-10-25, A.6) | MIT | examined; the kernel queue covers its primitives (section 9.5.7) |
 | `ws` | 8.22.0 | MIT | WebSocket server under the HTTP host |
-| `@orpc/server` | 1.15.5 | MIT | examined for the agent protocol on 2026-10-11; the oRPC transport of section 16.7.7 uses 1.16.1 (A.8, decision 15b) |
+| `@orpc/server` | 1.15.5 | MIT | examined for the agent protocol on 2026-10-11; the oRPC transport of section 16.7.7 no longer uses this release; the release in use is the one `packages/transport-orpc/package.json` pins |
 | `@simplewebauthn/server` | 14.0.3 | MIT | passkeys in `auth` |
 | `@octokit/app` | 16.1.4 | MIT | GitHub App authentication |
 | `@octokit/rest` | 22.0.1 | MIT | GitHub REST calls |

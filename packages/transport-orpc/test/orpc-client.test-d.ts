@@ -1,4 +1,4 @@
-import type { CommandReceipt, Id, Page, StreamControl, SubjectId } from '@keelwerk/core';
+import type { CommandReceipt, Id, Page, Row, StreamControl, SubjectId } from '@keelwerk/core';
 import { createORPCClient, isDefinedError, type NestedClient, safe } from '@orpc/client';
 import { RPCLink } from '@orpc/client/fetch';
 import { expectTypeOf, test } from 'vitest';
@@ -15,6 +15,7 @@ const dueAt = Temporal.Instant.from('2026-12-01T00:00:00Z');
 const borrower = 'u1' as SubjectId;
 
 test('the router type is a tree the oRPC client accepts', () => {
+  expectTypeOf<Router>().not.toBeAny();
   expectTypeOf<Router>().toExtend<NestedClient<Record<never, never>>>();
 });
 
@@ -47,13 +48,13 @@ test('loanEvents is an async iterator of items and stream controls', async () =>
 
 test('the generated entity actions sit under their entity', async () => {
   const page = await client.library.book.query({ first: 5 });
-  expectTypeOf(page).toExtend<Page<unknown>>();
-  const row = await client.library.book.create({
+  const created = await client.library.book.create({
     title: 'Dune',
     isbn: '978-3-16-148410-0',
     addedBy: borrower,
   });
-  expectTypeOf(row.title).toBeString();
+  expectTypeOf(page).toEqualTypeOf<Page<Row<OrpcConformanceApp, 'library.book'>>>();
+  expectTypeOf(created).toEqualTypeOf<Row<OrpcConformanceApp, 'library.book'>>();
 });
 
 test('a declared error narrows the failure to its code and details', async () => {

@@ -243,3 +243,19 @@ export function compareOpenapi(
     differences,
   };
 }
+
+/** The table that section 16.7.7 of the architecture document records, rows own beside oRPC. */
+export function comparisonTable(comparison: OpenapiComparison): string {
+  const orpc = new Map(leavesOf('', comparison.orpc));
+  const rows = leavesOf('', comparison.own)
+    .filter(([path]) => path !== 'producer')
+    .map(
+      ([path, own]) =>
+        `| ${path} | \`${JSON.stringify(own)}\` | \`${JSON.stringify(orpc.get(path))}\` |`,
+    );
+  return [
+    `| ${comparison.app} at ${comparison.apiVersion}, ${comparison.actions} actions | \`${comparison.own.producer}\` | \`${comparison.orpc.producer}\` |`,
+    '|---|---|---|',
+    ...rows,
+  ].join('\n');
+}
