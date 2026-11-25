@@ -4,6 +4,7 @@ import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { StateToken } from '../events/state-token.ts';
 import { buildSnapshot } from '../flags/build-snapshot.ts';
+import { closedGateRefusal } from '../flags/closed-gate-refusal.ts';
 import { flagClientIdOf } from '../flags/flag-client-id-of.ts';
 import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import type { RequestAuthorities } from '../interpreter/request-authorities.ts';
@@ -174,6 +175,9 @@ export async function setUpSubscription(
         targeting: env.options.targeting,
         telemetry: env.flagTelemetry,
       });
+      // A kill switch is a gate of `admit` (20.6): an open stream meets it again here, as a new subscriber meets it at admit.
+      const suspended = closedGateRefusal(registry, action, regated, 'admit');
+      if (suspended !== undefined) throw suspended;
       authorize({
         registry,
         rules,

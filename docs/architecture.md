@@ -10179,7 +10179,8 @@ head as the first statement of their unit, so their state is a valid `after` for
 5. Permissions are always the current ones: a resumed stream replays history under the
    principal's permissions at replay time, never under those it had when the events happened.
 6. The session is revalidated as section 16.3.4 describes; a revoked session ends the stream with
-   `unauthenticated`.
+   `unauthenticated`, and a closed kill switch of the subscription's action ends it with
+   `unavailable`, `core.feature_suspended`.
 7. Stream records are authorized through the stream's `readAs` entity (G6): the
    subscriber must be allowed to `get` the keyed row at subscribe time and at every revalidation.
    Topics are authorized the same way through their key.
@@ -11200,8 +11201,10 @@ Rules:
 - A session lives for one HTTP request. For SSE streams and WebSocket connections it lives as long
   as the connection, and the live module revalidates it at `expiresAt`, at least every 60 seconds
   (configurable), and on a change of a row the session depends on (`dependsOn`, amended
-  2026-11-11). A failed revalidation ends the stream with `unauthenticated`. Every action over a
-  socket is checked for revocation (added 2026-11-12).
+  2026-11-11). A revoked session ends the stream with `unauthenticated`. A subscription's
+  revalidation also decides the gates of its action again over a fresh flag snapshot: a closed
+  kill switch ends the open stream with `unavailable`, `core.feature_suspended`, as a new
+  subscriber is refused. Every action over a socket is checked for revocation (added 2026-11-12).
 - Listeners use a bound form of the same session (G1, `BoundSession` with `invoke` and
   `subscribe`), a convenience over `Invocation.session` with identical semantics.
 - Principal enrichment (roles, memberships) happens once per session; the plan memo of
@@ -16213,6 +16216,8 @@ every variant.
   `kill-switch` flag it runs at `admit` instead (`unavailable`, `core.feature_suspended`). Gated
   actions stay in the surface. Added 2026-11-11: gates apply to invoke effects and inline reactions
   too, with the caller's snapshot; asynchronous work takes a fresh snapshot when it runs.
+  A subscription meets its gates again at each revalidation of its session (section 16.3.4): a
+  kill switch that is closed ends the streams already open, with the same refusal.
 - Policies: `where`, `check` and `when` read `ctx.flags`; the plan records the flags its rules
   read, and the token check of section 15.2.6 includes their values, so a flip that changes
   visibility resets tokens.
