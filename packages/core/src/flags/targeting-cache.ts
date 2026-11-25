@@ -1,5 +1,6 @@
 import type { FlagResolution } from '../contexts/flag-resolution.ts';
 import type { ControlFlags } from '../control/control-flags.ts';
+import { errors } from '../errors/errors.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { Logger } from '../observability/logger.ts';
 import { checkFlagValues } from './check-flag-values.ts';
@@ -37,10 +38,11 @@ export interface TargetingCache {
    * `core.targeting`, synchronous. With no rows loaded it passes the flag on. It reads the row of
    * (key, backend) and else the deployment-wide row (a deployment-scope context reads the latter
    * only); none passes the flag on. A row last loaded `targetingStaleMs` ago or longer answers
-   * the declared default with STALE. A row that does not compile, or whose values the flag's
-   * declaration refuses, answers the declared default with ERROR/PARSE_ERROR: an error of that
-   * key only. `start(signal)` follows the feed until `signal` or the options' signal aborts and
-   * settles after the first load.
+   * the declared default with STALE; a kill switch's row answers its last loaded value with STALE.
+   * A row that does not compile, or whose values the flag's declaration refuses, answers the
+   * declared default with ERROR/PARSE_ERROR (a boolean kill switch: closed, false): an error of
+   * that key only. `start(signal)` follows the feed until `signal` or the options' signal aborts
+   * and settles after the first load.
    */
   readonly provider: FlagProvider;
   /**
@@ -53,13 +55,19 @@ export interface TargetingCache {
    * rows and logs at error level.
    */
   fresh(): Promise<void>;
+  /**
+   * Starts following the feed and loads the rows once, or rejects with the failure of the read
+   * (`core.unavailable` for one that timed out), so that a start can wait by its own rule for a
+   * store that is away: no process serves before the first load.
+   */
+  firstLoad(): Promise<void>;
 }
 
 /**
  * Serves targeting from memory, refreshed when the control namespace's feed wakes and, with the
  * feed down or behind, by age: a flag turned off is served as on for at most `targetingRefreshMs`
  * plus one read of the control store. With the store unreadable the last rows serve for
- * `targetingStaleMs`, then every flag with targeting answers its default with STALE.
+ * `targetingStaleMs`, then every flag with targeting but a kill switch answers its default with STALE.
  */
 export function createTargetingCache(options: TargetingCacheOptions): TargetingCache {
   const { flags, clock, log } = options;
@@ -74,6 +82,8 @@ export function createTargetingCache(options: TargetingCacheOptions): TargetingC
    */
   let fits: WeakMap<FlagSpec, Map<string, unknown>> = new WeakMap();
   let failedAt: number | null = null;
+  /** Why the newest load did not load; read by `firstLoad`. */
+  let failure: unknown;
   let inFlight: Promise<void> | undefined;
   let again = false;
   /** Reads handed to the store that have not settled, also those the cache stopped waiting for. */
@@ -94,7 +104,7 @@ export function createTargetingCache(options: TargetingCacheOptions): TargetingC
   const within = <T>(work: Promise<T>, ms: number): Promise<T> => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const expired = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => reject(new Error(`no answer within ${ms} ms`)), ms);
+      timer = setTimeout(() => reject(errors.unavailable(`no answer within ${ms} ms`)), ms);
     });
     work.catch(() => undefined);
     return Promise.race([work, expired]).finally(() => clearTimeout(timer));
@@ -146,7 +156,8 @@ export function createTargetingCache(options: TargetingCacheOptions): TargetingC
       failedAt = null;
     } catch (error) {
       failedAt = now();
-      log.error('the flag targeting could not be loaded; the last rows keep serving', {
+      failure = error;
+      log.error('the flag targeting could not be loaded; rows already loaded keep serving', {
         cause: error,
       });
     }
@@ -225,6 +236,19 @@ export function createTargetingCache(options: TargetingCacheOptions): TargetingC
     void follow(signal);
   };
 
+  /** A row that cannot be read as declared: the declared default, but a boolean kill switch reads closed. */
+  const parseError = <T>(flag: FlagSpec<T>, ruleVersion?: number): FlagResolution<T> => {
+    const closed =
+      flag.purpose === 'kill-switch' && flag.kind === 'boolean'
+        ? { ...flag, default: false as T }
+        : flag;
+    const failed = defaultFlagResolution(closed, {
+      errorCode: 'PARSE_ERROR',
+      provider: providerId,
+    });
+    return ruleVersion === undefined ? failed : { ...failed, ruleVersion };
+  };
+
   const resolve = <T>(flag: FlagSpec<T>, context: FlagContext): FlagResolution<T> | undefined => {
     if (rows === null) return undefined;
     const backendId = context.scope.level === 'deployment' ? null : context.scope.backendId;
@@ -235,11 +259,13 @@ export function createTargetingCache(options: TargetingCacheOptions): TargetingC
     for (const slot of slots) {
       const refused = invalid.get(slot);
       if (refused !== undefined) {
-        return defaultFlagResolution(flag, { errorCode: 'PARSE_ERROR', provider: providerId });
+        return parseError(flag);
       }
       const row = rows.get(slot);
       if (row === undefined) continue;
-      if (now() - loadedAt >= targetingStaleMs) {
+      const stale = now() - loadedAt >= targetingStaleMs;
+      // A kill switch keeps its last loaded value: stale rows never reopen a closed one.
+      if (stale && flag.purpose !== 'kill-switch') {
         return {
           ...defaultFlagResolution(flag),
           reason: 'STALE',
@@ -268,12 +294,10 @@ export function createTargetingCache(options: TargetingCacheOptions): TargetingC
         }
       }
       if (outcomes.get(mark) !== null) {
-        return {
-          ...defaultFlagResolution(flag, { errorCode: 'PARSE_ERROR', provider: providerId }),
-          ruleVersion: row.version,
-        };
+        return parseError(flag, row.version);
       }
-      return evaluateTargeting(flag, row, context);
+      const served = evaluateTargeting(flag, row, context);
+      return stale ? { ...served, reason: 'STALE' } : served;
     }
     return undefined;
   };
@@ -284,9 +308,14 @@ export function createTargetingCache(options: TargetingCacheOptions): TargetingC
       sync: true,
       start: async (signal) => {
         startFollowing(AbortSignal.any([signal, options.signal]));
-        await awaitLoad(load(false));
+        if (rows === null) await awaitLoad(load(false));
       },
       resolve,
+    },
+    firstLoad: async () => {
+      startFollowing(options.signal);
+      await load(false);
+      if (rows === null) throw failure ?? errors.unavailable('The flag targeting is not loaded.');
     },
     fresh: async () => {
       startFollowing(options.signal);

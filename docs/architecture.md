@@ -336,7 +336,9 @@ code in each warning shows a mistyped host. The wait has no limit of its own:
 `keelwerk start` passes the signal that its interrupt and `SIGTERM` raise. A start that was not
 given a signal and whose database never answers waits until it does. An adapter whose units reach
 their data over a connection answers `core.unavailable` for a connection that could not be opened
-(section 14.3.6), because the wait keys on that code. A `connect` that rejected with
+(section 14.3.6), because the wait keys on that code. The first load of the flag rows (section
+20.3) waits in the same way, before the `start` phase begins; an error other than
+`core.unavailable` ends the start there too. A `connect` that rejected with
 `core.unavailable` is called again on the same adapter instance, so it must leave the instance able
 to connect.
 
@@ -16159,9 +16161,14 @@ export interface FlagProvider {             // deployment-level ordered extensio
   also right after the change feed was subscribed again. One read of the rows may take 5 s, in the
   store and in the cache, before it counts as failed, and at most two reads are outstanding at
   once. While the control store is unreadable, the last rows loaded serve for 30 s after the last
-  successful load; then every flag with targeting serves its declared default with `STALE`.
+  successful load; then every flag with targeting serves its declared default with `STALE`, except
+  a `kill-switch` flag, which keeps serving its last loaded value with `STALE`. A boolean kill
+  switch whose stored row cannot be read as declared reads closed with `PARSE_ERROR`, and a process
+  serves only after the first load of the rows, which the start waits for as it waits for a connect
+  (an error other than `core.unavailable` ends the start).
 - An error never fails an invocation: the default is served with `ERROR` and counted, so the
-  default must keep established behaviour.
+  default must keep established behaviour; a boolean kill switch whose stored row cannot be read
+  as declared is the exception (the bullet above).
 - An anonymous principal has a targeting key only when the client sends `Keelwerk-Client-Id`;
   otherwise principal-level flags give the default with `TARGETING_KEY_MISSING`. Amended
   2026-11-11: by the flag's level, the targeting key is the backend id, the tenant id or the

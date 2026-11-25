@@ -19,7 +19,7 @@ describe('createTargetingCache, when the store or the feed fails', () => {
     await r.cache.fresh();
     expect(readCheckout(r.cache)).toBeUndefined();
     expect(r.errors).toEqual([
-      'the flag targeting could not be loaded; the last rows keep serving',
+      'the flag targeting could not be loaded; rows already loaded keep serving',
     ]);
     r.hold(false);
     r.release();

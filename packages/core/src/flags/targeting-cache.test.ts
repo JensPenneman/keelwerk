@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import {
   checkoutFlag,
   readCheckout,
@@ -71,6 +71,112 @@ describe('createTargetingCache', () => {
       provider: 'core.targeting',
     });
     r.stop();
+  });
+
+  test('with the store unreadable a kill switch keeps its last loaded value, with STALE, where another flag serves its default', async () => {
+    const closed = { enabled: true, rules: [], fallthrough: { value: false } };
+    const ordinary: FlagSpec<boolean> = { ...checkoutFlag, default: true };
+    const killSwitch: FlagSpec<boolean> = { ...ordinary, purpose: 'kill-switch' };
+    const r = targetingRig([storedFlagRow(closed)]);
+    const read = (flag: FlagSpec<boolean>) => r.cache.provider.resolve(flag, tenantContext());
+    await r.cache.fresh();
+    r.fail(true);
+    r.advance(1_000);
+    await r.cache.fresh();
+    r.advance(28_999);
+    expect(read(killSwitch)).toMatchObject({ value: false, reason: 'STATIC' });
+    r.advance(1);
+    expect(read(killSwitch)).toMatchObject({
+      value: false,
+      reason: 'STALE',
+      provider: 'core.targeting',
+      ruleVersion: 1,
+    });
+    expect(read(ordinary)).toMatchObject({ value: true, reason: 'STALE' });
+    r.stop();
+  });
+
+  test('a kill switch last loaded open stays open past the stale bound, and the fresh value serves once the store answers', async () => {
+    const killSwitch: FlagSpec<boolean> = {
+      ...checkoutFlag,
+      default: true,
+      purpose: 'kill-switch',
+    };
+    const r = targetingRig([storedFlagRow(targetingOn)]);
+    const read = () => r.cache.provider.resolve(killSwitch, tenantContext());
+    await r.cache.fresh();
+    r.fail(true);
+    r.advance(30_000);
+    await r.cache.fresh();
+    expect(read()).toMatchObject({ value: true, reason: 'STALE' });
+    r.fail(false);
+    r.set([
+      storedFlagRow({ enabled: true, rules: [], fallthrough: { value: false } }, { version: 2 }),
+    ]);
+    r.advance(1_000);
+    await r.cache.fresh();
+    expect(read()).toMatchObject({ value: false, reason: 'STATIC', ruleVersion: 2 });
+    r.stop();
+  });
+
+  test('a stored row that cannot be read as declared serves a kill switch closed and another flag its default, both with PARSE_ERROR', async () => {
+    const ordinary: FlagSpec<boolean> = { ...checkoutFlag, default: true };
+    const killSwitch: FlagSpec<boolean> = { ...ordinary, purpose: 'kill-switch' };
+    const r = targetingRig([
+      storedFlagRow(
+        { enabled: 'yes', rules: [], fallthrough: { value: true } },
+        { backendId: 'b1' },
+      ),
+      storedFlagRow(
+        { enabled: true, rules: [], fallthrough: { value: 'open' } },
+        { id: 'flg-2', backendId: 'b2' },
+      ),
+    ]);
+    await r.cache.fresh();
+    for (const backendId of ['b1', 'b2']) {
+      const read = (flag: FlagSpec<boolean>) =>
+        r.cache.provider.resolve(flag, tenantContext(backendId));
+      expect(read(killSwitch)).toMatchObject({
+        value: false,
+        reason: 'ERROR',
+        errorCode: 'PARSE_ERROR',
+      });
+      expect(read(ordinary)).toMatchObject({
+        value: true,
+        reason: 'ERROR',
+        errorCode: 'PARSE_ERROR',
+      });
+    }
+    r.stop();
+  });
+
+  test('firstLoad rejects with the failure of the read while the store is unreadable and settles once it answers', async () => {
+    const r = targetingRig([storedFlagRow(targetingOn)]);
+    r.fail(true);
+    await expect(r.cache.firstLoad()).rejects.toThrow('control store down');
+    expect(readCheckout(r.cache)).toBeUndefined();
+    r.fail(false);
+    await r.cache.firstLoad();
+    expect(readCheckout(r.cache)).toMatchObject({ value: true, reason: 'STATIC' });
+    r.stop();
+  });
+
+  test('a first read that does not answer within the read bound makes firstLoad reject with core.unavailable', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const r = targetingRig([storedFlagRow(targetingOn)], { readMs: 20 });
+      r.hold(true);
+      const loading = expect(r.cache.firstLoad()).rejects.toMatchObject({
+        code: 'core.unavailable',
+      });
+      await vi.advanceTimersByTimeAsync(20);
+      await loading;
+      r.hold(false);
+      r.release();
+      r.stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test('a second caller does not wait for a load in flight', async () => {

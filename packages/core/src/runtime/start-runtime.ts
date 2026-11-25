@@ -16,6 +16,7 @@ import { answerRuntimeQueries } from './answer-runtime-queries.ts';
 import { AppNotServedError } from './app-not-served-error.ts';
 import { composePhase } from './compose-phase.ts';
 import { connectPhase } from './connect-phase.ts';
+import { connectWhileUnavailable } from './connect-while-unavailable.ts';
 import { createControlPath } from './create-control-path.ts';
 import { createRuntimeControl } from './create-runtime-control.ts';
 import { createServiceGate } from './create-service-gate.ts';
@@ -123,6 +124,11 @@ export async function startRuntime(
       clock,
       log,
       signal: connected.signal,
+    });
+    // No process serves before the first load of the rows: a kill switch must not read open for it.
+    await connectWhileUnavailable('control', () => targeting.firstLoad(), {
+      log,
+      signal: options.signal,
     });
     const flagProviders = createFlagChain({
       providers: composed.infrastructure.flagProviders,
