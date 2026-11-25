@@ -1,15 +1,17 @@
-import type { EntityDescriptor, Runtime, Unit } from '@keelwerk/core';
+import type { Runtime } from '@keelwerk/core';
 import { fallbackReport } from '@keelwerk/data';
 import { afterEach, describe, expect, test } from 'vitest';
 import { absent } from '../src/doctor/absent.ts';
 import { fallbacksCheck } from '../src/doctor/check-fallbacks.ts';
 import { healthCheck } from '../src/doctor/check-health.ts';
 import { controlReaderOf } from '../src/doctor/control-reader-of.ts';
+import { controlSourceOf } from '../src/doctor/control-source-of.ts';
 import { known } from '../src/doctor/known.ts';
 import { runDeploymentChecks } from '../src/doctor/run-deployment-checks.ts';
 import { removeTrees } from './layout-fixtures/materialise-tree.ts';
 import { bootRuntime } from './support/boot-runtime.ts';
 import { factsOf } from './support/facts-of.ts';
+import { createFakeHost } from './support/fake-host.ts';
 
 const stopped: Runtime[] = [];
 
@@ -29,26 +31,18 @@ describe.each(['memory', 'pglite'] as const)('a running deployment on %s', (kind
     const { runtime, adapters } = await started(kind, false);
     const control = adapters.get('control');
     if (control === undefined) throw new Error('the control adapter was not opened');
-    const source = {
-      read: <T>(fn: (unit: Unit) => Promise<T>) =>
-        control.unit(
-          {
-            id: 'ns-control',
-            placementId: 'control',
-            appId: 'core',
-            tenantId: null,
-            root: 'kw__control',
-          },
-          { level: 'deployment' },
-          fn,
-          { readOnly: true },
-        ),
-      entity: (ref: string): EntityDescriptor => {
-        const entry = runtime.registry('demo').entities.get(ref);
-        if (entry === undefined) throw new Error(`no entity ${ref}`);
-        return entry.descriptor;
+    const source = controlSourceOf(
+      control,
+      {
+        id: 'ns-control',
+        placementId: 'control',
+        appId: 'core',
+        tenantId: null,
+        root: 'kw__control',
       },
-    };
+      runtime.registry('demo'),
+      createFakeHost().host.schedule,
+    );
     const reader = controlReaderOf(source, () => Temporal.Now.instant());
     expect(await reader.reachable()).toEqual({ reachable: true, detail: 'answered' });
     const processes = await reader.processes();
@@ -57,7 +51,7 @@ describe.each(['memory', 'pglite'] as const)('a running deployment on %s', (kind
     expect(runDeploymentChecks([healthCheck], factsOf({ processes: known(processes) }))).toEqual(
       [],
     );
-    expect(await reader.hookFailures()).toEqual([]);
+    expect(await reader.hookFailures()).toEqual({ failures: [], olderUnread: false });
   }, 60_000);
 
   test('with the accelerations off, doctor lists the fallbacks and their cost', async () => {

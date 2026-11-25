@@ -6,6 +6,7 @@ import type { DeploymentInput } from '../../doctor/deployment-input.ts';
 import type { DoctorFinding } from '../../doctor/doctor-finding.ts';
 import { findingOf } from '../../doctor/finding-of.ts';
 import { modeOf } from '../../doctor/mode-of.ts';
+import { openControl } from '../../doctor/open-control.ts';
 import { openPlacements } from '../../doctor/open-placements.ts';
 import { registryOfApp } from '../../doctor/registry-of-app.ts';
 
@@ -25,13 +26,15 @@ function isDefinition(value: unknown): value is DeploymentDefinition {
 export interface LoadedDeployment {
   readonly input: DeploymentInput | undefined;
   readonly findings: readonly DoctorFinding[];
+  /** Closes the control store the input reads; absent when none was opened. */
+  readonly close?: () => Promise<void>;
 }
 
 /**
- * Loads the deployment file of project mode (section 16.9.1) and reads what can be judged without
- * the control store's rows (doctor passes no reader): the definition, its apps' registries, the
- * environment and the placements with the capabilities of each adapter except `pglite`, which are
- * connected without migrating and closed again.
+ * Loads the deployment file of project mode (section 16.9.1) and reads what the checks judge: the
+ * definition, its apps' registries, the environment, the placements with the capabilities of each
+ * adapter except `pglite` (connected without migrating and closed again) and the control store,
+ * which stays open for the reader until `close` is called.
  */
 export async function loadDeploymentInput(
   host: CliHost,
@@ -58,16 +61,20 @@ export async function loadDeploymentInput(
     if (!isDefinition(definition)) {
       throw new Error('the default export is not a deployment');
     }
+    const registries = definition.apps.flatMap((app) => registryOfApp(app) ?? []);
+    const placements = await openPlacements(definition, host.env, host.schedule);
+    const control = await openControl(definition, host.env, registries, host.schedule);
     return {
       input: {
         definition,
         env: host.env,
         modeOf,
-        registries: definition.apps.flatMap((app) => registryOfApp(app) ?? []),
-        placements: await openPlacements(definition, host.env),
-        reader: undefined,
+        registries,
+        placements,
+        reader: control.reader,
       },
       findings: [],
+      close: control.close,
     };
   } catch (error) {
     return {

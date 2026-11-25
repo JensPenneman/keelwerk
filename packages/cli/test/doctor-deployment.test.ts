@@ -5,6 +5,7 @@ import type { ControlReader } from '../src/doctor/control-reader.ts';
 import { deploymentChecks } from '../src/doctor/deployment-checks.ts';
 import type { DeploymentInput } from '../src/doctor/deployment-input.ts';
 import type { DoctorFinding } from '../src/doctor/doctor-finding.ts';
+import { known } from '../src/doctor/known.ts';
 import { unfedChecks } from '../src/doctor/unfed-checks.ts';
 import { definitionOf } from './support/deployment-definition-of.ts';
 import { input, judged, notChecked, sink, unfedNotes } from './support/deployment-input-of.ts';
@@ -131,7 +132,7 @@ describe('the deployment checks', () => {
   test('without a reader every check of the control store is not checked with the one reason, and nothing else is said of them', async () => {
     const found = await deploymentChecks(input(definitionOf({ infrastructure: [sink()] })));
     const reasons = notChecked(found).filter(
-      (finding) => finding.message === "doctor does not read the control store's rows",
+      (finding) => finding.message === 'the control store is not read',
     );
     expect(reasons.map((finding) => finding.subject).sort()).toEqual([
       'control store reachable',
@@ -140,7 +141,9 @@ describe('the deployment checks', () => {
       'held tenants',
       'processes',
     ]);
-    expect(found.map((finding) => finding.message).join('\n')).not.toContain('lists no process');
+    expect(found.map((finding) => finding.message).join('\n')).not.toContain(
+      'lists no running process',
+    );
   });
 
   test('a reader that fails on one member leaves the others judged', async () => {
@@ -149,12 +152,15 @@ describe('the deployment checks', () => {
       processes: async () => {
         throw new Error('the read timed out');
       },
-      hookFailures: async () => [{ hookId: 'billing.onTenantCreated', tenantId: 'tnt_2' }],
+      hookFailures: async () => ({
+        failures: [{ hookId: 'billing.onTenantCreated', tenantId: 'tnt_2' }],
+        olderUnread: false,
+      }),
       bumpedMarks: async () => [],
       heldTenants: async () => [],
     };
     const found = await deploymentChecks(
-      input(definitionOf({ infrastructure: [sink()] }), { reader }),
+      input(definitionOf({ infrastructure: [sink()] }), { reader: known(reader) }),
     );
     expect(
       found
@@ -170,7 +176,7 @@ describe('the deployment checks', () => {
       'the lifecycle hook billing.onTenantCreated failed for tenant tnt_2',
     );
     expect(found.map((finding) => finding.message)).not.toContain(
-      'the control store lists no process',
+      'the control store lists no running process',
     );
   });
 });

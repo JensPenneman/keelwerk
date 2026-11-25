@@ -28,6 +28,12 @@ export interface HookFailureFact {
   readonly tenantId: string;
 }
 
+/** What doctor read of the tenant hook outcomes: the failures that stand, and whether older outcomes may exist that it did not read. */
+export interface HookFailuresFact {
+  readonly failures: readonly HookFailureFact[];
+  readonly olderUnread: boolean;
+}
+
 /** A module of an app that needs a raw-SQL dialect (`data.sql`, or a `{ sql }` entry of `data.needs`). */
 export interface SqlNeedFact {
   readonly app: string;
@@ -59,7 +65,7 @@ export interface FactValues {
   readonly clusters: ClustersFact;
   readonly ledgerSinks: number;
   readonly controlReachable: { readonly reachable: boolean; readonly detail: string };
-  readonly hookFailures: readonly HookFailureFact[];
+  readonly hookFailures: HookFailuresFact;
   readonly processes: readonly ProcessFact[];
   readonly bumpedMarks: readonly ScopeMark[];
   readonly heldTenants: readonly string[];

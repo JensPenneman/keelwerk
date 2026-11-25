@@ -39,6 +39,7 @@
     "yaml": "2.9.1"
   },
   "devDependencies": {
+    "@keelwerk/adapter-postgres": "workspace:*",
     "@keelwerk/events": "workspace:*",
     "@keelwerk/live": "workspace:*",
     "@keelwerk/testing": "workspace:*",

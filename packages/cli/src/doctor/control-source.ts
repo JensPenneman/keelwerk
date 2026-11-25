@@ -1,7 +1,6 @@
 import type { EntityDescriptor, Unit } from '@keelwerk/core';
 
-/** The two members of the core's `ControlStore` that doctor reads through: a read-only deployment-scope unit and the descriptor of a core entity. */
+/** What doctor reads the control store through: a read-only deployment-scope unit, which is given the descriptors of the core entities. */
 export interface ControlSource {
-  read<T>(fn: (unit: Unit) => Promise<T>): Promise<T>;
-  entity(ref: string): EntityDescriptor;
+  read<T>(fn: (unit: Unit, entity: (ref: string) => EntityDescriptor) => Promise<T>): Promise<T>;
 }

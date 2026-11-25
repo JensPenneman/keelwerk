@@ -5934,19 +5934,57 @@ What doctor reads of a deployment as built:
   directory and a role where they are missing. A placement whose capabilities it cannot read (no
   factory, an unset variable in its url, a failed create or connect, a close that fails after a
   connect, `pglite`) is `not-checked` for each check that needs its capabilities and has something
-  to say about that placement.
+  to say about that placement;
+- the rows of the control store (whether the store answers, the process rows that are not
+  stopped, failed tenant hooks, epoch bumps and held tenants). Doctor reads the deployment id
+  recorded in the control root through the schema client of the control adapter, over a probe
+  connection that it closes again; that client connects with the owner's url when the adapter has
+  one, and the read is a read-only transaction (the `history` read of the PostgreSQL schema
+  operations sets it as its first statement, so the database refuses a write in it). Doctor then opens the control store with that id, keeps it open
+  for the checks and closes it when the command ends; its reads go through the application's role,
+  each a read-only unit of the deployment scope. On PostgreSQL a unit has a time limit for each of
+  its statements. The reads that page (the process rows, the hook outcomes, the held tenants) read
+  pages of a fixed size within a budget of pages: a fact that needs more pages is absent, never a
+  partial list, and so is a page that says more follows and gives no cursor. The read of the
+  epoch bumps does not page. Doctor waits for each fact, for the read of the recorded id and for
+  every connect it makes (the version and role checks of the adapter included) no longer than a
+  deadline of its own: past it the fact is `not-checked` (for the recorded id and for the connect
+  of the control store, the reachability check is an error; for the connect of a placement, its
+  checks are `not-checked`), and doctor closes what it holds without waiting for it. Each connect
+  and each read has its own bound and they run one after another, so a store that stays silent
+  holds doctor for the sum of them. The command
+  line's entry ends the process once a command has returned and its output is written out, so a
+  connection that still waits for a database does not keep doctor alive after its report. Hook
+  outcomes are read from the newest part of the log only; when the log is longer, a note says that
+  older outcomes were not read and the check counts as run.
+  Doctor never opens a store that only the process running it can read: the adapter `pglite` and
+  an adapter of the `memory` dialect. The five checks are `not-checked` for such a store, and also
+  when no app is selected, when the control root records no deployment id (the deployment has
+  never started) and when the url of the control store cannot be resolved. A store that does not
+  connect, does not answer, or whose recorded id cannot be read gives an error from the
+  reachability check, and the other four checks are `not-checked` with that reason, without
+  being read.
 
-What doctor does not read as built: the rows of the control store, the rows of the placements, the
-ledger sinks, and a connection to a running deployment. The command passes no reader of the control
-store yet, so the checks that read it (whether the store answers, the process rows, failed tenant
-hooks, epoch bumps and held tenants) are `not-checked` with that reason. A check that needs one of
-the others has no source, and the rule above applies to it.
+What doctor does not read as built: the rows of the placements, the ledger sinks, and a connection
+to a running deployment. A check that needs one of them has no source, and the rule above applies
+to it.
+
+Doctor hides, in the subject, the message and the fix of every finding, whether or not the
+deployment file loaded: the password of anything shaped like `scheme://user:password@` (everything
+between the colon after the user and the last at sign of the word, slashes included) and the value
+of a key that ends in `password`, in any case (`password`, `sslpassword`, `PGPASSWORD`), followed by
+an equals sign or a colon, with spaces and quotes around it, the JSON form included. These shapes
+are all it recognises: a password quoted bare anywhere else is not hidden. A part after the colon
+of a url that is shaped like a port (digits, then a slash or the end of the word) is not read as a
+password, so a password that begins with digits and a slash is not hidden. The word after `password`
+and a colon or an equals sign is hidden whatever it is, so the text `password = true` loses its
+value too.
 
 The checks that judge as built include operator socket permissions; master key present; the control
 store on another database cluster than the placements or a ledger sink configured (section 14.7.6);
 a module that needs a raw-SQL dialect, judged on each placement that hosts its app; the fallbacks
-per placement (section 14.3.3, brief addendum 5); the personal-data pass; observers; and, once the
-command reads the control store, the checks listed above as needing it.
+per placement (section 14.3.3, brief addendum 5); the personal-data pass; observers; and the
+checks of the control store's rows listed above.
 
 The result:
 
@@ -5955,13 +5993,11 @@ The result:
   `doctor: no findings` (`layout: no findings` with `--layout`) and no summary. `--output json`
   prints the findings as an array, the empty array for a run with none; `severity` is `error`,
   `warning`, `note` or `not-checked`, and `check` names the group of the check.
-- The exit code is 1 when a finding is an error and 0 otherwise; `not-checked` does not change it.
-  With `--strict` the exit code is also 1 when a finding has the severity `not-checked`, that is,
-  when a check doctor has did not run. In this version that is every run that loads a deployment
-  (the command passes no reader of the control store, so the checks that read it did not run) and a
-  run without a deployment file; a `--layout` run without an error exits 0. A placement on an
-  embedded database is `not-checked` as well, so `--strict` cannot pass on such a deployment. This
-  is the state of this version, not a promise about a later one.
+- The exit code is 1 when a finding is an error and 0 otherwise, and `--strict` makes a finding
+  that could not be checked (`not-checked`, whatever the reason) fail like an error: warnings and
+  notes never change the exit code. A deployment whose control store is in memory or embedded
+  cannot pass `--strict`, because doctor never reads such a store; nor can one with a placement
+  on an embedded database. A `--layout` run without an error exits 0.
 - A missing deployment file gives one `not-checked` line for the deployment checks.
 - `--profile`, `--backend`, `--tenant` and `--socket` are accepted and have no effect on doctor yet;
   for each that is given doctor prints a note saying so.
@@ -5973,8 +6009,7 @@ As built in M1 (added 2026-11-05, register entries 376 and 377):
   is M2. The core module is a sugar root for the pass; fixture modules without a migrations folder
   are exempt from the "adds data" check.
 - Failed tenant hooks are recorded in the tenant stream's `core.tenant.hookFailed` and
-  `hookCompleted` events, which the failed-hook check reads through the control store once the
-  command has a reader.
+  `hookCompleted` events, which the failed-hook check reads through the control store.
 - The flag-expiry check above is not built in M1 (flags answer their defaults until M2).
 
 ## 14. Data layer

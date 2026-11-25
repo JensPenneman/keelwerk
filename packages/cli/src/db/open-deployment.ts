@@ -1,27 +1,20 @@
-import type { AdapterEnvironment, DataAdapter, DataAdapterFactory } from '@keelwerk/core';
-import { controlNamespace as controlNamespaceOf, recordedDeploymentId } from '@keelwerk/core';
+import type { AdapterEnvironment, DataAdapter } from '@keelwerk/core';
+import { recordedDeploymentId } from '@keelwerk/core';
+import type { CliHost } from '../context/cli-host.ts';
 import { localFailure } from '../context/local-failure.ts';
 import { adapterEnvironmentOf } from '../doctor/adapter-environment-of.ts';
+import { factoryOf } from '../doctor/factory-of.ts';
 import { placementConfigOf } from '../doctor/placement-config-of.ts';
+import { connectAdapter } from './connect-adapter.ts';
+import { controlRootNamespace } from './control-root-namespace.ts';
 import { deployedApps } from './deployed-apps.ts';
 import { loadDefinition } from './load-definition.ts';
 import type { OpenedDeployment } from './opened-deployment.ts';
 import type { OpenedPlacement } from './opened-placement.ts';
+import { probeId } from './probe-id.ts';
 
-const controlNamespace = controlNamespaceOf('control');
-
-/** The id the probe connection uses before the real one is known. */
-const probeId = '00000000-0000-7000-8000-000000000000';
-
-function isFactory(value: unknown): value is DataAdapterFactory {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'id' in value &&
-    'create' in value &&
-    typeof value.create === 'function'
-  );
-}
+/** The data commands wait for a connect as long as the adapter does: a schedule whose timer never fires. */
+const noDeadline: CliHost['schedule'] = () => () => undefined;
 
 async function connect(
   name: string,
@@ -30,9 +23,7 @@ async function connect(
   env: Readonly<Record<string, string | undefined>>,
   environment: AdapterEnvironment,
 ): Promise<{ readonly adapter: DataAdapter; readonly dialect: string }> {
-  const factory = infrastructure
-    .filter(isFactory)
-    .find((candidate) => candidate.id === entry.adapter);
+  const factory = factoryOf(infrastructure, entry.adapter);
   if (factory === undefined) {
     throw localFailure(
       'unavailable',
@@ -48,17 +39,7 @@ async function connect(
       `${name}: its url reads an environment variable that is not set`,
     );
   }
-  try {
-    const adapter = factory.create(config, environment);
-    await adapter.connect();
-    return { adapter, dialect: factory.dialect };
-  } catch (error) {
-    throw localFailure(
-      'unavailable',
-      'cli.placement_unreachable',
-      `${name}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
+  return connectAdapter(name, factory, config, environment, noDeadline);
 }
 
 async function probeDeploymentId(
@@ -71,7 +52,7 @@ async function probeDeploymentId(
   });
   try {
     if (probe.dialect === 'memory') return undefined;
-    return await recordedDeploymentId(probe.adapter, controlNamespace).catch(() => undefined);
+    return await recordedDeploymentId(probe.adapter, controlRootNamespace).catch(() => undefined);
   } finally {
     await probe.adapter.close(1000).catch(() => undefined);
   }
@@ -122,7 +103,11 @@ export async function openDeployment(
       definition,
       apps: deployedApps(definition.apps),
       deploymentId,
-      control: { adapter: control.adapter, namespace: controlNamespace, dialect: control.dialect },
+      control: {
+        adapter: control.adapter,
+        namespace: controlRootNamespace,
+        dialect: control.dialect,
+      },
       placements,
       close: async () => {
         await Promise.allSettled(opened.map((adapter) => adapter.close(1000)));

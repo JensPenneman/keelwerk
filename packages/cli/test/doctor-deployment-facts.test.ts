@@ -157,7 +157,6 @@ describe('the checks that read declarations and rows', () => {
       'process web is starting, not ready',
     );
     expect(check([{ ...process, heartbeatAgeMs: 45_000 }])[0]?.message).toContain('presumed gone');
-    expect(check([{ ...process, state: 'stopped', heartbeatAgeMs: 45_000 }])).toEqual([]);
     expect(check([])[0]?.subject).toBe('processes');
   });
 
@@ -188,7 +187,7 @@ describe('the checks that read declarations and rows', () => {
         clusters: known({ control: 'x', placements: [{ name: 'main', cluster: 'x' }] }),
         ledgerSinks: known(0),
         controlReachable: known({ reachable: false, detail: 'down' }),
-        hookFailures: known([{ hookId: 'h', tenantId: 't' }]),
+        hookFailures: known({ failures: [{ hookId: 'h', tenantId: 't' }], olderUnread: false }),
         processes: known([
           { id: 'p', name: undefined, roles: [], state: 'starting', heartbeatAgeMs: 9e9 },
         ]),

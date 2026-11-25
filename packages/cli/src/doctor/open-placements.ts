@@ -1,32 +1,19 @@
-import type {
-  AdapterCapabilities,
-  DataAdapter,
-  DataAdapterFactory,
-  DeploymentDefinition,
-} from '@keelwerk/core';
+import type { AdapterCapabilities, DataAdapter, DeploymentDefinition } from '@keelwerk/core';
+import type { CliHost } from '../context/cli-host.ts';
 import { absent } from './absent.ts';
 import { adapterEnvironmentOf } from './adapter-environment-of.ts';
 import { couldNotOpen } from './could-not-open.ts';
 import type { PlacementFacts } from './deployment-facts.ts';
 import type { Fact } from './fact.ts';
+import { factoryOf } from './factory-of.ts';
 import { known } from './known.ts';
 import { messageOf } from './message-of.ts';
+import { pgliteId } from './pglite-id.ts';
 import { placementConfigOf } from './placement-config-of.ts';
 import { placementFactsOf } from './placement-facts-of.ts';
 import { type PlacementSlot, placementSlotsOf } from './placement-slots-of.ts';
-
-function isFactory(value: unknown): value is DataAdapterFactory {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'id' in value &&
-    'create' in value &&
-    typeof value.create === 'function'
-  );
-}
-
-/** The adapter id of the embedded store that only the process running it can read. */
-const pgliteId = 'pglite';
+import { unanswered } from './unanswered.ts';
+import { withinDeadline } from './within-deadline.ts';
 
 /** Why doctor does not open a placement whose adapter is `pglite`. */
 const pgliteReason =
@@ -44,9 +31,13 @@ function closeFailed(message: string): Fact<AdapterCapabilities> {
 }
 
 /** Closes an adapter that did not connect: its failure is told after the failure that matters. */
-async function closeAfterFailure(adapter: DataAdapter, failure: unknown): Promise<string> {
+async function closeAfterFailure(
+  adapter: DataAdapter,
+  failure: unknown,
+  schedule: CliHost['schedule'],
+): Promise<string> {
   try {
-    await adapter.close(1000);
+    await withinDeadline(schedule, adapter.close(1000), () => undefined);
     return messageOf(failure);
   } catch (error) {
     return `${messageOf(failure)}; closing it failed too: ${messageOf(error)}`;
@@ -58,11 +49,10 @@ async function capabilitiesOf(
   { name, entry }: PlacementSlot,
   definition: DeploymentDefinition,
   env: Readonly<Record<string, string | undefined>>,
+  schedule: CliHost['schedule'],
 ): Promise<Fact<AdapterCapabilities>> {
   if (entry.adapter === pgliteId) return absent(pgliteReason, pgliteFix);
-  const factory = definition.infrastructure
-    .filter(isFactory)
-    .find((candidate) => candidate.id === entry.adapter);
+  const factory = factoryOf(definition.infrastructure, entry.adapter);
   if (factory === undefined) {
     return absent(
       `no infrastructure entry provides the ${entry.adapter} adapter`,
@@ -84,12 +74,12 @@ async function capabilitiesOf(
   }
   let capabilities: AdapterCapabilities;
   try {
-    capabilities = await adapter.connect();
+    capabilities = await withinDeadline(schedule, adapter.connect(), unanswered);
   } catch (error) {
-    return couldNotOpen(await closeAfterFailure(adapter, error));
+    return couldNotOpen(await closeAfterFailure(adapter, error, schedule));
   }
   try {
-    await adapter.close(1000);
+    await withinDeadline(schedule, adapter.close(1000), () => undefined);
   } catch (error) {
     return closeFailed(messageOf(error));
   }
@@ -106,10 +96,11 @@ async function capabilitiesOf(
 export async function openPlacements(
   definition: DeploymentDefinition,
   env: Readonly<Record<string, string | undefined>>,
+  schedule: CliHost['schedule'],
 ): Promise<readonly PlacementFacts[]> {
   const opened: PlacementFacts[] = [];
   for (const slot of placementSlotsOf(definition)) {
-    opened.push(placementFactsOf(slot, await capabilitiesOf(slot, definition, env)));
+    opened.push(placementFactsOf(slot, await capabilitiesOf(slot, definition, env, schedule)));
   }
   return opened;
 }

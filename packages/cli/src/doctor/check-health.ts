@@ -17,7 +17,7 @@ function healthFindings(processes: readonly ProcessFact[]): readonly DoctorFindi
         'health',
         'warning',
         'processes',
-        'the control store lists no process',
+        'the control store lists no running process',
         'start the deployment with keelwerk start',
       ),
     ];
@@ -25,7 +25,6 @@ function healthFindings(processes: readonly ProcessFact[]): readonly DoctorFindi
   const found: DoctorFinding[] = [];
   for (const process of processes) {
     const subject = process.name ?? process.id;
-    if (process.state === 'stopped') continue;
     if (process.heartbeatAgeMs > processGoneAfterMs) {
       found.push(
         findingOf(

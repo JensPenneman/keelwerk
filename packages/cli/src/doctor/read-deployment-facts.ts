@@ -13,23 +13,30 @@ import { personalFieldsOf } from './personal-fields-of.ts';
 import { secretPresent } from './secret-present.ts';
 import { sqlNeedsOf } from './sql-needs-of.ts';
 
-const noReader = "doctor does not read the control store's rows";
-const noReaderFix = 'nothing to do: doctor does not read the control store yet';
+const notAnswering =
+  'check that the control store answers at the url of the deployment file, then run doctor again';
 
-/** A fact read through the control reader: absent without a reader, and absent with the message when the read fails. */
+/** A fact read through the control reader: the reason the reader is absent, or absent with the message when the read fails. */
 async function readerFact<T>(
-  reader: ControlReader | undefined,
+  reader: Fact<ControlReader>,
   read: (reader: ControlReader) => Promise<T>,
 ): Promise<Fact<T>> {
-  if (reader === undefined) return absent(noReader, noReaderFix);
+  if (!reader.known) return reader;
   try {
-    return known(await read(reader));
+    return known(await read(reader.value));
   } catch (error) {
-    return absent(
-      `the control store could not be read: ${messageOf(error)}`,
-      'check that the control store answers at the url of the deployment file, then run doctor again',
-    );
+    return absent(`the control store could not be read: ${messageOf(error)}`, notAnswering);
   }
+}
+
+/** The reader the other facts are read through: none when the reachability read found that the store does not answer. */
+function readerAfter(
+  reader: Fact<ControlReader>,
+  reachable: DeploymentFacts['controlReachable'],
+): Fact<ControlReader> {
+  return reachable.known && !reachable.value.reachable
+    ? absent(`the control store did not answer: ${reachable.value.detail}`, notAnswering)
+    : reader;
 }
 
 async function socketFact(input: DeploymentInput): Promise<DeploymentFacts['socket']> {
@@ -95,13 +102,15 @@ function ledgerSinksOf(definition: DeploymentDefinition): number {
  * the reader, the rows of the control store. A fact doctor has no source for is absent.
  */
 export async function readDeploymentFacts(input: DeploymentInput): Promise<DeploymentFacts> {
-  const { definition, reader, registries } = input;
+  const { definition, registries } = input;
+  const controlReachable = await readerFact(input.reader, (reader) => reader.reachable());
+  const reader = readerAfter(input.reader, controlReachable);
   return {
     socket: await socketFact(input),
     masterKey: await masterKeyFact(input),
     clusters: clustersFact(input),
     ledgerSinks: known(ledgerSinksOf(definition)),
-    controlReachable: await readerFact(reader, (source) => source.reachable()),
+    controlReachable,
     hookFailures: await readerFact(reader, (source) => source.hookFailures()),
     processes: await readerFact(reader, (source) => source.processes()),
     bumpedMarks: await readerFact(reader, (source) => source.bumpedMarks()),

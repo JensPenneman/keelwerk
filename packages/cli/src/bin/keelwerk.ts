@@ -3,6 +3,7 @@ import type { StricliProcess } from '@stricli/core';
 import { exitCodeFor } from '../exit-code-for.ts';
 import { createNodeHost } from '../host/create-node-host.ts';
 import { runCli } from '../run-cli.ts';
+import { endProcess } from './end-process.ts';
 
 async function main(): Promise<number> {
   const interrupt = new AbortController();
@@ -29,7 +30,6 @@ async function main(): Promise<number> {
   }
 }
 
-// The binary's entry point: running it is the point of this file. The exit code is set, not
-// exited with, so piped standard output drains before the process ends.
+// The binary's entry point: running it is the point of this file.
 // biome-ignore lint/plugin: the bin file runs `main` when it is executed
-process.exitCode = await main();
+await endProcess(main, { streams: [stdout, stderr], exit });

@@ -1,6 +1,7 @@
 import type { DeploymentDefinition, Registry } from '@keelwerk/core';
 import type { ControlReader } from './control-reader.ts';
 import type { PlacementFacts } from './deployment-facts.ts';
+import type { Fact } from './fact.ts';
 
 /** What doctor is given about a deployment. */
 export interface DeploymentInput {
@@ -13,6 +14,6 @@ export interface DeploymentInput {
   readonly registries: readonly Registry[];
   /** Every placement, the control store first (named `control`), with the apps it hosts and what its adapter does natively or why doctor could not open it. */
   readonly placements: readonly PlacementFacts[];
-  /** The control store's rows; undefined while doctor reads none. */
-  readonly reader: ControlReader | undefined;
+  /** The control store's rows, or why doctor reads none. */
+  readonly reader: Fact<ControlReader>;
 }

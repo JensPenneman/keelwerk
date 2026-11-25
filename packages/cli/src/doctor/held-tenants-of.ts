@@ -1,6 +1,6 @@
 import type { Unit } from '@keelwerk/core';
-
-const pageSize = 500;
+import { doctorReadBounds } from './doctor-read-bounds.ts';
+import { walkPages } from './walk-pages.ts';
 
 /**
  * The tenants that have an erasure record without a completion at their current epoch, in tenant id
@@ -15,12 +15,18 @@ export async function heldTenantsOf(unit: Unit): Promise<readonly string[]> {
   }
   const tenants = new Set<string>();
   let after = 0n;
-  for (;;) {
-    const { erasures } = await unit.ledger.unfinished({ epochs, after, limit: pageSize });
+  const { ledger } = unit;
+  await walkPages(async () => {
+    const { erasures } = await ledger.unfinished({
+      epochs,
+      after,
+      limit: doctorReadBounds.pageSize,
+    });
     for (const entry of erasures) tenants.add(entry.record.tenantId);
     const last = erasures.at(-1);
-    if (last === undefined || erasures.length < pageSize) break;
+    if (last === undefined || erasures.length < doctorReadBounds.pageSize) return false;
     after = last.seq;
-  }
+    return true;
+  });
   return [...tenants].sort();
 }

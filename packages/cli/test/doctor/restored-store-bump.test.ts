@@ -64,10 +64,12 @@ test('doctor lists the bump of a restored placement, read through the control st
   const reader = controlReaderOf(
     {
       read: (fn) =>
-        third.control.adapter.unit(third.control.namespace, { level: 'deployment' }, fn, {
-          readOnly: true,
-        }),
-      entity: () => undefined as never,
+        third.control.adapter.unit(
+          third.control.namespace,
+          { level: 'deployment' },
+          (unit) => fn(unit, () => undefined as never),
+          { readOnly: true },
+        ),
     },
     () => Temporal.Now.instant(),
   );

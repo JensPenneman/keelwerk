@@ -3,6 +3,7 @@ import type { Command } from '@stricli/core';
 import { buildCommand } from '@stricli/core';
 import type { CliContext } from '../../context/cli-context.ts';
 import type { DoctorFinding } from '../../doctor/doctor-finding.ts';
+import { hideFindingPasswords } from '../../doctor/hide-finding-passwords.ts';
 import { readEnvironmentFacts } from '../../doctor/read-environment-facts.ts';
 import { runArtefactCheck } from '../../doctor/run-artefact-check.ts';
 import { runDoctor } from '../../doctor/run-doctor.ts';
@@ -20,7 +21,10 @@ import { renderFindings } from './render-findings.ts';
  * deployment the project's deployment file declares, and names a fix per finding. `--layout`
  * runs the layout pass alone. Findings of severity error make the exit code 1, and with `--strict`
  * so does a finding of severity not-checked, a check doctor has that did not run; doctor never
- * edits.
+ * edits. It reads the control store through read-only units of the application's role; the
+ * recorded deployment id it reads over the schema client of the control adapter, which connects
+ * with the owner's url when the adapter has one, in a read-only transaction. The password part of a url and the value of a
+ * password parameter are hidden in every finding.
  */
 export const doctorCommand: Command<CliContext> = buildCommand<
   Readonly<Record<string, unknown>>,
@@ -47,24 +51,28 @@ export const doctorCommand: Command<CliContext> = buildCommand<
           scoped.host,
           typeof parsed.config === 'string' ? parsed.config : undefined,
         );
-    const findings = [
-      ...(await runDoctor({
-        root,
-        layoutOnly,
-        environment: await readEnvironmentFacts(root, process.version, () =>
-          runPnpmVersion(scoped.host),
-        ),
-        runArtefacts: runArtefactCheck,
-        deployment: loaded.input,
-      })),
-      ...loaded.findings,
-      ...ignoredFlagNotes(parsed),
-    ];
-    if (scoped.output.format === 'text' || scoped.output.format === 'table') {
-      scoped.output.line(renderFindings(findings, layoutOnly));
-    } else {
-      scoped.output.value(findings);
+    try {
+      const findings = [
+        ...(await runDoctor({
+          root,
+          layoutOnly,
+          environment: await readEnvironmentFacts(root, process.version, () =>
+            runPnpmVersion(scoped.host),
+          ),
+          runArtefacts: runArtefactCheck,
+          deployment: loaded.input,
+        })),
+        ...loaded.findings,
+        ...ignoredFlagNotes(parsed),
+      ].map(hideFindingPasswords);
+      if (scoped.output.format === 'text' || scoped.output.format === 'table') {
+        scoped.output.line(renderFindings(findings, layoutOnly));
+      } else {
+        scoped.output.value(findings);
+      }
+      if (doctorFails(parsed, findings)) scoped.process.exitCode = 1;
+    } finally {
+      await loaded.close?.();
     }
-    if (doctorFails(parsed, findings)) scoped.process.exitCode = 1;
   },
 });

@@ -114,7 +114,7 @@ jobs:
       - name: Tests, transport conformance and in-memory adapter suites (steps 4 and 7)
         env:
           SHARD: ${{ matrix.shard }}/4
-        run: pnpm exec vitest run --config vitest.ci.config.ts --shard="$SHARD" --project '!adapter-postgres-postgres' --project '!app-portal-postgres' --project '!data-postgres' --project '!events-postgres' --project '!module-accounts-postgres' --project '!module-api-keys-postgres' --project '!module-audit-postgres' --project '!module-auth-postgres' --project '!module-members-postgres' --project '!testing-postgres' --project '!spike-write-path'
+        run: pnpm exec vitest run --config vitest.ci.config.ts --shard="$SHARD" --project '!adapter-postgres-postgres' --project '!app-portal-postgres' --project '!cli-postgres' --project '!data-postgres' --project '!events-postgres' --project '!module-accounts-postgres' --project '!module-api-keys-postgres' --project '!module-audit-postgres' --project '!module-auth-postgres' --project '!module-members-postgres' --project '!testing-postgres' --project '!spike-write-path'
 
   postgres:
     name: PostgreSQL 18 suites (shard ${{ matrix.shard }})
@@ -161,7 +161,7 @@ jobs:
       - name: Adapter, dual-evaluation and portal suites on PostgreSQL (steps 4 and 7)
         env:
           SHARD: ${{ matrix.shard }}/2
-        run: pnpm exec vitest run --config vitest.ci.config.ts --shard="$SHARD" --project adapter-postgres-postgres --project app-portal-postgres --project data-postgres --project events-postgres --project module-accounts-postgres --project module-api-keys-postgres --project module-audit-postgres --project module-auth-postgres --project module-members-postgres --project testing-postgres --project spike-write-path --maxWorkers=1
+        run: pnpm exec vitest run --config vitest.ci.config.ts --shard="$SHARD" --project adapter-postgres-postgres --project app-portal-postgres --project cli-postgres --project data-postgres --project events-postgres --project module-accounts-postgres --project module-api-keys-postgres --project module-audit-postgres --project module-auth-postgres --project module-members-postgres --project testing-postgres --project spike-write-path --maxWorkers=1
 
   # The gathering jobs keep the check names 'Verify' and 'PostgreSQL 18 suites' that the ruleset of
   # main may require. They run even when a needed job failed, was cancelled or was skipped (a skipped

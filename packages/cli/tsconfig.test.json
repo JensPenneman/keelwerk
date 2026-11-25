@@ -23,6 +23,9 @@
       "path": "../client"
     },
     {
+      "path": "../adapter-postgres"
+    },
+    {
       "path": "../events"
     },
     {

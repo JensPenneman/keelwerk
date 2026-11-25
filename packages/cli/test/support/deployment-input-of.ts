@@ -1,4 +1,5 @@
 import type { DeploymentDefinition, FallbackReporter } from '@keelwerk/core';
+import { absent } from '../../src/doctor/absent.ts';
 import type { DeploymentInput } from '../../src/doctor/deployment-input.ts';
 import type { DoctorFinding } from '../../src/doctor/doctor-finding.ts';
 import { keyEnvironment } from './deployment-definition-of.ts';
@@ -31,7 +32,7 @@ export const input = (
   modeOf: async () => 0o600,
   registries: [],
   placements: placementsOf(definition),
-  reader: undefined,
+  reader: absent('the control store is not read', 'nothing to do'),
   ...over,
 });
 

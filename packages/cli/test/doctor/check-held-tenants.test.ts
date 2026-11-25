@@ -50,7 +50,6 @@ describe('the held tenants check', () => {
               },
             },
           } as never),
-        entity: () => undefined as never,
       } as never,
       () => now,
     );
@@ -59,7 +58,6 @@ describe('the held tenants check', () => {
     const without = controlReaderOf(
       {
         read: async (fn: (unit: never) => Promise<unknown>) => fn({} as never),
-        entity: () => undefined as never,
       } as never,
       () => now,
     );

@@ -96,6 +96,8 @@ export function postgresSchemaOperations(
     history: async (namespace) => {
       const root = assertNamespaceRoot(namespace.root);
       return connection.transaction(async (session) => {
+        // The first statement: the database refuses a write in this read.
+        await session.query('set transaction read only');
         const result = await session.query(
           `select track, id, checksum, applied_at, steps_applied from ${quoteIdentifier(root)}.kw_migrations order by applied_at, track, id`,
         );

@@ -13,7 +13,7 @@ export function factsOf(over: Partial<DeploymentFacts> = {}): DeploymentFacts {
     }),
     ledgerSinks: known(1),
     controlReachable: known({ reachable: true, detail: 'answered' }),
-    hookFailures: known([]),
+    hookFailures: known({ failures: [], olderUnread: false }),
     processes: known([]),
     bumpedMarks: known([]),
     heldTenants: known([]),

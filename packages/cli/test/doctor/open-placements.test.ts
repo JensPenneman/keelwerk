@@ -7,10 +7,21 @@ import { env } from '@keelwerk/core';
 import { memoryAdapter } from '@keelwerk/data';
 import { pgliteAdapterFactory } from '@keelwerk/data/pglite';
 import { describe, expect, test } from 'vitest';
+import { doctorReadBounds } from '../../src/doctor/doctor-read-bounds.ts';
 import { openPlacements } from '../../src/doctor/open-placements.ts';
 import { definitionOf } from '../support/deployment-definition-of.ts';
+import { definitionOver, fakeControlStore } from '../support/fake-control-store.ts';
+import { createFakeHost } from '../support/fake-host.ts';
+import { stepTimers } from '../support/step-timers.ts';
 
 type Opened = Awaited<ReturnType<typeof openPlacements>>;
+
+const deadlineMs = doctorReadBounds.deadlineMs;
+const fake = createFakeHost();
+const openFor = (
+  definition: DeploymentDefinition,
+  environment: Record<string, string | undefined>,
+) => openPlacements(definition, environment, fake.host.schedule);
 
 const capabilitiesOf = (opened: Opened, name: string) =>
   opened.find((placement) => placement.name === name)?.capabilities;
@@ -43,7 +54,7 @@ describe('opening the placements to read their capabilities', () => {
       control: { adapter: 'pglite', url: '/nowhere/control' },
       placements: { main: { adapter: 'pglite', url: '/nowhere/main' } },
     });
-    const opened = await openPlacements(definition, {});
+    const opened = await openFor(definition, {});
     expect(created).toBe(0);
     expect(reasonOf(opened, 'control')).toEqual(pgliteReason);
     expect(reasonOf(opened, 'main')).toEqual(pgliteReason);
@@ -54,7 +65,7 @@ describe('opening the placements to read their capabilities', () => {
     const scratch = await mkdtemp(join(tmpdir(), 'kw-doctor-pglite-'));
     try {
       const directory = join(scratch, 'never-created');
-      const opened = await openPlacements(
+      const opened = await openFor(
         definitionOf({
           infrastructure: [pgliteAdapterFactory()],
           control: { adapter: 'pglite', url: directory },
@@ -83,7 +94,7 @@ describe('opening the placements to read their capabilities', () => {
         };
       },
     };
-    const opened = await openPlacements(
+    const opened = await openFor(
       definitionOf({
         infrastructure: [memoryAdapter(), failing],
         control: { adapter: 'memory' },
@@ -145,7 +156,7 @@ describe('opening the placements to read their capabilities', () => {
         close: fail('already gone'),
       }),
     };
-    const opened = await openPlacements(
+    const opened = await openFor(
       definitionOf({
         infrastructure: [memoryAdapter(), closeFails, createFails, bothFail],
         control: { adapter: 'memory' },
@@ -173,7 +184,7 @@ describe('opening the placements to read their capabilities', () => {
   });
 
   test('one walk gives each placement with its adapter and the apps it hosts, the control store first', async () => {
-    const opened = await openPlacements(
+    const opened = await openFor(
       definitionOf({
         apps: [{ id: 'A' }, { id: 'B' }],
         infrastructure: [memoryAdapter()],
@@ -190,5 +201,24 @@ describe('opening the placements to read their capabilities', () => {
       ['listed', 'memory', ['A']],
       ['unlisted', 'memory', ['A', 'B']],
     ]);
+  });
+
+  test('a connect that never answers is a placement that could not be opened, at the deadline', async () => {
+    const store = fakeControlStore({ silent: ['connect', 'close'] });
+    const opening = openFor(
+      {
+        ...definitionOver(store),
+        placements: { main: { adapter: 'fake', url: 'postgres://h/db' } },
+      },
+      {},
+    );
+    await store.asked;
+    expect(fake.timers.some((timer) => !timer.cancelled && timer.milliseconds === deadlineMs)).toBe(
+      true,
+    );
+    const opened = await stepTimers(fake, opening);
+    expect(reasonOf(opened, 'control')).toContain('no answer within the bound');
+    expect(reasonOf(opened, 'main')).toContain('no answer within the bound');
+    expect(store.closed).toEqual([0, 1]);
   });
 });
