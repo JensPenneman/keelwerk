@@ -32,7 +32,8 @@ function counted(counts: Map<string, number>, key: string, by: 1 | -1): void {
  * tenant and the process; an anonymous one counts against its client address and the tenant's
  * anonymous bound too, so one address holds its streams over SSE and sockets together, and any other
  * one against no principal (the socket is the principal's connection). Past a bound it is refused with
- * `core.quota_exceeded` and counts nowhere; the release it gets gives its count back once.
+ * `core.quota_exceeded` and counts nowhere; the release it gets gives its count back once. A socket
+ * that has not said who it is (`takePending`) counts against its address and a count of its own.
  */
 export function createStreamLimits(bounds: {
   readonly perPrincipal: number;
@@ -44,6 +45,7 @@ export function createStreamLimits(bounds: {
   const tenants = new Map<string, number>();
   const anonymous = new Map<string, number>();
   let total = 0;
+  let pending = 0;
   const admit = (session: InvocationSession, principal: string | undefined): (() => void) => {
     const tenant = tenantKeyOf(session);
     const isAnonymous = session.principal.kind === 'anonymous';
@@ -69,7 +71,23 @@ export function createStreamLimits(bounds: {
       if (isAnonymous) counted(anonymous, tenant, -1);
     };
   };
+  const pend = (session: InvocationSession, address: string): (() => void) => {
+    const principal = principalKeyOf(session, address);
+    if (pending >= bounds.total || (principals.get(principal) ?? 0) >= bounds.perPrincipal) {
+      throw coreError('core.quota_exceeded', { message: 'Too many streams are open.' });
+    }
+    pending += 1;
+    counted(principals, principal, 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      pending -= 1;
+      counted(principals, principal, -1);
+    };
+  };
   return {
+    takePending: pend,
     take: (session, address) => admit(session, principalKeyOf(session, address)),
     takeSubscription: (session, address) =>
       admit(

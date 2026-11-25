@@ -244,11 +244,10 @@ describe('a transport socket on the host', () => {
   });
 
   test('a client that leaves while its deployment slot is taken gives both slots back when the take answers', async () => {
-    // Take the `signal.aborted` check after `takeStreamSlot` out of open-socket-session.ts: the slot
+    // Take the `signal.aborted` check after `takeStreamSlot` out of `settled` in open-socket-session.ts: the slot
     // is never given back.
     const hold = Promise.withResolvers<() => void>();
     const given: string[] = [];
-    let holds = 0;
     const serverClosed = Promise.withResolvers<void>();
     const outcomes = [
       Promise.withResolvers<{ ok: boolean; code?: string }>(),
@@ -260,11 +259,8 @@ describe('a transport socket on the host', () => {
       createFakeInvoker(),
       {
         liveCarrier,
-        // The upgrade's own take answers at once; the hello's waits for the case.
-        holdConnection: () => {
-          holds += 1;
-          return holds === 1 ? Promise.resolve(() => given.push('upgrade')) : hold.promise;
-        },
+        // The upgrade of an anonymous socket takes no deployment slot; the first message's take waits for the case.
+        holdConnection: () => hold.promise,
       },
     );
     made.host.upgrade(
@@ -287,7 +283,7 @@ describe('a transport socket on the host', () => {
     await serverClosed.promise;
     hold.resolve(() => given.push('deployment'));
     expect(await outcomes[0]?.promise).toEqual({ ok: false, code: 'core.unavailable' });
-    expect(given).toEqual(['upgrade', 'deployment']);
+    expect(given).toEqual(['deployment']);
     // The per-process slot is back too: a second socket of the principal meets no bound of one.
     const second = opened(await connectRegisteredSocket(port ?? 0));
     onTestFinished(() => second.socket.close(1000));

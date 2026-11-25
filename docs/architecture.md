@@ -10423,7 +10423,12 @@ raise `maxBodyBytes` for that action's transports.
   deployment, counted through leases in the control store (section 12.2): `core.liveSubscriptions` for
   its subscriptions, taken at `admit`, and `core.liveConnections` for its streams and sockets, taken
   by the host after its own bounds, refusing with `core.concurrency_limited`. Their defaults are per
-  backend with per-tenant overrides; one number is never used for both kinds.
+  backend with per-tenant overrides; one number is never used for both kinds. A socket that has not
+  yet sent its first message is counted beside the streams, under the same per-address and per-process
+  bounds, and joins the tenant's bounds at its first message; a socket that is refused there is
+  refused with `core.quota_exceeded` and closed. Sockets from many addresses that never send a first
+  message can still fill the per-process count and keep out the clients that send their token in the
+  first message; clients with their credentials in the upgrade's headers are not affected.
 - The hub has bounds of its own in each process (added 2026-11-11). A scope is counted per tenant,
   so tenants of one backend that watch a backend entity are bounded and fail on their own. At most
   200 plan groups (distinct read plans) per scope: a subscription with a new plan past them is
@@ -10440,8 +10445,10 @@ raise `maxBodyBytes` for that action's transports.
 - A mounted route that streams (GraphQL over SSE) is a stream of the host (added 2026-11-17): a
   request that asks for `text/event-stream` meets the stream origin check (section 16.4.10) and
   holds a stream slot until its body ends, and the host answers 500 `core.internal` for a route that
-  streams to a request that did not ask for it. The slot of a mounted stream has no maximum
-  duration yet (`host.live.maxDurationMs`); that is open.
+  streams to a request that did not ask for it. The host ends such a stream when its session ends
+  (a revoked key within one revalidation interval, the session's expiry), at `host.live.maxDurationMs`
+  and, for an event stream, at stop (WP-180). Any other counted body (a JSON-lines batch) drains at
+  stop and is cut one revalidation interval after its session ended.
 - A forwarded entry, the address a trusted proxy names for the client (section 16.4.10), is read as
   follows (added 2026-11-12). An entry with a port (`203.0.113.7:51234`) or in brackets
   (`[2001:db8::1]`, `[2001:db8::1]:443`) is read as its address (a port of 1 to 5 digits, at most
@@ -11207,6 +11214,11 @@ Rules:
   revalidation also decides the gates of its action again over a fresh flag snapshot: a closed
   kill switch ends the open stream with `unavailable`, `core.feature_suspended`, as a new
   subscriber is refused. Every action over a socket is checked for revocation (added 2026-11-12).
+  The host checks the session of every event stream it holds the same way, every
+  `liveSocket.revalidateMs` and at `expiresAt`, and nothing passes on a stream after the expiry
+  (WP-180). A live stream of a mounted route is an event stream (`text/event-stream`) or a
+  WebSocket; any other counted body (a JSON-lines batch) is ordinary work that is finishing and is
+  cut one revalidation interval after its session ended.
 - Listeners use a bound form of the same session (G1, `BoundSession` with `invoke` and
   `subscribe`), a convenience over `Invocation.session` with identical semantics.
 - Principal enrichment (roles, memberships) happens once per session; the plan memo of
@@ -11241,7 +11253,7 @@ its reference names, and the resolution's own `principal` is ignored.
 | `compose` | the core derives the surface of every app |
 | `setup` | every selected transport's `check` runs against its app's surface; any problem fails boot with the transport's named problems |
 | `listen` | the host builds one mount table per app: each selected transport's `mount` runs once per app, in transport-name order; the host then opens its sockets and reports ready |
-| `stop` | the host stops accepting connections; each `MountHandle.close` ends SSE streams with an `end` frame (reason `going_away`) and closes WebSockets with code 1001; in-flight requests drain until the deadline |
+| `stop` | the host stops accepting connections; each `MountHandle.close` ends SSE streams with an `end` frame (reason `going_away`) and closes WebSockets with code 1001; in-flight requests drain until the deadline. The host ends the event streams it holds at the same time: the host's own subscribe stream and a stream a route serves through `serveStream` with an `end` frame (reason `going_away`), any other event stream of a mounted route by closing its body after what was written, without a frame of the host's own; another counted body drains until the deadline |
 
 #### 16.3.7 Non-HTTP listeners
 
@@ -12242,11 +12254,11 @@ a module an app may leave out.
   table below. `transport-rest` keeps its own emitter; the comparison is information for Jens, not
   a switch.
 
-| orpc-conformance at 2026-11-11, 112 actions | `@keelwerk/transport-rest` | `@orpc/openapi` |
+| orpc-conformance at 2026-11-11, 113 actions | `@keelwerk/transport-rest` | `@orpc/openapi` |
 |---|---|---|
 | openapi | `"3.1.1"` | `"3.1.1"` |
-| operations | `138` | `112` |
-| schemas | `277` | `0` |
+| operations | `139` | `113` |
+| schemas | `278` | `0` |
 | problemDetails.errorMediaTypes | `["application/problem+json"]` | `["application/json"]` |
 | problemDetails.operationsWithDeclaredErrors | `3` | `3` |
 | problemDetails.declaredCodesDocumented | `2` | `2` |

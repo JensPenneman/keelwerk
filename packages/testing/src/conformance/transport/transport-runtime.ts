@@ -38,6 +38,8 @@ export interface TransportRuntime {
   readonly deprecatedPins: Readonly<Record<string, string>>;
   /** Revokes a subject: its test principal header and cookie are `unauthenticated` from then on (a job re-resolves it to nothing), so the next session check of a session held by it fails. */
   revoke(subject: string): void;
+  /** Suspends the tenant of that name: its sessions fail `unavailable` at their next check from then on. */
+  readonly suspend?: (name: string) => Promise<void>;
   /** The operator socket path the host listens on. */
   readonly socket: string;
   /**

@@ -8,7 +8,12 @@ export function requestHeaders(caller: Caller): Headers {
   if (caller.subject !== undefined && caller.subject !== null) {
     headers.set(
       testPrincipalHeader,
-      JSON.stringify({ subject: caller.subject, roles: caller.roles ?? [], claims: {} }),
+      JSON.stringify({
+        subject: caller.subject,
+        roles: caller.roles ?? [],
+        claims: {},
+        ...(caller.expiresAt === undefined ? {} : { expiresAt: caller.expiresAt }),
+      }),
     );
   }
   if (caller.cookie !== undefined) {

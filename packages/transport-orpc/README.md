@@ -152,8 +152,9 @@ returned), whatever the source does, and the client subscribes again as the reci
 first frame is awaited before the answer starts, so a refusal (a malformed token, a forbidden
 subscription) is an HTTP error and not a stream.
 
-Known limit: a stream mounted by this transport is not ended when its session ends, its key is
-revoked or the host stops; the host will end it once for every transport.
+The host ends a stream of this transport, with no code of the transport's own: when its session
+ends (a revoked key within one revalidation interval, the session's expiry), at the maximum
+duration of live streams and when the host stops.
 
 ## The OpenAPI handler
 

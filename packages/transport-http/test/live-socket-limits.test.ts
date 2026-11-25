@@ -106,8 +106,14 @@ describe('the subscriptions of a socket', () => {
       error: { code: 'core.quota_exceeded' },
     });
     await vi.waitFor(() => expect(state.open).toBe(2));
-    // The bound is the tenant's: a socket of another address is refused too.
-    expect(await made.connect({ 'x-forwarded-for': '203.0.113.8' })).toMatchObject({ status: 429 });
+    // The bound is the tenant's: a socket of another address is let in and refused at its hello.
+    const other = await connected(made, '203.0.113.8');
+    other.send({ type: 'hello' });
+    expect(await other.next()).toMatchObject({
+      type: 'error',
+      error: { code: 'core.quota_exceeded' },
+    });
+    expect(await other.closed).toMatchObject({ reason: 'core.quota_exceeded' });
   });
 
   test('of an anonymous socket count against its address, and another address is not shut out', async () => {

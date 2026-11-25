@@ -34,6 +34,7 @@ export function transportTargetOf(
     backendConfig: runtime.backendConfig,
     operatorFetch: unixSocketFetch(runtime.socket),
     ...(runtime.connect !== undefined && { connect: runtime.connect }),
+    ...(runtime.suspend !== undefined && { suspend: runtime.suspend }),
     ...(advance !== undefined && { advance }),
     ...(live && { live }),
   };

@@ -1,8 +1,12 @@
 import type { TestApp } from '../../harness/test-app.ts';
+import type { TestPrincipalBook } from '../../harness/test-principal-book.ts';
 import { testCookieResolver } from './test-cookie-resolver.ts';
 
-/** The app with the test cookie resolver added to the core's resolvers. */
-export function withCookieResolver<const App extends TestApp>(app: App): App {
+/** The app with the test cookie resolver added to the core's resolvers; a subject of `book`'s revoked set has a stale cookie. */
+export function withCookieResolver<const App extends TestApp>(
+  app: App,
+  book?: TestPrincipalBook,
+): App {
   return {
     ...app,
     registry: {
@@ -17,7 +21,7 @@ export function withCookieResolver<const App extends TestApp>(app: App): App {
               point: 'core.principalResolvers',
               module: 'core',
               bound: false,
-              fill: testCookieResolver(),
+              fill: testCookieResolver(book),
             },
           ],
         ],

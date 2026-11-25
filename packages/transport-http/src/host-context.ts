@@ -28,8 +28,11 @@ export interface HostContext {
   >;
   readonly lifecycle: Lifecycle;
   readonly errorCounter: ReturnType<Meter['createCounter']>;
-  /** The open server-sent event streams: `stop` says goodbye to each. */
-  readonly streams: Set<OpenSseStream>;
+  /**
+   * The open streams of HTTP responses, the host's own and those of mounted routes: `stop` says
+   * goodbye to each.
+   */
+  readonly streams: Set<Pick<OpenSseStream, 'goAway'>>;
   readonly limits: StreamLimits;
   /** The bounds of a stream with their defaults filled in. */
   readonly live: Required<SseHostOptions>;

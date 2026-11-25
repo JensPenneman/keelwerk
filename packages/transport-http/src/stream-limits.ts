@@ -9,6 +9,14 @@ export interface StreamLimits {
    */
   take(session: InvocationSession, address: string): () => void;
   /**
+   * Counts a socket of an anonymous session that has not yet said who it is, against its client address
+   * (the bucket anonymous streams share) and a count of such sockets in the process (at most the host's
+   * `maxStreams`), and against no tenant bound: a socket that brings its credentials after the upgrade
+   * must not use up the tenant's anonymous bound. The answer releases it once. Past a bound:
+   * `core.quota_exceeded`.
+   */
+  takePending(session: InvocationSession, address: string): () => void;
+  /**
    * Counts one subscription on a socket that already holds its stream slot: against the tenant, the
    * process and, for an anonymous session, the tenant's anonymous bound and its client address (the
    * socket's); for any other session against no principal. The answer releases it once. Past a bound:

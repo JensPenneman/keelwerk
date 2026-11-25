@@ -102,7 +102,7 @@ export async function startTransportRuntime(
   const probed = Promise.withResolvers<void>();
   const runtime = await startRuntime(
     {
-      apps: [withRevocation(withCookieResolver(withTestResolver(app, false, book)), book)],
+      apps: [withRevocation(withCookieResolver(withTestResolver(app, false, book), book), book)],
       infrastructure: [
         factory,
         schemaPlanner(),
@@ -186,6 +186,16 @@ export async function startTransportRuntime(
     deprecatedPins,
     revoke: (subject) => {
       book.revoked.add(subject);
+    },
+    suspend: async (name) => {
+      const outcome = await runtime.invoker.invoke({
+        action: 'core.tenant.update',
+        input: { id: tenants[name], patch: { status: 'suspended' } },
+        carrier: { transport: 'test', local: { inProcess: true } },
+        requestId: crypto.randomUUID(),
+        signal: new AbortController().signal,
+      });
+      if (!outcome.ok) throw outcome.error;
     },
     socket,
     drainJobs: () => drainJobs(drain),

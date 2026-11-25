@@ -40,6 +40,8 @@ export interface TransportTarget {
   >;
   /** Revokes a subject (`TransportRuntime.revoke`): its credentials are `unauthenticated` from then on. Absent when the runner cannot; the case of the session check per subscription is skipped then. */
   readonly revoke?: (subject: string) => void;
+  /** Suspends a tenant by name (`TransportRuntime.suspend`). Absent when the runner cannot. */
+  readonly suspend?: (name: string) => Promise<void>;
   /** Moves the runtime's clock forward and fires the waits it makes due; absent when the runtime runs on the system clock. The case of the session check of a running subscription is skipped without it. */
   readonly advance?: (ms: number) => Promise<void>;
   /** The live bounds of the runner's host; a case that needs other caps than these is skipped by name. */

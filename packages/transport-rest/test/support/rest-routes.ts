@@ -34,6 +34,7 @@ export const restRoutes: Readonly<Record<string, RestRoute>> = {
   'loans.loan.watch': { method: 'GET', path: '/api/loans/loans/watch', query: true, stream: true },
   'loans.loanEvents': { method: 'GET', path: '/api/loans/loan-events', query: true, stream: true },
   'loans.loanTicker': { method: 'GET', path: '/api/loans/loan-ticker', query: true, stream: true },
+  'loans.loanTitles': { method: 'GET', path: '/api/loans/loan-titles', query: true, stream: true },
   'loans.openDesk': { method: 'POST', path: '/api/loans/open-desk' },
   'loans.loan.query': { method: 'POST', path: '/api/loans/loans/query' },
 };

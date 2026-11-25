@@ -1,6 +1,8 @@
 import { expect, test } from 'vitest';
+import type { Caller } from './call.ts';
 import { freshName } from './fresh-name.ts';
 import { lendCall } from './lend-call.ts';
+import { lendTitles } from './lend-titles.ts';
 import { liveSocketCases } from './live-socket-cases.ts';
 import { originOf } from './origin-of.ts';
 import { requestHeaders } from './request-headers.ts';
@@ -183,6 +185,42 @@ export function subscriptionCases(target: TransportTarget): void {
         await Promise.all(held.map((entry) => entry.close()));
       }
     },
+  );
+
+  // Lends its titles once per deployment, in the first tenant (the socket case lends in the second);
+  // every runner boots its own deployment, so a second run on one deployment fails at once on the lend.
+  test.skipIf(skip)(
+    'an item whose event has its own member control is an item for every subscriber: nobody resets and no stream ends',
+    async () => {
+      const tenant = Object.keys(target.tenants)[0];
+      const [adaName, bobName] = [freshName('ada'), freshName('bob')];
+      const caller = (subject: string): Caller => ({
+        subject,
+        roles: ['auditor'],
+        ...(tenant === undefined ? {} : { tenant }),
+      });
+      const ada = await open({ action: 'loans.loanTitles', input: {}, caller: caller(adaName) });
+      const bob = await open({ action: 'loans.loanTitles', input: {}, caller: caller(bobName) });
+      try {
+        await ada.until((frame) => frame.event === 'head', 30_000);
+        await bob.until((frame) => frame.event === 'head', 30_000);
+        const controls = ['reset', 'head', 'gap', 'later'];
+        await lendTitles(target, adaName, caller(adaName), controls);
+        for (const stream of [ada, bob]) {
+          const frames = await stream.until(
+            (frame) => (frame.data as { control?: string } | undefined)?.control === 'later',
+            30_000,
+          );
+          expect(frames.map((frame) => frame.event)).toEqual(['data', 'data', 'data', 'data']);
+          expect(frames.map((frame) => (frame.data as { control: string }).control)).toEqual(
+            controls,
+          );
+        }
+      } finally {
+        await Promise.all([ada.close(), bob.close()]);
+      }
+    },
+    120_000,
   );
 
   liveSocketCases(target);

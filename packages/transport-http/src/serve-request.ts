@@ -96,15 +96,16 @@ async function mounted(call: EndpointCall, path: string, streams: boolean): Prom
   state.transport = match.transport;
   // The host has read the body within the limit, so its stream is used up: the handler gets those bytes in a
   // request of their own, an empty body when none arrived. A request whose body the host did not read
-  // (GET, HEAD, or a request without a body member) goes on as it came.
-  const forwarded = request.bodyUsed
-    ? new Request(request.url, {
-        method: request.method,
-        headers: request.headers,
-        body: call.bytes,
-        signal: request.signal,
-      })
-    : request;
+  // (GET, HEAD, or a request without a body member) goes on as it came, unless it needs the stream's signal.
+  const forwardedFor = (signal: AbortSignal): Request =>
+    signal === request.signal && !request.bodyUsed
+      ? request
+      : new Request(request.url, {
+          method: request.method,
+          headers: request.headers,
+          ...(request.bodyUsed && { body: call.bytes }),
+          signal,
+        });
   // The one rule of path handling: the host strips the mount's prefix, the transport never does.
   const relative = mountPathOf(match.prefix, path);
   // Only a request the host counts as a stream (it holds its slot) may be answered on the carrier.
@@ -112,13 +113,13 @@ async function mounted(call: EndpointCall, path: string, streams: boolean): Prom
     streams && asksForEventStream(request)
       ? host.deps.liveCarrier?.(session.app, 'sse')
       : undefined;
-  const run = (): Promise<Response> =>
-    match.handler(forwarded, {
+  const run = (signal: AbortSignal): Promise<Response> =>
+    match.handler(forwardedFor(signal), {
       session,
       carrier,
       requestId: state.requestId,
       ...(state.traceparent !== undefined && { traceparent: state.traceparent }),
-      signal: request.signal,
+      signal,
       path: relative.path,
       basePath: `${session.tenantPrefix ?? ''}${relative.basePath}`,
       ...(live !== undefined && {
@@ -131,7 +132,7 @@ async function mounted(call: EndpointCall, path: string, streams: boolean): Prom
     state.stream = true;
     return withStreamSlot(call, run);
   }
-  const response = await run();
+  const response = await run(request.signal);
   if (isStreamResponse(response)) {
     void response.body?.cancel().catch(() => undefined);
     return errorResponse(

@@ -53,9 +53,9 @@
         "reason": "members with its membership and invitation entities, the invite, createOwner, accept, transferOwnership, changeRole, removeMember and expireInvitation actions, the settleEndedInvitation reaction, the eleven rules, the role enricher and the delivery extension point (2,720 B manifest measured on 2026-11-19, 24,545 B package measured on 2026-11-19 after the hardening pass, plus 15 %, rounded up to 256 B; raised from 22,784 B for the hardening of WP-118 (sheets/WP-118-lead.md, Answer 19))"
       },
       "packages/testing/src/fixtures/modules/loans": {
-        "manifestBytes": 8448,
-        "packageBytes": 19968,
-        "reason": "the loans fixture with the rule that lets a signed-in user follow loans.loanEvents once live is selected, and the public stream loans.loanTicker that the conformance case about anonymous streams per address holds open (7,125 B manifest and 17,180 B package measured plus 15 %, rounded up to 256 B); the stream cases of WP-94 need the first (lead approval)"
+        "manifestBytes": 9984,
+        "packageBytes": 23552,
+        "reason": "the loans fixture with the rule that lets a signed-in user follow loans.loanEvents once live is selected, and the public stream loans.loanTicker that the conformance case about anonymous streams per address holds open (7,125 B manifest and 17,180 B package measured plus 15 %, rounded up to 256 B); the stream cases of WP-94 need the first (lead approval); WP-180 adds the subscription loans.loanTitles and its rule for the item-against-control case (8,639 B manifest and 20,305 B package measured on 2026-11-19 plus 15 %, rounded up to 256 B)"
       }
     }
   },

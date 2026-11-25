@@ -1,5 +1,3 @@
-import { asksForEventStream } from '@keelwerk/core/http';
-
 const JSON_TYPES = ['application/graphql-response+json', 'application/json'] as const;
 
 /** Whether a range of an `Accept` names a media type: a `*` stands for either half. */
@@ -30,11 +28,12 @@ function jsonTypeFor(accept: string): string {
  * The one `Accept` Yoga negotiates with. The host decides by `asksForEventStream` whether a request
  * takes a stream slot, and Yoga reads `Accept` differently (it ignores `q`, matches wildcards and
  * parameters), so it is never given a range the host read otherwise: a subscription gets exactly
- * `text/event-stream`; a request that did not ask for a stream gets exactly one JSON type, the one
- * Yoga chooses for the header as sent, so no wildcard lets Yoga answer it as a stream.
+ * `text/event-stream`; every other request gets exactly one JSON type, the one Yoga chooses for the
+ * header as sent, so no wildcard lets Yoga answer it as a stream. That holds for a request that asked
+ * for an event stream too: a query or a mutation is answered once, as JSON, never as an event stream
+ * (which the host would end at its stop, though a mutation has already committed by then).
  */
-export function acceptForYoga(request: Request, subscribes: boolean): string | undefined {
+export function acceptForYoga(request: Request, subscribes: boolean): string {
   if (subscribes) return 'text/event-stream';
-  if (asksForEventStream(request)) return undefined;
   return jsonTypeFor(request.headers.get('accept') ?? '');
 }

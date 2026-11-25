@@ -1,5 +1,6 @@
 import {
   type Carrier,
+  type InvocationSession,
   type KeelwerkError,
   type LiveClientMessage,
   unknownClientAddress,
@@ -16,8 +17,38 @@ function socketClosed(): KeelwerkError {
 }
 
 /**
+ * Gives the upgrade's place back and takes the slot of the session the socket now has: a socket that
+ * said no more than an anonymous hello takes the anonymous bounds here, not at the upgrade. A take
+ * past a bound refuses the hello. The take can wait on a control write; the socket's cleanup has
+ * run by then and found no slot to give back, so a slot taken after the signal aborted is given back.
+ */
+async function settled(
+  state: LiveSocketState,
+  session: InvocationSession,
+  carrier: Carrier,
+  signal: AbortSignal = AbortSignal.any([state.everything.signal, state.open.connection.signal]),
+): Promise<{ readonly ok: true } | { readonly ok: false; readonly error: KeelwerkError }> {
+  const address = carrier.connection?.remote.address ?? unknownClientAddress;
+  state.release();
+  state.release = () => undefined;
+  try {
+    const release = await takeStreamSlot(state.upgrade.host, session, address);
+    if (signal.aborted) {
+      release();
+      return { ok: false, error: socketClosed() };
+    }
+    state.release = release;
+    state.session = session;
+    state.socketCarrier = carrier;
+    return { ok: true };
+  } catch (failure) {
+    return { ok: false, error: asKeelwerkError(failure) };
+  }
+}
+
+/**
  * The session a hello asks for. A hello that names none of a token, a backend, a tenant and an API
- * version keeps the upgrade's session. A hello whose API version differs from the one the upgrade
+ * version keeps the upgrade's session (an anonymous one takes its slot now, see `settled`). A hello whose API version differs from the one the upgrade
  * named (header or query parameter) is refused `core.validation`. Otherwise a new carrier is the upgrade's with the three
  * selector headers from the hello, and with the token set and the cookie and authorization headers
  * dropped when the hello brings one (one credential per session, as a stream ticket is). The invoker
@@ -32,15 +63,17 @@ export async function openSocketSession(
   state: LiveSocketState,
   hello: Extract<LiveClientMessage, { type: 'hello' }>,
 ): Promise<{ readonly ok: true } | { readonly ok: false; readonly error: KeelwerkError }> {
+  const { host, carrier: upgraded, request } = state.upgrade;
   if (
     hello.token === undefined &&
     hello.backend === undefined &&
     hello.tenant === undefined &&
     hello.apiVersion === undefined
   ) {
-    return { ok: true };
+    return state.session.principal.kind === 'anonymous'
+      ? settled(state, state.session, upgraded)
+      : { ok: true };
   }
-  const { host, carrier: upgraded, request } = state.upgrade;
   const upgradeVersion = upgraded.headers?.['keelwerk-version'];
   if (
     hello.apiVersion !== undefined &&
@@ -80,20 +113,7 @@ export async function openSocketSession(
       true,
     );
     if (refused !== null) return { ok: false, error: refused };
-    // The upgrade's slot goes first, so one socket never counts twice against a bound.
-    const address = carrier.connection?.remote.address ?? unknownClientAddress;
-    state.release();
-    state.release = () => undefined;
-    const release = await takeStreamSlot(host, session, address);
-    // The take can wait on a control write; the socket's cleanup has run by then and found no slot to give back.
-    if (signal.aborted) {
-      release();
-      return { ok: false, error: socketClosed() };
-    }
-    state.release = release;
-    state.session = session;
-    state.socketCarrier = carrier;
-    return { ok: true };
+    return await settled(state, session, carrier, signal);
   } catch (failure) {
     return { ok: false, error: asKeelwerkError(failure) };
   }

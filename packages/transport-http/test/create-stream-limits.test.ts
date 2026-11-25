@@ -125,3 +125,27 @@ describe('the subscriptions of a socket', () => {
     expect(() => limits.takeSubscription(fakeSession(), '203.0.113.8')).not.toThrow();
   });
 });
+
+describe('the sockets that have not said who they are', () => {
+  test('count against their address and a count of their own, never against the tenant', () => {
+    const limits = createStreamLimits({ ...bounds, perTenantAnonymous: 1, perTenant: 1, total: 3 });
+    const anonymous = fakeSession();
+    const first = limits.takePending(anonymous, '203.0.113.7');
+    limits.takePending(anonymous, '203.0.113.7');
+    // The address is at its bound, shared with the streams of that address.
+    expect(() => limits.takePending(anonymous, '203.0.113.7')).toThrow(
+      expect.objectContaining({ code: 'core.quota_exceeded' }),
+    );
+    expect(() => limits.take(anonymous, '203.0.113.7')).toThrow();
+    // The tenant's bounds hold none of them: a user and another address are let in.
+    expect(() => limits.take(asUser('ada'), '203.0.113.9')).not.toThrow();
+    limits.takePending(anonymous, '203.0.113.8');
+    // The count of the process is the host's total.
+    expect(() => limits.takePending(anonymous, '203.0.113.9')).toThrow(
+      expect.objectContaining({ code: 'core.quota_exceeded' }),
+    );
+    first();
+    first();
+    expect(() => limits.takePending(anonymous, '203.0.113.9')).not.toThrow();
+  });
+});

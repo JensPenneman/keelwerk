@@ -2,12 +2,12 @@
   "format": "keelwerk.orpc-comparison/1",
   "app": "orpc-conformance",
   "apiVersion": "2026-11-11",
-  "actions": 112,
+  "actions": 113,
   "own": {
     "producer": "@keelwerk/transport-rest",
     "openapi": "3.1.1",
-    "operations": 138,
-    "schemas": 277,
+    "operations": 139,
+    "schemas": 278,
     "problemDetails": {
       "errorMediaTypes": [
         "application/problem+json"
@@ -35,7 +35,7 @@
   "orpc": {
     "producer": "@orpc/openapi",
     "openapi": "3.1.1",
-    "operations": 112,
+    "operations": 113,
     "schemas": 0,
     "problemDetails": {
       "errorMediaTypes": [
@@ -60,8 +60,8 @@
   },
   "differences": [
     "producer: own \"@keelwerk/transport-rest\", orpc \"@orpc/openapi\"",
-    "operations: own 138, orpc 112",
-    "schemas: own 277, orpc 0",
+    "operations: own 139, orpc 113",
+    "schemas: own 278, orpc 0",
     "problemDetails.errorMediaTypes: own [\"application/problem+json\"], orpc [\"application/json\"]",
     "pagination.pagedOperations: own 26, orpc 13",
     "pagination.linkHeader: own true, orpc false",

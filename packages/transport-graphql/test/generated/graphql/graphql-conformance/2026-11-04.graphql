@@ -2733,6 +2733,16 @@ type LoansLoanTickerItem {
   state: String
 }
 
+union LoansLoanTitlesEvent = LoansLoanTitlesItem | StreamGap | StreamHead | StreamReset
+
+type LoansLoanTitlesItem {
+  control: String
+  loanId: ID
+
+  """The state of the stream after this item."""
+  state: String
+}
+
 union LoansLoanWatchEvent = LoansLoanWatchItem | StreamGap | StreamHead | StreamReset
 
 enum LoansLoanWatchFrom {
@@ -3135,6 +3145,10 @@ type Subscription {
     """The state of an item or a head to resume after."""
     after: String
   ): LoansLoanTickerEvent!
+  loansLoanTitles(
+    """The state of an item or a head to resume after."""
+    after: String
+  ): LoansLoanTitlesEvent!
   loansLoanWatch(
     """The state of an item or a head to resume after."""
     after: String

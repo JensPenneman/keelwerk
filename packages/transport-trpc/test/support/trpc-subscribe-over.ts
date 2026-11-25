@@ -114,8 +114,12 @@ export async function trpcSubscribeOver(
   const events = readEventStream(response);
   let ended = false;
   const next = async (ms?: number): Promise<StreamFrame | undefined> => {
+    // One limit for the whole call, whatever tRPC's own pings make the loop skip.
+    const until = ms === undefined ? undefined : Date.now() + ms;
     while (!ended) {
-      const event = await events.next(ms);
+      const event = await events.next(
+        until === undefined ? undefined : Math.max(1, until - Date.now()),
+      );
       if (event === undefined || event.event === 'return') {
         ended = true;
         return undefined;

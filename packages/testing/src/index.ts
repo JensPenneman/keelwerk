@@ -33,6 +33,7 @@ export { responseRecord } from './conformance/transport/response-record.ts';
 export { sendCall } from './conformance/transport/send-call.ts';
 export type { Sent } from './conformance/transport/sent.ts';
 export type { SocketDialect } from './conformance/transport/socket-dialect.ts';
+export type { SocketFrame } from './conformance/transport/socket-frame.ts';
 export type { SocketSubscribeAnswer } from './conformance/transport/socket-subscribe-answer.ts';
 export type { SocketUpgrade } from './conformance/transport/socket-upgrade.ts';
 export type { TransportRuntimeOptions } from './conformance/transport/start-transport-runtime.ts';
@@ -40,6 +41,9 @@ export { startTransportRuntime } from './conformance/transport/start-transport-r
 export { steppedClockLiveSocket } from './conformance/transport/stepped-clock-live-socket.ts';
 export { steppedClockStepMs } from './conformance/transport/stepped-clock-step-ms.ts';
 export { steppedClockWait } from './conformance/transport/stepped-clock-wait.ts';
+export type { StreamEndingBounds } from './conformance/transport/stream-ending-bounds.ts';
+export { streamEndingCases } from './conformance/transport/stream-ending-cases.ts';
+export type { StreamEndingRun } from './conformance/transport/stream-ending-run.ts';
 export type { StreamFrame } from './conformance/transport/stream-frame.ts';
 export type { SubscribeCall } from './conformance/transport/subscribe-call.ts';
 export { subscriptionCases } from './conformance/transport/subscription-cases.ts';

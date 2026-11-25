@@ -8,7 +8,9 @@ import { loansBase } from './base.ts';
 import { countLoans } from './conditional/when-library/reactions/count-loans.ts';
 import { loanEvents } from './conditional/when-live/actions/loan-events.ts';
 import { loanTicker } from './conditional/when-live/actions/loan-ticker.ts';
+import { loanTitles } from './conditional/when-live/actions/loan-titles.ts';
 import { signedIn as liveLoanEventsSignedIn } from './conditional/when-live/policies/loan-events/signed-in.ts';
+import { signedIn as liveLoanTitlesSignedIn } from './conditional/when-live/policies/loan-titles/signed-in.ts';
 import { reserve } from './contributions/to-library/actions/book/reserve.ts';
 import { reservers } from './contributions/to-library/policies/book/reservers.ts';
 import { staff } from './policies/close-all/staff.ts';
@@ -29,8 +31,11 @@ const loansDef = defineModule(loansBase, {
   conditional: {
     whenLibrary: { reactions: { countLoans } },
     whenLive: {
-      actions: { loanEvents, loanTicker },
-      policies: { loanEvents: { signedIn: liveLoanEventsSignedIn } },
+      actions: { loanEvents, loanTicker, loanTitles },
+      policies: {
+        loanEvents: { signedIn: liveLoanEventsSignedIn },
+        loanTitles: { signedIn: liveLoanTitlesSignedIn },
+      },
     },
   },
   migrations: new URL('../migrations/', import.meta.url),
