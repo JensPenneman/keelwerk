@@ -7,8 +7,9 @@ import type { RunningPostgres } from './running-postgres.ts';
 
 /**
  * Starts one PostgreSQL 18 container with the image's default durability settings (fsync and
- * synchronous_commit on) and creates the schema. Clients reach it over TCP through the container
- * runtime's port forwarding, so every statement pays a network round trip.
+ * synchronous_commit on), labels it `keelwerk-test` and creates the schema. Clients reach it over
+ * TCP through the container runtime's port forwarding, so every statement pays a network round
+ * trip.
  */
 export async function startPostgres(): Promise<RunningPostgres> {
   const container = await new PostgreSqlContainer(postgresImage)
@@ -19,6 +20,7 @@ export async function startPostgres(): Promise<RunningPostgres> {
       '-c',
       'shared_preload_libraries=pg_stat_statements',
     ])
+    .withLabels({ 'keelwerk-test': 'postgres' })
     .start();
   const admin: ClientConfig = {
     host: container.getHost(),
