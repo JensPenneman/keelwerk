@@ -190,3 +190,84 @@ describe('runPrincipalResolvers: the retired-pin check', () => {
     expect('retiredPinTarget' in (seen[0] ?? {})).toBe(false);
   });
 });
+
+describe('runPrincipalResolvers: whose membership kinds a resolver may return', () => {
+  test('a resolver of another module that answers the kind of members is internal and names no member value', async () => {
+    const forged = {
+      ...user,
+      memberships: [
+        { kind: 'evil.device', id: 'd1', role: 'read' },
+        { kind: 'members.membership', id: 'secret-id', role: 'secret-role' },
+      ],
+    } as Principal;
+    const refused = runPrincipalResolvers(answering(forged, 'evil'), carrier, scope, clock);
+    await expect(refused).rejects.toMatchObject({
+      kind: 'internal',
+      code: 'core.internal',
+      message:
+        'A fill of core.principalResolvers by "evil" returned a membership of kind "members.membership", which is not a kind of "evil".',
+    });
+    await expect(refused).rejects.toMatchObject({ message: expect.not.stringContaining('secret') });
+  });
+
+  test('a kind that only starts like the module id is refused too', async () => {
+    const lookalike = {
+      ...user,
+      memberships: [{ kind: 'evilX.device', id: 'd1', role: 'read' }],
+    } as Principal;
+    await expect(
+      runPrincipalResolvers(answering(lookalike, 'evil'), carrier, scope, clock),
+    ).rejects.toMatchObject({
+      kind: 'internal',
+      code: 'core.internal',
+    });
+  });
+
+  test.each([
+    [
+      'a list that reads differently the second time',
+      () => {
+        const reads = [[], [{ kind: 'members.membership', id: 'm1', role: 'admin' }]];
+        return Object.defineProperty({ ...user }, 'memberships', {
+          get: () => reads.shift() ?? [],
+          enumerable: true,
+        }) as Principal;
+      },
+    ],
+    [
+      'a kind that reads differently the second time',
+      () => {
+        const kinds = ['evil.device', 'members.membership'];
+        const flipping = {
+          get kind() {
+            return kinds.shift() ?? 'members.membership';
+          },
+          id: 'm1',
+          role: 'admin',
+        };
+        return { ...user, memberships: [flipping] } as Principal;
+      },
+    ],
+  ])('%s lands no foreign kind', async (_title, principalOf) => {
+    const taken = await runPrincipalResolvers(
+      answering(principalOf(), 'evil'),
+      carrier,
+      scope,
+      clock,
+    ).then(
+      (resolved) => resolved.principal.memberships.map((membership) => membership.kind),
+      () => [],
+    );
+    expect(taken).not.toContain('members.membership');
+  });
+
+  test("a resolver's own kind is taken", async () => {
+    const own = {
+      ...user,
+      memberships: [{ kind: 'evil.device', id: 'd1', role: 'read' }],
+    } as Principal;
+    await expect(
+      runPrincipalResolvers(answering(own, 'evil'), carrier, scope, clock),
+    ).resolves.toMatchObject({ principal: { memberships: [{ kind: 'evil.device' }] } });
+  });
+});

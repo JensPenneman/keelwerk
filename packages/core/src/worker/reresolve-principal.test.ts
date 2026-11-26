@@ -1,18 +1,26 @@
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+import type { Carrier } from '../invoker/carrier.ts';
 import type { InvokerEnv } from '../invoker/invoker-env.ts';
 import type { JobCarrier } from '../invoker/job-carrier.ts';
 import type { ResolvedScope } from '../invoker/resolved-scope.ts';
+import { resolvePrincipal } from '../invoker/stages/resolve-principal.ts';
 import type { Span } from '../observability/span.ts';
 import type { Principal } from '../principals/principal.ts';
 import { reresolvePrincipal } from './reresolve-principal.ts';
 
-const answered: { fill: { module: string; value: unknown } | undefined } = { fill: undefined };
+const answered: {
+  fill: { module: string; value: unknown } | undefined;
+  enricher: { module: string; value: unknown } | undefined;
+} = { fill: undefined, enricher: undefined };
 
 // The resolver kit needs a unit of the scope; these cases only need the fills it would hand out.
 vi.mock('../invoker/edge/with-resolver-kit.ts', () => ({
   withResolverKit: (_input: unknown, use: (kit: unknown) => Promise<unknown>) =>
     use({
-      fills: () => (answered.fill === undefined ? [] : [answered.fill]),
+      fills: (point: string) =>
+        [point === 'core.principalResolvers' ? answered.fill : answered.enricher].filter(
+          (fill) => fill !== undefined,
+        ),
       drive: (generator: unknown) => Promise.resolve(generator),
     }),
 }));
@@ -177,5 +185,74 @@ describe("reresolvePrincipal: an operator from a module's fromRef", () => {
       context,
     );
     expect(principal.kind).toBe('operator');
+  });
+});
+
+describe("reresolvePrincipal: membership kinds from a module's fromRef", () => {
+  const target = { ...resolved, target: {} } as unknown as ResolvedScope;
+  const jobEnv = {
+    appOf: () => ({ registry: { modules: [] } }),
+    options: { clock: { now: () => Temporal.Instant.from('2026-03-01T08:00:00Z') } },
+  } as unknown as InvokerEnv;
+  const userWith = (kind: string) =>
+    ({
+      kind: 'user',
+      subject: 'u-1',
+      subjectRef: null,
+      subjectAs: () => null,
+      scope: { backend: 'b-1', tenant: 't-1' },
+      claims: {},
+      roles: [],
+      memberships: [{ kind, id: 'm-1', role: 'admin' }],
+      via: 'keys.key',
+      ref: { resolver: 'keys.key', principalId: 'k-1' },
+    }) as unknown as Principal;
+  const fillWith = (kind: string) => ({
+    module: 'keys',
+    value: { id: 'keys.key', resolve: () => null, fromRef: () => ({ principal: userWith(kind) }) },
+  });
+
+  afterEach(() => {
+    answered.fill = undefined;
+    answered.enricher = undefined;
+  });
+
+  test("another module's kind from fromRef fails the job internal", async () => {
+    answered.fill = fillWith('members.membership');
+    await expect(
+      reresolvePrincipal(jobEnv, carrier('keys.key', 'k-1'), target, context),
+    ).rejects.toMatchObject({ kind: 'internal', code: 'core.internal' });
+  });
+
+  test("the module's own kind from fromRef is taken and the enrichers start from it", async () => {
+    answered.fill = fillWith('keys.device');
+    answered.enricher = {
+      module: 'members',
+      value: {
+        id: 'members.roles',
+        enrich: (seen: Principal) => ({
+          roles: seen.memberships.map((m) => m.kind),
+          memberships: [{ kind: 'members.membership', id: 'm-2', role: 'owner' }],
+        }),
+      },
+    };
+    const { principal } = await reresolvePrincipal(
+      jobEnv,
+      carrier('keys.key', 'k-1'),
+      target,
+      context,
+    );
+    expect(principal.memberships.map((m) => m.kind)).toEqual(['keys.device', 'members.membership']);
+    expect(principal.roles).toEqual(['keys.device']);
+  });
+
+  test("another module's kind from fromRef fails the revalidation of a session internal", async () => {
+    answered.fill = fillWith('members.membership');
+    await expect(
+      resolvePrincipal(jobEnv, { transport: 'http' } as Carrier, target, context, {
+        resolver: 'keys.key',
+        principalId: 'k-1',
+      }),
+    ).rejects.toMatchObject({ kind: 'internal', code: 'core.internal' });
   });
 });

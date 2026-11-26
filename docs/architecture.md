@@ -1988,8 +1988,8 @@ and a placement serves every app it hosts.
 | app | `liveHub` | `LiveHub` (section 15.4.11); provides `contracts.live` | single | `live` |
 | app | `liveCarriers` | `LiveCarrier` (SSE, WebSocket) | set | `live` |
 | app | `entityActionGenerators` | a template from the core's closed set (`watch`) added to every entity | set | `live` |
-| app | `principalResolvers` | `PrincipalResolver`: from module fillers a pure generator over the carrier that yields loads and secret verifications and returns the principal (section 17.2.4) | ordered | core (operator, receivers), `auth` (sessions, passkeys), `api-keys` |
-| app | `principalEnrichers` | `PrincipalEnricher` (roles, memberships): a pure generator of loads | set | `accounts`, `members` |
+| app | `principalResolvers` | `PrincipalResolver`: from module fillers a pure generator over the carrier that yields loads and secret verifications and returns the principal (section 17.2.4); a membership's kind starts with the contributor's id (section 8.5) | ordered | core (operator, receivers), `auth` (sessions, passkeys), `api-keys` |
+| app | `principalEnrichers` | `PrincipalEnricher` (roles, memberships): a pure generator of loads; a membership's kind starts with the contributor's id (section 8.5) | set | `accounts`, `members` |
 | app | `invocationMiddleware` | `AdmissionRule`: a pure function or generator run at `admit` that returns the token buckets to consume, or a refusal (section 12.2); module code never wraps pipeline stages | ordered | `auth` (login rate limits, section 17.2.6), `api-keys`; request logging and telemetry are kernel code |
 | app | `ruleSources` | `RuleSource` (runtime-defined policy rules): a pure generator of loads returning rules | set | a later tenant-admin module |
 | app | `crdtCodecs` | `CrdtCodec` (section 15.3.9) | set | `crdt-loro` |
@@ -3808,6 +3808,12 @@ never accepted or stored as a service, operator or system reference. Amended 202
 core's own resolvers answer an operator (section 8.8); a module's resolver that answers one is an
 `internal` error, and a job whose reference a module's `fromRef` resolves to an operator fails
 `unauthenticated`.
+
+Amended 2026-11-26: a membership's kind starts with the id of the module whose fill returned it,
+followed by a dot, for a principal resolver (when it answers a request and when its `fromRef`
+resolves a stored reference for a job or a revalidation) as for a principal enricher; any
+other kind is an `internal` error, so the request, the stream or the job fails. Roles stay
+unchecked.
 
 ### 8.6 Explainability, logging, tests
 

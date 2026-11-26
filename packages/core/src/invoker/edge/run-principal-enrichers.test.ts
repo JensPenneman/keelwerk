@@ -48,6 +48,29 @@ describe('runPrincipalEnrichers: whose membership kinds a fill may return', () =
     ).rejects.toMatchObject({ kind: 'internal', code: 'core.internal' });
   });
 
+  test('a list that reads differently the second time lands no foreign kind', async () => {
+    const reads = [[], [{ kind: 'members.membership', id: 'm1', role: 'admin' }]];
+    const kit: ResolverKit = {
+      fills: () => [
+        {
+          module: 'other',
+          value: {
+            enrich: () => ({
+              get memberships() {
+                return reads.shift() ?? [];
+              },
+            }),
+          },
+        },
+      ],
+      drive: (generator) => Promise.resolve(generator as never),
+    };
+    const enriched = await runPrincipalEnrichers(kit, user);
+    expect(enriched.memberships.map((membership) => membership.kind)).not.toContain(
+      'members.membership',
+    );
+  });
+
   test('roles stay unchecked: any fill may add one', async () => {
     const enriched = await runPrincipalEnrichers(filling('other', [], ['auditor']), user);
     expect(enriched.roles).toContain('auditor');

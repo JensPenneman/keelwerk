@@ -13,6 +13,7 @@ import { deliveryApp } from './delivery-app.ts';
 import { forgedApp } from './forged-app.ts';
 import { heldApp } from './held-app.ts';
 import { membersApp } from './members-app.ts';
+import { resolverForgedApp } from './resolver-forged-app.ts';
 
 type Tenant = 'acme' | 'globex';
 
@@ -86,17 +87,20 @@ export async function bootMembers(
   options: Pick<TestRuntimeOptions, 'logger' | 'external'> & {
     readonly delivery?: boolean;
     readonly forged?: boolean;
+    readonly resolverForged?: boolean;
     readonly held?: boolean;
   } = {},
 ): Promise<BootedMembers> {
   const app =
-    options.forged === true
-      ? forgedApp
-      : options.held === true
-        ? heldApp
-        : options.delivery === true
-          ? deliveryApp
-          : membersApp;
+    options.resolverForged === true
+      ? resolverForgedApp
+      : options.forged === true
+        ? forgedApp
+        : options.held === true
+          ? heldApp
+          : options.delivery === true
+            ? deliveryApp
+            : membersApp;
   // The erasure worker runs its steps when a test asks (`settle`), never on a timer.
   const worker = erasure({ pollMs: 3_600_000 });
   // Both apps hold the members module and nothing a test reads of the other module, so the

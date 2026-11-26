@@ -10,6 +10,7 @@ import { moduleResolver } from '../../reactions/module-resolver.ts';
 import type { Scope } from '../../storage/scope.ts';
 import { subjectNeedsLowerCase } from '../../subjects/subject-needs-lower-case.ts';
 import type { Carrier } from '../carrier.ts';
+import { keepOwnMemberships } from './keep-own-memberships.ts';
 import { keepsTicketError } from './keeps-ticket-error.ts';
 import { placeholderPrincipal } from './placeholder-principal.ts';
 import type { ResolverKit } from './resolver-kit.ts';
@@ -187,8 +188,13 @@ export async function runPrincipalResolvers(
         message: `A fill of core.principalResolvers by "${module}" answered a user whose subject id is not in lower case.`,
       });
     }
+    const memberships = keepOwnMemberships(
+      'core.principalResolvers',
+      module,
+      resolution.principal.memberships,
+    );
     return {
-      principal: { ...resolution.principal, scope: scopeOf(scope) },
+      principal: { ...resolution.principal, memberships, scope: scopeOf(scope) },
       effects: resolution.effects ?? [],
       clearCookies: [...cookies],
       module,

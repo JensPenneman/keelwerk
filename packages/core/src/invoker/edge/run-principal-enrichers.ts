@@ -2,6 +2,7 @@ import type { PrincipalEnricher } from '../../edge/principal-enricher.ts';
 import { KeelwerkError } from '../../errors/keelwerk-error.ts';
 import type { Membership } from '../../principals/membership.ts';
 import type { Principal } from '../../principals/principal.ts';
+import { keepOwnMemberships } from './keep-own-memberships.ts';
 import type { ResolverKit } from './resolver-kit.ts';
 
 function isEnricher(value: unknown): value is PrincipalEnricher {
@@ -18,8 +19,8 @@ function isEnricher(value: unknown): value is PrincipalEnricher {
  * (section 8.5). Users and services are enriched; anonymous, operator and system principals are
  * returned as they are. A membership's kind starts with the id of the module whose enricher
  * returns it, followed by a dot: another module's kind is refused as `internal`, because a module's
- * authorization helpers trust its own kinds. The rule holds for enrichers: memberships that a
- * principal resolver returns are taken as they are. Roles are a convenience and stay unchecked.
+ * authorization helpers trust its own kinds; a principal resolver is held to the same rule.
+ * Roles are a convenience and stay unchecked.
  */
 export async function runPrincipalEnrichers(
   kit: ResolverKit,
@@ -41,16 +42,9 @@ export async function runPrincipalEnrichers(
       readonly memberships?: readonly Membership[];
     }>(value.enrich(principal), module, principal);
     for (const role of added.roles ?? []) roles.add(role);
-    for (const membership of added.memberships ?? []) {
-      if (!membership.kind.startsWith(`${module}.`)) {
-        throw new KeelwerkError({
-          kind: 'internal',
-          code: 'core.internal',
-          message: `A fill of core.principalEnrichers by "${module}" returned a membership of kind "${membership.kind}", which is not a kind of "${module}".`,
-        });
-      }
-      memberships.push(membership);
-    }
+    memberships.push(
+      ...keepOwnMemberships('core.principalEnrichers', module, added.memberships ?? []),
+    );
   }
   return { ...principal, roles: [...roles], memberships };
 }

@@ -5,6 +5,7 @@ import { principalRefOf } from '../effects/principal-ref-of.ts';
 import { systemPrincipalOf } from '../effects/system-principal-of.ts';
 import { errors } from '../errors/errors.ts';
 import type { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { keepOwnMemberships } from '../invoker/edge/keep-own-memberships.ts';
 import { placeholderPrincipal } from '../invoker/edge/placeholder-principal.ts';
 import { runPrincipalEnrichers } from '../invoker/edge/run-principal-enrichers.ts';
 import type { ResolvedPrincipal } from '../invoker/edge/run-principal-resolvers.ts';
@@ -161,9 +162,15 @@ export async function resolvePrincipalRef(
             `The principal resolver '${value.id}' of '${module}' answered a user whose subject id is not in lower case.`,
           );
         }
+        const memberships = keepOwnMemberships(
+          'core.principalResolvers',
+          module,
+          resolution.principal.memberships,
+        );
         return {
           principal: await runPrincipalEnrichers(kit, {
             ...resolution.principal,
+            memberships,
             scope: placeholder.scope,
           }),
           dependsOn: resolution.cache === undefined ? undefined : cacheDrops(resolution.cache),
