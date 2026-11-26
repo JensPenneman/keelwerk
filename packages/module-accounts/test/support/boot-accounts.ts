@@ -7,9 +7,18 @@ import {
   type TestRuntimeOptions,
 } from '@keelwerk/testing';
 import { accounts } from '../../src/module.generated.ts';
+import { directoryRule } from './directory-rule.ts';
+import { readers } from './readers-module.ts';
 
 /** The accounts module alone, as an app. */
 const accountsApp = defineApp({ id: 'accounts', modules: [accounts] as const });
+
+/** The accounts module and an application's own rule that gives a directory (by a membership of the app's own kind). */
+const directoryApp: typeof accountsApp = defineApp({
+  id: 'accounts',
+  modules: [accounts, readers] as const,
+  policies: { add: [directoryRule] },
+}) as unknown as typeof accountsApp;
 
 /** Where the accounts app is stored in a test. */
 export type StorageKind = 'memory' | 'pglite';
@@ -29,8 +38,9 @@ export async function bootAccounts(
   kind: StorageKind,
   settings: { readonly allowSelfRegistration?: boolean } = {},
   external?: TestRuntimeOptions['external'],
+  withDirectoryRule = false,
 ): Promise<BootedAccounts> {
-  const runtime = await startTestRuntime(accountsApp, {
+  const runtime = await startTestRuntime(withDirectoryRule ? directoryApp : accountsApp, {
     adapter: kind,
     operators: true,
     tenants: ['acme', 'globex'],
@@ -38,7 +48,8 @@ export async function bootAccounts(
     ...(external === undefined ? {} : { external }),
   });
   return {
-    runtime,
-    client: (principal, tenant = 'acme') => createLocalClient(runtime, { principal, tenant }),
+    runtime: runtime as TestRuntime<typeof accountsApp>,
+    client: (principal, tenant = 'acme') =>
+      createLocalClient(runtime as TestRuntime<typeof accountsApp>, { principal, tenant }),
   };
 }

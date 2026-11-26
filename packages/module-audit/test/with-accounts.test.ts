@@ -6,7 +6,6 @@ import {
   withAccountsApp,
 } from './support/boot-audit.ts';
 import { holdReactionJobs } from './support/hold-reaction-jobs.ts';
-import { adminAda } from './support/people.ts';
 
 const person = { identifier: 'ada@example.org', password: 'correct horse battery staple' };
 
@@ -142,9 +141,9 @@ describe.each(['memory', 'pglite'] as const)(
       expect((await app.entries('acme')).length).toBeGreaterThan(0);
       expect(await app.entries('globex')).toEqual([]);
       const acmeIds = (await app.entries('acme')).map((entry) => entry.eventId);
-      const globex = await app.client(adminAda, 'globex').invoke('audit.entry.query', {});
+      const globex = await app.operator('globex').invoke('audit.entry.query', {});
       expect(globex.items).toEqual([]);
-      const acme = await app.client(adminAda, 'acme').invoke('audit.entry.query', {});
+      const acme = await app.operator('acme').invoke('audit.entry.query', {});
       expect(acme.items.map((item: { eventId: string }) => item.eventId).sort()).toEqual(
         acmeIds.sort(),
       );

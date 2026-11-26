@@ -1,7 +1,7 @@
 import { reactionMatches } from '@keelwerk/core';
 import { describe, expect, onTestFinished, test } from 'vitest';
 import { type AuditStorage, aloneApp, bootAudit } from './support/boot-audit.ts';
-import { adaSubject, adaUser, adminAda } from './support/people.ts';
+import { adaSubject, adaUser } from './support/people.ts';
 
 const excepted = [
   'audit.entry.archived',
@@ -70,7 +70,7 @@ describe.each(['memory', 'pglite'] as const)('audit alone on %s', (kind: AuditSt
     for (const type of excepted) expect(reactionMatches(entry, type)).toBe(false);
     expect(reactionMatches(entry, 'notes.note.created')).toBe(true);
     // A read of the entries is itself no event: nothing new appears.
-    await app.client(adminAda).invoke('audit.entry.query', {});
+    await app.operator('acme').invoke('audit.entry.query', {});
     await app.settle();
     expect(await app.entries('acme')).toHaveLength(1);
   });

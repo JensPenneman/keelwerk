@@ -5,7 +5,7 @@ Audit entries for every event of a tenant, with the request metadata of its rece
 The module observes every tenant event (`observes: 'all'`, except its own entry events) and writes one
 entry per event: the actor, the action, the command id, the event type and the request's transport.
 The remote address and the user agent are sealed as personal values. Entries are read by operators who
-entered the tenant and by the tenant's admins and owners. Erasure tombstones the entries of a subject,
+entered the tenant and by the tenant's admins and owners: a membership of `@keelwerk/module-members` (kind `members.membership`) with the role `admin` or `owner`. A role alone, or a membership of another module's kind, grants nothing. An app without the members module gets entries for operators only. Erasure tombstones the entries of a subject,
 and retention never purges an entry. An event that arrives after its subject was erased gets no entry.
 
 Not recorded:

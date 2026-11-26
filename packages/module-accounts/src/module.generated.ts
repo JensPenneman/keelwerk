@@ -6,7 +6,6 @@ import { search } from './actions/profile/search.ts';
 import { register } from './actions/register.ts';
 import { accountsBase } from './base.ts';
 import { signedIn } from './policies/identities/signed-in.ts';
-import { directory } from './policies/profile/directory.ts';
 import { frozen } from './policies/profile/frozen.ts';
 import { operator as profileOperator } from './policies/profile/operator.ts';
 import { open } from './policies/register/open.ts';
@@ -19,7 +18,7 @@ const accountsDef = defineModule(accountsBase, {
   entityActions: { profile: { deactivate, search } },
   policies: {
     identities: { signedIn },
-    profile: { directory, frozen, operator: profileOperator },
+    profile: { frozen, operator: profileOperator },
     register: { open, operator: registerOperator },
   },
   services: { findByEmail, registrationOpen },

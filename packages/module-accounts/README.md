@@ -9,8 +9,36 @@ The directory of people. It needs no login and knows nothing about authenticatio
 - `accounts.identities`: reads the `identityProviders` extension point; empty while no login module fills it.
 - `findByEmail`: a service for dependants.
 
-Operators (`core.operator`) may do everything on profiles. The `directory` role reads profiles without their maskable e-mail address.
+Operators (`core.operator`) may do everything on profiles. No role grants a read: any module can add a role to a principal, so this module decides by none. An application that wants a directory adds its own rule in `defineApp`. Its condition rests on a membership of the application's own kind (here `readers.directory`, which the kernel takes only from the application's module `readers`), and `fields: []` keeps the e-mail address out. A case of this package runs exactly this rule:
 
-Limitations: the e-mail match of `accounts.profile.search` follows what the caller's read plan reveals, so today only operators get it; the administrators of 17.2.1 arrive with the roles of WP-62.
+```ts
+defineApp({
+  id: 'my-app',
+  modules: [accounts, readers],
+  policies: {
+    add: [
+      {
+        id: 'readers.profile.directory',
+        module: 'readers',
+        effect: 'allow',
+        subject: { module: 'accounts', entity: 'profile' },
+        actions: ['read', 'search'],
+        principal: 'user',
+        where: (ctx: { principal: { memberships: readonly { kind: string }[] } }) =>
+          ctx.principal.memberships.some((membership) => membership.kind === 'readers.directory'),
+        fields: [],
+        reason: 'The application lets the readers of its directory browse people by name.',
+        disabled: false,
+      },
+    ],
+  },
+});
+```
+
+An application that instead grants by a role reads `ctx.principal.roles` in its own rule and then trusts every fill it composes, because any module's enricher or resolver can add any role.
+
+An application that lists `accounts.profile.directory` in `policies.disable` no longer composes (`unknownDisabledRule`) and drops that name.
+
+Limitations: the e-mail match of `accounts.profile.search` follows what the caller's read plan reveals, so today only operators get it; no shipped rule gives the administrators of 17.2.1, or a member of `@keelwerk/module-members`, a read: an application grants it by its own rule.
 
 `src/module.generated.ts` is produced by `pnpm manifests` and the files under `migrations/own/` by `pnpm fixtures:migrations`; neither is edited by hand.

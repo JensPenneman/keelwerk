@@ -35,6 +35,7 @@
     "@keelwerk/events": "workspace:*",
     "@keelwerk/module-accounts": "workspace:*",
     "@keelwerk/module-auth": "workspace:*",
+    "@keelwerk/module-members": "workspace:*",
     "@keelwerk/testing": "workspace:*",
     "vitest": "5.1.1"
   }

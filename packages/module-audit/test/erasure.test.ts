@@ -1,7 +1,7 @@
 import { describe, expect, onTestFinished, test } from 'vitest';
 import { type AuditStorage, aloneApp, bootAudit } from './support/boot-audit.ts';
 import { holdReactionJobs } from './support/hold-reaction-jobs.ts';
-import { adaSubject, adaUser, graceSubject, graceUser, ownerGrace } from './support/people.ts';
+import { adaSubject, adaUser, graceSubject, graceUser } from './support/people.ts';
 
 describe.each(['memory', 'pglite'] as const)(
   'audit entries and erasure on %s',
@@ -38,10 +38,10 @@ describe.each(['memory', 'pglite'] as const)(
 
       const after = await app.entries();
       expect(after.map((entry) => entry.eventId)).toEqual([graces.eventId]);
-      const page = await app.client(ownerGrace).invoke('audit.entry.query', {});
+      const page = await app.operator('acme').invoke('audit.entry.query', {});
       expect(page.items.map((item) => item.eventId)).toEqual([graces.eventId]);
       const got = await app
-        .client(ownerGrace)
+        .operator('acme')
         .attempt('audit.entry.get', { ids: [String(adas.id)] as never });
       expect(got.ok ? got.value.list : []).toEqual([]);
       // The tombstone of the erased entry remains, without the personal fields; the other

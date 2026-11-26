@@ -578,6 +578,9 @@ importers:
       '@keelwerk/module-auth':
         specifier: workspace:*
         version: link:../module-auth
+      '@keelwerk/module-members':
+        specifier: workspace:*
+        version: link:../module-members
       '@keelwerk/testing':
         specifier: workspace:*
         version: link:../testing

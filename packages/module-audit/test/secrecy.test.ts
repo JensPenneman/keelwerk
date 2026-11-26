@@ -2,7 +2,6 @@ import { findPlaintext } from '@keelwerk/testing';
 import { describe, expect, onTestFinished, test } from 'vitest';
 import { auditDump } from './support/audit-dump.ts';
 import { type AuditStorage, bootAudit, withAccountsApp } from './support/boot-audit.ts';
-import { adminAda } from './support/people.ts';
 
 const declared = [
   'action',
@@ -113,7 +112,7 @@ describe.each(['memory', 'pglite'] as const)('audit secrecy on %s', (kind: Audit
     const opened = (await app.entries()).filter((entry) => entry.userAgent === agent);
     expect(opened.length).toBeGreaterThan(0);
     expect(opened.every((entry) => /^198\.1[89]\./.test(String(entry.remoteAddress)))).toBe(true);
-    const seen = await app.client(adminAda).invoke('audit.entry.query', {});
+    const seen = await app.operator('acme').invoke('audit.entry.query', {});
     expect(seen.items.some((item) => item.userAgent === agent)).toBe(true);
     if (kind === 'pglite') {
       const dump = await auditDump([app.runtime.adapter, app.runtime.control.adapter], {

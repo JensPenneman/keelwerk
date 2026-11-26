@@ -1,9 +1,15 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { defineApp } from '@keelwerk/core';
 import { testOperator, testPrincipal } from '@keelwerk/testing';
 import { describe, expect, onTestFinished, test } from 'vitest';
+import { accounts as accountsModule } from '../src/module.generated.ts';
 import { type BootedAccounts, bootAccounts, type StorageKind } from './support/boot-accounts.ts';
+import { readerSubject } from './support/readers-module.ts';
 
 const operator = testOperator();
 const librarian = testPrincipal('librarian', { roles: ['directory'] });
+const reader = testPrincipal(readerSubject);
 const signedIn = testPrincipal('ada');
 const anonymous = testPrincipal(null);
 
@@ -135,13 +141,24 @@ describe.each(['memory', 'pglite'] as const)('accounts alone on %s', (kind: Stor
     expect(inside.items).toEqual([]);
   });
 
-  test('the directory role searches by name prefix and never sees an address', {
-    timeout,
-  }, async () => {
+  test('the role directory alone reads and searches no profile', { timeout }, async () => {
     const accounts = await boot();
     const { id } = await enrol(accounts, 'Ada Lovelace', 'ada@example.org');
-    await enrol(accounts, 'Grace Hopper', 'grace@example.org');
     const directory = accounts.client(librarian);
+    const got = await settle(directory.invoke('accounts.profile.get', { ids: [id] }));
+    expect(got.code).toBe('core.forbidden');
+    const found = await settle(directory.invoke('accounts.profile.search', { text: 'Ada' }));
+    expect(found.code).toBe('core.forbidden');
+  });
+
+  test("an app's added rule gives the directory: by name, never an address", {
+    timeout,
+  }, async () => {
+    const accounts = await bootAccounts(kind, {}, undefined, true);
+    onTestFinished(() => accounts.runtime.stop());
+    const { id } = await enrol(accounts, 'Ada Lovelace', 'ada@example.org');
+    await enrol(accounts, 'Grace Hopper', 'grace@example.org');
+    const directory = accounts.client(reader);
     const got = await directory.invoke('accounts.profile.get', { ids: [id] });
     expect(got.list[0]).toMatchObject({ displayName: 'Ada Lovelace' });
     expect(got.list[0]).not.toHaveProperty('email');
@@ -151,6 +168,11 @@ describe.each(['memory', 'pglite'] as const)('accounts alone on %s', (kind: Stor
     expect(found.items[0]).not.toHaveProperty('email');
     const byAddress = await directory.invoke('accounts.profile.search', { text: 'grace@' });
     expect(byAddress.items).toEqual([]);
+    // The app's rule rests on its membership: the word directory still reads nothing there.
+    const word = await settle(
+      accounts.client(librarian).invoke('accounts.profile.get', { ids: [id] }),
+    );
+    expect(word.code).toBe('core.forbidden');
   });
 
   test('an active profile deactivates once, and the row stays readable but frozen', {
@@ -189,5 +211,27 @@ describe.each(['memory', 'pglite'] as const)('accounts alone on %s', (kind: Stor
     expect(got.code === undefined ? got.value : null).toMatchObject({ list: [] });
     const twin = await settle(enrol(accounts, 'Ada', 'ada@example.org', 'globex'));
     expect(twin.code).toBeUndefined();
+  });
+});
+
+describe('the rule an app adds for a directory', () => {
+  const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
+  const squeezed = (text: string) => text.replace(/\s+/g, '');
+
+  test('the README shows the rule the case runs', () => {
+    const source = readFileSync(here('./support/directory-rule.ts'), 'utf8');
+    const rule = source.split('// rule-start')[1]?.split('// rule-end')[0] ?? '';
+    expect(rule).not.toBe('');
+    expect(squeezed(readFileSync(here('../README.md'), 'utf8'))).toContain(squeezed(rule));
+  });
+
+  test('an app that disables the removed rule no longer composes and drops the name', () => {
+    const disabling = () =>
+      defineApp({
+        id: 'accounts',
+        modules: [accountsModule] as const,
+        policies: { disable: ['accounts.profile.directory'] },
+      });
+    expect(disabling).toThrow(/unknownDisabledRule.*accounts\.profile\.directory/s);
   });
 });

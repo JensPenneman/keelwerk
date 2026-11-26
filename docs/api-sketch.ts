@@ -200,12 +200,6 @@ const identities = defineQuery(accountsBase, {
 
 // Rules, one per file in a project: policies/profile/operator.ts is the rule accounts.profile.operator.
 const operator = defineRule(accountsBase, profile, { effect: 'allow', actions: ['*'], principal: 'operator' })
-const directoryRole = defineRule(accountsBase, profile, {
-  effect: 'allow',
-  actions: ['read', 'search'],
-  where: (ctx) => ctx.principal.roles.includes('directory'),
-  fields: [], // reveals no maskable field: e-mail addresses stay hidden from the directory role
-})
 // A deny rule without `check` tests the row before the action: deactivated profiles are frozen,
 // and an active profile can still be deactivated (section 8.2).
 const frozen = defineRule(accountsBase, profile, {
@@ -226,7 +220,7 @@ const findByEmail = defineService(accountsBase, (own, email: string) => own.load
 const accountsDef = defineModule(accountsBase, {
   entityActions: { profile: { deactivate, search } },
   actions: { register, identities },
-  policies: { profile: { operator, directory: directoryRole, frozen }, register: { open: registerOpen }, identities: { signedIn: identitiesSignedIn } },
+  policies: { profile: { operator, frozen }, register: { open: registerOpen }, identities: { signedIn: identitiesSignedIn } },
   services: { findByEmail },
 })
 
@@ -737,7 +731,7 @@ const portalDef = defineApp({
   },
   authorization: { mode: 'strict', decisionLog: 'denials' },
   policies: {
-    disable: [], // rule ids such as 'accounts.profile.directory'
+    disable: [], // rule ids such as 'accounts.profile.operator'
     add: [],
   },
 })

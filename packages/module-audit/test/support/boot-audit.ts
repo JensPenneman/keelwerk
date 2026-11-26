@@ -2,6 +2,7 @@ import { defineApp, type Unit } from '@keelwerk/core';
 import { consumers, erasure, reactionDispatcher, retention } from '@keelwerk/events';
 import { accounts } from '@keelwerk/module-accounts';
 import { auth } from '@keelwerk/module-auth';
+import { members } from '@keelwerk/module-members';
 import {
   clientAddresses,
   createLocalClient,
@@ -14,6 +15,8 @@ import {
 } from '@keelwerk/testing';
 import { audit } from '../../src/module.generated.ts';
 import { auditNotes } from './notes-module.ts';
+import { adaUser, graceUser } from './people.ts';
+import { roleForger } from './role-forger.ts';
 
 type Tenant = 'acme' | 'globex';
 
@@ -46,6 +49,16 @@ const allowEveryEntryAction = {
 
 /** Notes and audit: an event for the observer to see, over the test principals. */
 export const aloneApp = defineApp({ id: 'alone', modules: [auditNotes, audit] as const });
+/** `aloneApp` with the members module: the cases about a tenant's admin and owner. */
+export const membersApp = defineApp({
+  id: 'alone',
+  modules: [auditNotes, members, audit] as const,
+}) as unknown as typeof aloneApp;
+/** `aloneApp` with a module that gives people admin and owner as words or as memberships of its own kind (no members module). */
+export const forgedApp = defineApp({
+  id: 'alone',
+  modules: [auditNotes, roleForger, audit] as const,
+}) as unknown as typeof aloneApp;
 /** Accounts and auth with audit: a sign-up, a login and a profile change over requests. */
 export const withAccountsApp = defineApp({
   id: 'with-accounts',
@@ -53,11 +66,11 @@ export const withAccountsApp = defineApp({
 });
 
 /** `aloneApp` with that override. */
-export const overriddenAloneApp: typeof aloneApp = defineApp({
+export const overriddenAloneApp = defineApp({
   id: 'alone',
-  modules: [auditNotes, audit] as const,
+  modules: [auditNotes, members, audit] as const,
   policies: { add: [allowEveryEntryAction] },
-});
+}) as unknown as typeof aloneApp;
 /** `withAccountsApp` with that override. */
 export const overriddenAccountsApp: typeof withAccountsApp = defineApp({
   id: 'with-accounts',
@@ -78,6 +91,14 @@ export interface BootedAudit<App extends typeof aloneApp | typeof withAccountsAp
   settle(): Promise<void>;
   /** A local client of a tenant (acme unless named). */
   client(principal: TestPrincipal, tenant?: Tenant): ReturnType<typeof createLocalClient<App>>;
+  /**
+   * Seats grace as the owner and ada as an admin (or a plain member) of a tenant (acme unless named) through the
+   * members module's own actions: an operator invites the owner, who accepts and invites the
+   * admin, who accepts. `entries` and `own` leave the entries of those events out.
+   */
+  seat(tenant?: Tenant, adminRole?: 'admin' | 'member'): Promise<void>;
+  /** What a reader's page holds without the entries of the seating. */
+  own<T extends { readonly eventId: unknown }>(items: readonly T[]): T[];
   /** An operator client of a tenant (acme unless named). */
   operator(tenant?: Tenant): ReturnType<typeof createLocalClient<App>>;
   /** Invokes an action as a request from a fresh client address, carrying these headers and, when given, as this principal. */
@@ -125,6 +146,7 @@ export async function bootAudit<App extends typeof aloneApp | typeof withAccount
       : {}),
   })) as unknown as TestRuntime<App>;
   const nextAddress = clientAddresses();
+  const seated = new Set<string>();
   const tenantId = (tenant: Tenant): string => {
     const found = runtime.tenants[tenant];
     if (found === undefined) throw new Error(`no tenant ${tenant}`);
@@ -155,6 +177,29 @@ export async function bootAudit<App extends typeof aloneApp | typeof withAccount
     client: (principal, tenant = 'acme') => createLocalClient(runtime, { principal, tenant }),
     operator: (tenant = 'acme') =>
       createLocalClient(runtime, { principal: testOperator(), tenant }),
+    seat: async (tenant = 'acme', adminRole = 'admin') => {
+      const before = new Set(
+        (await entriesOf(runtime.sealed, tenant)).map((row) => String(row.eventId)),
+      );
+      const as = (principal: TestPrincipal) =>
+        createLocalClient(runtime, { principal, tenant }) as unknown as {
+          invoke(action: string, input: unknown): Promise<{ readonly token?: string }>;
+        };
+      const owner = await as(testOperator()).invoke('members.invitation.createOwner', {
+        email: 'grace@seat.example',
+      });
+      await as(graceUser).invoke('members.invitation.accept', { token: owner.token });
+      const admin = await as(graceUser).invoke('members.invitation.invite', {
+        email: 'ada@seat.example',
+        role: adminRole,
+      });
+      await as(adaUser).invoke('members.invitation.accept', { token: admin.token });
+      await settleReactions(dispatcher, runtime.drainJobs);
+      for (const row of await entriesOf(runtime.sealed, tenant)) {
+        if (!before.has(String(row.eventId))) seated.add(String(row.eventId));
+      }
+    },
+    own: (items) => items.filter((item) => !seated.has(String(item.eventId))),
     request: (action, input, carrier = {}) =>
       runtime.invoker.invoke({
         action,
@@ -179,9 +224,12 @@ export async function bootAudit<App extends typeof aloneApp | typeof withAccount
         signal: new AbortController().signal,
         ...(carrier.commandId === undefined ? {} : { commandId: carrier.commandId }),
       }),
-    entries: (tenant = 'acme') => entriesOf(runtime.sealed, tenant),
-    rawEntries: (tenant = 'acme', options = {}) =>
-      entriesOf(runtime.adapter, tenant, options.includeErased),
+    entries: async (tenant = 'acme') =>
+      (await entriesOf(runtime.sealed, tenant)).filter((row) => !seated.has(String(row.eventId))),
+    rawEntries: async (tenant = 'acme', options = {}) =>
+      (await entriesOf(runtime.adapter, tenant, options.includeErased)).filter(
+        (row) => !seated.has(String(row.eventId)),
+      ),
     inUnit: (fn, tenant = 'acme') => runtime.sealed.unit(runtime.namespace, scopeOf(tenant), fn),
     erase: async (subject) => {
       await createLocalClient(runtime, { principal: testOperator(), tenant: 'acme' }).invoke(

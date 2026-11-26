@@ -9,7 +9,7 @@ import {
   overriddenAloneApp,
 } from './support/boot-audit.ts';
 import { holdReactionJobs } from './support/hold-reaction-jobs.ts';
-import { adaSubject, adaUser, adminAda } from './support/people.ts';
+import { adaSubject, adaUser } from './support/people.ts';
 
 const person = { identifier: 'ada@example.org', password: 'correct horse battery staple' };
 
@@ -97,13 +97,14 @@ describe.each(['memory', 'pglite'] as const)(
         ['audit.entry.archive', { id }],
         ['audit.entry.restore', { id }],
       ];
-      for (const client of [app.operator('acme'), app.client(adminAda)]) {
+      await app.seat();
+      for (const client of [app.operator('acme'), app.client(adaUser)]) {
         for (const [action, input] of calls) {
           const refused = await client.attempt(action as never, input as never);
           expect(refused.ok, action).toBe(false);
         }
         const page = await client.attempt('audit.entry.query', {});
-        expect(page.ok && page.value.items.length).toBe(1);
+        expect(page.ok && app.own(page.value.items).length).toBe(1);
       }
       const operator = await app
         .operator('acme')

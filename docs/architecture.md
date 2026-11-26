@@ -3728,7 +3728,7 @@ interface PrincipalRef { readonly resolver: string; readonly principalId: string
 interface PrincipalBase<Ref extends PrincipalRef = PrincipalRef> {
   readonly scope: { readonly backend: string | null; readonly tenant: string | null }   // where it was resolved; handlers read the invocation's `Scope` (section 14.3.2)
   readonly claims: Readonly<Record<string, unknown>>
-  readonly roles: readonly string[]                       // from principal enrichers; a convenience, never the whole model
+  readonly roles: readonly string[]                       // words any fill adds, unchecked; a module that ships with keelwerk decides nothing by them
   readonly memberships: readonly Membership[]
   readonly via: string                                    // resolver id: 'auth.session', 'api-keys.key', 'core.operator', 'core.module'
   readonly ref: Ref | null                                // what jobs and receipts store, typed by the module that resolves the principal (below)
@@ -3814,6 +3814,15 @@ followed by a dot, for a principal resolver (when it answers a request and when 
 resolves a stored reference for a job or a revalidation) as for a principal enricher; any
 other kind is an `internal` error, so the request, the stream or the job fails. Roles stay
 unchecked.
+
+Amended 2026-11-26 (WP-240): a bare role has no owner, since any fill of any module may add any
+word and the merged list keeps no origin. A module that ships with keelwerk therefore grants a
+protected read or write only on a membership, whose kind the kernel takes only from its owner's
+fills, or on its own state; never on `roles`. Roles are the application's own words: only a rule
+the application writes itself may read them, and it then trusts every fill the application
+composed. `audit` lets the tenant's admins and owners read the trail by a membership of the
+`members` module (kind `members.membership`, role `admin` or `owner`); `accounts` ships no rule
+for a directory.
 
 ### 8.6 Explainability, logging, tests
 
@@ -13052,6 +13061,10 @@ matches the `displayName` prefix for the `directory` role and `email` or `displa
 principals that read `email`, deciding with `ctx.ability.canFilterBy('accounts.profile.search',
 'email')`. api-sketch.ts is binding for the module's shapes.
 
+Amended 2026-11-26 (WP-240): no shipped rule reads the role `directory` or gives the administrators,
+or a member of the `members` module, anything on accounts; an application grants it by its own rule (the README of `accounts` shows one), and a rule that
+reads roles trusts every fill the application composed.
+
 #### 17.2.2 Credentials, sessions and tokens
 
 `auth` owns three entities and shares one token format with `api-keys` and `nodes`:
@@ -13410,7 +13423,7 @@ What toggling does:
   how a service that needs raw TCP ports runs in Launchway v0.3.0.
 - Without `dns`: domains are not bound to zones and users create records by hand, as with the
   `manual` provider of Launchway v0.3.0.
-- Without `members`: only the operator and API keys act; no roles exist.
+- Without `members`: only the operator and API keys act; no memberships exist.
 
 #### 17.3.3 Tenancy and scope
 
@@ -13694,8 +13707,8 @@ export const providers = extensionPoint.single<EdgeProvider>()
 #### 17.3.11 Accounts, authentication, tokens and roles
 
 The shared modules are used unchanged; Launchway's rules live in Launchway's modules, reference
-roles from the `members` enricher and combine them with conditions, which is the point of the
-CASL-style engine over plain roles.
+memberships of the `members` module (kind `members.membership`; the helper `hasRole` below
+checks the kind and the role) and combine them with conditions, which is the point of the CASL-style engine over plain roles.
 
 ```ts
 // modules/projects/src/policies/project/read.ts (Launchway repository): the rule projects.project.read
@@ -16171,7 +16184,8 @@ back exactly the plain JSON it gets (no dates, no defaults, no transforms).
 Added 2026-11-25: a `kill-switch` flag is boolean, of level `deployment`, `backend` or `tenant`, and
 its targeting serves no split (composition problem `killSwitchInvalid`): an operator's stop, never a
 rollout, whose answer never depends on a targeting key. A rule that lists principals, or matches
-their kind or roles, stops it for some. `keelwerk new flag` refuses a kill switch of another level
+their kind or roles, stops it for some; a rule that matches roles matches a word any fill can add
+(section 8.5). `keelwerk new flag` refuses a kill switch of another level
 or kind, and writes `default: true` for one, so that the default keeps the established behaviour.
 
 ### 20.3 Evaluation

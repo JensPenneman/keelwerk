@@ -8,7 +8,6 @@ import { register } from './actions/register.ts';
 import { accountsBase } from './base.ts';
 import { type Accounts, accounts } from './module.generated.ts';
 import { signedIn } from './policies/identities/signed-in.ts';
-import { directory } from './policies/profile/directory.ts';
 import { frozen } from './policies/profile/frozen.ts';
 import { operator } from './policies/profile/operator.ts';
 import { open } from './policies/register/open.ts';
@@ -23,7 +22,7 @@ describe('the accounts manifest', () => {
       entityActions: { profile: { deactivate, search } },
       policies: {
         identities: { signedIn },
-        profile: { directory, frozen, operator },
+        profile: { frozen, operator },
         register: { open, operator: registerOperator },
       },
       services: { findByEmail, registrationOpen },
