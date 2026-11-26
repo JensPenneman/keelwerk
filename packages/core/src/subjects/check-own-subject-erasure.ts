@@ -7,7 +7,7 @@ import { ownedRows } from './owned-rows.ts';
 
 /**
  * The ownership check of `eraseOwnSubject` (section 14.7.5), run when the request's job starts
- * (`admitOwnSubjectErasure`): the id of `row` (already in its canonical form) may be erased as a
+ * (`admitErasure`): the id of `row` (already in its canonical form) may be erased as a
  * subject only when nothing but that row holds it. The subject's references, if any, must all name
  * that same stream, and no live row of any module may have the id as its data subject except that
  * row. A subject that is also another row's, or that another stream refers to, is refused, so a row

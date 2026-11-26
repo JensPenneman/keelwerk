@@ -38,7 +38,7 @@ const log: Logger = {
   debug: () => undefined,
   info: () => undefined,
   warn: (message, fields) => {
-    if (message === 'an own-subject erasure is put off') putOff.push({ ...fields });
+    if (message === 'an erasure is put off') putOff.push({ ...fields });
   },
   error: () => undefined,
   child: () => log,
@@ -98,7 +98,7 @@ async function boot(adapter: 'memory' | 'pglite', provider: FlagProvider = legal
       (unit) => unit.ledger?.since(0n, 100) ?? Promise.resolve([]),
       { readOnly: true },
     );
-  return { runtime, operator, settle, rows, keyLive, ledger };
+  return { runtime, operator, worker, settle, rows, keyLive, ledger };
 }
 
 const providers = [

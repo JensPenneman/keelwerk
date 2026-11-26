@@ -8,6 +8,7 @@ import type { CommandResult } from '../invoker/command-runner.ts';
 import { deriveScopeSecrets } from '../keys/derive-scope-secrets.ts';
 import { checkErasureGrant } from '../subjects/check-erasure-grant.ts';
 import { erasureAction } from '../subjects/erasure-action.ts';
+import { erasureRetry } from '../subjects/erasure-retry.ts';
 import { appendReceiptChange } from '../write-path/append-receipt-change.ts';
 import { assertSameRequest } from '../write-path/assert-same-request.ts';
 import { commandDigests } from '../write-path/command-digests.ts';
@@ -32,8 +33,8 @@ import { sealJobInput } from './seal-job-input.ts';
  * `commandDigests` of the plaintext input, secrets and verifiers withheld. A retry with the same id
  * and input answers `accepted` again and enqueues nothing; a receipt a worker finished replays its
  * outcome; another input is `core.idempotency_mismatch`. A fresh `core.eraseSubject` is also
- * checked for ownership (`checkErasureGrant`) before its job is written; a replayed receipt skips
- * that.
+ * checked for ownership (`checkErasureGrant`) before its job is written, and its job is retried
+ * without an end (`erasureRetry`); a replayed receipt skips that.
  */
 export async function acceptAsyncCommand(input: RunCommandInput): Promise<CommandResult> {
   const { action } = input;
@@ -109,6 +110,8 @@ export async function acceptAsyncCommand(input: RunCommandInput): Promise<Comman
               limits: input.quotas,
             }),
             kind: 'action',
+            // An accepted erasure is held, never dropped: its job is tried until it starts.
+            ...(action.ref === erasureAction ? { retry: erasureRetry } : {}),
             run: commandJobRun(
               action.ref,
               await sealJobInput(unit, input.registry, commandId, action, input.input),

@@ -7,7 +7,7 @@ import type { EraseOwnSubjectEffect } from '../protocol/erase-own-subject-effect
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
 import { canonicalSubject } from '../subjects/canonical-subject.ts';
 import { erasureAction } from '../subjects/erasure-action.ts';
-import { ownErasureRetry } from '../subjects/own-erasure-retry.ts';
+import { erasureRetry } from '../subjects/erasure-retry.ts';
 import { appendReceiptChange } from '../write-path/append-receipt-change.ts';
 import { commandDigests } from '../write-path/command-digests.ts';
 import { receiptRow } from '../write-path/receipt-row.ts';
@@ -27,8 +27,8 @@ import { validateEffectInput } from './validate-effect-input.ts';
  * unit, an entity the module owns whose data subject is a field or path, and a live row are
  * accepted here, and a request that fails these refuses the unit. Whether the erasure may start
  * is not asked here: ending a row never depends on it. The job asks when it starts
- * (`admitOwnSubjectErasure`): a rule that denies `core.eraseSubject` for that principal, or another
- * row that holds the subject, makes it wait and try again (`ownErasureRetry`); no allow rule is
+ * (`admitErasure`): a rule that denies `core.eraseSubject` for that principal, or another
+ * row that holds the subject, makes it wait and try again (`erasureRetry`); no allow rule is
  * needed, because the module's own row is the ownership. The receipt carries no address or user
  * agent, and its expiry does not end the request: an accepted receipt stays, and the job is tried
  * for as long as it is held back. A unit that repeats rolls its receipt and job back with it.
@@ -117,7 +117,7 @@ export async function runEraseOwnSubjectEffect(
       limits: run.quotas,
     }),
     kind: 'action',
-    retry: ownErasureRetry,
+    retry: erasureRetry,
     // The entity names what the job's admission checks; only a kernel command id may carry it.
     run: commandJobRun(
       erasureAction,

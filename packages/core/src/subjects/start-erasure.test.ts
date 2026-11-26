@@ -1,8 +1,11 @@
-import { describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { ErasureRecord } from '../ledger/erasure-record.ts';
 import type { StoredJob } from '../storage/stored-job.ts';
 import type { RunJobContext } from '../worker/run-job.ts';
 import { startErasure } from './start-erasure.ts';
+
+const admit = vi.hoisted(() => vi.fn<(...args: unknown[]) => Promise<void>>());
+vi.mock('./admit-erasure.ts', () => ({ admitErasure: admit }));
 
 const subjectId = '0192f3a0-0000-7000-8000-0000000000a1';
 const tenantId = '0192f3a0-0000-7000-8000-000000000001';
@@ -117,6 +120,7 @@ function setup({
     scope: { level: 'tenant', backendId: 'b', tenantId },
     run: { action: 'core.eraseSubject', input: {}, commandId },
     attempt: { jobId: '1', attempt: 1 },
+    principal: { resolver: 'core.operator', principalId: 'op-1' },
     causation: {},
   } as unknown as StoredJob;
   return { context, stored, completed, appended, sunk };
@@ -138,6 +142,10 @@ const record: ErasureRecord = {
   commandId,
 };
 
+beforeEach(() => {
+  admit.mockReset().mockResolvedValue(undefined);
+});
+
 describe('only the accepted command starts an erasure', () => {
   test('a job with no receipt fails without a retry and records nothing', async () => {
     const { context, stored, appended, sunk, completed } = setup();
@@ -150,14 +158,43 @@ describe('only the accepted command starts an erasure', () => {
     expect(completed).toEqual([]);
   });
 
-  test('a receipt that expired before the job ran fails the job the same way', async () => {
-    const { context, stored, appended } = setup({
-      receipt: { ...accepted, expiresAt: now.subtract({ seconds: 1 }) },
+  test('a receipt older than its window still starts the erasure', async () => {
+    const { context, stored, appended, completed } = setup({
+      receipt: { ...accepted, expiresAt: now.subtract({ hours: 400 * 24 }) },
     });
-    await expect(startErasure(context, stored, input)).rejects.toMatchObject({
-      code: 'core.request_not_allowed',
+    await startErasure(context, stored, input);
+    expect(appended).toMatchObject([{ type: 'erasure', tenantId, subjectId, commandId }]);
+    expect(completed).toEqual([{ kind: 'succeeded' }]);
+  });
+
+  test("an operator's erasure is admitted by the hold check right before its record, and one that is put off records nothing", async () => {
+    const order: string[] = [];
+    admit.mockImplementation(async () => {
+      order.push('admit');
     });
-    expect(appended).toEqual([]);
+    const first = setup({ receipt: accepted });
+    (first.stored as { causation: unknown }).causation = {
+      actor: { kind: 'operator', id: 'op-1', via: 'core.operator' },
+    };
+    first.context.control.ledger.append = async () => {
+      order.push('record');
+      return 1n;
+    };
+    await startErasure(first.context, first.stored, input);
+    expect(order).toEqual(['admit', 'record']);
+    const request = admit.mock.calls[0]?.[2];
+    expect(request).not.toHaveProperty('entity');
+    expect(request).toMatchObject({
+      requester: { kind: 'operator', id: 'op-1', roles: [], via: 'core.operator' },
+    });
+    const held = setup({ receipt: accepted });
+    admit.mockImplementation(() => {
+      throw new Error('held');
+    });
+    await expect(startErasure(held.context, held.stored, input)).rejects.toThrow('held');
+    expect(held.appended).toEqual([]);
+    expect(held.sunk).not.toHaveBeenCalled();
+    expect(held.completed).toEqual([]);
   });
 
   test('a receipt of another action, or one that is not accepted, does not start an erasure', async () => {

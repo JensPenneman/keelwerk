@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { Logger } from '../observability/logger.ts';
 import type { Registry } from '../registry/registry.ts';
-import { admitOwnSubjectErasure } from './admit-own-subject-erasure.ts';
+import { admitErasure } from './admit-erasure.ts';
 
 test('a request that names no entity is refused for good, not delayed', async () => {
   const log = { warn: () => undefined } as unknown as Logger;
@@ -14,8 +14,9 @@ test('a request that names no entity is refused for good, not delayed', async ()
   };
   const scope = { level: 'tenant', backendId: 'b', tenantId: 't' } as const;
   await expect(
-    admitOwnSubjectErasure(source, scope, {
+    admitErasure(source, scope, {
       commandId: 'c',
+      requester: {} as never,
       entity: 'shop.order',
       subjectId: 's',
       reason: 'retention',

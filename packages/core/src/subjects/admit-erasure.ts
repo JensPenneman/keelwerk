@@ -8,7 +8,7 @@ import type { FlagSnapshot } from '../flags/flag-snapshot.ts';
 import { principalContextOf } from '../interpreter/principal-context-of.ts';
 import { refuseRequest } from '../interpreter/refuse-request.ts';
 import type { Logger } from '../observability/logger.ts';
-import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
+import type { Principal } from '../principals/principal.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { DataAdapter } from '../storage/data-adapter.ts';
 import type { NamespaceRef } from '../storage/namespace-ref.ts';
@@ -18,22 +18,23 @@ import { checkOwnSubjectErasure } from './check-own-subject-erasure.ts';
 import { erasureAction } from './erasure-action.ts';
 
 /**
- * The admission of an `eraseOwnSubject` request (section 14.7.5), taken when its job starts, not
- * when the row ends: ending a row must never depend on whether its erasure may start yet. A
- * request that something holds back ends with a retryable `unavailable` error, so the job tries
- * again (`ownErasureRetry`) for as long as it is held back, and the erasure starts once nothing
- * holds it. A row of any module that holds the subject besides the row itself holds it back
- * (`checkOwnSubjectErasure`). So does a rule that denies `core.eraseSubject` for the module's
- * service principal (a hold the operator lifts; its flags are read through the process's
- * providers), and a hold nobody could see: a flag that a rule read and that answered `STALE` or
- * `ERROR`, or a rule, a provider or the gate that failed. These last are logged as a warning with
- * the command id and the kind of reason, never the subject. The point of no return is the record
- * in the ledger that follows: the ownership is read first and the hold last, directly before the
- * record, so a hold in force at that read holds the erasure and one that comes after it does not.
- * A request that names no entity is refused for good. The messages name neither the rule nor the
- * subject.
+ * The admission of an erasure (section 14.7.5), taken when its job starts, directly before the
+ * record in the ledger, the point of no return. An erasure that something holds back ends with a
+ * retryable `unavailable` error, so the job tries again (`erasureRetry`) for as long as it is held
+ * back, and the erasure starts once nothing holds it. For the request of a module for the id of
+ * its own row (`eraseOwnSubject`, which names an entity) the ownership is read first: a row of any
+ * module that holds the subject besides the row itself holds it back (`checkOwnSubjectErasure`).
+ * For every erasure the hold is read last: a rule that targets `core.eraseSubject` and denies it
+ * for the requester (a rule over a selector is not asked again: it was applied at acceptance), a
+ * hold the operator lifts; its flags are read through the process's providers, and the requester is
+ * the actor of the job as `principalOfActor` makes a principal of it. A hold nobody could see holds
+ * as well: a flag that a rule read and that answered `STALE` or `ERROR`, or a rule, a provider or
+ * the gate that failed; these are logged as a warning with the command id and the kind of reason,
+ * never the subject. A hold in force at that read holds the erasure and one that comes after it
+ * does not. A request that names an entity the registry does not know is refused for good. The
+ * messages name neither the rule nor the subject.
  */
-export async function admitOwnSubjectErasure(
+export async function admitErasure(
   source: {
     readonly registry: Registry;
     readonly namespace: NamespaceRef;
@@ -47,47 +48,52 @@ export async function admitOwnSubjectErasure(
   scope: Extract<Scope, { readonly level: 'tenant' }>,
   request: {
     readonly commandId: string;
-    readonly entity: string;
+    /** The entity of an own-subject request; absent for an operator's. */
+    readonly entity?: string;
+    readonly requester: Principal;
     readonly subjectId: string;
     readonly reason: string;
   },
 ): Promise<void> {
   const { registry } = source;
-  const entry = registry.entities.get(request.entity);
-  if (entry === undefined) {
+  const entry = request.entity === undefined ? undefined : registry.entities.get(request.entity);
+  if (request.entity !== undefined && entry === undefined) {
     throw refuseRequest('an own-subject erasure', 'it names no entity');
   }
   const action = registry.actions.get(erasureAction);
   if (action === undefined) throw errors.internal(`the command "${erasureAction}" is missing`);
   const putOff = (kind: string) => {
-    source.log.warn('an own-subject erasure is put off', { commandId: request.commandId, kind });
+    source.log.warn('an erasure is put off', { commandId: request.commandId, kind });
     return errors.unavailable(
       'Something that holds erasures cannot be read; the erasure starts once it can.',
     );
   };
-  try {
-    await source.adapter.unit(
-      source.namespace,
-      scope,
-      (unit) =>
-        checkOwnSubjectErasure(unit, registry, {
-          type: entry.ref,
-          id: canonicalSubject(request.subjectId),
-        }),
-      { readOnly: true },
-    );
-  } catch (cause) {
-    if (!isKeelwerkError(cause) || cause.code !== 'core.request_not_allowed') {
-      throw putOff('ownership');
+  if (entry !== undefined) {
+    try {
+      await source.adapter.unit(
+        source.namespace,
+        scope,
+        (unit) =>
+          checkOwnSubjectErasure(unit, registry, {
+            type: entry.ref,
+            id: canonicalSubject(request.subjectId),
+          }),
+        { readOnly: true },
+      );
+    } catch (cause) {
+      if (!isKeelwerkError(cause) || cause.code !== 'core.request_not_allowed') {
+        throw putOff('ownership');
+      }
+      throw errors.unavailable(
+        'Another row holds this subject; the erasure starts once none does.',
+        { cause },
+      );
     }
-    throw errors.unavailable('Another row holds this subject; the erasure starts once none does.', {
-      cause,
-    });
   }
-  const principal = moduleServicePrincipal(entry.module, {
-    scope: { backend: scope.backendId, tenant: scope.tenantId },
-  });
-  const rules = effectiveRules(registry);
+  const principal = request.requester;
+  // A rule over a selector (a read-only key, say) judges the caller and was applied when the
+  // request was accepted; only a rule that targets the erasure itself holds it.
+  const rules = effectiveRules(registry).filter((rule) => rule.target.kind !== 'selector');
   // The flags a hold reads come from the process's providers, as for any other call of the action:
   // with the declared defaults a hold on a flag would not hold, and the shred cannot be undone.
   let flags: FlagSnapshot;

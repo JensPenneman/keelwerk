@@ -3,10 +3,11 @@ import { kernelCommandIdPrefix } from '../ids/kernel-command-id-prefix.ts';
 import { refuseRequest } from '../interpreter/refuse-request.ts';
 import { type ErasureReason, erasureReasons } from '../ledger/erasure-reasons.ts';
 import type { ErasureRecord } from '../ledger/erasure-record.ts';
+import { principalOfActor } from '../replay/principal-of-actor.ts';
 import type { StoredJob } from '../storage/stored-job.ts';
 import { completeJob } from '../worker/complete-job.ts';
 import type { RunJobContext } from '../worker/run-job.ts';
-import { admitOwnSubjectErasure } from './admit-own-subject-erasure.ts';
+import { admitErasure } from './admit-erasure.ts';
 import { canonicalSubject } from './canonical-subject.ts';
 import { erasureAction } from './erasure-action.ts';
 import { isErasureRecorded } from './is-erasure-recorded.ts';
@@ -21,17 +22,18 @@ const kernelActor = { kind: 'system', id: null, via: 'core.runtime' } as const;
  * worker shredded) completes at once: nothing else is looked at, because the subject's keys may be
  * gone by then. Otherwise the job must hold the accepted receipt of its command id in its tenant
  * (only `acceptAsyncCommand` writes one, after the rules and the ownership check, or the
- * own-subject request of `eraseOwnSubject`): without it, or, for an operator's command, with one that
- * expired before the job ran, the job fails without a retry and the requester asks again. Then it refuses (`not_found`,
+ * own-subject request of `eraseOwnSubject`): without it the job fails without a retry and the
+ * requester asks again; the receipt's expiry is not asked, because an accepted receipt is never
+ * replaced or purged and the job is tried until it starts. Then it refuses (`not_found`,
  * nothing written) a subject that has no key row, no reference, no shredded key and no owned row in
  * the job's tenant (a row that holds no personal value counts), so no answer tells another
- * tenant's subject from an unknown one. The job of an `eraseOwnSubject` request is admitted next
- * (`admitOwnSubjectErasure`): a hold of the rules or another row that holds the subject makes it
- * wait and try again. Otherwise it appends the `ErasureRecord` (requester: the job's causation
- * actor, command id: the job's, subject: the canonical form of the one asked for) to the control
- * store's ledger and then to every ledger sink, and completes the job. A sink that refuses fails
- * the attempt, which is retried; a record appended twice is harmless, as readers keep the first
- * record of a command id. The command's receipt stays `accepted` until the events
+ * tenant's subject from an unknown one. Every job is admitted next (`admitErasure`): a hold of the
+ * rules, or for an `eraseOwnSubject` request another row that holds the subject, makes it wait and
+ * try again, for as long as it is held back. Otherwise it appends the `ErasureRecord` (requester:
+ * the job's causation actor, command id: the job's, subject: the canonical form of the one asked
+ * for) to the control store's ledger and then to every ledger sink, and completes the job. A sink
+ * that refuses fails the attempt, which is retried; a record appended twice is harmless, as readers
+ * keep the first record of a command id. The command's receipt stays `accepted` until the events
  * worker has finished the last step.
  */
 export async function startErasure(
@@ -65,11 +67,7 @@ export async function startErasure(
     async (unit) => {
       const receipt = await unit.receipts.get(commandId);
       return {
-        accepted:
-          receipt?.status === 'accepted' &&
-          receipt.action === erasureAction &&
-          (commandId.startsWith(kernelCommandIdPrefix) ||
-            Temporal.Instant.compare(receipt.expiresAt, now) > 0),
+        accepted: receipt?.status === 'accepted' && receipt.action === erasureAction,
         known:
           (await unit.keys.dataKey(input.subjectId, { create: false })) !== undefined ||
           // A key the worker shredded already still makes the subject known: an attempt that runs
@@ -96,35 +94,41 @@ export async function startErasure(
     );
   }
   if (!known) throw errors.not_found('The subject does not exist.');
-  // The request of a module for the id of its own row (`eraseOwnSubject`) is admitted now, not when
-  // the row ended: a hold or another row that holds the subject makes the job wait. Only a command
-  // id the kernel made carries an entity; an operator's input is checked against the shape.
-  if (input.entity !== undefined) {
-    if (!commandId.startsWith(kernelCommandIdPrefix)) {
-      throw refuseRequest(
-        `the job of "${erasureAction}"`,
-        'an erasure starts only from the accepted command it answers',
-      );
-    }
-    await admitOwnSubjectErasure(
-      {
-        registry: source.registry,
-        namespace: source.namespace,
-        adapter,
-        providers: context.flagProviders ?? [],
-        targeting: context.targeting,
-        log: context.log,
-      },
-      scope,
-      { commandId, entity: input.entity, subjectId: input.subjectId, reason: input.reason },
+  // Every erasure is admitted now, directly before the record: a hold makes the job wait. The
+  // request of a module for the id of its own row (`eraseOwnSubject`) also meets the ownership
+  // check; only a command id the kernel made carries an entity, and an operator's input is checked
+  // against the shape.
+  if (input.entity !== undefined && !commandId.startsWith(kernelCommandIdPrefix)) {
+    throw refuseRequest(
+      `the job of "${erasureAction}"`,
+      'an erasure starts only from the accepted command it answers',
     );
   }
+  const requester = stored.causation.actor ?? kernelActor;
+  await admitErasure(
+    {
+      registry: source.registry,
+      namespace: source.namespace,
+      adapter,
+      providers: context.flagProviders ?? [],
+      targeting: context.targeting,
+      log: context.log,
+    },
+    scope,
+    {
+      commandId,
+      ...(input.entity === undefined ? {} : { entity: input.entity }),
+      requester: principalOfActor(requester, scope),
+      subjectId: input.subjectId,
+      reason: input.reason,
+    },
+  );
   const record: ErasureRecord = {
     type: 'erasure',
     tenantId: scope.tenantId,
     subjectId: canonicalSubject(input.subjectId),
     recordedAt: now.toString(),
-    requester: stored.causation.actor ?? kernelActor,
+    requester,
     reason: input.reason as ErasureReason,
     commandId,
   };

@@ -7961,9 +7961,16 @@ its contribution to the core, under the policy key `eraseSubject`. A rule of the
 grants the erasure of any subject of the tenant; a contributed rule grants it only for a subject the
 contributing module holds a live row of in the tenant (`checkErasureGrant`, `ownsSubject`). A
 contributed rule may also deny (a legal hold): it refuses every new erasure, the operator's
-included, until the platform disables that rule with `policies.disable`. An erasure that was
-accepted before runs to its end, because the rule is judged when the command is accepted; a
-re-check when the job runs belongs to WP-103.
+included, until the platform disables that rule with `policies.disable`. The rule is judged again
+when the job starts, for every erasure, directly before the record in the ledger, which is the
+point of no return: a deny rule in force then, or a flag a rule read that cannot be read, puts the
+job off, and the job of `core.eraseSubject` is retried without an end, whatever the age of its
+accepted receipt, so a held erasure is delayed and never dropped; a hold that comes after the record
+does not stop it. At the start of the job only a deny rule that targets the erasure itself holds
+it: a deny rule written with a selector (the rule that refuses a read-only API key, say) judges the
+caller when the request is accepted and does not hold the job later. What a rule sees of the
+requester is its kind, its id, its resolver and the scope, and no roles and no claims; for a
+request made with an API key the id is the key's, not the person's.
 
 Added 2026-11-12: how an erasure starts. Only `acceptAsyncCommand` starts an erasure, the job needs
 the accepted receipt of its command id, and `core.eraseSubject` is refused as the target of enqueue,
