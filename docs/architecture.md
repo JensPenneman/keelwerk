@@ -3863,6 +3863,29 @@ when a ticket's reference is resolved. These rules keep a module from changing w
 through what it answers or is handed; a module's code runs in the app's process, and they are no
 sandbox against code that attacks the runtime itself.
 
+Amended 2026-11-26 (WP-159): an enricher may refuse: an error it throws ends the resolution as that
+error, for a request, the revalidation of a stream or socket and the job whose stored reference is
+resolved again; a redeemed ticket answers `core.ticket_invalid`, so a ticket tells its caller nothing
+of why. The enricher of `accounts` throws `unauthenticated` for a user whose
+`subjectAs('accounts.profile')` names a deactivated profile, so such a principal is refused from the
+commit of the deactivation, whichever resolver answered it and whatever a job has revoked by then
+(section 17.2.3). Three limits hold. The mark is judged within the tenant that holds the profile
+(profiles are tenant data): a principal that names the profile in another tenant is not judged
+there, and at a scope without a tenant the enricher does nothing, as the `members` enricher does.
+After the erasure of the profile's subject there is no profile left to judge: its sessions and keys
+are erased with it, but an app's own resolver that still answers for the erased subject is served.
+And an archived profile is not seen by a module's load, so a profile that was deactivated (or marked
+through `update`) and then archived on 0.2.0 is not judged while it is archived; an operator
+restores it, and it is refused from then on, or erases it. The mark is final in this version: no
+command clears it, and only `accounts.profile.deactivate` writes it. The rule `frozen` denies
+`deactivate`, `create`, `update` and `archive` (and so the items of a `set` that name them) on a
+profile that is marked, and a creation of a marked row; `restore` stays allowed, because it only
+shows the mark again, and archiving stays denied, because it would hide the mark. The rule `mark`
+forbids the generated writes to change `deactivatedAt` in a profile that is not marked; both bind
+every principal. A command that a module adds to the profile later is outside what the rules name.
+An app that disables one of the two rules takes the finality on itself. Reactivation, if it comes,
+is a later package with its own design.
+
 ### 8.6 Explainability, logging, tests
 
 Every decision returns the matched rule ids and effects; `forbidden` errors carry the reason of
@@ -13219,14 +13242,16 @@ comes with the first second factor, and until then every new password is checked
   response.
 - `auth.logout` revokes the caller's session (the session id is the principal's credential
   reference) and clears the cookie. `auth.session.revoke` revokes one of the caller's sessions;
-  `auth.revokeSubject` revokes every credential of a subject in the deactivating unit and sets the
+  `auth.revokeSubject` revokes every credential of a subject and sets the
   keyed timer `revokeSessions:<subject>`, whose `auth.revokeSessions` revokes the subject's sessions
-  a page at a time (amended 2026-11-18); it is invoked by auth's own reactions (a deactivated
-  profile, an erased subject) under `auth.system`. `auth.revokeSubject` and `auth.revokeSessions` are
+  a page at a time (amended 2026-11-18); auth's reaction to a deactivated profile invokes it under
+  `auth.system`, and it is an asynchronous command, so the deactivating unit enqueues it and writes
+  no credential (amended 2026-11-26, below). `auth.revokeSubject` and `auth.revokeSessions` are
   internal commands (section 7.3): no caller from outside reaches them.
 - Revocation reaches live connections through revalidation: the session resolver names the events
   it depends on (the session's own change records, its credential's `revoked` and erased records
-  (amended 2026-11-12, section 17.2.4), the profile's `deactivated`, membership changes), and a
+  (amended 2026-11-12, section 17.2.4), the change records of the profile of its credential,
+  membership changes), and a
   connection whose session they touch is revalidated at once and closed when it fails (section
   16.3.4).
 
@@ -13243,6 +13268,37 @@ Added 2026-11-18: the extension job extends from the instant of the request (`se
 an expiry backwards, and decides nothing for an input with no `seenAt`. A pending 0.1.0 extension
 row runs once, extends nothing for a live session, and fails as `core.unauthenticated` (a failed
 job, no dead letter) for a session that no longer resolves.
+
+Added 2026-11-26 (WP-159): a deactivation writes the profile and nothing else of the person.
+`api-keys.revokeSubject` is an asynchronous command as well, so no write to a credential, a key or
+a session can make the deactivating unit repeat. What ends the person's standing is the profile
+itself: the enricher of `accounts` refuses a principal whose `subjectAs('accounts.profile')`
+names a deactivated profile as `unauthenticated` (section 8.5), from the commit of the deactivation
+and before any job has run, within the tenant that holds the profile and for a profile that is
+neither archived nor erased (section 8.5), and the session and key resolvers name the profile's row among what an
+open stream depends on, so the stream ends at that commit. The refusal is the guarantee and the jobs
+only clean up: the rows are marked revoked when the jobs have run (a runtime without job workers
+never marks them), and a key made across the deactivation, or a row a failed job left, stands for
+nobody, because the mark is final (section 8.5) and nothing hides or clears it (a profile archived
+on 0.2.0 after its deactivation is judged again once it is restored). The revocation jobs run under
+the module's own service principal (`auth.system`, `api-keys.system`), no longer under the system
+principal with a reason. Work that the
+person's earlier commands scheduled as a timer or a reaction runs under the module's own service
+principal, not the person's, and still runs.
+The bounds are two. A login made after the deactivation commits and before its job revokes the
+credential opens a session that never resolves. And the person's principal is judged once for a
+request, and a batch is one request: a command whose request was admitted before the deactivation
+committed may commit after it, and so may every member of a batch opened before it, for as long as
+the request runs, which `timeoutMs` bounds where an action declares it. The next request of the
+person is refused. A principal of an app's own resolver that names the profile is refused at every
+request from the commit, but its open stream does not end then: the resolver names no row of the
+profile among what the stream depends on, and the stream ends when its session is next checked, by
+the live hub's periodic check (`revalidateMs`, 60 seconds by default). Between the deactivation and the end
+of the revocation job a request with a right credential of that profile is refused by the enricher,
+not by the resolver: its answer is the kernel's `The credentials were not accepted.`, which names no
+reason, and the resolver's own refusal (for a key, `The API key was not accepted.`) comes only after
+the job has run. The two answers can be told apart, so the holder can tell that the credential was
+right; the holder is served nothing.
 
 #### 17.2.4 The resolver's read path
 

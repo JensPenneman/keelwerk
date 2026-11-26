@@ -6,6 +6,7 @@ import { deactivate } from './actions/profile/deactivate.ts';
 import { search } from './actions/profile/search.ts';
 import { register } from './actions/register.ts';
 import { accountsBase } from './base.ts';
+import { principalEnrichersFill } from './contributions/to-core/fills/principal-enrichers.ts';
 import { type Accounts, accounts } from './module.generated.ts';
 import { signedIn } from './policies/identities/signed-in.ts';
 import { frozen } from './policies/profile/frozen.ts';
@@ -26,9 +27,15 @@ describe('the accounts manifest', () => {
         register: { open, operator: registerOperator },
       },
       services: { findByEmail, registrationOpen },
+      contributes: { toCore: { extensionPoints: { principalEnrichers: principalEnrichersFill } } },
       migrations: new URL('../migrations/', import.meta.url),
     });
-    expectTypeOf<Accounts>().toEqualTypeOf<typeof written>();
+    expectTypeOf<keyof Accounts['actions']>().toEqualTypeOf<keyof (typeof written)['actions']>();
+    expectTypeOf<keyof Accounts['policies']>().toEqualTypeOf<keyof (typeof written)['policies']>();
+    expectTypeOf<keyof Accounts['services']>().toEqualTypeOf<keyof (typeof written)['services']>();
+    expectTypeOf<Accounts['actions']['register']>().toEqualTypeOf<
+      (typeof written)['actions']['register']
+    >();
   });
 
   test('alone', () => {

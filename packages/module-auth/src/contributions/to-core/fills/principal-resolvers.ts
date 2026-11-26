@@ -22,6 +22,12 @@ import { sessionRefCacheKey } from '../../../lib/session-ref-cache-key.ts';
 import { sessionResolverId } from '../../../lib/session-resolver-id.ts';
 import { toCore } from '../contribution.ts';
 
+/** The profile row of a credential that holds one: an open stream ends at the person's deactivation (8.5). */
+const profileDrop = (credential: object): { entity: string; id: string }[] => {
+  const id: unknown = Reflect.get(credential, 'profileId');
+  return typeof id === 'string' ? [{ entity: 'accounts.profile', id }] : [];
+};
+
 const sessionScheme = { scheme: 'cookie', name: sessionCookieName } as const;
 
 /** The session resolver of 17.2.4: a cookie or a bearer token to a user principal, or to nothing. */
@@ -101,6 +107,7 @@ const sessionResolverFill = defineFill(within(authBase, toCore), 'principalResol
           drops: [
             { entity: 'auth.session', id: row.id },
             { entity: 'auth.credential', id: row.credentialId },
+            ...profileDrop(credential),
           ],
         },
       };
@@ -120,6 +127,7 @@ const sessionResolverFill = defineFill(within(authBase, toCore), 'principalResol
           drops: [
             { entity: 'auth.session', id: row.id },
             { entity: 'auth.credential', id: row.credentialId },
+            ...profileDrop(credential),
           ],
         },
       };

@@ -25,7 +25,8 @@ function watchedUnit(unit: Unit, watch: StoreWatch, readOnly: boolean): Unit {
     jobs: {
       ...unit.jobs,
       enqueue: async (spec) => {
-        const jobId = await unit.jobs.enqueue(spec);
+        const held = 'action' in spec.run && watch.deferred.has(spec.run.action);
+        const jobId = await unit.jobs.enqueue(held ? { ...spec, runAt: neverDue } : spec);
         watch.enqueued.push({ jobId, principalId: spec.principal.principalId, spec });
         return jobId;
       },
@@ -47,6 +48,9 @@ interface WatchedAttempt {
   readonly jobId: string;
   readonly outcome: JobOutcome;
 }
+
+/** The instant of a job that waits: no test clock reaches it, and a test that wants the job moves the clock there. */
+export const neverDue = Temporal.Instant.from('9999-01-01T00:00:00Z');
 
 /** What the watch counts of the key store, in the read-only units the principal resolvers run in. */
 export interface KeyStoreCalls {
@@ -73,6 +77,8 @@ export interface StoreWatch {
   }[];
   /** The only worker whose takes are answered while the takes are paused, else undefined. */
   paused: string | undefined;
+  /** The actions whose jobs are enqueued due at `neverDue`, so that they wait until the clock is moved there. */
+  readonly deferred: Set<string>;
   /** Zeroes the counts. */
   startCounting(): void;
 }
@@ -89,6 +95,7 @@ export function watchStore(adapter: DataAdapter): StoreWatch {
     attempts: [],
     enqueued: [],
     paused: undefined,
+    deferred: new Set(),
     startCounting: () => {
       watch.calls.keyById = 0;
       watch.calls.openValue = 0;

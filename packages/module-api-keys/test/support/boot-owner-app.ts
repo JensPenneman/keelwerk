@@ -8,6 +8,7 @@ import {
   startTestRuntime,
   type TestPrincipal,
   type TestRuntime,
+  type TestRuntimeOptions,
 } from '@keelwerk/testing';
 import { library } from '@keelwerk/testing/fixtures';
 import { apiKeys } from '../../src/module.generated.ts';
@@ -56,7 +57,10 @@ export interface BootedOwnerApp {
 }
 
 /** Boots the app with the tenant acme, accounts open to self-registration, on a clock the test moves. */
-export async function bootOwnerApp(kind: KeysStorage): Promise<BootedOwnerApp> {
+export async function bootOwnerApp(
+  kind: KeysStorage,
+  external?: TestRuntimeOptions['external'],
+): Promise<BootedOwnerApp> {
   const runtime = await startTestRuntime(ownerApp, {
     adapter: kind,
     tenants: ['acme'],
@@ -64,6 +68,7 @@ export async function bootOwnerApp(kind: KeysStorage): Promise<BootedOwnerApp> {
     workers: true,
     eventWorkers: [consumers({ consumers: [reactionDispatcher()], runs: ['asyncReactions'] })],
     clock: { now: () => bootedAt },
+    ...(external === undefined ? {} : { external }),
     config: { accounts: { allowSelfRegistration: true } },
   });
   const nextAddress = clientAddresses();
@@ -181,4 +186,29 @@ export function liveKeyCount(app: BootedOwnerApp): Promise<number> {
   return run((unit) =>
     unit.rows.count(descriptor, { op: 'isNull', field: 'revokedAt', value: true }),
   );
+}
+
+/** Writes values into the profile's row in the store, with no event and no job: what 0.2.0 allowed through `update`, or left behind by an archive. */
+export function patchProfileInStore(
+  app: BootedOwnerApp,
+  profileId: string,
+  values: Record<string, unknown>,
+): Promise<void> {
+  const { runtime } = app;
+  const descriptor = runtime.app.registry.entities.get('accounts.profile')?.descriptor;
+  const tenant = runtime.tenants.acme;
+  if (descriptor === undefined || tenant === undefined) throw new Error('no accounts.profile');
+  const scope = { level: 'tenant', backendId: runtime.backendId, tenantId: tenant.id } as const;
+  return runtime.sealed.unit(runtime.namespace, scope, async (unit) => {
+    const { rows } = await unit.rows.find(descriptor, {
+      where: { op: 'eq', field: 'id', value: profileId },
+      includeArchived: true,
+    } as never);
+    const row = rows[0];
+    if (row === undefined) throw new Error('no profile row');
+    const version = Number(row.version);
+    await unit.rows.update(descriptor, [
+      { id: profileId, expectedVersion: version, values: { ...row, ...values, version } },
+    ]);
+  });
 }

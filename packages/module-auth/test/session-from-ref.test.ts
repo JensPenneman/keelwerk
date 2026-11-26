@@ -82,7 +82,7 @@ function answer(
 }
 
 describe('the session resolver re-resolves a stored reference (S-122)', () => {
-  test('a live session answers the principal of the sign-in, with the cache dropped by both rows', () => {
+  test('a live session answers the principal of the sign-in, with the cache dropped by its rows and by the profile', () => {
     expect(answer(liveSession, liveCredential)).toMatchObject({
       principal: {
         kind: 'user',
@@ -97,6 +97,7 @@ describe('the session resolver re-resolves a stored reference (S-122)', () => {
         drops: [
           { entity: 'auth.session', id: sessionId },
           { entity: 'auth.credential', id: credentialId },
+          { entity: 'accounts.profile', id: 'profile-1' },
         ],
       },
     });

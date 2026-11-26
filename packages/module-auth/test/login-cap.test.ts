@@ -1,11 +1,7 @@
-import { KeelwerkError, type Unit } from '@keelwerk/core';
-import { testOperator } from '@keelwerk/testing';
 import { describe, expect, onTestFinished, test } from 'vitest';
 import { ada, asBearer, codeOf, signIn } from './support/auth-calls.ts';
 import type { StorageKind } from './support/boot-auth.ts';
 import { type BootedBoth, bootBoth } from './support/boot-both.ts';
-
-const operator = testOperator();
 
 describe.each(['memory', 'pglite'] as const)(
   'the cap of sessions per credential on %s',
@@ -100,70 +96,6 @@ describe.each(['memory', 'pglite'] as const)(
       expect(await credentialEvents(both)).toEqual(events);
       both.clock.advance({ minutes: 2 });
       expect((await login(both)).ok).toBe(true);
-    });
-
-    test('a deactivation succeeds when a login commits between the unit that deactivates reads and commits', {
-      timeout,
-    }, async () => {
-      const both = await boot();
-      await signIn(both);
-      const profileId = String((await both.rows('accounts.profile'))[0]?.id);
-      const target = both.runtime.adapter as { unit: typeof both.runtime.adapter.unit };
-      const inner = target.unit.bind(both.runtime.adapter);
-      let conflicts = 0;
-      // The first unit that revokes the credential finds the stream moved: a login committed after
-      // its read. The login is committed here, once that unit has rolled back, and the kernel
-      // repeats the deactivation, which reads the credential again.
-      const doomed = { yes: false };
-      const guarded = (unit: Unit): Unit => ({
-        ...unit,
-        events: {
-          ...unit.events,
-          append: async (batch) => {
-            const revokes = batch.some(
-              (one) =>
-                one.stream.type === 'auth.credential' &&
-                one.events.some((event) => event.name === 'revoked'),
-            );
-            if (revokes && conflicts === 0) {
-              conflicts += 1;
-              doomed.yes = true;
-              throw new KeelwerkError({
-                kind: 'conflict',
-                code: 'core.version_mismatch',
-                message: 'The stream moved.',
-              });
-            }
-            return await unit.events.append(batch);
-          },
-        },
-        nested: (run, nestedOptions) => unit.nested((one) => run(guarded(one)), nestedOptions),
-      });
-      target.unit = async (namespace, scope, fn, options) => {
-        try {
-          return await inner(namespace, scope, (unit) => fn(guarded(unit)), options);
-        } catch (error) {
-          if (doomed.yes) {
-            doomed.yes = false;
-            expect((await login(both)).ok).toBe(true);
-          }
-          throw error;
-        }
-      };
-      const done = await both
-        .client(operator)
-        .attempt('accounts.profile.deactivate', { id: profileId as never, reason: 'left' });
-      expect(done.ok ? undefined : done.error).toBeUndefined();
-      expect(conflicts).toBe(1);
-      const rows = await both.rows('auth.credential');
-      expect(rows.every((row) => row.revokedAt !== undefined)).toBe(true);
-      expect(
-        (await credentialEvents(both)).filter((name) => name.endsWith('loggedIn')),
-      ).toHaveLength(2);
-      await both.settle();
-      expect((await both.rows('auth.session')).every((row) => row.revokedAt !== undefined)).toBe(
-        true,
-      );
     });
   },
 );

@@ -4,7 +4,7 @@ import { profile } from '../../entities/profile.ts';
 
 export const frozen = defineRule(accountsBase, profile, {
   effect: 'deny',
-  actions: ['deactivate', 'update'],
+  actions: ['create', 'deactivate', 'update', 'archive'],
   where: () => ({ deactivatedAt: { isNull: false } }),
   reason: 'A deactivated profile is read-only.',
 });

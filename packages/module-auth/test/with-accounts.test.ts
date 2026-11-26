@@ -123,7 +123,7 @@ describe.each(['memory', 'pglite'] as const)('auth with accounts on %s', (kind: 
     expect(after.map((row) => row.displayName).toSorted()).toEqual(['Ada L.', 'Grace']);
   });
 
-  test('deactivating a profile revokes its credentials in the same unit and its sessions in the job that follows', {
+  test('deactivating a profile revokes its credentials and its sessions in the jobs that follow', {
     timeout,
   }, async () => {
     const both = await boot();
@@ -136,17 +136,17 @@ describe.each(['memory', 'pglite'] as const)('auth with accounts on %s', (kind: 
       reason: 'left',
     });
     expect(done).toBeDefined();
-    const credentials = await both.rows('auth.credential');
-    expect(credentials.every((row) => row.revokedAt !== null && row.revokedAt !== undefined)).toBe(
-      true,
-    );
-    // The sessions are dead at once, and their rows are revoked by the follow-up job.
+    // The sessions are dead at once, and their rows and the credentials are revoked by the jobs.
     for (const session of [first, second]) {
       expect(codeOf(await whoami(both, asBearer(session.sessionToken)))).toBe(
         'core.unauthenticated',
       );
     }
     await both.settle();
+    const credentials = await both.rows('auth.credential');
+    expect(credentials.every((row) => row.revokedAt !== null && row.revokedAt !== undefined)).toBe(
+      true,
+    );
     const sessions = await both.rows('auth.session');
     expect(sessions).toHaveLength(2);
     expect(sessions.every((row) => row.revokedAt !== null && row.revokedAt !== undefined)).toBe(

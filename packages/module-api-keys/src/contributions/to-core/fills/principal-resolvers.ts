@@ -12,6 +12,18 @@ import { lastUseDue } from '../../../lib/last-use-due.ts';
 import { presentedKey } from '../../../lib/presented-key.ts';
 import { toCore } from '../contribution.ts';
 
+/** The key's row, and the profile of its owner: an open stream ends at the owner's deactivation (8.5). */
+const keyDrops = (row: {
+  readonly id: string;
+  readonly subject: string;
+  readonly subjectRef?: string | undefined;
+}) => [
+  { entity: 'api-keys.key', id: row.id },
+  ...(row.subjectRef === 'accounts.profile'
+    ? [{ entity: 'accounts.profile', id: row.subject }]
+    : []),
+];
+
 const description = 'An API key: a bearer token that stands for the person who created it.';
 
 /**
@@ -75,7 +87,7 @@ const keyResolverFill = defineFill(within(apiKeysBase, toCore), 'principalResolv
       ];
       return {
         principal: keyPrincipal(row, scope, target ?? row.apiVersion),
-        cache: { key: keyCacheKey(token), entity: 'api-keys.key', id: row.id },
+        cache: { key: keyCacheKey(token), drops: keyDrops(row) },
         effects,
       };
     },
@@ -97,7 +109,7 @@ const keyResolverFill = defineFill(within(apiKeysBase, toCore), 'principalResolv
       }
       return {
         principal: keyPrincipal(row, scope, row.apiVersion),
-        cache: { key: `api-keys.key:ref:${row.id}`, entity: 'api-keys.key', id: row.id },
+        cache: { key: `api-keys.key:ref:${row.id}`, drops: keyDrops(row) },
       };
     },
   },

@@ -1,13 +1,20 @@
 import { defineModule, type ModuleType } from '@keelwerk/core';
 import { addBookAt } from './add-book-at.ts';
 import { laterBase } from './base.ts';
-import { laterCallers } from './callers.ts';
+import { laterCallers, pingAtCallers, pingRunners } from './callers.ts';
 import { cancelCallers } from './cancel-callers.ts';
 import { cancelTimerKey } from './cancel-timer-key.ts';
+import { ping } from './ping.ts';
+import { pingAt } from './ping-at.ts';
 
 const laterDef = defineModule(laterBase, {
-  actions: { addBookAt, cancelTimerKey },
-  policies: { addBookAt: { laterCallers }, cancelTimerKey: { cancelCallers } },
+  actions: { addBookAt, cancelTimerKey, ping, pingAt },
+  policies: {
+    addBookAt: { laterCallers },
+    cancelTimerKey: { cancelCallers },
+    ping: { pingRunners },
+    pingAt: { pingAtCallers },
+  },
 });
 
 export interface Later extends ModuleType<typeof laterDef> {}

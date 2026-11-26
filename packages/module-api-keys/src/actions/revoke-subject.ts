@@ -4,20 +4,20 @@ import { apiKeysBase } from '../base.ts';
 const pageSize = 1000;
 
 /**
- * Revokes every live key of a subject; internal, invoked by the module's own reaction to a deactivation under
- * `api-keys.system`, so no caller reaches it from outside. Queued work stored under a revoked key
+ * Revokes every live key of a subject; internal and asynchronous: the module's own reaction to a
+ * deactivation enqueues it under `api-keys.system`, so the deactivating unit writes no key and no
+ * caller reaches it from outside. Queued work stored under a revoked key
  * ends at its next re-resolution.
  */
 const revokeSubjectDef = defineCommand(apiKeysBase, {
   input: shape({ subject: field.subject(), reason: field.string() }),
   internal: true,
-  execution: 'sync',
+  execution: 'async',
   *decide(input, ctx) {
     const at = ctx.clock.now();
     const writes = [];
     let after: string | undefined;
-    // Pages by id, because the writes land only when the unit ends: a person who holds many keys
-    // must not be able to veto their own deactivation, and none may stay live.
+    // Pages by id, because the writes land only when the unit ends and none may stay live.
     for (;;) {
       const keys = yield* ctx.load.apiKeys.key.many({
         where: {

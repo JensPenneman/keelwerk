@@ -1,7 +1,7 @@
 import type { Unit } from '@keelwerk/core';
 import { testOperator } from '@keelwerk/testing';
 import { describe, expect, onTestFinished, test } from 'vitest';
-import { ada, signIn } from './support/auth-calls.ts';
+import { ada, asCookie, signIn } from './support/auth-calls.ts';
 import type { StorageKind } from './support/boot-auth.ts';
 import { bootBoth } from './support/boot-both.ts';
 import { holdJobs } from './support/hold-jobs.ts';
@@ -60,13 +60,12 @@ describe.each(['memory', 'pglite'] as const)('revokeSubject on %s', (kind: Stora
       .client(operator)
       .attempt('accounts.profile.deactivate', { id: profileId as never, reason: 'left' });
     expect(done.ok ? undefined : done.error).toBeUndefined();
-    // The credentials go in the deactivating unit; the sessions follow, a page at a time, in jobs.
-    expect((await live()).credentials).toBe(0);
+    // The credentials and the sessions are revoked by jobs, a page at a time.
     await both.settle();
     expect(await live()).toEqual({ sessions: 0, credentials: 0 });
   });
 
-  test('the deactivating unit reads and writes no session row, so a session in use cannot fail it', {
+  test('the deactivating unit writes no credential and no session row, so neither in use can fail it', {
     timeout: kind === 'pglite' ? 120_000 : 30_000,
   }, async () => {
     const both = await bootBoth(kind);
@@ -76,8 +75,8 @@ describe.each(['memory', 'pglite'] as const)('revokeSubject on %s', (kind: Stora
     const session = await signIn(both);
     const profileId = String((await both.rows('accounts.profile'))[0]?.id);
     const held = holdJobs(both.runtime.adapter);
-    // Every row the units of the deactivation touch, by entity: a session row among them would be
-    // one that a request using the session (its extension) can change before the unit commits.
+    // Every row write the units of the deactivation make, by entity: a credential or session row
+    // among them would be one that a login or a request using the session can change before the unit commits.
     const touched = new Set<string>();
     const watched = (unit: Unit): Unit => ({
       ...unit,
@@ -100,22 +99,74 @@ describe.each(['memory', 'pglite'] as const)('revokeSubject on %s', (kind: Stora
       .client(operator)
       .attempt('accounts.profile.deactivate', { id: profileId as never, reason: 'left' });
     expect(done.ok ? undefined : done.error).toBeUndefined();
-    expect([...touched].some((call) => call.endsWith(' auth.credential'))).toBe(true);
-    expect([...touched].filter((call) => call.endsWith(' auth.session'))).toEqual([]);
+    expect(touched.has('update accounts.profile')).toBe(true);
+    expect([...touched].filter((call) => /^(insert|update|purge) auth\./.test(call))).toEqual([]);
     // The session is dead at once, though its row is still to be revoked.
-    const rows = await both.rows('auth.session');
-    expect(rows.every((row) => row.revokedAt === undefined)).toBe(true);
+    for (const entity of ['auth.session', 'auth.credential']) {
+      expect((await both.rows(entity)).every((row) => row.revokedAt === undefined)).toBe(true);
+    }
     const whoami = await both.request(
       'auth.whoami',
       {},
       { headers: { authorization: `Bearer ${session.sessionToken}` } },
     );
-    expect(whoami.ok).toBe(false);
+    // The kernel's own text, which names no reason; the same credential on a cookie is refused alike.
+    expect(whoami.ok ? undefined : whoami.error).toMatchObject({
+      kind: 'unauthenticated',
+      message: 'The credentials were not accepted.',
+    });
+    const cookie = await both.request(
+      'auth.whoami',
+      {},
+      { headers: asCookie(session.sessionToken) },
+    );
+    expect(cookie.ok ? undefined : cookie.error.kind).toBe('unauthenticated');
     // The follow-up job revokes the rows when it runs.
     held.release();
     await both.settle();
+    for (const entity of ['auth.session', 'auth.credential']) {
+      expect((await both.rows(entity)).every((row) => row.revokedAt !== undefined)).toBe(true);
+    }
+    const afterJob = await both.request(
+      'auth.whoami',
+      {},
+      { headers: asCookie(session.sessionToken) },
+    );
+    expect(afterJob.ok ? undefined : afterJob.error.kind).toBe('unauthenticated');
+  });
+
+  test('a login between the deactivation and its revocation job opens a session that never resolves, and the credential is revoked once the job has run', {
+    timeout: kind === 'pglite' ? 120_000 : 30_000,
+  }, async () => {
+    const both = await bootBoth(kind);
+    onTestFinished(() => both.runtime.stop());
+    const signed = await both.request('auth.signUp', ada);
+    if (!signed.ok) throw signed.error;
+    const profileId = String((await both.rows('accounts.profile'))[0]?.id);
+    const held = holdJobs(both.runtime.adapter);
+    const done = await both
+      .client(operator)
+      .attempt('accounts.profile.deactivate', { id: profileId as never, reason: 'left' });
+    expect(done.ok ? undefined : done.error).toBeUndefined();
+    // The credential is not revoked yet, so the login is accepted.
+    const late = await both.request('auth.login', ada);
+    expect(late.ok).toBe(true);
+    const { sessionToken } = (late.ok ? late.value : {}) as { sessionToken: string };
+    const whoami = await both.request(
+      'auth.whoami',
+      {},
+      { headers: { authorization: `Bearer ${sessionToken}` } },
+    );
+    expect(whoami.ok ? undefined : whoami.error.kind).toBe('unauthenticated');
+    held.release();
+    await both.settle();
+    expect((await both.rows('auth.credential')).every((row) => row.revokedAt !== undefined)).toBe(
+      true,
+    );
     expect((await both.rows('auth.session')).every((row) => row.revokedAt !== undefined)).toBe(
       true,
     );
+    const again = await both.request('auth.login', ada);
+    expect(again.ok).toBe(false);
   });
 });

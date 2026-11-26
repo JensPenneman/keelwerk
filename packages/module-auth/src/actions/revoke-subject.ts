@@ -5,26 +5,17 @@ import { revokeSessions } from './revoke-sessions.ts';
 const pageSize = 1000;
 
 /**
- * Revokes every credential of a subject in the deactivating unit and sets the keyed timer that
- * revokes their sessions page by page (`revokeSessions`); internal, invoked by auth's own reactions
- * under `auth.system` (17.2.3). The credentials are read a page at a time by id until a short page. The
- * unit can be raced: every login and every password change appends to the credential's stream, and
- * a step that commits between this unit's read and its commit makes the unit repeat on a version
- * conflict (the kernel repeats it three times). What bounds the race is the cap of
- * `successfulLoginsPerMinute` sessions per credential per minute, which login and change of password
- * check before they write: a principal who holds the password can make the unit repeat only that
- * often, and once the cap is used up nothing more commits, so a repeat of the deactivation succeeds.
- * A form that cannot be raced at all needs a record of its own that the deactivation writes and
- * every check reads. The sessions are not touched here: a person who holds thousands of them and
- * uses them all the time changes the rows under a unit that rewrites them, and the unit fails on a
- * version check, so they would veto their own deactivation. Their sessions are dead at once all the
- * same, since `resolve` and `fromRef` judge a session by its credential, and the open streams of the
- * session end with it (`dependsOn`).
+ * Revokes every credential of a subject and sets the keyed timer that revokes their sessions page
+ * by page (`revokeSessions`); internal and asynchronous: auth's reaction to a deactivation enqueues
+ * it under `auth.system` (17.2.3), so the deactivating unit writes no credential and a login or a
+ * change of password cannot make it repeat. The credentials are read a page at a time by id until a
+ * short page. The person is refused from the deactivation's commit all the same, by the enricher of
+ * accounts, and the open streams of their sessions end there.
  */
 const revokeSubjectDef = defineCommand(authBase, {
   input: shape({ subject: field.subject(), reason: field.string() }),
   internal: true,
-  execution: 'sync',
+  execution: 'async',
   *decide(input, ctx) {
     const at = ctx.clock.now();
     const writes = [];

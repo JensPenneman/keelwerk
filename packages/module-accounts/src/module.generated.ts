@@ -5,8 +5,10 @@ import { deactivate } from './actions/profile/deactivate.ts';
 import { search } from './actions/profile/search.ts';
 import { register } from './actions/register.ts';
 import { accountsBase } from './base.ts';
+import { principalEnrichersFill } from './contributions/to-core/fills/principal-enrichers.ts';
 import { signedIn } from './policies/identities/signed-in.ts';
 import { frozen } from './policies/profile/frozen.ts';
+import { mark } from './policies/profile/mark.ts';
 import { operator as profileOperator } from './policies/profile/operator.ts';
 import { open } from './policies/register/open.ts';
 import { operator as registerOperator } from './policies/register/operator.ts';
@@ -18,10 +20,11 @@ const accountsDef = defineModule(accountsBase, {
   entityActions: { profile: { deactivate, search } },
   policies: {
     identities: { signedIn },
-    profile: { frozen, operator: profileOperator },
+    profile: { frozen, mark, operator: profileOperator },
     register: { open, operator: registerOperator },
   },
   services: { findByEmail, registrationOpen },
+  contributes: { toCore: { extensionPoints: { principalEnrichers: principalEnrichersFill } } },
   migrations: new URL('../migrations/', import.meta.url),
 });
 
