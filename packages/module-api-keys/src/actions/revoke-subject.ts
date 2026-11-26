@@ -4,12 +4,13 @@ import { apiKeysBase } from '../base.ts';
 const pageSize = 1000;
 
 /**
- * Revokes every live key of a subject; invoked by the module's own reaction to a deactivation under
+ * Revokes every live key of a subject; internal, invoked by the module's own reaction to a deactivation under
  * `api-keys.system`, so no caller reaches it from outside. Queued work stored under a revoked key
  * ends at its next re-resolution.
  */
 const revokeSubjectDef = defineCommand(apiKeysBase, {
   input: shape({ subject: field.subject(), reason: field.string() }),
+  internal: true,
   execution: 'sync',
   *decide(input, ctx) {
     const at = ctx.clock.now();

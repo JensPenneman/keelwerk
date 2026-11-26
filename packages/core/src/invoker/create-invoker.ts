@@ -28,7 +28,7 @@ import { admit } from './stages/admit.ts';
 import { authorize } from './stages/authorize.ts';
 import { complete } from './stages/complete.ts';
 import { execute } from './stages/execute.ts';
-import { locate } from './stages/locate.ts';
+import { locateVisible } from './stages/locate-visible.ts';
 import { prepare } from './stages/prepare.ts';
 import { relationsAfter } from './stages/relations-after.ts';
 import { shape as shapeOutput } from './stages/shape.ts';
@@ -90,7 +90,7 @@ async function run(
       ? reactionJobAction(registry, inv.action, scope, session.apiVersion)
       : inv.carrier.job?.hook === true
         ? hookJobAction(registry, inv.action, scope, session.apiVersion)
-        : locate(registry, inv.action, scope, translation);
+        : locateVisible(registry, inv.action, scope, translation, inv.carrier.job !== undefined);
   state.action = action;
   const log = logOf(action.ref);
   state.log = log;

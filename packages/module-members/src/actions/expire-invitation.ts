@@ -3,7 +3,7 @@ import { membersBase } from '../base.ts';
 
 /**
  * Marks a pending invitation expired once its time has come. The timer that `issueInvitation` sets
- * runs it as the module's own service principal; `settleEndedInvitation` then drops the address and
+ * runs it as the module's own service principal (the command is internal); `settleEndedInvitation` then drops the address and
  * erases the invitation's id as a subject. It is idempotent: an invitation that is gone or no
  * longer pending changes nothing, because `accept` checks the expiry itself and this only settles
  * the stored status. A pending invitation that is not due yet (the node that decides runs a few
@@ -13,6 +13,7 @@ import { membersBase } from '../base.ts';
 const expireInvitationDef = defineCommand(membersBase, {
   input: shape({ invitationId: field.ref.own('invitation') }),
   principal: 'service',
+  internal: true,
   execution: 'sync',
   *decide(input, ctx) {
     const row = yield* ctx.load.members.invitation.byId(input.invitationId);

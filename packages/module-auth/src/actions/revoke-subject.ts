@@ -6,8 +6,8 @@ const pageSize = 1000;
 
 /**
  * Revokes every credential of a subject in the deactivating unit and sets the keyed timer that
- * revokes their sessions page by page (`revokeSessions`); invoked by auth's own reactions under
- * `auth.system` (17.2.3). The credentials are read a page at a time by id until a short page. The
+ * revokes their sessions page by page (`revokeSessions`); internal, invoked by auth's own reactions
+ * under `auth.system` (17.2.3). The credentials are read a page at a time by id until a short page. The
  * unit can be raced: every login and every password change appends to the credential's stream, and
  * a step that commits between this unit's read and its commit makes the unit repeat on a version
  * conflict (the kernel repeats it three times). What bounds the race is the cap of
@@ -23,6 +23,7 @@ const pageSize = 1000;
  */
 const revokeSubjectDef = defineCommand(authBase, {
   input: shape({ subject: field.subject(), reason: field.string() }),
+  internal: true,
   execution: 'sync',
   *decide(input, ctx) {
     const at = ctx.clock.now();

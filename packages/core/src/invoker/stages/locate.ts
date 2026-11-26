@@ -4,6 +4,7 @@ import type { ActionEntry } from '../../registry/action-entry.ts';
 import type { Registry } from '../../registry/registry.ts';
 import type { Scope } from '../../storage/scope.ts';
 import { acceptedScopeLevels } from './accepted-scope-levels.ts';
+import { unknownAction } from './unknown-action.ts';
 
 /**
  * `locate` (section 9.2): the action in the app's registry. `not_implemented` when the app lacks
@@ -22,13 +23,7 @@ export function locate(
   const action = renamedAway
     ? undefined
     : registry.actions.get(translation?.headRefs.get(ref) ?? ref);
-  if (action === undefined) {
-    throw new KeelwerkError({
-      kind: 'not_implemented',
-      code: 'core.not_implemented',
-      message: `"${ref}" is not an action of this app.`,
-    });
-  }
+  if (action === undefined) throw unknownAction(ref);
   if (!acceptedScopeLevels[action.scope].includes(scope.level)) {
     throw new KeelwerkError({
       kind: 'forbidden',

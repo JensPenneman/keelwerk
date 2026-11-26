@@ -1533,6 +1533,8 @@ core's suite (the cases above, and one each for the checks they do not cover):
 | `invalidActionName`, `invalidRelationName`, `invalidEventName` | `defineApp` | an action, relation or event name does not match `[a-z][a-zA-Z0-9]*` (section 5.1) |
 | `columnCollisions`, `tableCollisions` | `defineApp` | two fields, or a field and a system or framework column, share a column, or two entities share a table (section 14.4.2) |
 | `offlineCommands` | `defineApp` | an `offline: true` command is not synchronous with `auth: 'policy'`, or declares `prepare` (section 7.3) |
+| `internalCommands` | `defineApp` | an `internal` action is not a command, is public or is offline, or its `internal` is neither absent nor `true` (section 7.3) |
+| `unknownAuth` | `defineApp` | an action's `auth` is neither `'policy'` nor `{ public: true }` (section 7.3) |
 | `prepareNeedsSyncExecution` | `defineApp` | a command with `prepare` does not run with `execution: 'sync'` (section 7.9.4) |
 | `readRuleFields` | `defineApp` | a rule naming read actions lists a field that is not maskable or not a field of the entity (section 8.1) |
 | `unknownExtensionPoints`, `singleExtensionPointFillers` | `defineApp` | a fill names a point nobody declares, or a `single` point has several fillers (section 5.5) |
@@ -2334,6 +2336,7 @@ interface ActionOptions<I, O> {
   idempotent?: boolean                          // queries: always true; commands: default false
   idempotency?: { window: string }              // receipt retention as an ISO 8601 duration; default 'PT24H'
   offline?: boolean                             // commands only: may be authored offline (section 15.3.5); default false
+  internal?: true                               // commands only: on no surface and no transport; jobs and effects of any module run it as before, under the gate
   page?: PageSpec                               // queries returning pages: sortable fields, default size, max size
   timeoutMs?: number
   hints?: Partial<TransportHints>               // naming and carriage per transport; never behaviour
@@ -3932,7 +3935,7 @@ implementations behind the interfaces of this section; the interfaces themselves
 | `resolveScope` | carrier, after the deployment's carrier enrichers | `not_found` (unknown host, scope key or tenant), `unavailable` (backend suspended) | `tenantResolution`, `carrierEnrichers` |
 | `resolvePrincipal` | carrier, scope | `unauthenticated` for invalid bearer tokens and API keys; an invalid cookie session counts as absent (section 16.4.10) | `principalResolvers`, `principalEnrichers` |
 | `resolveVersion` | the request's version, else the credential's, the tenant's pin, the backend's default (section 18.3) | `validation` (`core.api_version_invalid`, `core.api_version_unknown`), `not_found` (`core.api_version_retired`); on an older process during a rollout, `unavailable` (`core.rollout_in_progress`) | |
-| `locate` | action ref (an older reference mapped to the head's), scope | `not_implemented` when the backend's app lacks the module or the action; `forbidden` when the action's scope level does not match; `unavailable` (`core.rollout_in_progress`) on an older process during a rollout | registry |
+| `locate` | action ref (an older reference mapped to the head's), scope | `not_implemented` when the backend's app lacks the module or the action, and for an internal command (section 7.3) unless a worker's job carries the call; `forbidden` when the action's scope level does not match; `unavailable` (`core.rollout_in_progress`) on an older process during a rollout | registry |
 | `admit` | tenant quotas, rate limits, kill switches and `core.suspension` rows (sections 12.2 and 20.7); the request is counted for API usage (section 18.5, amended 2026-11-12) | `rate_limited`, `unavailable` (`core.feature_suspended`) | `invocationMiddleware` (admission rules) |
 | `validate` | input against the action's schema at the session's API version, in wire or in-process form | `validation` with Standard Schema issues | |
 | `translate` | input transforms of the version changes the session's version lacks, oldest first (section 18.2) | `internal` (`core.version_change_failed`) | version changes |
@@ -10634,7 +10637,7 @@ TypeScript source through an export condition but refuse the same files inside `
 
 #### 16.2.1 Why a derived description
 
-Transports need a description of the app that is complete (every reachable action with its input,
+Transports need a description of the app that is complete (every action reachable from outside, which an internal command of section 7.3 is not, with its input,
 output, declared errors, execution mode and pagination), serialisable (the CLI and user interfaces
 fetch it, CI diffs it), deterministic (artefacts must be byte-stable) and free of runtime objects
 (handlers, validators, closures). The registry is none of these. The core therefore derives an
@@ -10776,7 +10779,8 @@ export type ResponseHint =
 
 A hint renames, hides an action from one transport (`expose: false`) or chooses how an output is
 carried (a cookie, a raw body, a redirect, a download). It never changes behaviour, authorization or
-validation.
+validation. `expose: false` hides one projection only and the invocation protocol still serves the
+action; `internal: true` (section 7.3) keeps it from all.
 
 Added 2026-11-05 (register entries 399 and 444): `SurfaceAction.scope` (like `ActionEntry.scope`)
 can be `'invocation'`, derived from an `invocation` entity's tenancy for its generated reads
@@ -12357,7 +12361,9 @@ All under `/_keelwerk/v1` on every host name of the app, and on the operator end
 | `GET /live` | WebSocket with subprotocol `keelwerk.live.v1` (section 15.4.7) |
 
 `/subscribe` and `/live` are mounted only when a module providing `contracts.live` is selected;
-`/invoke`, `/batch`, `/surface` and `/capabilities` always are.
+`/invoke`, `/batch`, `/surface` and `/capabilities` always are. `/invoke` and `/batch` answer an
+internal command (section 7.3) as an unknown action, `core.not_implemented`, before admission and
+validation, and `/surface` does not list it.
 
 ```ts
 export interface InvokeRequest {
@@ -13171,7 +13177,8 @@ comes with the first second factor, and until then every new password is checked
   `auth.revokeSubject` revokes every credential of a subject in the deactivating unit and sets the
   keyed timer `revokeSessions:<subject>`, whose `auth.revokeSessions` revokes the subject's sessions
   a page at a time (amended 2026-11-18); it is invoked by auth's own reactions (a deactivated
-  profile, an erased subject) under `auth.system`.
+  profile, an erased subject) under `auth.system`. `auth.revokeSubject` and `auth.revokeSessions` are
+  internal commands (section 7.3): no caller from outside reaches them.
 - Revocation reaches live connections through revalidation: the session resolver names the events
   it depends on (the session's own change records, its credential's `revoked` and erased records
   (amended 2026-11-12, section 17.2.4), the profile's `deactivated`, membership changes), and a
@@ -13250,7 +13257,9 @@ or of the credential and ends.
 - Nobody sets another person's password. `auth.requestPasswordReset` (public, rate-limited, the
   same answer whether or not the identifier exists) issues a one-time reset token, valid for 30
   minutes, stores it as an `auth.resetToken` row (its public id and verifier, section 17.2.2) and
-  hands it to the `auth.resetDelivery` extension point (the mail platform delivers it by mail).
+  hands it to the `auth.resetDelivery` extension point (the mail platform delivers it by mail); the
+  internal command `auth.deliverPasswordReset` (section 7.3) does that work, and no caller from
+  outside reaches it.
   Without a filler, the operator command `auth.issueResetLink`, run inside an entered tenant,
   returns the one-time token and its expiry for the operator to pass on.
   `auth.resetPassword` consumes the token, sets the new password and revokes every session of the
@@ -15907,8 +15916,10 @@ breaking.
   `not_found`, `core.api_version_retired` (REST 410; amended 2026-11-12: only a retired version
   the request names itself, while a retired pin is served under its target, section 18.3); tenants
   and credentials pinned below the floor are re-pinned to it by an event.
-- A module or core major never ends a pinned version: the app's next version adopts its changes,
-  and new protocol majors run beside the old.
+- A module or core major never ends a pinned version, except that a command a module declares
+  internal leaves the surface of every version, so an app passes `surface diff` only by raising its
+  floor past each version that lists it: the app's next version adopts the other changes, and new
+  protocol majors run beside the old.
 
 Added 2026-11-12: an action's `deprecated.at` and `sunset` are a calendar date (`YYYY-MM-DD`, that
 UTC day) or an instant with an offset (`2026-12-01T10:00:00Z`, `+01:00`); any other text, a
@@ -17990,6 +18001,7 @@ Decided, by the register's number, with the date and the sections that apply eac
 | 447 | A re-decide takes the runtime's `KeyService` in the recorded scope (`RedecideInput.keys`): `issue` is answered from the record, `verify` and `reveal` live; a destroyed key refuses with `unsupported`, `core.replay_key_destroyed`, reported as `RedecideResult.refused`. | 2026-11-05 | 7.9.6, 10 |
 | 448 | `RedecideInput` gains `clock`, `feedHorizon?`, `keys` and `request` (the unrecorded request information, user agent and address, supplied like `--input` in M1); a re-decide also re-runs the inline reactions with their recorded reads and compares their writes; instants compare at millisecond precision because stores keep `timestamptz(3)`; `expectReproduces` uses the test runtime's keys, clock and configuration, its own compute pool and accepts a core `Principal`, so exit criterion 8 covers login, logout and reset. | 2026-11-05 | 7.9.6, 16.8.5 |
 | 449 | Section 10 lists every code of `packages/core/src/errors/core-error-codes.ts` with its kind in one table, among them the codes of this section (`core.tenant_not_entered`, `core.replay_outside_horizon`, `core.replay_key_destroyed`) and of sections N and O, and names the codes of the M1 modules (`auth.too_many_records` among them). | 2026-11-05 | 10 |
+| 450 | A command declared `internal: true` stays in the registry and is on no surface and no transport: the invoker locates it only for a worker's job and answers every other caller as for an unknown action (the invoke and batch endpoints, the in-process link and the operator's local socket; a REST route is gone and answers `not_found`; the typed client refuses before it sends), before admission and validation. Jobs and effects of any module run it as before, under the gate and the rules. `explain` still finds it and notes that it is internal. It leaves the surface of every API version, so an app passes `surface diff` only by raising its floor past each version that lists it. Composing refuses `internal` on a query, a subscription, a public or an offline action and a value that is neither absent nor `true` (`internalCommands`), and an `auth` that is neither `'policy'` nor `{ public: true }` (`unknownAuth`). `auth.deliverPasswordReset`, `auth.revokeSessions`, `auth.revokeSubject`, `api-keys.recordUse`, `api-keys.repinKey`, `api-keys.revokeSubject` and `members.expireInvitation` are internal. The typed client trees still list them. | 2026-11-26 | 7.3, 9.2, 16.2, 16.8, 17.2 |
 
 Parked on 2026-10-26: Jens defers the mail server until he has a stable, permanent deployment
 option. The design stays in this document (section 17.4), and these questions wait with it, each

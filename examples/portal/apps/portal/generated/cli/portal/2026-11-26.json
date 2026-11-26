@@ -1,5 +1,5 @@
 {
-  "apiVersion": "2026-11-05",
+  "apiVersion": "2026-11-26",
   "app": "portal",
   "commands": [
     {
@@ -616,22 +616,6 @@
       "flags": [
         {
           "kind": "ref",
-          "name": "credential-id",
-          "required": true
-        }
-      ],
-      "kind": "command",
-      "positionals": [],
-      "ref": "auth.deliverPasswordReset",
-      "route": "call auth.deliverPasswordReset",
-      "scope": "tenant"
-    },
-    {
-      "aliases": [],
-      "auth": "policy",
-      "flags": [
-        {
-          "kind": "ref",
           "name": "session-id",
           "required": true
         },
@@ -899,43 +883,6 @@
       "positionals": [],
       "ref": "auth.resetToken.queryChanges",
       "route": "call auth.resetToken.queryChanges",
-      "scope": "tenant"
-    },
-    {
-      "aliases": [],
-      "auth": "policy",
-      "flags": [
-        {
-          "kind": "subject",
-          "name": "subject",
-          "required": true
-        }
-      ],
-      "kind": "command",
-      "positionals": [],
-      "ref": "auth.revokeSessions",
-      "route": "call auth.revokeSessions",
-      "scope": "tenant"
-    },
-    {
-      "aliases": [],
-      "auth": "policy",
-      "flags": [
-        {
-          "kind": "subject",
-          "name": "subject",
-          "required": true
-        },
-        {
-          "kind": "string",
-          "name": "reason",
-          "required": true
-        }
-      ],
-      "kind": "command",
-      "positionals": [],
-      "ref": "auth.revokeSubject",
-      "route": "call auth.revokeSubject",
       "scope": "tenant"
     },
     {
@@ -3634,5 +3581,5 @@
     "wait-effects"
   ],
   "format": "keelwerk.cli/1",
-  "surface": "sha256-7LjbIVx5rLRi6W6A_g3AZdWzKutHawfvN3crfkhSXSs"
+  "surface": "sha256-6GmbZw45ZvD_-p5hEH2e84augZGGqg3AbRPD_1NbV08"
 }

@@ -17,6 +17,7 @@ import type { Request } from '../protocol/request.ts';
 import type { Empty } from '../types/empty.ts';
 import { defineCommand } from './define-command.ts';
 import { defineQuery } from './define-query.ts';
+import { defineSubscription } from './define-subscription.ts';
 import { outcomeOf } from './outcome-of.ts';
 
 type AuthCtx = DecideContext<AuthBase>;
@@ -173,5 +174,27 @@ describe('prepare and continuations (section 7.9.4, S-05)', () => {
       },
     });
     expectTypeOf<NonNullable<(typeof withDomain)['~types']>['input']>().toHaveProperty('domain');
+  });
+});
+
+describe('internal commands (section 7.3)', () => {
+  test('only a command takes internal, and only as true', () => {
+    defineCommand(authBase, { internal: true, decide: () => [] });
+    // @ts-expect-error a command is internal or it says nothing
+    defineCommand(authBase, { internal: false, decide: () => [] });
+  });
+
+  test('defineQuery and defineSubscription take no internal option', () => {
+    defineQuery(authBase, {
+      // @ts-expect-error a query is never internal
+      internal: true,
+      read: () => undefined,
+    });
+    defineSubscription(authBase, {
+      // @ts-expect-error a subscription is never internal
+      internal: true,
+      event: shape({}),
+      source: () => ({ kind: 'poll' }) as never,
+    });
   });
 });

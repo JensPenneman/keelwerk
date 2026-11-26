@@ -41,7 +41,7 @@ import { sourceContextOf } from './source-context-of.ts';
 import { admit } from './stages/admit.ts';
 import { authorize } from './stages/authorize.ts';
 import { complete } from './stages/complete.ts';
-import { locate } from './stages/locate.ts';
+import { locateVisible } from './stages/locate-visible.ts';
 import { targetOf } from './stages/target-of.ts';
 import { translate } from './stages/translate.ts';
 import { validate } from './stages/validate.ts';
@@ -99,7 +99,7 @@ export async function setUpSubscription(
       });
     state.log = logOf(inv.action);
     state.stage = 'locate';
-    const action = locate(registry, inv.action, scope, translation);
+    const action = locateVisible(registry, inv.action, scope, translation, false);
     state.action = action;
     const log = logOf(action.ref);
     state.log = log;

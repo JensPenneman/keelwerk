@@ -4,12 +4,13 @@ import { lastUseDue } from '../lib/last-use-due.ts';
 
 /**
  * Records the last use of a key, at most once an hour (S-140). The resolver sets it as a keyed
- * timer that holds the key id only; it runs as the module's own service principal, so a read-only
- * key's use is recorded too and no caller can invoke it from outside.
+ * timer that holds the key id only; it is internal and runs as the module's own service principal, so a
+ * read-only key's use is recorded too and no caller can invoke it from outside.
  */
 const recordUseDef = defineCommand(apiKeysBase, {
   input: shape({ keyId: field.ref.own('key') }),
   principal: 'service',
+  internal: true,
   execution: 'sync',
   *decide(input, ctx) {
     const current = yield* ctx.load.apiKeys.key.byId(input.keyId);

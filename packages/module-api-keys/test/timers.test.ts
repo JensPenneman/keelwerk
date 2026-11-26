@@ -70,7 +70,7 @@ describe.each(['memory', 'pglite'] as const)('api-keys timers on %s', (kind: Key
     expect((await app.row(id))?.lastUsedAt?.toString()).toBe(bootedAt.toString());
   });
 
-  test('the timer commands cannot be called from outside, by a person or by a key', {
+  test('the timer commands answer an outside caller like an unknown action, a person or a key', {
     timeout,
   }, async () => {
     const app = await boot();
@@ -87,9 +87,9 @@ describe.each(['memory', 'pglite'] as const)('api-keys timers on %s', (kind: Key
       const byPerson = await app
         .as(keyOwner)
         .attempt(action as 'api-keys.recordUse', input as never);
-      expect(byPerson.ok ? undefined : byPerson.error.kind, action).toBe('forbidden');
+      expect(byPerson.ok ? undefined : byPerson.error.kind, action).toBe('not_implemented');
       const byKey = await app.withKey(key, action, input);
-      expect(byKey.ok ? undefined : byKey.error.kind, action).toBe('forbidden');
+      expect(byKey.ok ? undefined : byKey.error.kind, action).toBe('not_implemented');
     }
     expect((await app.row(id))?.lastUsedAt).toBeUndefined();
     // The control: the timer the resolver set is queued, and a worker that runs it writes the use.

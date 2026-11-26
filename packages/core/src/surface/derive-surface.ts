@@ -87,10 +87,10 @@ export function deriveSurface(
   const entries = [...registry.actions.values()]
     .filter((entry) => entry.module === 'core' || entry.since <= apiVersion)
     .sort((left, right) => compareCodePoints(left.ref, right.ref));
-  const actions = entries.map((entry) => {
+  const actions = entries.flatMap((entry) => {
     const result = surfaceActionOf(entry, { entities: byRef, prefixOf, rowNames });
     problems.push(...result.problems);
-    return result.action;
+    return entry.internal === true ? [] : [result.action];
   });
   const declared = declaredErrorsOf(app, ordered, parts);
   const errors = surfaceErrorsOf(

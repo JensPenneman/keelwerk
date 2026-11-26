@@ -9,8 +9,8 @@ import { retireResetTokens } from '../lib/retire-reset-tokens.ts';
  * Issues the one-time reset token of a credential and hands it to the delivery fillers (17.2.5,
  * S-43). `requestPasswordReset` sets it as a keyed timer, for the credential it found or for a
  * decoy id when the identifier is unknown, so the request stores and delivers nothing itself and
- * answers alike for every identifier. It runs as the module's own service principal, so no caller
- * reaches it from outside. A credential that is absent, revoked or not a password stores and
+ * answers alike for every identifier. It is internal and runs as the module's own service principal,
+ * so no caller reaches it from outside. A credential that is absent, revoked or not a password stores and
  * delivers nothing, and so does one that was already sent `resetRequestsPerHour` links in the last
  * hour: the request that led here answered as it always does. A token that is issued retires the
  * unused ones before it, so a newer link retires the older ones. Deliveries that run at the same
@@ -22,6 +22,7 @@ import { retireResetTokens } from '../lib/retire-reset-tokens.ts';
 const deliverPasswordResetDef = defineCommand(authBase, {
   input: shape({ credentialId: field.ref.own('credential') }),
   principal: 'service',
+  internal: true,
   execution: 'sync',
   *decide(input, ctx) {
     const found = yield* ctx.load.auth.credential.byId(input.credentialId);

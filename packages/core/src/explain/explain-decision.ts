@@ -87,6 +87,11 @@ export function explainDecision(input: ExplainDecisionInput): DecisionExplanatio
           `The row this command returns is shaped under the caller's read plan of ${action.entityOutput.entity}; when it lies outside that plan the answer is the reference { entity, id, version } (section 8.4).`,
         ]
       : [];
+  if (action.internal === true) {
+    notes.push(
+      "This command is internal: only a worker's job finds it, and a call from outside answers as for an unknown action, whatever this decision says.",
+    );
+  }
   return {
     action: action.ref,
     kind: action.kind,

@@ -40,6 +40,8 @@ export interface ActionEntry {
   /** The boolean flag that must be on for the action to run (section 20.6). */
   readonly gate?: string;
   readonly offline: boolean;
+  /** Only a worker's job locates it; it is on no surface (section 7.3). */
+  readonly internal?: true;
   readonly resumable: boolean;
   /** Narrows `ctx.principal` and refuses other kinds. */
   readonly principal?: readonly PrincipalKind[];

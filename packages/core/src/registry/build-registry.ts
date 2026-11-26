@@ -29,6 +29,7 @@ import { checkDuplicatePrefixes } from './check-duplicate-prefixes.ts';
 import { checkEventNames } from './check-event-names.ts';
 import { checkExecutorsWithoutEffect } from './check-executors-without-effect.ts';
 import { checkIdentifierGrammar } from './check-identifier-grammar.ts';
+import { checkInternalCommands } from './check-internal-commands.ts';
 import { checkMissingModules } from './check-missing-modules.ts';
 import { checkOfflineCommands } from './check-offline-commands.ts';
 import { checkPersonalCommandOutput } from './check-personal-command-output.ts';
@@ -161,6 +162,7 @@ export function buildRegistry(app: ComposableApp): Registry {
     ...checkReadRuleFields(ruleSet.rules, entities),
     ...checkUnknownConditionFields(ruleSet.rules, entities),
     ...checkOfflineCommands(table.actions),
+    ...checkInternalCommands(table.actions),
     ...checkPersonalCommandOutput(table.actions),
     ...checkPrepareCommands(table.actions),
   );

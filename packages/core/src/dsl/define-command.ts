@@ -56,6 +56,8 @@ export interface CommandOptions<
   readonly isolation?: 'read-committed' | 'serializable';
   readonly idempotency?: { readonly window: string };
   readonly offline?: boolean;
+  /** On no surface and no transport: jobs and effects of any module run it as before, under the gate; any other caller gets the answer for an unknown action (section 7.3). */
+  readonly internal?: true;
   readonly trace?: { readonly input: 'sealed'; readonly retention?: string };
   /** Members of the output shown once: the receipt never keeps them, and a replay answers `conflict` (section 17.2.2). */
   readonly shownOnce?: readonly string[];

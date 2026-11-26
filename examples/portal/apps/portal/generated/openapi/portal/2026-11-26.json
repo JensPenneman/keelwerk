@@ -3937,19 +3937,6 @@
         ],
         "type": "object"
       },
-      "AuthDeliverPasswordResetInput": {
-        "additionalProperties": false,
-        "properties": {
-          "credentialId": {
-            "pattern": "^cred_[0-7][0-9a-hjkmnp-tv-z]{25}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "credentialId"
-        ],
-        "type": "object"
-      },
       "AuthExtendSessionInput": {
         "additionalProperties": false,
         "properties": {
@@ -5397,34 +5384,6 @@
         "required": [
           "items",
           "pageInfo"
-        ],
-        "type": "object"
-      },
-      "AuthRevokeSessionsInput": {
-        "additionalProperties": false,
-        "properties": {
-          "subject": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "subject"
-        ],
-        "type": "object"
-      },
-      "AuthRevokeSubjectInput": {
-        "additionalProperties": false,
-        "properties": {
-          "reason": {
-            "type": "string"
-          },
-          "subject": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "subject",
-          "reason"
         ],
         "type": "object"
       },
@@ -23863,7 +23822,7 @@
   },
   "info": {
     "title": "portal",
-    "version": "sha256-7LjbIVx5rLRi6W6A_g3AZdWzKutHawfvN3crfkhSXSs"
+    "version": "sha256-6GmbZw45ZvD_-p5hEH2e84augZGGqg3AbRPD_1NbV08"
   },
   "openapi": "3.1.1",
   "paths": {
@@ -26229,83 +26188,6 @@
         "x-keelwerk-scope": "tenant"
       }
     },
-    "/auth/deliver-password-reset": {
-      "post": {
-        "operationId": "authDeliverPasswordReset",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/idempotencyKey"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuthDeliverPasswordResetInput"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Done; no content.",
-            "headers": {
-              "Idempotent-Replayed": {
-                "$ref": "#/components/headers/idempotentReplayed"
-              },
-              "Keelwerk-Command-Id": {
-                "$ref": "#/components/headers/keelwerkCommandId"
-              },
-              "Keelwerk-Effects": {
-                "$ref": "#/components/headers/keelwerkEffects"
-              },
-              "Keelwerk-Version": {
-                "$ref": "#/components/headers/keelwerkVersion"
-              },
-              "x-request-id": {
-                "$ref": "#/components/headers/requestId"
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/problem400"
-          },
-          "401": {
-            "$ref": "#/components/responses/problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/problem403"
-          },
-          "413": {
-            "$ref": "#/components/responses/problem413"
-          },
-          "422": {
-            "$ref": "#/components/responses/problem422"
-          },
-          "429": {
-            "$ref": "#/components/responses/problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/problem503"
-          }
-        },
-        "security": [
-          {
-            "auth.session": []
-          }
-        ],
-        "tags": [
-          "auth"
-        ],
-        "x-keelwerk-action": "auth.deliverPasswordReset",
-        "x-keelwerk-execution": "sync",
-        "x-keelwerk-scope": "tenant"
-      }
-    },
     "/auth/extend-session": {
       "post": {
         "operationId": "authExtendSession",
@@ -27618,160 +27500,6 @@
           "auth"
         ],
         "x-keelwerk-action": "auth.resetToken.get",
-        "x-keelwerk-execution": "sync",
-        "x-keelwerk-scope": "tenant"
-      }
-    },
-    "/auth/revoke-sessions": {
-      "post": {
-        "operationId": "authRevokeSessions",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/idempotencyKey"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuthRevokeSessionsInput"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Done; no content.",
-            "headers": {
-              "Idempotent-Replayed": {
-                "$ref": "#/components/headers/idempotentReplayed"
-              },
-              "Keelwerk-Command-Id": {
-                "$ref": "#/components/headers/keelwerkCommandId"
-              },
-              "Keelwerk-Effects": {
-                "$ref": "#/components/headers/keelwerkEffects"
-              },
-              "Keelwerk-Version": {
-                "$ref": "#/components/headers/keelwerkVersion"
-              },
-              "x-request-id": {
-                "$ref": "#/components/headers/requestId"
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/problem400"
-          },
-          "401": {
-            "$ref": "#/components/responses/problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/problem403"
-          },
-          "413": {
-            "$ref": "#/components/responses/problem413"
-          },
-          "422": {
-            "$ref": "#/components/responses/problem422"
-          },
-          "429": {
-            "$ref": "#/components/responses/problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/problem503"
-          }
-        },
-        "security": [
-          {
-            "auth.session": []
-          }
-        ],
-        "tags": [
-          "auth"
-        ],
-        "x-keelwerk-action": "auth.revokeSessions",
-        "x-keelwerk-execution": "sync",
-        "x-keelwerk-scope": "tenant"
-      }
-    },
-    "/auth/revoke-subject": {
-      "post": {
-        "operationId": "authRevokeSubject",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/idempotencyKey"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuthRevokeSubjectInput"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Done; no content.",
-            "headers": {
-              "Idempotent-Replayed": {
-                "$ref": "#/components/headers/idempotentReplayed"
-              },
-              "Keelwerk-Command-Id": {
-                "$ref": "#/components/headers/keelwerkCommandId"
-              },
-              "Keelwerk-Effects": {
-                "$ref": "#/components/headers/keelwerkEffects"
-              },
-              "Keelwerk-Version": {
-                "$ref": "#/components/headers/keelwerkVersion"
-              },
-              "x-request-id": {
-                "$ref": "#/components/headers/requestId"
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/problem400"
-          },
-          "401": {
-            "$ref": "#/components/responses/problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/problem403"
-          },
-          "413": {
-            "$ref": "#/components/responses/problem413"
-          },
-          "422": {
-            "$ref": "#/components/responses/problem422"
-          },
-          "429": {
-            "$ref": "#/components/responses/problem429"
-          },
-          "500": {
-            "$ref": "#/components/responses/problem500"
-          },
-          "503": {
-            "$ref": "#/components/responses/problem503"
-          }
-        },
-        "security": [
-          {
-            "auth.session": []
-          }
-        ],
-        "tags": [
-          "auth"
-        ],
-        "x-keelwerk-action": "auth.revokeSubject",
         "x-keelwerk-execution": "sync",
         "x-keelwerk-scope": "tenant"
       }
@@ -37545,9 +37273,9 @@
     }
   ],
   "x-keelwerk-generated": {
-    "apiVersion": "2026-11-05",
+    "apiVersion": "2026-11-26",
     "format": "keelwerk.openapi/1",
     "producer": "@keelwerk/transport-rest",
-    "surface": "sha256-7LjbIVx5rLRi6W6A_g3AZdWzKutHawfvN3crfkhSXSs"
+    "surface": "sha256-6GmbZw45ZvD_-p5hEH2e84augZGGqg3AbRPD_1NbV08"
   }
 }

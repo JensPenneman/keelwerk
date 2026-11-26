@@ -11,7 +11,7 @@ const touched = (calls: readonly string[]) =>
   calls.filter((call) => /^unit\.(rows|events|jobs|keys)\./.test(call) && !polling.test(call));
 
 describe.each(['memory', 'pglite'] as const)(
-  'the actions that only the module itself runs, on %s',
+  'the internal commands of auth, on %s',
   (kind: StorageKind) => {
     const timeout = kind === 'pglite' ? 90_000 : 15_000;
 
@@ -25,64 +25,42 @@ describe.each(['memory', 'pglite'] as const)(
     const answerOf = (outcome: Awaited<ReturnType<BootedBoth['request']>>) =>
       outcome.ok ? 'allowed' : `${outcome.error.code}: ${outcome.error.message}`;
 
-    test.each([
+    const internal = [
       ['auth.deliverPasswordReset', (id: string) => ({ credentialId: id })],
       ['auth.revokeSessions', (id: string) => ({ subject: id })],
-    ] as const)(
-      '%s refuses an anonymous caller before any store work, whatever the input',
-      {
-        timeout,
-      },
-      async (action, inputOf) => {
-        const both = await boot();
-        const [credential] = await both.rows('auth.credential');
-        const real = String(
-          action === 'auth.revokeSessions' ? credential?.subject : credential?.id,
-        );
-        const answers = new Set<string>();
-        for (const id of [real, crypto.randomUUID()]) {
-          const watch = watchUnits(both);
-          answers.add(answerOf(await both.request(action, inputOf(id))));
-          expect(touched(watch.units.flat())).toEqual([]);
-        }
-        expect(answers.size).toBe(1);
-        expect([...answers][0]).toMatch(/^core\.(forbidden|unauthenticated)/);
-      },
-    );
+      ['auth.revokeSubject', (id: string) => ({ subject: id, reason: 'test' })],
+    ] as const;
 
-    test.each([
-      ['auth.deliverPasswordReset', (id: string) => ({ credentialId: id })],
-      ['auth.revokeSessions', (id: string) => ({ subject: id })],
-    ] as const)(
-      '%s refuses an ordinary signed-in principal with one answer, whatever the input, and writes nothing',
-      {
-        timeout,
-      },
+    // The answer of an action that does not exist, with the reference this one is asked under.
+    const asUnknown = async (both: BootedBoth, action: string, input: unknown, headers?: object) =>
+      answerOf(
+        await both.request('auth.noSuchAction', input, { headers: headers as never }),
+      ).replace('auth.noSuchAction', action);
+
+    test.each(internal)(
+      '%s answers like an unknown action, anonymous or signed in, whatever the input, and writes nothing',
+      { timeout },
       async (action, inputOf) => {
         const both = await boot();
         const session = await signIn(both);
         await both.settle();
         const [credential] = await both.rows('auth.credential');
         const real = String(
-          action === 'auth.revokeSessions' ? credential?.subject : credential?.id,
+          action === 'auth.deliverPasswordReset' ? credential?.id : credential?.subject,
         );
-        const answers = new Set<string>();
-        const works: string[][] = [];
-        for (const id of [real, crypto.randomUUID()]) {
-          const watch = watchUnits(both);
-          answers.add(
-            answerOf(
-              await both.request(action, inputOf(id), { headers: asBearer(session.sessionToken) }),
-            ),
-          );
-          const calls = touched(watch.units.flat());
-          expect(calls.filter((call) => written.test(call))).toEqual([]);
-          works.push(calls);
+        for (const headers of [undefined, asBearer(session.sessionToken)]) {
+          for (const id of [real, crypto.randomUUID(), 'not-an-id']) {
+            const watch = watchUnits(both);
+            const answer = answerOf(
+              await both.request(action, inputOf(id), headers === undefined ? {} : { headers }),
+            );
+            expect(answer).toBe(await asUnknown(both, action, inputOf(id), headers));
+            expect(answer).toMatch(/^core\.not_implemented/);
+            const calls = touched(watch.units.flat());
+            expect(calls.filter((call) => written.test(call))).toEqual([]);
+            if (headers === undefined) expect(calls).toEqual([]);
+          }
         }
-        expect(answers.size).toBe(1);
-        expect([...answers][0]).toMatch(/^core\.forbidden/);
-        // The refusal is input-independent: the same store work for every input.
-        expect(works[1]).toEqual(works[0]);
         expect(await both.rows('auth.resetToken')).toHaveLength(0);
         expect((await both.rows('auth.session')).every((row) => row.revokedAt === undefined)).toBe(
           true,

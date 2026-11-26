@@ -3,7 +3,7 @@ import { accounts } from '../../test/fixtures/modules/accounts/src/module.genera
 import { auth } from '../../test/fixtures/modules/auth/src/module.generated.ts';
 import { hooks } from '../../test/fixtures/modules/hooks/src/module.generated.ts';
 import { teams } from '../../test/fixtures/modules/teams/src/module.generated.ts';
-import { appOf, contributionTo, makeModule } from '../../test/registry-kit.ts';
+import { appOf, command, contributionTo, makeModule, widget } from '../../test/registry-kit.ts';
 import { core } from '../core-module/module.ts';
 import { contracts } from '../dsl/contracts.ts';
 import { defineApiVersions } from '../dsl/define-api-versions.ts';
@@ -96,6 +96,16 @@ describe('deriveSurface (section 16.2)', () => {
     const once = renderSurfaceArtefact(surfaceOf([accounts]));
     expect(renderSurfaceArtefact(surfaceOf([accounts]))).toBe(once);
     expect(surfaceOf([accounts]).hash).not.toBe(surfaceOf([accounts, auth]).hash);
+  });
+
+  test('an internal command composes and is on no surface; the same command without the declaration is', () => {
+    const shopOf = (spec: object) =>
+      makeModule({ id: 'shop', entities: { widget } }, { actions: { sweep: command(spec) } });
+    const refs = (modules: readonly AnyModule[]) =>
+      surfaceOf(modules).actions.map((action) => action.ref);
+    expect(sourceOf([shopOf({ internal: true })]).registry.actions.has('shop.sweep')).toBe(true);
+    expect(refs([shopOf({ internal: true })])).not.toContain('shop.sweep');
+    expect(refs([shopOf({})])).toContain('shop.sweep');
   });
 
   test('hidden, verifier and tenantId fields are absent from entities, inputs and outputs', () => {

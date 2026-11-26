@@ -65,7 +65,7 @@
       "ref": "accounts.identities",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -187,7 +187,7 @@
       "ref": "accounts.profile.archive",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -286,7 +286,7 @@
       "ref": "accounts.profile.changePassword",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -389,7 +389,7 @@
       "ref": "accounts.profile.changes",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -543,7 +543,7 @@
       "ref": "accounts.profile.create",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -671,7 +671,7 @@
       "ref": "accounts.profile.deactivate",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -841,7 +841,7 @@
       "ref": "accounts.profile.get",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -1047,7 +1047,7 @@
       "ref": "accounts.profile.query",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -1191,7 +1191,7 @@
       "ref": "accounts.profile.queryChanges",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -1313,7 +1313,7 @@
       "ref": "accounts.profile.restore",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -1461,7 +1461,7 @@
       "ref": "accounts.profile.search",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -1775,7 +1775,7 @@
       "ref": "accounts.profile.set",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -1948,7 +1948,7 @@
       "ref": "accounts.profile.update",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "public",
@@ -2006,7 +2006,7 @@
       "ref": "accounts.register",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -2109,7 +2109,7 @@
       "ref": "auth.credential.changes",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -2292,7 +2292,7 @@
       "ref": "auth.credential.get",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -2512,7 +2512,7 @@
       "ref": "auth.credential.query",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -2657,7 +2657,7 @@
       "ref": "auth.credential.queryChanges",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -2798,47 +2798,7 @@
       "ref": "auth.credential.revoke",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
-    },
-    {
-      "auth": "policy",
-      "changedIn": [],
-      "errors": [],
-      "execution": "sync",
-      "hints": {},
-      "idempotent": false,
-      "input": {
-        "access": "read-write",
-        "fields": {
-          "credentialId": {
-            "access": "read-write",
-            "kind": "ref",
-            "optional": false,
-            "prefix": "cred",
-            "tag": 1,
-            "target": "auth.credential"
-          }
-        },
-        "kind": "shape",
-        "optional": false
-      },
-      "inputHash": "sha256-h_FqXJoX10bHXkZ__tILU1-tngKpxhJVZ0eLn0Ttzww",
-      "instance": false,
-      "kind": "command",
-      "module": "auth",
-      "mount": "module",
-      "name": "deliverPasswordReset",
-      "offline": false,
-      "output": {
-        "access": "read-write",
-        "kind": "void",
-        "optional": false
-      },
-      "outputHash": "sha256-zej-bMEJmGGq_mKCuqNPNDJAucdkfnebQhqSUKsBmg8",
-      "ref": "auth.deliverPasswordReset",
-      "resumable": false,
-      "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -2884,7 +2844,7 @@
       "ref": "auth.extendSession",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -2938,7 +2898,7 @@
       "ref": "auth.issueResetLink",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "public",
@@ -3026,7 +2986,7 @@
       "ref": "auth.login",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -3064,7 +3024,7 @@
       "ref": "auth.logout",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -3112,7 +3072,7 @@
       "ref": "auth.reauthenticate",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "public",
@@ -3160,7 +3120,7 @@
       "ref": "auth.requestPasswordReset",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "public",
@@ -3215,7 +3175,7 @@
       "ref": "auth.resetPassword",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -3318,7 +3278,7 @@
       "ref": "auth.resetToken.changes",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -3472,7 +3432,7 @@
       "ref": "auth.resetToken.get",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -3668,7 +3628,7 @@
       "ref": "auth.resetToken.query",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -3813,89 +3773,7 @@
       "ref": "auth.resetToken.queryChanges",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
-    },
-    {
-      "auth": "policy",
-      "changedIn": [],
-      "errors": [],
-      "execution": "sync",
-      "hints": {},
-      "idempotent": false,
-      "input": {
-        "access": "read-write",
-        "fields": {
-          "subject": {
-            "access": "read-write",
-            "kind": "subject",
-            "optional": false,
-            "tag": 1
-          }
-        },
-        "kind": "shape",
-        "optional": false
-      },
-      "inputHash": "sha256-MaQpPuuNiSeQgg52VwhxG_P9e931Gv53IJsWYhSTa4Q",
-      "instance": false,
-      "kind": "command",
-      "module": "auth",
-      "mount": "module",
-      "name": "revokeSessions",
-      "offline": false,
-      "output": {
-        "access": "read-write",
-        "kind": "void",
-        "optional": false
-      },
-      "outputHash": "sha256-zej-bMEJmGGq_mKCuqNPNDJAucdkfnebQhqSUKsBmg8",
-      "ref": "auth.revokeSessions",
-      "resumable": false,
-      "scope": "tenant",
-      "since": "2026-11-05"
-    },
-    {
-      "auth": "policy",
-      "changedIn": [],
-      "errors": [],
-      "execution": "sync",
-      "hints": {},
-      "idempotent": false,
-      "input": {
-        "access": "read-write",
-        "fields": {
-          "reason": {
-            "access": "read-write",
-            "kind": "string",
-            "optional": false,
-            "tag": 2
-          },
-          "subject": {
-            "access": "read-write",
-            "kind": "subject",
-            "optional": false,
-            "tag": 1
-          }
-        },
-        "kind": "shape",
-        "optional": false
-      },
-      "inputHash": "sha256-28KGInJVs3le6csEom8RQ2tICD3hOZhhgC3ZB0aDxpI",
-      "instance": false,
-      "kind": "command",
-      "module": "auth",
-      "mount": "module",
-      "name": "revokeSubject",
-      "offline": false,
-      "output": {
-        "access": "read-write",
-        "kind": "void",
-        "optional": false
-      },
-      "outputHash": "sha256-zej-bMEJmGGq_mKCuqNPNDJAucdkfnebQhqSUKsBmg8",
-      "ref": "auth.revokeSubject",
-      "resumable": false,
-      "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -3998,7 +3876,7 @@
       "ref": "auth.session.changes",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -4194,7 +4072,7 @@
       "ref": "auth.session.get",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -4432,7 +4310,7 @@
       "ref": "auth.session.query",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -4577,7 +4455,7 @@
       "ref": "auth.session.queryChanges",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -4730,7 +4608,7 @@
       "ref": "auth.session.revoke",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "public",
@@ -4797,7 +4675,7 @@
       "ref": "auth.signUp",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -4841,7 +4719,7 @@
       "ref": "auth.whoami",
       "resumable": false,
       "scope": "tenant",
-      "since": "2026-11-05"
+      "since": "2026-11-26"
     },
     {
       "auth": "policy",
@@ -15707,7 +15585,7 @@
       "since": "2026-11-04"
     }
   ],
-  "apiVersion": "2026-11-05",
+  "apiVersion": "2026-11-26",
   "app": "portal",
   "entities": [
     {
@@ -18226,7 +18104,7 @@
     }
   ],
   "format": "keelwerk.surface/1",
-  "hash": "sha256-7LjbIVx5rLRi6W6A_g3AZdWzKutHawfvN3crfkhSXSs",
+  "hash": "sha256-6GmbZw45ZvD_-p5hEH2e84augZGGqg3AbRPD_1NbV08",
   "modules": [
     {
       "id": "accounts",

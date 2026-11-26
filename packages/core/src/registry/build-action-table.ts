@@ -1,6 +1,7 @@
 import type { AnyActionPart } from '../model/action-part.ts';
 import type { ActionEntry } from './action-entry.ts';
 import { actionEntryOf, type PartMount } from './action-entry-of.ts';
+import { actionOptionProblems } from './action-option-problems.ts';
 import type { AppliedPart } from './applied-part.ts';
 import type { ComposableApp } from './composable-app.ts';
 import { compositionError } from './composition-error.ts';
@@ -50,6 +51,7 @@ export function buildActionTable(
     if (shown !== undefined) problems.push(shown);
   };
   const mount = (part: AnyActionPart, at: PartMount): void => {
+    problems.push(...actionOptionProblems(part, at));
     put(actionEntryOf(part, at, context));
   };
   for (const module of ordered) {

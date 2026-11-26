@@ -33,6 +33,7 @@ export interface ActionSpecView {
   readonly description?: string;
   readonly deprecated?: { readonly reason: string; readonly at?: string; readonly sunset?: string };
   readonly offline?: boolean;
+  readonly internal?: unknown;
   /** Entity-mounted commands that create rows: no instance id (F-11b change note). */
   readonly creates?: boolean;
   readonly trace?: { readonly input: 'sealed'; readonly retention?: string };

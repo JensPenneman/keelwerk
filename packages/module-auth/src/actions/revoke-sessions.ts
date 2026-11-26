@@ -10,12 +10,13 @@ const revokeSessionsPageSize = 200;
  * a keyed timer, because a person who holds thousands of sessions and uses them keeps changing the
  * rows the deactivating unit would have to rewrite, and each change makes that unit fail on a
  * version check: they must not be able to veto their own deactivation. The sessions of a revoked
- * credential are already dead (`isLiveSession`), so the pages only tidy the rows. It runs as the
- * module's own service principal, so no caller reaches it from outside.
+ * credential are already dead (`isLiveSession`), so the pages only tidy the rows. It is internal and runs as
+ * the module's own service principal, so no caller reaches it from outside.
  */
 const revokeSessionsDef = defineCommand(authBase, {
   input: shape({ subject: field.subject() }),
   principal: 'service',
+  internal: true,
   execution: 'sync',
   *decide(input, ctx) {
     const at = ctx.clock.now();

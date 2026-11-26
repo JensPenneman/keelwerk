@@ -234,6 +234,7 @@ export function actionEntryOf(
     execution,
     idempotent: part.kind === 'query' ? true : (spec.idempotent ?? false),
     offline: spec.offline ?? false,
+    ...(spec.internal === true ? { internal: true as const } : {}),
     resumable: part.kind === 'subscription' && handler.length >= 3,
     ...(principal === undefined ? {} : { principal }),
     ...(page === undefined ? {} : { page }),
