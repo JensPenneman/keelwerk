@@ -7671,11 +7671,14 @@ never the text 'null' and never a failure: `RetentionRun.namespaceId` is `string
 `outcome` is `string | null`, read as stored, and only 'complete' is complete. The JSON members
 carry no version member; readers ignore unknown members.
 
-Known limit (added 2026-11-18): retention reaches archived tenants but not the scopes of an archived
-backend, because the scope directory does not know an archived backend. In an archived backend the
-buffers, receipts with their keyed fingerprints included, are kept until the backend is restored or
-deleted. WP-165 makes erasure and retention reach archived tenants and backends; the erasure worker
-is left as it is until then.
+Retention reaches archived tenants and the scopes of an archived backend: the retention and the
+erasure worker find a scope through the archived reading of the scope directory (the control rows
+with archived ones included), never through the reading that serves requests. An erasure record
+whose tenant no scope reading knows is not marked finished: the worker tries it again and logs it
+once per record while the process lives, as it logs any erasure it cannot finish, and doctor shows
+what stands; a tenant that lives in a placement the process does not open is left to the process
+that does. The check that an accepted erasure's subject is known does not stop at a key that cannot
+be opened because its scope is archived.
 
 #### 14.7.2 Tombstones
 

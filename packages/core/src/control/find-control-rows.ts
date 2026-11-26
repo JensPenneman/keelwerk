@@ -3,15 +3,19 @@ import { normalizeCondition } from '../conditions/normalize-condition.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { ControlStore } from './control-store.ts';
 
-/** The live rows of a core entity that match `where`, read in one deployment-scope unit. */
+/** The live rows of a core entity that match `where` (the archived ones too with `includeArchived`), read in one deployment-scope unit. */
 export function findControlRows(
   store: ControlStore,
   ref: string,
   where: ConditionInput,
+  includeArchived = false,
 ): Promise<readonly StorageRow[]> {
   const entity = store.entity(ref);
   return store.read(async (unit) => {
-    const page = await unit.rows.find(entity, { where: normalizeCondition(where) });
+    const page = await unit.rows.find(entity, {
+      where: normalizeCondition(where),
+      ...(includeArchived ? { includeArchived } : {}),
+    });
     return page.rows;
   });
 }

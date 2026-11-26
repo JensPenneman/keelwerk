@@ -9,8 +9,7 @@ const levels = [{ scope: 'backend' }, { scope: 'each-tenant' }] as const;
  * namespace of the process but the control one, each backend and each tenant whose data lives
  * there (`fanOutTenants`, paged by `pageSize`). A scope is visited whether or not its backend or
  * tenant is active, archived or suspended, and whether or not a restore hold holds it: retention
- * stops only on the service signal. A backend that the directory no longer knows (an archived
- * one) has no scopes here.
+ * stops only on the service signal (the archived directory reads archived backends too).
  */
 export async function* retentionScopes(
   context: RuntimeServiceContext,
@@ -32,7 +31,7 @@ export async function* retentionScopes(
     for (const entry of levels) {
       for await (const found of fanOutTenants(
         control,
-        context.directory,
+        context.archivedDirectory,
         source,
         entry,
         pageSize,

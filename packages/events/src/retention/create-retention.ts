@@ -52,7 +52,7 @@ function durationOf(name: string, text: string, least = 0): string {
  * The worker behind `retention()` (section 14.7.1), with the test seam `insideUnit`, which the
  * public options do not carry: it runs inside every writing unit before its purge and a throw
  * fails that unit. Every `intervalMs`, inside its window, the worker visits the deployment scope
- * and each backend and tenant served here, archived tenants included, and in units of one scope
+ * and each backend and tenant served here, archived tenants and backends included, and in units of one scope
  * and at most `batchSize` rows each deletes, in this order, the finished receipts whose window has
  * passed (failed ones too: this ends the fingerprint a failure leaves; a receipt of a sync mutation
  * stays until its client has acknowledged it), the change records of receipts older than the feed

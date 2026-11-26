@@ -39,6 +39,8 @@ export function erasure(options: ErasureOptions = {}): ErasureWorker {
   let lastSeq = 0n;
   let chain: Promise<unknown> = Promise.resolve();
   const finished = new Set<string>();
+  /** The records this process has logged as unfinished: a standing condition is logged once per record, doctor shows it after that. */
+  const logged = new Set<string>();
   const retry = new Map<string, { readonly record: ErasureRecord; readonly seq: bigint }>();
   /** The key ids this process has seen the control ledger hold a tombstone for. */
   const tombstoned = new Set<string>();
@@ -72,8 +74,27 @@ export function erasure(options: ErasureOptions = {}): ErasureWorker {
     if (finished.has(key)) return false;
     try {
       const found = await erasureTarget(ctx, record);
-      if (found === undefined || !(await isErasureFinished(ctx, found, record, seq))) {
-        await runErasure(ctx, record, {
+      if (found === undefined) {
+        // A tenant of a placement this process does not open is another process's: as before, it is
+        // left to that process. A tenant nobody knows is not done: it stays in the retry set.
+        if ((await ctx.archivedDirectory.tenant(record.tenantId)) !== undefined) {
+          ctx.log.warn('an erasure record names a tenant this process does not serve', {
+            commandId: record.commandId,
+          });
+          finished.add(key);
+          return true;
+        }
+        if (!logged.has(key)) {
+          logged.add(key);
+          ctx.log.warn('an erasure record names a tenant nobody knows; it is tried again', {
+            commandId: record.commandId,
+          });
+        }
+        retry.set(key, { record, seq });
+        return false;
+      }
+      if (!(await isErasureFinished(ctx, found, record, seq))) {
+        await runErasure(ctx, record, found, {
           pageSize,
           tombstoned,
           ...(options.afterStep === undefined ? {} : { afterStep: options.afterStep }),
@@ -83,14 +104,18 @@ export function erasure(options: ErasureOptions = {}): ErasureWorker {
       }
       finished.add(key);
       retry.delete(key);
+      logged.delete(key);
       return true;
     } catch (error) {
       if (!(error instanceof ErasureHalted)) {
         retry.set(key, { record, seq });
-        ctx.log.error('an erasure could not be finished; it is tried again', {
-          commandId: record.commandId,
-          cause: error,
-        });
+        if (!logged.has(key)) {
+          logged.add(key);
+          ctx.log.error('an erasure could not be finished; it is tried again', {
+            commandId: record.commandId,
+            cause: error,
+          });
+        }
       }
       return false;
     }

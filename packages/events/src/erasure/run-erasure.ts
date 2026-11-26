@@ -27,7 +27,7 @@ import {
 } from '@keelwerk/core';
 import { ErasureHalted } from './erasure-halted.ts';
 import type { ErasureOptions } from './erasure-options.ts';
-import { erasureTarget } from './erasure-target.ts';
+import type { ErasureTarget } from './erasure-target.ts';
 
 /** Where the principal ids and the command ids of the owned rows an erasure visits are collected. */
 interface Principals {
@@ -76,15 +76,9 @@ export type RunErasureOptions = Required<Pick<ErasureOptions, 'pageSize'>> &
 export async function runErasure(
   context: RuntimeServiceContext,
   record: ErasureRecord,
+  found: ErasureTarget,
   options: RunErasureOptions,
 ): Promise<void> {
-  const found = await erasureTarget(context, record);
-  if (found === undefined) {
-    context.log.warn('an erasure record names a tenant this process does not serve', {
-      commandId: record.commandId,
-    });
-    return;
-  }
   const { source, target } = found;
   const { registry } = source;
   const guard: UnitGuard = options.guard ?? ((work) => work());

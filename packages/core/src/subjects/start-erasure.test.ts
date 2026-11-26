@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { errors } from '../errors/errors.ts';
 import type { ErasureRecord } from '../ledger/erasure-record.ts';
 import type { StoredJob } from '../storage/stored-job.ts';
 import type { RunJobContext } from '../worker/run-job.ts';
@@ -20,6 +21,8 @@ interface Setup {
   readonly ownedRow?: boolean;
   /** The worker shredded the subject's key already: no live key, but a shredded one. */
   readonly shredded?: boolean;
+  /** The key read fails as the SQL key store does when the serving directory does not hold the scope. */
+  readonly keyScopeGone?: boolean;
 }
 
 function setup({
@@ -28,6 +31,7 @@ function setup({
   known = true,
   ownedRow = false,
   shredded = false,
+  keyScopeGone = false,
 }: Setup = {}) {
   const completed: unknown[] = [];
   const appended: unknown[] = [];
@@ -35,7 +39,10 @@ function setup({
   const unit = {
     receipts: { get: async () => receipt },
     keys: {
-      dataKey: async () => (known ? {} : undefined),
+      dataKey: async () => {
+        if (keyScopeGone) throw errors.not_found('No scope to wrap a key under.');
+        return known ? {} : undefined;
+      },
       shreddedKeys: async () => (shredded ? [{ keyId: 'k1', shreddedAt: now }] : []),
       refs: async () => [],
     },
@@ -271,6 +278,19 @@ describe('a subject that is known by its rows alone', () => {
     await startErasure(context, stored, { ...input, subjectId: compact });
     expect(completed).toEqual([{ kind: 'succeeded' }]);
     expect(appended).toEqual([]);
+  });
+});
+
+describe('a subject whose key cannot be opened because its scope is archived', () => {
+  test('stays known: the accepted erasure is recorded, not refused', async () => {
+    const { context, stored, appended, completed } = setup({
+      receipt: accepted,
+      known: false,
+      keyScopeGone: true,
+    });
+    await startErasure(context, stored, input);
+    expect(appended).toMatchObject([{ type: 'erasure', subjectId }]);
+    expect(completed).toEqual([{ kind: 'succeeded' }]);
   });
 });
 

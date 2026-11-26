@@ -7,7 +7,7 @@ export interface ErasureTarget {
   readonly target: ScopeTarget;
 }
 
-/** The source and scope a tenant's data is served from here, or `undefined` when another process serves it. */
+/** The source and scope a tenant's data lives in here, archived tenants included, or `undefined` when another process holds it. */
 export async function erasureTarget(
   context: RuntimeServiceContext,
   record: Pick<ErasureRecord, 'tenantId'>,
@@ -16,7 +16,7 @@ export async function erasureTarget(
     const target = await scopeTargetOf({
       source,
       scopeId: record.tenantId,
-      directory: context.directory,
+      directory: context.archivedDirectory,
       deploymentId: context.control.deploymentId,
     });
     if (target?.scope.level === 'tenant') return { source, target };

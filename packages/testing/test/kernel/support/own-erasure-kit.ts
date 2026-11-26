@@ -34,19 +34,36 @@ async function resetOwnErasure(): Promise<void> {
 
 /** The warnings an own-subject erasure logs when it is put off, with their fields. */
 const putOff: Record<string, unknown>[] = [];
+/** Every warning the runtime logged, by message. */
+const warned: string[] = [];
+/** Every error line the runtime logged, by message. */
+const failed: string[] = [];
+/** The step after which the erasure worker throws, while set. */
+const stepFault: { at: string | undefined } = { at: undefined };
 const log: Logger = {
   debug: () => undefined,
   info: () => undefined,
   warn: (message, fields) => {
+    warned.push(message);
     if (message === 'an erasure is put off') putOff.push({ ...fields });
   },
-  error: () => undefined,
+  error: (message) => {
+    failed.push(message);
+  },
   child: () => log,
 };
 
 async function boot(adapter: 'memory' | 'pglite', provider: FlagProvider = legalHoldProvider) {
   putOff.length = 0;
-  const worker = erasure({ pollMs: 3_600_000 });
+  warned.length = 0;
+  failed.length = 0;
+  stepFault.at = undefined;
+  const worker = erasure({
+    pollMs: 3_600_000,
+    afterStep: async (step) => {
+      if (stepFault.at === step) throw new Error(`the step ${step} fails`);
+    },
+  });
   const runtime = await startTestRuntime(ownErasureApp, {
     adapter,
     operators: true,
@@ -162,9 +179,12 @@ export {
   boot,
   current,
   erasures,
+  failed,
   person,
   providers,
   putOff,
   resetOwnErasure,
+  stepFault,
   targeting,
+  warned,
 };

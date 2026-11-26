@@ -104,6 +104,8 @@ export interface RetentionKit {
   versionsOf(tenant: Tenant, commandId: string): Promise<readonly number[]>;
   /** Archives the tenant's `core.tenant` row in the control store. */
   archiveTenant(tenant: Tenant): Promise<void>;
+  /** Archives the runtime's backend through the control action, which also drops the scope directory's cache. */
+  archiveBackend(): Promise<void>;
   /** Moves the runtime's clock forward by `hours`. */
   advance(hours: number): Promise<void>;
   /** One pass of the worker; its runs. */
@@ -269,6 +271,16 @@ export async function bootRetention(
           ]);
         },
       );
+    },
+    archiveBackend: async () => {
+      const archived = await runtime.invoker.invoke({
+        action: 'core.backend.archive',
+        input: { id: runtime.backendId },
+        carrier: { transport: 'test', local: { inProcess: true } },
+        requestId: crypto.randomUUID(),
+        signal: new AbortController().signal,
+      });
+      if (!archived.ok) throw archived.error;
     },
     advance: async (hours) => {
       await runtime.advanceTo(runtime.clock.now().add({ hours }));

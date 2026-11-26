@@ -1,4 +1,5 @@
 import { errors } from '../errors/errors.ts';
+import { isKeelwerkError } from '../errors/is-keelwerk-error.ts';
 import { kernelCommandIdPrefix } from '../ids/kernel-command-id-prefix.ts';
 import { refuseRequest } from '../interpreter/refuse-request.ts';
 import { type ErasureReason, erasureReasons } from '../ledger/erasure-reasons.ts';
@@ -69,7 +70,6 @@ export async function startErasure(
       return {
         accepted: receipt?.status === 'accepted' && receipt.action === erasureAction,
         known:
-          (await unit.keys.dataKey(input.subjectId, { create: false })) !== undefined ||
           // A key the worker shredded already still makes the subject known: an attempt that runs
           // again after the shred is not refused as unknown.
           (await unit.keys.shreddedKeys(input.subjectId)).length > 0 ||
@@ -82,7 +82,17 @@ export async function startErasure(
               after: null,
               limit: 1,
             })
-          ).rows.length > 0,
+          ).rows.length > 0 ||
+          // Read last: a key is opened through the serving reading of the scope directory, which
+          // does not hold an archived tenant. A scope it cannot find leaves an accepted erasure
+          // known, never refused (the request was checked when it was accepted).
+          (await unit.keys
+            .dataKey(input.subjectId, { create: false })
+            .then((key) => key !== undefined)
+            .catch((cause: unknown) => {
+              if (isKeelwerkError(cause) && cause.code === 'core.not_found') return true;
+              throw cause;
+            })),
       };
     },
     { readOnly: true },

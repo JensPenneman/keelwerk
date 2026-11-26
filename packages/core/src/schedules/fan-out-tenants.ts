@@ -46,7 +46,7 @@ async function pageOf(
  * backend with thousands of tenants does not come before the others. Holds one page of rows and
  * one cursor per backend of the page. Directory reads stop waiting when `signal` aborts. With
  * `includeArchived` the pages of backends and tenants also hold archived rows; a backend the
- * directory does not know (an archived one) still has no scopes.
+ * directory does not know has no scopes.
  */
 export async function* fanOutTenants(
   control: ControlStore,

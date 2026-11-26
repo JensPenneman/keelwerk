@@ -21,6 +21,8 @@ function isConfig(value: unknown): value is Readonly<Record<string, unknown>> {
 /** The directory the invoker resolves scopes with: reads over the control store, kept in a cache that the control namespace's change feed invalidates. */
 export interface ScopeDirectoryCache {
   readonly lookup: ScopeLookup;
+  /** The same reads that also find archived backends and tenants: for the workers that finish what an archived scope still owes, never for a request. */
+  readonly archivedLookup: ScopeLookup;
   /** Drops every cached row; the next lookup reads the control store again. */
   invalidate(): void;
   /** Follows the control namespace's change feed until `signal` aborts; each wake-up invalidates the cache. */
@@ -51,93 +53,109 @@ export function createScopeDirectoryCache(options: {
 }): ScopeDirectoryCache {
   const { store, book } = options;
   const domains = new Map<string, { backendId: string; tenantId: string | null }>();
-  const backends = new Map<string, BackendRecord>();
-  const tenants = new Map<string, TenantRecord>();
-  const backendRows = new Map<string, StorageRow>();
-
-  const backendRow = async (id: string): Promise<StorageRow | undefined> => {
-    const known = backendRows.get(id);
+  const hostname: ScopeLookup['hostname'] = async (host) => {
+    const known = domains.get(host);
     if (known !== undefined) return known;
-    const [row] = await findControlRows(store, 'core.backend', { id });
-    if (row !== undefined) backendRows.set(id, row);
-    return row;
+    const [row] = await findControlRows(store, 'core.domain', { hostname: host });
+    if (row === undefined) return undefined;
+    const found = {
+      backendId: String(row.backendId),
+      tenantId: row.tenantId === null || row.tenantId === undefined ? null : String(row.tenantId),
+    };
+    domains.set(host, found);
+    return found;
   };
 
-  const lookup: ScopeLookup = {
-    hostname: async (host) => {
-      const known = domains.get(host);
+  /** The reads of one reading of the directory: `includeArchived` also finds archived rows (the workers' reading, never the one that serves requests); each reading caches what it found. */
+  const lookupOf = (includeArchived: boolean) => {
+    const backends = new Map<string, BackendRecord>();
+    const tenants = new Map<string, TenantRecord>();
+    const backendRows = new Map<string, StorageRow>();
+
+    const backendRow = async (id: string): Promise<StorageRow | undefined> => {
+      const known = backendRows.get(id);
       if (known !== undefined) return known;
-      const [row] = await findControlRows(store, 'core.domain', { hostname: host });
-      if (row === undefined) return undefined;
-      const found = {
-        backendId: String(row.backendId),
-        tenantId: row.tenantId === null || row.tenantId === undefined ? null : String(row.tenantId),
-      };
-      domains.set(host, found);
-      return found;
-    },
-    backend: async (id) => {
-      // Row ids are uuids; text that is none names no backend (and must not reach a uuid column).
-      if (!uuidPattern.test(id)) return undefined;
-      const known = backends.get(id);
-      if (known !== undefined) return known;
-      const row = await backendRow(id);
-      if (row === undefined) return undefined;
-      const placement = String(row.placement);
-      const record: BackendRecord = {
-        id,
-        app: String(row.app),
-        placementId: placement,
-        namespace: await book.namespaceOf(placement, String(row.app)),
-        status: statusOf(row),
-        ...(typeof row.apiVersion === 'string' ? { apiVersion: row.apiVersion } : {}),
-        ...(isConfig(row.config) ? { config: row.config } : {}),
-      };
-      await options.provisionBackend?.({
-        backendId: id,
-        placementId: placement,
-        namespace: record.namespace,
-      });
-      backends.set(id, record);
-      return record;
-    },
-    tenant: async (id) => {
-      if (!uuidPattern.test(id)) return undefined;
-      const known = tenants.get(id);
-      if (known !== undefined) return known;
-      const [row] = await findControlRows(store, 'core.tenant', { id });
-      if (row === undefined) return undefined;
-      const backend = await backendRow(String(row.backendId));
-      if (backend === undefined) return undefined;
-      const placement =
-        typeof row.placement === 'string' ? row.placement : String(backend.placement);
-      const record: TenantRecord = {
-        id,
-        backendId: String(row.backendId),
-        placementId: placement,
-        namespace: await book.namespaceOf(placement, String(backend.app)),
-        status: statusOf(row),
-        ...(typeof row.apiVersion === 'string' ? { apiVersion: row.apiVersion } : {}),
-      };
-      await options.provisionBackend?.({
-        backendId: record.backendId,
-        placementId: placement,
-        namespace: record.namespace,
-      });
-      tenants.set(id, record);
-      return record;
-    },
+      const [row] = await findControlRows(store, 'core.backend', { id }, includeArchived);
+      if (row !== undefined) backendRows.set(id, row);
+      return row;
+    };
+
+    const lookup: ScopeLookup = {
+      hostname,
+      backend: async (id) => {
+        // Row ids are uuids; text that is none names no backend (and must not reach a uuid column).
+        if (!uuidPattern.test(id)) return undefined;
+        const known = backends.get(id);
+        if (known !== undefined) return known;
+        const row = await backendRow(id);
+        if (row === undefined) return undefined;
+        const placement = String(row.placement);
+        const record: BackendRecord = {
+          id,
+          app: String(row.app),
+          placementId: placement,
+          namespace: await book.namespaceOf(placement, String(row.app)),
+          status: statusOf(row),
+          ...(typeof row.apiVersion === 'string' ? { apiVersion: row.apiVersion } : {}),
+          ...(isConfig(row.config) ? { config: row.config } : {}),
+        };
+        await options.provisionBackend?.({
+          backendId: id,
+          placementId: placement,
+          namespace: record.namespace,
+        });
+        backends.set(id, record);
+        return record;
+      },
+      tenant: async (id) => {
+        if (!uuidPattern.test(id)) return undefined;
+        const known = tenants.get(id);
+        if (known !== undefined) return known;
+        const [row] = await findControlRows(store, 'core.tenant', { id }, includeArchived);
+        if (row === undefined) return undefined;
+        const backend = await backendRow(String(row.backendId));
+        if (backend === undefined) return undefined;
+        const placement =
+          typeof row.placement === 'string' ? row.placement : String(backend.placement);
+        const record: TenantRecord = {
+          id,
+          backendId: String(row.backendId),
+          placementId: placement,
+          namespace: await book.namespaceOf(placement, String(backend.app)),
+          status: statusOf(row),
+          ...(typeof row.apiVersion === 'string' ? { apiVersion: row.apiVersion } : {}),
+        };
+        await options.provisionBackend?.({
+          backendId: record.backendId,
+          placementId: placement,
+          namespace: record.namespace,
+        });
+        tenants.set(id, record);
+        return record;
+      },
+    };
+    return {
+      lookup,
+      clear: () => {
+        backends.clear();
+        tenants.clear();
+        backendRows.clear();
+      },
+    };
   };
+
+  const serving = lookupOf(false);
+  const archived = lookupOf(true);
 
   const invalidate = (): void => {
     domains.clear();
-    backends.clear();
-    tenants.clear();
-    backendRows.clear();
+    serving.clear();
+    archived.clear();
   };
 
   return {
-    lookup,
+    lookup: serving.lookup,
+    archivedLookup: archived.lookup,
     invalidate,
     follow: async (signal) => {
       try {

@@ -27,6 +27,11 @@ export interface RuntimeServiceContext
   readonly namespaces: readonly QueueSource[];
   /** The scope directory over the control store: a scope id to its backend or tenant. */
   readonly directory: ScopeLookup;
+  /**
+   * The same directory reading archived backends and tenants too: for the workers that finish what
+   * an archived scope still owes (the erasure, retention), never for a request or a consumer.
+   */
+  readonly archivedDirectory: ScopeLookup;
   /** `RuntimeInfrastructure.ledgers`. */
   readonly ledgers: readonly LedgerSink[];
   /** The process's quota cache: a service that enqueues asks it for fresh limits before the unit that enqueues; absent in a bare start. */

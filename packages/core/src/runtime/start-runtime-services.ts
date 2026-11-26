@@ -104,6 +104,7 @@ export function startRuntimeServices(
       queue: queue satisfies JobQueue,
       namespaces: sources,
       directory: input.migrated.directory.lookup,
+      archivedDirectory: input.migrated.directory.archivedLookup,
       ledgers: input.composed.infrastructure.ledgers,
       clock: input.clock,
       ...(input.quotas === undefined ? {} : { quotas: input.quotas }),

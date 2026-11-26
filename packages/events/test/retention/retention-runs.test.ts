@@ -276,4 +276,20 @@ describe('what a run records', () => {
       expect(acme?.outcome).toBe('complete');
     },
   );
+
+  test.each(kinds)(
+    'an expired receipt of a tenant of an archived backend is removed, on %s',
+    run,
+    async (kind) => {
+      kit = await bootRetention(kind);
+      const past = kit.runtime.clock.now().subtract({ hours: 2 });
+      const expired = crypto.randomUUID();
+      await kit.plantReceipt('acme', expired, 'failed', past);
+      await kit.archiveBackend();
+      const runs = await kit.pass();
+      expect(await kit.receiptOf('acme', expired)).toBeUndefined();
+      const acme = runs.find((entry) => entry.tenantId === kit?.runtime.tenants.acme.id);
+      expect(acme?.removed.receipts).toBe(1);
+    },
+  );
 });
