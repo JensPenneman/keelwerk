@@ -87,6 +87,7 @@ describe('pins in a running deployment', () => {
   const keyed: PrincipalResolver = {
     id: 'test.keyed',
     describe: () => ({ scheme: 'apiKey', name: keyHeader }),
+    // biome-ignore lint/correctness/useYield: a resolver is a generator by contract; this one asks for nothing
     *resolve(carrier, ctx) {
       const version = carrier.headers?.[keyHeader];
       if (version === undefined) return null;
@@ -95,7 +96,6 @@ describe('pins in a running deployment', () => {
           kind: 'user',
           subject: 'ada' as UserPrincipal['subject'],
           subjectRef: null,
-          subjectAs: () => null,
           scope: {
             backend: ctx.scope.level === 'deployment' ? null : ctx.scope.backendId,
             tenant: ctx.scope.level === 'tenant' ? ctx.scope.tenantId : null,

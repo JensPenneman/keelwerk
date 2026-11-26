@@ -4,6 +4,7 @@ import { operatorTokenPrefix } from '../core-module/operator-token-prefix.ts';
 import { errors } from '../errors/errors.ts';
 import { parseSealedValueText } from '../keys/parse-sealed-value-text.ts';
 import { parseToken } from '../keys/parse-token.ts';
+import { frozenPrincipal } from './frozen-principal.ts';
 import type { OperatorPrincipal } from './operator-principal.ts';
 
 function instantOf(value: unknown): Temporal.Instant | undefined {
@@ -58,7 +59,7 @@ export function createOperatorTokenResolver(store: ControlStore): OperatorTokenR
     }
     const id = String(row.id);
     store.log.info('operator token used', { tokenId: id, label: String(row.label) });
-    return {
+    return frozenPrincipal({
       kind: 'operator',
       id,
       scope: { backend: null, tenant: null },
@@ -68,6 +69,6 @@ export function createOperatorTokenResolver(store: ControlStore): OperatorTokenR
       via: 'core.operatorToken',
       ref: { resolver: 'core.operatorToken', principalId: id },
       expiresAt,
-    };
+    });
   };
 }

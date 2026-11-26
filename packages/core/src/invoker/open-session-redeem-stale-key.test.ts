@@ -9,7 +9,7 @@ describe('an earlier resolver that throws on its own credential', () => {
   /** An API-key resolver: an unknown key throws, as a revoked pass does. */
   function throwing(make: () => Error): PrincipalResolver {
     return {
-      id: 'test.key',
+      id: 'doc.key',
       describe: () => ({ scheme: 'apiKey' }),
       // biome-ignore lint/correctness/useYield: the test resolver loads nothing
       *resolve(carrier) {

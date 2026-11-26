@@ -1,10 +1,13 @@
 import { cacheDrops } from '../../edge/cache-drops.ts';
 import type { CredentialRedemption } from '../../edge/credential-redemption.ts';
+import { ownsResolverId } from '../../edge/owns-resolver-id.ts';
 import type { PrincipalResolution } from '../../edge/principal-resolution.ts';
 import type { PrincipalResolver } from '../../edge/principal-resolver.ts';
 import { KeelwerkError } from '../../errors/keelwerk-error.ts';
 import type { Clock } from '../../kernel/clock.ts';
+import { frozenPrincipal } from '../../principals/frozen-principal.ts';
 import type { Principal } from '../../principals/principal.ts';
+import { rebuiltPrincipal } from '../../principals/rebuilt-principal.ts';
 import type { AnyEffect } from '../../protocol/any-effect.ts';
 import { moduleResolver } from '../../reactions/module-resolver.ts';
 import type { Scope } from '../../storage/scope.ts';
@@ -101,6 +104,16 @@ export async function runPrincipalResolvers(
         message: `A fill of core.principalResolvers by "${module}" is not a principal resolver.`,
       });
     }
+    // The id is read once: the check, the comparison with the reference and the field the kernel sets
+    // all use this value, so a resolver whose id changes later answers under the id it was checked as.
+    const { id } = value;
+    if (!ownsResolverId(module, id)) {
+      throw new KeelwerkError({
+        kind: 'internal',
+        code: 'core.internal',
+        message: `A fill of core.principalResolvers by "${module}" has a resolver whose id "${String(id)}" is not an id of "${module}".`,
+      });
+    }
     let resolution: PrincipalResolution | null;
     try {
       resolution = await kit.drive<PrincipalResolution | null>(
@@ -123,7 +136,7 @@ export async function runPrincipalResolvers(
     if (resolution === null) continue;
     for (const name of resolution.clearCookies ?? []) cookies.add(name);
     if (resolution.redeem !== undefined) {
-      const { redeem } = resolution;
+      const redeem = { ...resolution.redeem, ref: { ...resolution.redeem.ref } };
       // A redeemed credential stands for a principal of another resolver: never a kernel resolver, and
       // the entity is the answering module's own.
       if (
@@ -149,8 +162,9 @@ export async function runPrincipalResolvers(
     // A ticket is the one credential of its request and decides alone: what another resolver made of
     // another credential on the same request (an API-key header) is never taken beside it.
     if (carrier.ticket !== undefined) continue;
-    if (resolution.principal.kind === 'anonymous') continue;
-    const forged = kernelOnlyOf(resolution.principal);
+    const principal = frozenPrincipal(resolution.principal);
+    if (principal.kind === 'anonymous') continue;
+    const forged = kernelOnlyOf(principal);
     if (forged !== undefined) {
       throw new KeelwerkError({
         kind: 'internal',
@@ -160,7 +174,7 @@ export async function runPrincipalResolvers(
     }
     // An operator skips the backend and tenant checks of the gate: only the kernel's own fill (the
     // core's, which the test harness fills as well) may answer one.
-    if (resolution.principal.kind === 'operator' && module !== 'core') {
+    if (principal.kind === 'operator' && module !== 'core') {
       throw new KeelwerkError({
         kind: 'internal',
         code: 'core.internal',
@@ -168,20 +182,17 @@ export async function runPrincipalResolvers(
       });
     }
     // The reference an answer carries names the resolver that answered: a job re-resolves it by that
-    // name, and a rule that exempts a resolver's principals tests it. Resolver ids are not yet bound to
-    // their module or unique, so a module that copies another's id is not caught here.
-    const named = resolution.principal.ref?.resolver;
-    if (named !== undefined && named !== value.id) {
+    // name, and a rule that exempts a resolver's principals tests it. The id is the module's own
+    // (checked above), so the name can only reach that module's resolver.
+    const named = principal.ref?.resolver;
+    if (named !== undefined && named !== id) {
       throw new KeelwerkError({
         kind: 'internal',
         code: 'core.internal',
-        message: `A fill of core.principalResolvers by "${module}" answered a principal whose reference names the resolver "${named}", not its own "${value.id}".`,
+        message: `A fill of core.principalResolvers by "${module}" answered a principal whose reference names the resolver "${named}", not its own "${id}".`,
       });
     }
-    if (
-      resolution.principal.kind === 'user' &&
-      subjectNeedsLowerCase(resolution.principal.subject)
-    ) {
+    if (principal.kind === 'user' && subjectNeedsLowerCase(principal.subject)) {
       throw new KeelwerkError({
         kind: 'internal',
         code: 'core.internal',
@@ -191,10 +202,11 @@ export async function runPrincipalResolvers(
     const memberships = keepOwnMemberships(
       'core.principalResolvers',
       module,
-      resolution.principal.memberships,
+      principal.memberships,
     );
+    // `via` says which resolver answered: the kernel sets it, whatever the answer says.
     return {
-      principal: { ...resolution.principal, memberships, scope: scopeOf(scope) },
+      principal: rebuiltPrincipal(principal, { memberships, via: id, scope: scopeOf(scope) }),
       effects: resolution.effects ?? [],
       clearCookies: [...cookies],
       module,

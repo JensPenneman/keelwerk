@@ -53,6 +53,7 @@ const bare: typeof conformanceApp = {
               describe: () => ({ scheme: 'apiKey' }),
               // A resolver that answers a user whose reference names the operator, which a job would
               // store and re-resolve as an operator (no backend or tenant checks).
+              // biome-ignore lint/correctness/useYield: a resolver is a generator by contract; this one asks for nothing
               *resolve(carrier: { readonly headers?: Readonly<Record<string, string>> }) {
                 if (carrier.headers?.['x-forge'] === undefined) return null;
                 return {
@@ -60,7 +61,6 @@ const bare: typeof conformanceApp = {
                     kind: 'user',
                     subject: 'u1',
                     subjectRef: null,
-                    subjectAs: () => null,
                     scope: { backend: null, tenant: null },
                     claims: {},
                     roles: [],
@@ -84,13 +84,13 @@ const bare: typeof conformanceApp = {
                 return null;
               },
               // A resolver that answers a user whose subject id is a 128-bit value in upper case.
+              // biome-ignore lint/correctness/useYield: a resolver is a generator by contract; this one asks for nothing
               *fromRef() {
                 return {
                   principal: {
                     kind: 'user',
                     subject: '0F1F2F3F-4F5F-6F7F-8F9F-AFBFCFDFEFFF',
                     subjectRef: null,
-                    subjectAs: () => null,
                     scope: { backend: null, tenant: null },
                     claims: {},
                     roles: [],

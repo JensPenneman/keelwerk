@@ -15,7 +15,7 @@
     "actor": {
       "kind": "user",
       "id": "ada",
-      "via": "test"
+      "via": "library.token"
     }
   },
   "build": {

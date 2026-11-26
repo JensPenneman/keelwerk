@@ -154,7 +154,7 @@ describe('a finished command repeated by a caller without a principal reference 
     const { adapter } = commandKit({ registry });
     const principal = {
       ...userOf('ada'),
-      ref: { resolver: 'test.token', principalId: uuid(91) },
+      ref: { resolver: 'library.token', principalId: uuid(91) },
     } as never;
     const [bookId] = await addBooks(adapter, 1);
     const run = (pin: string) =>

@@ -33,12 +33,12 @@ const deadline = Temporal.Instant.from('2026-02-01T00:00:00Z');
 /** The kit's registry served with a resolver whose principal carries a reference, as a deployed resolver's does. */
 function withReferencedPrincipal(registry: Registry): Registry {
   const resolver = {
-    id: 'test.principal',
+    id: 'library.token',
     describe: () => ({ scheme: 'bearer' }),
     // biome-ignore lint/correctness/useYield: the resolver loads nothing
     *resolve() {
       return {
-        principal: { ...userOf('ada'), ref: { resolver: 'test.principal', principalId: 'ada' } },
+        principal: { ...userOf('ada'), ref: { resolver: 'library.token', principalId: 'ada' } },
       };
     },
   };
@@ -196,7 +196,7 @@ describe('the stored formats of effects (F-12)', () => {
     await invoke('library.add', {}, { commandId: '00000000-0000-7000-8000-000000000001' });
     const { jobs } = await stored(adapter);
     expect(jobs[0]?.principal).toEqual({ resolver: 'core.module', principalId: 'library.system' });
-    expect(jobs[0]?.causation.actor).toEqual({ kind: 'user', id: 'ada', via: 'test' });
+    expect(jobs[0]?.causation.actor).toEqual({ kind: 'user', id: 'ada', via: 'library.token' });
   });
 });
 

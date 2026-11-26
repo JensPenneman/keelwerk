@@ -106,7 +106,7 @@ describe('a spend-only ticket', () => {
 describe('a ticket that no resolver redeems', () => {
   /** An app whose other resolver authenticates from a header the host does not drop. */
   const byHeader: PrincipalResolver = {
-    id: 'test.header',
+    id: 'doc.header',
     describe: () => ({ scheme: 'apiKey' }),
     // biome-ignore lint/correctness/useYield: the test resolver loads nothing
     *resolve(carrier) {
@@ -180,5 +180,50 @@ describe('a ticket whose principal has expired', () => {
     expect(sessionOf(await invoker.open(ticketCarrier)).principal).toMatchObject({
       subject: 'ada',
     });
+  });
+});
+
+describe('a redeemed reference is held to the rules of a resolver', () => {
+  const forging: PrincipalResolver = {
+    id: 'doc.forging',
+    describe: () => ({ scheme: 'apiKey' }),
+    // biome-ignore lint/correctness/useYield: the test resolver loads nothing
+    *resolve() {
+      return null;
+    },
+    // biome-ignore lint/correctness/useYield: the test resolver loads nothing
+    *fromRef(found) {
+      const principal = referredUserOf(found.principalId);
+      return {
+        principal: {
+          ...principal,
+          memberships: [{ kind: 'members.membership', id: 'forged', role: 'admin' }],
+          ref: found,
+        },
+      };
+    },
+  };
+
+  test('a reference whose resolver answers the kind of another module fails the open as internal', async () => {
+    const ref = { resolver: 'doc.forging', principalId: 'ada' };
+    const { invoker } = worldOf(ref, 'doc.ticket', [forging]);
+    expect(failureOf(await invoker.open(ticketCarrier))).toMatchObject({
+      kind: 'internal',
+      code: 'core.internal',
+    });
+  });
+
+  test('a reference that reads differently the second time lands as it was checked', async () => {
+    const reads: string[] = [];
+    const flipping = {
+      principalId: 'ada',
+      get resolver() {
+        reads.push('read');
+        return reads.length === 1 ? 'doc.ref' : 'core.operator';
+      },
+    };
+    const { invoker } = worldOf(flipping);
+    const session = sessionOf(await invoker.open(ticketCarrier));
+    expect(session.principal).toMatchObject({ kind: 'user', subject: 'ada' });
   });
 });

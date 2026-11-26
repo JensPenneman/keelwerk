@@ -1,4 +1,10 @@
-import type { Id, PrincipalRef, Scope, SubjectId, UserPrincipal } from '@keelwerk/core';
+import type {
+  AnsweredPrincipal,
+  PrincipalRef,
+  Scope,
+  SubjectId,
+  UserPrincipal,
+} from '@keelwerk/core';
 import { keyResolverId } from './key-resolver-id.ts';
 
 /** What the principal of a key is built from: the row's members the principal carries. */
@@ -18,7 +24,7 @@ export function keyPrincipal(
   row: KeyRowFacts,
   scope: Scope,
   apiVersion: string | undefined,
-): UserPrincipal {
+): AnsweredPrincipal<UserPrincipal> {
   const subjectRef = row.subjectRef ?? null;
   const ref: PrincipalRef & { readonly keyId: string } = {
     resolver: keyResolverId,
@@ -29,8 +35,6 @@ export function keyPrincipal(
     kind: 'user',
     subject: row.subject,
     subjectRef,
-    subjectAs: <R extends string>(ref: R): Id<R> | null =>
-      subjectRef !== null && ref === subjectRef ? (row.subject as unknown as Id<R>) : null,
     scope: {
       backend: scope.level === 'deployment' ? null : scope.backendId,
       tenant: scope.level === 'tenant' ? scope.tenantId : null,

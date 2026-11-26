@@ -1,4 +1,4 @@
-import type { Principal, PrincipalResolver, Scope, UserPrincipal } from '@keelwerk/core';
+import type { AnsweredPrincipal, PrincipalResolver, Scope, UserPrincipal } from '@keelwerk/core';
 import type { TestPrincipal } from './test-principal.ts';
 import type { TestPrincipalBook } from './test-principal-book.ts';
 import { testPrincipalHeader } from './test-principal-header.ts';
@@ -8,7 +8,7 @@ function isTestPrincipal(value: unknown): value is TestPrincipal {
 }
 
 /** The principal a test principal stands for in a scope: an operator, a user or the anonymous one. */
-function principalOf(held: TestPrincipal, scope: Scope, operators: boolean): Principal {
+function principalOf(held: TestPrincipal, scope: Scope, operators: boolean): AnsweredPrincipal {
   const base = {
     scope: {
       backend: scope.level === 'deployment' ? null : scope.backendId,
@@ -29,11 +29,10 @@ function principalOf(held: TestPrincipal, scope: Scope, operators: boolean): Pri
     };
   }
   if (held.subject === null) return { kind: 'anonymous', ...base, ref: null };
-  const user: UserPrincipal = {
+  const user: AnsweredPrincipal<UserPrincipal> = {
     kind: 'user',
     subject: held.subject as UserPrincipal['subject'],
     subjectRef: null,
-    subjectAs: () => null,
     ...base,
     ref: { resolver: 'test.principal', principalId: held.principalId ?? held.subject },
   };

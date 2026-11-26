@@ -1,4 +1,5 @@
 import type { PrincipalContext } from '../contexts/principal-context.ts';
+import { ownedPrincipal } from '../principals/owned-principal.ts';
 import type { Principal } from '../principals/principal.ts';
 import type { FieldKind } from '../storage/field-kind.ts';
 import type { Scope } from '../storage/scope.ts';
@@ -45,7 +46,8 @@ export interface ExportCaslRulesInput {
  * when the set is unbounded or the rule cannot be evaluated here. A rule that matches no row is
  * left out. Allow rules come first and deny (`inverted`) rules after them, each group in rule id order, so a deny overrides in CASL as it does here and one principal exports one list.
  */
-export function exportCaslRules(input: ExportCaslRulesInput): readonly CaslRule[] {
+export function exportCaslRules(given: ExportCaslRulesInput): readonly CaslRule[] {
+  const input = { ...given, principal: ownedPrincipal(given.principal) };
   const context: PrincipalContext = { principal: input.principal, scope: input.scope, flags: {} };
   const out: CaslRule[] = [];
   const ordered = [...input.rules].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));

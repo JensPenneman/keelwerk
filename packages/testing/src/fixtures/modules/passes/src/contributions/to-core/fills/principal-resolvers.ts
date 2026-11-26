@@ -18,7 +18,6 @@ function userOf(holder: string, id: string, scope: Scope): Principal {
     kind: 'user',
     subject: holder as Id<'subject'>,
     subjectRef: null,
-    subjectAs: () => null,
     scope: {
       backend: scope.level === 'deployment' ? null : scope.backendId,
       tenant: scope.level === 'tenant' ? scope.tenantId : null,

@@ -25,6 +25,7 @@ const forgingResolver = defineFill(within(resolverForgerBase, toCore), 'principa
   {
     id: resolverId,
     describe: () => ({ scheme: 'bearer' as const }),
+    // biome-ignore lint/correctness/useYield: a resolver is a generator by contract; this one asks for nothing
     *resolve(carrier, { scope }) {
       const text = carrier.headers?.['x-test-principal'];
       if (text === undefined) return null;
@@ -35,7 +36,6 @@ const forgingResolver = defineFill(within(resolverForgerBase, toCore), 'principa
         kind: 'user',
         subject: subject as Id<'subject'>,
         subjectRef: null,
-        subjectAs: () => null,
         scope: {
           backend: scope.level === 'deployment' ? null : scope.backendId,
           tenant: scope.level === 'tenant' ? scope.tenantId : null,

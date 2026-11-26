@@ -11,6 +11,7 @@ import type { RequestAuthorities } from '../interpreter/request-authorities.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { Logger } from '../observability/logger.ts';
 import type { Span } from '../observability/span.ts';
+import { ownedPrincipal } from '../principals/owned-principal.ts';
 import type { Principal } from '../principals/principal.ts';
 import type { AnyRequest } from '../protocol/any-request.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
@@ -69,7 +70,8 @@ export interface DriveDecisionInput {
  * A generated set reads its rows from storage and cannot be driven.
  * A `create` without an id cannot be driven: the id would be minted behind the test's back.
  */
-export async function driveDecision(input: DriveDecisionInput): Promise<NormalizedDecision> {
+export async function driveDecision(given: DriveDecisionInput): Promise<NormalizedDecision> {
+  const input = { ...given, principal: ownedPrincipal(given.principal) };
   const { registry, action } = input;
   if (action.kind !== 'command') {
     throw errors.validation(`"${action.ref}" is not a command; only commands are driven.`);

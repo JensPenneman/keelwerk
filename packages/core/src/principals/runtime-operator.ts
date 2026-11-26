@@ -1,3 +1,4 @@
+import { frozenPrincipal } from './frozen-principal.ts';
 import type { OperatorPrincipal } from './operator-principal.ts';
 
 /**
@@ -5,7 +6,7 @@ import type { OperatorPrincipal } from './operator-principal.ts';
  * because the core's rules allow operators on the control entities and deny the system principal
  * (section 8.8). It never travels over a transport; only code in the process can build it.
  */
-export const runtimeOperator: OperatorPrincipal = {
+export const runtimeOperator: OperatorPrincipal = frozenPrincipal({
   kind: 'operator',
   id: 'core.runtime',
   scope: { backend: null, tenant: null },
@@ -14,4 +15,4 @@ export const runtimeOperator: OperatorPrincipal = {
   memberships: [],
   via: 'core.runtime',
   ref: { resolver: 'core.runtime', principalId: 'core.runtime' },
-};
+});

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { context } from '../../../test/authorization/fixtures.ts';
+import { answered, context } from '../../../test/authorization/fixtures.ts';
 import type { Principal } from '../../principals/principal.ts';
 import { moduleServicePrincipal } from '../../reactions/module-service-principal.ts';
 import type { Carrier } from '../carrier.ts';
@@ -18,8 +18,8 @@ function answering(principal: Principal, module = 'evil', id = `${module}.keys`)
   };
 }
 
-const user = context('user', 'u1').principal;
-const service = context('service', 'loans.system').principal;
+const user = answered(context('user', 'u1').principal);
+const service = answered(context('service', 'loans.system').principal);
 
 describe('runPrincipalResolvers: what a resolver may not answer', () => {
   test('an honest answer is taken, in the scope of the request', async () => {
@@ -50,7 +50,7 @@ describe('runPrincipalResolvers: what a resolver may not answer', () => {
       'a reference of core.operatorToken',
       { ...user, ref: { resolver: 'core.operatorToken', principalId: 'tok' } },
     ],
-    ['a system principal', { ...context('system').principal, via: 'evil.keys' }],
+    ['a system principal', { ...answered(context('system').principal), via: 'evil.keys' }],
   ])('an answer with %s is internal', async (_name, principal) => {
     await expect(
       runPrincipalResolvers(answering(principal as Principal), carrier, scope, clock),
@@ -63,7 +63,7 @@ describe('runPrincipalResolvers: what a resolver may not answer', () => {
       runPrincipalResolvers(answering(minted), carrier, scope, clock),
     ).rejects.toMatchObject({
       kind: 'internal',
-      message: expect.stringContaining("kernel's module resolver"),
+      message: expect.stringContaining('principal carries "idAs"'),
     });
   });
 
@@ -270,4 +270,55 @@ describe('runPrincipalResolvers: whose membership kinds a resolver may return', 
       runPrincipalResolvers(answering(own, 'evil'), carrier, scope, clock),
     ).resolves.toMatchObject({ principal: { memberships: [{ kind: 'evil.device' }] } });
   });
+});
+
+describe('runPrincipalResolvers: the id of a resolver is its module', () => {
+  test("a fill answering under an id that is not its module's is internal, whoever's id it copies", async () => {
+    for (const id of ['auth.session', 'evilX.keys', 'keys', 'evil']) {
+      await expect(
+        runPrincipalResolvers(answering(user, 'evil', id), carrier, scope, clock),
+      ).rejects.toMatchObject({
+        kind: 'internal',
+        code: 'core.internal',
+        message: `A fill of core.principalResolvers by "evil" has a resolver whose id "${id}" is not an id of "evil".`,
+      });
+    }
+  });
+
+  test('the principal says through the resolver that answered, whatever the answer says', async () => {
+    const claiming = { ...user, via: 'api-keys.key' } as Principal;
+    const resolved = await runPrincipalResolvers(answering(claiming), carrier, scope, clock);
+    expect(resolved.principal.via).toBe('evil.keys');
+  });
+});
+
+describe('runPrincipalResolvers: an answer is read once', () => {
+  const flip = (field: string, first: unknown, then: unknown) => {
+    const reads = [first];
+    return Object.defineProperty({ ...user }, field, {
+      get: () => reads.shift() ?? then,
+      enumerable: true,
+    }) as Principal;
+  };
+
+  test.each([
+    [
+      'ref',
+      { resolver: 'evil.keys', principalId: 'k1' },
+      { resolver: 'auth.session', principalId: 'k1' },
+    ],
+    ['kind', 'user', 'operator'],
+    ['subject', 'ada', 'ADA'],
+  ])(
+    'a %s that reads differently the second time lands as it was checked',
+    async (field, first, then) => {
+      const resolved = await runPrincipalResolvers(
+        answering(flip(field, first, then)),
+        carrier,
+        scope,
+        clock,
+      );
+      expect(resolved.principal).toMatchObject({ [field]: first });
+    },
+  );
 });

@@ -25,7 +25,7 @@ const flagRequest = (key: string) => ({
 
 /** A flag whose value is the kind of the principal it is evaluated for. */
 const whoFlag: FlagProvider = {
-  id: 'test.who',
+  id: 'doc.who',
   sync: true,
   start: () => Promise.resolve(),
   resolve: <T>(_flag: unknown, context: { readonly principal: { readonly kind: string } }) =>
@@ -33,7 +33,7 @@ const whoFlag: FlagProvider = {
       value: context.principal.kind,
       variant: context.principal.kind,
       reason: 'TARGETING_MATCH',
-      provider: 'test.who',
+      provider: 'doc.who',
     }) as unknown as FlagResolution<T>,
 };
 

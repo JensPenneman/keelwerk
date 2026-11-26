@@ -1,10 +1,13 @@
 import { describe, expect, test } from 'vitest';
-import { context } from '../../../test/authorization/fixtures.ts';
+import { answered, context } from '../../../test/authorization/fixtures.ts';
+import { frozenPrincipal } from '../../principals/frozen-principal.ts';
 import type { Membership } from '../../principals/membership.ts';
+import type { Principal } from '../../principals/principal.ts';
+import { keepOwnMemberships } from './keep-own-memberships.ts';
 import type { ResolverKit } from './resolver-kit.ts';
 import { runPrincipalEnrichers } from './run-principal-enrichers.ts';
 
-const user = context('user', 'u1').principal;
+const user = answered(context('user', 'u1').principal);
 
 /** A kit whose one enricher, filled by `module`, answers the given memberships and roles. */
 function filling(
@@ -24,6 +27,15 @@ describe('runPrincipalEnrichers: whose membership kinds a fill may return', () =
     const own = { kind: 'members.membership', id: 'm1', role: 'owner' };
     const enriched = await runPrincipalEnrichers(filling('members', [own]), user);
     expect(enriched.memberships).toContainEqual(own);
+  });
+
+  test('the enriched principal is a new one and is frozen', async () => {
+    const own = { kind: 'members.membership', id: 'm1', role: 'owner' };
+    const frozen = frozenPrincipal(user);
+    const enriched = await runPrincipalEnrichers(filling('members', [own], ['admin']), frozen);
+    expect(enriched).not.toBe(frozen);
+    expect(Object.isFrozen(enriched) && Object.isFrozen(enriched.memberships)).toBe(true);
+    expect(Object.isFrozen(enriched.roles)).toBe(true);
   });
 
   test('a fill of another module that returns the kind of members is internal and names no member value', async () => {
@@ -69,6 +81,47 @@ describe('runPrincipalEnrichers: whose membership kinds a fill may return', () =
     expect(enriched.memberships.map((membership) => membership.kind)).not.toContain(
       'members.membership',
     );
+  });
+
+  test.each([
+    [
+      'change a kind',
+      (handed: Principal) => {
+        (handed.memberships[0] as { kind: string }).kind = 'other.membership';
+      },
+    ],
+    [
+      'add a membership',
+      (handed: Principal) => {
+        (handed.memberships as Membership[]).push({
+          kind: 'other.membership',
+          id: 'm2',
+          role: 'x',
+        });
+      },
+    ],
+  ])('an enricher is handed frozen memberships: it cannot %s', async (_what, tamper) => {
+    const kept = keepOwnMemberships('core.principalResolvers', 'members', [
+      { kind: 'members.membership', id: 'm1', role: 'owner' },
+    ]);
+    const kit: ResolverKit = {
+      fills: () => [
+        {
+          module: 'other',
+          value: {
+            enrich: (handed: Principal) => {
+              tamper(handed);
+              return {};
+            },
+          },
+        },
+      ],
+      drive: (generator) => Promise.resolve(generator as never),
+    };
+    await expect(
+      runPrincipalEnrichers(kit, frozenPrincipal({ ...user, memberships: kept })),
+    ).rejects.toThrow(TypeError);
+    expect(kept).toEqual([{ kind: 'members.membership', id: 'm1', role: 'owner' }]);
   });
 
   test('roles stay unchecked: any fill may add one', async () => {

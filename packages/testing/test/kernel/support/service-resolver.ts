@@ -1,4 +1,4 @@
-import type { PrincipalResolver, ServicePrincipal } from '@keelwerk/core';
+import type { AnsweredPrincipal, PrincipalResolver, ServicePrincipal } from '@keelwerk/core';
 import type { TestApp } from '../../../src/harness/test-app.ts';
 
 /** The header a carrier holds a service principal in: `{ id, principalId }` as JSON. */
@@ -7,14 +7,14 @@ const serviceHeader = 'x-test-service';
 const resolver: PrincipalResolver = {
   id: 'test.service',
   describe: () => ({ scheme: 'apiKey', name: serviceHeader }),
+  // biome-ignore lint/correctness/useYield: a resolver is a generator by contract; this one asks for nothing
   *resolve(carrier, ctx) {
     const text = carrier.headers?.[serviceHeader];
     if (text === undefined) return null;
     const held = JSON.parse(text) as { readonly id: string; readonly principalId: string };
-    const principal: ServicePrincipal = {
+    const principal: AnsweredPrincipal<ServicePrincipal> = {
       kind: 'service',
       id: held.id,
-      idAs: () => null,
       scope: {
         backend: ctx.scope.level === 'deployment' ? null : ctx.scope.backendId,
         tenant: ctx.scope.level === 'tenant' ? ctx.scope.tenantId : null,

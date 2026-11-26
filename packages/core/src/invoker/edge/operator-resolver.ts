@@ -1,3 +1,4 @@
+import { frozenPrincipal } from '../../principals/frozen-principal.ts';
 import type { OperatorPrincipal } from '../../principals/operator-principal.ts';
 import type { Carrier } from '../carrier.ts';
 
@@ -10,7 +11,7 @@ export function operatorResolver(carrier: Carrier): OperatorPrincipal | undefine
   const { local } = carrier;
   if (local === undefined) return undefined;
   const id = 'socket' in local ? 'local.socket' : 'local.in-process';
-  return {
+  return frozenPrincipal({
     kind: 'operator',
     id,
     scope: { backend: null, tenant: null },
@@ -19,5 +20,5 @@ export function operatorResolver(carrier: Carrier): OperatorPrincipal | undefine
     memberships: [],
     via: 'core.operator',
     ref: { resolver: 'core.operator', principalId: id },
-  };
+  });
 }

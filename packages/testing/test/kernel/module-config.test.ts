@@ -104,13 +104,13 @@ describe('ctx.config beyond commands and reads (S-106)', () => {
   const resolver = (greeting: string) => ({
     id: 'claims.resolver',
     describe: () => ({ scheme: 'apiKey' as const, name: 'x-claims' }),
+    // biome-ignore lint/correctness/useYield: a resolver is a generator by contract; this one asks for nothing
     *resolve() {
       return {
         principal: {
           kind: 'user' as const,
           subject: 'ada' as never,
           subjectRef: null,
-          subjectAs: () => null,
           scope: { backend: null, tenant: null },
           claims: { greeting },
           roles: [],

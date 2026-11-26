@@ -72,3 +72,28 @@ describe('the actions, selectors and contains of the export (section 8.7)', () =
     expect(one).toMatchObject({ serverOnly: true });
   });
 });
+
+describe('the principal that comes in from outside the kernel', () => {
+  test('a rule callback cannot change it: the export freezes what it is given at the entry', () => {
+    const given = { ...runtimeOperator, id: 'ops' };
+    const refused: boolean[] = [];
+    const tampering = rule({
+      id: 'doc.tamper',
+      effect: 'allow',
+      entity: 'doc.post',
+      actions: ['read'],
+      where: (ctx) => {
+        try {
+          (ctx.principal as { kind: string }).kind = 'user';
+          refused.push(false);
+        } catch {
+          refused.push(true);
+        }
+        return { status: 'open' };
+      },
+    });
+    exportCaslRules({ rules: [tampering], principal: given, scope });
+    expect(refused).toEqual([true]);
+    expect(given.kind).toBe('operator');
+  });
+});

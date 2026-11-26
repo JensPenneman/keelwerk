@@ -1,4 +1,11 @@
-import type { AnyEffect, Carrier, PrincipalResolver, Scope, UserPrincipal } from '@keelwerk/core';
+import type {
+  AnsweredPrincipal,
+  AnyEffect,
+  Carrier,
+  PrincipalResolver,
+  Scope,
+  UserPrincipal,
+} from '@keelwerk/core';
 import type { TestApp } from '../../../src/harness/test-app.ts';
 import type { TestTenant } from '../../../src/harness/test-tenant.ts';
 
@@ -8,16 +15,16 @@ const sessionHeader = 'x-slice-session';
 const sessionResolver: PrincipalResolver = {
   id: 'slice.session',
   describe: () => ({ scheme: 'apiKey', name: sessionHeader }),
+  // biome-ignore lint/correctness/useYield: a resolver is a generator by contract; this one asks for nothing
   *resolve(carrier, ctx) {
     const text = carrier.headers?.[sessionHeader];
     if (text === undefined) return null;
     const effects = JSON.parse(text) as readonly AnyEffect[];
     const scope: Scope = ctx.scope;
-    const principal: UserPrincipal = {
+    const principal: AnsweredPrincipal<UserPrincipal> = {
       kind: 'user',
       subject: 'ada' as UserPrincipal['subject'],
       subjectRef: null,
-      subjectAs: () => null,
       scope: {
         backend: scope.level === 'deployment' ? null : scope.backendId,
         tenant: scope.level === 'tenant' ? scope.tenantId : null,

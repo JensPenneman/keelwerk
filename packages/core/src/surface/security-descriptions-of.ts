@@ -1,4 +1,5 @@
 import { compareCodePoints } from '../conditions/compare-code-points.ts';
+import { ownsResolverId } from '../edge/owns-resolver-id.ts';
 import type { PrincipalResolver } from '../edge/principal-resolver.ts';
 import { compositionError } from '../registry/composition-error.ts';
 import type { CompositionProblem } from '../registry/composition-problem.ts';
@@ -18,6 +19,17 @@ function isStaticDescription(value: unknown): value is {
   describe(): readonly SurfaceResolver[];
 } {
   return typeof value === 'function' && 'describe' in value && typeof value.describe === 'function';
+}
+
+/** A resolver id that does not start with the id of the module that fills it and a dot (section 8.5). */
+function foreignId(module: string, id: string): CompositionProblem | undefined {
+  return ownsResolverId(module, id)
+    ? undefined
+    : compositionError(
+        'foreignResolverIds',
+        `The principal resolver '${id}' filled by '${module}' does not start with '${module}.'.`,
+        { module, ref: id },
+      );
 }
 
 /** The resolvers of the surface and the problems met reading them. */
@@ -40,6 +52,11 @@ export function securityDescriptionsOf(registry: Registry): SecurityDescriptions
     const resolver: unknown = fill.fill;
     if (fill.bound && isStaticDescription(resolver)) {
       for (const described of resolver.describe()) {
+        const foreign = foreignId(fill.module, described.id);
+        if (foreign !== undefined) {
+          problems.push(foreign);
+          continue;
+        }
         if (resolvers.some((known) => known.id === described.id)) {
           problems.push(
             compositionError(
@@ -70,6 +87,11 @@ export function securityDescriptionsOf(registry: Registry): SecurityDescriptions
       continue;
     }
     const description = resolver.describe();
+    const foreign = foreignId(fill.module, resolver.id);
+    if (foreign !== undefined) {
+      problems.push(foreign);
+      continue;
+    }
     if (resolvers.some((known) => known.id === resolver.id)) {
       problems.push(
         compositionError(

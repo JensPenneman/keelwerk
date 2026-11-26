@@ -14,7 +14,6 @@ const user = (subject: string): InvocationSession =>
       kind: 'user',
       subject,
       subjectRef: null,
-      subjectAs: () => null,
       scope: { backend: 'b1', tenant: 't1' },
       claims: {},
       roles: [],

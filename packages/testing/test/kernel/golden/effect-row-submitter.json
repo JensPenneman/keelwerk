@@ -18,6 +18,6 @@
   },
   "key": "77db2baa623d0b6d257624d3fe72e12fdb5b562911153a9838a1f45b52038456",
   "deadline": "2026-02-01T00:00:00Z",
-  "principalResolver": "test.principal",
+  "principalResolver": "library.token",
   "principalId": "ada"
 }

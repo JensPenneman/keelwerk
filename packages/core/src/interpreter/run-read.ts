@@ -1,4 +1,5 @@
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
+import { ownedPrincipal } from '../principals/owned-principal.ts';
 import { driveHandler } from './drive-handler.ts';
 import { refuseRequest } from './refuse-request.ts';
 import type { RunReadInput } from './run-read-input.ts';
@@ -12,7 +13,8 @@ import { runReadUnit } from './run-read-unit.ts';
  * generator. Nothing is written and nothing is recorded in a decision record; the positions come
  * back for the response.
  */
-export async function runRead(input: RunReadInput): Promise<RunReadResult> {
+export async function runRead(given: RunReadInput): Promise<RunReadResult> {
+  const input = { ...given, principal: ownedPrincipal(given.principal) };
   const action = input.registry.actions.get(input.action);
   if (action === undefined) {
     throw new KeelwerkError({

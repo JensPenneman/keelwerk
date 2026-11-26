@@ -57,7 +57,7 @@ const byHeaderCarrier = {
 /** A principal resolver of the tests: `tok-<subject>` signs in, `bad` is an invalid bearer token, a stale cookie is anonymous. */
 function testResolver(own: ProbeContext): PrincipalResolver {
   return {
-    id: 'test.token',
+    id: 'library.token',
     describe: () => ({ scheme: 'bearer' }),
     *resolve(carrier) {
       if (carrier.headers?.cookie?.includes('sid=stale') === true) {

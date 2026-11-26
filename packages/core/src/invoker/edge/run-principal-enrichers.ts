@@ -2,6 +2,8 @@ import type { PrincipalEnricher } from '../../edge/principal-enricher.ts';
 import { KeelwerkError } from '../../errors/keelwerk-error.ts';
 import type { Membership } from '../../principals/membership.ts';
 import type { Principal } from '../../principals/principal.ts';
+import { readList } from '../../principals/read-list.ts';
+import { rebuiltPrincipal } from '../../principals/rebuilt-principal.ts';
 import { keepOwnMemberships } from './keep-own-memberships.ts';
 import type { ResolverKit } from './resolver-kit.ts';
 
@@ -41,10 +43,10 @@ export async function runPrincipalEnrichers(
       readonly roles?: readonly string[];
       readonly memberships?: readonly Membership[];
     }>(value.enrich(principal), module, principal);
-    for (const role of added.roles ?? []) roles.add(role);
+    for (const role of readList(added.roles ?? [], 'roles')) roles.add(role as string);
     memberships.push(
       ...keepOwnMemberships('core.principalEnrichers', module, added.memberships ?? []),
     );
   }
-  return { ...principal, roles: [...roles], memberships };
+  return rebuiltPrincipal(principal, { roles: [...roles], memberships });
 }

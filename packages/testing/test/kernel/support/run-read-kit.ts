@@ -91,7 +91,6 @@ export function userOf(subject: string): Principal {
     kind: 'user',
     subject,
     subjectRef: null,
-    subjectAs: () => null,
     scope: { backend: tenant.level === 'tenant' ? tenant.backendId : null, tenant: null },
     claims: {},
     roles: [],

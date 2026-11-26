@@ -1,4 +1,4 @@
-import type { Principal, SubjectId } from '@keelwerk/core';
+import type { AnsweredPrincipal, SubjectId } from '@keelwerk/core';
 import { errors } from '@keelwerk/core';
 import { afterAll, describe, expect, test } from 'vitest';
 import { conformanceApp } from '../../src/fixtures/index.ts';
@@ -10,11 +10,10 @@ const input = { borrower: 'bea' };
 
 /** The principal `swap.keys` answers for any reference: someone else than the reference names. */
 function other(scope: { readonly backend: string | null; readonly tenant: string | null }) {
-  const principal: Principal = {
+  const principal: AnsweredPrincipal = {
     kind: 'user',
     subject: 'mallory' as SubjectId,
     subjectRef: null,
-    subjectAs: () => null,
     scope,
     claims: {},
     roles: [],

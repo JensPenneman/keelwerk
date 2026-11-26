@@ -27,18 +27,17 @@ export function referredUserOf(subject: string, expiresAt?: Temporal.Instant): P
     kind: 'user',
     subject,
     subjectRef: null,
-    subjectAs: () => null,
     scope: { backend: 'b1', tenant: 't1' },
     claims: {},
     roles: [],
     memberships: [],
-    via: 'test.ref',
-    ref: { resolver: 'test.ref', principalId: subject },
+    via: 'doc.ref',
+    ref: { resolver: 'doc.ref', principalId: subject },
     ...(expiresAt === undefined ? {} : { expiresAt }),
   } as unknown as Principal;
 }
 
-export const standing: PrincipalRef = { resolver: 'test.ref', principalId: 'ada' };
+export const standing: PrincipalRef = { resolver: 'doc.ref', principalId: 'ada' };
 
 /**
  * The world of the tests: the rows a unit holds, the principals that are revoked and the expiry
@@ -57,7 +56,7 @@ export function worldOf(
   const loaded: string[] = [];
   const transports: (string | null)[] = [];
   const redeeming: PrincipalResolver = {
-    id: 'test.ticket',
+    id: 'doc.ticket',
     describe: () => ({ scheme: 'apiKey' }),
     // biome-ignore lint/correctness/useYield: the test resolver loads nothing
     *resolve(carrier) {
@@ -69,7 +68,7 @@ export function worldOf(
     },
   };
   const referred: PrincipalResolver = {
-    id: 'test.ref',
+    id: 'doc.ref',
     describe: () => ({ scheme: 'apiKey' }),
     // biome-ignore lint/correctness/useYield: the test resolver loads nothing
     *resolve() {

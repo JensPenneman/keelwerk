@@ -57,7 +57,7 @@ const timer = {
  * (packages/testing/src/conformance/adapter/job-store-cases.ts).
  */
 const expiring: PrincipalResolver = {
-  id: 'test.expiring',
+  id: 'doc.expiring',
   describe: () => ({ scheme: 'bearer' }),
   // biome-ignore lint/correctness/useYield: the test resolver loads nothing
   *resolve(carrier) {
@@ -73,12 +73,11 @@ const adaExpiring = {
   kind: 'user',
   subject: 'ada',
   subjectRef: null,
-  subjectAs: () => null,
   scope: { backend: 'b1', tenant: 't1' },
   claims: {},
   roles: [],
   memberships: [],
-  via: 'test.expiring',
+  via: 'doc.expiring',
   ref: null,
   expiresAt: expiry,
 } as unknown as Principal;
@@ -92,7 +91,7 @@ const jobCarrier = {
   job: {
     scope,
     namespace: namespace.id,
-    principal: { resolver: 'test.expiring', principalId: 'ada' },
+    principal: { resolver: 'doc.expiring', principalId: 'ada' },
     transport: null,
     attempt: { jobId: '1', attempt: 1 },
     worker: 'w',

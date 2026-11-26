@@ -4,6 +4,7 @@ import type { NormalizedRule } from '../../src/authorization/normalized-rule.ts'
 import type { ConditionInput } from '../../src/conditions/condition-input.ts';
 import type { PrincipalContext } from '../../src/contexts/principal-context.ts';
 import type { SubjectId } from '../../src/ids/subject-id.ts';
+import type { Principal } from '../../src/principals/principal.ts';
 import type { PrincipalKind } from '../../src/principals/principal-kind.ts';
 import type { GeneratedActionKind } from '../../src/registry/generated-action-kind.ts';
 import type { RuleEntry } from '../../src/registry/rule-entry.ts';
@@ -213,4 +214,17 @@ export function context<Pk extends PrincipalKind = 'user'>(
     scope: { level: 'tenant', backendId: 'b1', tenantId: 't1' },
     flags: {},
   } as PrincipalContext;
+}
+
+/** A principal as a fill answers it: plain data, without the two functions the kernel builds itself. */
+export function answered(principal: Principal): Principal {
+  const {
+    subjectAs: _subject,
+    idAs: _id,
+    ...data
+  } = principal as Principal & {
+    subjectAs?: unknown;
+    idAs?: unknown;
+  };
+  return data as unknown as Principal;
 }

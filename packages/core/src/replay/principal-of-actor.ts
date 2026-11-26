@@ -1,5 +1,7 @@
 import type { ActorRef } from '../principals/actor-ref.ts';
 import type { AnonymousPrincipal } from '../principals/anonymous-principal.ts';
+import type { AnsweredPrincipal } from '../principals/answered-principal.ts';
+import { frozenPrincipal } from '../principals/frozen-principal.ts';
 import type { OperatorPrincipal } from '../principals/operator-principal.ts';
 import type { Principal } from '../principals/principal.ts';
 import type { ServicePrincipal } from '../principals/service-principal.ts';
@@ -31,26 +33,24 @@ export function principalOfActor(actor: ActorRef, scope: Scope): Principal {
   const id = actor.id ?? '';
   switch (actor.kind) {
     case 'user': {
-      const user: UserPrincipal = {
+      const user: AnsweredPrincipal<UserPrincipal> = {
         ...base,
         kind: 'user',
         subject: id as UserPrincipal['subject'],
         subjectRef: null,
-        subjectAs: () => null,
       };
-      return user;
+      return frozenPrincipal<UserPrincipal>(user);
     }
     case 'service': {
       if (actor.via === moduleResolver && id.endsWith(moduleSuffix)) {
         return moduleServicePrincipal(id.slice(0, -moduleSuffix.length), base);
       }
-      const service: ServicePrincipal = {
+      const service: AnsweredPrincipal<ServicePrincipal> = {
         ...base,
         kind: 'service',
         id: id as ServicePrincipal['id'],
-        idAs: () => null,
       };
-      return service;
+      return frozenPrincipal<ServicePrincipal>(service);
     }
     case 'operator': {
       const operator: OperatorPrincipal = {
@@ -58,15 +58,15 @@ export function principalOfActor(actor: ActorRef, scope: Scope): Principal {
         kind: 'operator',
         id: id as OperatorPrincipal['id'],
       };
-      return operator;
+      return frozenPrincipal(operator);
     }
     case 'system': {
       const system: SystemPrincipal = { ...base, kind: 'system', reason: 'replay' };
-      return system;
+      return frozenPrincipal(system);
     }
     case 'anonymous': {
       const anonymous: AnonymousPrincipal = { ...base, kind: 'anonymous' };
-      return anonymous;
+      return frozenPrincipal(anonymous);
     }
   }
 }

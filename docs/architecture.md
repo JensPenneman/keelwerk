@@ -1990,7 +1990,7 @@ and a placement serves every app it hosts.
 | app | `liveHub` | `LiveHub` (section 15.4.11); provides `contracts.live` | single | `live` |
 | app | `liveCarriers` | `LiveCarrier` (SSE, WebSocket) | set | `live` |
 | app | `entityActionGenerators` | a template from the core's closed set (`watch`) added to every entity | set | `live` |
-| app | `principalResolvers` | `PrincipalResolver`: from module fillers a pure generator over the carrier that yields loads and secret verifications and returns the principal (section 17.2.4); a membership's kind starts with the contributor's id (section 8.5) | ordered | core (operator, receivers), `auth` (sessions, passkeys), `api-keys` |
+| app | `principalResolvers` | `PrincipalResolver`: from module fillers a pure generator over the carrier that yields loads and secret verifications and returns the principal (section 17.2.4); a membership's kind and the resolver's own id start with the contributor's id and a dot (section 8.5) | ordered | core (operator, receivers), `auth` (sessions, passkeys), `api-keys` |
 | app | `principalEnrichers` | `PrincipalEnricher` (roles, memberships): a pure generator of loads; a membership's kind starts with the contributor's id (section 8.5) | set | `accounts`, `members` |
 | app | `invocationMiddleware` | `AdmissionRule`: a pure function or generator run at `admit` that returns the token buckets to consume, or a refusal (section 12.2); module code never wraps pipeline stages | ordered | `auth` (login rate limits, section 17.2.6), `api-keys`; request logging and telemetry are kernel code |
 | app | `ruleSources` | `RuleSource` (runtime-defined policy rules): a pure generator of loads returning rules | set | a later tenant-admin module |
@@ -3747,7 +3747,8 @@ interface UserPrincipal<Ref extends PrincipalRef = PrincipalRef> extends Princip
 interface ServicePrincipal<Ref extends PrincipalRef = PrincipalRef> extends PrincipalBase<Ref> {
   readonly kind: 'service'
   readonly id: string                                     // 'auth.system', a node id for 'nodes.credential', 'github.webhook'
-  idAs<R extends string>(ref: R): Id<R> | null            // the id as a branded row id when the principal stands for a row of R
+  readonly idRef?: string | null                         // the entity the id refers to ('nodes.node'), answered beside the id
+  idAs<R extends string>(ref: R): Id<R> | null            // the id as a branded row id when ref is idRef, else null
 }
 interface OperatorPrincipal<Ref extends PrincipalRef = PrincipalRef> extends PrincipalBase<Ref> { readonly kind: 'operator'; readonly id: string }
 interface AnonymousPrincipal<Ref extends PrincipalRef = PrincipalRef> extends PrincipalBase<Ref> { readonly kind: 'anonymous' }
@@ -3826,6 +3827,41 @@ the application writes itself may read them, and it then trusts every fill the a
 composed. `audit` lets the tenant's admins and owners read the trail by a membership of the
 `members` module (kind `members.membership`, role `admin` or `owner`); `accounts` ships no rule
 for a directory.
+
+Amended 2026-11-26 (resolver ids): a principal resolver's id starts with the id of the module that
+fills it, followed by a dot. An app whose fills declare an id against this does not compose
+(`foreignResolverIds`), as far as the ids are declared: a fill that is a factory is read by its
+static `describe`. The kernel reads the id of a resolver it builds once and holds it to the rule:
+at a request a resolver under another module's id is an `internal` error, and a stored reference
+reaches only a resolver of that id that its own module filled. The fills of the kernel's own
+module (the kernel's and the test harness's) are exempt, because no app can declare that module;
+a registry changed by hand after the app was defined is its author's own responsibility. A
+resolver's answer is read once, and the kernel checks and keeps that copy: the principal's `via` is
+the id of the resolver that answered, whatever the answer says. A principal contains only objects
+the kernel itself made: whatever a fill answers is read once, value by value, and every object in
+the principal is built by the kernel from those values; nothing a fill handed over is kept as it is.
+The kernel reads an array's length once and each index once, and an object's own enumerable members
+once each; it calls no method of an answered value, and what it checks is the copy it built, never
+the answer again. What a fill answers is plain data or it is refused: objects, arrays, strings,
+numbers, booleans, null and undefined, and nothing else, a function included. A Temporal value is
+taken only where the types declare one, the expiry, and the kernel builds a new one from its text.
+The two functions of a user and of a service, `subjectAs` and `idAs`, are pure functions of the
+subject and its reference and of the id and its `idRef`, so the kernel builds them itself; a
+resolver answers the subject with its `subjectRef` and the id with its `idRef`, and no function. The
+fields that say who the caller is (the kind, the subject and its reference, the id and its
+reference, the reference and its members, the scope and its members, `via`, the roles) are of their
+declared types, and the memberships are checked by their kinds. Anything else is an `internal` error
+that names the member's path and no value; the same holds for what an enricher returns. Every
+principal the kernel makes (the placeholder, the one a resolver's answer becomes, the one a stored
+reference resolves to, the enriched one, and the service, system and operator principals) is frozen
+all the way down when it is made, and the kernel never writes into one afterwards: a later stage
+makes a new one. So module code (the factory of a resolver or of an enricher, an enricher, a rule's
+callback) is handed the kernel's own principal and cannot change it. A principal that a caller
+outside the kernel passes to `runCommand`, `runRead`, `exportCaslRules` or `driveDecision` is
+rebuilt and frozen at that entry unless the kernel made it, however frozen it looks. The same holds
+when a ticket's reference is resolved. These rules keep a module from changing who a caller is
+through what it answers or is handed; a module's code runs in the app's process, and they are no
+sandbox against code that attacks the runtime itself.
 
 ### 8.6 Explainability, logging, tests
 
@@ -14001,7 +14037,7 @@ export const join = defineCommand(nodesBase, { output: shape({ nodeId: field.ref
 // modules/nodes/src/actions/channel.ts
 export const channel = defineSubscription(nodesBase, {
   event: agentCommandShape,
-  principal: 'service',                                                           // node credentials resolve to a service principal
+  principal: 'service',                                                           // node credentials resolve to a service principal with idRef 'nodes.node'
   source: (_input, ctx, resume) => {
     const nodeId = ctx.principal.idAs('nodes.node')
     if (nodeId === null) throw errors.forbidden('Only a node may hold its command channel.')

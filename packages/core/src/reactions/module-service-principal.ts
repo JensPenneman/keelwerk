@@ -1,3 +1,4 @@
+import { frozenPrincipal } from '../principals/frozen-principal.ts';
 import { mintedServiceModules } from '../principals/minted-service-modules.ts';
 import type { Principal } from '../principals/principal.ts';
 import type { ServicePrincipal } from '../principals/service-principal.ts';
@@ -16,18 +17,16 @@ export function moduleServicePrincipal(
   caused: Pick<Principal, 'scope'>,
 ): ServicePrincipal {
   const id = `${module}.system`;
-  const principal: ServicePrincipal = {
+  const principal = frozenPrincipal<ServicePrincipal>({
     kind: 'service',
     id,
-    idAs: () => null,
     scope: caused.scope,
     claims: {},
     roles: [],
     memberships: [],
     via: moduleResolver,
     ref: { resolver: moduleResolver, principalId: id },
-  };
-  Object.freeze(principal);
+  });
   mintedServiceModules.set(principal, module);
   return principal;
 }

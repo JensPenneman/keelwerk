@@ -4,6 +4,7 @@ import type { DecideContext } from '../contexts/decide-context.ts';
 import { coreApiVersions } from '../core-module/core-api-versions.ts';
 import type { CoreBase } from '../core-module/core-base-type.ts';
 import { shape } from '../fields/shape.ts';
+import { frozenPrincipal } from '../principals/frozen-principal.ts';
 import type { Principal } from '../principals/principal.ts';
 import type { SystemPrincipal } from '../principals/system-principal.ts';
 import type { Decision } from '../protocol/decision.ts';
@@ -13,7 +14,7 @@ import { registryBehaviours } from '../write-path/registry-behaviours.ts';
 import { runCommand } from '../write-path/run-command.ts';
 import type { ControlStore } from './control-store.ts';
 
-const system: SystemPrincipal = {
+const system: SystemPrincipal = frozenPrincipal({
   kind: 'system',
   reason: 'the runtime writes the control store',
   scope: { backend: null, tenant: null },
@@ -22,7 +23,7 @@ const system: SystemPrincipal = {
   memberships: [],
   via: 'core.system',
   ref: null,
-};
+});
 
 /** What a control command decides: drafts for the core's entities, in the control store's deployment scope. */
 export type ControlDecide = (ctx: DecideContext<CoreBase>) => Decision | Gen<Decision>;

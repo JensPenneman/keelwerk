@@ -10,7 +10,7 @@ import type { PrincipalResolution } from './principal-resolution.ts';
  * A bearer credential that is present but invalid throws an `unauthenticated` error.
  */
 export interface PrincipalResolver {
-  /** 'auth.session', 'api-keys.key', 'core.operator'. */
+  /** Starts with the id of the module that fills it and a dot, and is unique in the app: 'auth.session', 'api-keys.key'. */
   readonly id: string;
   /** For the OpenAPI security schemes (section 16.5.5). */
   describe(): {

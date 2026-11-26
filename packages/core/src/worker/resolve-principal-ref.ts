@@ -1,4 +1,5 @@
 import { cacheDrops } from '../edge/cache-drops.ts';
+import { ownsResolverId } from '../edge/owns-resolver-id.ts';
 import type { PrincipalResolution } from '../edge/principal-resolution.ts';
 import type { PrincipalResolver } from '../edge/principal-resolver.ts';
 import { principalRefOf } from '../effects/principal-ref-of.ts';
@@ -14,9 +15,11 @@ import type { InvokerEnv } from '../invoker/invoker-env.ts';
 import { moduleConfigOf } from '../invoker/module-config-of.ts';
 import type { ResolvedScope } from '../invoker/resolved-scope.ts';
 import type { Span } from '../observability/span.ts';
+import { frozenPrincipal } from '../principals/frozen-principal.ts';
 import type { OperatorPrincipal } from '../principals/operator-principal.ts';
 import type { Principal } from '../principals/principal.ts';
 import type { PrincipalRef } from '../principals/principal-ref.ts';
+import { rebuiltPrincipal } from '../principals/rebuilt-principal.ts';
 import { moduleResolver } from '../reactions/module-resolver.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
 import { subjectNeedsLowerCase } from '../subjects/subject-needs-lower-case.ts';
@@ -66,7 +69,7 @@ function resolved(
 
 /** The operator the runtime or a local carrier acts as: its reference names it, nothing else is stored. */
 function operatorOf(ref: PrincipalRef, placeholder: Principal): OperatorPrincipal {
-  return {
+  return frozenPrincipal({
     kind: 'operator',
     id: ref.principalId,
     scope: placeholder.scope,
@@ -75,7 +78,7 @@ function operatorOf(ref: PrincipalRef, placeholder: Principal): OperatorPrincipa
     memberships: [],
     via: ref.resolver,
     ref,
-  };
+  });
 }
 
 /**
@@ -139,11 +142,14 @@ export async function resolvePrincipalRef(
     },
     async (kit) => {
       for (const { module, value } of kit.fills('core.principalResolvers', placeholder)) {
-        if (!isResolver(value) || value.id !== ref.resolver) continue;
+        if (!isResolver(value)) continue;
+        // The id is read once (see runPrincipalResolvers): what is checked is what is used.
+        const { id } = value;
+        if (id !== ref.resolver || !ownsResolverId(module, id)) continue;
         if (value.fromRef === undefined) {
           env.options.log.warn(
-            `The principal resolver '${value.id}' of '${module}' has no fromRef, so the jobs it authenticated fail unauthenticated.`,
-            { resolver: value.id, module },
+            `The principal resolver '${id}' of '${module}' has no fromRef, so the jobs it authenticated fail unauthenticated.`,
+            { resolver: id, module },
           );
           continue;
         }
@@ -152,27 +158,25 @@ export async function resolvePrincipalRef(
           module,
           placeholder,
         );
-        if (resolution === null || !isReferred(resolution.principal, ref)) throw unresolved();
-        if (resolution.principal.kind === 'operator' && module !== 'core') throw unresolved();
-        if (
-          resolution.principal.kind === 'user' &&
-          subjectNeedsLowerCase(resolution.principal.subject)
-        ) {
+        if (resolution === null) throw unresolved();
+        const principal = frozenPrincipal(resolution.principal);
+        if (!isReferred(principal, ref)) throw unresolved();
+        if (principal.kind === 'operator' && module !== 'core') throw unresolved();
+        if (principal.kind === 'user' && subjectNeedsLowerCase(principal.subject)) {
           throw errors.internal(
-            `The principal resolver '${value.id}' of '${module}' answered a user whose subject id is not in lower case.`,
+            `The principal resolver '${id}' of '${module}' answered a user whose subject id is not in lower case.`,
           );
         }
         const memberships = keepOwnMemberships(
           'core.principalResolvers',
           module,
-          resolution.principal.memberships,
+          principal.memberships,
         );
         return {
-          principal: await runPrincipalEnrichers(kit, {
-            ...resolution.principal,
-            memberships,
-            scope: placeholder.scope,
-          }),
+          principal: await runPrincipalEnrichers(
+            kit,
+            rebuiltPrincipal(principal, { memberships, via: id, scope: placeholder.scope }),
+          ),
           dependsOn: resolution.cache === undefined ? undefined : cacheDrops(resolution.cache),
         };
       }

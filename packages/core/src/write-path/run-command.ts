@@ -2,6 +2,7 @@ import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import type { CommandResult } from '../invoker/command-runner.ts';
 import { deriveScopeSecrets } from '../keys/derive-scope-secrets.ts';
+import { ownedPrincipal } from '../principals/owned-principal.ts';
 import { attemptCommand } from './attempt-command.ts';
 import { commandDigests } from './command-digests.ts';
 import { refuseGeneratedWrite } from './refuse-generated-write.ts';
@@ -28,7 +29,8 @@ function carriesState(kind: string | undefined, input: unknown): boolean {
  * execute stage does with `withDeadline` (`invoker/stages/execute.ts`): the bound of `answerInlineRow`
  * assumes that no run with `prepare` outlives `timeoutMs` plus `inlineGuardGraceMs`.
  */
-export async function runCommand(input: RunCommandInput): Promise<CommandResult> {
+export async function runCommand(given: RunCommandInput): Promise<CommandResult> {
+  const input = { ...given, principal: ownedPrincipal(given.principal) };
   const { action } = input;
   if (action.kind !== 'command') {
     throw new KeelwerkError({

@@ -1,4 +1,4 @@
-import type { Id, Scope, SubjectId, UserPrincipal } from '@keelwerk/core';
+import type { AnsweredPrincipal, Scope, SubjectId, UserPrincipal } from '@keelwerk/core';
 import { sessionResolverId } from './session-resolver-id.ts';
 
 const profileSubjectRef = 'accounts.profile';
@@ -21,7 +21,7 @@ export function principalOfSession(
   row: SessionFacts,
   credential: object,
   scope: Scope,
-): UserPrincipal {
+): AnsweredPrincipal<UserPrincipal> {
   const profileId: string | undefined = Reflect.get(credential, 'profileId');
   // The reference carries the credential too, so a re-resolution can tell a reused session id apart.
   const ref = {
@@ -34,8 +34,6 @@ export function principalOfSession(
     kind: 'user',
     subject: row.subject,
     subjectRef: profileId === undefined ? null : profileSubjectRef,
-    subjectAs: <R extends string>(ref: R) =>
-      profileId !== undefined && ref === profileSubjectRef ? (profileId as Id<R>) : null,
     scope: {
       backend: scope.level === 'deployment' ? null : scope.backendId,
       tenant: scope.level === 'tenant' ? scope.tenantId : null,

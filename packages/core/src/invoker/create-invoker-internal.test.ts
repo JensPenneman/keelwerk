@@ -15,6 +15,7 @@ import type { Principal } from '../principals/principal.ts';
 
 const service = {
   kind: 'service',
+  id: 'doc.svc',
   scope: { backend: 'b1', tenant: 't1' },
   claims: {},
   roles: [],
@@ -23,7 +24,7 @@ const service = {
   ref: null,
 } as unknown as Principal;
 const serviceResolver: PrincipalResolver = {
-  id: 'test.service',
+  id: 'doc.bearer',
   describe: () => ({ scheme: 'bearer' }),
   // biome-ignore lint/correctness/useYield: the test resolver loads nothing
   *resolve(from) {

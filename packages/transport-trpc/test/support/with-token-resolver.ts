@@ -1,14 +1,13 @@
-import type { Principal, PrincipalRef, PrincipalResolver, Scope } from '@keelwerk/core';
+import type { AnsweredPrincipal, PrincipalRef, PrincipalResolver, Scope } from '@keelwerk/core';
 import type { TestApp } from '@keelwerk/testing';
 
 const prefix = 'test-token.';
 
-function userOf(subject: string, scope: Scope): Principal {
+function userOf(subject: string, scope: Scope): AnsweredPrincipal {
   return {
     kind: 'user',
     subject: subject as never,
     subjectRef: null,
-    subjectAs: () => null,
     scope: {
       backend: scope.level === 'deployment' ? null : scope.backendId,
       tenant: scope.level === 'tenant' ? scope.tenantId : null,

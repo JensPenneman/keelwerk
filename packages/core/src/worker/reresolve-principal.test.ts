@@ -199,7 +199,6 @@ describe("reresolvePrincipal: membership kinds from a module's fromRef", () => {
       kind: 'user',
       subject: 'u-1',
       subjectRef: null,
-      subjectAs: () => null,
       scope: { backend: 'b-1', tenant: 't-1' },
       claims: {},
       roles: [],

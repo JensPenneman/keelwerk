@@ -800,6 +800,7 @@ export type { Telemetry } from './observability/telemetry.ts';
 export type { Tracer } from './observability/tracer.ts';
 export type { ActorRef } from './principals/actor-ref.ts';
 export type { AnonymousPrincipal } from './principals/anonymous-principal.ts';
+export type { AnsweredPrincipal } from './principals/answered-principal.ts';
 export type { Membership } from './principals/membership.ts';
 export type { OperatorPrincipal } from './principals/operator-principal.ts';
 export type { OperatorTokenResolver } from './principals/operator-token-resolver.ts';

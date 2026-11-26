@@ -53,7 +53,6 @@ function user(subject: string): Principal {
     kind: 'user',
     subject,
     subjectRef: null,
-    subjectAs: () => null,
     scope: { backend: 'b1', tenant: 't1' },
     claims: {},
     roles: [],
@@ -142,7 +141,7 @@ function fill(point: string, value: unknown): ExtensionFillEntry {
 
 /** A principal resolver of the tests: `tok-<subject>` signs in, `bad` throws, a stale cookie is anonymous. */
 const resolver: PrincipalResolver = {
-  id: 'test.token',
+  id: 'doc.token',
   describe: () => ({ scheme: 'bearer' }),
   // biome-ignore lint/correctness/useYield: the test resolver loads nothing
   *resolve(carrier) {

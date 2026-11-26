@@ -1,4 +1,4 @@
-import type { Principal, PrincipalResolver } from '@keelwerk/core';
+import type { AnsweredPrincipal, PrincipalResolver } from '@keelwerk/core';
 import type { TestPrincipalBook } from '../../harness/test-principal-book.ts';
 import { cookieValueOf } from './cookie-value-of.ts';
 import { testCookieName } from './test-cookie-name.ts';
@@ -19,6 +19,7 @@ export function testCookieResolver(
   return {
     id: 'test.cookie',
     describe: () => ({ scheme: 'cookie', name: testCookieName }),
+    // biome-ignore lint/correctness/useYield: a resolver is a generator by contract; this one asks for nothing
     *resolve(carrier, ctx) {
       const held = cookieValueOf(carrier.headers?.cookie, testCookieName);
       if (held === undefined) return null;
@@ -35,14 +36,13 @@ export function testCookieResolver(
       };
       const subject = testCookieSubject(carrier.headers?.cookie);
       if (subject === undefined || book.revoked.has(subject)) {
-        const anonymous: Principal = { kind: 'anonymous', ...base, roles: [], ref: null };
+        const anonymous: AnsweredPrincipal = { kind: 'anonymous', ...base, roles: [], ref: null };
         return { principal: anonymous, clearCookies: [testCookieName] };
       }
-      const principal: Principal = {
+      const principal: AnsweredPrincipal = {
         kind: 'user',
         subject: subject as never,
         subjectRef: null,
-        subjectAs: () => null,
         ...base,
         ref: { resolver: 'test.cookie', principalId: subject },
       };
