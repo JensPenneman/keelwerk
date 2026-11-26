@@ -38,7 +38,10 @@ export async function serveRegisteredSocket(
       for (const entry of state.subscriptions.values()) entry.abort.abort();
       open.closeWith(1000, 'max_duration');
     });
-    const session = socketSessionOf(state, registered, () => firstMessageSeen.abort());
+    const session = socketSessionOf(state, registered, () => {
+      state.first.seen = true;
+      firstMessageSeen.abort();
+    });
     registered.handler.open(
       webSocketOf(open, protocol, request.url),
       upgradeHttpContext(state.upgrade, open.connection.signal),

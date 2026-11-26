@@ -1,5 +1,6 @@
 import type { Clock, InvocationSession, KeelwerkError, LiveTimers, Outcome } from '@keelwerk/core';
 import { asKeelwerkError, coreError } from '@keelwerk/core/http';
+import { answerMs } from './answer-ms.ts';
 import { nextSessionCheckAt } from './next-session-check-at.ts';
 
 async function revalidated(session: InvocationSession): Promise<Outcome<InvocationSession>> {
@@ -9,9 +10,6 @@ async function revalidated(session: InvocationSession): Promise<Outcome<Invocati
     return { ok: false, error: asKeelwerkError(failure) };
   }
 }
-
-/** How long before `expiresAt` the check at the expiry starts, so a resolver has time to answer. */
-const answerMs = 1000;
 
 /** No check starts sooner than this after the previous check started. */
 const floorMs = 1000;

@@ -1,10 +1,9 @@
 import type { InvocationSession, KeelwerkError, Outcome } from '@keelwerk/core';
-import { endReasonOfError } from '@keelwerk/core';
-import { asKeelwerkError, closeCodeOfError } from '@keelwerk/core/http';
+import { asKeelwerkError, coreError } from '@keelwerk/core/http';
+import { answerMs } from './answer-ms.ts';
+import { closeAfterRefusal } from './close-after-refusal.ts';
 import type { LiveSocketState } from './live-socket-state.ts';
 import { nextSessionCheckAt } from './next-session-check-at.ts';
-import { sendLiveMessage } from './send-live-message.ts';
-import { socketWireError } from './socket-wire-error.ts';
 
 async function revalidated(session: InvocationSession): Promise<Outcome<InvocationSession>> {
   try {
@@ -14,43 +13,62 @@ async function revalidated(session: InvocationSession): Promise<Outcome<Invocati
   }
 }
 
-/** What `keelwerk.live.v1` does when the session no longer holds: `end` frames or an `error` frame, then the close. */
-function closeAfterRefusal(state: LiveSocketState): (error: KeelwerkError) => Promise<void> {
-  return async (error) => {
-    if (endReasonOfError(error) === 'version_retired') {
-      // The floor passed the socket's version: every subscription ends as a finished one, then the socket closes (15.4.6).
-      for (const [id, entry] of state.subscriptions) {
-        await sendLiveMessage(state, { type: 'end', id, reason: 'version_retired' });
-        entry.abort.abort();
-      }
-      state.open.closeWith(1000, 'version_retired');
-      return;
-    }
-    await sendLiveMessage(state, { type: 'error', error: socketWireError(state, error) });
-    state.open.closeWith(closeCodeOfError(error.kind), error.code);
-  };
-}
-
 /**
- * The socket's own session check (16.3.4, D4): `state.session.revalidate()` every `revalidateMs`, at
- * `expiresAt` and when asked. A session that holds replaces the socket's; one that does not goes to `refuse`
- * (by default an `error` without an id, then the close with the close code of its kind). At most one check runs;
- * one asked meanwhile runs after it. The timer loop hangs on `state.everything`, so it ends with the socket.
+ * The socket's own session check (16.3.4, D4): `state.session.revalidate()` every `revalidateMs`, from
+ * `answerMs` before `expiresAt` (as a stream's does, so a renewal is answered in time) and when asked.
+ * A session that holds replaces the socket's; one that does not goes to `refuse` (by default an `error`
+ * without an id, then the close with the close code of its kind). At most one check runs; one asked
+ * meanwhile runs after it. A session whose next check would fall at or after its `expiresAt` ends at the
+ * expiry, by `refuse` with the expiry error. `late()` is true, and ends the socket the same way, when the
+ * session's `expiresAt` has passed before a check has ended it. A check that has not answered by the
+ * expiry does not hold the socket open, and an answer seen at or after it is dropped. The timer loop hangs on
+ * `state.everything`, so it ends with the socket.
  */
 export function keepSocketSession(
   state: LiveSocketState,
   refuse?: (error: KeelwerkError) => Promise<void>,
-): { check(): Promise<boolean> } {
+): { check(): Promise<boolean>; late(): boolean } {
+  let ending = false;
   let current: Promise<boolean> | undefined;
+  // The one ending of the socket's session: a check that refuses and a message that came after the expiry end it alike.
+  const end = (error: KeelwerkError): Promise<void> => {
+    ending = true;
+    return (refuse ?? closeAfterRefusal(state))(error);
+  };
+  const expired = (): Promise<void> =>
+    end(coreError('core.unauthenticated', { message: 'The session expired.' }));
+  // The one decision that the socket has expired: the clock against the expiry of the session it holds
+  // now, never a value read earlier. Whatever fires (a wait, a race, a late answer, a send) asks it.
+  const expireIfLapsed = (): boolean => {
+    const { expiresAt } = state.session;
+    if (expiresAt === undefined || Temporal.Instant.compare(expiresAt, state.clock.now()) > 0) {
+      return false;
+    }
+    if (!ending) void expired();
+    return true;
+  };
+  // The one place the socket's session is replaced: it wakes every wait of the keeper, so that none
+  // outlives the session it was computed from.
+  let woken = new AbortController();
+  const hold = (session: InvocationSession): void => {
+    const was = woken;
+    state.session = session;
+    woken = new AbortController();
+    was.abort();
+  };
   let queued: Promise<boolean> | undefined;
   const run = async (): Promise<boolean> => {
+    // After the ending the keeper asks nothing and ends nothing again.
+    if (ending) return false;
     const outcome = await revalidated(state.session);
-    if (state.everything.signal.aborted) return false;
+    if (ending || state.everything.signal.aborted) return false;
+    // An answer seen at or after the expiry of the session the socket holds never continues it.
+    if (expireIfLapsed()) return false;
     if (outcome.ok) {
-      state.session = outcome.value;
+      hold(outcome.value);
       return true;
     }
-    await (refuse ?? closeAfterRefusal(state))(outcome.error);
+    await end(outcome.error);
     return false;
   };
   const check = (): Promise<boolean> => {
@@ -67,17 +85,51 @@ export function keepSocketSession(
     });
     return queued;
   };
+  const late = (): boolean => !ending && expireIfLapsed();
+  const { signal } = state.everything;
+  // Ends the socket at the expiry of the session it holds, whatever a check is doing; a replacement moves the wait.
+  const watch = async (over: AbortSignal): Promise<boolean> => {
+    while (!over.aborted) {
+      const turn = AbortSignal.any([over, woken.signal]);
+      const { expiresAt } = state.session;
+      if (expiresAt === undefined) {
+        if (!turn.aborted) {
+          await new Promise<void>((resolve) =>
+            turn.addEventListener('abort', () => resolve(), { once: true }),
+          );
+        }
+      } else if ((await state.timers.sleepUntil(expiresAt, turn)) && expireIfLapsed()) {
+        return false;
+      }
+    }
+    return false;
+  };
+  const checked = async (): Promise<boolean> => {
+    const stop = new AbortController();
+    try {
+      return await Promise.race([check(), watch(AbortSignal.any([signal, stop.signal]))]);
+    } finally {
+      stop.abort();
+    }
+  };
   void (async () => {
-    const { signal } = state.everything;
     while (!signal.aborted) {
+      // Taken before the session is read: a replacement after this wakes the waits below.
+      const turn = AbortSignal.any([signal, woken.signal]);
+      const { expiresAt } = state.session;
       const at = nextSessionCheckAt(
         state.clock.now(),
         state.upgrade.host.liveSocket.revalidateMs,
-        state.session.expiresAt,
+        expiresAt?.subtract({ milliseconds: answerMs }),
       );
-      if (!(await state.timers.sleepUntil(at, signal))) return;
-      if (!(await check())) return;
+      // No check can answer before the expiry (the floor reaches it): wait for the expiry, and go round again if the session was replaced.
+      if (expiresAt !== undefined && Temporal.Instant.compare(at, expiresAt) >= 0) {
+        if ((await state.timers.sleepUntil(expiresAt, turn)) && expireIfLapsed()) return;
+        continue;
+      }
+      if (!(await state.timers.sleepUntil(at, turn))) continue;
+      if (!(await checked())) return;
     }
   })();
-  return { check };
+  return { check, late };
 }

@@ -24,7 +24,8 @@ function textOf(data: RawData): string {
 /**
  * The host's websocket `CarrierConnection` (S-155) over one `ws` socket. `send` rejects `unavailable`
  * once the socket is closing and resolves when ws flushed the message; a send left unflushed for
- * `stallMs` terminates the socket, so a client that does not read holds neither memory nor a task.
+ * `stallMs` terminates the socket, so a client that does not read holds neither memory nor a task;
+ * a send after the expiry of the session (`late`) is dropped.
  * `receive` yields text messages in order and stops reading when the consumer falls behind, by count
  * (`readAhead`) and by bytes (one `maxMessageBytes`); a binary message closes 4000 and more than
  * `maxMessagesPerWindow` in a fixed window closes 4429, both before the message is read. A client
@@ -65,7 +66,7 @@ export function websocketConnection(
       // The socket is gone already.
     }
   };
-  const closeWith = (code: number, reason: string): void => {
+  const closeWith = (code: number, reason: string, frames: readonly string[] = []): void => {
     if (closing || ended) return;
     closing = true;
     everything.abort();
@@ -76,6 +77,8 @@ export function websocketConnection(
       socket.resume();
     }
     try {
+      // The ending's own frames, then the close, in one turn: from here every send is refused.
+      for (const frame of frames) socket.send(frame);
       socket.close(code, reason);
     } catch {
       terminate();
@@ -185,6 +188,7 @@ export function websocketConnection(
 
   const send = (text: string): Promise<void> => {
     if (closing || ended || socket.readyState !== socket.OPEN) return Promise.reject(gone());
+    if (options.late?.() === true) return Promise.reject(gone());
     return new Promise<void>((resolve, reject) => {
       const entry = { reject };
       const cancel = new AbortController();

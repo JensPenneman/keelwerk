@@ -3,7 +3,7 @@ import { fakeSession } from './fake-session.ts';
 
 export interface FakeInvokerOptions {
   /** Decides what `open` answers for a carrier; default: an anonymous session. */
-  open?(carrier: Carrier): Outcome<InvocationSession>;
+  open?(carrier: Carrier): Outcome<InvocationSession> | Promise<Outcome<InvocationSession>>;
   /** The action handlers by reference; an unknown action is a thrown error. */
   actions?: Readonly<Record<string, (invocation: Invocation<unknown>) => Outcome<unknown>>>;
 }

@@ -3,8 +3,8 @@ import type { CarrierConnection } from '@keelwerk/core';
 /** An accepted socket and the connection carriers and the endpoint use. */
 export interface OpenLiveSocket {
   readonly connection: Extract<CarrierConnection, { readonly kind: 'websocket' }>;
-  /** Close with a code of 15.4.7 / 16.4.6 and a reason the host wrote (never client text, at most 123 bytes); idempotent; a handshake not done within `stallMs` is cut. */
-  closeWith(code: number, reason: string): void;
+  /** Close with a code of 15.4.7 / 16.4.6 and a reason the host wrote (never client text, at most 123 bytes), after the ending's own `frames`, which the guard of the connection does not judge and which are written in the same turn, so no other message goes out once the ending has begun; idempotent; a handshake not done within `stallMs` is cut. */
+  closeWith(code: number, reason: string, frames?: readonly string[]): void;
   /** Destroys the socket at once (missing pong, stall). */
   terminate(): void;
   /** `closeWith(1001, 'going_away')`; the host calls it at stop. */

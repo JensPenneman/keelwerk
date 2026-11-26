@@ -12,6 +12,11 @@ export interface WebSocketConnectionOptions {
   readonly maxMessageBytes: number;
   readonly maxMessagesPerWindow: number;
   readonly messageWindowMs: number;
+  /**
+   * Asked at each send: true when the session of the socket has passed its expiry, and the socket is
+   * being ended for it; the message is then dropped, however late the timer of the expiry runs.
+   */
+  readonly late?: () => boolean;
   /** The clock and the waits every bound of the connection runs on. */
   readonly clock: Clock;
   readonly timers: LiveTimers;

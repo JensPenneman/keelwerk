@@ -17,6 +17,8 @@ const start = Temporal.Instant.from('2026-11-11T12:00:00Z');
 export interface SocketHost extends FakeHost {
   readonly timers: ReturnType<typeof pinnedLiveTimers>;
   readonly port: number;
+  /** Moves the clock to `ms` after the start and fires nothing, as when the event loop is busy. */
+  moveTo(ms: number): void;
   /** Moves the clock to `ms` after the start, fires what is due and answers how many waits fired. */
   at(ms: number): Promise<number>;
   /** The invocations the invoker was asked to subscribe, in order. */
@@ -83,6 +85,9 @@ export async function socketHost(
     port,
     subscribed,
     opened,
+    moveTo: (ms) => {
+      now = start.add({ milliseconds: ms });
+    },
     at: (ms) => {
       now = start.add({ milliseconds: ms });
       return timers.fire();

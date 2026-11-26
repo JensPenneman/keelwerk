@@ -103,8 +103,9 @@ async function welcome(state: LiveSocketState): Promise<boolean> {
   const surface = servedSurfaceOf({ ...state.upgrade, session: state.session });
   if (surface === undefined) {
     const error = coreError('core.not_found', { message: 'There is no such app.' });
-    await sendLiveMessage(state, { type: 'error', error: socketWireError(state, error) });
-    state.open.closeWith(closeCodeOfError(error.kind), error.code);
+    state.open.closeWith(closeCodeOfError(error.kind), error.code, [
+      JSON.stringify({ type: 'error', error: socketWireError(state, error) }),
+    ]);
     return false;
   }
   const { session } = state;
@@ -159,20 +160,19 @@ async function messages(state: LiveSocketState, totals: { subscriptions: number 
             return;
           }
           helloSeen = true;
+          state.first.seen = true;
           helloAbort.abort();
           const opened = await openSocketSession(state, message);
           if (!opened.ok) {
-            await sendLiveMessage(state, {
-              type: 'error',
-              error: socketWireError(state, opened.error),
-            });
-            open.closeWith(closeCodeOfError(opened.error.kind), opened.error.code);
+            open.closeWith(closeCodeOfError(opened.error.kind), opened.error.code, [
+              JSON.stringify({ type: 'error', error: socketWireError(state, opened.error) }),
+            ]);
             return;
           }
           const traceparent = traceContext(message.traceparent ?? null);
           if (traceparent !== undefined) state.traceparent = traceparent;
-          if (!(await welcome(state))) return;
           state.keeper = keepSocketSession(state);
+          if (!(await welcome(state))) return;
           keepSocketAlive(state);
           break;
         }

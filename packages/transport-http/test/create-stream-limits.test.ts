@@ -126,26 +126,109 @@ describe('the subscriptions of a socket', () => {
   });
 });
 
+/** A pending socket: ends itself when asked (`ended` counts the asks that were answered true) unless it has said who it is. */
+function waiting(waits = true) {
+  const socket = {
+    ended: 0,
+    said: !waits,
+    evict: () => {
+      if (socket.said) return false;
+      socket.ended += 1;
+      return true;
+    },
+  };
+  return socket;
+}
+
 describe('the sockets that have not said who they are', () => {
   test('count against their address and a count of their own, never against the tenant', () => {
     const limits = createStreamLimits({ ...bounds, perTenantAnonymous: 1, perTenant: 1, total: 3 });
     const anonymous = fakeSession();
-    const first = limits.takePending(anonymous, '203.0.113.7');
-    limits.takePending(anonymous, '203.0.113.7');
+    const first = limits.takePending(anonymous, '203.0.113.7', waiting(false).evict);
+    limits.takePending(anonymous, '203.0.113.7', waiting(false).evict);
     // The address is at its bound, shared with the streams of that address.
-    expect(() => limits.takePending(anonymous, '203.0.113.7')).toThrow(
+    expect(() => limits.takePending(anonymous, '203.0.113.7', waiting().evict)).toThrow(
       expect.objectContaining({ code: 'core.quota_exceeded' }),
     );
     expect(() => limits.take(anonymous, '203.0.113.7')).toThrow();
     // The tenant's bounds hold none of them: a user and another address are let in.
     expect(() => limits.take(asUser('ada'), '203.0.113.9')).not.toThrow();
-    limits.takePending(anonymous, '203.0.113.8');
-    // The count of the process is the host's total.
-    expect(() => limits.takePending(anonymous, '203.0.113.9')).toThrow(
+    limits.takePending(anonymous, '203.0.113.8', waiting(false).evict);
+    // The count of the process is the host's total; every socket in it has said who it is, none can be ended.
+    expect(() => limits.takePending(anonymous, '203.0.113.9', waiting().evict)).toThrow(
       expect.objectContaining({ code: 'core.quota_exceeded' }),
     );
     first();
     first();
-    expect(() => limits.takePending(anonymous, '203.0.113.9')).not.toThrow();
+    expect(() => limits.takePending(anonymous, '203.0.113.9', waiting().evict)).not.toThrow();
+  });
+
+  test('a full count ends the oldest waiting socket and admits the new one, in the order they came', () => {
+    const limits = createStreamLimits({ ...bounds, total: 3 });
+    const anonymous = fakeSession();
+    const sockets = ['1', '2', '3', '4', '5'].map(() => waiting());
+    const releases = sockets
+      .slice(0, 3)
+      .map((socket, at) => limits.takePending(anonymous, `203.0.113.${at}`, socket.evict));
+    expect(releases).toHaveLength(3);
+    limits.takePending(anonymous, '203.0.113.3', sockets[3]?.evict ?? waiting().evict);
+    expect(sockets.map((socket) => socket.ended)).toEqual([1, 0, 0, 0, 0]);
+    limits.takePending(anonymous, '203.0.113.4', sockets[4]?.evict ?? waiting().evict);
+    expect(sockets.map((socket) => socket.ended)).toEqual([1, 1, 0, 0, 0]);
+  });
+
+  test('never end a socket that has said who it is: the oldest one that still waits goes', () => {
+    const limits = createStreamLimits({ ...bounds, total: 2 });
+    const anonymous = fakeSession();
+    const said = waiting(false);
+    const second = waiting();
+    limits.takePending(anonymous, '203.0.113.1', said.evict);
+    limits.takePending(anonymous, '203.0.113.2', second.evict);
+    limits.takePending(anonymous, '203.0.113.3', waiting().evict);
+    expect([said.ended, second.ended]).toEqual([0, 1]);
+  });
+
+  test('an address at its own bound is refused and ends nobody', () => {
+    const limits = createStreamLimits({ ...bounds, perPrincipal: 2, total: 2 });
+    const anonymous = fakeSession();
+    const sockets = [waiting(), waiting()];
+    for (const socket of sockets) limits.takePending(anonymous, '203.0.113.1', socket.evict);
+    expect(() => limits.takePending(anonymous, '203.0.113.1', waiting().evict)).toThrow(
+      expect.objectContaining({ code: 'core.quota_exceeded' }),
+    );
+    expect(sockets.map((socket) => socket.ended)).toEqual([0, 0]);
+  });
+
+  test('an ended socket gives its place back once: its own release afterwards frees nothing more', () => {
+    const limits = createStreamLimits({ ...bounds, total: 2 });
+    const anonymous = fakeSession();
+    const [first, second] = [waiting(), waiting()];
+    const releaseFirst = limits.takePending(anonymous, '203.0.113.1', first.evict);
+    limits.takePending(anonymous, '203.0.113.2', second.evict);
+    limits.takePending(anonymous, '203.0.113.3', waiting().evict);
+    releaseFirst();
+    releaseFirst();
+    // Still full: the next one ends the second, the oldest left.
+    limits.takePending(anonymous, '203.0.113.4', waiting().evict);
+    expect([first.ended, second.ended]).toEqual([1, 1]);
+  });
+
+  test('sockets that leave, by any release, leave a count of zero: a full count of new ones ends nobody', () => {
+    const limits = createStreamLimits({ ...bounds, total: 3 });
+    const anonymous = fakeSession();
+    const first = [waiting(), waiting(), waiting()];
+    const held = first.map((socket, at) =>
+      limits.takePending(anonymous, `203.0.113.${at}`, socket.evict),
+    );
+    // A release twice, and the others once: closed, failed, refused and aborted sockets all end in it.
+    held[0]?.();
+    held[0]?.();
+    held[1]?.();
+    held[2]?.();
+    const second = [waiting(), waiting(), waiting()];
+    second.forEach((socket, at) => {
+      limits.takePending(anonymous, `203.0.113.${at}`, socket.evict);
+    });
+    expect([...first, ...second].map((socket) => socket.ended)).toEqual([0, 0, 0, 0, 0, 0]);
   });
 });

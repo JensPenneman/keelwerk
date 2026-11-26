@@ -10432,9 +10432,18 @@ raise `maxBodyBytes` for that action's transports.
   backend with per-tenant overrides; one number is never used for both kinds. A socket that has not
   yet sent its first message is counted beside the streams, under the same per-address and per-process
   bounds, and joins the tenant's bounds at its first message; a socket that is refused there is
-  refused with `core.quota_exceeded` and closed. Sockets from many addresses that never send a first
-  message can still fill the per-process count and keep out the clients that send their token in the
-  first message; clients with their credentials in the upgrade's headers are not affected.
+  refused with `core.quota_exceeded` and closed. When the per-process count of those sockets is
+  full, the oldest of them that has not sent its first message is ended and the new socket is
+  admitted: on `keelwerk.live.v1` with an `error` frame with `core.quota_exceeded` and the close of a
+  refused socket, on a transport's socket with the close 1013 (try again later) and no frame. A socket
+  whose first message has arrived is never ended this way, and an address over its own bound is still
+  refused at the upgrade without ending anyone. A waiting socket is ended only when as many sockets as
+  the count arrive after it, so a burst of arrivals faster than the count per first-message round
+  trip ends sockets that have not yet sent their first message, and a client that sends it at once is
+  admitted and served. A socket whose first message has arrived and whose session is still being
+  opened cannot be ended and is not bounded by the first-message deadline, so such sockets can still
+  fill the count, and new sockets are then refused at the upgrade. Clients with their credentials in
+  the upgrade's headers are not affected.
 - The hub has bounds of its own in each process (added 2026-11-11). A scope is counted per tenant,
   so tenants of one backend that watch a backend entity are bounded and fail on their own. At most
   200 plan groups (distinct read plans) per scope: a subscription with a new plan past them is
@@ -11222,7 +11231,15 @@ Rules:
   subscriber is refused. Every action over a socket is checked for revocation (added 2026-11-12).
   The host checks the session of every event stream it holds the same way, every
   `liveSocket.revalidateMs` and at `expiresAt`, and nothing passes on a stream after the expiry
-  (WP-180). A live stream of a mounted route is an event stream (`text/event-stream`) or a
+  (WP-180); a message the host sends on a socket at or after the expiry, before a check has ended
+  the socket, is dropped and the socket ends as when its check refuses (an `error` frame, then the
+  close 4401 `core.unauthenticated`, and nothing after the frame, on `keelwerk.live.v1`; the close
+  alone on a transport's socket). A socket's check starts a second before `expiresAt`, as a stream's
+  does, so a session that renews is renewed in time; a socket whose next check would fall at or after
+  its expiry ends at the expiry, and a check that has not answered by the expiry does not hold the
+  socket open, an answer at or after it being dropped, and a socket whose session was renewed in time is not
+  ended at its old expiry, and a socket whose session a check replaced with one that expires sooner,
+  or with one where it had none, ends at the new expiry; no welcome goes to a session that expired before the hello. A live stream of a mounted route is an event stream (`text/event-stream`) or a
   WebSocket; any other counted body (a JSON-lines batch) is ordinary work that is finishing and is
   cut one revalidation interval after its session ended.
 - Listeners use a bound form of the same session (G1, `BoundSession` with `invoke` and

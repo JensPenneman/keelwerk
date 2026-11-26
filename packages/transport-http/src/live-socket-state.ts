@@ -42,5 +42,7 @@ export interface LiveSocketState {
   /** A child logger with the connection id. */
   readonly log: Logger;
   /** The socket's own session check, set once the socket's life starts. */
-  keeper?: { check(): Promise<boolean> };
+  keeper?: { check(): Promise<boolean>; late(): boolean };
+  /** Whether the socket's first message has come: from then on the host never ends it for want of one. */
+  readonly first: { seen: boolean };
 }

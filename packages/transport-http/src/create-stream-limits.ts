@@ -33,7 +33,9 @@ function counted(counts: Map<string, number>, key: string, by: 1 | -1): void {
  * anonymous bound too, so one address holds its streams over SSE and sockets together, and any other
  * one against no principal (the socket is the principal's connection). Past a bound it is refused with
  * `core.quota_exceeded` and counts nowhere; the release it gets gives its count back once. A socket
- * that has not said who it is (`takePending`) counts against its address and a count of its own.
+ * that has not said who it is (`takePending`) counts against its address and a count of its own, kept
+ * in the order it came: when that count is full, the oldest one that can still be ended is ended and
+ * the new one admitted.
  */
 export function createStreamLimits(bounds: {
   readonly perPrincipal: number;
@@ -45,7 +47,8 @@ export function createStreamLimits(bounds: {
   const tenants = new Map<string, number>();
   const anonymous = new Map<string, number>();
   let total = 0;
-  let pending = 0;
+  // The sockets that have not said who they are, oldest first: each by its release, with its way to end it.
+  const waiting = new Map<() => void, () => boolean>();
   const admit = (session: InvocationSession, principal: string | undefined): (() => void) => {
     const tenant = tenantKeyOf(session);
     const isAnonymous = session.principal.kind === 'anonymous';
@@ -71,20 +74,34 @@ export function createStreamLimits(bounds: {
       if (isAnonymous) counted(anonymous, tenant, -1);
     };
   };
-  const pend = (session: InvocationSession, address: string): (() => void) => {
+  const pend = (
+    session: InvocationSession,
+    address: string,
+    evict: () => boolean,
+  ): (() => void) => {
     const principal = principalKeyOf(session, address);
-    if (pending >= bounds.total || (principals.get(principal) ?? 0) >= bounds.perPrincipal) {
+    const full = (): never => {
       throw coreError('core.quota_exceeded', { message: 'Too many streams are open.' });
+    };
+    if ((principals.get(principal) ?? 0) >= bounds.perPrincipal) full();
+    if (waiting.size >= bounds.total) {
+      for (const [oldest, ends] of waiting) {
+        if (!ends()) continue;
+        oldest();
+        break;
+      }
+      if (waiting.size >= bounds.total) full();
     }
-    pending += 1;
     counted(principals, principal, 1);
     let released = false;
-    return () => {
+    const release = (): void => {
       if (released) return;
       released = true;
-      pending -= 1;
+      waiting.delete(release);
       counted(principals, principal, -1);
     };
+    waiting.set(release, evict);
+    return release;
   };
   return {
     takePending: pend,

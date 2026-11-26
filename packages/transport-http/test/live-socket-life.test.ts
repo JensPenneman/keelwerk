@@ -37,7 +37,7 @@ async function helloed(made: SocketHost, hello: Record<string, unknown> = {}) {
 const subscribe = (client: LiveSocketClient, id: string, extra: Record<string, unknown> = {}) =>
   client.send({ type: 'subscribe', id, action: 'loans.loanEvents', input: {}, ...extra });
 
-/** A session whose checks answer from `state`: revoked, or still good with the expiry given. */
+/** A session whose checks answer from `state`: revoked, or still good (renewed, without an expiry, when it had one). */
 function revocable(state: { revoked: boolean; checks: number }, expiresAt?: Temporal.Instant) {
   const session: InvocationSession = userSession('ada', {
     ...(expiresAt === undefined ? {} : { expiresAt }),
@@ -45,7 +45,7 @@ function revocable(state: { revoked: boolean; checks: number }, expiresAt?: Temp
       state.checks += 1;
       return state.revoked
         ? { ok: false, error: coreError('core.unauthenticated') }
-        : { ok: true, value: session };
+        : { ok: true, value: expiresAt === undefined ? session : userSession('ada') };
     },
   });
   return session;
@@ -98,15 +98,16 @@ describe('the life of a socket', () => {
     expect(quick.checks).toBeGreaterThanOrEqual(1);
   });
 
-  test('a session past expiresAt is checked before the next invoke', async () => {
+  test('a session about to expire is checked before the next invoke', async () => {
     const state = { revoked: false, checks: 0 };
-    const past = Temporal.Instant.from('2026-11-11T11:59:00Z');
+    const past = Temporal.Instant.from('2026-11-11T12:00:10Z');
     const made = await started(quietHub({ open: 0 }), {
       session: revocable(state, past),
       actions: libraryActions,
     });
     const client = await helloed(made);
     expect(state.checks).toBe(0);
+    made.moveTo(9_999);
     client.send({ type: 'invoke', id: 'i', request: { action: 'library.echo', input: 1 } });
     expect(await client.next()).toMatchObject({ type: 'result', id: 'i', response: { ok: true } });
     expect(state.checks).toBe(1);
@@ -114,12 +115,13 @@ describe('the life of a socket', () => {
 
   test('a session past expiresAt whose check fails gets no invoke, and a queued command after a 4401 close does not run', async () => {
     const state = { revoked: true, checks: 0 };
-    const past = Temporal.Instant.from('2026-11-11T11:59:00Z');
+    const past = Temporal.Instant.from('2026-11-11T12:00:10Z');
     const made = await started(quietHub({ open: 0 }), {
       session: revocable(state, past),
       actions: libraryActions,
     });
     const client = await helloed(made);
+    made.moveTo(10_000);
     for (const id of ['i1', 'i2', 'i3']) {
       client.send({ type: 'invoke', id, request: { action: 'library.echo', input: 1 } });
     }

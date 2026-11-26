@@ -22,7 +22,10 @@ export function registeredSocketEndpoint(
     }
     const refused = registered.handler.refuse?.(upgradeHttpContext(call, call.request.signal));
     if (refused !== undefined) return errorResponse(call.host, call.state, refused);
-    const accepted = await acceptLiveSocket(call, upgrade, protocol);
+    const accepted = await acceptLiveSocket(call, upgrade, protocol, (state, error) => {
+      // 1013, try again later: a temporary condition of the host, which the clients of the dialects retry after.
+      state.open.closeWith(1013, error.code);
+    });
     if (accepted instanceof Response) return accepted;
     const socket = accepted.open;
     void serveRegisteredSocket(accepted, registered, protocol, firstMessage)
