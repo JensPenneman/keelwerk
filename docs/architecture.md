@@ -11327,7 +11327,25 @@ Rules:
   2026-11-11). A revoked session ends the stream with `unauthenticated`. A subscription's
   revalidation also decides the gates of its action again over a fresh flag snapshot: a closed
   kill switch ends the open stream with `unavailable`, `core.feature_suspended`, as a new
-  subscriber is refused. Every action over a socket is checked for revocation (added 2026-11-12).
+  subscriber is refused. Every action over a socket is checked for revocation (added 2026-11-12),
+  and so is every subscription a socket starts, on every protocol (added 2026-11-26): the host's
+  session check runs before the subscription reads the session the socket holds, and a session that
+  no longer holds starts nothing, no frame of the subscription is served, and the socket closes as
+  it does when its own check refuses (4401 for `unauthenticated`). A socket lives and ends with the
+  credentials it was opened with: a session that reopens under other credentials (a logged-out
+  cookie reopens as anonymous) is not a renewal, so a socket opened with a cookie session no longer
+  lives on as an anonymous socket after a logout, and closes 4401 at a subscribe on every protocol
+  and, on `keelwerk.live.v1`, at an invoke and at its periodic check alike, as an event stream
+  already does. On `keelwerk.live.v1` the check also comes before the host's slot, so a session that
+  no longer holds is refused as it is and not with a quota answer; a subscribe waits for the check
+  before anything of it is served, so a session store that does not answer holds new subscribes, but
+  only while the socket lives (a client that leaves leaves nothing taken, and the close is logged);
+  and a session store that fails during a subscribe closes the socket. The check opens the session
+  again from its credentials, so a logout refuses a new subscription from the moment it is
+  committed, not from the moment its change reaches the socket. A logout that commits after the
+  check has answered, while the subscription is being set up, is not refused there: that stream ends
+  at the socket's next check, which falls at the latest one `liveSocket.revalidateMs` after the
+  check that admitted it.
   The host checks the session of every event stream it holds the same way, every
   `liveSocket.revalidateMs` and at `expiresAt`, and nothing passes on a stream after the expiry
   (WP-180); a message the host sends on a socket at or after the expiry, before a check has ended

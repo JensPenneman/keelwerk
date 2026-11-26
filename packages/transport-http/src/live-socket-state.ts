@@ -27,6 +27,8 @@ export interface LiveSocketState {
     string,
     { readonly abort: AbortController; readonly done: Promise<void> }
   >;
+  /** Settles when the subscribe that came last has taken its host slot or ended: subscribes take their slots in the order they came. */
+  admitted: Promise<void>;
   /** The head refs of deprecated actions this socket was told of. */
   readonly noticedActions: Set<string>;
   /** The invokes queued or running (keelwerk.live.v1), or the calls holding a slot (a transport's socket). */

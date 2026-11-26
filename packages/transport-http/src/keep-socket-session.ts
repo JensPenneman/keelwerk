@@ -2,6 +2,7 @@ import type { InvocationSession, KeelwerkError, Outcome } from '@keelwerk/core';
 import { asKeelwerkError, coreError } from '@keelwerk/core/http';
 import { answerMs } from './answer-ms.ts';
 import { closeAfterRefusal } from './close-after-refusal.ts';
+import { holdsSameCredentials } from './holds-same-credentials.ts';
 import type { LiveSocketState } from './live-socket-state.ts';
 import { nextSessionCheckAt } from './next-session-check-at.ts';
 
@@ -16,7 +17,7 @@ async function revalidated(session: InvocationSession): Promise<Outcome<Invocati
 /**
  * The socket's own session check (16.3.4, D4): `state.session.revalidate()` every `revalidateMs`, from
  * `answerMs` before `expiresAt` (as a stream's does, so a renewal is answered in time) and when asked.
- * A session that holds replaces the socket's; one that does not goes to `refuse` (by default an `error`
+ * A session that holds, under the credentials the socket opened with, replaces the socket's; one that does not (an error, or other credentials) goes to `refuse` (by default an `error`
  * without an id, then the close with the close code of its kind). At most one check runs; one asked
  * meanwhile runs after it. A session whose next check would fall at or after its `expiresAt` ends at the
  * expiry, by `refuse` with the expiry error. `late()` is true, and ends the socket the same way, when the
@@ -64,11 +65,18 @@ export function keepSocketSession(
     if (ending || state.everything.signal.aborted) return false;
     // An answer seen at or after the expiry of the session the socket holds never continues it.
     if (expireIfLapsed()) return false;
-    if (outcome.ok) {
+    if (outcome.ok && holdsSameCredentials(state.session, outcome.value)) {
       hold(outcome.value);
       return true;
     }
-    await end(outcome.error);
+    // A renewal under other credentials (a logged-out cookie reopens as anonymous) is no renewal: the socket ends with them.
+    await end(
+      outcome.ok
+        ? coreError('core.unauthenticated', {
+            message: 'The session no longer holds the credentials the socket opened with.',
+          })
+        : outcome.error,
+    );
     return false;
   };
   const check = (): Promise<boolean> => {

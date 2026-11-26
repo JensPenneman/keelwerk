@@ -20,9 +20,14 @@ test('no data frame follows the start of the ending for a retired version, thoug
   const lateB = Promise.withResolvers<void>();
   let made: SocketHost | undefined;
   let subscribed = 0;
+  // Each subscribe meets the session check first, and the session holds then; the check a second before the expiry finds the version retired.
+  let admitted = 2;
   const session: InvocationSession = userSession('ada', {
     expiresAt: start.add({ milliseconds: 10_000 }),
-    revalidate: async () => ({ ok: false, error: coreError('core.api_version_retired') }),
+    revalidate: async () =>
+      admitted-- > 0
+        ? { ok: true, value: session }
+        : { ok: false, error: coreError('core.api_version_retired') },
   });
   made = await socketHost(
     (invocation) => {

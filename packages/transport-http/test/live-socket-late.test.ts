@@ -67,9 +67,13 @@ async function opened(
   const sent = Promise.withResolvers<void>();
   let handed = 0;
   let session: InvocationSession | undefined;
+  const later = revalidate(() => session as InvocationSession);
+  // Each subscribe meets the session check first and the session holds then; the checks after them are the case's own.
+  let admitted = ids.length;
   session = userSession('ada', {
     expiresAt: start.add({ milliseconds: expiresMs }),
-    revalidate: revalidate(() => session as InvocationSession),
+    revalidate: () =>
+      admitted-- > 0 ? Promise.resolve({ ok: true, value: session as InvocationSession }) : later(),
   });
   const made = await socketHost(
     (invocation) =>

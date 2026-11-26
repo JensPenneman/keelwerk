@@ -1,6 +1,7 @@
 import type { Clock, InvocationSession, KeelwerkError, LiveTimers, Outcome } from '@keelwerk/core';
 import { asKeelwerkError, coreError } from '@keelwerk/core/http';
 import { answerMs } from './answer-ms.ts';
+import { holdsSameCredentials } from './holds-same-credentials.ts';
 import { nextSessionCheckAt } from './next-session-check-at.ts';
 
 async function revalidated(session: InvocationSession): Promise<Outcome<InvocationSession>> {
@@ -22,28 +23,6 @@ const later = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
 
 const expiredError = (): KeelwerkError =>
   coreError('core.unauthenticated', { message: 'The session expired.' });
-
-/**
- * Whether a renewal holds the credentials the checked session held: same kind, same subject, same
- * stored reference, same scope.
- */
-function holdsSameCredentials(held: InvocationSession, renewed: InvocationSession): boolean {
-  const [a, b] = [held.principal, renewed.principal];
-  if (a.kind !== b.kind) return false;
-  if (a.kind === 'user' && b.kind === 'user' && a.subject !== b.subject) return false;
-  if (a.ref?.resolver !== b.ref?.resolver || a.ref?.principalId !== b.ref?.principalId) {
-    return false;
-  }
-  return (
-    a.scope.tenant === b.scope.tenant &&
-    a.scope.backend === b.scope.backend &&
-    held.scope.level === renewed.scope.level &&
-    ('tenantId' in held.scope ? held.scope.tenantId : null) ===
-      ('tenantId' in renewed.scope ? renewed.scope.tenantId : null) &&
-    ('backendId' in held.scope ? held.scope.backendId : null) ===
-      ('backendId' in renewed.scope ? renewed.scope.backendId : null)
-  );
-}
 
 /**
  * The session check of one HTTP stream (16.3.4, the rule of `keepSocketSession`): at

@@ -5,7 +5,8 @@ import { keepSocketAlive } from './keep-socket-alive.ts';
 import { keepSocketSession } from './keep-socket-session.ts';
 import type { LiveSocketState } from './live-socket-state.ts';
 import { openSocketSession } from './open-socket-session.ts';
-import { takeSocketSubscription } from './take-socket-subscription.ts';
+import { socketSubscriptionRoom } from './socket-subscription-room.ts';
+import { takeSocketSlot } from './take-socket-slot.ts';
 import { upgradeHttpContext } from './upgrade-http-context.ts';
 import type { UpgradeRegistration } from './upgrade-registration.ts';
 
@@ -83,7 +84,8 @@ export function socketSessionOf(
     },
     subscription(id) {
       if (!ready) throw new TypeError('Open the socket before a subscription.');
-      const give = takeSocketSubscription(state, id);
+      socketSubscriptionRoom(state, id);
+      const give = takeSocketSlot(state, state.session);
       const abort = new AbortController();
       let finish: () => void = () => undefined;
       const done = new Promise<void>((resolve) => {

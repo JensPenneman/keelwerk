@@ -6,6 +6,7 @@ import {
   utcDayOf,
 } from '@keelwerk/core';
 import { asKeelwerkError, coreError, signalOf } from '@keelwerk/core/http';
+import { checkedSocketSession } from './checked-socket-session.ts';
 import { invokeOne } from './invoke-one.ts';
 import type { LiveSocketState } from './live-socket-state.ts';
 import { requestId } from './request-id.ts';
@@ -53,10 +54,7 @@ export async function invokeOverSocket(
       );
     // POST /invoke opens a session for every request, so a revoked one is refused at once: every action
     // on the socket's session is checked the same way.
-    if (state.keeper !== undefined && !(await state.keeper.check())) {
-      return refused(coreError('core.unavailable', { message: 'The session is no longer valid.' }));
-    }
-    const session = state.session;
+    const session = await checkedSocketSession(state);
     fresh.session = session;
     const action = actionOf(session);
     if (action?.hints.http?.cookie !== undefined) {

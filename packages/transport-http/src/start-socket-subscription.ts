@@ -6,22 +6,35 @@ import {
   utcDayOf,
 } from '@keelwerk/core';
 import { asKeelwerkError, coreError, decodeActionInput, encodeFrames } from '@keelwerk/core/http';
+import { checkedSocketSession } from './checked-socket-session.ts';
 import type { LiveSocketState } from './live-socket-state.ts';
 import { sendLiveMessage } from './send-live-message.ts';
 import { servedSurfaceOf } from './served-surface-of.ts';
+import { socketSubscriptionRoom } from './socket-subscription-room.ts';
 import { socketWireError } from './socket-wire-error.ts';
-import { takeSocketSubscription } from './take-socket-subscription.ts';
+import { takeSocketSlot } from './take-socket-slot.ts';
 
 async function run(
   state: LiveSocketState,
   message: Extract<LiveClientMessage, { type: 'subscribe' }>,
   abort: AbortController,
+  before: Promise<void>,
+  taken: () => void,
 ): Promise<void> {
   const { id } = message;
   const { upgrade: call } = state;
   const { host } = call;
+  let release: (() => void) | undefined;
   try {
-    const surface = servedSurfaceOf({ ...call, session: state.session });
+    // The check comes first: a session that no longer holds is refused as it is, and takes no slot. A check
+    // that does not answer is left when the subscription ends (the client unsubscribes, the socket closes).
+    const session = await checkedSocketSession(state, abort.signal);
+    if (session === undefined) return;
+    // Subscribes that came together take their slots in the order they came, however their checks interleave.
+    await before;
+    release = takeSocketSlot(state, session);
+    taken();
+    const surface = servedSurfaceOf({ ...call, session });
     const action = surface?.actions.find((candidate) => candidate.ref === message.action);
     if (surface === undefined || action === undefined) {
       throw coreError('core.not_found', { message: 'There is no such subscription.' });
@@ -37,7 +50,7 @@ async function run(
           action: action.ref,
           input,
           carrier: state.socketCarrier,
-          session: state.session,
+          session,
           requestId: call.state.requestId,
           ...(state.traceparent !== undefined && { traceparent: state.traceparent }),
           signal: abort.signal,
@@ -81,26 +94,33 @@ async function run(
     if (error.kind === 'internal') state.log.error('stream failed', { code: error.code });
     if (error.kind === 'unauthenticated') void state.keeper?.check();
     await sendLiveMessage(state, { type: 'error', id, error: socketWireError(state, error) });
+  } finally {
+    taken();
+    release?.();
   }
 }
 
 /**
  * One `subscribe` message (15.4.7): over `maxSubscriptionsPerSocket`, or an id that is open already,
- * is an error under the id (`core.quota_exceeded`, `core.malformed_request`). Then as the subscribe
- * endpoint does: the surface of the session's version, a subscription of it (`core.not_found`,
- * `core.unsupported`), the input decoded like any input, the invoker subscribes with the session the
- * hello opened (it translates each item once for this version), the frames are wire encoded, and the
- * websocket carrier serves them under the id. A failure of kind unauthenticated asks the socket's
- * session check to run now. When the carrier returns the entry is deleted and the subscription aborted.
+ * is an error under the id (`core.quota_exceeded`, `core.malformed_request`); the subscription is
+ * entered under its id at once, so what waits on the socket is bounded by that number. Then the
+ * socket's session check runs (`checkedSocketSession`) and only then the host's slot (the bounds of
+ * the tenant, the process and the address) is taken, in the order the subscribes came, so a session that no longer holds is refused as
+ * it is, never with a quota answer, and starts nothing. Then as the subscribe endpoint does: the
+ * surface of the session's version, a subscription of it (`core.not_found`, `core.unsupported`), the
+ * input decoded like any input, the invoker subscribes with the session the check answered (it
+ * translates each item once for this version), the frames are wire encoded, and the websocket
+ * carrier serves them under the id. A failure of kind unauthenticated asks the socket's session check
+ * to run now. When the carrier returns, or the subscription is aborted while the check has not
+ * answered, the entry is deleted, the slot given back and the subscription aborted.
  */
 export function startSocketSubscription(
   state: LiveSocketState,
   message: Extract<LiveClientMessage, { type: 'subscribe' }>,
 ): void {
   const { id } = message;
-  let release: () => void;
   try {
-    release = takeSocketSubscription(state, id);
+    socketSubscriptionRoom(state, id);
   } catch (failure) {
     void sendLiveMessage(state, {
       type: 'error',
@@ -110,8 +130,10 @@ export function startSocketSubscription(
     return;
   }
   const abort = new AbortController();
-  const done = run(state, message, abort).finally(() => {
-    release();
+  const turn = Promise.withResolvers<void>();
+  const before = state.admitted;
+  state.admitted = turn.promise;
+  const done = run(state, message, abort, before, turn.resolve).finally(() => {
     abort.abort();
     if (state.subscriptions.get(id)?.abort === abort) state.subscriptions.delete(id);
   });

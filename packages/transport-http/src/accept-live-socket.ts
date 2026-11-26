@@ -98,6 +98,7 @@ export async function acceptLiveSocket(
     release,
     first,
     subscriptions: new Map(),
+    admitted: Promise.resolve(),
     noticedActions: new Set(),
     pendingInvokes: 0,
     pendingInvokeBytes: 0,

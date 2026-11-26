@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import type { Caller } from './call.ts';
 import { freshName } from './fresh-name.ts';
+import { heldSessionCases } from './held-session-cases.ts';
 import { lendCall } from './lend-call.ts';
 import { lendTitles } from './lend-titles.ts';
 import { liveSocketCases } from './live-socket-cases.ts';
@@ -224,4 +225,5 @@ export function subscriptionCases(target: TransportTarget): void {
   );
 
   liveSocketCases(target);
+  heldSessionCases(target);
 }

@@ -96,9 +96,13 @@ export function graphqlWsHandler(deps: GraphqlHandlerDeps): WebSocketHandler {
           const opened = await connection.open(credentials);
           return opened.ok;
         },
-        onSubscribe: (_held, id, payload) => {
+        onSubscribe: async (_held, id, payload) => {
           let documents: ReturnType<typeof prepareDocuments> | undefined;
           try {
+            // The host's session check first: a session that no longer holds starts nothing, and the check has closed the socket.
+            if (!(await connection.check())) {
+              throw coreError('core.unavailable', { message: 'The session is no longer valid.' });
+            }
             const mount = deps.versions.at(connection.session().apiVersion);
             const params = graphqlParamsOf(payload);
             documents = prepareDocuments([params], mount.projection, deps.limits);
