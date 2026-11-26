@@ -228,8 +228,8 @@ test('the root appears only as the quoted schema, so the template checksum stand
         sha256(canonicalizeJson(step.ddl('kw__root', options))),
       );
     }
-    // Step 0005 indexes `kw_jobs`, which both kinds of root have alike: one statement, one checksum.
-    if (step.id !== '0005') {
+    // Steps 0005 and 0006 name tables that both kinds of root have alike: one statement, one checksum.
+    if (step.id !== '0005' && step.id !== '0006') {
       expect(frameworkStepChecksum(step, control)).not.toBe(frameworkStepChecksum(step, {}));
     }
   }

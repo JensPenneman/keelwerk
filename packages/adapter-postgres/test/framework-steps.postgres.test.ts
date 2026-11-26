@@ -81,3 +81,65 @@ test('a fresh namespace provisioned by the adapter gets every step, stamped at t
   ]);
   for (const row of history) expect(row.appliedAt.toString()).toBe(pinned.toString());
 });
+
+test('a root made by 0.2.0 keeps its receipt rows, and step 0006 takes insert and update from a maintenance unit', async () => {
+  const old = reference('ns-v02', 'v02_receipts');
+  const table = 'v02_receipts.core__command_receipt';
+  const unitScope = `current_setting('keelwerk.scope', true) = 'namespace'`;
+  await instance.schema.provision(old, []);
+  const admin = new pg.Client({ connectionString: running.adminUrl });
+  const app = new pg.Client({ connectionString: running.appUrl });
+  await admin.connect();
+  await app.connect();
+  const policies = async (): Promise<unknown[]> =>
+    (
+      await admin.query(
+        `select policyname as name, cmd from pg_policies where schemaname = 'v02_receipts' and tablename = 'core__command_receipt' order by policyname`,
+      )
+    ).rows;
+  // As a maintenance unit: the number of rows an update changed, or the error code of an insert.
+  const asNamespace = async (statement: string): Promise<number | string> => {
+    await app.query('begin');
+    try {
+      await app.query(`select set_config('keelwerk.scope', 'namespace', true)`);
+      return (await app.query(statement)).rowCount ?? 0;
+    } catch (error) {
+      return error instanceof Error && 'code' in error ? String(error.code) : 'error';
+    } finally {
+      await app.query('rollback');
+    }
+  };
+  const update = `update ${table} set status = 'completed'`;
+  const insert = `insert into ${table} (scope_id, id, command_id, action, fingerprint, status, api_version, transport, expires_at) values (gen_random_uuid(), gen_random_uuid(), 'c2', 'a', 'f', 'pending', 'v', 'rest', now())`;
+  try {
+    // The root as 0.2.0 left it: one `maintenance` policy for every command, and no row for step 0006.
+    await admin.query(`
+      drop policy maintenance_select on ${table};
+      drop policy maintenance_delete on ${table};
+      create policy maintenance on ${table} using (${unitScope}) with check (${unitScope});
+      delete from v02_receipts.kw_migrations where track = '${frameworkTrack}' and id = '0006';
+      insert into ${table} (scope_id, id, command_id, action, fingerprint, status, api_version, transport, expires_at)
+        values (gen_random_uuid(), gen_random_uuid(), 'c1', 'a', 'f', 'pending', 'v', 'rest', now())`);
+    expect(await asNamespace(update)).toBe(1);
+    expect(await asNamespace(insert)).toBe(1);
+    await instance.schema.provision(old, []);
+    expect(await policies()).toEqual([
+      { name: 'maintenance_delete', cmd: 'DELETE' },
+      { name: 'maintenance_select', cmd: 'SELECT' },
+      { name: 'scoped', cmd: 'ALL' },
+    ]);
+    expect((await admin.query(`select command_id as "commandId" from ${table}`)).rows).toEqual([
+      { commandId: 'c1' },
+    ]);
+    expect(await asNamespace(update)).toBe(0);
+    expect(await asNamespace(insert)).toBe('42501');
+    expect(
+      (await instance.schema.history(old))
+        .filter((row) => row.track === frameworkTrack)
+        .map((row) => row.id),
+    ).toContain('0006');
+  } finally {
+    await app.end();
+    await admin.end();
+  }
+});

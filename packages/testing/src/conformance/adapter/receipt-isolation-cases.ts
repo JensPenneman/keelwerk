@@ -75,6 +75,26 @@ export function receiptIsolationCases(subject: ReceiptStoreSubject): void {
       }
     });
 
+    test('a namespace-scope unit meets no receipt: every member of the store refuses it', async () => {
+      const maintenance: StorageScope = { level: 'namespace', reason: 'conformance' };
+      const outcome = { ok: true, value: null, effects: [] } as const;
+      const members: readonly [string, (unit: Unit) => Promise<unknown>][] = [
+        ['get', (unit) => unit.receipts.get('c')],
+        ['put', (unit) => unit.receipts.put(conformanceReceipt('c'))],
+        ['claim', (unit) => unit.receipts.claim(conformanceReceipt('c'))],
+        ['complete', (unit) => unit.receipts.complete('c', outcome)],
+        ['forClient', (unit) => unit.receipts.forClient('k', 0, 10)],
+        ['acknowledge', (unit) => unit.receipts.acknowledge('k', 1)],
+      ];
+      for (const [name, member] of members) {
+        const refused = await subject.run(maintenance, member).then(
+          () => 'allowed',
+          (error: unknown) => (isKeelwerkError(error) ? error.kind : 'other'),
+        );
+        expect(refused, name).toBe('forbidden');
+      }
+    });
+
     test('each scope counts and lists its own receipt row only, by filter, by position and by client', async () => {
       await seed();
       for (const [name, scope, scopeId] of owners) {

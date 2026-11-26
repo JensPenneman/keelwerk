@@ -11,10 +11,12 @@ import { invocationTableDdl } from './invocation-table-ddl.ts';
  * `core.commandReceipt.get` finds the row, and `version`, `created_at` and `updated_at` are the
  * entity's system columns. The core's provisioning (WP-43) calls this with the registry's
  * descriptor (the default is the one the core module composes); a backend command's receipt in a tenant namespace is open (section 15.1.7).
+ * A maintenance unit of the namespace may read and delete receipts but not insert or update them:
+ * a receipt changes only in the unit of its scope.
  */
 export function commandReceiptDdl(
   root: string,
   entity: EntityDescriptor = commandReceiptDescriptor(),
 ): readonly string[] {
-  return invocationTableDdl(root, commandReceiptTableSpec(entity));
+  return invocationTableDdl(root, commandReceiptTableSpec(entity), 'select-delete');
 }

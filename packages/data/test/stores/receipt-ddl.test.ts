@@ -38,6 +38,7 @@ test('the receipt table DDL is the golden text', () => {
     alter table "app".core__command_receipt enable row level security;
     alter table "app".core__command_receipt force row level security;
     create policy scoped on "app".core__command_receipt using (scope_id = coalesce(nullif(current_setting('keelwerk.tenant_id', true), '')::uuid, nullif(current_setting('keelwerk.backend_id', true), '')::uuid, nullif(current_setting('keelwerk.deployment_id', true), '')::uuid)) with check (scope_id = coalesce(nullif(current_setting('keelwerk.tenant_id', true), '')::uuid, nullif(current_setting('keelwerk.backend_id', true), '')::uuid, nullif(current_setting('keelwerk.deployment_id', true), '')::uuid));
-    create policy maintenance on "app".core__command_receipt using (current_setting('keelwerk.scope', true) = 'namespace') with check (current_setting('keelwerk.scope', true) = 'namespace')"
+    create policy maintenance_select on "app".core__command_receipt for select using (current_setting('keelwerk.scope', true) = 'namespace');
+    create policy maintenance_delete on "app".core__command_receipt for delete using (current_setting('keelwerk.scope', true) = 'namespace')"
   `);
 });

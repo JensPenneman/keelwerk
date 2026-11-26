@@ -4615,6 +4615,13 @@ the upgrade removes the units it would wait for. A build that holds no writer ne
 run outside a transaction, which the runner of the steps cannot do yet. That is a later work
 package, to be done before a deployment with a large jobs table upgrades.
 
+Framework step 0006 replaces the policy of the table of receipts and asks for an exclusive lock on
+that table, with no bound on the wait. It first waits for every unit that has touched the table and
+not yet ended; while it waits, every later read or write of receipts queues behind it, and so do
+appends of events, because the lock that step 0004 took on the events table is held in the same
+transaction. They run on when the provision commits. An operator stops the other processes and takes
+no dump while the upgrade runs.
+
 #### 9.5.6 Workers, scopes and schedules
 
 - Workers run only in processes with the `work` role, for the queues their named process slots, and
@@ -9255,8 +9262,10 @@ command's in the control store; its policy admits `scope_id = coalesce(<tenant s
 setting>, <deployment setting>)` (section 14.3.7). Idempotency only holds if the receipt commits with the
 effect, so it shares the command's namespace and unit. Only the kernel writes receipts: the
 generated set operations are switched off, and the generated `get` and `watch` accept tenant,
-backend and deployment scope. A receipt's id is a UUIDv8 derived from the scope id and the command
-id (section 14.5.2), rendered as the `rcpt_` TypeID (`commandReceiptId(scopeId, commandId)`), so
+backend and deployment scope. On PostgreSQL the table of receipts admits only a select and a delete
+from a namespace-scope unit (framework step 0006 replaces the one policy for every command that 0.2.0
+created); in code the store refuses such a unit on every member. A receipt's id is a UUIDv8 derived
+from the scope id and the command id (section 14.5.2), rendered as the `rcpt_` TypeID (`commandReceiptId(scopeId, commandId)`), so
 clients that hold only a command id (`keelwerk ... --wait`, a webhook delivery id) call
 `core.commandReceipt.get` with it; an accepted command's REST response points at it with
 `Location: <mount path>/core/command-receipts/<receipt id>` (section 16.4.7). Command ids are stored as the client gives them

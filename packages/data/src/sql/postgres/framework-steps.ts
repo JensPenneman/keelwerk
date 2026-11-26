@@ -6,6 +6,7 @@ import { ledgerIndexesDdl } from './ledger-indexes.ts';
 import { m2ApplicationRoleDdl } from './m2-application-role.ts';
 import { m2FrameworkTablesDdl } from './m2-framework-tables.ts';
 import { m2RlsPoliciesDdl } from './m2-rls-policies.ts';
+import { receiptMaintenanceDdl } from './receipt-maintenance-ddl.ts';
 import { rlsPoliciesDdl } from './rls-policies.ts';
 import { transientPurgeDdl } from './transient-purge-ddl.ts';
 import { transientPurgeRoleDdl } from './transient-purge-role-ddl.ts';
@@ -15,7 +16,7 @@ import { transientPurgeRoleDdl } from './transient-purge-role-ddl.ts';
  * the M2 tables (S-117); step 0003 adds the indexes of the control ledger (a namespace root records
  * it with no statement); step 0004 adds the function through which the application role purges transient
  * event records (the retention worker) and the columns of a retention run's outcome; step 0005 adds
- * the partial index of the jobs that wait to run. Never edited: a new framework table is a new step.
+ * the partial index of the jobs that wait to run; step 0006 narrows the receipt table's maintenance policy to select and delete. Never edited: a new framework table is a new step.
  */
 export const frameworkSteps: readonly FrameworkStep[] = [
   {
@@ -52,6 +53,13 @@ export const frameworkSteps: readonly FrameworkStep[] = [
     id: '0005',
     marker: 'kw_jobs_queued',
     ddl: kwJobsQueuedDdl,
+    grants: () => [],
+  },
+  {
+    id: '0006',
+    // No object proves this step ran: the marker names none, so a root without a row runs it, which is safe.
+    marker: 'kw_receipt_maintenance',
+    ddl: receiptMaintenanceDdl,
     grants: () => [],
   },
 ];

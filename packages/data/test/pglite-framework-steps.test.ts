@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   type FrameworkStep,
   frameworkStepChecksum,
@@ -207,10 +207,20 @@ describe('the framework track on PGlite', { timeout: 30_000 }, () => {
     const adapter = await open();
     await provisionExampleRoots(adapter);
     await adapter.asOwner(async (database) => database.exec(`truncate "example".kw_migrations`));
-    await adapter.schema.provision(exampleNamespace, []);
+    // Every reading of the clock is a millisecond later: no step is quick.
+    let now = 0;
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => (now += 1));
+    try {
+      await adapter.schema.provision(exampleNamespace, []);
+    } finally {
+      clock.mockRestore();
+    }
     const rows = await frameworkRows(adapter, 'example');
     expect(rows.map((row) => row.id)).toEqual(stepIds);
-    expect(rows.map((row) => row.duration_ms)).toEqual(frameworkSteps.map(() => 0));
+    // Step 0006 names no relation as its marker, so it runs again and records the time it took.
+    expect(rows.filter((row) => row.id !== '0006').map((row) => row.duration_ms)).toEqual(
+      frameworkSteps.filter((step) => step.id !== '0006').map(() => 0),
+    );
     expect(rows.map((row) => row.steps_applied)).toEqual(
       frameworkSteps.map((step) => step.ddl('example', {}).length),
     );
