@@ -2,6 +2,8 @@ import { trace } from '@opentelemetry/api';
 import { effectiveRules } from '../authorization/effective-rules.ts';
 import type { NormalizedRule } from '../authorization/normalized-rule.ts';
 import { errors } from '../errors/errors.ts';
+import { buildSnapshot } from '../flags/build-snapshot.ts';
+import { flagClientIdOf } from '../flags/flag-client-id-of.ts';
 import { principalContextOf } from '../interpreter/principal-context-of.ts';
 import type { Invocation } from '../invoker/invocation.ts';
 import type { InvocationSession } from '../invoker/invocation-session.ts';
@@ -116,6 +118,20 @@ export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker 
       requestId: inv.requestId,
     });
     const rules = rulesOf(registry);
+    // The snapshot a real call builds before admit, so a closed kill switch or gate refuses here too.
+    const flags = dry
+      ? await buildSnapshot({
+          registry,
+          action,
+          scope,
+          principal,
+          clientId: flagClientIdOf(inv.carrier),
+          providers: options.flagProviders ?? [],
+          rules,
+          log: options.log,
+          targeting: options.targeting,
+        })
+      : undefined;
     if (dry) {
       // Admission runs as for a real call, but its charges are taken in a unit that rolls back:
       // a dry run reports a refusal or `rate_limited` without using up tokens.
@@ -137,6 +153,7 @@ export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker 
           },
           invocation: { ...inv, action: action.ref, input: request.input },
           span: admissionSpan,
+          flags,
           dry: true,
         });
       } finally {
@@ -168,6 +185,7 @@ export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker 
       session: { ...session, principal, scope },
       transport: inv.carrier.transport,
       value: dryInput,
+      flags,
     });
     prepare(action);
     const span = trace.getTracer('keelwerk').startSpan('keelwerk.explain');
@@ -182,6 +200,7 @@ export function answerExplain(inner: Invoker, env: ExplainEnvironment): Invoker 
             action,
             input: dryInput,
             principal,
+            flags,
             request: { transport: inv.carrier.transport, requestId: inv.requestId },
             clock: options.clock,
             keys: options.keys,

@@ -15,6 +15,8 @@ export interface ExplainEnvironment {
     | 'log'
     | 'environment'
     | 'build'
+    | 'flagProviders'
+    | 'targeting'
   >;
   readonly hybridClock: HybridClock;
 }

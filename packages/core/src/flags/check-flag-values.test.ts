@@ -57,6 +57,19 @@ describe('checkFlagValues', () => {
     );
   });
 
+  test('a split on a kill switch is refused', () => {
+    const killSwitch: FlagSpec = { ...boolean, purpose: 'kill-switch', default: true };
+    const split: FlagServe = {
+      split: [
+        { value: true, weight: 5000 },
+        { value: false, weight: 5000 },
+      ],
+    };
+    expect(() => through(killSwitch, split)).toThrow('serves no split');
+    expect(() => through(killSwitch, { value: false })).not.toThrow();
+    expect(() => through(boolean, split)).not.toThrow();
+  });
+
   test('a variant that is not String(value) is refused', () => {
     expect(() => through(boolean, { value: true, variant: 'yes' })).toThrow('fallthrough.variant');
     expect(() => through(boolean, { value: true, variant: 'true' })).not.toThrow();

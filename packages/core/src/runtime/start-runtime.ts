@@ -111,7 +111,6 @@ export async function startRuntime(
       holder: connected.processId,
       run: (fn) => connected.control.writeLeases(fn),
     });
-    const controlPath = createControlPath({ deployment, served, connected, migrated, quotas });
     const streamOptions = {
       env: options.env ?? {},
       development,
@@ -137,6 +136,15 @@ export async function startRuntime(
       targeting: targeting.provider,
     });
     startFlagProviders(flagProviders, connected.signal, log);
+    const flagSources = { providers: flagProviders, targeting };
+    const controlPath = createControlPath({
+      deployment,
+      served,
+      connected,
+      migrated,
+      quotas,
+      flagSources,
+    });
     const invokerOptions = invokerOptionsOf({
       deployment,
       connected,
@@ -254,6 +262,7 @@ export async function startRuntime(
         connected,
         migrated,
         quotas,
+        flagSources,
         anchoring,
       }),
       stop: (deadlineMs) => {

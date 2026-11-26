@@ -146,6 +146,41 @@ describe('parts in a copy of the library fixture', () => {
     expect(await read('modules/library/src/base.ts')).not.toContain('trialFlow');
   });
 
+  test('a new kill switch defaults to true, the established behaviour', async () => {
+    await libraryCopy();
+    const stop = await runNew(
+      'flag',
+      'library.stopExports',
+      '--purpose',
+      'kill-switch',
+      '--dir',
+      'modules/library',
+    );
+    expect(stop.code).toBe(0);
+    const generated = await read('modules/library/src/flags/stop-exports.ts');
+    expect(generated).toContain('default: true');
+    expect(generated).not.toContain('default: false');
+  });
+
+  test('keelwerk new flag refuses a kill switch at the level of the principal or of another kind', async () => {
+    await libraryCopy();
+    const refusing = async (...options: string[]) => {
+      const run = await runNew(
+        'flag',
+        'library.stopExports',
+        '--purpose',
+        'kill-switch',
+        ...options,
+        '--dir',
+        'modules/library',
+      );
+      expect(run.code).toBe(2);
+      expect(run.stderr).toContain('A kill switch is a boolean flag of level deployment');
+    };
+    await refusing('--level', 'principal');
+    await refusing('--kind', 'string');
+  });
+
   test('a file that exists is never overwritten', async () => {
     await libraryCopy();
     expect((await runNew('shape', 'library.window', '--dir', 'modules/library')).code).toBe(0);

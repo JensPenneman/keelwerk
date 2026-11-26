@@ -53,12 +53,14 @@ export function targetingRig(
   let subscriptions = 0;
   let feedFailures = 0;
   const errors: string[] = [];
+  const fields: unknown[] = [];
   const log: Logger = {
     debug: () => undefined,
     info: () => undefined,
     warn: () => undefined,
-    error: (message) => {
+    error: (message, extra) => {
       errors.push(message);
+      fields.push(extra);
     },
     child: () => log,
   };
@@ -95,6 +97,7 @@ export function targetingRig(
   return {
     cache,
     errors,
+    fields,
     loads: () => loads,
     subscriptions: () => subscriptions,
     failFeed: (times: number) => {

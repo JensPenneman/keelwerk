@@ -2,6 +2,7 @@ import type { Anchoring } from '../anchors/start-anchoring.ts';
 import { findControlRows } from '../control/find-control-rows.ts';
 import { runTenantHooks } from '../control/run-tenant-hooks.ts';
 import { errors } from '../errors/errors.ts';
+import type { FlagSources } from '../flags/flag-sources.ts';
 import { moduleConfigOf } from '../invoker/module-config-of.ts';
 import { moduleConfigShapes } from '../invoker/module-config-shapes.ts';
 import { runtimeOperator } from '../principals/runtime-operator.ts';
@@ -21,6 +22,7 @@ export function createRuntimeControl(input: {
   readonly migrated: Migrated;
   /** The process's quota cache, asked before the reruns of hooks and the rebuild's re-enqueues. */
   readonly quotas: QuotaLimits | undefined;
+  readonly flagSources: FlagSources;
   readonly anchoring?: Anchoring;
 }): RuntimeControl {
   const { served, connected, migrated, path } = input;
@@ -89,6 +91,7 @@ export function createRuntimeControl(input: {
         rerun: true,
         only,
         quotas: input.quotas,
+        flagSources: input.flagSources,
       });
     },
   };

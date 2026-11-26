@@ -10,6 +10,7 @@ import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { checkDeploymentRules } from '../flags/check-deployment-rules.ts';
 import { checkFlagValues } from '../flags/check-flag-values.ts';
+import type { FlagSources } from '../flags/flag-sources.ts';
 import { flagSpecOf } from '../flags/flag-spec-of.ts';
 import { moduleConfigOf } from '../invoker/module-config-of.ts';
 import { moduleConfigShapes } from '../invoker/module-config-shapes.ts';
@@ -42,6 +43,7 @@ export function createControlPath(input: {
   readonly migrated: Migrated;
   /** The process's quota cache, asked before the hooks of a new backend or tenant. */
   readonly quotas: QuotaLimits | undefined;
+  readonly flagSources: FlagSources;
 }): ControlPath {
   const { deployment, served, connected, migrated, quotas } = input;
   const { control } = connected;
@@ -197,6 +199,7 @@ export function createControlPath(input: {
         head: app.head,
         config: configOf(app, record.config),
         quotas,
+        flagSources: input.flagSources,
       });
       return created;
     },

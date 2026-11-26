@@ -18,7 +18,7 @@ export function closedGateRefusal(
   stage: 'admit' | 'authorize',
 ): KeelwerkError | undefined {
   for (const gate of compileGate(registry, action)) {
-    if (gate.stage !== stage || gateOpen(registry, gate, flags)) continue;
+    if (gate.stage !== stage || gateOpen(gate, flags)) continue;
     if (stage === 'admit') {
       return new KeelwerkError({
         kind: 'unavailable',

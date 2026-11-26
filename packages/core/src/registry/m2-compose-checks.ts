@@ -7,6 +7,7 @@ import { checkEntitySubjects } from './check-entity-subjects.ts';
 import { checkExecutorInputReads } from './check-executor-input-reads.ts';
 import { checkExecutorQueues } from './check-executor-queues.ts';
 import { checkJsonFlagDefaults } from './check-json-flag-defaults.ts';
+import { checkKillSwitchDeclarations } from './check-kill-switch-declarations.ts';
 import { checkObservesAll } from './check-observes-all.ts';
 import { checkPendingEffectsWhere } from './check-pending-effects-where.ts';
 import { checkPersonalInputOutsideTenant } from './check-personal-input-outside-tenant.ts';
@@ -35,6 +36,7 @@ export const m2ComposeChecks: readonly ((
   checkDeploymentGroups,
   checkObservesAll,
   checkJsonFlagDefaults,
+  checkKillSwitchDeclarations,
   checkQuotaDefaults,
   checkStreamOffload,
   checkVersionChanges,

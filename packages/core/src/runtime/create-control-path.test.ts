@@ -67,6 +67,7 @@ function pathOver(rows: readonly FlagTargetingRow[], reads: { count: number } = 
     connected,
     migrated,
     quotas: undefined,
+    flagSources: { providers: [] },
   });
 }
 

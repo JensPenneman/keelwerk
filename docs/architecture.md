@@ -16127,6 +16127,12 @@ OpenFeature reasons of section 20.3 everywhere: in `FlagResolution`, in `meta.fl
 Added 2026-11-11: a json flag's value must come out of its shape unchanged: the shape must give
 back exactly the plain JSON it gets (no dates, no defaults, no transforms).
 
+Added 2026-11-25: a `kill-switch` flag is boolean, of level `deployment`, `backend` or `tenant`, and
+its targeting serves no split (composition problem `killSwitchInvalid`): an operator's stop, never a
+rollout, whose answer never depends on a targeting key. A rule that lists principals, or matches
+their kind or roles, stops it for some. `keelwerk new flag` refuses a kill switch of another level
+or kind, and writes `default: true` for one, so that the default keeps the established behaviour.
+
 ### 20.3 Evaluation
 
 ```ts
@@ -16174,18 +16180,19 @@ export interface FlagProvider {             // deployment-level ordered extensio
   store and in the cache, before it counts as failed, and at most two reads are outstanding at
   once. While the control store is unreadable, the last rows loaded serve for 30 s after the last
   successful load; then every flag with targeting serves its declared default with `STALE`, except
-  a `kill-switch` flag, which keeps serving its last loaded value with `STALE`. A boolean kill
+  a `kill-switch` flag, which keeps serving its last loaded value with `STALE`. A kill
   switch whose stored row cannot be read as declared reads closed with `PARSE_ERROR`, and a process
   serves only after the first load of the rows, which the start waits for as it waits for a connect
   (an error other than `core.unavailable` ends the start).
 - An error never fails an invocation: the default is served with `ERROR` and counted, so the
-  default must keep established behaviour; a boolean kill switch whose stored row cannot be read
+  default must keep established behaviour; a kill switch whose stored row cannot be read
   as declared is the exception (the bullet above).
 - An anonymous principal has a targeting key only when the client sends `Keelwerk-Client-Id`;
   otherwise principal-level flags give the default with `TARGETING_KEY_MISSING`. Amended
   2026-11-11: by the flag's level, the targeting key is the backend id, the tenant id or the
   principal's id, and for an anonymous principal the `Keelwerk-Client-Id` its client sends. The
-  caller chooses that header, so a flag is never an access rule.
+  caller chooses that header, so a flag is never an access rule. No kill switch reads a targeting key
+  (section 20.2), so leaving out or changing the header never opens one.
 - `flagContextEnrichers` (app level, mode `set`) add attributes once per session. Clients read
   `client: true` flags with `core.flag.evaluate` (query, tenant scope), which the runtime answers,
   as it does `core.me` (amended 2026-11-11).
@@ -16196,7 +16203,7 @@ export interface FlagProvider {             // deployment-level ordered extensio
   optional deployment-wide one for backends without their own: `enabled` (off serves the default
   with `DISABLED`), ordered rules that match listed tenants or principals and a condition over
   attributes (the condition AST of section 8.3, interpreted in memory) and serve a variant or a
-  split, and a fallthrough; values are validated on write.
+  split, and a fallthrough; values are validated on write; a kill switch serves no split.
 - Added 2026-11-11: each `core.flag` row has a unique `slot`, derived by the kernel: the flag key
   for the deployment-wide row, `<key>@<backendId>` for a backend's row (no flag key holds `@`). A
   rule's `when` is stored in the authoring form, the object form of section 8.3; the write runs the
@@ -16231,10 +16238,14 @@ every variant.
 
 - Actions: `gate` names a boolean flag of the module, and the action runs only while it is true.
   It compiles to a deny rule `<action ref>.gate` at `authorize` (`forbidden`,
-  `core.feature_disabled`), explained by `keelwerk explain` and visible through `core.me`; on a
-  `kill-switch` flag it runs at `admit` instead (`unavailable`, `core.feature_suspended`). Gated
-  actions stay in the surface. Added 2026-11-11: gates apply to invoke effects and inline reactions
-  too, with the caller's snapshot; asynchronous work takes a fresh snapshot when it runs.
+  `core.feature_disabled`), which the refusal names; on a `kill-switch` flag it runs at `admit`
+  instead (`unavailable`, `core.feature_suspended`). Gated actions stay in the surface. A gate is
+  decided from the invocation's snapshot: `keelwerk explain --dry-run` builds the one a real call
+  builds, also for the invoke effects and inline reactions it runs; the lifecycle hooks of a new
+  backend or tenant build one from the runtime's flag providers, at the tenant's scope when the
+  hooks of a tenant run again; where no snapshot was built a gate reads closed. Added 2026-11-11: gates
+  apply to invoke effects and inline reactions too, with the caller's snapshot; asynchronous work
+  takes a fresh snapshot when it runs.
   A subscription meets its gates again at each revalidation of its session (section 16.3.4): a
   kill switch that is closed ends the streams already open, with the same refusal.
 - Policies: `where`, `check` and `when` read `ctx.flags`; the plan records the flags its rules

@@ -113,6 +113,7 @@ describe('routeControlCommands, the restore check and the write', () => {
       connected: { control: { flags } } as unknown as Connected,
       migrated: { directory: { lookup: {} } } as unknown as Migrated,
       quotas: undefined,
+      flagSources: { providers: [] },
     });
     const wrote: unknown[] = [];
     // The write side: the command's unit expects the version the request named, as loadTarget does.

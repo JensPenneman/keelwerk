@@ -1,6 +1,8 @@
 import { trace } from '@opentelemetry/api';
 import { effectiveRules } from '../authorization/effective-rules.ts';
 import type { HookPayloads } from '../dsl/define-hook.ts';
+import { buildSnapshot } from '../flags/build-snapshot.ts';
+import type { FlagSources } from '../flags/flag-sources.ts';
 import type { ScopeTarget } from '../invoker/scope-target.ts';
 import type { QuotaLimits } from '../quotas/quota-limits.ts';
 import { moduleServicePrincipal } from '../reactions/module-service-principal.ts';
@@ -39,6 +41,8 @@ export interface TenantHooksInput {
   readonly only?: ReadonlySet<string>;
   /** The process's quota cache: asked once before the hooks run, so what a hook's decision enqueues takes its lane's limits and meets its queue's cap. */
   readonly quotas: QuotaLimits | undefined;
+  /** The runtime's flag providers and targeting: a hook's gates are decided from the snapshot a real call builds. */
+  readonly flagSources: FlagSources;
 }
 
 /**
@@ -55,6 +59,7 @@ export async function runTenantHooks(input: TenantHooksInput): Promise<readonly 
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const tenantId = tenantIdOf(input.hook, input.payload);
   const limits = await input.quotas?.fresh();
+  const rules = effectiveRules(registry);
   for (const hook of hooks) {
     const principal = moduleServicePrincipal(hook.module, {
       scope: {
@@ -63,6 +68,17 @@ export async function runTenantHooks(input: TenantHooksInput): Promise<readonly 
       },
     });
     const action = hookActionOf(hook, input.head);
+    const flags = await buildSnapshot({
+      registry,
+      action,
+      scope: target.scope,
+      principal,
+      clientId: null,
+      providers: input.flagSources.providers,
+      rules,
+      log: store.log,
+      targeting: input.flagSources.targeting,
+    });
     // A hook job the creation queued must not run beside the rerun, a running attempt included (the
     // hooks queue cancels it, and its unit rolls back): it is cancelled first.
     if (input.rerun === true && target.scope.level === 'tenant') {
@@ -80,6 +96,7 @@ export async function runTenantHooks(input: TenantHooksInput): Promise<readonly 
         action,
         input: input.payload,
         principal,
+        flags,
         request: { transport: 'runtime', requestId: globalThis.crypto.randomUUID() },
         config: input.config,
         clock: store.clock,
@@ -87,7 +104,7 @@ export async function runTenantHooks(input: TenantHooksInput): Promise<readonly 
         compute: store.compute,
         log: store.log,
         trace: span,
-        rules: effectiveRules(registry),
+        rules,
         apiVersion: input.head,
         build: store.writer.build,
         behaviours: registryBehaviours(registry),

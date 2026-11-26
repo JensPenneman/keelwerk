@@ -97,7 +97,12 @@ export function createTargetingCache(options: TargetingCacheOptions): TargetingC
     const mark = `${id}:${version}`;
     if (reported.has(mark)) return;
     reported.add(mark);
-    log.error(message, { row: id, version, cause });
+    log.error(message, {
+      row: id,
+      version,
+      reason: cause instanceof Error ? cause.message : String(cause),
+      cause,
+    });
   };
 
   /** `work` or, after `ms`, a rejection; the loser is dropped and never an unhandled rejection. */
@@ -236,12 +241,9 @@ export function createTargetingCache(options: TargetingCacheOptions): TargetingC
     void follow(signal);
   };
 
-  /** A row that cannot be read as declared: the declared default, but a boolean kill switch reads closed. */
+  /** A row that cannot be read as declared: the declared default, but a kill switch reads closed. */
   const parseError = <T>(flag: FlagSpec<T>, ruleVersion?: number): FlagResolution<T> => {
-    const closed =
-      flag.purpose === 'kill-switch' && flag.kind === 'boolean'
-        ? { ...flag, default: false as T }
-        : flag;
+    const closed = flag.purpose === 'kill-switch' ? { ...flag, default: false as T } : flag;
     const failed = defaultFlagResolution(closed, {
       errorCode: 'PARSE_ERROR',
       provider: providerId,
@@ -288,7 +290,9 @@ export function createTargetingCache(options: TargetingCacheOptions): TargetingC
           reportOnce(
             row.id,
             row.version,
-            'a stored flag targeting does not fit the flag declaration; the declared default was served',
+            flag.purpose === 'kill-switch'
+              ? 'a stored flag targeting does not fit the flag declaration; the kill switch reads closed'
+              : 'a stored flag targeting does not fit the flag declaration; the declared default was served',
             error,
           );
         }

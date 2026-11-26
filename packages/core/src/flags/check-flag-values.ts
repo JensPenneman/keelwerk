@@ -47,6 +47,9 @@ function checkServe(flag: FlagSpec, serve: FlagServe, path: string): void {
     checkValue(flag, serve, path);
     return;
   }
+  if (flag.purpose === 'kill-switch') {
+    refuse(`${path}.split`, `"${flag.key}" is a kill switch: it serves no split.`);
+  }
   if (flag.level === 'deployment') {
     refuse(
       `${path}.split`,
@@ -79,7 +82,7 @@ function checkServe(flag: FlagSpec, serve: FlagServe, path: string): void {
  * at load): every served value is of the flag's kind, within its bounds and its schema; for every
  * kind but json a given variant is String(value); a variant flag's shares follow the declared
  * order; a boolean split lists true before false; no split on a deployment-level flag (it has no
- * targeting key). Throws `validation` naming the first problem's path.
+ * targeting key) and none on a kill switch. Throws `validation` naming the first problem's path.
  */
 export function checkFlagValues(
   flag: FlagSpec,

@@ -35,13 +35,19 @@ function defaults(kind: string): string[] {
 /**
  * `keelwerk new flag <module>.<flag> --kind boolean --level tenant --purpose release --expires
  * 2027-01-31`: `src/flags/<flag>.ts`. A typed declaration in M1: a request answers the declared
- * default (S-23). The base lists it by hand.
+ * default (S-23); a kill switch defaults to true, so that the default keeps the established
+ * behaviour. The base lists it by hand.
  */
 export function flagTemplate(request: ScaffoldRequest): ScaffoldPlan {
   const file = nameAt(expectNames('flag', request.names, [1], '<module>.<flag>'), 0);
   const kind = oneOf('kind', request.options.kind ?? 'boolean', KINDS);
   const level = oneOf('level', request.options.level ?? 'tenant', LEVELS);
   const purpose = oneOf('purpose', request.options.purpose ?? 'release', PURPOSES);
+  if (purpose === 'kill-switch' && (kind !== 'boolean' || level === 'principal')) {
+    throw usageFailure(
+      'A kill switch is a boolean flag of level deployment, backend or tenant (section 20.2).',
+    );
+  }
   const { expires } = request.options;
   if ((purpose === 'release' || purpose === 'experiment') && expires === undefined) {
     throw usageFailure(`A ${purpose} flag needs --expires <YYYY-MM-DD> (section 20.2).`);
@@ -52,7 +58,7 @@ export function flagTemplate(request: ScaffoldRequest): ScaffoldPlan {
   const name = camelFromKebab(file);
   const fields = [
     `kind: '${kind}'`,
-    ...defaults(kind),
+    ...(purpose === 'kill-switch' ? ['default: true'] : defaults(kind)),
     `level: '${level}'`,
     `purpose: '${purpose}'`,
     ...(expires === undefined ? [] : [`expires: '${expires}'`]),
