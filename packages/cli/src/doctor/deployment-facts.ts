@@ -34,6 +34,18 @@ export interface HookFailuresFact {
   readonly olderUnread: boolean;
 }
 
+/**
+ * A tenant with an erasure left to run, and how long its oldest such erasure has been in the ledger.
+ * `appliedAgain`: the ledger holds a completion of that same record at an earlier epoch, so a
+ * restore made it run again; then the age is the age of the record, because nothing dates the bump.
+ * A tenant with a record of both kinds is counted from its oldest record that is not applied again.
+ */
+export interface HeldTenantFact {
+  readonly tenantId: string;
+  readonly unfinishedForMs: number;
+  readonly appliedAgain: boolean;
+}
+
 /** A module of an app that needs a raw-SQL dialect (`data.sql`, or a `{ sql }` entry of `data.needs`). */
 export interface SqlNeedFact {
   readonly app: string;
@@ -68,7 +80,7 @@ export interface FactValues {
   readonly hookFailures: HookFailuresFact;
   readonly processes: readonly ProcessFact[];
   readonly bumpedMarks: readonly ScopeMark[];
-  readonly heldTenants: readonly string[];
+  readonly heldTenants: readonly HeldTenantFact[];
   readonly registries: readonly Registry[];
   readonly personalFields: readonly PersonalFieldFact[];
   readonly sqlNeeds: readonly SqlNeedFact[];

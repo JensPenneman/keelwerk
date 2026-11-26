@@ -192,7 +192,7 @@ describe('the checks that read declarations and rows', () => {
           { id: 'p', name: undefined, roles: [], state: 'starting', heartbeatAgeMs: 9e9 },
         ]),
         bumpedMarks: known([mark]),
-        heldTenants: known(['t']),
+        heldTenants: known([{ tenantId: 't', unfinishedForMs: 0, appliedAgain: false }]),
         registries: known([
           { reactions: new Map([['r', { id: 'r', on: 'all' }]]) } as unknown as Registry,
         ]),

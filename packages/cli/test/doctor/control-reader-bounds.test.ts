@@ -158,7 +158,7 @@ describe('the held tenants the reader lists', () => {
           return {
             erasures: Array.from({ length: pageSize }, (_, index) => ({
               seq: BigInt(reads * pageSize + index),
-              record: { tenantId: 't' },
+              record: { tenantId: 't', recordedAt: '2026-11-18T09:00:00Z' },
             })),
           };
         },

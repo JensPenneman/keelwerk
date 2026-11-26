@@ -62,6 +62,6 @@ export function controlReaderOf(source: ControlSource, now: () => Temporal.Insta
       }),
     hookFailures: () => source.read(hookFailuresOf),
     bumpedMarks: () => source.read((unit) => unit.marks?.bumped() ?? Promise.resolve([])),
-    heldTenants: () => source.read(heldTenantsOf),
+    heldTenants: () => source.read((unit) => heldTenantsOf(unit, now())),
   };
 }

@@ -1,5 +1,5 @@
 import type { ScopeMark } from '@keelwerk/core';
-import type { HookFailuresFact, ProcessFact } from './deployment-facts.ts';
+import type { HeldTenantFact, HookFailuresFact, ProcessFact } from './deployment-facts.ts';
 
 /** What doctor asks of a running deployment's control store: the rows of the facts it reads through a reader. */
 export interface ControlReader {
@@ -8,6 +8,6 @@ export interface ControlReader {
   hookFailures(): Promise<HookFailuresFact>;
   /** The marks whose epoch is above 0: scopes a detected restore moved to a new epoch (14.7.6). */
   bumpedMarks(): Promise<readonly ScopeMark[]>;
-  /** The tenants with an erasure left to run, which every process that starts now holds (14.7.6). */
-  heldTenants(): Promise<readonly string[]>;
+  /** The tenants with an erasure left to run, which every process that starts now holds (14.7.6), each with the age of its oldest. */
+  heldTenants(): Promise<readonly HeldTenantFact[]>;
 }

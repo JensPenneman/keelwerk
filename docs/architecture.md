@@ -8099,7 +8099,15 @@ has no completion at the tenant's current epoch, whichever process copied the re
 that tenant with `core.unavailable`; the hold ends when the completion is appended. Both ends are
 logged at warn, with the tenant id only. A refused job of a held tenant waits one second and keeps
 its attempt; the doctor check `held-tenants` names the held tenants once doctor reads the control
-store (section 13.12).
+store (section 13.12), and warns for a tenant whose oldest unfinished erasure was recorded more than
+an hour ago, saying only that no completion is recorded for the tenant's current epoch for that long
+and that the data may still be readable. A record counts as applied again only when the ledger
+holds a completion of that same record at an earlier epoch (a restore moved the epoch after it);
+its warning says that, and neither says the data is readable nor that the receipt stays accepted,
+and its age is the age of the record, because nothing dates the bump. Every other unfinished record
+gets the ordinary line, however long ago the tenant was restored. The receipt of an erasure that has
+not finished stays `accepted` and the ledger record carries it, so that no failed state ends an
+erasure that the worker goes on trying.
 
 Added 2026-11-18: a restore under running processes. The minute loop detects it: a position below
 the last one seen, or a changed adapter identity. The process then logs at error, refuses with
