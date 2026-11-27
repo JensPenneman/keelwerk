@@ -56,6 +56,13 @@ test('the publish step runs release.sh with the flag of the release step', () =>
   expect(publish).not.toContain('sort -V');
 });
 
+test('release.sh runs the command through its bin link before it checks and stages', () => {
+  const script = readFileSync(join(repositoryRoot, 'scripts/release.sh'), 'utf8');
+  const link = script.indexOf('bash scripts/check-bin-link.sh "$1"');
+  expect(link).toBeGreaterThan(0);
+  expect(link).toBeLessThan(script.indexOf('node scripts/publish-packages.ts'));
+});
+
 test('every step after the release check waits for the release', () => {
   const publish = workflowJob(workflow, 'publish');
   const steps = publish.split('\n      - name: ').slice(1);

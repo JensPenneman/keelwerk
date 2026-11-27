@@ -1,7 +1,12 @@
 import { expect, test } from 'vitest';
 import { tarballProblems } from '../tarball-problems.ts';
 
-const expected = { name: '@keelwerk/core', version: '0.1.0', directory: 'core' };
+const expected = {
+  name: '@keelwerk/core',
+  version: '0.1.0',
+  directory: 'core',
+  binHeads: { 'dist/bin.js': '#!/usr/bin/env node' },
+};
 const files = ['package.json', 'dist/index.js', 'dist/index.d.ts', 'dist/bin.js'];
 const good = {
   name: '@keelwerk/core',
@@ -61,6 +66,21 @@ test.each([
   expect(tarballProblems({ ...good, ...change }, files, expected)).toEqual([
     `@keelwerk/core: ${text}`,
   ]);
+});
+
+test.each([
+  ['code on the first line', { 'dist/bin.js': "import 'node:fs';" }],
+  ['an unread file', {}],
+])('a bin file with %s is a problem', (_what, binHeads) => {
+  expect(tarballProblems(good, files, { ...expected, binHeads })).toEqual([
+    '@keelwerk/core: bin file dist/bin.js does not start with an interpreter line',
+  ]);
+});
+
+test('a string bin is checked like a bin map', () => {
+  const manifest = { ...good, bin: './dist/bin.js' };
+  expect(tarballProblems(manifest, files, expected)).toEqual([]);
+  expect(tarballProblems(manifest, files, { ...expected, binHeads: {} })).toHaveLength(1);
 });
 
 test('wildcard exports are not looked up', () => {

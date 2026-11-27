@@ -9,7 +9,7 @@ import { publishOrder } from './publish-order.ts';
 import { publishRefusal } from './publish-refusal.ts';
 import type { PublishRow } from './publish-row.ts';
 import { releaseSummary, stoppedSummary } from './release-summary.ts';
-import { tarballProblems } from './tarball-problems.ts';
+import { binFiles, tarballProblems } from './tarball-problems.ts';
 
 const uuid = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
 const stageFlags = ['--provenance', '--access', 'public', '--tag', 'latest'] as const;
@@ -202,11 +202,17 @@ export async function publishPackages(options: PublishOptions): Promise<readonly
       .split('\n')
       .filter((line) => line.startsWith('package/'))
       .map((line) => line.slice('package/'.length));
+    const binHeads: Record<string, string> = {};
+    for (const bin of binFiles(Object(parsed) as Record<string, unknown>)) {
+      const head = files.includes(bin) ? await run('tar', ['-xzOf', file, `package/${bin}`]) : null;
+      binHeads[bin] = head?.code === 0 ? (head.output.split('\n')[0] ?? '') : '';
+    }
     problems.push(
       ...tarballProblems(parsed, files, {
         name: entry.name,
         version,
         directory: entry.directory,
+        binHeads,
       }),
     );
   }

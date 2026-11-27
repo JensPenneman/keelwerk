@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import process, { argv, exit, stderr, stdout } from 'node:process';
 import type { StricliProcess } from '@stricli/core';
 import { exitCodeFor } from '../exit-code-for.ts';

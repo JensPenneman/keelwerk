@@ -39,6 +39,8 @@ export function tarballProblems(
     readonly version: string;
     /** The directory below packages/ that the repository member must name. */
     readonly directory?: string;
+    /** The first line of each packed bin file, by tarball path; a bin file missing here counts as unread. */
+    readonly binHeads?: Readonly<Record<string, string>>;
   },
 ): readonly string[] {
   const problems: string[] = [];
@@ -84,10 +86,9 @@ export function tarballProblems(
     report('exports still has the @keelwerk/source condition');
   }
   const present = new Set(files);
-  const bin = typeof manifest.bin === 'string' ? { [expected.name]: manifest.bin } : manifest.bin;
   for (const [origin, value] of [
     ['exports', manifest.exports],
-    ['bin', bin],
+    ['bin', manifest.bin],
   ] as const) {
     for (const target of targets(value)) {
       if (!target.includes('*') && !inFiles(target, present)) {
@@ -95,5 +96,16 @@ export function tarballProblems(
       }
     }
   }
+  // An installed command is run by the system, which needs the interpreter line.
+  for (const file of binFiles(manifest)) {
+    if (present.has(file) && !(expected.binHeads?.[file] ?? '').startsWith('#!')) {
+      report(`bin file ${file} does not start with an interpreter line`);
+    }
+  }
   return problems;
+}
+
+/** The files a manifest names as `bin`, as tarball paths without the leading `./`. */
+export function binFiles(manifest: Json): readonly string[] {
+  return targets(manifest.bin).map((target) => target.replace(/^\.\//, ''));
 }

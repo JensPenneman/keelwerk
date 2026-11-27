@@ -45,6 +45,8 @@ interface Behaviour {
   readonly stage?: (name: string) => { code: number; output: string };
   readonly tag?: string;
   readonly npm?: string;
+  /** The packed content of dist/bin.js. */
+  readonly binHead?: string;
 }
 
 function fake(behaviour: Behaviour = {}): { run: ProcessRun; calls: string[] } {
@@ -56,12 +58,17 @@ function fake(behaviour: Behaviour = {}): { run: ProcessRun; calls: string[] } {
     const ok = (output: string): Promise<{ code: number; output: string }> =>
       Promise.resolve({ code: 0, output });
     if (program === 'git') return ok(behaviour.tag ?? 'v0.1.0\n');
+    if (program === 'tar' && args[0] === '-xzOf' && args[2] === 'package/dist/bin.js') {
+      return ok(behaviour.binHead ?? '#!/usr/bin/env node\nimport "./index.js";\n');
+    }
     if (program === 'tar' && args[0] === '-xzOf') {
       const letter = nameOf(args);
       const name = `@x/${letter}`;
       return ok(JSON.stringify(behaviour.tarball?.(name) ?? manifestOf(name, letter)));
     }
-    if (program === 'tar') return ok('package/package.json\npackage/dist/index.js\n');
+    if (program === 'tar') {
+      return ok('package/package.json\npackage/dist/index.js\npackage/dist/bin.js\n');
+    }
     if (args[0] === '--version') return ok(behaviour.npm ?? '11.21.1\n');
     if (args[0] === 'view') {
       const name = /@x\/[abc]/.exec(args[1] ?? '')?.[0] ?? '';
@@ -128,6 +135,18 @@ test('a tarball problem stops the run before anything is staged', async () => {
   });
   await expect(publishPackages(options({ dryRun: false }, run))).rejects.toThrow(
     '@x/b: engines.node is not >=26',
+  );
+  expect(writes(calls)).toEqual([]);
+});
+
+test('a command file without an interpreter line stops the run before anything is staged', async () => {
+  const tarball = (name: string): object =>
+    manifestOf(name, name.slice(-1), { bin: { x: './dist/bin.js' } });
+  const good = fake({ tarball });
+  await expect(publishPackages(options({ dryRun: false }, good.run))).resolves.toHaveLength(3);
+  const { run, calls } = fake({ tarball, binHead: 'import "./index.js";\n' });
+  await expect(publishPackages(options({ dryRun: false }, run))).rejects.toThrow(
+    '@x/a: bin file dist/bin.js does not start with an interpreter line',
   );
   expect(writes(calls)).toEqual([]);
 });

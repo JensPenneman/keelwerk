@@ -84,6 +84,7 @@ while (($# > 0)); do
       status=0
       with_publish_engines bash -c '
         pnpm -r --filter "./packages/*" pack --pack-destination "$1" >/dev/null || exit 1
+        bash scripts/check-bin-link.sh "$1" || exit 1
         node scripts/publish-packages.ts --tarballs "$1" "$2"' _ "$tmp" "$1" || status=$?
       rm -rf "$tmp"
       [[ -z "$(git status --porcelain -- 'packages/*/package.json')" ]] ||
