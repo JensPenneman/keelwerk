@@ -11,6 +11,12 @@ import type { erasureDumpApp } from './erasure-probe-module.ts';
 type Runtime = TestRuntime<typeof erasureDumpApp>;
 type Row = Record<string, unknown>;
 
+/**
+ * The queue no worker serves: a worker reclaims the expired leases of the queues it works, so a
+ * copy in `commands` could be held by a sweep of a worker when the test takes it. In this queue
+ * only the test touches the copy.
+ */
+const strandedQueue = 'probe-stranded';
 /** The capability no worker of the harness advertises: only the test takes a job that names it. */
 const strandedCapability = 'probe-stranded';
 /** What the job's dead letter names, to tell it from the dead jobs of the process. */
@@ -49,7 +55,7 @@ const jsonOf = (value: unknown): unknown => (typeof value === 'string' ? JSON.pa
 /** The job a copy of `row` is: the same run, principal and scope, in a lane only the test takes from. */
 function copyOf(row: Row, at: Temporal.Instant): StoredJobSpec {
   return {
-    queue: String(row.queue),
+    queue: strandedQueue,
     run: jsonOf(row.input) as StoredJobSpec['run'],
     scope: jsonOf(row.scope) as StoredJobSpec['scope'],
     principal: jsonOf(row.principal) as StoredJobSpec['principal'],
@@ -65,7 +71,7 @@ function copyOf(row: Row, at: Temporal.Instant): StoredJobSpec {
 
 /**
  * Plants a command job of the operator that ends dead the way a command job dies (9.5.4, D7): the
- * retrying `probe.defer` job is copied into a lane no worker takes from, the test takes the copy
+ * retrying `probe.defer` job is copied into a queue no worker serves, the test takes the copy
  * with a lease of one millisecond and lets the clock pass the lease by a few milliseconds, three
  * times. The take after the third loss hands the copy out as exhausted, and the test, as its taker,
  * completes that attempt as a dead letter with the error of a lost lease (what `settleExhaustedJob`
@@ -93,7 +99,7 @@ async function strandDeadJob(input: {
   for (let take = 0; take <= lostLeases; take += 1) {
     advance(stepMs);
     await runtime.adapter.unit(runtime.namespace, spec.scope, async (unit) => {
-      const { jobs } = await unit.jobs.take('commands', worker, request);
+      const { jobs } = await unit.jobs.take(strandedQueue, worker, request);
       const [taken] = jobs;
       if (take < lostLeases) return;
       expect(
