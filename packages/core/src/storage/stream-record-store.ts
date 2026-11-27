@@ -16,6 +16,8 @@ export interface StreamRecordStore {
     afterSeq: bigint | null,
     limit: number,
   ): Promise<readonly StreamRecord[]>;
+  /** The newest `limit` records of one key of one stream, in ascending `seq`: the tail of what `read` pages through. */
+  readLast(stream: string, key: string, limit: number): Promise<readonly StreamRecord[]>;
   /** Deletes records beyond a policy; the bytes they were charged go back to `core.eventBytes` at the unit's commit tail. */
   expire(
     stream: string,

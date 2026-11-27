@@ -222,7 +222,7 @@ describe('an effect never stays requested with an open attempt when the end of t
     expectSettled(effect);
   });
 
-  test('a job of an effect the registry no longer holds settles it failed from its row, without a continuation', async () => {
+  test('a job whose executor the registry no longer holds settles the effect failed from its row, and the continuation of the type the registry holds runs', async () => {
     const booted = await watchedHooks(start, cleanup);
     await probe(booted, 'rate_limited');
     const waiting = await effectOf(booted, 'probes.act');
@@ -245,7 +245,9 @@ describe('an effect never stays requested with an open attempt when the end of t
     await drainHooks(booted);
     const effect = await effectOf(booted, 'probes.act');
     expect(effect).toMatchObject({ status: 'failed', error: { code: 'core.internal' } });
-    expect((await rowsOf(booted, 'probes.target'))[0]?.result).toBeUndefined();
+    expect(String((await rowsOf(booted, 'probes.target'))[0]?.result)).toMatch(
+      /^failed core\.internal: /,
+    );
   });
 
   test('a timeout whose end unit hits a store error is retried like in the end unit, not settled abandoned', async () => {

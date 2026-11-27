@@ -2448,7 +2448,8 @@ to the invoking command's declared error. Amended 2026-11-11: it can. Only an er
 map names becomes the caller's declared error (section 7.9.5); an error named as itself (a declared
 error of a module the caller depends on) passes through with its details and is listed on the
 caller's surface; every other failure reaches the caller as the closed projection, which keeps only
-the retry markers `{ unique: true }` and `{ ifVersion: true }`; an adapter's `RetryableUnitError`
+the retry markers `{ unique: true }` and `{ ifVersion: true }`, and the map never names a unique
+conflict or a version conflict the invoked command did not ask for (WP-126); an adapter's `RetryableUnitError`
 passes through unchanged so the caller's unit repeats; anything else becomes `core.internal` with a
 cause that is never serialised. An inline reaction's action declares the errors of the command it
 runs in (section 7.7).
@@ -3013,7 +3014,7 @@ its commit:
 
 | Effect | Performed |
 |---|---|
-| `invoke(action, input, { as?: system(reason), prefer?, errors? })` | a command of the same scope, in a savepoint after this decision's events (an asynchronous one, or an `either` one with `prefer: 'async'`, is enqueued as a job whose command id is `kernel:effect:<effect id>`; amended 2026-11-11); a backend command from a tenant unit is always such a job, whose action runs in the tenant's own backend unit (section 12.3, amended 2026-11-11); its result does not return to the caller; `as` replaces `ctx.asSystem`, logged with the reason; `errors` maps the invoked command's codes to the caller's declared errors, and a declared error of a module the caller depends on passes through when the map names it as itself (section 7.4, amended 2026-11-11) |
+| `invoke(action, input, { as?: system(reason), prefer?, errors? })` | a command of the same scope, in a savepoint after this decision's events (an asynchronous one, or an `either` one with `prefer: 'async'`, is enqueued as a job whose command id is `kernel:effect:<effect id>`; amended 2026-11-11); a backend command from a tenant unit is always such a job, whose action runs in the tenant's own backend unit (section 12.3, amended 2026-11-11); its result does not return to the caller; `as` replaces `ctx.asSystem`, logged with the reason; `errors` maps the invoked command's codes to the caller's declared errors, and a declared error of a module the caller depends on passes through when the map names it as itself (section 7.4, amended 2026-11-11); the map never takes a retry signal of the kernel, a unique conflict or a version conflict that the invoked command did not ask for with `ifVersion`: it reaches the caller as the projection, so the caller's unit repeats (WP-126) |
 | `enqueue(action, input, { runAt?, key?, commandId? })` | a command job committed with the unit, of the unit's own scope or, from a tenant unit, of the tenant's own backend (section 12.3, amended 2026-11-11); without `commandId` the job's command id is `kernel:effect:<effect id>` (amended 2026-11-11) |
 | `setTimer({ key, at or after, invoke, input })`, `cancelTimer(key)` | keyed timer jobs (section 9.5.1) of the unit's own scope: a timer does not cross scopes (amended 2026-11-12) |
 | `settle(effect, outcome, { effect, where? })` | the `settled` record of an effect with an external performer, and its continuation; the first parameter is the effect's id, an `Id<'core.effect'>` (amended 2026-11-12), and the options tie the settle to its performer (amended 2026-11-17, below) |
@@ -3070,7 +3071,11 @@ interface ExecutorContext<M> {
   as `failed`. A lease lost after the destination may have acted, or an inline run cut by a crash,
   settles it as `abandoned` (`core.effect_outcome_unknown`). Amended 2026-11-11: a timeout is
   retried with the same idempotency key while the policy allows; with no retry left the effect
-  settles `abandoned`. A stored error code is a core code or a code the effect's module declared,
+  settles `abandoned` with `core.effect_outcome_unknown`, because nobody learns whether the
+  destination acted (built 2026-11-27, WP-126: an inline effect, which has one attempt and no
+  retry, settles `abandoned` at its timeout as well; a timeout that fired before the executor was
+  called reached nothing and settles `failed` with `core.timeout`, but only when no earlier
+  attempt of the effect began: an earlier attempt may have reached the destination). A stored error code is a core code or a code the effect's module declared,
   anything else becomes `core.<kind>`, and an effect job's history message is "The effect failed
   with <code>."
 - Effect ids are UUIDv8 derived from the scope, the cause (a command id, or a reaction id and event
@@ -3171,7 +3176,7 @@ and an effect fail with `core.key_destroyed`.
 | ids, random values, issued secrets | in the decision record; issued secrets by public id and verifier only |
 | reveals, verifications, computations | nothing: reproducible while their keys exist |
 | an effect | its stream `core.effect/<id>` (kernel entity, chain, tenancy `invocation`): `requested` in the requesting unit (type; input, personal fields sealed, secrets as references; command id; the ids of the events it accompanied; continuation, key (the digest of the key under the module, section 7.9.5), deadline) and `settled` (`succeeded`, `failed` or `abandoned`; output up to 64 KiB, else a blob reference (amended 2026-11-11: until blob references arrive in M4, an output over 64 KiB is `core.effect_output_too_large` and the effect settles `failed`, section 10); error; attempts; timings; SHA-256 digest of the canonical output) |
-| attempts | records of the stream `core.effectAttempt` keyed by effect id (gap G6: process, build, start, end, error), kept until the operator adopts a `streamRecords` rule for them: like everything else, nothing is purged by default (decisions 78a and 47c, section 14.7.1) |
+| attempts | records of the stream `core.effectAttempt` keyed by effect id (gap G6: process, build, start, end, error; the `attempts` of the settled record is the highest attempt number among the latest records, the attempt of the last take that started), kept until the operator adopts a `streamRecords` rule for them: like everything else, nothing is purged by default (decisions 78a and 47c, section 14.7.1) |
 | a continuation | its own decision, whose causation is the effect's `settled` record (amended 2026-11-11) |
 | logs, traces | not recorded; correlated by scope, command, effect and trace ids |
 
@@ -6523,6 +6528,7 @@ export interface TombstoneStore {
 export interface StreamRecordStore {
   append(stream: string, key: string, records: readonly unknown[]): Promise<{ readonly firstSeq: bigint }>
   read(stream: string, key: string, afterSeq: bigint | null, limit: number): Promise<readonly { readonly seq: bigint; readonly at: Temporal.Instant; readonly data: unknown }[]>
+  readLast(stream: string, key: string, limit: number): Promise<readonly { readonly seq: bigint; readonly at: Temporal.Instant; readonly data: unknown }[]>  // the newest `limit` records of the key, in ascending seq
   expire(stream: string, policy: { readonly maxAge?: string; readonly maxPerKey?: number }, limit: number): Promise<number>
   purgeKeys(stream: string, keys: readonly string[]): Promise<number>          // erasure and retention
 }
@@ -7832,8 +7838,33 @@ after it, and the stream is reported as changed.
   with a reason, and `.stateOnly()` fields never enter events.
   Added 2026-11-11: a secret a module hands to an effect is sealed for that effect under its own
   value key, bound to `core.effect`, the effect id and the member path, so replacing the secret
-  does not reach effects already requested; WP-126 destroys these value keys when the effect
-  settles.
+  does not reach effects already requested.
+  Added 2026-11-27 (WP-126): when an effect settles, whatever its status and whoever settles it
+  (its executor, an outside performer, its deadline, the erasure of its subject), the kernel
+  destroys in the same unit the value keys that the secret members of its input open under, so no
+  input secret of an effect that settles opens. The registry's entry for the effect's type decides
+  what the settle does, not whether the build still has the executor: a build that lost the
+  executor but kept the type still runs the continuation. The keys are always found from what is
+  stored, never from the build's present shape: every sealed text in the stored members (a text,
+  or the texts of a list or set) that opens under the binding of the member it sits in counts,
+  so a build that lacks the type, or whose shape no longer declares a member, destroys the same
+  keys, and the erasure of the subject finds the input and output keys the same way. A text that was moved into the input from another effect opens
+  under no binding of this effect, so no key of the effect it came from is destroyed; a text moved
+  from another member of the same effect opens under no binding of the member it sits in either,
+  but the key of the member it came from is destroyed at the settle, through that member. A retried
+  attempt settles nothing and keeps the keys. Effects that settled before this release keep their
+  input keys until an erasure of their subject. Two keys stay: those of the output, which the
+  continuation reveals as references, and, for an effect whose executor is `inline`, those of the
+  input, because a repeat of the sync command opens the stored input to compare it.
+  An effect whose continuation names a command that this build has, and whose continuation cannot
+  be enqueued for a reason other than that the command is gone (for example a continuation input
+  that no longer seals), is not settled and its continuation is not dropped: the unit of the
+  settle rolls back, the job is retried as its policy allows and ends failed (for an outside
+  effect with a deadline, its deadline job ends failed and a later settle by its performer is
+  refused), and the effect stays `requested` with its input secrets open. The job does not run
+  again, and nothing repairs the effect by itself. The one exception is the erasure of the
+  effect's subject: it settles the effect without the continuation when the continuation cannot
+  be enqueued, and destroys its keys with their tombstones recorded first.
   Added 2026-11-18: compose refuses a `field.secret()` or `field.verifier()` inside a `field.json()`
   member of a shape a module declares (`credentialInJson`) and a verifier anywhere but as a
   top-level field of an entity (`verifierOutsideEntity`, both in section 4.7), and a job whose
@@ -8068,7 +8099,8 @@ Added 2026-11-26: the erasure settles the effects of the subject. A requested ef
 subject is settled in the unit that visits it, through the settle path of the performer: `failed`
 with `core.key_destroyed`, or, for an executor effect with an attempt that started and has no end
 record, `abandoned` with `core.effect_outcome_unknown`, because the destination may have been
-reached. Its continuation runs once and its deadline timer is cancelled. The end of a running
+reached. Its continuation runs once, unless it cannot be enqueued, and the effect is then settled
+without it (section 7.9.5); its deadline timer is cancelled. The end of a running
 attempt then finds the effect settled, writes only its end record and seals nothing. The erasure
 destroys the value keys of the secret members of the input and of the output of every effect record
 that names the subject. Every value key the erasure destroys has its tombstone in the control
@@ -9758,6 +9790,12 @@ each, so reading the key from the start still returns every record and nothing i
 logs use it at 50,000 lines (decision 47c, section 17.3.6). Personal values in records are encrypted
 with the key of the subject that owns the keyed row, and erasure purges the records of every row the
 subject owns (section 14.7.5).
+
+Added 2026-11-27 (WP-126): `readLast(stream, key, limit)` answers the newest `limit` records of one
+key of one stream in ascending `seq`, and no record of another key or stream. It is a required
+member of `StreamRecordStore`: an adapter of one's own implements it and passes the adapter
+conformance case for it. The unit that begins an effect attempt, and the erasure of an effect, read
+the effect's attempt records with one `readLast`, never by paging through the stream.
 
 Added 2026-11-11 (WP-85): a stream record's envelope is `{ record }` with an optional `v` (schema
 version); an effect attempt record's error is a closed projection without free text; a credential

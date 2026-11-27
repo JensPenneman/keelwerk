@@ -20,6 +20,7 @@ vi.mock('./begin-effect-attempt.ts', () => ({
       input: {},
       startedAt: '2026-01-01T00:00:00Z',
       started: 1,
+      earlier: false,
     });
   },
 }));

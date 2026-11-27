@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest';
 import type { ControlStore } from '../control/control-store.ts';
 import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
-import type { EffectEntry } from '../registry/effect-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { StoredJobSpec } from '../storage/stored-job-spec.ts';
 import type { Unit } from '../storage/unit.ts';
@@ -19,7 +18,6 @@ const untouched = new Proxy(
   },
 );
 
-const entry = { ref: 'hooks.post', module: 'hooks' } as unknown as EffectEntry;
 const cause = {
   scope: { level: 'deployment' },
   causation: {},
@@ -35,7 +33,6 @@ describe('settleEffect', () => {
         untouched as Unit,
         {
           registry: untouched as Registry,
-          entry,
           row: { id: 'e1', status },
           cause,
           writer: untouched as ControlStore['writer'],
@@ -70,7 +67,6 @@ describe('settleEffect, under the row lock', () => {
       unit,
       {
         registry,
-        entry,
         row: { id: 'e1', status: 'requested' },
         cause,
         writer: untouched as ControlStore['writer'],
@@ -100,7 +96,7 @@ describe('enqueueContinuation', () => {
     ).resolves.toBeUndefined();
   });
 
-  test('a continuation that names no command is internal', async () => {
+  test('a continuation that names no command of the build enqueues nothing, and the registry alone says so', async () => {
     await expect(
       enqueueContinuation({} as Unit, {
         registry: { actions: new Map() } as unknown as Registry,
@@ -111,7 +107,7 @@ describe('enqueueContinuation', () => {
         now: Temporal.Instant.from('2026-03-01T08:00:00Z'),
         limits: undefined,
       }),
-    ).rejects.toMatchObject({ kind: 'internal' });
+    ).resolves.toBeUndefined();
   });
 });
 

@@ -3,7 +3,6 @@ import { commandQueue } from '../effects/command-queue.ts';
 import { continuationJobKey } from '../effects/continuation-job-key.ts';
 import { jobInput } from '../effects/job-input.ts';
 import { sealJobInput } from '../effects/seal-job-input.ts';
-import { errors } from '../errors/errors.ts';
 import { kernelCommandId } from '../ids/kernel-command-id.ts';
 import type { EffectOutcome } from '../model/effect-outcome.ts';
 import type { QuotaView } from '../quotas/quota-view.ts';
@@ -17,14 +16,14 @@ import type { Unit } from '../storage/unit.ts';
 /**
  * Hands the outcome of a settled effect to its continuation (7.9.5, D9): a command job in the
  * settling unit, so the settled record and the job commit together. No-op for an effect without
- * `continueWith`. The command id is the kernel form of the effect id and the job key is
+ * `continueWith` and for a continuation that names no command of this build. The command id is the kernel form of the effect id and the job key is
  * `continuationJobKey` (`core.continuation:<effect id>`, kept on conflict, a namespace no module's
  * keyed enqueue can reach), so the continuation is enqueued once however often the effect is
  * settled; the command runs under `<module>.system` of its own module (a continuation is a command
  * of the module whose decision requested the effect, which `recordExternalEffect` checks) in the
  * scope the effect was requested in. The job is caused by the settled record, as a reaction's job
  * is by its event. Its input is the effect's stored `with` and the `outcome`, sealed as every
- * command job's input is (`sealJobInput`). A continuation that names no command is `internal`.
+ * command job's input is (`sealJobInput`).
  */
 export async function enqueueContinuation(
   unit: Unit,
@@ -45,11 +44,8 @@ export async function enqueueContinuation(
   if (typeof continuation !== 'string') return;
   const effectId = String(row.id);
   const action = registry.actions.get(continuation);
-  if (action === undefined || action.kind !== 'command') {
-    throw errors.internal(
-      `the continuation "${continuation}" of the effect ${effectId} is no command`,
-    );
-  }
+  // Gone is a fact of the registry, never of an error: a build without the command runs no continuation.
+  if (action === undefined || action.kind !== 'command') return;
   const { scope } = cause;
   const lineage = reactionLineageOf(cause.causation.lineage);
   const commandId = kernelCommandId('continuation', effectId);

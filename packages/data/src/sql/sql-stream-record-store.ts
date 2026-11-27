@@ -97,6 +97,27 @@ export function sqlStreamRecordStore(
         }));
       });
     },
+    readLast: async (stream, key, limit) => {
+      if (!Number.isInteger(limit) || limit < 1) {
+        throw malformedQuery('limit must be an integer of at least 1');
+      }
+      const db = ctx.scopedDb();
+      return sqlGuard(async () => {
+        const rows = await db
+          .selectFrom(table)
+          .select(['seq', 'at', 'data'])
+          .where('stream', '=', stream)
+          .where('key', '=', key)
+          .orderBy('seq', 'desc')
+          .limit(limit)
+          .execute();
+        return rows.reverse().map((row) => ({
+          seq: BigInt(String(row.seq)),
+          at: decodeInstant(row.at),
+          data: recordOfStreamData(row.data),
+        }));
+      });
+    },
     expire: async (stream, policy, limit) => {
       ctx.writable();
       const scopeId = ctx.scopeId();

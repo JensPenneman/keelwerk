@@ -10,13 +10,12 @@ import type { RunJobContext } from '../worker/run-job.ts';
 import { decodeShapeValue } from '../write-path/decode-shape-value.ts';
 import { abandonOnLostLease } from './abandon-on-lost-lease.ts';
 import { attemptErrorOf } from './attempt-error-of.ts';
-import { attemptRecordBound } from './attempt-record-bound.ts';
 import { declaredErrorCodesOf } from './declared-error-codes-of.ts';
 import type { EffectAttemptJob } from './effect-attempt-job.ts';
 import { effectJobError } from './effect-job-error.ts';
 import { latestAttemptRecords } from './latest-attempt-records.ts';
 import { recordAttempt } from './record-attempt.ts';
-import { settleKeepingContinuation } from './settle-keeping-continuation.ts';
+import { settleEffect } from './settle-effect.ts';
 
 /** What the begin unit answers: a `BeganAttempt`, or that it settled an effect whose key was destroyed. */
 type BeginUnitResult = BeganAttempt | { readonly kind: 'erased' };
@@ -28,8 +27,10 @@ export type BeganAttempt =
       readonly kind: 'run';
       readonly input: Readonly<Record<string, unknown>>;
       readonly startedAt: string;
-      /** The attempts that started, this one included. */
+      /** The last attempt that started, this one included. */
       readonly started: number;
+      /** Whether an earlier take of this effect wrote a start record: its executor may have been called. */
+      readonly earlier: boolean;
     };
 
 /**
@@ -84,34 +85,19 @@ export async function beginEffectAttempt(
         await completeJob(unit, held, { kind: 'succeeded' });
         return { kind: 'finished' };
       }
-      const { records, started: startedAttempts } = await latestAttemptRecords(
-        unit,
-        effectId,
-        attemptRecordBound,
-      );
+      const { records, attempts: started } = await latestAttemptRecords(unit, effectId);
       const { open } = abandonOnLostLease(records, attempt);
-      const started = startedAttempts.size;
       const finish = async (
         status: 'failed' | 'abandoned',
         error: unknown,
         attempts: number,
       ): Promise<BeginUnitResult> => {
         const projection = attemptErrorOf(error, requestId, declared);
-        // The continuation runs unless it is gone or no longer fits (an effect the registry no longer
-        // holds has none to run): the effect then settles from what its row holds, without it.
-        await settleKeepingContinuation(
+        // The effect settles from what its row holds; its continuation runs when this build has it.
+        await settleEffect(
           unit,
-          {
-            registry,
-            entry,
-            row,
-            cause: stored,
-            writer,
-            clock,
-            limits,
-            ...(entry === undefined ? { continuation: 'skip' as const } : {}),
-          },
-          () => Promise.resolve({ status, error: projection }),
+          { registry, row, cause: stored, writer, clock, limits },
+          { status, error: projection },
           attempts,
         );
         await completeJob(unit, held, { kind: 'failed', error: effectJobError(projection) });
@@ -170,7 +156,13 @@ export async function beginEffectAttempt(
         attempt,
         startedAt,
       });
-      return { kind: 'run', input, startedAt, started: started + 1 };
+      return {
+        kind: 'run',
+        input,
+        startedAt,
+        started: Math.max(started, attempt),
+        earlier: records.length > 0,
+      };
     },
   );
   if (began.kind !== 'erased') return began;

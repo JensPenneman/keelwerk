@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { settleKeepingContinuation } from '../executors/settle-keeping-continuation.ts';
+import { settleEffect } from '../executors/settle-effect.ts';
 import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
 import type { SettleEffect } from '../protocol/settle-effect.ts';
@@ -9,8 +9,11 @@ import type { Unit } from '../storage/unit.ts';
 import type { EffectScene } from './effect-scene.ts';
 import { settleExternal } from './settle-external.ts';
 
-vi.mock('../executors/settle-keeping-continuation.ts', () => ({
-  settleKeepingContinuation: vi.fn(() => Promise.resolve({ status: 'succeeded', output: {} })),
+vi.mock('../executors/sealed-output-of.ts', () => ({
+  sealedOutputOf: () => Promise.resolve({}),
+}));
+vi.mock('../executors/settle-effect.ts', () => ({
+  settleEffect: vi.fn(() => Promise.resolve(true)),
 }));
 
 const effectId = '0198a1e0-0000-8000-8000-0000000000e1';
@@ -62,9 +65,9 @@ function scene(meta: Readonly<Record<string, unknown>>): EffectScene {
 
 /** The causation the settle hands to the settled record and its continuation. */
 async function causationOf(meta: Readonly<Record<string, unknown>>): Promise<unknown> {
-  vi.mocked(settleKeepingContinuation).mockClear();
+  vi.mocked(settleEffect).mockClear();
   await settleExternal(scene(meta), settle);
-  const target = vi.mocked(settleKeepingContinuation).mock.calls[0]?.[1];
+  const target = vi.mocked(settleEffect).mock.calls[0]?.[1];
   return target?.cause.causation;
 }
 

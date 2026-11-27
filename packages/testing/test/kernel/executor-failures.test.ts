@@ -38,7 +38,8 @@ describe('an attempt whose lease is lost (D1, reviewer check 14)', () => {
     await booted.runtime.advanceTo(start.add({ minutes: 2 }));
     await drainHooks(booted);
     const effect = await effectOf(booted, 'hooks.post');
-    expect(effect).toMatchObject({ status: 'succeeded', attempts: 1 });
+    // `attempts` is the last attempt that started: the number the lost take spent is counted.
+    expect(effect).toMatchObject({ status: 'succeeded', attempts: 2 });
     expect(booted.endpoint.requests).toHaveLength(1);
     expect(booted.endpoint.requests[0]?.headers['idempotency-key']).toBe(String(effect?.id));
     const records = await attemptsOf(booted, String(effect?.id));

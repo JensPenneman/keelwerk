@@ -5,6 +5,7 @@ import { uniqueConflict } from '../errors/unique-conflict.ts';
 import type { InvokeEffect } from '../protocol/invoke-effect.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import { RetryableUnitError } from '../storage/retryable-unit-error.ts';
+import { isRetrySignal } from '../write-path/is-retry-signal.ts';
 import { mapInvokeError } from './map-invoke-error.ts';
 
 const caller = {
@@ -195,5 +196,41 @@ describe('mapping a failed invoke to the caller error', () => {
       details: { entity: 'relay.signal', id: 'ada@example.com' },
     });
     expect((mapInvokeError(plain, effect, caller) as KeelwerkError).details).toBeUndefined();
+  });
+
+  test('a map that names core.conflict or core.version_mismatch leaves a unique conflict and a plain version conflict to the retry; an ifVersion conflict is still mapped', () => {
+    const naming = {
+      ...effect,
+      errors: {
+        'core.conflict': 'relay.forward_refused',
+        'core.version_mismatch': 'relay.forward_refused',
+      },
+    } as InvokeEffect;
+    const unique = mapInvokeError(
+      uniqueConflict('accounts_profile_email_key', new Error('duplicate key')),
+      naming,
+      caller,
+    );
+    expect(unique).toMatchObject({ code: 'core.conflict', details: { unique: true } });
+    expect(isRetrySignal(unique)).toBe(true);
+    const plain = mapInvokeError(
+      new KeelwerkError({ kind: 'conflict', code: 'core.version_mismatch', message: 'moved' }),
+      naming,
+      caller,
+    );
+    expect(plain).toMatchObject({ code: 'core.version_mismatch' });
+    expect(isRetrySignal(plain)).toBe(true);
+    const asked = mapInvokeError(
+      new KeelwerkError({
+        kind: 'conflict',
+        code: 'core.version_mismatch',
+        message: 'moved',
+        details: { ifVersion: true },
+      }),
+      naming,
+      caller,
+    );
+    expect(asked).toMatchObject({ code: 'relay.forward_refused' });
+    expect(isRetrySignal(asked)).toBe(false);
   });
 });

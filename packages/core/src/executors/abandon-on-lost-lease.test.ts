@@ -15,37 +15,33 @@ const end = (attempt: number, process = 'p'): EffectAttemptRecord => ({
 
 describe('abandonOnLostLease', () => {
   test('a start record of attempt 1 with no end is open at attempt 2', () => {
-    expect(abandonOnLostLease([start(1)], 2)).toEqual({ started: 1, open: 1 });
+    expect(abandonOnLostLease([start(1)], 2)).toEqual({ open: 1 });
   });
 
-  test('a start and an end record close the attempt; both records count as one started attempt', () => {
-    expect(abandonOnLostLease([start(1), end(1)], 2)).toEqual({ started: 1, open: undefined });
+  test('a start and an end record close the attempt', () => {
+    expect(abandonOnLostLease([start(1), end(1)], 2)).toEqual({ open: undefined });
   });
 
-  test('no record at all means no attempt started and none is open', () => {
-    expect(abandonOnLostLease([], 1)).toEqual({ started: 0, open: undefined });
+  test('no record at all means no attempt is open', () => {
+    expect(abandonOnLostLease([], 1)).toEqual({ open: undefined });
   });
 
   test('an open start record that has the current attempt number is open too: the job was handed out again under the same number', () => {
-    expect(abandonOnLostLease([start(2)], 2)).toEqual({ started: 1, open: 2 });
-    expect(abandonOnLostLease([start(2), end(2)], 2)).toEqual({ started: 1, open: undefined });
+    expect(abandonOnLostLease([start(2)], 2)).toEqual({ open: 2 });
+    expect(abandonOnLostLease([start(2), end(2)], 2)).toEqual({ open: undefined });
   });
 
   test('the end of an earlier take does not close a later take of the same number', () => {
     expect(abandonOnLostLease([start(1, 'p1'), end(1, 'p1'), start(1, 'p2')], 1)).toEqual({
-      started: 1,
       open: 1,
     });
     expect(
       abandonOnLostLease([start(1, 'p1'), end(1, 'p1'), start(1, 'p2'), end(1, 'p2')], 1),
-    ).toEqual({ started: 1, open: undefined });
+    ).toEqual({ open: undefined });
   });
 
   test('later attempts are ignored for the open check, and the first open one is named', () => {
-    expect(abandonOnLostLease([start(3)], 2)).toEqual({ started: 1, open: undefined });
-    expect(abandonOnLostLease([start(1), end(1), start(2), start(3)], 4)).toEqual({
-      started: 3,
-      open: 2,
-    });
+    expect(abandonOnLostLease([start(3)], 2)).toEqual({ open: undefined });
+    expect(abandonOnLostLease([start(1), end(1), start(2), start(3)], 4)).toEqual({ open: 2 });
   });
 });

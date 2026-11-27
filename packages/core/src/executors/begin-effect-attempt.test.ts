@@ -25,18 +25,15 @@ vi.mock('./latest-attempt-records.ts', () => ({
   latestAttemptRecords: () =>
     Promise.resolve({
       records: stream.records,
-      started: new Set(stream.records.map((record) => record.attempt)),
+      attempts: Math.max(0, ...stream.records.map((record) => record.attempt)),
     }),
 }));
 vi.mock('./record-attempt.ts', () => ({ recordAttempt: () => Promise.resolve() }));
 const settled = vi.hoisted(() => ({ errors: [] as { code: string }[] }));
-vi.mock('./settle-keeping-continuation.ts', () => ({
-  settleKeepingContinuation: async (
-    _unit: unknown,
-    _target: unknown,
-    settledOf: () => Promise<{ error: { code: string } }>,
-  ) => {
-    settled.errors.push((await settledOf()).error);
+vi.mock('./settle-effect.ts', () => ({
+  settleEffect: (_unit: unknown, _target: unknown, outcome: { error: { code: string } }) => {
+    settled.errors.push(outcome.error);
+    return Promise.resolve(true);
   },
 }));
 
@@ -128,8 +125,19 @@ describe('an effect attempt that follows a release of the same attempt number', 
   test('a take that ended leaves the attempt to run again', async () => {
     stream.records = [take('p1'), { ...take('p1'), endedAt: '2026-01-01T00:00:01Z' }];
     const { context, target } = setup();
-    expect(await beginEffectAttempt(context, target, {})).toMatchObject({ kind: 'run' });
+    expect(await beginEffectAttempt(context, target, {})).toMatchObject({
+      kind: 'run',
+      earlier: true,
+    });
     expect(settled.errors).toEqual([]);
+  });
+
+  test('a first attempt, with no record of an earlier one, answers that no earlier attempt began', async () => {
+    const { context, target } = setup();
+    expect(await beginEffectAttempt(context, target, {})).toMatchObject({
+      kind: 'run',
+      earlier: false,
+    });
   });
 });
 

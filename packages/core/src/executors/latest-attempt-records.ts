@@ -1,8 +1,6 @@
 import type { EffectAttemptRecord } from '../effects/effect-attempt-record.ts';
 import type { Unit } from '../storage/unit.ts';
-
-/** The records one read takes. */
-const pageSize = 200;
+import { attemptRecordBound } from './attempt-record-bound.ts';
 
 function attemptRecordOf(data: unknown): EffectAttemptRecord | undefined {
   if (typeof data !== 'object' || data === null) return undefined;
@@ -11,36 +9,19 @@ function attemptRecordOf(data: unknown): EffectAttemptRecord | undefined {
 }
 
 /**
- * The latest `bound` attempt records of an effect, in order, and the attempts that started (the
- * distinct attempt numbers of all its records). The stream has no read from its tail, so the
- * records are read forward in pages by sequence number and only the latest `bound` are kept: the
- * records that matter (an attempt left open) are the most recent ones, and a stream longer than one
- * page is never cut short at its head.
+ * The latest `attemptRecordBound` attempt records of an effect, in order, from one read of the
+ * stream's tail, and `attempts`: the highest attempt number among them, which is the job's attempt
+ * counter at the last take that started (a number spent with no start record is not counted). The
+ * records that matter (an attempt left open) are the most recent ones.
  */
 export async function latestAttemptRecords(
   unit: Unit,
   effectId: string,
-  bound: number,
-  page: number = pageSize,
 ): Promise<{
   readonly records: readonly EffectAttemptRecord[];
-  readonly started: ReadonlySet<number>;
+  readonly attempts: number;
 }> {
-  const latest: EffectAttemptRecord[] = [];
-  const started = new Set<number>();
-  let after: bigint | null = null;
-  for (;;) {
-    const read = await unit.streams.read('core.effectAttempt', effectId, after, page);
-    for (const stored of read) {
-      const record = attemptRecordOf(stored.data);
-      if (record === undefined) continue;
-      started.add(record.attempt);
-      latest.push(record);
-      if (latest.length > bound) latest.shift();
-    }
-    const last = read.at(-1);
-    if (last === undefined || read.length < page) break;
-    after = last.seq;
-  }
-  return { records: latest, started };
+  const stored = await unit.streams.readLast('core.effectAttempt', effectId, attemptRecordBound);
+  const records = stored.flatMap((record) => attemptRecordOf(record.data) ?? []);
+  return { records, attempts: Math.max(0, ...records.map((record) => record.attempt)) };
 }

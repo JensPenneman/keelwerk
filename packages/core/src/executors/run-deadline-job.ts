@@ -5,13 +5,13 @@ import type { Job } from '../jobs/job.ts';
 import { completeJob } from '../worker/complete-job.ts';
 import type { RunJobContext } from '../worker/run-job.ts';
 import { attemptErrorOf } from './attempt-error-of.ts';
-import { settleKeepingContinuation } from './settle-keeping-continuation.ts';
+import { settleEffect } from './settle-effect.ts';
 
 /**
  * Runs a deadline job (7.9.5): in one unit of the job's scope, settles a still `requested` effect
  * `failed` with `core.effect_deadline` and completes the job; a settled or missing effect completes
- * it `succeeded`. The settle goes through `settleKeepingContinuation` and `settleEffect`, which
- * re-read the effect row under its lock, so a settle that races the deadline has one winner: the
+ * it `succeeded`. The settle goes through `settleEffect`, which
+ * re-reads the effect row under its lock, so a settle that races the deadline has one winner: the
  * loser finds a settled row and writes nothing. A settle that wins cancels this job's key, which
  * deletes a running attempt: the completion here then finds its lease gone and the unit rolls back
  * having written nothing.
@@ -33,24 +33,13 @@ export async function runDeadlineJob(job: Job, context: RunJobContext): Promise<
       where: { op: 'eq', field: 'id', value: effectId },
     });
     if (row !== undefined && row.status === 'requested') {
-      const entry = registry.effects.get(String(row.type));
-      await settleKeepingContinuation(
+      await settleEffect(
         unit,
+        { registry, row, cause: stored, writer, clock, limits },
         {
-          registry,
-          entry,
-          row,
-          cause: stored,
-          writer,
-          clock,
-          limits,
-          ...(entry === undefined ? { continuation: 'skip' as const } : {}),
+          status: 'failed',
+          error: attemptErrorOf(coreError('core.effect_deadline'), newUuidV7(), new Set()),
         },
-        () =>
-          Promise.resolve({
-            status: 'failed',
-            error: attemptErrorOf(coreError('core.effect_deadline'), newUuidV7(), new Set()),
-          }),
         Number(row.attempts ?? 0),
       );
     }

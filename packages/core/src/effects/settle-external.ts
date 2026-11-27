@@ -1,7 +1,7 @@
 import { normalizeCondition } from '../conditions/normalize-condition.ts';
 import { errors } from '../errors/errors.ts';
 import { sealedOutputOf } from '../executors/sealed-output-of.ts';
-import { settleKeepingContinuation } from '../executors/settle-keeping-continuation.ts';
+import { settleEffect } from '../executors/settle-effect.ts';
 import { refuseRequest } from '../interpreter/refuse-request.ts';
 import type { SettleEffect } from '../protocol/settle-effect.ts';
 import { deadlineTimerKey } from './deadline-timer-key.ts';
@@ -123,11 +123,10 @@ export async function settleExternal(scene: EffectScene, effect: SettleEffect): 
         ) as Readonly<Record<string, unknown>>,
       }
     : outcome;
-  const settled = await settleKeepingContinuation(
+  const wrote = await settleEffect(
     unit,
     {
       registry,
-      entry,
       row,
       cause: {
         scope: run.scope,
@@ -143,13 +142,12 @@ export async function settleExternal(scene: EffectScene, effect: SettleEffect): 
       clock: scene.clock,
       limits: run.quotas,
     },
-    async (inner) =>
-      checked.ok
-        ? { status: 'succeeded', output: await sealedOutputOf(inner, entry, id, checked.output) }
-        : { status: 'failed', error: settledErrorOf(registry, entry, checked.error) },
+    checked.ok
+      ? { status: 'succeeded', output: await sealedOutputOf(unit, entry, id, checked.output) }
+      : { status: 'failed', error: settledErrorOf(registry, entry, checked.error) },
     Number(row.attempts ?? 0),
   );
-  if (settled === undefined) throw errors.conflict(`The effect ${id} is already settled.`);
+  if (!wrote) throw errors.conflict(`The effect ${id} is already settled.`);
   if (row.deadline !== undefined && row.deadline !== null) {
     await unit.jobs.cancel(timerQueue, deadlineTimerKey(id));
   }

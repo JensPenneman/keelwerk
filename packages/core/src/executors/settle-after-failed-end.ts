@@ -16,24 +16,24 @@ import type { AttemptResult } from './end-effect-attempt.ts';
 import { isLeaseLost } from './is-lease-lost.ts';
 import { isOutputTooLarge } from './is-output-too-large.ts';
 import { judgedError } from './judged-error.ts';
+import { outcomeUnknown } from './outcome-unknown.ts';
 import { recordAttempt } from './record-attempt.ts';
 import { sealedOutputOf } from './sealed-output-of.ts';
-import { settleKeepingContinuation } from './settle-keeping-continuation.ts';
+import { settleEffect } from './settle-effect.ts';
 
 /**
  * The way out when the end unit of an attempt failed for a reason other than a lost lease (a
- * continuation the build no longer has, an input that no longer fits it, a store error): the
+ * store error): the
  * executor has run, so the effect must not stay `requested` with an open attempt. A fresh unit
  * judges the attempt as the end unit does (`endEffectAttempt`): the output is sealed first, and
  * one over 64 KiB is `core.effect_output_too_large`, which the destination did not act on; any
  * other failure to take the answer, and an executor that returned after the destination acted, is
- * `core.effect_outcome_unknown`. The end record is always appended, with the projection that
+ * `core.effect_outcome_unknown`, and so is a timeout that is not retried. The end record is always appended, with the projection that
  * matches the settlement, even when the effect was settled meanwhile. The effect settles
  * `succeeded` with the sealed output, else `abandoned` when the destination may have acted, else
  * `failed` with the executor's own failure. A failure that the executor did not act on, a timeout
  * included, and that the retry policy allows again is not settled: the job completes `retry`, so
- * one store error never turns a retryable failure into a permanent one. The continuation is
- * kept: it is dropped only when it is gone or no longer fits (`settleKeepingContinuation`). When
+ * one store error never turns a retryable failure into a permanent one. When
  * the fresh unit fails too the job is completed `retry`, and its next taker settles the effect
  * `abandoned` from the open attempt. A lost lease anywhere in here is rethrown: the attempt then
  * changes nothing.
@@ -89,10 +89,10 @@ export async function settleAfterFailedEnd(
           return;
         }
         const output = sealed;
-        await settleKeepingContinuation(
+        await settleEffect(
           unit,
-          { registry, entry, row, cause: stored, writer, clock, limits },
-          () => Promise.resolve({ status: 'succeeded', output }),
+          { registry, row, cause: stored, writer, clock, limits },
+          { status: 'succeeded', output },
           began.started,
         );
         await completeJob(unit, held, { kind: 'succeeded' });
@@ -101,7 +101,15 @@ export async function settleAfterFailedEnd(
       const projection = attemptErrorOf(failure, requestId, declared);
       const outcome = jobOutcomeOfError(judgedError(failure, projection), stored, now, random);
       if (outcome === undefined) throw jobLeaseLost();
-      const error = acted
+      const unrun = !result.ok && result.unrun === true;
+      const unknown = outcomeUnknown(
+        acted,
+        projection,
+        outcome.kind === 'retry',
+        unrun,
+        began.earlier,
+      );
+      const error = unknown
         ? attemptErrorOf(coreError('core.effect_outcome_unknown'), requestId, declared)
         : projection;
       await record(error);
@@ -109,7 +117,7 @@ export async function settleAfterFailedEnd(
         await completeJob(unit, held, { kind: 'succeeded' });
         return;
       }
-      if (!acted && outcome.kind === 'retry') {
+      if (outcome.kind === 'retry' && !unknown) {
         await completeJob(unit, held, {
           kind: 'retry',
           at: outcome.at,
@@ -117,19 +125,16 @@ export async function settleAfterFailedEnd(
         });
         return;
       }
-      // The continuation is known and still valid unless the nested settle says otherwise.
-      const settled = await settleKeepingContinuation(
+      const settled = await settleEffect(
         unit,
-        { registry, entry, row, cause: stored, writer, clock, limits },
-        () => Promise.resolve({ status: acted ? 'abandoned' : 'failed', error }),
+        { registry, row, cause: stored, writer, clock, limits },
+        { status: unknown ? 'abandoned' : 'failed', error },
         began.started,
       );
       await completeJob(
         unit,
         held,
-        settled?.status === 'failed' || settled?.status === 'abandoned'
-          ? { kind: 'failed', error: effectJobError(error) }
-          : { kind: 'succeeded' },
+        settled ? { kind: 'failed', error: effectJobError(error) } : { kind: 'succeeded' },
       );
     });
   } catch (error) {

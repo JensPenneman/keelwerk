@@ -7,7 +7,7 @@ import type { EffectAttemptError } from './effect-attempt-error.ts';
  * The `settled` change of a `core.effect` row (7.9.6, S-169): `succeeded` with the output (already
  * sealed by `sealEffectOutput`) and the SHA-256 digest of its canonical form, or `failed` or
  * `abandoned` (`abandoned: true`) with the closed projection of the error, never the executor's
- * text. `attempts` counts the attempts that started; `at` is the settling time.
+ * text. `attempts` is the last attempt that started (the highest attempt number of the effect's records); `at` is the settling time.
  */
 export function settledEffectDraft(
   id: string,

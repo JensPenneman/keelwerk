@@ -31,6 +31,18 @@ function checkLimit(limit: number): void {
   }
 }
 
+function bySeq(a: Stored, b: Stored): number {
+  return a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0;
+}
+
+function streamRecordOf(stored: Stored): StreamRecord {
+  return {
+    seq: stored.seq,
+    at: stored.at,
+    data: memoryCloneValue(recordOfStreamData(stored.data)),
+  };
+}
+
 /** Deletes the records and buffers the give-back of what they were charged, measured from what is stored. */
 function removeStored(ctx: MemoryUnitContext, stream: string, doomed: readonly Stored[]): void {
   const table = ctx.tx.write<Stored>(memoryM2Collections.streamRecords(ctx.scopeId()));
@@ -86,15 +98,17 @@ export function memoryStreamRecordStore(ctx: MemoryUnitContext): StreamRecordSto
       checkLimit(limit);
       return recordsOf(stream)
         .filter((stored) => stored.key === key && (afterSeq === null || stored.seq > afterSeq))
-        .sort((a, b) => (a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0))
+        .sort(bySeq)
         .slice(0, limit)
-        .map(
-          (stored): StreamRecord => ({
-            seq: stored.seq,
-            at: stored.at,
-            data: memoryCloneValue(recordOfStreamData(stored.data)),
-          }),
-        );
+        .map(streamRecordOf);
+    },
+    readLast: async (stream, key, limit) => {
+      checkLimit(limit);
+      return recordsOf(stream)
+        .filter((stored) => stored.key === key)
+        .sort(bySeq)
+        .slice(-limit)
+        .map(streamRecordOf);
     },
     expire: async (stream, policy, limit) => {
       ctx.writable();

@@ -12,6 +12,7 @@ import type { EffectAttemptJob } from './effect-attempt-job.ts';
 import { effectJobError } from './effect-job-error.ts';
 import { isOutputTooLarge } from './is-output-too-large.ts';
 import { judgedError } from './judged-error.ts';
+import { outcomeUnknown } from './outcome-unknown.ts';
 import { recordAttempt } from './record-attempt.ts';
 import { sealedOutputOf } from './sealed-output-of.ts';
 import { settleEffect } from './settle-effect.ts';
@@ -34,7 +35,7 @@ export type AttemptResult =
  * no value key stays behind), the end record is appended, and the attempt ends by the error
  * taxonomy: a retryable failure that the policy allows appends the record and completes the job
  * `retry`; anything else settles the effect (`settleEffect`, with the attempts that started) and
- * completes the job. A failure of the kernel after the executor returned (an answer that does not
+ * completes the job. An attempt that timed out and is not retried settles `abandoned` as well. A failure of the kernel after the executor returned (an answer that does not
  * fit the output shape, a sealing that fails) settles `abandoned`: the destination acted. An effect that was settled meanwhile only gets its end record. Every
  * completion goes through `completeJob`, so a worker that lost its lease changes nothing. Only the
  * closed projection of a failure is stored, never the executor's text.
@@ -79,7 +80,7 @@ export async function endEffectAttempt(
     const settleTarget = (settled: Parameters<typeof settleEffect>[2]): Promise<boolean> =>
       settleEffect(
         unit,
-        { registry, entry, row, cause: stored, writer, clock, limits },
+        { registry, row, cause: stored, writer, clock, limits },
         settled,
         began.started,
       );
@@ -105,7 +106,15 @@ export async function endEffectAttempt(
     const projection = attemptErrorOf(failure, requestId, declared);
     const outcome = jobOutcomeOfError(judgedError(failure, projection), stored, now, random);
     if (outcome === undefined) throw jobLeaseLost();
-    if (acted) {
+    if (
+      outcomeUnknown(
+        acted,
+        projection,
+        outcome.kind === 'retry',
+        !result.ok && result.unrun === true,
+        began.earlier,
+      )
+    ) {
       const unknown = attemptErrorOf(coreError('core.effect_outcome_unknown'), requestId, declared);
       await record(unknown);
       const abandoned = await settleTarget({ status: 'abandoned', error: unknown });

@@ -6,6 +6,7 @@ import type { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { InvokeEffect } from '../protocol/invoke-effect.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import { RetryableUnitError } from '../storage/retryable-unit-error.ts';
+import { isRetrySignal } from '../write-path/is-retry-signal.ts';
 
 /** The cause kept on a projected error: names the invoked action and its code, holds the failure itself. */
 function causeOf(effect: InvokeEffect, code: string, failure: unknown): Error {
@@ -29,8 +30,10 @@ function retryMarkers(error: KeelwerkError): { readonly [marker: string]: true }
 
 /**
  * What a failure of an invoked command becomes for the caller (7.4). A code the effect's `errors`
- * map names becomes the caller's own declared error: its kind, message and retryable from the
- * declaration (`createError`), the original as `cause`. Any other keelwerk error reaches the caller
+ * map names becomes the caller's own declared error, except a retry signal of the kernel (a unique
+ * conflict, a version conflict the invoked command did not ask for): it is never mapped, so the
+ * caller's unit repeats (`isRetrySignal`). The declared error has its kind, message and retryable
+ * from its declaration (`createError`), the original as `cause`. Any other keelwerk error reaches the caller
  * as the closed projection only: its kind, its code when that is a core code (else `core.<kind>`),
  * `retryable` and `retryAfter`, with the registered message of that code. The invoked command's own
  * message, issue paths and details are never passed on: they may quote a value the caller was not
@@ -56,7 +59,7 @@ export function mapInvokeError(error: unknown, effect: InvokeEffect, caller: Act
     );
   }
   const named =
-    effect.errors !== undefined && Object.hasOwn(effect.errors, error.code)
+    !isRetrySignal(error) && effect.errors !== undefined && Object.hasOwn(effect.errors, error.code)
       ? effect.errors[error.code]
       : undefined;
   const spec = named === undefined ? undefined : caller.errorSpecs?.[named];

@@ -118,7 +118,7 @@ describe('inline effects in prepare', () => {
     ]);
   });
 
-  test('an executor that outlives its timeout settles failed with core.timeout after one attempt', async () => {
+  test('an executor that outlives its timeout settles abandoned with core.effect_outcome_unknown after one attempt', async () => {
     let answered: { readonly ok: boolean; readonly error?: { readonly code: string } } | undefined;
     const booted = bootInline(
       function* (_input, ctx) {
@@ -134,16 +134,19 @@ describe('inline effects in prepare', () => {
       action: booted.ref,
       input: {},
     });
-    expect(answered).toMatchObject({ ok: false, error: { code: 'core.timeout' } });
+    expect(answered).toMatchObject({
+      ok: false,
+      error: { code: 'core.effect_outcome_unknown' },
+    });
     const rows = await booted.adapter.unit(
       namespace,
       tenant,
       async (unit) => (await unit.rows.find(effectEntity, {})).rows,
     );
     expect(rows[0]).toMatchObject({
-      status: 'failed',
+      status: 'abandoned',
       attempts: 1,
-      error: { code: 'core.timeout' },
+      error: { code: 'core.effect_outcome_unknown' },
     });
     expect(await inlineAttemptsOf(booted.adapter, String(rows[0]?.id))).toHaveLength(2);
   });

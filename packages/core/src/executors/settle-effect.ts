@@ -6,13 +6,13 @@ import { errors } from '../errors/errors.ts';
 import type { Clock } from '../kernel/clock.ts';
 import type { QuotaView } from '../quotas/quota-view.ts';
 import { reactionLineageOf } from '../reactions/reaction-lineage-of.ts';
-import type { EffectEntry } from '../registry/effect-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { StoredJobSpec } from '../storage/stored-job-spec.ts';
 import type { Unit } from '../storage/unit.ts';
 import { registryBehaviours } from '../write-path/registry-behaviours.ts';
 import { effectJobError } from './effect-job-error.ts';
+import { effectSecretKeys } from './effect-secret-keys.ts';
 import { enqueueContinuation } from './enqueue-continuation.ts';
 
 /**
@@ -21,17 +21,21 @@ import { enqueueContinuation } from './enqueue-continuation.ts';
  * outputs), otherwise writes the settled change in the unit as the kernel (system actor through
  * `core.runtime`, the effect's command as command and correlation id, the effect ref as action, the
  * effect id as causation) and enqueues the continuation with `{ ok: true, value }` or, for a
- * failure, `{ ok: false, error: { code, message } }` of `effectJobError`. It never completes the
- * job: the caller does, in the same unit, through `completeJob`.
+ * failure, `{ ok: false, error: { code, message } }` of `effectJobError`, when the registry holds
+ * the effect's type and the continuation names a command of this build (`enqueueContinuation`);
+ * any error of the unit is rethrown, so a known continuation is never dropped. It destroys the
+ * value keys of the input's secret members in the same unit (`effectSecretKeys`), whatever the
+ * status and whatever the build has of the executor, the type or its shape (the keys are found
+ * from the stored input), unless the effect's executor is inline; output keys stay for the
+ * continuation. `continuation: 'skip'` settles without one. It never completes the job: the
+ * caller does, in the same unit, through `completeJob`.
  */
 export async function settleEffect(
   unit: Unit,
   target: {
     readonly registry: Registry;
-    /** Absent when the registry no longer holds the effect: the action is then the row's `type`. */
-    readonly entry?: EffectEntry | undefined;
     readonly row: StorageRow;
-    /** `skip`: no continuation job, for an effect whose continuation is unknown or not to be run. */
+    /** `skip`: no continuation job, for an effect that has none to run (an inline effect). */
     readonly continuation?: 'skip';
     readonly cause: Pick<StoredJobSpec, 'scope' | 'causation' | 'build'>;
     readonly writer: ControlStore['writer'];
@@ -44,7 +48,7 @@ export async function settleEffect(
     | { readonly status: 'failed' | 'abandoned'; readonly error: EffectAttemptError },
   attempts: number,
 ): Promise<boolean> {
-  const { registry, entry, writer } = target;
+  const { registry, writer } = target;
   if (target.row.status !== 'requested') return false;
   const id = String(target.row.id);
   // The status is decided under the row's lock: a second settle that read `requested` before the
@@ -57,6 +61,8 @@ export async function settleEffect(
   });
   if (row === undefined || row.status !== 'requested') return false;
   const commandId = String(row.commandId);
+  // The registry's entry for the effect's type decides, never the executor: a build can have lost the executor and kept the type.
+  const entry = registry.effects.get(String(row.type));
   const lineage = reactionLineageOf(target.cause.causation.lineage);
   const now = target.clock.now();
   const outcome =
@@ -90,7 +96,7 @@ export async function settleEffect(
     },
     settledEffectDraft(id, now, outcome, attempts),
   );
-  if (target.continuation !== 'skip') {
+  if (target.continuation !== 'skip' && entry !== undefined) {
     await enqueueContinuation(unit, {
       registry,
       row,
@@ -103,6 +109,17 @@ export async function settleEffect(
       now,
       limits: target.limits,
     });
+  }
+  // The input secrets die with the settle, except for an inline effect: its command may be repeated and then opens them to compare.
+  // The keys are found from the stored input, never from the build's shape of it.
+  const executor =
+    entry === undefined || entry.executor === null
+      ? undefined
+      : registry.executors.get(entry.executor);
+  if (executor?.inline !== true) {
+    for (const keyId of await effectSecretKeys(unit, row, 'input')) {
+      await unit.keys.destroyValueKey(keyId);
+    }
   }
   return true;
 }

@@ -198,6 +198,8 @@ describe.each(['memory', 'pglite'] as const)(
       expect(queued.id).toBeDefined();
       expect(await booted.effectRow(running)).toMatchObject({
         status: 'abandoned',
+        // The erasure writes the attempts that started: the one that was in flight.
+        attempts: 1,
         error: { code: 'core.effect_outcome_unknown' },
       });
       expect((await booted.effectRow(running)).output ?? null).toBeNull();

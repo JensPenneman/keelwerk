@@ -131,6 +131,31 @@ export function streamRecordCases(subject: ConformanceSubject): void {
       );
     });
 
+    test('readLast answers the newest records of a key in order, and of no other key or stream', async () => {
+      await subject.run(tenantA, async (unit) => {
+        await unit.streams.append(stream, 'k', [{ n: 1 }, { n: 2 }, { n: 3 }, { n: 4 }]);
+        await unit.streams.append(stream, 'other-key', [{ n: 90 }]);
+        await unit.streams.append(other, 'k', [{ n: 91 }]);
+        await unit.streams.append(stream, 'k', [{ n: 5 }]);
+      });
+      const last = (limit: number, name = stream, key = 'k') =>
+        subject.read(tenantA, async (unit) =>
+          (await unit.streams.readLast(name, key, limit)).map((r) => [r.seq, r.data]),
+        );
+      expect(await last(2)).toEqual([
+        [4n, { n: 4 }],
+        [5n, { n: 5 }],
+      ]);
+      expect((await last(100)).map(([seq]) => seq)).toEqual([1n, 2n, 3n, 4n, 5n]);
+      expect(await last(1, stream, 'none')).toEqual([]);
+      expect(await subject.read(tenantB, (unit) => unit.streams.readLast(stream, 'k', 5))).toEqual(
+        [],
+      );
+      expect(
+        await failureOf(subject.read(tenantA, (unit) => unit.streams.readLast(stream, 'k', 0))),
+      ).toMatchObject({ kind: 'validation' });
+    });
+
     test('purgeKeys removes every record of the keys and answers the count; seqs continue after a purge', async () => {
       await subject.run(tenantA, async (unit) => {
         await unit.streams.append(stream, 'a', [{ n: 1 }, { n: 2 }]);

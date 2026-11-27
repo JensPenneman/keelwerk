@@ -16,6 +16,8 @@ import { memoryAdapter } from '@keelwerk/data';
 function spied(unit: Unit, spy: JobSpy, pending: StoredJobSpec[]): Unit {
   return {
     ...unit,
+    // A nested unit is spied as well: what it enqueues goes through the same hooks.
+    nested: (fn, options) => unit.nested((inner) => fn(spied(inner, spy, pending)), options),
     jobs: {
       ...unit.jobs,
       enqueue: async (job) => {

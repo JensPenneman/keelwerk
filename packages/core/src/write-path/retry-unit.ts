@@ -1,18 +1,10 @@
 import { isUniqueConflict } from '../errors/is-unique-conflict.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import { RetryableUnitError } from '../storage/retryable-unit-error.ts';
+import { isRetryableUnitError } from './is-retryable-unit-error.ts';
 
 /** The most times a unit is repeated after the first run (section 14.3.6). */
 const retries = 3;
-
-function isRetryable(error: unknown): boolean {
-  if (error instanceof RetryableUnitError) return true;
-  return (
-    error instanceof KeelwerkError &&
-    error.code === 'core.version_mismatch' &&
-    (error.details as { readonly ifVersion?: boolean } | undefined)?.ifVersion !== true
-  );
-}
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -47,7 +39,7 @@ export async function retryUnit<T>(run: () => Promise<T>, options: RetryOptions 
         uniqueRepeated = true;
         continue;
       }
-      if (!isRetryable(error)) throw error;
+      if (!isRetryableUnitError(error)) throw error;
       if (attempt >= retries || options.signal?.aborted === true) {
         if (error instanceof RetryableUnitError) {
           throw new KeelwerkError({

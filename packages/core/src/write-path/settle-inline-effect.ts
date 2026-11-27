@@ -6,6 +6,7 @@ import { declaredErrorCodesOf } from '../executors/declared-error-codes-of.ts';
 import { effectJobError } from '../executors/effect-job-error.ts';
 import type { AttemptResult } from '../executors/end-effect-attempt.ts';
 import { isOutputTooLarge } from '../executors/is-output-too-large.ts';
+import { outcomeUnknown } from '../executors/outcome-unknown.ts';
 import { recordAttempt } from '../executors/record-attempt.ts';
 import { sealedOutputOf } from '../executors/sealed-output-of.ts';
 import { settleEffect } from '../executors/settle-effect.ts';
@@ -63,7 +64,6 @@ export function settleInlineEffect(
         unit,
         {
           registry,
-          entry,
           row,
           continuation: 'skip',
           cause: {
@@ -110,12 +110,13 @@ export function settleInlineEffect(
       await record();
       return settle({ status: 'succeeded', output: sealed });
     }
-    if (acted) {
+    const projection = attemptErrorOf(failure, requestId, declared);
+    // An inline effect has one attempt and no retry: a timeout leaves its outcome unknown too.
+    if (outcomeUnknown(acted, projection, false, !result.ok && result.unrun === true, false)) {
       const unknown = attemptErrorOf(coreError('core.effect_outcome_unknown'), requestId, declared);
       await record(unknown);
       return settle({ status: 'abandoned', error: unknown });
     }
-    const projection = attemptErrorOf(failure, requestId, declared);
     await record(projection);
     return settle({ status: 'failed', error: projection });
   });

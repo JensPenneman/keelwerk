@@ -28,7 +28,10 @@ test("the secrets of the subject's external effects, input and output, no longer
     strangerWaybill: ((await booted.effectRow(stranger.id)).input as { waybill: string }).waybill,
   });
   const before = await texts();
-  for (const text of Object.values(before)) expect(await booted.opens(text)).toBe(true);
+  // The settled effect lost its input key at its settle, long before the erasure.
+  for (const [name, text] of Object.entries(before)) {
+    expect(await booted.opens(text)).toBe(name !== 'reportedWaybill');
+  }
 
   await booted.ask();
   await booted.worker.pass();
@@ -40,7 +43,8 @@ test("the secrets of the subject's external effects, input and output, no longer
   expect(await booted.opens(after.reportedWaybill)).toBe(false);
   expect(await booted.opens(after.reportedSeal)).toBe(false);
   const tombstoned = await booted.tombstones();
-  for (const text of [after.requestedWaybill, after.reportedWaybill, after.reportedSeal]) {
+  // The input key of the requested effect is settled away by the erasure itself: its tombstone comes first.
+  for (const text of [after.requestedWaybill, after.reportedSeal]) {
     expect(tombstoned).toContain(parseSealedValueText(text)?.keyId);
   }
   // Another subject's effect keeps its key, stays requested and has no tombstone.
