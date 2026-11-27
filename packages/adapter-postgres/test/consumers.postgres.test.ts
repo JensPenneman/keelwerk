@@ -66,7 +66,7 @@ async function lockWaiting(): Promise<void> {
         );
         expect(rows.length).toBeGreaterThan(0);
       },
-      { timeout: 10_000, interval: 20 },
+      { interval: 20 },
     );
   } finally {
     await client.end();

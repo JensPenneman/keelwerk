@@ -123,13 +123,11 @@ describe('commit tail (section 15.1.4)', () => {
     const writer = await connect(postgres.app, 'writer');
     await tenantUnit(blocker, held);
     await blocker.query(`update ${ns}.kw_positions set next = next where scope_id = $1`, [held.id]);
-    const started = performance.now();
+    // The blocker commits only after this append: a writer that waited on it would never return,
+    // and the time limit of the case fails it.
     await appendCommand(writer, request(free, free.entities[0] ?? ''));
-    const elapsed = performance.now() - started;
     await blocker.query('commit');
     await Promise.all([blocker.end(), writer.end()]);
-    // The bound proves the absence of the 1.5 s wait, not the latency.
-    expect(elapsed).toBeLessThan(1_000);
   });
 
   it('fails a concurrent append of the same stream version with 23505', async () => {

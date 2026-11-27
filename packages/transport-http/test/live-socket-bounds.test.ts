@@ -249,7 +249,7 @@ describe('the bounds of a socket', () => {
       client.send({ type: 'subscribe', id, action: 'loans.loanEvents', input: {} });
     }
     // The clock never moves: only the write bound can end them.
-    await vi.waitFor(() => expect(state.open).toBe(0), { timeout: 20_000 });
+    await vi.waitFor(() => expect(state.open).toBe(0));
     client.socket.resume();
     await client.closed;
   });

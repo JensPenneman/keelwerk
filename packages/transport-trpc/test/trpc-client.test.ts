@@ -17,7 +17,7 @@ describe('@trpc/client against the host', () => {
       { onData: (data) => seen.push(data) },
     );
     try {
-      await vi.waitFor(() => expect(seen.length).toBeGreaterThan(0), { timeout: 10_000 });
+      await vi.waitFor(() => expect(seen.length).toBeGreaterThan(0));
       const head = seen[0] as { id: string; data: { control: string; state: string } };
       expect(head).toEqual({ id: head.data.state, data: { control: 'head', state: head.id } });
       const lent = await client.loans.lend.mutate({
@@ -25,7 +25,7 @@ describe('@trpc/client against the host', () => {
         dueAt: Temporal.Instant.from('2026-12-01T00:00:00Z'),
       });
       expect(lent).toMatchObject({ loanId: expect.stringMatching(/^loan_[0-9a-z]{26}$/) });
-      await vi.waitFor(() => expect(seen.length).toBeGreaterThan(1), { timeout: 10_000 });
+      await vi.waitFor(() => expect(seen.length).toBeGreaterThan(1));
       // A tracked item: tRPC's wrapper with the state as id, around the contract's item.
       expect(seen[1]).toEqual({
         id: expect.any(String),
@@ -58,14 +58,11 @@ describe('@trpc/client against the host', () => {
     expect([first.status, second.status]).toEqual([200, 200]);
     expect((await open()).status).toBe(429);
     await first.body?.cancel();
-    await vi.waitFor(
-      async () => {
-        const again = await open();
-        await again.body?.cancel();
-        expect(again.status).toBe(200);
-      },
-      { timeout: 10_000 },
-    );
+    await vi.waitFor(async () => {
+      const again = await open();
+      await again.body?.cancel();
+      expect(again.status).toBe(200);
+    });
     await second.body?.cancel();
   });
 });
@@ -141,7 +138,7 @@ describe('the resume of a subscription across a head (tRPC tracks every frame wi
       { onData: (data) => seen.push(frameOf(data)) },
     );
     try {
-      await vi.waitFor(() => expect(seen).toHaveLength(1), { timeout: 10_000 });
+      await vi.waitFor(() => expect(seen).toHaveLength(1));
       const head = seen[0];
       expect(head?.frame).toMatchObject({ control: 'head' });
       expect(head?.id).toBe(head?.frame.state);
@@ -149,9 +146,9 @@ describe('the resume of a subscription across a head (tRPC tracks every frame wi
       const release = cutAndHold();
       await lend(clientOf(subject));
       release();
-      await vi.waitFor(() => expect(items()).toHaveLength(1), { timeout: 10_000 });
+      await vi.waitFor(() => expect(items()).toHaveLength(1));
       await lend(clientOf(subject));
-      await vi.waitFor(() => expect(items()).toHaveLength(2), { timeout: 10_000 });
+      await vi.waitFor(() => expect(items()).toHaveLength(2));
       await new Promise((resolve) => setTimeout(resolve, 300));
       expect(items()).toHaveLength(2);
       // Each connection ends its start with a head: the second one comes after the item written meanwhile.
@@ -178,9 +175,9 @@ describe('the resume of a subscription across a head (tRPC tracks every frame wi
     );
     let token: string | undefined;
     try {
-      await vi.waitFor(() => expect(before).toHaveLength(1), { timeout: 10_000 });
+      await vi.waitFor(() => expect(before).toHaveLength(1));
       await lend(clientOf(subject));
-      await vi.waitFor(() => expect(before).toHaveLength(2), { timeout: 10_000 });
+      await vi.waitFor(() => expect(before).toHaveLength(2));
       token = before[1]?.id;
     } finally {
       watch.unsubscribe();
@@ -196,21 +193,15 @@ describe('the resume of a subscription across a head (tRPC tracks every frame wi
       { onData: (data) => seen.push(frameOf(data)) },
     );
     try {
-      await vi.waitFor(
-        () => expect(seen.some((entry) => entry.frame.control === 'head')).toBe(true),
-        {
-          timeout: 10_000,
-        },
+      await vi.waitFor(() =>
+        expect(seen.some((entry) => entry.frame.control === 'head')).toBe(true),
       );
       const head = seen.find((entry) => entry.frame.control === 'head');
       expect(seen.filter((entry) => 'data' in entry.frame)).toHaveLength(2);
       const release = cutAndHold();
       release();
       await lend(clientOf(subject));
-      await vi.waitFor(
-        () => expect(seen.filter((entry) => 'data' in entry.frame)).toHaveLength(3),
-        { timeout: 10_000 },
-      );
+      await vi.waitFor(() => expect(seen.filter((entry) => 'data' in entry.frame)).toHaveLength(3));
       await new Promise((resolve) => setTimeout(resolve, 300));
       expect(seen.filter((entry) => 'data' in entry.frame)).toHaveLength(3);
       expect(resumedFrom[1]).toBe(head?.id);

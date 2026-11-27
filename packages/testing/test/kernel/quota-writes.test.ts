@@ -11,7 +11,6 @@ import { asOperator } from './support/targeting-kit.ts';
 
 const mebibyte = 1024 * 1024;
 const bytes = (value: number) => ({ kind: 'bytes', value });
-const waitFor = { timeout: 10_000 } as const;
 
 type Booted = Awaited<ReturnType<typeof bootQuotas>>;
 
@@ -97,9 +96,8 @@ describe('core.quota.set', () => {
       id: first.id,
       version: 2,
     });
-    await vi.waitFor(
-      () => expect(view.limitOf(registry, acme, 'notes.noteBytes')).toEqual(bytes(4 * mebibyte)),
-      waitFor,
+    await vi.waitFor(() =>
+      expect(view.limitOf(registry, acme, 'notes.noteBytes')).toEqual(bytes(4 * mebibyte)),
     );
     const stored = await storedQuota(runtime, first.id);
     expect(stored.row).toMatchObject({ version: 2 });

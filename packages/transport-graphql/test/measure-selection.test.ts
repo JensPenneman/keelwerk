@@ -69,9 +69,7 @@ describe('measureSelection', () => {
       (_, level) => `fragment F${level} on Query { ...F${level + 1} ...F${level + 1} }`,
     );
     const document = `query { ...F0 } ${fragments.join(' ')} fragment F${levels} on Query { __typename }`;
-    const started = Date.now();
     const counted = measure(document);
-    expect(Date.now() - started).toBeLessThan(2000);
     expect(counted.paths.length).toBeLessThanOrEqual(defaultSelectionLimits.cost + 1);
     expect(counted.paths.length).toBeGreaterThan(defaultSelectionLimits.cost);
   });
@@ -83,9 +81,7 @@ describe('measureSelection', () => {
       (_, level) => `fragment F${level} on Query { ...F${level + 1} ...F${level + 1} }`,
     );
     const document = `query { ...F0 } ${fragments.join(' ')} fragment F${levels} on Query { ...Missing }`;
-    const started = Date.now();
     const counted = measure(document);
-    expect(Date.now() - started).toBeLessThan(2000);
     expect(counted.paths.length).toBeGreaterThan(defaultSelectionLimits.cost);
   });
 

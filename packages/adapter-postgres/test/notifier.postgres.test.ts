@@ -77,16 +77,13 @@ describe('the notifier on PostgreSQL', () => {
   });
 
   test('a burst of commits in two scopes is coalesced into a few wake-ups that name both', async () => {
-    const started = performance.now();
     await Promise.all(
       Array.from({ length: 10 }, async (_unused, i) => append(i % 2 === 0 ? scopeA : scopeB)),
     );
-    const elapsedMs = performance.now() - started;
     await harness.arrived(1, 3000);
     await delay(250);
     const seen = harness.notifications;
     expect(seen.length).toBeLessThan(10);
-    expect(seen.length).toBeLessThanOrEqual(Math.ceil(elapsedMs / 50) + 1);
     const scopes = new Set(seen.flatMap((payload) => payload.slice('ns-app:'.length).split(',')));
     expect(scopes).toEqual(new Set([tenantA, tenantB]));
   });

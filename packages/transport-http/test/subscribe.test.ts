@@ -302,7 +302,7 @@ describe('the life of a stream', () => {
         expect(again?.response.status).toBe(200);
         await again?.close();
       },
-      { timeout: 5000, interval: 50 },
+      { interval: 50 },
     );
   });
 });

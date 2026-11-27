@@ -8,7 +8,7 @@ export interface CollectedFrames<T = unknown> {
   ended(): boolean;
   /** Resolves when the stream has ended, with or without a failure. */
   whenEnded(): Promise<void>;
-  /** Waits until `test` holds; `ms` is the limit (15 s by default), `Infinity` is none. */
+  /** Waits until `test` holds; `ms` is a limit of its own; without one the limit of the case ends a wait that never holds. */
   until(test: (frames: readonly LiveFrame<T>[]) => boolean, ms?: number): Promise<void>;
   /** Waits for the `head` frame: everything written later reaches the stream. */
   ready(): Promise<void>;
@@ -48,7 +48,7 @@ export function collectFrames<T>(iterable: AsyncIterable<LiveFrame<T>>): Collect
     ended: () => done,
     whenEnded: () => finished,
     ready: () => collected.until((got) => got.some((frame) => 'control' in frame)),
-    until: async (test, ms = 15_000) => {
+    until: async (test, ms = Number.POSITIVE_INFINITY) => {
       const deadline = Date.now() + ms;
       while (!test(frames)) {
         if (done) {

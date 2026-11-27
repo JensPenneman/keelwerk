@@ -4,7 +4,6 @@ import { asOperator } from './support/targeting-kit.ts';
 
 const mebibyte = 1024 * 1024;
 const bytes = (value: number) => ({ kind: 'bytes', value });
-const waitFor = { timeout: 10_000 } as const;
 const withQuotas = (quotas: unknown) => ({ core: { quotas } });
 
 type Booted = Awaited<ReturnType<typeof bootQuotas>>;
@@ -92,9 +91,8 @@ describe('config.core.quotas of a backend', () => {
     );
     if (!created.ok) throw created.error;
     const later = { level: 'backend', backendId: created.value.id as string } as const;
-    await vi.waitFor(
-      () => expect(view.limitOf(registry, later, 'notes.noteBytes')).toEqual(bytes(8 * mebibyte)),
-      waitFor,
+    await vi.waitFor(() =>
+      expect(view.limitOf(registry, later, 'notes.noteBytes')).toEqual(bytes(8 * mebibyte)),
     );
   });
 

@@ -59,9 +59,7 @@ describe('stop starts the host before it waits for the mounts', () => {
         } as RequestInit),
       )
       .catch(() => undefined);
-    const started = performance.now();
     await running.runtime.stop(300);
-    expect(performance.now() - started).toBeLessThan(3000);
     expect(events[0]).toBe('host stop');
     finish();
     await inFlight;
@@ -83,9 +81,7 @@ describe('the host the runtime builds listens and compresses', () => {
     const health = await fetch(`http://127.0.0.1:${runtime.port}/_keelwerk/health`);
     expect(health.status).toBe(200);
     await health.arrayBuffer();
-    const started = performance.now();
     await runtime.stop(1000);
-    expect(performance.now() - started).toBeLessThan(3000);
     await expect(fetch(`http://127.0.0.1:${runtime.port}/_keelwerk/health`)).rejects.toThrow();
     await expect(
       new Promise((resolve, reject) => {

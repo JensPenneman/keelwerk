@@ -243,7 +243,7 @@ describe.each(['memory', 'pglite'] as const)('the hub revalidates sessions on %s
           await kit.runtime.advanceTo(at);
           expect(followed.ended()).toBe(true);
         },
-        { timeout: 20_000, interval: 20 },
+        { interval: 20 },
       );
       expect(followed.failure()).toMatchObject({ kind: 'forbidden' });
     } finally {
@@ -273,7 +273,7 @@ describe.each(['memory', 'pglite'] as const)('the hub revalidates sessions on %s
           await kit.runtime.advanceTo(at);
           expect(hub?.subscriptions()[0]?.session).not.toBe(before);
         },
-        { timeout: 20_000, interval: 20 },
+        { interval: 20 },
       );
       expect(followed.ended()).toBe(false);
       await followed.stop();

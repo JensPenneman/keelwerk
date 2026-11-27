@@ -67,7 +67,7 @@ describe('consumers on PostgreSQL', () => {
       async () => {
         expect(await kit.checkpoint('test.poll', 'globex')).toBe(head);
       },
-      { timeout: 10_000, interval: 50 },
+      { interval: 50 },
     );
     expect(await kit.checkpoint('test.poll', 'globex')).toBe(head);
   });

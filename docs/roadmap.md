@@ -375,7 +375,8 @@ Packages and modules:
 Exit criteria:
 
 1. A subscription resumes after a process restart from its stream token with no gap and no
-   duplicate beyond at-least-once; a revoked session ends a live connection within a second.
+   duplicate beyond at-least-once; a revoked session ends a live connection, in another process
+   too, by the revocation's own change and without waiting for a periodic check.
 2. In a test with two tenants, a reaction that fails and retries with backoff for one tenant never
    delays the other tenant's reactions.
 3. The queue scenarios (keys, coalescing, FIFO under concurrency, groups, retries, heartbeats,

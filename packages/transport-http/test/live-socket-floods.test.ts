@@ -144,7 +144,7 @@ describe('what a socket that does not read can make the host hold', () => {
     // Eight messages of 200 KB: fewer than the 16 the count allows, more than one MiB in bytes.
     const padding = 'x'.repeat(200_000);
     for (let index = 0; index < 8; index += 1) client.send({ type: 'ping', padding });
-    await vi.waitFor(() => expect(pauses).toHaveBeenCalled(), { timeout: 5_000 });
+    await vi.waitFor(() => expect(pauses).toHaveBeenCalled());
     release();
     expect(await client.next()).toMatchObject({ type: 'welcome' });
     const answers: LiveServerMessage[] = [];
@@ -247,6 +247,6 @@ describe('a socket and its session', () => {
     await vi.waitFor(() => expect(seen).toBeDefined());
     expect(seen?.aborted).toBe(false);
     client.socket.terminate();
-    await vi.waitFor(() => expect(seen?.aborted).toBe(true), { timeout: 5_000 });
+    await vi.waitFor(() => expect(seen?.aborted).toBe(true));
   });
 });

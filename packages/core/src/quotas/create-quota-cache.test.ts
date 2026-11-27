@@ -44,9 +44,8 @@ describe('createQuotaCache', () => {
     r.set([storedQuotaRow('notes.rows', '10', { version: 2 })]);
     r.setBackend(backendValuesOf({ 'notes.rows': '20' }));
     r.wake();
-    await vi.waitFor(
-      () => expect(r.cache.limitOf(registry, backendScope, 'notes.rows')).toEqual(count(20)),
-      { timeout: 10_000 },
+    await vi.waitFor(() =>
+      expect(r.cache.limitOf(registry, backendScope, 'notes.rows')).toEqual(count(20)),
     );
     expect(r.cache.limitOf(registry, quotaTenantScope, 'notes.rows')).toEqual(count(10));
     expect(r.loads()).toBe(2);
@@ -227,13 +226,13 @@ describe('createQuotaCache', () => {
     const r = quotaRig([storedQuotaRow('notes.rows', '40')]);
     r.hold(true);
     const first = r.cache.fresh();
-    await vi.waitFor(() => expect(r.loads()).toBe(1), { timeout: 10_000 });
+    await vi.waitFor(() => expect(r.loads()).toBe(1));
     r.wake();
     r.wake();
     r.hold(false);
     r.release();
     await first;
-    await vi.waitFor(() => expect(r.loads()).toBe(2), { timeout: 10_000 });
+    await vi.waitFor(() => expect(r.loads()).toBe(2));
     await r.cache.fresh();
     expect(r.loads()).toBe(2);
     r.stop();
@@ -282,12 +281,12 @@ describe('createQuotaCache', () => {
       const r = quotaRig([storedQuotaRow('notes.rows', '40')]);
       r.hold(true);
       const first = r.cache.fresh();
-      await vi.waitFor(() => expect(r.loads()).toBe(1), { timeout: 10_000 });
+      await vi.waitFor(() => expect(r.loads()).toBe(1));
       for (const timeout of timeouts) timeout.abort(new Error('slow'));
       await first;
       r.advance(10_000);
       const second = r.cache.fresh();
-      await vi.waitFor(() => expect(r.loads()).toBe(2), { timeout: 10_000 });
+      await vi.waitFor(() => expect(r.loads()).toBe(2));
       for (const timeout of timeouts) timeout.abort(new Error('slow'));
       await second;
       r.advance(10_000);

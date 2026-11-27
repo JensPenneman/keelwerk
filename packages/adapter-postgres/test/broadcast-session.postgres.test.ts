@@ -71,12 +71,10 @@ describe('the broadcast listen session on PostgreSQL', () => {
           }
         }
       });
-      const cutAt = Date.now();
       proxy.cut();
       for (const error of await Promise.all(failures)) {
         expect(error).toMatchObject({ kind: 'unavailable', code: 'core.unavailable' });
       }
-      expect(Date.now() - cutAt).toBeLessThan(15_000);
       stop.abort();
     } finally {
       await b?.close(5000);

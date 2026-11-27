@@ -26,7 +26,7 @@ describe('a live stream held by a second process when its session is erased (14.
   let first: Runtime;
   let second: Runtime;
   const worker = erasure({ pollMs: 3_600_000 });
-  let now = Temporal.Now.instant();
+  const now = Temporal.Now.instant();
   const clock = { now: () => now };
 
   beforeAll(async () => {
@@ -129,18 +129,10 @@ describe('a live stream held by a second process when its session is erased (14.
     await worker.pass();
     await first.drainJobs();
 
-    // The hub revalidates a session when a row it depends on changes, and in any case every minute
-    // of the runtime's clock: if the change did not reach the second process yet, the clock moves
-    // past the interval (by less than the session's idle time), so the stream ends either way.
-    const patience = (ms: number) =>
-      new Promise<'open'>((resolve) => setTimeout(() => resolve('open'), ms));
-    let outcome = await Promise.race([ended.promise, patience(15_000)]);
-    if (outcome === 'open') {
-      now = now.add({ seconds: 65 });
-      outcome = await Promise.race([ended.promise, patience(45_000)]);
-    }
+    // The hub revalidates a session when a row it depends on changes: the change reaches the second
+    // process and the stream ends. A stream that never ends is failed by the time limit of the case.
+    const outcome = await ended.promise;
     abort.abort();
-    expect(outcome, 'the stream ended').not.toBe('open');
     expect(outcome).toMatchObject({ kind: 'unauthenticated' });
 
     const after = await second.invoker.open(headersOf(second, cookie));

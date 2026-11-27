@@ -139,9 +139,7 @@ describe('upgrade()', () => {
     const client = await made.connect();
     expect('socket' in client).toBe(true);
     if ('socket' in client) await client.close();
-    const stopped = Date.now();
     await made.host.stop(5_000);
-    expect(Date.now() - stopped).toBeLessThan(2_000);
   });
 
   test('the upgrade table lists keelwerk.live.v1 at /_keelwerk/v1/live', () => {

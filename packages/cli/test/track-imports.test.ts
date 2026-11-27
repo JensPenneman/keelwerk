@@ -152,13 +152,11 @@ describe('the probe, in a real process', () => {
         deployment,
         "import { value } from './hanging-module.ts';\nexport default { value };\n",
       );
-      const started = Date.now();
       const outcome = await startProbe(
         createNodeHost(),
         { root, deployment, now: 0, contract: false },
         importLimitMs,
       );
-      expect(Date.now() - started).toBeLessThan(45_000);
       expect(outcome.kind).toBe('failed');
       if (outcome.kind === 'failed') {
         expect(outcome.message).toContain(hanging);

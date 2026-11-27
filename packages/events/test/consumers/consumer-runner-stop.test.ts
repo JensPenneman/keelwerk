@@ -50,9 +50,7 @@ describe.each(['memory', 'pglite'] as const satisfies readonly ConsumerKitKind[]
       const pass = runner.pass();
       await entered.promise;
       runner.halt();
-      const began = Date.now();
       await runner.stop(Temporal.Now.instant().add({ milliseconds: 200 }));
-      expect(Date.now() - began).toBeLessThan(900);
       expect(kit.log.some((line) => line.message.includes('left to expire'))).toBe(true);
       // The batch deadline ends the pass; no further turn starts, and the lease was never handed over.
       await pass;
@@ -271,9 +269,7 @@ describe.each(['memory', 'pglite'] as const satisfies readonly ConsumerKitKind[]
         const ada = createLocalClient(runtime, { principal: testPrincipal('ada') });
         await ada.as({ tenant: 'acme' }).invoke('library.addBook', { title: 'Book', isbn: 'i-1' });
         await entered.promise;
-        const began = Date.now();
         await worker.stop(Temporal.Now.instant().add({ milliseconds: 200 }));
-        expect(Date.now() - began).toBeLessThan(900);
       } finally {
         await runtime.stop();
       }

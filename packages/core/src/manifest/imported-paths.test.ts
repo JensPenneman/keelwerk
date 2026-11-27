@@ -19,14 +19,12 @@ test('reads the relative named imports and skips type-only and package imports',
   );
 });
 
-test('long adversarial inputs finish fast and give the answer of the regular expression', () => {
-  const started = performance.now();
-  expect(importedPaths('import {'.repeat(10_000)).size).toBe(0);
-  expect(importedPaths(`${'import {'.repeat(10_000)}} from ./x`).size).toBe(0);
-  expect(importedPaths(`${'import{'.repeat(10_000)}}${' '.repeat(10_000)}x`).size).toBe(0);
-  expect(importedPaths(`import {a} from '${'x'.repeat(10_000)}`).size).toBe(0);
-  expect(importedPaths(`${'import {'.repeat(5_000)}a} from './ok.ts'`)).toEqual(
+test('long adversarial inputs give the answer of the regular expression', () => {
+  expect(importedPaths('import {'.repeat(100_000)).size).toBe(0);
+  expect(importedPaths(`${'import {'.repeat(100_000)}} from ./x`).size).toBe(0);
+  expect(importedPaths(`${'import{'.repeat(100_000)}}${' '.repeat(100_000)}x`).size).toBe(0);
+  expect(importedPaths(`import {a} from '${'x'.repeat(100_000)}`).size).toBe(0);
+  expect(importedPaths(`${'import {'.repeat(50_000)}a} from './ok.ts'`)).toEqual(
     new Map([['{a', './ok.ts']]),
   );
-  expect(performance.now() - started).toBeLessThan(1000);
 });

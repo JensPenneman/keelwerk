@@ -1,4 +1,4 @@
-import { expect, test, vi } from 'vitest';
+import { test, vi } from 'vitest';
 import type { RuntimeServiceContext } from '../runtime/runtime-service-context.ts';
 import { createScheduleTicker } from './schedule-ticker.ts';
 
@@ -22,8 +22,7 @@ test('start does not wait for the first pass of a namespace that is not ready', 
     queue: {},
   } as unknown as RuntimeServiceContext;
   const ticker = createScheduleTicker();
-  const started = ticker.start(context).then(() => 'started' as const);
-  const timeout = new Promise<'hung'>((resolve) => setTimeout(() => resolve('hung'), 500));
-  expect(await Promise.race([started, timeout])).toBe('started');
+  // A start that waited for the pass would never return: the time limit of the case fails it.
+  await ticker.start(context);
   await ticker.stop(Temporal.Now.instant());
 });

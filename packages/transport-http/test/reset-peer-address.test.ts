@@ -1,26 +1,39 @@
 import { connect } from 'node:net';
 import { unknownClientAddress } from '@keelwerk/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { HostContext } from '../src/host-context.ts';
 import { noteConnection } from '../src/note-connection.ts';
 import { socketFacts } from '../src/socket-facts.ts';
 import { trustedProxies } from '../src/trusted-proxies.ts';
 import { useHosts } from './support/use-hosts.ts';
 
+// The server notes every connection as it accepts it: the count is the server's own word that it has.
+const accepted = vi.hoisted(() => ({ connections: 0 }));
+vi.mock('../src/note-connection.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../src/note-connection.ts')>();
+  return {
+    ...real,
+    noteConnection: (...args: Parameters<typeof real.noteConnection>) => {
+      accepted.connections += 1;
+      return real.noteConnection(...args);
+    },
+  };
+});
+
 const { setup } = useHosts();
 
 /** Connects, waits until the server has accepted, then sends one complete request and resets the connection in the same turn. */
 async function postAndReset(port: number): Promise<void> {
   const body = JSON.stringify({ action: 'library.lookup' });
+  accepted.connections = 0;
   const socket = connect({ port, host: '127.0.0.1' });
   await new Promise<void>((resolve) => socket.once('connect', resolve));
   socket.on('error', () => undefined);
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await vi.waitFor(() => expect(accepted.connections).toBe(1));
   socket.write(
     `POST /_keelwerk/v1/invoke HTTP/1.1\r\nhost: x.example\r\ncontent-type: application/json\r\ncontent-length: ${body.length}\r\n\r\n${body}`,
   );
   socket.resetAndDestroy();
-  await new Promise((resolve) => setTimeout(resolve, 200));
 }
 
 describe('the client address of a request whose client reset the connection', () => {
@@ -28,6 +41,7 @@ describe('the client address of a request whose client reset the connection', ()
     const { host, invoker } = setup({ listen: { port: 0 } });
     const { port } = await host.listen();
     await postAndReset(port ?? 0);
+    await vi.waitFor(() => expect(invoker.opened).toHaveLength(1));
     expect(invoker.opened.map((call) => call.connection?.remote.address)).toEqual(['127.0.0.1']);
   });
 });

@@ -78,11 +78,8 @@ describe('an executing process that is killed (7.9.5, D1, criterion 10)', () => 
 
     await p.client.invoke('hooks.notify', { payload: 'killed mid-attempt' });
     await vi.waitFor(() => expect(endpoint.requests).toHaveLength(1), { timeout: 60_000 });
-    await vi.waitFor(
-      () => expect(child?.exitCode !== null || child?.signalCode !== null).toBe(true),
-      {
-        timeout: 10_000,
-      },
+    await vi.waitFor(() =>
+      expect(child?.exitCode !== null || child?.signalCode !== null).toBe(true),
     );
     const requested = await effectOf(p, 'hooks.post');
     expect(requested).toMatchObject({ status: 'requested' });

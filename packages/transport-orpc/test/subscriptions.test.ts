@@ -243,7 +243,6 @@ describe('a client that cancels the body of its stream', () => {
       expect(signals[0]?.aborted).toBe(false);
       await response.body?.cancel();
       await vi.waitFor(() => expect(signals[0]?.aborted).toBe(true), {
-        timeout: 15_000,
         interval: 50,
       });
       // The slot is free again: a new stream of the same address is admitted at the cap of one.
@@ -256,7 +255,7 @@ describe('a client that cancels the body of its stream', () => {
           }
           return next;
         },
-        { timeout: 15_000, interval: 50 },
+        { interval: 50 },
       );
       await again.body?.cancel();
     } finally {

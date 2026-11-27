@@ -39,7 +39,7 @@ class FakeSocket extends EventTarget {
         }
         return found;
       },
-      { timeout: 2_000, interval: 5 },
+      { interval: 5 },
     );
   }
 }

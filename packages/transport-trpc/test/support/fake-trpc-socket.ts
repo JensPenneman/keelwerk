@@ -55,7 +55,7 @@ export class FakeTrpcSocket extends EventTarget {
         }
         return found;
       },
-      { timeout: 5_000, interval: 5 },
+      { interval: 5 },
     );
   }
 
@@ -71,7 +71,7 @@ export class FakeTrpcSocket extends EventTarget {
           throw new Error(`No error for ${id}: ${JSON.stringify(this.sent)}.`);
         return found;
       },
-      { timeout: 5_000, interval: 5 },
+      { interval: 5 },
     );
   }
 
@@ -81,7 +81,7 @@ export class FakeTrpcSocket extends EventTarget {
       () => {
         if (!this.sent.includes('PONG')) throw new Error('No PONG was sent.');
       },
-      { timeout: 5_000, interval: 5 },
+      { interval: 5 },
     );
   }
 }

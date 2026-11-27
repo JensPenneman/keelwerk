@@ -187,7 +187,7 @@ describe('subscriptions over server-sent events', () => {
     }
     expect(signal?.aborted).toBe(false);
     await reader.close();
-    await vi.waitFor(() => expect(finished).toBe(true), { timeout: 10_000 });
+    await vi.waitFor(() => expect(finished).toBe(true));
     expect(signal?.aborted).toBe(true);
     await mounted.close();
   });

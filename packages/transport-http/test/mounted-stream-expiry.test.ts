@@ -202,7 +202,7 @@ describe('the host ends a mounted stream at its expiry', () => {
       await move(4_999);
       expect(ended()).toHaveLength(0);
       await move(1);
-      await vi.waitFor(() => expect(ended()).toHaveLength(1), { timeout: 2_000 });
+      await vi.waitFor(() => expect(ended()).toHaveLength(1));
       await body;
       expect(ended()[0]).toMatchObject({ fields: { reason: 'core.unauthenticated' } });
       expect(record.contextSignals[0]?.aborted).toBe(true);
@@ -266,7 +266,7 @@ describe('the host ends a mounted stream at its expiry', () => {
     // The clock passes the expiry; no timer has fired yet, as when the event loop is busy.
     jump(10_002);
     route?.enqueue(new TextEncoder().encode('data: late\n\n'));
-    await vi.waitFor(() => expect(ended()).toHaveLength(1), { timeout: 2_000 });
+    await vi.waitFor(() => expect(ended()).toHaveLength(1));
     expect(await body).toBe('data: first\n\n');
     expect(ended()[0]).toMatchObject({ fields: { reason: 'core.unauthenticated' } });
     expect(record.contextSignals[0]?.aborted).toBe(true);

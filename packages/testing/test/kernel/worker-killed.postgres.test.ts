@@ -130,12 +130,7 @@ describe('a worker process that is killed mid-job (9.5.4, 21.7, criterion 9)', (
       interval: 50,
     });
     child.kill('SIGKILL');
-    await vi.waitFor(
-      () => expect(child.exitCode !== null || child.signalCode !== null).toBe(true),
-      {
-        timeout: 10_000,
-      },
-    );
+    await vi.waitFor(() => expect(child.exitCode !== null || child.signalCode !== null).toBe(true));
     // Read once the child is gone: every lease it wrote was computed before this reading, so a
     // renewal that fell between the kill and its delivery cannot pass the bound.
     const killedAt = Date.now();

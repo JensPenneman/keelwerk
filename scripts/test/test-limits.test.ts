@@ -1,7 +1,7 @@
 import { globSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import ciConfig from '../../vitest.ci.config.ts';
 import { testLimits } from '../test-limits.ts';
 
@@ -48,9 +48,28 @@ test('every project configuration takes both limits from the one place', async (
     // A limit written in the project itself, whatever its value, is a limit of its own.
     expect(text.match(/testTimeout|hookTimeout/g) ?? [], config).toHaveLength(0);
     const loaded = (await import(pathToFileURL(join(repositoryRoot, config)).href)) as {
-      default: { test?: { testTimeout?: number; hookTimeout?: number } };
+      default: {
+        test?: {
+          testTimeout?: number;
+          hookTimeout?: number;
+          setupFiles?: string[];
+          expect?: { poll?: { timeout?: number } };
+        };
+      };
     };
     expect(loaded.default.test?.testTimeout, config).toBe(testLimits.testTimeout);
     expect(loaded.default.test?.hookTimeout, config).toBe(testLimits.hookTimeout);
+    // The polling waits take the case limit too, so that none ends a correct run after one second.
+    expect(loaded.default.test?.setupFiles, config).toEqual(
+      expect.arrayContaining(testLimits.setupFiles),
+    );
+    expect(loaded.default.test?.expect?.poll?.timeout, config).toBe(testLimits.testTimeout);
   }
+});
+
+test('the set-up file that gives vi.waitFor and vi.waitUntil the case limit is loaded', () => {
+  expect(testLimits.expect.poll.timeout).toBe(testLimits.testTimeout);
+  expect(testLimits.setupFiles).toHaveLength(1);
+  expect(vi.waitFor.name).toBe('waitForBounded');
+  expect(vi.waitUntil.name).toBe('waitUntilBounded');
 });

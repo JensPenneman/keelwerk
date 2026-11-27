@@ -26,11 +26,11 @@ describe('@trpc/client over keelwerk.trpc.v1', () => {
       { onData: (data) => seen.push(data) },
     );
     try {
-      await vi.waitFor(() => expect(seen.length).toBeGreaterThan(0), { timeout: 10_000 });
+      await vi.waitFor(() => expect(seen.length).toBeGreaterThan(0));
       const head = seen[0] as { id: string; data: { control: string; state: string } };
       expect(head).toEqual({ id: head.data.state, data: { control: 'head', state: head.id } });
       await lend(host.clientOf(subject));
-      await vi.waitFor(() => expect(seen.length).toBeGreaterThan(1), { timeout: 10_000 });
+      await vi.waitFor(() => expect(seen.length).toBeGreaterThan(1));
       expect(seen[1]).toEqual({
         id: expect.any(String),
         data: { data: { loanId: expect.any(String), kind: 'created' }, id: expect.any(String) },
@@ -122,10 +122,10 @@ describe('@trpc/client over keelwerk.trpc.v1', () => {
     );
     onTestFinished(() => subscription.unsubscribe());
     // The head is for a signed-in user only: the upgrade carried no credentials, so the token opened it.
-    await vi.waitFor(() => expect(seen.length).toBeGreaterThan(0), { timeout: 10_000 });
+    await vi.waitFor(() => expect(seen.length).toBeGreaterThan(0));
     expect(await trusted.client.library.findByIsbn.query({ isbn: freshName('isbn') })).toEqual({});
     await lend(host.clientOf(subject));
-    await vi.waitFor(() => expect(JSON.stringify(seen)).toContain('"loanId"'), { timeout: 10_000 });
+    await vi.waitFor(() => expect(JSON.stringify(seen)).toContain('"loanId"'));
     // A token that resolves to nobody: the host closes 4401 after the first message, and the client sees
     // the close. The case makes no call on this client: tRPC fails such a call only if it tried to send it
     // before it handled the close (sent, or refused by a socket already closing); a call still waiting to

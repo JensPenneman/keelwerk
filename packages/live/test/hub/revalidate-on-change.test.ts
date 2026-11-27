@@ -7,6 +7,8 @@ import { adaPrincipal as ada, startLiveApp } from '../support/live-app-kit.ts';
 
 vi.setConfig({ testTimeout: 60_000 });
 
+const HOUR = 3_600_000;
+
 const writer = testPrincipal('w', { claims: { seed: true } });
 const cardIds = (frames: readonly LiveFrame<unknown>[]): string[] =>
   frames.flatMap((frame) =>
@@ -26,15 +28,14 @@ const card = (kit: LiveAppKit, title: string) =>
   kit.call<{ id: string }>(kit.acme, writer, 'board.card.create', { owner: 'ada', title });
 
 describe.each(['memory', 'pglite'] as const)('the hub revalidates on a change on %s', (adapter) => {
-  test('revoking the pass ends the stream unauthenticated within one second', async () => {
-    const hubs = fullLive();
+  test('revoking the pass ends the stream unauthenticated by the change, not by a timer', async () => {
+    // Every timer of the hub is an hour away, so only the revocation itself can end the stream.
+    const hubs = fullLive({ pollMs: HOUR, revalidateMs: HOUR, revalidateTickMs: HOUR });
     const kit = await startLiveApp(adapter, hubs.module);
     try {
       const { pass, followed } = await withPass(kit);
-      const revokedAt = Date.now();
       await kit.call(kit.acme, ada, 'passes.revoke', { id: pass.id });
-      await followed.until(() => followed.ended(), 1000);
-      expect(Date.now() - revokedAt).toBeLessThan(1000);
+      await followed.until(() => followed.ended());
       expect(followed.failure()).toMatchObject({ kind: 'unauthenticated' });
     } finally {
       await kit.stop();
@@ -50,7 +51,7 @@ describe.each(['memory', 'pglite'] as const)('the hub revalidates on a change on
       await followed.until((frames) => cardIds(frames).includes(before.id));
       await kit.call(kit.acme, ada, 'passes.revoke', { id: pass.id });
       const after = await card(kit, 'after');
-      await followed.until(() => followed.ended(), 5000);
+      await followed.until(() => followed.ended());
       expect(cardIds(followed.frames)).toEqual([before.id]);
       expect(cardIds(followed.frames)).not.toContain(after.id);
       expect(followed.failure()).toMatchObject({ kind: 'unauthenticated' });

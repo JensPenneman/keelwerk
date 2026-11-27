@@ -43,12 +43,10 @@ test('on the embedded SQL adapter core.quota rows are written, read back by Cont
   // A cleared limit reads as null and the backend's value serves again; the feed carries the change.
   const cleared = await setQuota(runtime, { ...base, limit: 'default', reason: 'ended' });
   expect(cleared).toMatchObject({ ok: true, value: { version: 2 } });
-  await vi.waitFor(
-    () =>
-      expect(view.limitOf(registry, acme, 'notes.noteBytes')).toEqual({
-        kind: 'bytes',
-        value: 4 * mebibyte,
-      }),
-    { timeout: 10_000 },
+  await vi.waitFor(() =>
+    expect(view.limitOf(registry, acme, 'notes.noteBytes')).toEqual({
+      kind: 'bytes',
+      value: 4 * mebibyte,
+    }),
   );
 }, 60_000);

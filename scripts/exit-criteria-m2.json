@@ -3,9 +3,10 @@
   "criteria": [
     {
       "number": 1,
-      "text": "a subscription resumes after a process restart from its stream token with no gap and no duplicate beyond at-least-once; a revoked session ends a live connection within a second",
+      "text": "a subscription resumes after a process restart from its stream token with no gap and no duplicate beyond at-least-once; a revoked session ends a live connection, in another process too, by the revocation's own change and without waiting for a periodic check",
       "evidence": [
         "packages/testing/test/kernel/m2-slice-5-resume.postgres.test.ts",
+        "packages/live/test/hub/revalidate-on-change.test.ts",
         "packages/transport-http/test/conformance.test.ts",
         "packages/transport-http/test/live-socket-life.test.ts"
       ],

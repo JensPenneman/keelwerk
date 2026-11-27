@@ -43,7 +43,7 @@ describe('createQuotaCache loading', () => {
     r.advance(1_000);
     r.hold(true);
     const starter = r.cache.fresh();
-    await vi.waitFor(() => expect(r.loads()).toBe(2), { timeout: 10_000 });
+    await vi.waitFor(() => expect(r.loads()).toBe(2));
     // The rows are aged and a load is in flight, its read held at the barrier: the caller waits.
     let answered = false;
     const caller = r.cache.fresh().then(() => {
@@ -69,7 +69,7 @@ describe('createQuotaCache loading', () => {
     // A load begins and reads the rows as they stand, and does not end yet.
     r.holdAfterRead(true);
     const began = r.cache.fresh();
-    await vi.waitFor(() => expect(r.loads()).toBe(2), { timeout: 10_000 });
+    await vi.waitFor(() => expect(r.loads()).toBe(2));
     r.holdAfterRead(false);
     // The change is stored, a bound passes, and a request joins the load that is still open.
     r.set([storedQuotaRow('notes.rows', '10', { version: 2 })]);
@@ -92,7 +92,7 @@ describe('createQuotaCache loading', () => {
     r.advance(1000);
     r.holdAfterRead(true);
     const began = r.cache.fresh();
-    await vi.waitFor(() => expect(r.loads()).toBe(2), { timeout: 10_000 });
+    await vi.waitFor(() => expect(r.loads()).toBe(2));
     r.holdAfterRead(false);
     r.set([storedQuotaRow('notes.rows', '10', { version: 2 })]);
     r.advance(1000);
@@ -106,7 +106,7 @@ describe('createQuotaCache loading', () => {
     const second = answer();
     r.hold(true);
     r.release();
-    await vi.waitFor(() => expect(r.loads()).toBe(3), { timeout: 10_000 });
+    await vi.waitFor(() => expect(r.loads()).toBe(3));
     await turns(100);
     // Neither is answered while the further load runs, and neither was given the old rows.
     expect(served).toEqual([]);
@@ -124,7 +124,7 @@ describe('createQuotaCache loading', () => {
     r.advance(1000);
     r.hold(true);
     const own = r.cache.fresh();
-    await vi.waitFor(() => expect(r.loads()).toBe(2), { timeout: 10_000 });
+    await vi.waitFor(() => expect(r.loads()).toBe(2));
     r.advance(1000);
     r.hold(false);
     r.release();
@@ -139,7 +139,7 @@ describe('createQuotaCache loading', () => {
     r.advance(1000);
     r.hold(true);
     const began = r.cache.fresh();
-    await vi.waitFor(() => expect(r.loads()).toBe(2), { timeout: 10_000 });
+    await vi.waitFor(() => expect(r.loads()).toBe(2));
     r.fail(true);
     r.advance(1000);
     const joined = r.cache.fresh();
@@ -167,7 +167,7 @@ describe('createQuotaCache loading', () => {
       r.advance(1000);
       r.hold(true);
       const began = r.cache.fresh();
-      await vi.waitFor(() => expect(r.loads()).toBe(2), { timeout: 10_000 });
+      await vi.waitFor(() => expect(r.loads()).toBe(2));
       r.advance(1000);
       let answered = false;
       const joined = r.cache.fresh().then(() => {
@@ -194,7 +194,7 @@ describe('createQuotaCache loading', () => {
     const r = quotaRig([storedQuotaRow('notes.rows', '30')]);
     await r.cache.firstLoad();
     expect(r.loads()).toBe(1);
-    await vi.waitFor(() => expect(r.subscribes()).toBe(1), { timeout: 10_000 });
+    await vi.waitFor(() => expect(r.subscribes()).toBe(1));
     r.stop();
     const down = quotaRig([storedQuotaRow('notes.rows', '30')]);
     down.fail(true);
@@ -218,7 +218,7 @@ describe('createQuotaCache loading', () => {
       r.hold(true);
       const first = r.cache.firstLoad();
       const refused = expect(first).rejects.toMatchObject({ kind: 'unavailable' });
-      await vi.waitFor(() => expect(r.loads()).toBe(1), { timeout: 10_000 });
+      await vi.waitFor(() => expect(r.loads()).toBe(1));
       for (const timeout of timeouts) timeout.abort(new DOMException('slow', 'TimeoutError'));
       await refused;
       r.hold(false);

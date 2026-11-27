@@ -299,14 +299,14 @@ export function eventStoreCases(subject: ConformanceSubject): void {
           await held;
         });
         await inside;
-        const releaseLater = setTimeout(release, 2500);
-        const started = Date.now();
-        await subject.run(tenantB, (unit) => unit.events.append([appendOf(1, [1])]));
-        const waited = Date.now() - started;
-        clearTimeout(releaseLater);
-        release();
+        // The first writer is released only after the second one committed: a second writer that waited
+        // for it would never finish, and the time limit of the case fails it.
+        try {
+          await subject.run(tenantB, (unit) => unit.events.append([appendOf(1, [1])]));
+        } finally {
+          release();
+        }
         await slow;
-        expect(waited).toBeLessThan(2000);
         expect(await subject.read(tenantB, (unit) => unit.events.head())).toBe(1n);
       },
       30_000,

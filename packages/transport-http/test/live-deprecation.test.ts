@@ -31,13 +31,10 @@ const actionNotice = {
 /** Moves the clock and fires the waits until `done` holds (the hub and the socket revalidate on timers). */
 async function pass(seconds: number, done: () => boolean): Promise<void> {
   now = now.add({ seconds });
-  await vi.waitFor(
-    async () => {
-      await timers.fire();
-      expect(done()).toBe(true);
-    },
-    { timeout: 20_000 },
-  );
+  await vi.waitFor(async () => {
+    await timers.fire();
+    expect(done()).toBe(true);
+  });
 }
 
 describe('deprecation over the live carriers (15.4.6, 18.5)', () => {
