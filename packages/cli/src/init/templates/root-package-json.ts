@@ -22,13 +22,13 @@ export function rootPackageJson(names: InitNames): unknown {
     },
     // The versions are copies of the root package.json of keelwerk, written by `pnpm pins`.
     devDependencies: {
-      '@biomejs/biome': '2.6.8',
+      '@biomejs/biome': '2.6.9',
       '@keelwerk/biome-config': version,
       '@keelwerk/cli': version,
-      '@types/node': '26.6.6',
-      knip: '6.47.0',
+      '@types/node': '26.6.11',
+      knip: '6.48.0',
       typescript: '7.0.2',
-      vitest: '5.1.1',
+      vitest: '5.1.2',
     },
   };
 }

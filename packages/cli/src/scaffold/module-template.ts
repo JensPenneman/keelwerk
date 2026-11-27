@@ -146,7 +146,7 @@ test('${id} composes into an app without problems and answers through a local cl
     // The versions are copies of the root package.json of keelwerk, written by `pnpm pins`.
     devDependencies: {
       '@keelwerk/testing': request.coreSibling ? 'workspace:*' : version,
-      vitest: '5.1.1',
+      vitest: '5.1.2',
     },
   };
   const vitestConfig = `import { configDefaults, defineConfig } from 'vitest/config';

@@ -5421,10 +5421,10 @@ by `keelwerk db introspect --check`.
 |---|---|---|
 | TypeScript | 7.0.2 (builds and checks; still the latest on 2026-10-28, with `lib.es2025` and `lib.esnext.temporal` bundled); 6.0.3 pinned only for tools that need the compiler API: attest in the private package `packages/type-budgets/`, which has its own exact `typescript` 6.0.3, and the CLI, which imports the compiler API as `typescript-6` (the alias `npm:typescript@6.0.3`), so the workspace's `tsc` stays 7.0.2; 5.9.3 used for cross-checks | `tsc -b` with project references |
 | Node.js | 26 (26.13.0, checked on 2026-11-04) | runs `.ts` sources directly through type stripping; ships `Temporal` natively, so no polyfill (decision 19b); `node:crypto` provides Argon2id and AES-256-GCM |
-| `@types/node` | 26.6.6 (2026-10-28, checked 2026-11-18) | the Node 26 declarations that `"types": ["node"]` loads |
-| pnpm | 12.21.0 locally | workspace |
-| Biome | 2.6.8 | the only formatter and linter |
-| Vitest | 5.1.1 with `--typecheck`; expect-type 1.4.0 | unit, integration and type tests |
+| `@types/node` | 26.6.11 (2026-11-26, checked 2026-11-27) | the Node 26 declarations that `"types": ["node"]` loads |
+| pnpm | 12.23.0 locally | workspace |
+| Biome | 2.6.9 | the only formatter and linter |
+| Vitest | 5.1.2 with `--typecheck`; expect-type 1.4.0 | unit, integration and type tests |
 | @ark/attest | 0.58.0 (alpha; needs TypeScript 6) | instantiation budgets on the composition types, in `packages/type-budgets/` |
 | OpenTelemetry | api 1.10.0, SDK 3.1.1 | section 11 |
 
@@ -5742,7 +5742,7 @@ for production.
 
 ### 13.9 Biome preset and framework lint rules
 
-`@keelwerk/biome-config` publishes a Biome 2.6.8 configuration that projects extend with
+`@keelwerk/biome-config` publishes a Biome 2.6.9 configuration that projects extend with
 `"extends": ["@keelwerk/biome-config/biome"]`. Biome stays the only formatter and linter, with
 its formatter with single quotes, two-space indentation and 100 columns (the style of
 `docs/api-sketch.ts`, fixed 2026-11-04). The preset's peer `@biomejs/biome` is exact, so every
@@ -5840,7 +5840,7 @@ error-code prefixes against the declaring module, unique TypeID prefixes) run at
 
 ### 13.10 Type tests
 
-- Every package has `*.test-d.ts` files checked by Vitest 5.1.1 with `--typecheck`, using
+- Every package has `*.test-d.ts` files checked by Vitest 5.1.2 with `--typecheck`, using
   `expectTypeOf`; a check on 2026-10-10 confirmed that Vitest's type checker runs on TypeScript
   7.0.2 and reports failing assertions (Appendix B).
 - The core's suite contains the fourteen cases of section 4.7, the context rules of section 7.6
@@ -6801,7 +6801,7 @@ always admitted.
 | Adapter | Package | Substrate (checked) | Change feed | Tenant backstop | Naming default | Placements | Milestone |
 |---|---|---|---|---|---|---|---|
 | PostgreSQL | `adapter-postgres` | Kysely 0.29.9 `PostgresDialect`, `pg` 8.23.1; PostgreSQL 18 or newer | `notify` | forced row-level security | schema per app, prefixed tables | all three | M1 |
-| PGlite | `@keelwerk/data` (tests, `keelwerk dev`) | Kysely's PostgreSQL dialect over an own PGlite driver, `@electric-sql/pglite` 0.5.17 (PostgreSQL 18.3) | `notify`, in-process | row-level security | as PostgreSQL | shared-tables | M1 |
+| PGlite | `@keelwerk/data` (tests, `keelwerk dev`) | Kysely's PostgreSQL dialect over an own PGlite driver, `@electric-sql/pglite` 0.6.0 (PostgreSQL 18.3) | `notify`, in-process | row-level security | as PostgreSQL | shared-tables | M1 |
 | In-memory | `@keelwerk/data` | none | in-process | the interpreter | not applicable | shared-tables | M1 |
 | MySQL | `adapter-mysql` | Kysely `MysqlDialect`, `mysql2` 3.24.5, MySQL 8.4 LTS | `poll` and in-process wake | none (scoping plugin and tests) | prefix in one database | shared-tables, database-per-tenant | M5 |
 | SQLite | `adapter-sqlite` | Kysely `SqliteDialect` over `node:sqlite` (SQLite 3.54.0 in Node 26.13.0, no experimental warning; `StatementSync` still has no `reader`); `better-sqlite3` 13.0.3 as fallback | in-process; `poll` across processes of one host | none | prefix in one file | shared-tables, database-per-tenant (a file per tenant) | M5 |
@@ -12115,7 +12115,7 @@ document needs no bound runtime (added 2026-11-05, register entry 444).
 #### 16.5.6 Reference page
 
 In development, and outside it when the backend's `docs` setting is on, the REST mount serves an API
-reference page at `{basePath}/docs` with `@scalar/hono-api-reference` 0.12.23, reading the
+reference page at `{basePath}/docs` with `@scalar/hono-api-reference` 0.12.25, reading the
 backend's `{basePath}/openapi.json`.
 
 #### 16.5.7 What is generated when
@@ -12203,7 +12203,7 @@ overlap with another mount as `routeConflict`.
 ### 16.6 GraphQL
 
 `@keelwerk/transport-graphql` (module id `graphql`) builds a `GraphQLSchema` directly from the
-surface with graphql 17.1.0 and serves it with graphql-yoga 6.1.0 at `/graphql`. Pothos is not
+surface with graphql 17.1.0 and serves it with graphql-yoga 6.1.1 at `/graphql`. Pothos is not
 used: the schema is derived, not hand-written, so a builder whose value is static typing of
 hand-written resolvers adds a dependency without adding safety (ADR 0011).
 
@@ -12342,7 +12342,7 @@ app lives under `packages/transport-graphql/test`
 
 Subsections 16.7.1 to 16.7.6 specify the tRPC transport; section 16.7.7 the oRPC transport beside it.
 
-`@keelwerk/transport-trpc` (module id `trpc`) serves tRPC 11.29.7, which the brief requires, at
+`@keelwerk/transport-trpc` (module id `trpc`) serves tRPC 11.31.3, which the brief requires, at
 `/trpc` through tRPC's fetch adapter (`@trpc/server/adapters/fetch`) inside the host handler.
 
 #### 16.7.1 Router at runtime
@@ -17597,7 +17597,7 @@ In the mail server's own repository, once Jens unparks it (decision 48c; the des
 
 ### 23.12 Enforcement
 
-Rules and options are those of the Biome 2.6.8 schema the preset pins (first checked against 2.5.15 on 2026-10-24).
+Rules and options are those of the Biome 2.6.9 schema the preset pins (first checked against 2.5.15 on 2026-10-24).
 Plugins are scoped with `includes`; GritQL cannot read the file path, so path checks belong to the
 layout pass.
 
@@ -17617,7 +17617,7 @@ layout pass.
 | `no-module-state.grit` | top-level `let` and `var`, mutation of a top-level binding | module sources |
 | `noNodejsModules` (correctness) and the executor override of `noRestrictedImports` | `node:*`, adapters, drivers, `kysely`, HTTP and SMTP clients in module packages | module sources minus `src/executors/` |
 | `noProcessEnv` (style), `noProcessGlobal` (correctness), `noGlobalAssign` (suspicious) | environment and process reads, global assignment | everywhere except the deployment file (`.launchway/deployment.ts` or `keelwerk.config.ts`) |
-| knip 6.47.0 | unused files (a forgotten mount), unused exports and types, unused or unlisted dependencies, duplicate exports | CI after `biome ci`; `keelwerk init` writes `knip.json` with the entry files |
+| knip 6.48.0 | unused files (a forgotten mount), unused exports and types, unused or unlisted dependencies, duplicate exports | CI after `biome ci`; `keelwerk init` writes `knip.json` with the entry files |
 | `keelwerk generate --check` | the module manifests against the directories, and every artefact of section 13.7 | CI and `keelwerk build` |
 | layout pass | conventions that need paths and several files | `keelwerk doctor`, `build`, CI, and `dev`'s status line |
 
@@ -18650,22 +18650,22 @@ registry on 2026-11-18; the rows moved by the update of 2026-11-23 on that day. 
 | Package | Version | Published | Use here |
 |---|---|---|---|
 | `graphql` | 17.1.0 (A.1: 17.0.2) | 2026-11-04 | the GraphQL schema and execution (section 16.6); refuses a document that repeats one field about a thousand times before keelwerk's own cost limit applies |
-| `graphql-yoga` | 6.1.0 (A.1: 5.24.4) | 2026-11-12 | the GraphQL server; needs Node 22.15 or later, streams its bodies, and has its own logging and request id switched off |
+| `graphql-yoga` | 6.1.1 (A.1: 5.24.4) | 2026-11-23 | the GraphQL server; needs Node 22.15 or later, streams its bodies, and has its own logging and request id switched off |
 | `graphql-ws` | 6.4.2 (A.1: 6.3.0) | 2026-11-10 | the WebSocket carrier of section 16.6 |
-| `@trpc/server` / `@trpc/client` | 11.29.7 (A.1: 11.19.0) | 2026-11-21 | `@keelwerk/transport-trpc` |
-| `@orpc/server` / `@orpc/client` / `@orpc/openapi` | 1.16.4 (A.8: 1.16.1) | 2026-11-19 | `@keelwerk/transport-orpc` |
-| `@types/node` | 26.6.6 (A.8: 26.6.5) | 2026-10-28 | the Node 26 declarations |
-| `vitest` | 5.1.1 (A.9: 5.0.5) | 2026-11-18 | tests; the peer of `@keelwerk/testing` is `>=5.0.5 <6.0.0` |
+| `@trpc/server` / `@trpc/client` | 11.31.3 (A.1: 11.19.0) | 2026-11-24 | `@keelwerk/transport-trpc` |
+| `@orpc/server` / `@orpc/client` / `@orpc/openapi` | 1.16.6 (A.8: 1.16.1) | 2026-11-25 | `@keelwerk/transport-orpc` |
+| `@types/node` | 26.6.11 (A.8: 26.6.5) | 2026-11-26 | the Node 26 declarations |
+| `vitest` | 5.1.2 (A.9: 5.0.5) | 2026-11-25 | tests; the peer of `@keelwerk/testing` is `>=5.0.5 <6.0.0` |
 | `@ark/attest` | 0.58.0 (A.1: 0.57.0) | 2026-10-22 | instantiation budgets on the composition types, in `packages/type-budgets/` (needs TypeScript 6) |
-| `@biomejs/biome` | 2.6.8 (A.1: 2.5.15) | 2026-11-15 | the formatter and linter; `@keelwerk/biome-config` peers on this one exact version |
-| `knip` | 6.47.0 | 2026-11-20 | unused files, exports and dependencies (section 23.12) |
+| `@biomejs/biome` | 2.6.9 (A.1: 2.5.15) | 2026-11-24 | the formatter and linter; `@keelwerk/biome-config` peers on this one exact version |
+| `knip` | 6.48.0 | 2026-11-22 | unused files, exports and dependencies (section 23.12) |
 | `@opentelemetry/sdk-trace`, `sdk-metrics`, `resources`, `context-async-hooks` | 3.1.1 | 2026-11-09 | tracing and metrics (section 11) |
 | `@opentelemetry/exporter-trace-otlp-http`, `exporter-metrics-otlp-http` | 0.301.2 | 2026-11-12 | the OTLP exporters |
-| `@scalar/hono-api-reference` / `@scalar/openapi-parser` | 0.12.23 / 0.29.26 | 2026-11-19 | the API reference page and the document check of section 16.5 |
-| `hono` / `@hono/node-server` / `ws` | 4.13.19 / 2.1.11 / 8.23.0 | 2026-11-16 / 2026-11-20 / 2026-11-12 | the HTTP host |
-| `kysely` / `@electric-sql/pglite` | 0.29.9 / 0.5.17 | 2026-11-12 / 2026-11-19 | the SQL family substrate and the embedded database |
+| `@scalar/hono-api-reference` / `@scalar/openapi-parser` | 0.12.25 / 0.29.28 | 2026-11-25 | the API reference page and the document check of section 16.5 |
+| `hono` / `@hono/node-server` / `ws` | 4.13.22 / 2.1.11 / 8.23.0 | 2026-11-25 / 2026-11-20 / 2026-11-12 | the HTTP host |
+| `kysely` / `@electric-sql/pglite` | 0.29.9 / 0.6.0 | 2026-11-12 / 2026-11-23 | the SQL family substrate and the embedded database |
 | `eventsource` | 5.1.5 | 2026-11-08 | the server-sent events client of the tests |
-| pnpm | 12.21.0 (the `packageManager` pin) | 2026-11-13 | the workspace |
+| pnpm | 12.23.0 (the `packageManager` pin) | 2026-11-22 | the workspace |
 | npm | 11.21.3 (release workflow) | 2026-11-18 | the release job that stages packages |
 | Node.js image | the tag in `pins/node.Dockerfile`, its source (the Debian variant: the root `prepare` script needs git) | 2026-11-11 (the date of `node:26.13.1-trixie`, the pin on 2026-11-18) | the container of `.launchway/compose.yaml` |
 | PostgreSQL image | the tag in `pins/postgres.Dockerfile`, its source | not recorded | the tests of `@keelwerk/testing` |

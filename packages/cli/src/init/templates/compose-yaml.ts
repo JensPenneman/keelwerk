@@ -22,7 +22,7 @@ export function composeYaml(): string {
     ports:
       - "3000:3000"
     command: >
-      sh -c "npm install -g pnpm@12.21.0 && pnpm install --frozen-lockfile &&
+      sh -c "npm install -g pnpm@12.23.0 && pnpm install --frozen-lockfile &&
       pnpm exec tsc -b &&
       pnpm exec keelwerk start --config .launchway/deployment.ts"
 volumes:

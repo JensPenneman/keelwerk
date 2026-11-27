@@ -29,13 +29,13 @@
   "dependencies": {
     "@hono/node-server": "2.1.11",
     "@keelwerk/core": "workspace:*",
-    "hono": "4.13.20",
+    "hono": "4.13.22",
     "ws": "8.23.0"
   },
   "devDependencies": {
     "@keelwerk/live": "workspace:*",
     "@keelwerk/testing": "workspace:*",
     "@types/ws": "8.18.2",
-    "vitest": "5.1.1"
+    "vitest": "5.1.2"
   }
 }

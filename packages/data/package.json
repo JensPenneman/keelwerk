@@ -45,7 +45,7 @@
     "dist"
   ],
   "dependencies": {
-    "@electric-sql/pglite": "0.5.17",
+    "@electric-sql/pglite": "0.6.0",
     "@keelwerk/core": "workspace:*",
     "kysely": "0.29.9"
   },
@@ -54,7 +54,7 @@
     "@types/pg": "8.23.1",
     "fast-check": "4.11.0",
     "pg": "8.23.1",
-    "vitest": "5.1.1"
+    "vitest": "5.1.2"
   },
   "peerDependencies": {
     "fast-check": "4.11.0"

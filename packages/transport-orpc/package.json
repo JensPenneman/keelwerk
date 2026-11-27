@@ -29,15 +29,15 @@
   ],
   "dependencies": {
     "@keelwerk/core": "workspace:*",
-    "@orpc/openapi": "1.16.4",
-    "@orpc/server": "1.16.4"
+    "@orpc/openapi": "1.16.6",
+    "@orpc/server": "1.16.6"
   },
   "devDependencies": {
     "@keelwerk/live": "workspace:*",
     "@keelwerk/testing": "workspace:*",
     "@keelwerk/transport-http": "workspace:*",
     "@keelwerk/transport-rest": "workspace:*",
-    "@orpc/client": "1.16.4",
-    "vitest": "5.1.1"
+    "@orpc/client": "1.16.6",
+    "vitest": "5.1.2"
   }
 }
