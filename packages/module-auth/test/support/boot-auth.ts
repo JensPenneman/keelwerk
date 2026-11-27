@@ -77,6 +77,7 @@ export async function bootAuth(
   logger?: Logger,
   external?: TestRuntimeOptions['external'],
   app: typeof authApp = authApp,
+  eventWorkers?: TestRuntimeOptions['eventWorkers'],
 ): Promise<BootedAuth> {
   const clock = handClock();
   const runtime = await startTestRuntime(app, {
@@ -86,6 +87,7 @@ export async function bootAuth(
     clock,
     workers: true,
     config: { auth: config },
+    ...(eventWorkers === undefined ? {} : { eventWorkers }),
     ...(logger === undefined ? {} : { logger }),
     ...(external === undefined ? {} : { external }),
   });

@@ -1,6 +1,7 @@
 import { expect, test, vi } from 'vitest';
 import type { ErasureRecord } from '../ledger/erasure-record.ts';
-import { type ReachErasureInput, reachErasure } from './reach-erasure.ts';
+import { reachErasure } from './reach-erasure.ts';
+import type { ReachErasureInput } from './reach-erasure-input.ts';
 
 const record = {
   type: 'erasure',

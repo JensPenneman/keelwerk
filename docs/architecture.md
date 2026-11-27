@@ -1992,7 +1992,7 @@ and a placement serves every app it hosts.
 | app | `entityActionGenerators` | a template from the core's closed set (`watch`) added to every entity | set | `live` |
 | app | `principalResolvers` | `PrincipalResolver`: from module fillers a pure generator over the carrier that yields loads and secret verifications and returns the principal (section 17.2.4); a membership's kind and the resolver's own id start with the contributor's id and a dot (section 8.5) | ordered | core (operator, receivers), `auth` (sessions, passkeys), `api-keys` |
 | app | `principalEnrichers` | `PrincipalEnricher` (roles, memberships): a pure generator of loads; a membership's kind starts with the contributor's id (section 8.5) | set | `accounts`, `members` |
-| app | `erasureReach` | `ErasureReach`: pure generators of loads that answer, for the erasure of a person, which addresses the module holds for the subject (`addressesOf`), which of the addresses a living subject other than the person holds now (`heldByOthers`; the kernel drops those once, for every module) and which pending rows of its own entities name the rest (`heldBy`); the step `reach` of section 14.7.5 asks them | set | `auth`, `accounts`, `members` |
+| app | `erasureReach` | `ErasureReach`: four optional answers for the erasure of a person: which addresses the module holds for the subject (`addressesOf`, a generator of loads), which of them a living subject other than the person holds now (`heldByOthers`, a generator of loads), which pending rows of its own entities name the addresses that are left (`heldBy`, a generator of loads) and the names of the rate buckets that name the person (`bucketsOf`, a pure function); the kernel collects the addresses of every module, drops once those that any module's `heldByOthers` names, and only then asks every module for rows and buckets, so after the filter every module's addresses reach every other module's rows and buckets; the step `reach` of section 14.7.5 asks them, its loads see archived rows, and it takes the answers on trust beyond the checks listed there | set | `auth`, `accounts`, `members` |
 | app | `invocationMiddleware` | `AdmissionRule`: a pure function or generator run at `admit` that returns the token buckets to consume, or a refusal (section 12.2); module code never wraps pipeline stages | ordered | `auth` (login rate limits, section 17.2.6), `api-keys`; request logging and telemetry are kernel code |
 | app | `ruleSources` | `RuleSource` (runtime-defined policy rules): a pure generator of loads returning rules | set | a later tenant-admin module |
 | app | `crdtCodecs` | `CrdtCodec` (section 15.3.9) | set | `crdt-loro` |
@@ -8178,11 +8178,43 @@ subjects that were erased under 0.2.0 stay requested with their secrets open.
 
 Added 2026-11-26: the purge of the principals deletes the request-rate buckets that they own (the
 bucket `core.principalRequestRate` of the id as a user and as a service, in every spelling of the
-subject); the buckets of another principal, of an action class and of the tenant stay. Two gaps
-stay open until the third landing of the erasure group: the buckets that the auth module names by
-the subject (`subject:<id>`, the failures of a re-authentication) and by the person's identifier
-(`identifier:<address>`) are not deleted, and a principal that can still authenticate gets a new
-request-rate bucket at its next request, even a refused one.
+subject); the buckets of another principal, of an action class and of the tenant stay. One gap
+stays open: a principal that can still authenticate gets a new request-rate bucket at its next
+request, even a refused one, because the kernel does not refuse a principal whose subject was
+erased, so an application's own resolver that still answers for the subject keeps making one.
+
+Added 2026-11-27: the failure buckets of the auth module follow the erasure. Its admission rule names
+a bucket by the subject (`subject:<id>`, the failures of a re-authentication and of a password
+change) and by the identifier (`identifier:<address>`, the failures of a login and a sign-up), and
+the kernel keeps each under a keyed digest of the module and the name (section 12.2). The module
+answers both names for the person (`bucketsOf` of the extension point `erasureReach`, with the
+addresses that are left after the kernel dropped those that a living subject holds): the step
+`reach` forgets them while the addresses still open, and the purge of the principals forgets once more those that the subject names, in every text the
+subject may be stored as, so a bucket made between the shred and the purge goes too (when the gap of the step `reach`, above, skips the step, the buckets named by the person's address stay, and the subject's go with the purge). A bucket of
+another person stays, and so does one named by a remote address, which is the client's; an
+identifier that a living subject holds (a live credential of another subject, a profile that is not
+archived) is not the erased person's (the kernel dropped it from the addresses once, whichever
+module named it), so the lock that protects the living person stays, and an address that the erased
+person's failed attempts had locked is open again for attempts. What still makes a bucket that names
+the person afterwards, each held by a case: anyone who types the erased address at a login that
+fails, after the shred and also between the step `reach` and the shred, makes a new `identifier:`
+bucket, which holds a keyed digest, a token count and a refill time and no readable address (the address is in no table of the store after it); it is
+that attempt's, not data kept from before, and rows of `kw_rate_buckets` are not swept. The digest
+is keyed with the tenant's key, so someone who holds that key can confirm a guessed address against
+it, which is the limit of a bucket by address. The erased person's own session no longer resolves,
+so it makes no `subject:` bucket.
+
+What the kernel checks of the answers of `erasureReach` and what it takes on trust. It checks that
+a fill is an object with an id, that the entity a row of `heldBy` names is a tenant entity of the
+module that answered and has a data subject, that the row is live, and, when the request's job
+starts, that nothing but that row holds the id as a subject or reference; a failed check refuses
+the unit, and a run that cannot finish is tried again. It takes on trust that the addresses are the
+person's once the answers of `heldByOthers` are dropped (a module that does not name the addresses
+of the living subjects it stores leaves them in, for every module's rows and buckets), that the
+rows of `heldBy` really name an address it was given and are meant to go with the person, that
+`bucketsOf` is pure and names the buckets as the module's rule does (the kernel hashes whatever it is given and
+forgets it, and a name that no rule writes forgets nothing), and that the loads of `addressesOf`
+and `heldBy` read only what the module holds for the subject.
 
 Added 2026-11-26: the purge of the principals keeps the `core.eraseSubject` job of a purged principal,
 so the erasure it asked for goes on, and the receipt of that erasure loses its principal document,

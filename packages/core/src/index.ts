@@ -1037,6 +1037,7 @@ export type { OwnedRowsCursor, OwnedRowsInput, OwnedRowsPage } from './subjects/
 export { ownedRows } from './subjects/owned-rows.ts';
 export { ownedValueKeys } from './subjects/owned-value-keys.ts';
 export { reachErasure } from './subjects/reach-erasure.ts';
+export { reachedBuckets } from './subjects/reached-buckets.ts';
 export { receiptValueKeys } from './subjects/receipt-value-keys.ts';
 export { sameSubject } from './subjects/same-subject.ts';
 export { scrubFlagPrincipals } from './subjects/scrub-flag-principals.ts';

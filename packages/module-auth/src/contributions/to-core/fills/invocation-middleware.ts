@@ -11,6 +11,8 @@ import {
 } from '@keelwerk/core';
 import { authBase } from '../../../base.ts';
 import { addressBucket } from '../../../lib/address-bucket.ts';
+import { identifierBucket } from '../../../lib/identifier-bucket.ts';
+import { subjectBucket } from '../../../lib/subject-bucket.ts';
 import { toCore } from '../contribution.ts';
 
 const limited = [
@@ -23,12 +25,9 @@ const limited = [
 ] as const;
 const secondsPerMinute = 60;
 
-/** The identifier as the credential lookup sees it: the `email` normaliser, so every spelling of one identifier shares one bucket. */
-function identifierOf(input: unknown, registry: NormalizerRegistry): string | undefined {
+function identifierOf(input: unknown): string | undefined {
   if (typeof input !== 'object' || input === null || !('identifier' in input)) return undefined;
-  if (typeof input.identifier !== 'string') return undefined;
-  const email = registry.resolve({ id: 'email', version: 1 });
-  return email === undefined ? input.identifier : email.normalize(input.identifier);
+  return typeof input.identifier === 'string' ? input.identifier : undefined;
 }
 
 function tokenOf(input: unknown): string | undefined {
@@ -48,13 +47,13 @@ function currentPasswordGiven(input: unknown): boolean {
 /** The key the failures of one attempt are counted under, per action (17.2.6). Changing the password shares the bucket of `reauthenticate`, so the two cannot be guessed at in turn. */
 function failureKey(input: AdmissionInput, registry: NormalizerRegistry): string | undefined {
   if (input.action === 'auth.reauthenticate') {
-    return input.principal.kind === 'user' ? `subject:${input.principal.subject}` : undefined;
+    return input.principal.kind === 'user' ? subjectBucket(input.principal.subject) : undefined;
   }
   if (input.action === 'accounts.profile.changePassword') {
     // Only a given current password can fail with `auth.invalid_credentials`; without one the
     // attempt answers `auth.reauthentication_required`, which is no guess and must not lock the subject.
     return input.principal.kind === 'user' && currentPasswordGiven(input.input)
-      ? `subject:${input.principal.subject}`
+      ? subjectBucket(input.principal.subject)
       : undefined;
   }
   if (input.action === 'auth.resetPassword') {
@@ -63,8 +62,8 @@ function failureKey(input: AdmissionInput, registry: NormalizerRegistry): string
     return parsed === undefined ? undefined : `reset-token:${parsed.publicId}`;
   }
   if (input.action === 'auth.requestPasswordReset') return undefined;
-  const identifier = identifierOf(input.input, registry);
-  return identifier === undefined ? undefined : `identifier:${identifier}`;
+  const identifier = identifierOf(input.input);
+  return identifier === undefined ? undefined : identifierBucket(identifier, registry);
 }
 
 /**

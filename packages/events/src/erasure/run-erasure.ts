@@ -22,6 +22,7 @@ import {
   ownedValueKeys,
   principalRateBuckets,
   reachErasure,
+  reachedBuckets,
   recordScopeMarks,
   scrubFlagPrincipals,
   shredStep,
@@ -192,15 +193,14 @@ export async function runErasure(
   }
 
   // The pending rows that name the subject's addresses are requested for erasure, once the keys that open the addresses are still there.
-  await reachErasure({
+  const reach = {
     context,
     source,
     target: { ...target, handle: { ...target.handle, adapter: guarded } },
     record,
-    insideUnit: async () => {
-      await options.insideStep?.('reach', record);
-    },
-  });
+    insideUnit: async () => void (await options.insideStep?.('reach', record)),
+  };
+  await reachErasure(reach);
   await after('reach');
 
   // Step 2, in the order of its crash points: the keys are destroyed and committed (`shred`), then
@@ -354,7 +354,10 @@ export async function runErasure(
     },
   });
 
-  const rateBuckets = await principalRateBuckets(context.keys, target.scope, [...ids]);
+  const rateBuckets = [
+    ...(await principalRateBuckets(context.keys, target.scope, [...ids])),
+    ...(await reachedBuckets(reach)),
+  ];
   await purgeTombstoned(async (u, onValueKeys) => {
     await erasePrincipals(u, registry, [...ids], [], { onValueKeys, rateBuckets });
     await destroyRecorded(u, {
