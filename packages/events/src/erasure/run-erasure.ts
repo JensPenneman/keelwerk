@@ -19,6 +19,7 @@ import {
   isPrincipalValueKeyId,
   ownedRows,
   ownedValueKeys,
+  principalRateBuckets,
   recordScopeMarks,
   scrubFlagPrincipals,
   scrubReceiptFingerprints,
@@ -60,7 +61,7 @@ export type RunErasureOptions = Required<Pick<ErasureOptions, 'pageSize'>> &
  * (and appends the tombstones to the ledger and the sinks), walks `kw_subject_refs` in pages of
  * read units and erases each stream in one writing unit of its own (`eraseStream`), then walks the
  * rows the subject owns that hold no personal value (`ownedRows`) the same way, purges the
- * principals' receipts, jobs and tickets and the fingerprints of the receipts of every command
+ * principals' receipts, jobs, tickets and rate buckets and the fingerprints of the receipts of every command
  * that wrote in a visited stream, scrubs the flag targeting and completes the receipt, then
  * appends the completion record to the control ledger (never to a sink). Every step is idempotent
  * and the record stays in the ledger, so a crash after any step is repaired by running the record
@@ -243,18 +244,25 @@ export async function runErasure(
     const pageful: Principals = { ids: new Set<string>(), commandIds: new Set<string>() };
     for (const stream of page.rows) await visit(stream, pageful, true);
     if (pageful.ids.size > 0) {
+      const pageIds = [...pageful.ids];
+      const rateBuckets = await principalRateBuckets(context.keys, target.scope, pageIds);
       await unit(false, (u) =>
-        erasePrincipals(u, registry, [...pageful.ids], [...pageful.commandIds], purgeOptions),
+        erasePrincipals(u, registry, pageIds, [...pageful.commandIds], {
+          ...purgeOptions,
+          rateBuckets,
+        }),
       );
     }
     if (page.next === null) break;
     owned = page.next;
   }
 
+  const rateBuckets = await principalRateBuckets(context.keys, target.scope, [...ids]);
   await unit(false, async (u) => {
     await erasePrincipals(u, registry, [...ids], [...commandIds], {
       ...purgeOptions,
       commandRequestKeys: [...requestKeys],
+      rateBuckets,
     });
     // The receipts the purge kept (another principal ran the command): the fingerprint of an input
     // that may have held a value of the subject goes (D5).

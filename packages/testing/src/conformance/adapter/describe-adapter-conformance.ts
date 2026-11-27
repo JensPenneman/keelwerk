@@ -39,6 +39,7 @@ import { rowCases } from './row-cases.ts';
 import { rowIsolationCases } from './row-isolation-cases.ts';
 import { scheduleCases } from './schedule-cases.ts';
 import { serialCases } from './serial-cases.ts';
+import { storeBucketForgetCases } from './store-bucket-forget-cases.ts';
 import { storeBucketSkewCases } from './store-bucket-skew-cases.ts';
 import { storeCases } from './store-cases.ts';
 import { storeIsolationCases } from './store-isolation-cases.ts';
@@ -127,6 +128,7 @@ export function describeAdapterConformance(options: AdapterConformanceOptions): 
       namedValueKeyCases(subject);
     });
     describe('bucket clocks', () => storeBucketSkewCases(subject));
+    describe('bucket forgetting', () => storeBucketForgetCases(subject));
     describe('row isolation', () => rowIsolationCases(subject));
     describe('store isolation', () => storeIsolationCases(subject));
     describe('event store', () => eventStoreCases(subject));

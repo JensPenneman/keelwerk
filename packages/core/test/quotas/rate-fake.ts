@@ -55,6 +55,10 @@ export function rateFake(namespaceId = 'ns-1', clock?: { now(): Temporal.Instant
       calls.push(`check:${bucket}:${cost}`);
       return levelOf(bucket, limits) < cost ? { ok: false, retryAfter: 5 } : { ok: true };
     },
+    forget: async (names) => {
+      readAt.clear();
+      return names.filter((name) => levels.delete(name)).length;
+    },
   };
   const adapter = {
     unit: async (

@@ -21,4 +21,10 @@ export interface BucketStore {
     cost: number,
     limits: { readonly capacity: number; readonly refillPerSecond: number },
   ): Promise<BucketTake>;
+  /**
+   * Deletes the named buckets of the unit's scope, whichever of them exist, and answers how many
+   * rows it deleted: a bucket forgotten is full again at its next take. The erasure of a subject
+   * uses it for the buckets its principals own (14.7.5).
+   */
+  forget(buckets: readonly string[]): Promise<number>;
 }

@@ -34,7 +34,8 @@ export const erasureInventory: Readonly<Record<string, string>> = {
   kw_serials:
     'counters; the partition of a counter is the per value as written: a ref column value (the id of the row it names), the id of the row the counter belongs to, or the value of a plain field the module did not mark personal; the counter of a stream is keyed by the id of its owner. A row id a module names is a UUID of version 4 or 7 (checkModuleRowId; the generated actions mint version 7), but compose refuses a `per` that is personal, sealed, the data subject or unknown (serialPartition), while a plain field value is not checked for opaqueness: free text nobody marked personal is not protected (erasure-serial-partitions.test.ts plants a counter per a plain field and one per a reference and finds both values here); a work package of its own owns the stream record keys of append and the opaqueness of a per value: ids: reference kept',
   kw_usage: never,
-  kw_rate_buckets: never,
+  kw_rate_buckets:
+    "hashes, levels and times: never a value; the buckets of an erased principal are deleted with it (5a), and the buckets of the tenant and of an action class name no subject and stay; open until the third landing: the buckets the auth module names by the subject (`subject:<id>`) and by the person's identifier (`identifier:<address>`) are not deleted, and a principal that can still authenticate gets a new bucket at its next request, even a refused one",
   kw_positions: never,
   kw_shapes: never,
   kw_migrations: never,

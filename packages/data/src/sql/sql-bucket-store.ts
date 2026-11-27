@@ -84,5 +84,21 @@ export function sqlBucketStore(ctx: SqlUnitContext): BucketStore {
         return level.answer;
       });
     },
+    forget: async (buckets) => {
+      ctx.writable();
+      if (buckets.length === 0) return 0;
+      const db = ctx.scopedDb();
+      return sqlGuard(async () => {
+        const deleted = await db
+          .deleteFrom(table)
+          .where(
+            'bucket',
+            'in',
+            buckets.map((bucket) => Buffer.from(bucket, 'utf8')),
+          )
+          .executeTakeFirst();
+        return Number(deleted.numDeletedRows);
+      });
+    },
   };
 }

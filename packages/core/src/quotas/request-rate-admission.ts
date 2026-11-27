@@ -7,6 +7,7 @@ import type { InvokerEnv } from '../invoker/invoker-env.ts';
 import type { Principal } from '../principals/principal.ts';
 import { clientAddressBucket } from './client-address-bucket.ts';
 import { createProcessAllowance } from './create-process-allowance.ts';
+import { principalRateBucketName } from './principal-rate-bucket-name.ts';
 import type { ProcessAllowance, RateBucket } from './process-allowance.ts';
 
 /** One allowance per invoker: the tokens a process holds of the shared buckets (decision 156). */
@@ -67,7 +68,7 @@ export async function checkRequestRate(env: InvokerEnv, run: AdmissionRun): Prom
   if (principalKey !== undefined) {
     names.push({
       ref: 'core.principalRequestRate',
-      bucket: `core.principalRequestRate:${principalKey}`,
+      bucket: principalRateBucketName(principalKey),
     });
   }
   const kindRef = classRate[run.action.kind];

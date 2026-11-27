@@ -43,5 +43,16 @@ export function memoryBucketStore(ctx: MemoryUnitContext): BucketStore {
       });
       return level.answer;
     },
+    forget: async (buckets) => {
+      ctx.writable();
+      const table = ctx.tx.write<Bucket>(`buckets/${ctx.scopeId()}`);
+      let forgotten = 0;
+      for (const bucket of new Set(buckets)) {
+        if (table.get(bucket) === undefined) continue;
+        table.delete(bucket);
+        forgotten += 1;
+      }
+      return forgotten;
+    },
   };
 }

@@ -851,6 +851,7 @@ export type { UpdateDraft } from './protocol/update-draft.ts';
 export type { QuotaCache } from './quotas/create-quota-cache.ts';
 export { createQuotaCache } from './quotas/create-quota-cache.ts';
 export { eventMetaText } from './quotas/event-meta-text.ts';
+export { principalRateBuckets } from './quotas/principal-rate-buckets.ts';
 export type { QueueLimits } from './quotas/queue-limits.ts';
 export { quotaExceeded } from './quotas/quota-exceeded.ts';
 export type { QuotaLimit } from './quotas/quota-limit.ts';

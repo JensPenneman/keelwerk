@@ -5174,7 +5174,7 @@ The brief lists quotas among the dimensions in which tenants are isolated. The m
   that changes its address with every request) drops its own once it holds the most, and before that
   cuts another scope only while that scope holds at least as many buckets as the flooding scope (so
   to at most one fewer), then drops its own. A bucket's row is kept: rows of `kw_rate_buckets` are
-  not swept yet.
+  not swept yet, except the buckets of a principal that an erasure deletes (section 14.7.5).
 - Quota dimensions are declared like configuration (`quotas: { storageBytes: quota.bytes().default('10GiB') }`
   on a module or on the core) and changed through operator actions (`core.quota.set`), or through
   tenant-editable configuration where a backend allows it.
@@ -5310,6 +5310,7 @@ create table <root>.kw_rate_buckets (
 export interface BucketStore {
   take(bucket: string, cost: number, limit: { readonly capacity: number; readonly refillPerSecond: number }): Promise<BucketTake>
   check(bucket: string, cost: number, limit: { readonly capacity: number; readonly refillPerSecond: number }): Promise<BucketTake>   // added 2026-11-05: reads the level without taking
+  forget(buckets: readonly string[]): Promise<number>   // added 2026-11-26: deletes the named buckets of the scope and counts them (erasure, section 14.7.5)
 }
 export interface BucketTake { readonly ok: boolean; readonly retryAfter?: number }   // seconds, when refused
 /** What an admission rule returns (section 5.6): the buckets it charges, or a refusal. */
@@ -8062,6 +8063,14 @@ Added 2026-11-26: the erasure removes the subject's id from the `principals` of 
 `targeting` and in `previous`. A rule whose `principals` the erasure empties is dropped, so a rule
 that matched only that subject, a closed kill switch included, matches no one else afterwards; a rule
 that names other principals keeps them.
+
+Added 2026-11-26: the purge of the principals deletes the request-rate buckets that they own (the
+bucket `core.principalRequestRate` of the id as a user and as a service, in every spelling of the
+subject); the buckets of another principal, of an action class and of the tenant stay. Two gaps
+stay open until the third landing of the erasure group: the buckets that the auth module names by
+the subject (`subject:<id>`, the failures of a re-authentication) and by the person's identifier
+(`identifier:<address>`) are not deleted, and a principal that can still authenticate gets a new
+request-rate bucket at its next request, even a refused one.
 
 Added 2026-11-12: who may erase. Self-service deletion is off until the platform adds the rule: the
 core exports `selfErase` (the rule `core.eraseSubject.selfErase`, module `core`) and no module

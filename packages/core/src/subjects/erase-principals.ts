@@ -75,6 +75,11 @@ export interface ErasePrincipalsOptions {
    * a user principal in a tenant are sealed under the subject's data key and are not listed.
    */
   readonly commandRequestKeys?: readonly string[];
+  /**
+   * The stored names of the request-rate buckets the principals own (`principalRateBuckets`): they
+   * are deleted with the principals, so no bucket dates the subject's last request.
+   */
+  readonly rateBuckets?: readonly string[];
 }
 
 /**
@@ -84,7 +89,8 @@ export interface ErasePrincipalsOptions {
  * principal runs is kept, whoever caused it, and so are reaction and effect jobs), destroys the
  * value keys of the secret members of the jobs it purged, the long-lived value key of every id in
  * `ids` that has one (the key its request records are sealed under) and the keys in
- * `options.commandRequestKeys` (`options.onValueKeys` first) and, when
+ * `options.commandRequestKeys` (`options.onValueKeys` first), deletes the rate buckets in
+ * `options.rateBuckets` and, when
  * the app has `live.streamTicket`, purges its rows, each by the `principalId` that is among `ids`. `ids` are the
  * subject id and the ids of the rows the subject OWNS (never the ids of rows that only hold one
  * of its values), which are the principal ids a user or a session resolves to. `commandIds` are
@@ -92,7 +98,8 @@ export interface ErasePrincipalsOptions {
  * principal of their own or one among `ids` (a sign-up or a login leaves its receipt with the
  * request's remote address and user agent), never when another principal ran them. A receipt of
  * `core.eraseSubject` is never purged, whichever way it is found: every erasure keeps its own,
- * which is completed last. Answers how many rows and jobs were purged; a second call finds none.
+ * which is completed last. Answers how many rows, jobs and buckets were purged; a second call
+ * finds none.
  */
 export async function erasePrincipals(
   unit: Unit,
@@ -141,5 +148,6 @@ export async function erasePrincipals(
     const live = await unit.keys.liveValueKeys(chunk.map(principalValueKeyId));
     await destroyValueKeys(unit, options, live);
   }
+  for (const chunk of chunks(options.rateBuckets ?? [])) purged += await unit.buckets.forget(chunk);
   return purged;
 }
