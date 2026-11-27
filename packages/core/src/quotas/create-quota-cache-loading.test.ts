@@ -229,6 +229,37 @@ describe('createQuotaCache loading', () => {
     }
   });
 
+  test('a read past the bound logs core.unavailable, with the time-out as its cause', async () => {
+    const timeouts: AbortController[] = [];
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => {
+      const controller = new AbortController();
+      timeouts.push(controller);
+      return controller.signal;
+    });
+    try {
+      const r = quotaRig([storedQuotaRow('notes.rows', '30')]);
+      r.hold(true);
+      const first = r.cache.firstLoad();
+      const refused = expect(first).rejects.toMatchObject({ kind: 'unavailable' });
+      await vi.waitFor(() => expect(r.loads()).toBe(1));
+      const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+      for (const controller of timeouts) controller.abort(timeout);
+      await refused;
+      const lines = r.errorLines.filter(
+        (line) => line.message === 'the quota rows could not be loaded; the last rows keep serving',
+      );
+      expect(lines).toHaveLength(1);
+      expect(lines[0]?.fields).toMatchObject({
+        cause: { code: 'core.unavailable', cause: timeout },
+      });
+      r.hold(false);
+      r.release();
+      r.stop();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
   test('a feed that fails is subscribed again by the pauses of the background loops, and a wake starts the count again', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     try {

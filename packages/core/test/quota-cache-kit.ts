@@ -71,6 +71,7 @@ export function quotaRig(
   let feed: 'wait' | 'fail' | 'wake-then-end' = 'wait';
   let subscribes = 0;
   const errors: string[] = [];
+  const errorLines: { readonly message: string; readonly fields: unknown }[] = [];
   const debugged: { readonly message: string; readonly fields: unknown }[] = [];
   const log: Logger = {
     debug: (message, fields) => {
@@ -78,8 +79,9 @@ export function quotaRig(
     },
     info: () => undefined,
     warn: () => undefined,
-    error: (message) => {
+    error: (message, fields) => {
       errors.push(message);
+      errorLines.push({ message, fields });
     },
     child: () => log,
   };
@@ -149,6 +151,7 @@ export function quotaRig(
   return {
     cache,
     errors,
+    errorLines,
     debugged,
     loads: () => loads,
     subscribes: () => subscribes,

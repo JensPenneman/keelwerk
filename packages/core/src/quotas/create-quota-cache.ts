@@ -148,7 +148,7 @@ export function createQuotaCache(options: QuotaCacheOptions): QuotaCache {
           ? errors.unavailable('The quota rows were not read in time.', { cause: error })
           : error;
       log.error('the quota rows could not be loaded; the last rows keep serving', {
-        cause: error,
+        cause: failure,
       });
     }
   };
