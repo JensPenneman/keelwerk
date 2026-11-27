@@ -204,4 +204,64 @@ describe('what the erasure command leaves behind', () => {
     expect(scrub.length).toBeGreaterThan(0);
     expect(JSON.stringify(scrub.map((event) => event.data))).not.toContain(subject);
   });
+
+  test('the erasure drops the rule that named only the subject from the targeting and from the one it kept before', {
+    timeout: 120_000,
+  }, async () => {
+    const { runtime, worker, operator, subject } = await bootErasureRules('pglite');
+    const setFlag = async (serve: boolean) => {
+      const outcome = await runtime.invoker.invoke({
+        action: 'core.flag.set',
+        input: {
+          key: 'probe.beta',
+          backendId: runtime.backendId,
+          targeting: {
+            enabled: true,
+            rules: [
+              {
+                id: 'one',
+                tenants: [runtime.tenants.acme.id],
+                principals: [subject],
+                serve: { value: serve },
+              },
+            ],
+            fallthrough: { value: !serve },
+          },
+          reason: 'rules',
+        },
+        carrier: operatorCarrier,
+        requestId: crypto.randomUUID(),
+        commandId: crypto.randomUUID(),
+        signal: new AbortController().signal,
+      });
+      expect(outcome.ok).toBe(true);
+    };
+    await setFlag(true);
+    await setFlag(false);
+    const descriptor = runtime.app.registry.entities.get('core.flag')?.descriptor;
+    if (descriptor === undefined) throw new Error('no core.flag');
+    const rulesOf = async () => {
+      const { rows } = await runtime.control.adapter.unit(
+        runtime.control.namespace,
+        { level: 'deployment' },
+        (unit) => unit.rows.find(descriptor, {}),
+        { readOnly: true },
+      );
+      return rows.map((row) => ({
+        targeting: (row.targeting as { rules: unknown[] }).rules,
+        previous: (row.previous as { rules: unknown[] } | undefined)?.rules,
+      }));
+    };
+    expect(await rulesOf()).toEqual([
+      { targeting: [expect.anything()], previous: [expect.anything()] },
+    ]);
+    await operator.invoke(
+      'core.eraseSubject',
+      { subjectId: subject as never, reason: 'subjectRequest' } as never,
+      { prefer: 'async' },
+    );
+    await runtime.drainJobs();
+    await worker.pass();
+    expect(await rulesOf()).toEqual([{ targeting: [], previous: [] }]);
+  });
 });

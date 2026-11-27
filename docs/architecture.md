@@ -8058,6 +8058,11 @@ values whose key is gone, so a personal field in a history entry is typed `T | R
 subject index can later serve access requests (an export action); that is not part of the first
 release.
 
+Added 2026-11-26: the erasure removes the subject's id from the `principals` of every flag rule, in
+`targeting` and in `previous`. A rule whose `principals` the erasure empties is dropped, so a rule
+that matched only that subject, a closed kill switch included, matches no one else afterwards; a rule
+that names other principals keeps them.
+
 Added 2026-11-12: who may erase. Self-service deletion is off until the platform adds the rule: the
 core exports `selfErase` (the rule `core.eraseSubject.selfErase`, module `core`) and no module
 contributes it, because the tenant decides what a business tenant keeps, the action cannot be

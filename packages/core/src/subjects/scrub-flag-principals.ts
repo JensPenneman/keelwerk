@@ -10,7 +10,7 @@ import { scrubFlagTargeting } from './scrub-flag-targeting.ts';
 /**
  * Step 5b of section 14.7.5, in one writing deployment unit of the control store: removes
  * `subjectId` from the `principals` of every rule in `targeting` and in `previous` of each
- * `core.flag` row that names it, drops a rule left with no criterion, and writes the rows through
+ * `core.flag` row that names it, drops a rule left with no principal, and writes the rows through
  * the `core.flag` write path as one command whose id is `flagScrubCommandId`, so a repeat after a crash answers the first run and no other
  * erasure does (a command id is unique in one scope only, and the identity, `erasureKey`, is the
  * tenant, the command id and the canonical subject). Answers the rows changed (0 once none names
