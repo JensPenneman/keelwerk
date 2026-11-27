@@ -22,7 +22,8 @@ export interface PassWorld {
   /** `scopeId\u0000scheduleId` of every row a unit removed. */
   readonly removed: string[];
   /** Wall time every tenant unit takes before it runs. */
-  readonly slow: { ms: number };
+  /** `ms`: a tenant unit that waits that long. `hang`: a tenant unit that never ends and calls this when it begins. */
+  readonly slow: { ms: number; hang?: () => void };
   /** Directory reads. */
   readonly reads: { backend: number; tenant: number };
   /** Tenant ids whose status is suspended. */

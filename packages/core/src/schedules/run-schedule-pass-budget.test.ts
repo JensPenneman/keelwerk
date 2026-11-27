@@ -36,12 +36,28 @@ test('a backend whose units are slow gives its slot back after its budget and le
   ).toHaveLength(20 - w.jobs.length);
 });
 
-test('a unit slower than unitTimeoutMs is abandoned: the task goes on and the row is tried again later', async () => {
-  const w = makePassWorld({ one: ['a1', 'a2'] });
-  dueRows(w, ['a1', 'a2']);
-  w.slow.ms = 200;
-  await w.pass({ unitTimeoutMs: 30 });
-  await w.settle();
-  expect(w.jobs).toHaveLength(0);
-  expect(w.logs.filter((line) => line.message.includes('failed in its unit'))).toHaveLength(2);
+test('a unit that passes unitTimeoutMs is abandoned: the task goes on and the row is tried again later', async () => {
+  // The limit is fired by hand when a unit begins: the unit never ends, and no time passes.
+  const limits: AbortController[] = [];
+  vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => {
+    const limit = new AbortController();
+    limits.push(limit);
+    return limit.signal;
+  });
+  try {
+    const w = makePassWorld({ one: ['a1', 'a2'] });
+    dueRows(w, ['a1', 'a2']);
+    w.slow.hang = () => {
+      for (const limit of limits) {
+        limit.abort(new DOMException('The operation was aborted due to timeout', 'TimeoutError'));
+      }
+    };
+    // No budget the real clock can reach: the second row is never left due by a slow machine.
+    await w.pass({ unitTimeoutMs: 30, backendBudgetMs: Number.POSITIVE_INFINITY });
+    await w.settle();
+    expect(w.jobs).toHaveLength(0);
+    expect(w.logs.filter((line) => line.message.includes('failed in its unit'))).toHaveLength(2);
+  } finally {
+    vi.restoreAllMocks();
+  }
 });

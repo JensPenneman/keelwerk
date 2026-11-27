@@ -112,6 +112,7 @@ test('an app on PostgreSQL keeps its process through a restart of the server: co
   const sessionsBefore = await jobSessions();
   // The control placement and the app's placement each hold one.
   expect(sessionsBefore).toHaveLength(2);
+  const fromStop = lines.length;
   await postgres.stopServer();
   serverDown = true;
   spy.refuseTake = undefined;
@@ -198,6 +199,7 @@ test('an app on PostgreSQL keeps its process through a restart of the server: co
   // What the loops logged while the server was away says the one named error and nothing of the
   // driver.
   const codes = lines
+    .slice(fromStop)
     .filter((line) => line.level === 'error')
     .map((line) => (line.fields.cause as { code?: string } | undefined)?.code);
   expect(codes.length).toBeGreaterThan(0);

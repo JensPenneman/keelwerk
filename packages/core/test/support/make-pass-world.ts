@@ -33,7 +33,7 @@ export function makePassWorld(
   const jobs: StoredJobSpec[] = [];
   const logs: PassWorld['logs'] = [];
   const failing = { backends: new Set<string>(), claims: false, afterEnqueue: false };
-  const slow = { ms: 0 };
+  const slow: PassWorld['slow'] = { ms: 0 };
   const reads = { backend: 0, tenant: 0 };
   const suspended = new Set<string>();
   const counts = { claimUnits: 0 };
@@ -130,6 +130,10 @@ export function makePassWorld(
         throw new Error('the claim failed');
       }
       let claimed = false;
+      if (slow.hang !== undefined && scope.level === 'tenant') {
+        slow.hang();
+        await new Promise<never>(() => undefined);
+      }
       if (slow.ms > 0 && scope.level === 'tenant') {
         await new Promise((resolve) => setTimeout(resolve, slow.ms));
       }
