@@ -9,10 +9,12 @@ export interface ErasureOptions {
   /** Test seam: runs after each step commits; a throw aborts the record there (crash injection). */
   readonly afterStep?: (step: ErasureStep, record: ErasureRecord) => Promise<void>;
   /**
-   * Test seam: runs inside the writing unit of a step, before the step's writes (the `streams`
-   * step, once per run of a stream's unit, the `principals` step, once per run of the unit of a purge
-   * of principals (a unit that rolls back for a key without a tombstone runs again), and the `flags`
-   * step, in the unit of the control command); a throw fails the unit. It lets a test hold a unit in flight.
+   * Test seam: runs inside the writing unit of a step, before the step's writes (the `reach`
+   * step, once per run of the unit that requests the erasure of the rows that name the subject's
+   * addresses, the `streams` step, once per run of a stream's unit, the `principals` step, once
+   * per run of the unit of a purge of principals (a unit that rolls back for a key without a
+   * tombstone runs again), and the `flags` step, in the unit of the control command); a throw
+   * fails the unit. It lets a test hold a unit in flight.
    */
   readonly insideStep?: (step: ErasureStep, record: ErasureRecord) => Promise<void>;
 }

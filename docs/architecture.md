@@ -1992,6 +1992,7 @@ and a placement serves every app it hosts.
 | app | `entityActionGenerators` | a template from the core's closed set (`watch`) added to every entity | set | `live` |
 | app | `principalResolvers` | `PrincipalResolver`: from module fillers a pure generator over the carrier that yields loads and secret verifications and returns the principal (section 17.2.4); a membership's kind and the resolver's own id start with the contributor's id and a dot (section 8.5) | ordered | core (operator, receivers), `auth` (sessions, passkeys), `api-keys` |
 | app | `principalEnrichers` | `PrincipalEnricher` (roles, memberships): a pure generator of loads; a membership's kind starts with the contributor's id (section 8.5) | set | `accounts`, `members` |
+| app | `erasureReach` | `ErasureReach`: pure generators of loads that answer, for the erasure of a person, which addresses the module holds for the subject (`addressesOf`), which of the addresses a living subject other than the person holds now (`heldByOthers`; the kernel drops those once, for every module) and which pending rows of its own entities name the rest (`heldBy`); the step `reach` of section 14.7.5 asks them | set | `auth`, `accounts`, `members` |
 | app | `invocationMiddleware` | `AdmissionRule`: a pure function or generator run at `admit` that returns the token buckets to consume, or a refusal (section 12.2); module code never wraps pipeline stages | ordered | `auth` (login rate limits, section 17.2.6), `api-keys`; request logging and telemetry are kernel code |
 | app | `ruleSources` | `RuleSource` (runtime-defined policy rules): a pure generator of loads returning rules | set | a later tenant-admin module |
 | app | `crdtCodecs` | `CrdtCodec` (section 15.3.9) | set | `crdt-loro` |
@@ -8186,6 +8187,42 @@ request-rate bucket at its next request, even a refused one.
 Added 2026-11-26: the purge of the principals keeps the `core.eraseSubject` job of a purged principal,
 so the erasure it asked for goes on, and the receipt of that erasure loses its principal document,
 remote address and user agent.
+
+Added 2026-11-27: the erasure of a person reaches the pending invitations that name the person's
+addresses. A pending invitation is its own data subject, so the person's keys do not open it, and
+an address typed by an admin would stay readable to the tenant's admins until the invitation ends.
+Between the ledger record (step 1) and the shred (step 2) the worker runs the step `reach`
+(`afterStep` and `insideStep` name it `reach`). Each fill of the extension point `core.erasureReach`
+is asked, in a read-only unit of the tenant with the authority of its module, for the addresses it
+holds for the subject (`auth`: the identifiers of the subject's credentials; `accounts`: the email
+of the profile whose id is the subject), which only the subject's own key opens, and then for the
+pending rows of its own entities that name one of them (`members`: the pending invitations, found
+by the keyed digest of the address, so another spelling of the address is found too). In one writing
+unit of the tenant the worker then writes, for each such row, the request that `eraseOwnSubject`
+writes for the id of a row of a module's own entity: the accepted receipt, the job and the receipt's
+change record, under the module's service principal, with a command id made from the identity of the
+erasure and the row's id. A request that exists already, or a row that is gone, counts as done, so
+a crash before, inside or after the step is repaired by the next pass and each invitation is
+requested once. The step does nothing once a key of the subject is shredded, because it committed
+before the shred, and nothing in an app whose modules fill none of the answers. One gap stays: a process that starts first destroys the keys of every erasure that is recorded and not finished, and when that happens after the erasure's record was written and before the step has run, the rerun finds the keys destroyed and skips the step, so the pending invitations that name the person stay. Each invitation's
+erasure is then an erasure of its own, with its own ledger record, steps and receipt. Limits, each
+held by a case: that erasure is requested by the person's and runs after it, so the invitation can
+still be there when the person's erasure has completed; an invitation to the address that is issued
+after the step is a new invitation by its issuer and is not reached; an invitation to an address
+that no module holds for the subject is not reached; and the step reaches the tenant the erasure
+runs in, so an invitation to the same address in another tenant is untouched. An address counts as
+the erased person's only if no living subject holds it now, and the kernel decides that once: it
+collects what every module's `addressesOf` answers, asks every module's `heldByOthers` which of
+those a living subject other than the person holds now (`auth`: an identifier of a live
+credential; `accounts`: the email of a profile that is not archived), drops them, and only then
+asks every module for its rows, so after the filter every module's addresses reach every other
+module's rows and no module's own filtering is relied on for another module's rows. A person who
+revoked her credential, or whose profile was archived, and another who then signed up or
+registered with the same address, so keep the living person's invitation. The loads of the step
+also see archived rows, since an archived row still holds its values (the email of an archived
+profile is answered, the email of a profile is unique only among profiles that are not archived);
+`accounts` is the one of the three fills for which that matters today, because a credential and
+an invitation cannot be archived.
 
 Added 2026-11-12: who may erase. Self-service deletion is off until the platform adds the rule: the
 core exports `selfErase` (the rule `core.eraseSubject.selfErase`, module `core`) and no module

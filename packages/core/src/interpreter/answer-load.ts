@@ -124,6 +124,7 @@ export async function answerLoad(
       const found = await repository.find({
         ...query,
         ...(request.forUpdate ? { forUpdate: true } : {}),
+        ...(context.includeArchived === true ? { includeArchived: true } : {}),
       });
       recordLoadPosition(context, found.position, crossed);
       return found;

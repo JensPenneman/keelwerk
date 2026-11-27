@@ -69,6 +69,14 @@ export async function bootWorld() {
     const input = { kind, link, ...(secret === undefined ? {} : { secret }) };
     return String(((await operator.invoke('chain.make', input as never)) as { id: string }).id);
   };
+  /** The rows of one subject, from the root of the path down to the owned row. */
+  const chainOf = async (depth: number, owner: string): Promise<string[]> => {
+    if (depth === 1) return [await make('parcel', owner, `${owner} secret`)];
+    const holder = await make(depth === 2 ? 'holder2' : 'holder3', owner);
+    if (depth === 2) return [holder, await make('item2', holder, `${owner} secret`)];
+    const box = await make('box3', holder);
+    return [holder, box, await make('item3', box, `${owner} secret`)];
+  };
   const makeMemo = async (aboutId: string, otherId: string, owner?: string): Promise<string> => {
     tick();
     const input = {
@@ -84,6 +92,12 @@ export async function bootWorld() {
     tick();
     const input = { aboutId, secret: 'deed secret' };
     return (await operator.invoke('chain.makeDeed', input as never)) as never;
+  };
+  const makePledge = async (email: string): Promise<string> => {
+    tick();
+    return String(
+      ((await operator.invoke('chain.makePledge', { email } as never)) as { id: string }).id,
+    );
   };
   const change = (
     kind: string,
@@ -159,8 +173,10 @@ export async function bootWorld() {
     operator,
     rowOf,
     make,
+    chainOf,
     makeMemo,
     makeDeed,
+    makePledge,
     handHolder,
     tombstone,
     change,

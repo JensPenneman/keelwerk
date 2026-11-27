@@ -129,6 +129,7 @@ describe('extension points and fills (section 5.5)', () => {
   test('lists the points the modules declare, including the core ones', () => {
     expect([...full.extensionPoints.keys()]).toEqual([
       'accounts.identityProviders',
+      'core.erasureReach',
       'core.invocationMiddleware',
       'core.liveCarriers',
       'core.liveHub',

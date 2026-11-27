@@ -3,6 +3,7 @@ import { fixedOrders } from './erasure-move-orders-fixed.ts';
 
 const steps: readonly ErasureStep[] = [
   'ledger',
+  'reach',
   'shred',
   'tombstones',
   'streams',

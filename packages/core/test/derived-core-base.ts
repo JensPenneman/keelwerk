@@ -3,6 +3,7 @@ import { defineModuleBase } from '../src/dsl/define-module-base.ts';
 import { extensionPoint } from '../src/dsl/extension-point.ts';
 import { quota } from '../src/dsl/quota.ts';
 import type { AdmissionRule } from '../src/edge/admission-rule.ts';
+import type { ErasureReach } from '../src/edge/erasure-reach.ts';
 import type { PrincipalEnricher } from '../src/edge/principal-enricher.ts';
 import type { PrincipalResolver } from '../src/edge/principal-resolver.ts';
 import { field } from '../src/fields/field.ts';
@@ -30,6 +31,7 @@ export const derivedCoreBase = defineModuleBase({
     principalResolvers: extensionPoint.ordered<PrincipalResolver>(),
     principalEnrichers: extensionPoint.set<PrincipalEnricher>(),
     invocationMiddleware: extensionPoint.ordered<AdmissionRule>(),
+    erasureReach: extensionPoint.set<ErasureReach>(),
     liveHub: extensionPoint.single<LiveHub>({ min: 0 }),
     liveCarriers: extensionPoint.set<LiveCarrier>(),
   },

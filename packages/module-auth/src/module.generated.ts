@@ -29,6 +29,7 @@ import { selfEdit } from './contributions/to-accounts/policies/profile/self-edit
 import { selfPassword } from './contributions/to-accounts/policies/profile/self-password.ts';
 import { sessionOnly as accountsProfileSessionOnly } from './contributions/to-accounts/policies/profile/session-only.ts';
 import { sharedCredential } from './contributions/to-accounts/policies/profile/shared-credential.ts';
+import { erasureReachFill } from './contributions/to-core/fills/erasure-reach.ts';
 import { invocationMiddlewareFill } from './contributions/to-core/fills/invocation-middleware.ts';
 import { principalResolversFill } from './contributions/to-core/fills/principal-resolvers.ts';
 import { onTenantCreated } from './lifecycle/on-tenant-created.ts';
@@ -104,6 +105,7 @@ const authDef = defineModule(authBase, {
     },
     toCore: {
       extensionPoints: {
+        erasureReach: erasureReachFill,
         invocationMiddleware: invocationMiddlewareFill,
         principalResolvers: principalResolversFill,
       },

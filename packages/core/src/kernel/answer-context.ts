@@ -29,6 +29,8 @@ export interface AnswerContext {
   readonly log: Logger;
   /** The flag answers the invocation has given so far; they become `meta.flags` (S-23). */
   readonly flags: ReadonlyMap<string, FlagRead>;
+  /** True when the loads also see archived rows (the step `reach` of an erasure: an archived row still holds its values). */
+  readonly includeArchived?: boolean | undefined;
   /** The invocation's flag snapshot (20.3); absent: every flag answers its declared default (M1). */
   readonly flagSnapshot?: FlagSnapshot | undefined;
   /** Answers a nested request (`all`, `maybe`) in the same context. */

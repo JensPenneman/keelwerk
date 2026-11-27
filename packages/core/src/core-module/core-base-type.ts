@@ -2,6 +2,7 @@ import type { StreamDeclaration } from '../dsl/define-stream.ts';
 import type { ExtensionPoint } from '../dsl/extension-point.ts';
 import type { QuotaDimension } from '../dsl/quota.ts';
 import type { AdmissionRule } from '../edge/admission-rule.ts';
+import type { ErasureReach } from '../edge/erasure-reach.ts';
 import type { PrincipalEnricher } from '../edge/principal-enricher.ts';
 import type { PrincipalResolver } from '../edge/principal-resolver.ts';
 import type { EffectAttemptError } from '../effects/effect-attempt-error.ts';
@@ -27,6 +28,7 @@ export interface CoreBase {
     readonly principalResolvers: ExtensionPoint<PrincipalResolver, 'ordered'>;
     readonly principalEnrichers: ExtensionPoint<PrincipalEnricher, 'set'>;
     readonly invocationMiddleware: ExtensionPoint<AdmissionRule, 'ordered'>;
+    readonly erasureReach: ExtensionPoint<ErasureReach, 'set'>;
     // Declared `single({ min: 0 })`: it reads `LiveHub | undefined`, since an app without the live module has no hub.
     readonly liveHub: ExtensionPoint<LiveHub, 'single', true>;
     readonly liveCarriers: ExtensionPoint<LiveCarrier, 'set'>;

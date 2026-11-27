@@ -5,6 +5,7 @@ import { deactivate } from './actions/profile/deactivate.ts';
 import { search } from './actions/profile/search.ts';
 import { register } from './actions/register.ts';
 import { accountsBase } from './base.ts';
+import { erasureReachFill } from './contributions/to-core/fills/erasure-reach.ts';
 import { principalEnrichersFill } from './contributions/to-core/fills/principal-enrichers.ts';
 import { signedIn } from './policies/identities/signed-in.ts';
 import { frozen } from './policies/profile/frozen.ts';
@@ -24,7 +25,14 @@ const accountsDef = defineModule(accountsBase, {
     register: { open, operator: registerOperator },
   },
   services: { findByEmail, registrationOpen },
-  contributes: { toCore: { extensionPoints: { principalEnrichers: principalEnrichersFill } } },
+  contributes: {
+    toCore: {
+      extensionPoints: {
+        erasureReach: erasureReachFill,
+        principalEnrichers: principalEnrichersFill,
+      },
+    },
+  },
   migrations: new URL('../migrations/', import.meta.url),
 });
 

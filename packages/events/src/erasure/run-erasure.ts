@@ -21,6 +21,7 @@ import {
   ownedRows,
   ownedValueKeys,
   principalRateBuckets,
+  reachErasure,
   recordScopeMarks,
   scrubFlagPrincipals,
   shredStep,
@@ -189,6 +190,18 @@ export async function runErasure(
     if (last === undefined) break;
     after = last.seq;
   }
+
+  // The pending rows that name the subject's addresses are requested for erasure, once the keys that open the addresses are still there.
+  await reachErasure({
+    context,
+    source,
+    target: { ...target, handle: { ...target.handle, adapter: guarded } },
+    record,
+    insideUnit: async () => {
+      await options.insideStep?.('reach', record);
+    },
+  });
+  await after('reach');
 
   // Step 2, in the order of its crash points: the keys are destroyed and committed (`shred`), then
   // each tombstone the control ledger lacks is appended there and every tombstone goes to every

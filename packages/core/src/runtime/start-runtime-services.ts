@@ -94,6 +94,7 @@ export function startRuntimeServices(
     });
     const context: RuntimeServiceContext = {
       build: connected.build,
+      compute: connected.compute,
       control: connected.control,
       keys: connected.keys,
       log: connected.log,

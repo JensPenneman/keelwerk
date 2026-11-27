@@ -12,9 +12,15 @@ import type { InvokerEnv } from '../invoker-env.ts';
 import type { ScopeTarget } from '../scope-target.ts';
 import type { ResolverKit } from './resolver-kit.ts';
 
+/** What the unit's contexts are built from: the invoker's environment, or the same members of a worker's. */
+export interface ResolverEnv {
+  readonly options: Pick<InvokerEnv['options'], 'clock' | 'keys' | 'compute' | 'log'>;
+  rulesOf: InvokerEnv['rulesOf'];
+}
+
 /** What the unit is opened for. */
 export interface ResolverUnitInput {
-  readonly env: InvokerEnv;
+  readonly env: ResolverEnv;
   readonly registry: Registry;
   readonly target: ScopeTarget;
   /** Where a load of a backend entity runs when the resolved scope is a tenant's; null when there is none. */
@@ -24,6 +30,8 @@ export interface ResolverUnitInput {
   readonly transport: string;
   readonly requestId: string;
   readonly span: Span;
+  /** True when the loads of the resolvers' contexts also see archived rows (the erasure's step `reach`). */
+  readonly includeArchived?: boolean;
 }
 
 /**
@@ -108,6 +116,7 @@ export function withResolverKit<T>(
             keys: options.keys,
             compute: options.compute,
             log: options.log,
+            ...(input.includeArchived === true ? { includeArchived: true } : {}),
             flags: new Map(),
             answer: (request) => dispatchRequest(answerer, request, context),
             record: { read: () => undefined, answer: () => undefined, flag: () => undefined },

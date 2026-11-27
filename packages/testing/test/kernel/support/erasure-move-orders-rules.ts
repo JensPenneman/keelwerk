@@ -9,6 +9,8 @@ export interface Facts {
   /** How many times the erasure of ada, and that of bea, reached their last step. */
   readonly completed: number;
   readonly completedBea: number;
+  /** Whether the crash planned at the step reach happened (a plan that does not happen proves nothing). */
+  readonly crashedAtReach: boolean;
   /** How many copies of each record the control ledger holds. */
   readonly copies: number;
   readonly copiesBea: number;
@@ -46,6 +48,8 @@ export interface Facts {
     }[];
     readonly receipt: boolean;
   };
+  /** Whether the pledge to each one's address, which the step `reach` finds, is erased. */
+  readonly pledges?: { readonly ada: boolean; readonly bea: boolean };
   /** Whether the receipt of bea's command through the id of her row is still there. */
   readonly receiptOfBea: boolean;
   /** The deed owned through a holder that nobody owns, when the order has one, and whether its holder was given to ada. */
@@ -61,6 +65,8 @@ export function judge(facts: Facts): { broken: string[]; digest: string } {
   const broken: string[] = [];
   if (facts.completed === 0 || (bothErased && facts.completedBea === 0))
     broken.push('an erasure did not finish');
+  if (order.crashAt === 'reach' && !facts.crashedAtReach)
+    broken.push('the crash at reach did not happen');
   if (facts.copies !== 1 || (bothErased && facts.copiesBea !== 1))
     broken.push('the control ledger does not hold an erasure record once');
   for (const key of facts.seenMine) {
@@ -182,6 +188,18 @@ export function judge(facts: Facts): { broken: string[]; digest: string } {
     if (deed.key !== undefined && deed.given && !(tombstoned.has(deed.key) && sinks.has(deed.key)))
       broken.push('a destroyed key lacks its tombstone in the ledger or a sink');
   }
+  // The step reach: the pledge to ada's address is erased with her, the one to bea's address only with bea.
+  const { pledges } = facts;
+  if (pledges !== undefined) {
+    if (facts.completed > 0 && !pledges.ada)
+      broken.push('a pledge to the address of the erased subject stays');
+    if (pledges.bea !== (bothErased && facts.completedBea > 0))
+      broken.push(
+        pledges.bea
+          ? 'a pledge to the address of a living subject is erased'
+          : 'a pledge to the address of an erased subject stays',
+      );
+  }
   const unique = [...new Set(broken)];
   const digest = JSON.stringify({
     completed: facts.completed,
@@ -201,6 +219,7 @@ export function judge(facts: Facts): { broken: string[]; digest: string } {
         : `${Number(memo.erased)}${Number(memo.receipt)}${JSON.stringify(memo.answers)}`,
     receiptOfBea: facts.receiptOfBea,
     deed: deed === undefined ? null : `${Number(deed.given)}${Number(deed.erased)}`,
+    pledges: pledges === undefined ? null : [pledges.ada, pledges.bea].map(Number).join(''),
     broken: unique,
   });
   return { broken: unique, digest };

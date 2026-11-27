@@ -13,6 +13,7 @@ import { bootWorld } from './support/erasure-move-orders-world.ts';
 
 let world: Awaited<ReturnType<typeof bootWorld>>;
 let cursor = 0n;
+let runs = 0;
 beforeAll(async () => {
   world = await bootWorld();
 });
@@ -23,22 +24,24 @@ afterAll(async () => {
 async function run(order: Order): Promise<Ending> {
   const { live, worker, runtime, operator, records } = world;
   const at = (rows: readonly string[], index: number) => rows[index] as string;
+  // An address of its own for each order: the world is shared, and a pledge must name one subject's address only.
+  runs += 1;
+  const [adaAddress, beaAddress] = [`ada${runs}@example.test`, `bea${runs}@example.test`];
   const [ada, bea] = [
-    await world.make('member', 'ada@example.test'),
-    await world.make('member', 'bea@example.test'),
+    await world.make('member', adaAddress),
+    await world.make('member', beaAddress),
   ];
+  // A pledge to each address, in the orders that crash at the step reach and in a fifth of the others: each is an erasure of its own, and the search stays short.
+  const pledges =
+    order.crashAt === 'reach' || order.memo === 'bea'
+      ? ([await world.makePledge(adaAddress), await world.makePledge(beaAddress)] as const)
+      : undefined;
   const names: Record<string, 'ada' | 'bea'> = {
     [ada.toLowerCase()]: 'ada',
     [bea.toLowerCase()]: 'bea',
   };
   // The rows of both subjects, from the root of the path down to the owned row.
-  const chainOf = async (owner: string): Promise<string[]> => {
-    if (order.depth === 1) return [await world.make('parcel', owner, `${owner} secret`)];
-    const holder = await world.make(order.depth === 2 ? 'holder2' : 'holder3', owner);
-    if (order.depth === 2) return [holder, await world.make('item2', holder, `${owner} secret`)];
-    const box = await world.make('box3', holder);
-    return [holder, box, await world.make('item3', box, `${owner} secret`)];
-  };
+  const chainOf = (owner: string) => world.chainOf(order.depth, owner);
   const [mine, theirs] = [await chainOf(ada), await chainOf(bea)];
   const kinds = [[], ['parcel'], ['holder2', 'item2'], ['holder3', 'box3', 'item3']][
     order.depth
@@ -215,6 +218,7 @@ async function run(order: Order): Promise<Ending> {
   };
   let completed = 0;
   let completedBea = 0;
+  let crashedAtReach = false;
   /** The erasures of this order that reached their last step: the order's own records only. */
   const count = (step: ErasureStep, own: ErasureRecord) => {
     if (step !== 'completed') return;
@@ -226,7 +230,10 @@ async function run(order: Order): Promise<Ending> {
     await all(order.during[step]);
     // A pass reads the tombstones of the ledger right after its first step: what is planted by now is its to sweep.
     if (step === 'ledger') scanned = ticks;
-    if (step === order.crashAt) throw new Error('crash between steps');
+    if (step === order.crashAt) {
+      crashedAtReach ||= step === 'reach';
+      throw new Error('crash between steps');
+    }
   };
   await worker.pass();
   const finishedFirst = completed > 0;
@@ -236,6 +243,11 @@ async function run(order: Order): Promise<Ending> {
   for (let again = 0; again < 3 && (completed === 0 || (second && completedBea === 0)); again += 1)
     await worker.pass();
   await runtime.drainJobs();
+  // The erasure of a pledge is requested by the person's and runs after it: its request becomes a record, and the record runs.
+  for (let round = 0; pledges !== undefined && round < 3; round += 1) {
+    await worker.pass();
+    await runtime.drainJobs();
+  }
 
   const owner = await ownerNow();
   const taken = [...seen];
@@ -254,6 +266,7 @@ async function run(order: Order): Promise<Ending> {
     order,
     completed,
     completedBea,
+    crashedAtReach,
     copies,
     copiesBea,
     owner: owner === ada ? 'ada' : owner === bea ? 'bea' : 'none',
@@ -292,6 +305,14 @@ async function run(order: Order): Promise<Ending> {
             erased: (await world.rowOf('deed', deed.id))?.kwErasedAt != null,
             given: deedGiven,
           },
+    ...(pledges === undefined
+      ? {}
+      : {
+          pledges: {
+            ada: (await world.rowOf('pledge', pledges[0]))?.kwErasedAt != null,
+            bea: (await world.rowOf('pledge', pledges[1]))?.kwErasedAt != null,
+          },
+        }),
   });
   return { broken, digest };
 }

@@ -1,12 +1,17 @@
 import {
+  core,
   defineApp,
   defineCommand,
+  defineContribution,
   defineEntity,
+  defineFill,
   defineModule,
   defineModuleBase,
   defineRule,
   field,
+  type Id,
   shape,
+  within,
 } from '@keelwerk/core';
 
 /**
@@ -78,13 +83,28 @@ const entities = {
     },
   }),
   mark: defineEntity({ prefix: 'chz', fields: { label: field.string() } }),
+  /** A row that names an address and is its own data subject, like a pending invitation: the step `reach` finds it. */
+  pledge: defineEntity({
+    prefix: 'chl',
+    dataSubject: 'subject',
+    fields: {
+      subject: field.subject().index(),
+      email: field.string({ format: 'email' }).personal({ normalize: 'email', queries: ['eq'] }),
+    },
+  }),
   item3: defineEntity({
     prefix: 'chk',
     dataSubject: 'boxId.holderId.owner',
     fields: { boxId: field.ref.own('box3'), note: itemNote, secret: field.secret() },
   }),
 };
-const base = defineModuleBase({ id: 'chain', version: '0.1.0', entities });
+const toCore = defineContribution(core, {});
+const base = defineModuleBase({
+  id: 'chain',
+  version: '0.1.0',
+  entities,
+  contributions: { toCore },
+});
 /** The field of each entity that `make` fills from `link`. */
 const linkOf = {
   member: 'email',
@@ -205,9 +225,48 @@ const ping = defineCommand(base, {
   },
 });
 
+/** A pledge to an address: its own subject is its id. */
+const makePledge = defineCommand(base, {
+  input: shape({ email: field.string() }),
+  output: shape({ id: field.string() }),
+  principal: 'operator',
+  *decide(input, ctx) {
+    const id = yield* ctx.newId(entities.pledge);
+    return {
+      events: [ctx.write.chain.pledge.create({ id, subject: id, email: input.email } as never)],
+      result: { id },
+    };
+  },
+});
+
+/** The step `reach` of an erasure: a member's address is its email, and the pledges to an address are the rows that name it. */
+const reachFill = defineFill(within(base, toCore), 'erasureReach', (own) => [
+  {
+    id: 'chain.reach',
+    *addressesOf(subject) {
+      const member = yield* own.load.chain.member.one({
+        where: { id: subject as Id<'chain.member'> },
+      });
+      return member === undefined ? [] : [member.email];
+    },
+    *heldBy(addresses) {
+      const found: { type: string; id: string }[] = [];
+      for (const email of addresses) {
+        const rows = yield* own.load.chain.pledge.many({ where: { email } });
+        found.push(...rows.map((row) => ({ type: 'chain.pledge', id: row.id })));
+      }
+      return found;
+    },
+  },
+]);
+
 const chain = defineModule(base, {
-  actions: { make, change, makeMemo, makeDeed, ping },
+  actions: { make, change, makeMemo, makeDeed, ping, makePledge },
+  contributes: { toCore: { extensionPoints: { erasureReach: reachFill } } },
   policies: {
+    makePledge: {
+      operator: defineRule(base, makePledge, { effect: 'allow', principal: 'operator' }),
+    },
     make: { operator: defineRule(base, make, { effect: 'allow', principal: 'operator' }) },
     change: { operator: defineRule(base, change, { effect: 'allow', principal: 'operator' }) },
     makeMemo: { operator: defineRule(base, makeMemo, { effect: 'allow', principal: 'operator' }) },

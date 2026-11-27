@@ -11,7 +11,7 @@ import type { ServedApp } from './served-app.ts';
 
 /** What a runtime service receives at start (S-154). */
 export interface RuntimeServiceContext
-  extends Pick<Connected, 'build' | 'control' | 'keys' | 'log' | 'placements'> {
+  extends Pick<Connected, 'build' | 'compute' | 'control' | 'keys' | 'log' | 'placements'> {
   /**
    * Aborts when the process stops or leaves service (a restore was found under it, 14.7.6): a
    * service stops taking and starting work then and leaves what it holds to its lease. The mark

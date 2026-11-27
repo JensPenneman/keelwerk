@@ -8,6 +8,7 @@ import { changeRole } from './actions/membership/change-role.ts';
 import { removeMember } from './actions/membership/remove-member.ts';
 import { transferOwnership } from './actions/membership/transfer-ownership.ts';
 import { membersBase } from './base.ts';
+import { erasureReachFill } from './contributions/to-core/fills/erasure-reach.ts';
 import { principalEnrichersFill } from './contributions/to-core/fills/principal-enrichers.ts';
 import { adminsInvite } from './policies/invitation/admins-invite.ts';
 import { adminsRead } from './policies/invitation/admins-read.ts';
@@ -33,7 +34,14 @@ const membersDef = defineModule(membersBase, {
     membership: { adminsChangeRoles, adminsRemoveMembers, membersRead, ownerKept, ownerTransfers },
   },
   reactions: { settleEndedInvitation },
-  contributes: { toCore: { extensionPoints: { principalEnrichers: principalEnrichersFill } } },
+  contributes: {
+    toCore: {
+      extensionPoints: {
+        erasureReach: erasureReachFill,
+        principalEnrichers: principalEnrichersFill,
+      },
+    },
+  },
   migrations: new URL('../migrations/', import.meta.url),
 });
 
