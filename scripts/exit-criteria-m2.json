@@ -1,0 +1,133 @@
+{
+  "note": "The count of a skips entry pins numbers and not names: one allowed skip swapped for another would pass. Pinning names is left for the rest of WP-227.",
+  "criteria": [
+    {
+      "number": 1,
+      "text": "a subscription resumes after a process restart from its stream token with no gap and no duplicate beyond at-least-once; a revoked session ends a live connection within a second",
+      "evidence": [
+        "packages/testing/test/kernel/m2-slice-5-resume.postgres.test.ts",
+        "packages/transport-http/test/conformance.test.ts",
+        "packages/transport-http/test/live-socket-life.test.ts"
+      ],
+      "skips": [
+        {
+          "file": "packages/transport-http/test/conformance.test.ts",
+          "count": 48,
+          "why": "its host starts no live deployment, so the suite skips the stream and socket cases; criterion 1 is proved by m2-slice-5-resume"
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "text": "with two tenants, a reaction that fails and retries with backoff for one tenant never delays the other tenant's reactions",
+      "evidence": [
+        "packages/testing/test/kernel/m2-slice-3-reaction-retry.test.ts",
+        "packages/testing/test/kernel/m2-slice-3-reaction-retry.postgres.test.ts"
+      ]
+    },
+    {
+      "number": 3,
+      "text": "the queue scenarios pass on PostgreSQL, PGlite and in-memory",
+      "evidence": [
+        "packages/data/test/memory-conformance.test.ts",
+        "packages/data/test/pglite-conformance.test.ts",
+        "packages/adapter-postgres/test/conformance.postgres.test.ts"
+      ],
+      "skips": [
+        {
+          "file": "packages/data/test/memory-conformance.test.ts",
+          "count": 3,
+          "why": "cases that the capabilities of this adapter switch off; no queue scenario is skipped"
+        },
+        {
+          "file": "packages/data/test/pglite-conformance.test.ts",
+          "count": 13,
+          "why": "cases that the capabilities of this adapter switch off; no queue scenario is skipped"
+        },
+        {
+          "file": "packages/adapter-postgres/test/conformance.postgres.test.ts",
+          "count": 29,
+          "why": "cases of the other lock and notify configuration; no queue scenario is skipped"
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "text": "GraphQL, tRPC and oRPC pass the transport conformance suite, including subscriptions with control frames and the selection limits",
+      "evidence": [
+        "packages/transport-graphql/test/conformance.test.ts",
+        "packages/transport-trpc/test/conformance.test.ts",
+        "packages/transport-orpc/test/conformance.test.ts"
+      ],
+      "skips": [
+        {
+          "file": "packages/transport-graphql/test/conformance.test.ts",
+          "count": 12,
+          "why": "receipt and replay cases its codec has no mark for"
+        },
+        {
+          "file": "packages/transport-trpc/test/conformance.test.ts",
+          "count": 16,
+          "why": "receipt and replay cases its codec has no mark for, and the four selection cases (S-174)"
+        },
+        {
+          "file": "packages/transport-orpc/test/conformance.test.ts",
+          "count": 12,
+          "why": "receipt cases its codec has no mark for, and the four selection cases (S-174)"
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "text": "an erased subject's marker values are absent from a database dump; a restore made with pg_restore is detected at connect, bumps the scope epochs and resets old tokens",
+      "evidence": [
+        "packages/testing/test/kernel/erasure-dump.postgres.test.ts",
+        "packages/testing/test/kernel/restore-detection.postgres.test.ts"
+      ]
+    },
+    {
+      "number": 6,
+      "text": "a tenant over its request rate gets rate_limited with Retry-After; a tenant over its storage quota gets core.quota_exceeded; the other tenant is unaffected",
+      "evidence": [
+        "packages/testing/test/kernel/m2-slice-8-quotas.postgres.test.ts",
+        "packages/testing/test/kernel/m2-slice-8-quotas.test.ts",
+        "packages/transport-rest/test/quotas.test.ts"
+      ]
+    },
+    {
+      "number": 7,
+      "text": "after a breaking change with a version change, a client pinned to the older API version still works over REST, GraphQL, tRPC, oRPC and the invocation protocol",
+      "evidence": [
+        "examples/portal/apps/portal/test/m2-slice-9-pinned-version-rest-graphql.postgres.test.ts",
+        "examples/portal/apps/portal/test/m2-slice-9-pinned-version-trpc.postgres.test.ts",
+        "examples/portal/apps/portal/test/m2-slice-9-pinned-version-orpc-protocol.postgres.test.ts"
+      ]
+    },
+    {
+      "number": 8,
+      "text": "while one tenant enqueues 10,000 jobs, another tenant's job starts within one take interval, and no lane exceeds its cap",
+      "evidence": ["packages/testing/test/kernel/fairness-10k.postgres.test.ts"]
+    },
+    {
+      "number": 9,
+      "text": "a worker killed mid-job loses its lease, the job is requeued within 30 seconds, and no database effect is duplicated",
+      "evidence": ["packages/testing/test/kernel/worker-killed.postgres.test.ts"]
+    },
+    {
+      "number": 10,
+      "text": "an executor killed mid-attempt is retried with the same idempotency key, or its effect is settled as abandoned; a rebuild from the chain reproduces the state rows and the effect states",
+      "evidence": [
+        "packages/testing/test/kernel/executor-killed.postgres.test.ts",
+        "packages/testing/test/kernel/rebuild-effects.postgres.test.ts"
+      ]
+    },
+    {
+      "number": 11,
+      "text": "oRPC's typed client type-checks against OrpcRouterOf<App>, and the comparison of oRPC's OpenAPI document with the own emitter's is recorded in architecture.md section 16.7.7",
+      "evidence": [
+        "packages/transport-orpc/test/orpc-client.test-d.ts",
+        "packages/transport-orpc/test/comparison.test.ts"
+      ]
+    }
+  ]
+}

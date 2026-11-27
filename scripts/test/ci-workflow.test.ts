@@ -103,7 +103,7 @@ test('the job that gathers the results needs every other job', () => {
     .slice(jobsAt)
     .split('\n')
     .map((line) => /^ {2}([\w-]+):$/.exec(line)?.[1])
-    .filter((key): key is string => key !== undefined && key !== 'exit-criteria')
+    .filter((key): key is string => key !== undefined && !key.startsWith('exit-criteria'))
     .sort();
   const needs = /needs: \[([^\]]+)\]/.exec(workflowJob(workflow, 'exit-criteria'))?.[1] ?? '';
   expect(

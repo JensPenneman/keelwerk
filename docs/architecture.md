@@ -5729,6 +5729,10 @@ Besides the nine steps, the workflow has the job `exit-criteria` (M1 exit criter
 after the other jobs, fails when one of them did not succeed, and runs `scripts/exit-criteria.ts`,
 which names for every exit criterion the job and step that prove it; the workflow can also be
 started by hand (`workflow_dispatch`), so a branch runs without a pull request (M1 plan S-116).
+The job `exit-criteria-m2` (M2 exit criteria) does the same for the eleven M2 criteria by running
+the test files that `scripts/exit-criteria-m2.json` lists for each; it fails when a listed file is
+missing or runs no test, when a test in it fails, is marked to-do, or is skipped beyond the exact
+number of by-design skips that the mapping names for that file.
 CI also runs daily on `main` on a schedule, so a failure that depends on the calendar shows without
 a pull request (added 2026-11-10, register entry 491).
 

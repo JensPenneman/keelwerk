@@ -286,3 +286,48 @@ jobs:
 
       - name: Exit criteria and the steps that prove them
         run: node scripts/exit-criteria.ts
+
+  # The eleven M2 exit criteria of docs/roadmap.md, proved by running the test files that
+  # scripts/exit-criteria-m2.json names for each. It fails when a listed file is missing, runs no
+  # test, or holds a test that failed, was skipped or is marked to-do.
+  exit-criteria-m2:
+    name: M2 exit criteria
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Must run before setup-node: its pnpm cache needs the pnpm binary.
+      - name: Install pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The tests start the container themselves (testcontainers); pulling the image once
+      # here keeps the pull out of every suite's start-up timeout.
+      - name: Pull the PostgreSQL 18 image
+        run: docker pull "$(sed -n "s/.*'\(postgres:[^']*\)'.*/\1/p" packages/testing/src/postgres/postgres-image.ts)"
+
+      - name: Build
+        run: pnpm tsc -b
+
+      - name: List the evidence files
+        run: node scripts/exit-criteria-m2.ts --files > "$RUNNER_TEMP/m2-files.txt"
+
+      # One worker, as in the PostgreSQL job: every project that starts a container shares the
+      # connection limit of the container.
+      - name: Run the evidence files
+        run: pnpm exec vitest run --config vitest.ci.config.ts --reporter=default --reporter=json --outputFile.json="$RUNNER_TEMP/m2-report.json" --maxWorkers=1 $(cat "$RUNNER_TEMP/m2-files.txt")
+
+      - name: Exit criteria and the tests that prove them
+        run: node scripts/exit-criteria-m2.ts "$RUNNER_TEMP/m2-report.json"
