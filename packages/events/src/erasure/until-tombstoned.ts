@@ -1,4 +1,5 @@
 import { errors } from '@keelwerk/core';
+import type { KnownKeys } from './tombstone-recorder.ts';
 
 /** Thrown at the end of a writing unit that met a key whose tombstone is not recorded: the unit rolls back. */
 class Untombstoned extends Error {
@@ -24,7 +25,7 @@ export interface KeyGate {
  * bounded and the worker tries the record again later.
  */
 export async function untilTombstoned<T>(
-  known: ReadonlySet<string>,
+  known: KnownKeys,
   record: (keyIds: readonly string[]) => Promise<void>,
   pass: (gate: KeyGate) => Promise<T>,
 ): Promise<T> {

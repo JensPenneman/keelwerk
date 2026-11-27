@@ -61,6 +61,8 @@ export function setupReplayLedger(
     readonly failAppend?: boolean;
     readonly failDestroy?: boolean;
     readonly failDirectory?: boolean;
+    /** Scope ids that are backends, not tenants. */
+    readonly backends?: readonly string[];
   } = {},
 ) {
   const control: LedgerRecord[] = options.control ?? [];
@@ -144,12 +146,13 @@ export function setupReplayLedger(
       adapter: {
         unit: async (
           _ns: unknown,
-          scope: { readonly tenantId: string },
+          scope: { readonly tenantId?: string; readonly backendId: string },
           fn: (u: unknown) => unknown,
           unitOptions?: { readonly readOnly?: boolean },
         ) => {
-          units.push({ tenant: scope.tenantId, readOnly: unitOptions?.readOnly === true });
-          return fn(unitOf(scope.tenantId, unitOptions?.readOnly === true));
+          const id = scope.tenantId ?? scope.backendId;
+          units.push({ tenant: id, readOnly: unitOptions?.readOnly === true });
+          return fn(unitOf(id, unitOptions?.readOnly === true));
         },
       },
     },
@@ -186,8 +189,11 @@ export function setupReplayLedger(
       directory: {
         tenant: async (id: string) => {
           if (options.failDirectory === true) throw new Error('the directory is down');
+          if (options.backends?.includes(id) === true) return undefined;
           return { id, backendId: 'b1', namespace: { id: 'ns' } };
         },
+        backend: async (id: string) =>
+          options.backends?.includes(id) === true ? { id, namespace: { id: 'ns' } } : undefined,
       },
       sinks: [sinkOf()],
       records: (await readSinks([sinkOf()])).records,

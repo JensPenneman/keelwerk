@@ -7806,9 +7806,17 @@ after it, and the stream is reported as changed.
   Added 2026-11-12: every event that creates a row (`created`) or adopts one (`imported`), or
   changes the first segment of its data-subject path, takes the subject's data key
   (`fenceDataSubject`, the fence), under the lock the shred takes: the key is created at its first
-  use and refused (`forbidden`) once the subject is shredded, so no row can be given to an erased
-  subject in any process. The fence refuses an upper or mixed case spelling of a 128-bit subject
-  only for a one-field data subject, whose text the event writes itself (a validation error); a
+  use and refused (`forbidden`) once the subject is shredded, so no row can be created or adopted
+  with a data subject that resolves to an erased subject, in any process. A change is refused only
+  when the event changes the first segment of the row's own data-subject path and the before-image
+  of the row holds that segment. Limits: the fence looks at the events of the row itself and
+  compares them with the before-image, which leaves out a hidden field and a field kept only in
+  state. So an event is accepted that sets such a field, when it is the first segment of the row's
+  own data-subject path, to an erased subject, and an event of another row that changes what the
+  path resolves to: a holder reached through a reference in the path, whose last segment (here a
+  hidden field of kind `subject`) is set to an erased subject, makes every row behind it resolve to
+  that subject. The keys of such a row open until a further erasure of the subject erases it. The
+  fence refuses an upper or mixed case spelling of a 128-bit subject only for a one-field data subject, whose text the event writes itself (a validation error); a
   subject that comes from a stored row through a path is folded to its canonical form and the row
   is written. A subject id is therefore never used again after its erasure (a replay of the ledger
   would erase the new rows too): a returning person gets a new subject id. Composition warns
@@ -8126,10 +8134,11 @@ row of an entity of the app (the key record names its entity and row id; this wa
 that a row an earlier run of this erasure tombstoned is visited as the subject's before the
 references can lead to it as a mere holder, and a row that neither of the other two finds any more
 is still reached; a tombstone of another erasure names no row). The control ledger may hold one
-tombstone for a key per erasure: an erasure looks for its own by key and command, and appends it
-when only another erasure's stands for the key (after two erasures tombstoned one key the ledger
+tombstone for a key per erasure: an erasure looks for its own by scope, key and command, and appends it
+when only another erasure's stands for the key (the gate that lets a unit destroy a key asks scope and key only) (after two erasures tombstoned one key the ledger
 holds a tombstone from each, and a sink holds at least one tombstone for the key, which is what a
-restore needs: the replay of a restore reads one record of the key and destroys the key once). The erasure finds a row as the subject's when the
+restore needs: the replay of a restore reads one record of the key in each scope and destroys the
+key there once). The erasure finds a row as the subject's when the
 lookup or a key record of its own names it, or when the references lead to it and its data subject
 is the subject at the moment the page of the references is read; a row that the references lead
 to only because it holds a value of the subject is found as a holder of that value. The unit that visits a row reads under
@@ -8234,7 +8243,31 @@ it. It destroys the value keys of the secret members of the purged jobs in the s
 recording a `keyTombstone` for each (section 14.7.6) before the unit that destroys them commits. A receipt the erasure keeps holds a failure
 only in its closed form (section 15.1.7).
 
-Added 2026-11-11 and 2026-11-12: the tenant scope. An erasure reaches the tenant scope only.
+Added 2026-11-27: the purge in the backend scope. A principal whose id is the id of a row the
+erasure erased as the subject's own may have acted in the backend scope of the tenant too, where
+its request records, receipts and jobs are kept under that id. For the id of each such row the
+worker runs the same purge in the tenant's backend scope, in units of its own that follow the
+answers of the rows (the `erased` events of the erasure) and hold no row's lock, and records a
+`keyTombstone` that names the backend scope before a unit destroys a key there. A crash between
+the tenant's unit and the backend's is repaired by the next run. A person of another tenant
+keeps everything in the backend scope. The look-up of the ledger and the worker's memory of what
+it has appended tell a tombstone from another by its scope, its key id and its erasure's command,
+because a principal's key id is the same in every scope it acted in, and two erasures can
+tombstone one key. The gate that decides whether a unit may destroy a key asks scope and key id
+only: any erasure's tombstone for the key in that scope opens it. The replay after a restore keeps
+one record per key per scope. A
+process that serves the tenant but not its backend leaves the erasure to one that serves both. The
+purge destroys only the keys it read in its own unit, each after its tombstone: a key that a
+command makes at its first use after that read stays, with its records. Three things stay, in
+the backend scope or in the tenant scope: the subject's own spellings are not purged in the
+backend scope, because the same person may live in another tenant of the backend; a record
+written after the purge, by a command that was admitted before the erasure ran or by any
+principal that still resolves to the erased row's id (nothing refuses a principal for naming an
+erased row), until a further erasure of the subject removes it; and the key `principal:<id>`,
+which is made again for that record.
+
+Added 2026-11-11 and 2026-11-12: the tenant scope. An erasure reaches the tenant scope only,
+apart from the purge in the backend scope above.
 Compose refuses (`personalOutsideTenant`, section 4.7) a personal field or a data subject on an
 entity whose tenancy is not `tenant`, a personal member in the input of an asynchronous command of
 a scope other than `tenant`, and a personal member in a record of a stream of a row that is not a
@@ -8262,7 +8295,7 @@ positions from before and after the restore. Three mechanisms keep both true:
   a new record type needs no format change. At `connect`, and after any restore, the kernel
   replays the union:
   before the namespace serves traffic it shreds the keys of every unfinished erasure and destroys
-  the value keys of the tombstones in every tenant a restore touched (amended 2026-11-18, below),
+  the value keys of the tombstones in every tenant or backend scope a restore touched (amended 2026-11-18, below; a restore of a backend scope that does not rewind its tenants destroys the principals' keys there again from their tombstones, but nothing purges the rest of what the purge removed there again: a receipt of an erased row's principal that the restore brings back stays readable),
   and it runs steps 3 to 5 of the erasure again, because a backup taken before an erasure lacks its
   `erased` events.
   `keelwerk doctor` warns when the control store and a placement share a database cluster and no

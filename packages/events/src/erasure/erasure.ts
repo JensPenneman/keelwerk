@@ -42,7 +42,7 @@ export function erasure(options: ErasureOptions = {}): ErasureWorker {
   /** The records this process has logged as unfinished: a standing condition is logged once per record, doctor shows it after that. */
   const logged = new Set<string>();
   const retry = new Map<string, { readonly record: ErasureRecord; readonly seq: bigint }>();
-  /** The key ids this process has seen the control ledger hold a tombstone for. */
+  /** The scope and key id pairs, and scope, key id and command triples, this process has seen the control ledger and every sink take a tombstone for. */
   const tombstoned = new Set<string>();
   const abandoned = Promise.withResolvers<never>();
   abandoned.promise.catch(() => undefined);
@@ -74,13 +74,17 @@ export function erasure(options: ErasureOptions = {}): ErasureWorker {
     if (finished.has(key)) return false;
     try {
       const found = await erasureTarget(ctx, record);
-      if (found === undefined) {
-        // A tenant of a placement this process does not open is another process's: as before, it is
-        // left to that process. A tenant nobody knows is not done: it stays in the retry set.
+      if ('unserved' in found) {
+        // A tenant of a placement this process does not open, or whose backend it does not open, is
+        // another process's: as before, it is left to that process. A tenant nobody knows is not
+        // done: it stays in the retry set.
         if ((await ctx.archivedDirectory.tenant(record.tenantId)) !== undefined) {
-          ctx.log.warn('an erasure record names a tenant this process does not serve', {
-            commandId: record.commandId,
-          });
+          ctx.log.warn(
+            found.unserved === 'backend'
+              ? 'an erasure record names a tenant whose backend this process does not serve'
+              : 'an erasure record names a tenant this process does not serve',
+            { commandId: record.commandId },
+          );
           finished.add(key);
           return true;
         }

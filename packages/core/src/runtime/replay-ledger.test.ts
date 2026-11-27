@@ -100,6 +100,34 @@ describe('the ledger replay at connect', () => {
     expect(tombstonesOf(control).filter((keyId) => keyId === 'kx')).toHaveLength(1);
   });
 
+  test("a bumped backend scope's value keys are destroyed in the backend's unit, and the tenant's are not", async () => {
+    const backendId = '0192f3a0-0000-7000-8000-0000000000b1';
+    const { run, destroyed, units } = setupReplayLedger({
+      backends: [backendId],
+      control: [
+        tombstone('principal:p1', backendId, 'erasure'),
+        tombstone('principal:p1', tenantId, 'erasure'),
+      ],
+    });
+    await run({ bumped: new Set([backendId]) });
+    expect(destroyed).toEqual([{ tenant: backendId, keyId: 'principal:p1' }]);
+    expect(units.map((unit) => unit.tenant)).toEqual([backendId]);
+  });
+
+  test('a tombstone of a backend that a sink holds is told from the same key id of a tenant', async () => {
+    const backendId = '0192f3a0-0000-7000-8000-0000000000b1';
+    const { run, control, destroyed } = setupReplayLedger({
+      backends: [backendId],
+      control: [tombstone('principal:p1', tenantId, 'erasure')],
+      sink: [tombstone('principal:p1', tenantId, 'erasure'), tombstone('principal:p1', backendId)],
+    });
+    await run();
+    expect(
+      control.flatMap((entry) => (entry.type === 'keyTombstone' ? [entry.scopeId] : [])),
+    ).toEqual([tenantId, backendId]);
+    expect(destroyed).toEqual([{ tenant: backendId, keyId: 'principal:p1' }]);
+  });
+
   test('a tenant that is neither bumped nor reconciled has no value key destroyed', async () => {
     const { run, destroyed } = setupReplayLedger({ control: [tombstone('v1')] });
     await run();

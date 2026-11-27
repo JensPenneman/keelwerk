@@ -1,7 +1,6 @@
 import type {
   EraseStreamResult,
   ErasureRecord,
-  KeyTombstoneRecord,
   OwnedRowsCursor,
   OwnedRowsPage,
   RuntimeServiceContext,
@@ -31,20 +30,23 @@ import { destroyRecorded } from './destroy-recorded.ts';
 import { ErasureHalted } from './erasure-halted.ts';
 import type { ErasureOptions } from './erasure-options.ts';
 import type { ErasureTarget } from './erasure-target.ts';
+import { purgeBackendPrincipals } from './purge-backend-principals.ts';
 import { type ReferencedRow, referencedRows } from './referenced-rows.ts';
 import { settleAnswers } from './settle-answers.ts';
 import { settleRows } from './settle-rows.ts';
 import type { Settled } from './settled.ts';
 import { streamKey } from './stream-key.ts';
+import { tombstoneRecorder } from './tombstone-recorder.ts';
 import { untilTombstoned } from './until-tombstoned.ts';
 
 /** What one record is run with beyond the options of the worker. */
 export type RunErasureOptions = Required<Pick<ErasureOptions, 'pageSize'>> &
   Pick<ErasureOptions, 'afterStep' | 'insideStep'> & {
     /**
-     * The key ids whose tombstone this process has seen the control ledger and every ledger sink
-     * take: a unit may destroy those keys, and a repeat needs no lookup. The caller hands one set
-     * to every run; a tombstone this run records joins it.
+     * The scope and key id pairs, and the scope, key id and command triples, whose tombstone this
+     * process has seen the control ledger and every ledger sink take: a unit of that scope may
+     * destroy those keys, and a repeat of the tombstone of that command needs no lookup. The caller
+     * hands one set to every run, of every tenant; a tombstone this run records joins it.
      */
     readonly tombstoned: Set<string>;
     /**
@@ -77,8 +79,9 @@ export type RunErasureOptions = Required<Pick<ErasureOptions, 'pageSize'>> &
  * `erased` events of this erasure), not by a lookup of who owns what now: the
  * purge of the principal that the row's id stands for (receipts, jobs, tickets, rate buckets, the
  * keys of its request records), of the receipts of the commands that wrote in the row, and the
- * erased fingerprint of the receipts that stay. A crash right after that unit, and a holder that
- * moves afterwards, lose none of it.
+ * erased fingerprint of the receipts that stay, and the purge of the same principals in the
+ * tenant's backend scope (the subject's own spellings excepted). A crash right after that unit,
+ * and a holder that moves afterwards, lose none of it.
  */
 export async function runErasure(
   context: RuntimeServiceContext,
@@ -96,7 +99,6 @@ export async function runErasure(
     guardUnits(context.control.adapter, guard),
     context.control.namespace,
   );
-  const known = options.tombstoned;
   /**
    * The keys with a tombstone for this erasure: the ones the control ledger holds after the
    * erasure's own record (a run that crashed after recording a tombstone and before destroying its
@@ -109,42 +111,21 @@ export async function runErasure(
    * tombstone of another erasure names none of its rows.
    */
   const own = new Set<string>();
-  /**
-   * Tombstones go to the control ledger and to every sink, before any later step. A tombstone of
-   * this erasure that the control ledger holds already (the step ran before and failed at a sink,
-   * or after it) is not appended there again; the look-up is by key id and command, so another
-   * erasure's tombstone for the same key does not stand for this one's. The sinks get it again: a
-   * sink that failed missed it, and a tombstone twice in a sink changes nothing.
-   */
-  const recordTombstones = async (tombstones: readonly KeyTombstoneRecord[]): Promise<void> => {
-    for (const tombstone of tombstones) {
-      recorded.add(tombstone.keyId);
-      if (!own.has(tombstone.keyId)) {
-        const held = await ledger.find([{ type: 'keyTombstone', keyId: tombstone.keyId }]);
-        const heldOwn = held.some(
-          ({ record: r }) => r.type === 'keyTombstone' && r.commandId === tombstone.commandId,
-        );
-        if (!heldOwn) await ledger.append(tombstone);
-      }
-      if (tombstone.commandId === record.commandId) own.add(tombstone.keyId);
-      for (const sink of context.ledgers) await guard(() => sink.append([tombstone]));
-      // Known only once every sink has it: a sink that refused leaves the key unknown, so a rerun appends it again.
-      known.add(tombstone.keyId);
-    }
-  };
-  const keyTombstones = (keyIds: readonly string[]): readonly KeyTombstoneRecord[] =>
-    keyIds.map(
-      (keyId): KeyTombstoneRecord => ({
-        type: 'keyTombstone',
-        scopeId: record.tenantId,
-        keyId,
-        recordedAt: context.clock.now().toString(),
-        reason: 'erasure',
-        commandId: record.commandId,
-      }),
-    );
-  const recordKeys = (keyIds: readonly string[]): Promise<void> =>
-    recordTombstones(keyTombstones(keyIds));
+  // Tombstones are told apart by scope, key id and command, in the tenant and in its backend scope.
+  const { recordTombstones, recordKeys, recordBackendKeys, knownInTenant, knownInBackend } =
+    tombstoneRecorder({
+      ledger,
+      sinks: context.ledgers,
+      guard,
+      clock: context.clock,
+      known: options.tombstoned,
+      recorded,
+      own,
+      commandId: record.commandId,
+      tenantId: record.tenantId,
+      backendId: found.backend.scope.backendId,
+    });
+  const backendGuarded = guardUnits(found.backend.handle.adapter, guard);
   /**
    * The purge of the principals in one writing unit that calls no sink: it destroys keys through the
    * gate, and a key with no recorded tombstone rolls it back; the tombstones of those keys are
@@ -153,7 +134,7 @@ export async function runErasure(
   const purgeTombstoned = async (
     work: (u: Unit, onValueKeys: (keyIds: readonly string[]) => Promise<void>) => Promise<unknown>,
   ): Promise<void> => {
-    await untilTombstoned(known, recordKeys, (gate) =>
+    await untilTombstoned(knownInTenant, recordKeys, (gate) =>
       unit(false, async (u) => {
         await options.insideStep?.('principals', record);
         await work(u, gate.onValueKeys);
@@ -249,7 +230,7 @@ export async function runErasure(
     }
     const limits = effect ? await context.quotas?.fresh() : undefined;
     let settled = false;
-    const result = await untilTombstoned(known, recordKeys, (gate) =>
+    const result = await untilTombstoned(knownInTenant, recordKeys, (gate) =>
       unit(false, async (u): Promise<EraseStreamResult> => {
         await options.insideStep?.('streams', record);
         let result: EraseStreamResult = { outcome: 'skipped', owned: false, valueKeys: [] };
@@ -343,6 +324,20 @@ export async function runErasure(
       await purgeTombstoned((u, onValueKeys) =>
         settleRows(u, { registry, record, rows, rateBuckets, onValueKeys }),
       );
+      // The same rows' principals in the tenant's backend scope, in a unit of its own that holds
+      // no row's lock; the subject's own spellings stay there: the same person may live in
+      // another tenant of the backend.
+      const subject = canonicalSubject(record.subjectId);
+      const rowIds = owners.filter((id) => canonicalSubject(id) !== subject);
+      if (rowIds.length === 0) return;
+      await purgeBackendPrincipals({
+        registry,
+        rowIds,
+        known: knownInBackend,
+        record: recordBackendKeys,
+        unit: (fn) => backendGuarded.unit(found.backend.namespace, found.backend.scope, fn, {}),
+        inside: async () => options.insideStep?.('principals', record),
+      });
     },
   });
 

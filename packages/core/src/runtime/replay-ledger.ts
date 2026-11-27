@@ -37,9 +37,9 @@ function lookupOf(record: ReplayedRecord): LedgerLookup {
  * over the sinks of the restore check (`readSinks`); the tenants of a missing record are
  * `reconciled`. A record that cannot be probed or appended would be invisible to (c) and to the
  * hold, so it fails the start.
- * (d) The value keys: for every tenant in `bumped` or `reconciled`, every tombstone of the tenant
+ * (d) The value keys: for every tenant or backend in `bumped` or `reconciled`, every tombstone of the scope
  * (every reason: erasure, rotation, tenant deleted), those still missing from the control ledger
- * included, is destroyed again in the tenant's unit, so a value key an earlier erasure or a
+ * included, is destroyed again in the scope's unit, so a value key an earlier erasure or a
  * rotation destroyed does not reopen from a restored placement. The appends of (b) come after it:
  * the append is what makes a tenant `reconciled` for good, so a crash or a failure in (d) leaves
  * the records missing and the next start runs (d) again. A failed tenant lookup rejects as well.
@@ -109,6 +109,15 @@ export async function replayLedger(input: {
     };
   };
 
+  /** The same for a backend scope, where a principal's request records are kept (14.7.5). */
+  const backendOf = async (backendId: string) => {
+    const backend = await directory.backend(backendId);
+    if (backend === undefined) return undefined;
+    const source = sources.find((candidate) => candidate.namespace.id === backend.namespace.id);
+    if (source === undefined) return undefined;
+    return { source, scope: { level: 'backend', backendId: backend.id } as const };
+  };
+
   // (b) The records of the sinks the control ledger lacks, found here and appended after (d).
   const missing: ReplayedRecord[] = [];
   const seen = new Set<string>();
@@ -131,8 +140,8 @@ export async function replayLedger(input: {
     if (record.type !== 'keyTombstone') continue;
     missingKeyIds.set(record.scopeId, [...(missingKeyIds.get(record.scopeId) ?? []), record.keyId]);
   }
-  for (const tenantId of new Set([...input.bumped, ...reconciled])) {
-    const found = await tenantOf(tenantId);
+  for (const scopeId of new Set([...input.bumped, ...reconciled])) {
+    const found = (await tenantOf(scopeId)) ?? (await backendOf(scopeId));
     if (found === undefined) continue;
     const destroy = async (keyIds: readonly string[]): Promise<void> => {
       if (keyIds.length === 0) return;
@@ -141,10 +150,10 @@ export async function replayLedger(input: {
         for (const keyId of keyIds) await unit.keys.destroyValueKey(keyId);
       });
     };
-    await destroy(missingKeyIds.get(tenantId) ?? []);
+    await destroy(missingKeyIds.get(scopeId) ?? []);
     let from = 0n;
     for (;;) {
-      const page = await ledger.find([{ type: 'keyTombstone', scopeId: tenantId }], {
+      const page = await ledger.find([{ type: 'keyTombstone', scopeId }], {
         after: from,
         limit: pageSize,
       });
