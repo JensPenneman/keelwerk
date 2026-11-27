@@ -14,7 +14,7 @@ export function checkPersonalCommandOutput(
   return [...actions.values()]
     .filter((action) => action.kind === 'command' && action.entityOutput === undefined)
     .flatMap((action) => {
-      const field = personalInputField(action.output);
+      const field = personalInputField('commandOutput', action.output);
       return field === undefined
         ? []
         : [

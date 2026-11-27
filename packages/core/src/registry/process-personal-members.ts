@@ -1,4 +1,4 @@
-import { personalFlagOf } from '../fields/personal-flag-of.ts';
+import { personalFlagAt } from '../fields/personal-flag-at.ts';
 import type { ReactionEntry } from './reaction-entry.ts';
 
 /** A member of a process event that holds personal data, and the subject path its field names (null: none). */
@@ -19,7 +19,7 @@ export function processPersonalMembers(
   const members: ProcessPersonalMember[] = [];
   for (const [event, shape] of Object.entries(reaction.eventShapes ?? {})) {
     for (const [member, def] of Object.entries(shape.fields)) {
-      const flag = personalFlagOf(def);
+      const flag = personalFlagAt('processEvent', def);
       if (flag !== false) members.push({ event, member, subject: flag.subject });
     }
   }

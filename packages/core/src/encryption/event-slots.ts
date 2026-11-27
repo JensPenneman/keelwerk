@@ -1,4 +1,5 @@
 import type { AnyField } from '../fields/field-def.ts';
+import { personalFlagAt } from '../fields/personal-flag-at.ts';
 import type { EntityEntry } from '../registry/entity-entry.ts';
 
 const generatedOperations = ['set', 'add', 'remove'] as const;
@@ -14,7 +15,7 @@ function shapeSubjects(entry: EntityEntry, name: string): ReadonlyMap<string, st
   const subjects = new Map<string, string>();
   if (!isRecord(fields)) return subjects;
   for (const [field, def] of Object.entries<AnyField>(fields as Record<string, AnyField>)) {
-    const flag = def.flags.personal;
+    const flag = personalFlagAt('domainEvent', def);
     if (flag !== false) subjects.set(field, flag.subject ?? entry.descriptor.dataSubject ?? 'id');
   }
   return subjects;

@@ -1,61 +1,19 @@
 import { describe, expect, test } from 'vitest';
+import {
+  anySchema,
+  appOf,
+  codes,
+  commandOf,
+  effectOf,
+  moduleOf,
+  registryOf,
+} from '../../test/credential-shapes-kit.ts';
 import { field } from '../fields/field.ts';
 import { shape } from '../fields/shape.ts';
-import type { ActionEntry } from './action-entry.ts';
 import { checkCredentialShapes } from './check-credential-shapes.ts';
-import type { ComposableApp } from './composable-app.ts';
-import type { EffectEntry } from './effect-entry.ts';
-import type { Registry } from './registry.ts';
 
 const nested = field.json(shape({ token: field.secret(), label: field.string() }));
 const nestedVerifier = field.json(shape({ key: field.verifier() }));
-const anySchema = {
-  '~standard': { version: 1, vendor: 'test', validate: (value: unknown) => ({ value }) },
-} as const;
-
-function moduleOf(over: object = {}) {
-  return {
-    id: 'probe',
-    base: {},
-    entities: {},
-    contributes: [],
-    conditional: [],
-    ...over,
-  };
-}
-const appOf = (...modules: object[]) => ({ modules }) as unknown as ComposableApp;
-const commandOf = (over: object): ActionEntry =>
-  ({
-    ref: 'probe.run',
-    module: 'probe',
-    kind: 'command',
-    input: shape({}),
-    output: shape({}),
-    ...over,
-  }) as unknown as ActionEntry;
-const effectOf = (over: object): EffectEntry =>
-  ({
-    ref: 'probe.send',
-    module: 'probe',
-    name: 'send',
-    performer: 'external',
-    executor: null,
-    input: shape({}),
-    output: shape({}),
-    ...over,
-  }) as unknown as EffectEntry;
-const registryOf = (
-  actions: ActionEntry[] = [],
-  effects: EffectEntry[] = [],
-  entities: object = {},
-) =>
-  ({
-    actions: new Map(actions.map((action) => [action.ref, action])),
-    effects: new Map(effects.map((effect) => [effect.ref, effect])),
-    entities: new Map(Object.entries(entities)),
-  }) as unknown as Registry;
-const codes = (problems: readonly { code: string }[]) => problems.map((problem) => problem.code);
-
 describe('credentialInJson', () => {
   test('a command input', () => {
     const problems = checkCredentialShapes(
@@ -183,12 +141,12 @@ describe('verifierOutsideEntity', () => {
     expect(codes(problems)).toEqual(['verifierOutsideEntity']);
   });
 
-  test('a verifier inside a json member is both problems', () => {
+  test('a verifier inside a json member is one problem, the verifier one', () => {
     const problems = checkCredentialShapes(
       appOf(moduleOf()),
       registryOf([commandOf({ input: shape({ settings: nestedVerifier }) })]),
     );
-    expect(codes(problems).sort()).toEqual(['credentialInJson', 'verifierOutsideEntity']);
+    expect(codes(problems)).toEqual(['verifierOutsideEntity']);
   });
 });
 
@@ -197,10 +155,11 @@ describe('what composes', () => {
     name: field.string(),
     password: field.secret(),
     apiKey: field.verifier(),
-    keys: field.list(field.secret()),
   };
   const widget = {
     ref: 'probe.widget',
+    module: 'probe',
+    events: {},
     descriptor: {
       fields: {
         name: { kind: 'string', inner: null },
@@ -267,12 +226,13 @@ describe('what composes', () => {
     expect(problems[0]?.message).toContain("'apiKey'");
   });
 
-  test('a secret as a top-level member or as a list element composes everywhere', () => {
+  test('a secret as a top-level member or as a list element composes where the kernel seals each', () => {
+    const list = shape({ token: field.secret(), more: field.set(field.secret()) });
     const problems = checkCredentialShapes(
       appOf(moduleOf({ base: { config: shape({ key: field.secret() }) } })),
       registryOf(
-        [commandOf({ input: shape({ token: field.secret(), more: field.set(field.secret()) }) })],
-        [effectOf({ input: shape({ token: field.secret() }) })],
+        [commandOf({ input: list, output: list })],
+        [effectOf({ input: list, output: list })],
       ),
     );
     expect(problems).toEqual([]);

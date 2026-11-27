@@ -1548,7 +1548,7 @@ core's suite (the cases above, and one each for the checks they do not cover):
 | `invalidDeprecationDate` | `defineApp` | an action's `deprecated.at` or `sunset` is neither a calendar date (`YYYY-MM-DD`) nor an instant with an offset (`2026-12-01T10:00:00Z`, `+01:00`): a date-time without an offset or `Dec 1, 2026` is refused (section 18.5) |
 | `serialPartition` | `defineApp` | the `per` of a `field.serial({ per })` names a field that is personal, sealed or the entity's data subject, or no field of the entity (section 15.1.4) |
 | `personalOutsideTenant` | `defineApp` | a personal member is in the input of an asynchronous command whose scope is not `tenant`, or in a record of a stream of a row that is not a tenant's, or an entity whose tenancy is not `tenant` declares a personal field or a data subject (erasure reaches the tenant scope only); an `invocation` command counts, although its job is stored in the tenant scope when a tenant invokes it, because the same command can be invoked outside a tenant, where no erasure reaches its stored input (section 14.7.5) |
-| `credentialInJson`, `verifierOutsideEntity` | `defineApp` | a `field.secret()` or `field.verifier()` sits inside a `field.json()` member of a shape a module declares, or a verifier is declared anywhere but as a top-level field of an entity (a command or effect input or output, a module configuration) (section 14.7.4) |
+| `personalNotSealed`, `credentialNotSealed`, `credentialInJson`, `verifierOutsideEntity` | `defineApp` | a personal mark, a `field.secret()` or a `field.verifier()` stands at a position where the kernel does not protect it at that site (section 14.7.4): one error for each such mark; the positions are one definition (`fields/mark-cells.ts`), read by this check, the sealing code and every redaction; a position another check refuses already (`processEventCredential`, `streamRecordCredential`, `personalCommandOutput`, `personalEffectOutput`) keeps that error alone |
 | `asyncReactionTransient` | `defineApp` | an asynchronous reaction, a process included, names an event of a `history: 'state'` entity; `on: 'all'` is not refused (sections 7.7 and 15.1.10) |
 | `dataSubjectUnindexed` | `defineApp` (a warning) | a field the owned-row lookup of an erasure filters on has no plain index (section 14.7.5) |
 | `asyncReactionsUnavailable` | boot | an app mounts an asynchronous reaction and no event worker of the deployment (`consumers(...)` of `@keelwerk/events`) lists `asyncReactions` in its `runs` (section 7.7) |
@@ -7829,12 +7829,33 @@ after it, and the stream is reported as changed.
   value key, bound to `core.effect`, the effect id and the member path, so replacing the secret
   does not reach effects already requested; WP-126 destroys these value keys when the effect
   settles.
-  Added 2026-11-18: the kernel seals a credential only as a top-level member or as an element of a
-  list or set. Compose therefore refuses a `field.secret()` or `field.verifier()` inside a
-  `field.json()` member of a shape a module declares (`credentialInJson`) and a verifier anywhere
-  but as a top-level field of an entity (`verifierOutsideEntity`, both in section 4.7), and a job
-  whose generated write would store a credential or personal value unsealed is refused with
-  `internal`, `core.request_not_allowed`.
+  Added 2026-11-18: compose refuses a `field.secret()` or `field.verifier()` inside a `field.json()`
+  member of a shape a module declares (`credentialInJson`) and a verifier anywhere but as a
+  top-level field of an entity (`verifierOutsideEntity`, both in section 4.7), and a job whose
+  generated write would store a credential or personal value unsealed is refused with `internal`,
+  `core.request_not_allowed`.
+  Added 2026-11-26: a personal mark, a secret and a verifier are accepted exactly at the positions
+  where the kernel protects them at that site, and refused at every other position, with one error
+  for each mark (`personalNotSealed`, `credentialNotSealed`, `credentialInJson`,
+  `verifierOutsideEntity`). Protected means sealed wherever the kernel stores the value or passes it
+  on, never in clear in a copy the kernel shows (a dry run's report, a re-decide's answer), and, for
+  personal data, reached by the erasure of its subject. The positions are defined once, in
+  `fields/mark-cells.ts`; the composition check, the sealing code and every redaction read that
+  definition. They are: a personal member, as a whole member or as a list or set holding personal
+  elements, at a command or effect input, a domain event, an event of a process and a stream
+  record, and as a whole member at an entity field; a secret as a member and as each element of a
+  list or set of secrets at a command or effect input or output, and as a member at an entity field
+  and a module configuration; a verifier as a member of an entity field. Nothing marked is
+  protected in the extra input of a continuation, so nothing marked composes there. Nothing is
+  protected inside a `field.json()` member over a shape, so a mark inside it is refused; a `json`
+  member that is itself marked personal as a whole is sealed whole, and so is a list or set marked
+  personal as a whole, and a member marked personal as a whole takes no personal mark inside it (one
+  mark per member, whichever subject the inner mark names). Also refused: a personal member of a
+  command or effect output (`personalCommandOutput`, `personalEffectOutput`) and of a module
+  configuration (a configuration is stored in clear), and a credential of a domain event, an event
+  of a process or a stream record (`processEventCredential`, `streamRecordCredential`). The refusal of a mark at a position says what the table says at its place: that the kernel does not protect that mark at that position there, and which positions it does protect there. The refusal of a second personal mark inside a member marked personal as a whole says to drop the inner mark. The older checks keep their own texts. A `json` member over a schema that is
+  not a keelwerk shape cannot be looked into: it must be marked personal as a whole if it can carry
+  personal data.
 - **Keys.** The key service is one component in the core, bound to scopes rather than to an
   invocation: `issue(scope, { prefix, bytes? })` returns `IssuedSecret { plain, publicId, verifier
   }`, `verify(scope, token, verifier)` compares in constant time, `reveal(unit, ref, reason)` opens a

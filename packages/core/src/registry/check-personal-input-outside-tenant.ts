@@ -1,5 +1,5 @@
 import { personalInputField } from '../effects/personal-input-field.ts';
-import { personalFlagOf } from '../fields/personal-flag-of.ts';
+import { personalFlagAt } from '../fields/personal-flag-at.ts';
 import type { ActionEntry } from './action-entry.ts';
 import { compositionError } from './composition-error.ts';
 import type { CompositionProblem } from './composition-problem.ts';
@@ -25,7 +25,7 @@ export function checkPersonalInputOutsideTenant(
     if (action.kind !== 'command' || action.scope === 'tenant' || action.execution === 'sync') {
       continue;
     }
-    const personal = personalInputField(action.input);
+    const personal = personalInputField('commandInput', action.input);
     if (personal === undefined) continue;
     problems.push(
       compositionError(
@@ -39,7 +39,7 @@ export function checkPersonalInputOutsideTenant(
     const tenancy = entities.get(stream.readAs)?.descriptor.tenancy;
     if (tenancy === undefined || tenancy === 'tenant') continue;
     const member = Object.entries(stream.record.fields).find(
-      ([, def]) => personalFlagOf(def) !== false,
+      ([, def]) => personalFlagAt('streamRecord', def) !== false,
     );
     if (member === undefined) continue;
     problems.push(

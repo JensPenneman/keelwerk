@@ -1,9 +1,10 @@
 import type { AnyField } from '../fields/field-def.ts';
-import { personalFlagOf } from '../fields/personal-flag-of.ts';
+import { personalFlagAt } from '../fields/personal-flag-at.ts';
 import type { RandomSource } from '../keys/random-source.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { Unit } from '../storage/unit.ts';
+import { encodeEventValue } from '../write-path/encode-event-value.ts';
 import { personalMemberSealer } from './personal-member-sealer.ts';
 import { sealMembers } from './seal-members.ts';
 
@@ -45,9 +46,10 @@ export async function sealPersonalMembers(input: SealPersonalMembersInput): Prom
       fields,
       input: input.input,
       id: commandId,
+      encode: encodeEventValue,
       ...(input.random === undefined ? {} : { random: input.random }),
       pathOf: (_name, field) => {
-        const flag = personalFlagOf(field);
+        const flag = personalFlagAt('commandInput', field);
         return flag === false ? undefined : (flag.subject ?? null);
       },
     }),

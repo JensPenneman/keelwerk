@@ -1,4 +1,4 @@
-import { payloadCredentialField } from '../keys/payload-credential-field.ts';
+import { memberReferredTo } from '../fields/member-referred-to.ts';
 import type { ComposableApp } from './composable-app.ts';
 import { compositionError } from './composition-error.ts';
 import type { CompositionProblem } from './composition-problem.ts';
@@ -33,7 +33,7 @@ export function checkProcessEvents(
       );
     }
     for (const [event, shape] of Object.entries(reaction.eventShapes ?? {})) {
-      const credential = payloadCredentialField(shape);
+      const credential = memberReferredTo('processEvent', shape.fields, 'processEventCredential');
       if (credential === undefined) continue;
       problems.push(
         compositionError(

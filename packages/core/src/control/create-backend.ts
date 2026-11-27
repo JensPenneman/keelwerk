@@ -1,9 +1,9 @@
 import { errors } from '../errors/errors.ts';
 import { KeelwerkError } from '../errors/keelwerk-error.ts';
 import type { Shape } from '../fields/shape.ts';
+import { unsealedCredentialMember } from '../fields/unsealed-credential-member.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import { configSecrets } from '../keys/config-secrets.ts';
-import { nestedCredentialField } from '../keys/nested-credential-field.ts';
 import type { ControlRun } from './control-run.ts';
 import type { ControlStore } from './control-store.ts';
 import { coreBackendConfig } from './core-backend-config.ts';
@@ -115,13 +115,19 @@ function checkedConfig(
     if (quotas !== undefined) {
       checked.quotas = checkedQuotas(quotas as Record<string, string>, checkQuotaValue);
     }
-    const nested = nestedCredentialField(schema.fields);
+    const nested = unsealedCredentialMember('configuration', schema.fields);
     if (nested !== undefined) {
-      throw errors.validation(`${moduleId}.${nested} holds secrets in a list or set.`, {
-        issues: [
-          { path: [moduleId, nested], message: 'Secrets are sealed one per field, not in a list.' },
-        ],
-      });
+      throw errors.validation(
+        `${moduleId}.${nested} holds a secret at a position where the kernel does not seal it.`,
+        {
+          issues: [
+            {
+              path: [moduleId, nested],
+              message: 'The kernel does not seal a secret at this position.',
+            },
+          ],
+        },
+      );
     }
     for (const [name, member] of Object.entries(schema.fields)) {
       const value = checked[name];

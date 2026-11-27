@@ -77,7 +77,7 @@ export function checkEffectSubjects(
         );
       }
     }
-    const personalOutput = personalInputField(entry.output);
+    const personalOutput = personalInputField('effectOutput', entry.output);
     if (personalOutput !== undefined) {
       problems.push(
         compositionError(

@@ -5,7 +5,7 @@ import type { CommandOutput } from './command-output.ts';
 
 /**
  * The outcome a receipt keeps (15.1.7, S-127): for a `value` outcome whose action output declares a
- * secret member, `sealSecretMembers(unit, { entity: 'core.commandReceipt', id: commandId,
+ * secret member, `sealSecretMembers(unit, { site: 'commandOutput', entity: 'core.commandReceipt', id: commandId,
  * prefix: 'outcome.', refs: 'keep' }, action.output, outcome.value)`; any other outcome is answered
  * as the same object.
  */
@@ -18,7 +18,13 @@ export async function sealCommandOutput(
   if (!('value' in outcome)) return outcome;
   const sealed = await sealSecretMembers(
     unit,
-    { entity: 'core.commandReceipt', id: commandId, prefix: 'outcome.', refs: 'keep' },
+    {
+      site: 'commandOutput',
+      entity: 'core.commandReceipt',
+      id: commandId,
+      prefix: 'outcome.',
+      refs: 'keep',
+    },
     action.output,
     outcome.value,
   );

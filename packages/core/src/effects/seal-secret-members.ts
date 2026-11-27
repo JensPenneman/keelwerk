@@ -1,5 +1,7 @@
 import { errors } from '../errors/errors.ts';
 import type { AnyField } from '../fields/field-def.ts';
+import type { MarkSite } from '../fields/mark-types.ts';
+import { sealsCredentialAt } from '../fields/seals-credential-at.ts';
 import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
 import { configSecrets } from '../keys/config-secrets.ts';
 import { parseSealedValueText } from '../keys/parse-sealed-value-text.ts';
@@ -13,10 +15,6 @@ const encoder = new TextEncoder();
 /** Whether `text` is a sealed configuration secret of `module`: the module's own setting, which the executor reveals for the backend of the job. */
 function configSecretOf(text: string, module: string): boolean {
   return configSecrets.isText(text) && configSecrets.parse(text)?.moduleId === module;
-}
-
-function holdsSecret(field: AnyField): boolean {
-  return field.kind === 'secret' || (field.inner !== null && holdsSecret(field.inner));
 }
 
 async function sealMember(
@@ -92,6 +90,8 @@ async function sealMember(
 
 /** How the secret members of one stored document are sealed (14.7.4, S-127). */
 export interface SecretMemberBinding {
+  /** The place of the shape: which positions of a secret the kernel seals there (`fields/mark-cells.ts`). */
+  readonly site: MarkSite;
   /** The value key's binding is `{ entity, id, field: prefix + member name }`. */
   readonly entity: 'core.effect' | 'core.commandReceipt' | 'core.job';
   readonly id: string;
@@ -120,7 +120,7 @@ export function sealSecretMembers(
   value: unknown,
 ): Promise<unknown> {
   return sealMembers(schema, value, {
-    select: (_name, field) => (holdsSecret(field) ? true : undefined),
+    select: (_name, field) => (sealsCredentialAt(binding.site, field, 'secret') ? true : undefined),
     seal: (name, field, member) => sealMember(unit, binding, name, field, member),
   });
 }

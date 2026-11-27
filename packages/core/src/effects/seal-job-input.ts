@@ -29,7 +29,7 @@ export async function sealJobInput(
   if (refused !== undefined) throw refused;
   const secretsSealed = await sealSecretMembers(
     unit,
-    { entity: 'core.job', id: commandId, prefix: '', refs: 'keep' },
+    { site: 'commandInput', entity: 'core.job', id: commandId, prefix: '', refs: 'keep' },
     action.input,
     input,
   );

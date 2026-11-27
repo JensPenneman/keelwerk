@@ -75,7 +75,11 @@ export async function dryRun(input: DryRunInput): Promise<DryRunReport> {
       status: 'would-perform',
       action: action.ref,
       effect: error.effect,
-      input: redactEffectInput(registry.effects.get(error.effect)?.input, error.effectInput),
+      input: redactEffectInput(
+        'effectInput',
+        registry.effects.get(error.effect)?.input,
+        error.effectInput,
+      ),
     };
   }
   const batches: StreamAppend[] = [];

@@ -1,5 +1,5 @@
 import { errors } from '../errors/errors.ts';
-import { personalFlagOf } from '../fields/personal-flag-of.ts';
+import { personalFlagAt } from '../fields/personal-flag-at.ts';
 import type { Shape } from '../fields/shape.ts';
 import { sealKwe } from '../keys/seal-kwe.ts';
 import { addSubjectRef } from './add-subject-ref.ts';
@@ -39,7 +39,7 @@ export async function sealProcessEvent(
   const out: Record<string, unknown> = { ...input.data };
   let sealed = false;
   for (const [member, def] of Object.entries(input.shape.fields)) {
-    if (personalFlagOf(def) === false) continue;
+    if (personalFlagAt('processEvent', def) === false) continue;
     const value = input.data[member];
     if (value === undefined || value === null) continue;
     if (!isSubjectUuid(input.subject)) {

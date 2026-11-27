@@ -1,7 +1,7 @@
 import { isKweEnvelope } from '../encryption/is-kwe-envelope.ts';
 import { errors } from '../errors/errors.ts';
 import type { AnyField } from '../fields/field-def.ts';
-import { personalFlagOf } from '../fields/personal-flag-of.ts';
+import { personalFlagAt } from '../fields/personal-flag-at.ts';
 import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
 import { openKwe } from '../keys/open-kwe.ts';
 import type { Unit } from '../storage/unit.ts';
@@ -36,7 +36,7 @@ export async function openPersonalMembers(
   }
   const opened: Record<string, unknown> = { ...value };
   for (const [name, field] of Object.entries(fields)) {
-    if (!(Object.hasOwn(opened, name) && personalFlagOf(field) !== false)) continue;
+    if (!(Object.hasOwn(opened, name) && personalFlagAt('commandInput', field) !== false)) continue;
     const stored = opened[name];
     if (!isKweEnvelope(stored)) continue;
     const key = await unit.keys.keyById(stored.k);

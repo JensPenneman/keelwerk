@@ -17,7 +17,8 @@ export function checkPersonalScheduleInput(
   const problems: CompositionProblem[] = [];
   for (const schedule of schedules.values()) {
     const action = actions.get(schedule.invoke);
-    const personal = action === undefined ? undefined : personalInputField(action.input);
+    const personal =
+      action === undefined ? undefined : personalInputField('commandInput', action.input);
     if (personal === undefined) continue;
     problems.push(
       compositionError(

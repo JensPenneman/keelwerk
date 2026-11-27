@@ -1,8 +1,6 @@
-import type { ActionEntry } from '../registry/action-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { ComparableEvent } from '../replay/comparable-event.ts';
 import type { RedecideResult } from '../replay/redecide-result.ts';
-import { redactEffectInput } from './redact-effect-input.ts';
 import { redactEventData } from './redact-event-data.ts';
 import { redactKeys } from './redact-keys.ts';
 import { redactResult } from './redact-result.ts';
@@ -17,8 +15,8 @@ function redactedEvents(
     if (entry === undefined) return event;
     return {
       ...event,
-      data: redactEventData(entry, event.data),
-      before: redactKeys(entry.descriptor.fields, event.before),
+      data: redactEventData(entry, event.type.slice(entry.ref.length + 1), event.data),
+      before: redactKeys('entity', entry.descriptor.fields, event.before),
     };
   });
 }
@@ -33,22 +31,6 @@ function withoutFailureMessage(difference: string): string {
   if (!difference.startsWith(failurePrefix)) return difference;
   const code = difference.slice(failurePrefix.length).split(': ', 1)[0] ?? '';
   return `${failurePrefix}${code}`;
-}
-
-/**
- * The decided result as explain shows it: an entity output (a row or a page of rows) by the field
- * flags of its entity, any other output by the flags of the action's output schema, as an effect
- * input is redacted (a member that is hidden, personal or secret, or any member of a schema with
- * no keelwerk fields, becomes `[redacted]`). A value that is no object holds no member to flag and
- * is redacted whole.
- */
-function redactedResult(registry: Registry, action: ActionEntry, result: unknown): unknown {
-  if (action.entityOutput !== undefined && registry.entities.has(action.entityOutput.entity)) {
-    return redactResult(registry, action, result);
-  }
-  if (result === undefined || result === null) return result;
-  if (typeof result !== 'object' || Array.isArray(result)) return '[redacted]';
-  return redactEffectInput(action.output, result);
 }
 
 /**
@@ -81,7 +63,7 @@ export function redactRedecideResult(registry: Registry, result: RedecideResult)
             result:
               action === undefined
                 ? '[redacted]'
-                : redactedResult(registry, action, redecided.result),
+                : redactResult(registry, action, redecided.result),
           }
         : {}),
     },

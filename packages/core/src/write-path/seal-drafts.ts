@@ -1,8 +1,8 @@
 import { errors } from '../errors/errors.ts';
+import type { AnyField } from '../fields/field-def.ts';
+import { unsealedCredentialMember } from '../fields/unsealed-credential-member.ts';
 import { createValueKeyLifecycle } from '../keys/create-value-key-lifecycle.ts';
-import { nestedCredentialField } from '../keys/nested-credential-field.ts';
 import { parseSealedValueText } from '../keys/parse-sealed-value-text.ts';
-import { payloadCredentialField } from '../keys/payload-credential-field.ts';
 import { sealedFieldsOf } from '../keys/sealed-fields-of.ts';
 import { sealedValueText } from '../keys/sealed-value-text.ts';
 import type { AnyDraft } from '../protocol/any-draft.ts';
@@ -64,12 +64,20 @@ export async function sealDrafts(input: SealDraftsInput): Promise<readonly AnyDr
   for (const draft of input.drafts) {
     const entry = registry.entities.get(draft.entity);
     if (entry !== undefined && draft.kind === 'event') {
-      const inPayload = payloadCredentialField(entry.events[draft.type]);
+      const inPayload = unsealedCredentialMember(
+        'domainEvent',
+        (
+          entry.events[draft.type] as
+            | { readonly fields?: Record<string, AnyField> }
+            | null
+            | undefined
+        )?.fields ?? {},
+      );
       if (inPayload !== undefined) {
         throw refuse(
           entry,
           inPayload,
-          'is a credential in an event payload, which is not sealed; keep it in an entity field.',
+          'is a credential in an event payload, and the kernel does not seal one there.',
         );
       }
     }
@@ -79,12 +87,12 @@ export async function sealDrafts(input: SealDraftsInput): Promise<readonly AnyDr
         const field = entry.descriptor.fields[name];
         if (field !== undefined) written[name] = field;
       }
-      const nested = nestedCredentialField(written);
+      const nested = unsealedCredentialMember('entity', written);
       if (nested !== undefined) {
         throw refuse(
           entry,
           nested,
-          'holds credentials in a list or set, which are not sealed per value; use one secret field per value.',
+          'holds a credential at a position where the kernel does not seal it.',
         );
       }
     }

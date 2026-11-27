@@ -1,16 +1,14 @@
 import { openEffectInput } from '../effects/open-effect-input.ts';
 import { validateEffectInput } from '../effects/validate-effect-input.ts';
 import type { AnyField } from '../fields/field-def.ts';
+import { personalFlagAt } from '../fields/personal-flag-at.ts';
+import { sealsCredentialAt } from '../fields/seals-credential-at.ts';
 import { canonicalizeJson } from '../json/canonicalize-json.ts';
 import type { ExternalEffect } from '../protocol/external-effect.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { StorageRow } from '../storage/storage-row.ts';
 import type { Unit } from '../storage/unit.ts';
 import { encodeEventValue } from '../write-path/encode-event-value.ts';
-
-function holdsSecret(field: AnyField): boolean {
-  return field.kind === 'secret' || (field.inner !== null && holdsSecret(field.inner));
-}
 
 /** A value as text for a comparison: an absent value and a null alike are the empty text. */
 function textOf(value: unknown): string {
@@ -67,7 +65,8 @@ export async function effectRequestDifference(input: {
     const want = wanted?.[name];
     const same =
       field !== undefined &&
-      (holdsSecret(field) || (input.personalByPresence === true && field.flags.personal !== false))
+      (sealsCredentialAt('effectInput', field, 'secret') ||
+        (input.personalByPresence === true && personalFlagAt('effectInput', field) !== false))
         ? (have === undefined || have === null) === (want === undefined || want === null)
         : textOf(have) === textOf(want);
     if (!same) return `the input of the effect ${effectId} differs in "${name}"`;

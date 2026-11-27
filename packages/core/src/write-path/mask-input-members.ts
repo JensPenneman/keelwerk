@@ -1,6 +1,5 @@
 import type { AnyField } from '../fields/field-def.ts';
 import { jsonShapeFields } from '../fields/json-shape-fields.ts';
-import { personalFlagOf } from '../fields/personal-flag-of.ts';
 import { holdsCredential } from '../keys/holds-credential.ts';
 import { holdsPersonal } from '../registry/holds-personal.ts';
 import type { FieldDescriptor } from '../storage/field-descriptor.ts';
@@ -10,7 +9,7 @@ type MaskField = AnyField | FieldDescriptor;
 type MaskFields = Readonly<Record<string, MaskField>>;
 
 function isPersonal(field: MaskField): boolean {
-  return 'flags' in field ? personalFlagOf(field) !== false : holdsPersonal(field);
+  return holdsPersonal(field);
 }
 
 function withheld(field: MaskField, mode: MaskMode): boolean {
@@ -54,9 +53,9 @@ export type MaskMode = 'credentials' | 'credentials-and-personal';
  * withheld. A list or set is one marker when its element is withheld, else its elements are
  * walked (a set becomes a list, as `encodeEventValue` writes it); a `json` member over a keelwerk
  * shape is walked with that shape's fields; a member a field does not declare and any other value
- * pass unchanged. A personal member inside a `field.json()` value is neither sealed nor reliably
- * withheld: only the walk of an input shape reaches it, a descriptor (a generated record) has no
- * shape to walk, and no storage seals it. A value that is no plain object is answered as it is.
+ * pass unchanged. Compose refuses a personal member inside a `field.json()` value
+ * (`personalNotSealed`), so a descriptor (a generated record), which has no shape to walk, never needs
+ * to look inside one. A value that is no plain object is answered as it is.
  * Pure: it never throws and never reads a value it withholds.
  */
 export function maskInputMembers(fields: MaskFields, value: unknown, mode: MaskMode): unknown {

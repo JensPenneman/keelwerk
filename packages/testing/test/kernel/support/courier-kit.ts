@@ -162,25 +162,19 @@ const forward = defineCommand(courierBase, {
 });
 
 const afterPost = defineCommand(courierBase, {
-  input: outcomeOf(
-    post,
-    shape({ token: field.secret().optional(), note: field.string().optional() }),
-  ),
+  input: outcomeOf(post, shape({ note: field.string().optional() })),
   principal: 'user',
   decide: () => ({}),
 });
 
 const chain = defineCommand(courierBase, {
-  input: shape({ token: field.secret().optional(), note: field.string() }),
+  input: shape({ note: field.string() }),
   principal: 'user',
   decide: (input) => ({
     effects: [
       post(
         { url: 'https://hooks.example/in', signingKey: 'plain-signing-key-2' as never, body: 'x' },
-        {
-          continueWith: afterPost,
-          with: input.token === undefined ? { note: input.note } : { token: input.token },
-        },
+        { continueWith: afterPost, with: { note: input.note } },
       ),
     ],
   }),

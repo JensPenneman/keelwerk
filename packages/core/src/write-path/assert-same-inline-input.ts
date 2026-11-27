@@ -2,6 +2,7 @@ import { hmacSha256 } from '../crypto/hmac-sha256.ts';
 import { timingSafeEqual } from '../crypto/timing-safe-equal.ts';
 import { openEffectInput } from '../effects/open-effect-input.ts';
 import type { AnyField } from '../fields/field-def.ts';
+import { sealsCredentialAt } from '../fields/seals-credential-at.ts';
 import { coreError } from '../http/core-error.ts';
 import { canonicalizeJson } from '../json/canonicalize-json.ts';
 import { configSecrets } from '../keys/config-secrets.ts';
@@ -19,10 +20,6 @@ interface Comparison {
   readonly entry: EffectEntry;
   readonly effectId: string;
   readonly key: Uint8Array;
-}
-
-function holdsSecret(field: AnyField): boolean {
-  return field.kind === 'secret' || (field.inner !== null && holdsSecret(field.inner));
 }
 
 const canonical = (value: unknown): string => canonicalizeJson(encodeEventValue(value) ?? null);
@@ -126,7 +123,7 @@ async function sameInput(c: Comparison, stored: unknown, given: unknown): Promis
     const field = Object.hasOwn(fields, name) ? fields[name] : undefined;
     // Secrets are compared on the stored text: the opened input holds stamped references to it.
     same =
-      (field !== undefined && holdsSecret(field)
+      (field !== undefined && sealsCredentialAt('effectInput', field, 'secret')
         ? await sameSecret(c, name, field, ours, theirs)
         : canonical(opened.input[name]) === canonical(theirs)) && same;
   }

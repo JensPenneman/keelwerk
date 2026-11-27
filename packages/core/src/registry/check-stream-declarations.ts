@@ -1,4 +1,4 @@
-import { payloadCredentialField } from '../keys/payload-credential-field.ts';
+import { memberReferredTo } from '../fields/member-referred-to.ts';
 import type { ComposableApp } from './composable-app.ts';
 import { compositionError } from './composition-error.ts';
 import type { CompositionProblem } from './composition-problem.ts';
@@ -78,7 +78,11 @@ export function checkStreamDeclarations(
         );
       }
     }
-    const credential = payloadCredentialField(stream.record);
+    const credential = memberReferredTo(
+      'streamRecord',
+      stream.record.fields,
+      'streamRecordCredential',
+    );
     if (credential !== undefined) {
       problems.push(
         compositionError(

@@ -1,8 +1,7 @@
 import type { AnyField } from '../fields/field-def.ts';
+import { marksOfMember } from '../fields/marks-of-member.ts';
 import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
-import { holdsCredential } from '../keys/holds-credential.ts';
 import type { ActionEntry } from '../registry/action-entry.ts';
-import { effectDataSubject } from './effect-data-subject.ts';
 
 /**
  * The first member of an effect's `with` that its continuation declares personal or secret (7.9.6,
@@ -21,7 +20,7 @@ export function sensitiveWithMember(
     for (const name of Object.keys(value)) {
       const field = Object.hasOwn(fields, name) ? fields[name] : undefined;
       if (field === undefined) continue;
-      if (holdsCredential(field) || effectDataSubject({}, field) !== undefined) return name;
+      if (marksOfMember(field).length > 0) return name;
     }
   }
   return undefined;

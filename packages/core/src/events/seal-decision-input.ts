@@ -22,7 +22,7 @@ export async function sealDecisionInput(
   schema: StandardSchemaV1,
   input: unknown,
 ): Promise<SealedValue> {
-  const personal = personalInputField(schema);
+  const personal = personalInputField('commandInput', schema);
   if (personal !== undefined) {
     throw errors.not_implemented(
       `The input field "${personal}" is personal, and sealing it under the subject's key arrives with WP-53.`,

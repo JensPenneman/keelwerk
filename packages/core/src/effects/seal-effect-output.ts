@@ -18,7 +18,7 @@ export async function sealEffectOutput(
   effectId: string,
   output: Readonly<Record<string, unknown>>,
 ): Promise<Readonly<Record<string, unknown>>> {
-  const personal = personalInputField(entry.output);
+  const personal = personalInputField('effectOutput', entry.output);
   if (personal !== undefined) {
     throw errors.internal(`the output of ${entry.ref} declares the personal field "${personal}"`);
   }
@@ -26,6 +26,7 @@ export async function sealEffectOutput(
   const sealed = await sealSecretMembers(
     unit,
     {
+      site: 'effectOutput',
       entity: 'core.effect',
       id: effectId,
       prefix: 'output.',

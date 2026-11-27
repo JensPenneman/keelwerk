@@ -36,6 +36,7 @@ export async function sealEffectInput(input: SealEffectInputInput): Promise<unkn
   const withSecrets = await sealSecretMembers(
     unit,
     {
+      site: 'effectInput',
       entity: 'core.effect',
       id: effectId,
       prefix: '',

@@ -1,96 +1,97 @@
-import type { AnyField } from '../fields/field-def.ts';
-import { jsonShapeFields } from '../fields/json-shape-fields.ts';
-import type { ShapeFields } from '../fields/shape.ts';
-import type { StandardSchemaV1 } from '../fields/standard-schema-v1.ts';
+import { cellOf } from '../fields/mark-cells.ts';
+import type { Mark, MarkSite } from '../fields/mark-types.ts';
+import { marksOfShape } from '../fields/marks-of-shape.ts';
+import { refusalText } from '../fields/refusal-text.ts';
 import type { ComposableApp } from './composable-app.ts';
 import { compositionError } from './composition-error.ts';
 import type { CompositionProblem } from './composition-problem.ts';
 import type { Registry } from './registry.ts';
 import { runtimeModule } from './runtime-module.ts';
 
-/** A credential field found in a shape: where, which, and whether a `json` member holds it. */
-interface Found {
-  readonly path: string;
-  readonly kind: 'secret' | 'verifier';
-  readonly inJson: boolean;
+interface Site {
+  readonly site: MarkSite;
+  readonly module: string;
+  readonly ref: string;
+  /** The place, as the message names it: 'The input of the command'. */
+  readonly what: string;
 }
 
-function visit(field: AnyField, path: string, inJson: boolean, found: Found[]): void {
-  if (field.kind === 'secret' || field.kind === 'verifier') {
-    found.push({ path, kind: field.kind, inJson });
-    return;
-  }
-  // The element of a list or set is sealed like a member of its own.
-  if (field.inner !== null) {
-    visit(field.inner, `${path}[]`, inJson, found);
-    return;
-  }
-  const members = jsonShapeFields(field);
-  if (members !== undefined) walk(members, `${path}.`, true, found);
+/** The sites where a verifier is only ever a top-level field of an entity. */
+const verifierSites: ReadonlySet<MarkSite> = new Set([
+  'commandInput',
+  'commandOutput',
+  'outcomeInput',
+  'effectInput',
+  'effectOutput',
+  'configuration',
+]);
+
+/** The member a path starts with: `rows[].token` is `rows`. */
+const memberOf = (path: string): string => path.split(/[.[]/)[0] ?? path;
+
+function codeOf(site: MarkSite, mark: Mark): string {
+  if (mark.kind === 'personal') return 'personalNotSealed';
+  if (mark.kind === 'verifier' && verifierSites.has(site)) return 'verifierOutsideEntity';
+  return mark.position === 'nested' ? 'credentialInJson' : 'credentialNotSealed';
 }
 
-function walk(fields: ShapeFields, prefix: string, inJson: boolean, found: Found[]): void {
-  for (const [name, field] of Object.entries(fields))
-    visit(field, `${prefix}${name}`, inJson, found);
-}
-
-/** The credential fields of a shape (a schema with no declared fields holds none). */
-function credentialsOf(schema: StandardSchemaV1): readonly Found[] {
-  const { fields } = schema as { readonly fields?: ShapeFields };
-  if (fields === undefined) return [];
-  const found: Found[] = [];
-  walk(fields, '', false, found);
-  return found;
-}
-
-/** The problems of the credentials found in one declared shape. */
-function problemsOf(
-  found: readonly Found[],
-  site: { readonly module: string; readonly ref: string; readonly what: string },
-  options: { readonly verifiers: boolean },
-): readonly CompositionProblem[] {
+/** The problems of the marks found in one declared shape: one for each mark at a position the site refuses. */
+function problemsOf(schema: object, site: Site): readonly CompositionProblem[] {
+  const { module, ref } = site;
+  const marks = marksOfShape(schema);
+  // One mark per member: a member marked personal as a whole takes no personal mark inside it.
+  const whole = new Set(
+    marks
+      .filter((mark) => mark.kind === 'personal' && mark.position === 'top')
+      .map((mark) => mark.path),
+  );
   const problems: CompositionProblem[] = [];
-  for (const credential of found) {
-    const { module, ref } = site;
-    if (credential.inJson) {
-      problems.push(
-        compositionError(
-          'credentialInJson',
-          `${site.what} '${ref}' declares the ${credential.kind} '${credential.path}' inside a json member: the kernel seals a credential only as a top-level member or as an element of a list or set, so the value would be stored unsealed. Move it into a member of its own.`,
-          { module, ref },
-        ),
-      );
-    }
-    if (credential.kind === 'verifier' && options.verifiers) {
-      problems.push(
-        compositionError(
-          'verifierOutsideEntity',
-          `${site.what} '${ref}' declares the verifier '${credential.path}', and a verifier is only a top-level field of an entity: anywhere else it would be stored unsealed. Issue it in the decision that writes it (ctx.secrets.issue) and write it into the entity field there.`,
-          { module, ref },
-        ),
-      );
-    }
+  for (const mark of marks) {
+    const cell = cellOf(site.site, mark.kind, mark.position);
+    const inside =
+      mark.kind === 'personal' && mark.position !== 'top' && whole.has(memberOf(mark.path));
+    if (typeof cell === 'string' || (cell === true && !inside)) continue;
+    const text = inside
+      ? `'${memberOf(mark.path)}' is marked personal as a whole, which takes no personal mark inside it. Drop the mark on '${mark.path}'.`
+      : refusalText(site.site, mark);
+    const subject =
+      mark.kind === 'personal'
+        ? `marks '${mark.path}' personal`
+        : `declares the ${mark.kind} '${mark.path}'`;
+    problems.push(
+      compositionError(
+        codeOf(site.site, mark),
+        `${site.what} '${ref}' of module '${module}' ${subject}: ${text}`,
+        { module, ref },
+      ),
+    );
   }
   return problems;
 }
 
 /**
- * `credentialInJson` and `verifierOutsideEntity` (14.7.4): the kernel seals a `field.secret()` or
- * `field.verifier()` only as a top-level member or as an element of a list or set, so a credential
- * inside a `field.json()` member of a shape a module declares (an entity field, a command or effect
- * input or output, a module configuration), or a verifier anywhere but a top-level field of an
- * entity (a command or effect input or output, a module configuration), would be stored in clear in
- * a row, a job, an effect record or a receipt. The shapes the kernel builds are not a module's
- * declaration and are not checked: a generated action, and a row or page output (`entityOutput`,
- * which includes the default output of an entity command).
+ * The one rule over every shape a module declares (14.7.4): a personal mark, a secret and a verifier
+ * stand exactly where the kernel protects them at that site (`fields/mark-cells.ts`, the table the
+ * sealing code and every redaction read too) and are refused at every other position, with one
+ * error for each mark: `personalNotSealed`, `credentialInJson` (inside a json member),
+ * `credentialNotSealed` and `verifierOutsideEntity`. A member marked personal as a whole takes no
+ * personal mark inside it, wherever that inner mark would stand. A position another check refuses
+ * already (a credential at a process event or a stream record, a personal member at a command or
+ * effect output) is left to that check. The sites are an entity, a command's input, output and
+ * continuation input, an effect's input and output, a module configuration, the payload of a
+ * domain event, an event of a process and a stream record. The shapes the kernel builds are not a
+ * module's declaration and are not checked: a generated action, and a row or page output
+ * (`entityOutput`, which includes the default output of an entity command).
  */
 export function checkCredentialShapes(
   app: ComposableApp,
   registry: Registry,
 ): readonly CompositionProblem[] {
   const problems: CompositionProblem[] = [];
-  const noVerifiers = { verifiers: false };
-  const all = { verifiers: true };
+  /** The one walk: every declared shape goes through it. */
+  const refuse = (schema: object, site: Site): void => {
+    problems.push(...problemsOf(schema, site));
+  };
   for (const module of app.modules) {
     const runtime = runtimeModule(module);
     const entities = [
@@ -109,43 +110,53 @@ export function checkCredentialShapes(
       ),
     ];
     for (const [ref, entity] of entities) {
-      const found: Found[] = [];
-      walk(entity.fields, '', false, found);
-      problems.push(
-        ...problemsOf(found, { module: module.id, ref, what: 'The entity' }, noVerifiers),
-      );
+      refuse(entity, { site: 'entity', module: module.id, ref, what: 'The entity' });
     }
     const { config } = runtime.base;
     if (config !== undefined) {
-      problems.push(
-        ...problemsOf(
-          credentialsOf(config as unknown as StandardSchemaV1),
-          { module: module.id, ref: `${module.id}.config`, what: 'The configuration' },
-          all,
-        ),
-      );
+      const ref = `${module.id}.config`;
+      refuse(config, { site: 'configuration', module: module.id, ref, what: 'The configuration' });
     }
   }
   for (const action of registry.actions.values()) {
     if (action.kind !== 'command' || action.generated !== undefined) continue;
-    const site = { module: action.module, ref: action.ref, what: 'The command' };
+    const { module, ref } = action;
+    refuse(action.input, { site: 'commandInput', module, ref, what: 'The input of the command' });
     // The default row output of an entity command is kernel-built (`entityOutput`); an output the
     // module declared is checked in full, whatever its members are called.
-    const outputs = action.entityOutput === undefined ? credentialsOf(action.output) : [];
-    problems.push(
-      ...problemsOf(credentialsOf(action.input), site, all),
-      ...problemsOf(outputs, site, all),
-      ...(action.outcomeWith === undefined
-        ? []
-        : problemsOf(credentialsOf(action.outcomeWith), site, all)),
-    );
+    if (action.entityOutput === undefined) {
+      refuse(action.output, {
+        site: 'commandOutput',
+        module,
+        ref,
+        what: 'The output of the command',
+      });
+    }
+    if (action.outcomeWith !== undefined) {
+      const what = 'The continuation input of the command';
+      refuse(action.outcomeWith, { site: 'outcomeInput', module, ref, what });
+    }
   }
-  for (const effect of registry.effects.values()) {
-    const site = { module: effect.module, ref: effect.ref, what: 'The effect' };
-    problems.push(
-      ...problemsOf(credentialsOf(effect.input), site, all),
-      ...problemsOf(credentialsOf(effect.output), site, all),
-    );
+  for (const { module, ref, input, output } of registry.effects.values()) {
+    refuse(input, { site: 'effectInput', module, ref, what: 'The input of the effect' });
+    refuse(output, { site: 'effectOutput', module, ref, what: 'The output of the effect' });
+  }
+  // The payloads the kernel stores as declared: a domain event, an event of a process, a stream record.
+  for (const { module, ref, events } of registry.entities.values()) {
+    for (const [name, schema] of Object.entries(events)) {
+      if (schema === null) continue;
+      const what = `The '${name}' event of the entity`;
+      refuse(schema, { site: 'domainEvent', module, ref, what });
+    }
+  }
+  for (const { module, id: ref, eventShapes } of registry.reactions.values()) {
+    for (const [name, schema] of Object.entries(eventShapes ?? {})) {
+      const what = `The '${name}' event of the process`;
+      refuse(schema, { site: 'processEvent', module, ref, what });
+    }
+  }
+  for (const { module, ref, record } of registry.streams.values()) {
+    refuse(record, { site: 'streamRecord', module, ref, what: 'The record of the stream' });
   }
   return problems;
 }

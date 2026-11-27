@@ -29,7 +29,9 @@ function effectOf(registry: Registry, id: string, data: unknown): DryRunEffect {
     type,
     ...(continuation === undefined ? {} : { continuation }),
     input:
-      encodeEventValue(redactEffectInput(registry.effects.get(type)?.input, values.input)) ?? null,
+      encodeEventValue(
+        redactEffectInput('effectInput', registry.effects.get(type)?.input, values.input),
+      ) ?? null,
   };
 }
 
@@ -73,11 +75,13 @@ export function buildDryRunReport(input: {
         type: `${type}.${event.name}`,
         eventId: event.eventId,
         data: encodeEventValue(
-          entry === undefined ? event.data : redactEventData(entry, event.data),
+          entry === undefined ? event.data : redactEventData(entry, event.name, event.data),
         ),
         before:
           encodeEventValue(
-            entry === undefined ? event.before : redactKeys(entry.descriptor.fields, event.before),
+            entry === undefined
+              ? event.before
+              : redactKeys('entity', entry.descriptor.fields, event.before),
           ) ?? null,
       });
     }

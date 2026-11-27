@@ -1,9 +1,11 @@
 import {
   defineApp,
+  defineCommand,
   defineEffect,
   defineModule,
   defineModuleBase,
   field,
+  outcomeOf,
   shape,
 } from '@keelwerk/core';
 import { describe, expect, test } from 'vitest';
@@ -140,28 +142,34 @@ describe('a sealed value cannot be moved into another effect', () => {
     await booted.runtime.stop();
   });
 
-  test('a with member the continuation declares secret is refused', {
+  test('a with member that carries no mark is accepted and stored', {
     timeout: 90_000,
   }, async () => {
     const booted = await bootCourier('memory');
-    const refusedAttempt = await booted.client.attempt('courier.chain', {
-      token: 'plain-token-1',
-      note: 'n',
-    });
-    expect(refusedAttempt).toMatchObject({
-      ok: false,
-      error: { code: 'core.request_not_allowed' },
-    });
     const allowed = await booted.client.attempt('courier.chain', { note: 'a note' });
     expect(allowed).toMatchObject({ ok: true });
     const result = await storedCourier(booted, ['core.effect']);
     expect(result.rows['core.effect']).toHaveLength(1);
-    expect(dump(result)).not.toContain('plain-token-1');
     await booted.runtime.stop();
   });
 });
 
 describe('effect declarations', () => {
+  test('a secret in the extra input of a continuation is refused at compose, so no with member carries one', () => {
+    const base = defineModuleBase({ id: 'bare', version: '0.1.0' });
+    const notify = defineEffect(base, {
+      performer: 'external',
+      input: shape({ to: field.string() }),
+    });
+    const after = defineCommand(base, {
+      input: outcomeOf(notify, shape({ token: field.secret() })),
+      principal: 'user',
+      decide: () => ({}),
+    });
+    const bare = defineModule(base, { effects: { notify }, actions: { after } });
+    expect(() => defineApp({ id: 'bare', modules: [bare] })).toThrow(/^credentialNotSealed:/);
+  });
+
   test('an effect with a personal input and no subject is refused at compose', () => {
     const base = defineModuleBase({ id: 'bare', version: '0.1.0' });
     const notify = defineEffect(base, {

@@ -4,7 +4,7 @@ import { errors } from '../errors/errors.ts';
 import { chainHash } from '../events/chain-hash.ts';
 import type { EventMeta } from '../events/event-meta.ts';
 import type { NewEvent } from '../events/new-event.ts';
-import { personalFlagOf } from '../fields/personal-flag-of.ts';
+import { personalFlagAt } from '../fields/personal-flag-at.ts';
 import { validateForWrite } from '../fields/validate-for-write.ts';
 import { newUuidV7 } from '../ids/new-uuid-v7.ts';
 import type { EventDraft } from '../protocol/event-draft.ts';
@@ -70,7 +70,7 @@ export async function appendProcessEvents(
     const eventId = newUuidV7();
     version += 1;
     const holdsPersonal = Object.values(declared.fields).some(
-      (def) => personalFlagOf(def) !== false,
+      (def) => personalFlagAt('processEvent', def) !== false,
     );
     if (holdsPersonal && sealer === undefined) {
       throw errors.internal(`the unit cannot seal the personal members of "${reaction.id}"`);

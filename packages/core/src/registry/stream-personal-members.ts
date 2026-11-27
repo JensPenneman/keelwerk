@@ -1,4 +1,4 @@
-import { personalFlagOf } from '../fields/personal-flag-of.ts';
+import { personalFlagAt } from '../fields/personal-flag-at.ts';
 import type { StreamEntry } from './stream-entry.ts';
 
 /** A record member that holds personal data and the path of its data subject on the keyed entity. */
@@ -18,7 +18,7 @@ export function streamPersonalMembers(
 ): readonly StreamPersonalMember[] {
   const members: StreamPersonalMember[] = [];
   for (const [member, def] of Object.entries(stream.record.fields)) {
-    const flag = personalFlagOf(def);
+    const flag = personalFlagAt('streamRecord', def);
     if (flag === false) continue;
     members.push({ member, path: flag.subject ?? keyedDataSubject ?? 'id' });
   }
