@@ -20,29 +20,52 @@ function* chunks(values: readonly string[]): Generator<readonly string[]> {
   for (let at = 0; at < values.length; at += pageSize) yield values.slice(at, at + pageSize);
 }
 
+/** What a kept erasure receipt of an erased requester loses: the principal document, the remote address and the user agent. */
+const strippedFromErasureReceipt = { principal: null, remoteAddress: null, userAgent: null };
+
+const holdsRequester = (row: StorageRow): boolean =>
+  row.action === erasureAction &&
+  Object.keys(strippedFromErasureReceipt).some(
+    (name) => row[name] !== null && row[name] !== undefined,
+  );
+
 /**
- * Walks the rows of `entry` that match `field in values`, page by page, and purges those `keep`
- * does not exempt. The walk follows the cursor, so rows that stay do not end it early.
+ * Walks the rows of `entry` that match `field in values`, page by page, and purges those `doomed`
+ * selects. With `strip`, an erasure receipt that stays is rewritten without what names its
+ * requester (once: a second walk finds nothing to write). The walk follows the cursor, so rows that
+ * stay do not end it early.
  */
 async function purgeMatching(
   unit: Unit,
   entry: EntityEntry,
   field: string,
   values: readonly string[],
-  select: readonly string[],
+  select: readonly string[] | undefined,
   doomed: (row: StorageRow) => boolean,
+  strip = false,
 ): Promise<number> {
   let purged = 0;
   let after: string | undefined;
   for (;;) {
     const page = await unit.rows.find(entry.descriptor, {
       where: { op: 'in', field, value: values },
-      select,
+      ...(select === undefined ? {} : { select }),
       page: { first: pageSize, ...(after === undefined ? {} : { after }) },
       includeArchived: true,
     });
     const ids = page.rows.filter(doomed).map((row) => String(row.id));
     if (ids.length > 0) purged += await unit.rows.purge(entry.descriptor, ids);
+    const stripped = strip ? page.rows.filter(holdsRequester) : [];
+    if (stripped.length > 0) {
+      await unit.rows.update(
+        entry.descriptor,
+        stripped.map((row) => ({
+          id: String(row.id),
+          expectedVersion: Number(row.version),
+          values: { ...row, ...strippedFromErasureReceipt, version: Number(row.version) + 1 },
+        })),
+      );
+    }
     if (!page.pageInfo.hasNextPage || page.pageInfo.endCursor === null) return purged;
     // A purged row leaves the result, so the cursor is read from the page's own last row.
     after = page.pageInfo.endCursor;
@@ -98,8 +121,10 @@ export interface ErasePrincipalsOptions {
  * principal of their own or one among `ids` (a sign-up or a login leaves its receipt with the
  * request's remote address and user agent), never when another principal ran them. A receipt of
  * `core.eraseSubject` is never purged, whichever way it is found: every erasure keeps its own,
- * which is completed last. Answers how many rows, jobs and buckets were purged; a second call
- * finds none.
+ * which is completed last; one that an erased principal requested loses its principal document,
+ * remote address and user agent (its ids stay), and the erasure job of that principal is never
+ * purged (`purgeForPrincipals`): the erasure of another subject goes on. Answers how many rows,
+ * jobs and buckets were purged; a second call finds none.
  */
 export async function erasePrincipals(
   unit: Unit,
@@ -134,8 +159,9 @@ export async function erasePrincipals(
         receipts,
         'principalId',
         chunk,
-        ['id', 'action'],
+        undefined,
         (row) => row.action !== erasureAction,
+        true,
       );
     }
     if (tickets?.descriptor.fields.principalId !== undefined) {

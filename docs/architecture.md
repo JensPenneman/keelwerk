@@ -8142,6 +8142,10 @@ the subject (`subject:<id>`, the failures of a re-authentication) and by the per
 (`identifier:<address>`) are not deleted, and a principal that can still authenticate gets a new
 request-rate bucket at its next request, even a refused one.
 
+Added 2026-11-26: the purge of the principals keeps the `core.eraseSubject` job of a purged principal,
+so the erasure it asked for goes on, and the receipt of that erasure loses its principal document,
+remote address and user agent.
+
 Added 2026-11-12: who may erase. Self-service deletion is off until the platform adds the rule: the
 core exports `selfErase` (the rule `core.eraseSubject.selfErase`, module `core`) and no module
 contributes it, because the tenant decides what a business tenant keeps, the action cannot be

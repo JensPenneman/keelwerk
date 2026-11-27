@@ -1,5 +1,5 @@
 import type { JobAttempt, JobGroup, JobStore, PurgedJob } from '@keelwerk/core';
-import { cancelsRunningAttempt, errors } from '@keelwerk/core';
+import { cancelsRunningAttempt, erasureAction, errors } from '@keelwerk/core';
 import { memoryAdjustLane } from './memory-adjust-lane.ts';
 import { memoryJobComplete } from './memory-job-complete.ts';
 import { memoryJobEnqueue } from './memory-job-enqueue.ts';
@@ -126,6 +126,7 @@ export function memoryJobStore(ctx: MemoryUnitContext): MemoryJobStore {
           (job) =>
             job.state !== 'running' &&
             job.spec.kind === 'action' &&
+            !('action' in job.spec.run && job.spec.run.action === erasureAction) &&
             queues.includes(job.spec.queue) &&
             ids.has(job.spec.principal.principalId),
         );

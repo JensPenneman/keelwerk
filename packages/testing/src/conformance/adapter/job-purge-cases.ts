@@ -73,6 +73,32 @@ export function jobPurgeCases(subject: Pick<ConformanceSubject, 'run' | 'clock'>
       expect(await purge(['gone'])).toBe(0);
     });
 
+    test("an erasure job of the principal is kept, whatever its state, and another command of the principal's is purged", async () => {
+      const erasure = (n: number, over: Partial<StoredJobSpec> = {}) =>
+        by('gone', n, {
+          run: { action: 'core.eraseSubject', input: n, commandId: `erase-${n}` },
+          ...over,
+        });
+      await enqueue([
+        erasure(1),
+        erasure(2, { runAt: now().add({ hours: 1 }) }),
+        erasure(3, {
+          key: { value: 'erasures', onConflict: 'append' },
+          ordering: 'fifo-per-key',
+        }),
+        erasure(4, {
+          key: { value: 'erasures', onConflict: 'append' },
+          ordering: 'fifo-per-key',
+        }),
+        by('gone', 5),
+      ]);
+      expect(
+        (await purged(['gone'])).map((job) => ('input' in job.run ? job.run.input : null)),
+      ).toEqual([5]);
+      expect(await queued()).toBe(4);
+      expect(await purge(['gone'])).toBe(0);
+    });
+
     test('answers what the purged jobs ran, so the value keys of their secret members can go', async () => {
       await enqueue([by('gone', 7), by('kept', 8)]);
       const [job] = await purged(['gone']);

@@ -1,4 +1,5 @@
 import type { PurgedJob } from '@keelwerk/core';
+import { erasureAction } from '@keelwerk/core';
 import { encodeInstant } from './encode-instant.ts';
 import { quoteIdentifier } from './postgres/quote-identifier.ts';
 import type { SqlRow } from './run-sql.ts';
@@ -23,7 +24,7 @@ export interface SqlPurgedJob {
 /**
  * Erasure (14.7.5, step 5a): deletes the unit's scope's action jobs of `queues` in every state but
  * `running` whose stored principal reference has an id among `principalIds` (a job another principal
- * runs stays, whoever caused it), and writes a `cancelled` history row for each, which never holds
+ * runs stays, whoever caused it, and so does an erasure's own job, `core.eraseSubject`), and writes a `cancelled` history row for each, which never holds
  * the input (a dead job keeps the `dead` row it already has). A job that was `available` leaves its
  * lane's `enqueued` count at the commit tail; the next waiting job of a key whose head left is
  * released. The advisory locks of the FIFO keys of the jobs to delete are taken, in one order, before
@@ -46,6 +47,7 @@ export async function sqlJobPurge(
       sql: `with gone as (
   delete from ${root}.kw_jobs where state <> 'running' and scope_id = $1::uuid
     and kind = 'action' and queue = any ($4::text[]) and principal->>'principalId' = any ($2::text[])
+    and input->>'action' is distinct from $7::text
     and (ordering <> 'fifo-per-key' or key is null
       or (lane_id::text, key) in (select * from unnest($5::text[], $6::text[])))
   returning id, scope_id, lane_id, queue, kind, state, attempt, ordering, key, input
@@ -62,14 +64,16 @@ select id::text as id, lane_id::text as lane_id, queue, state, ordering, key, in
         queues,
         locked.map((ref) => ref.laneId),
         locked.map((ref) => ref.key),
+        erasureAction,
       ],
     });
   const readKeys = async (): Promise<readonly SqlJobKeyRef[]> => {
     const keyed = await runSql(ctx.db, {
       sql: `select distinct lane_id::text as lane_id, key from ${root}.kw_jobs
 where state <> 'running' and scope_id = $1::uuid and kind = 'action' and queue = any ($3::text[])
-  and principal->>'principalId' = any ($2::text[]) and ordering = 'fifo-per-key' and key is not null`,
-      parameters: [ctx.scopeId(), principalIds, queues],
+  and principal->>'principalId' = any ($2::text[]) and input->>'action' is distinct from $4::text
+  and ordering = 'fifo-per-key' and key is not null`,
+      parameters: [ctx.scopeId(), principalIds, queues, erasureAction],
     });
     return keyed.map((row) => ({ laneId: String(row.lane_id), key: String(row.key) }));
   };

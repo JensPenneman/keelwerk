@@ -1026,6 +1026,7 @@ export type { ErasePrincipalsOptions } from './subjects/erase-principals.ts';
 export { erasePrincipals } from './subjects/erase-principals.ts';
 export type { EraseStreamInput, EraseStreamResult } from './subjects/erase-stream.ts';
 export { eraseStream } from './subjects/erase-stream.ts';
+export { erasureAction } from './subjects/erasure-action.ts';
 export { erasureKey } from './subjects/erasure-key.ts';
 export type { ErasureStep } from './subjects/erasure-step.ts';
 export { flagScrubCommandId } from './subjects/flag-scrub-command-id.ts';

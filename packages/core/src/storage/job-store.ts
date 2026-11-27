@@ -96,7 +96,8 @@ export interface JobStore {
    * action jobs of one of `queues` (the command and timer queues) and whose stored principal
    * reference names one of `principalIds`, writing a `cancelled` history row for each (no input, no
    * error; a dead job keeps its `dead` row). A job another principal runs is kept, whoever caused
-   * it, and so is every job of another queue. A key's next waiting job is released. Answers the
+   * it, and so is every job of another queue and every erasure job (`core.eraseSubject`): the
+   * erasure of another subject, which the principal requested, still runs. A key's next waiting job is released. Answers the
    * jobs deleted, with what they ran.
    */
   purgeForPrincipals(
