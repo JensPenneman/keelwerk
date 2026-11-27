@@ -26,7 +26,7 @@ async function historyOf(booted: Booted, queue: string) {
 /** The lines that say a job ended unrun after an erasure: one for each such job, and none names the subject. */
 function endedLines(booted: Booted): string[] {
   const ended = booted.lines.filter((line) => line.message.includes('ended without running'));
-  expect(ended.map((line) => line.level)).toEqual(['info']);
+  expect(ended.every((line) => line.level === 'info')).toBe(true);
   expect(JSON.stringify(ended)).not.toContain(booted.subject);
   return ended.map((line) => String(line.fields.queue));
 }
@@ -132,7 +132,11 @@ describe('a job whose personal key is destroyed ends without running (14.7.5, D8
     expect(effects.map((row) => row.status)).toEqual(['failed']);
     expect(JSON.stringify(effects)).toContain('core.key_destroyed');
     expect(JSON.stringify(effects)).not.toContain(marker);
-    expect(endedLines(booted)).toEqual(['queues-mail']);
+    // The erasure settled it; the job of the effect then completes without running it, and says nothing.
+    expect(await historyOf(booted, 'queues-mail')).toEqual([
+      { outcome: 'succeeded', code: undefined },
+    ]);
+    expect(endedLines(booted)).toEqual([]);
   });
 
   test('an effect whose subject is erased before its executor ran ends failed with core.key_destroyed, and the executor never runs', {
@@ -161,8 +165,10 @@ describe('a job whose personal key is destroyed ends without running (14.7.5, D8
     expect(effects.map((row) => row.status)).toEqual(['failed']);
     expect(JSON.stringify(effects)).toContain('core.key_destroyed');
     expect(JSON.stringify(effects)).not.toContain(marker);
-    // One line for the one job that ended; the count is pinned where the attempt begins.
-    expect(endedLines(booted)).toEqual(['queues-mail']);
+    expect(await historyOf(booted, 'queues-mail')).toEqual([
+      { outcome: 'succeeded', code: undefined },
+    ]);
+    expect(endedLines(booted)).toEqual([]);
   });
 
   test('a reaction that runs after the erasure sees the event without the personal member, and no plaintext', {

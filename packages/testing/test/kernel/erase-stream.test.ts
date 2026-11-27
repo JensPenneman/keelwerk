@@ -140,6 +140,7 @@ describe('eraseStream on one subject (14.7.5 steps 3 and 4)', () => {
           record,
           writer: undefined as never,
           now: Temporal.Now.instant(),
+          nominated: true,
         }),
       );
     expect(await again({ type: 'probe.person', id: ada })).toEqual({

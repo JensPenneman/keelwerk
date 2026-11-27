@@ -167,7 +167,7 @@ describe('rows a subject owns that hold no personal value (14.7.5)', () => {
     expect(await visibleRows(runtime, 'probe.thread')).toEqual([]);
   });
 
-  test('a run that crashed after the first erased row finds that row again and purges the receipts of its principal', {
+  test('a run that crashed right after the unit that erased a row purges the receipts of its principal when it is repaired', {
     timeout: 60_000,
   }, async () => {
     let crash = true;
@@ -219,7 +219,8 @@ describe('rows a subject owns that hold no personal value (14.7.5)', () => {
     await erase(operator, owner);
     await runtime.drainJobs();
     await worker.pass();
-    // The row is erased, but the run stopped before it purged the principal's receipts.
+    // The run stopped right after the unit that erased the row, which purges nothing: the purge
+    // runs afterwards, in units of its own.
     expect((await kernelRows(runtime, 'linked.leaf'))[0]?.kwErasedAt).toBeDefined();
     expect(await receiptsOf(made.leafId)).toHaveLength(1);
     await worker.pass();

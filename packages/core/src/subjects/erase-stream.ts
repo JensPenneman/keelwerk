@@ -28,7 +28,7 @@ function isErased(row: StorageRow): boolean {
   return row.kwErasedAt !== undefined && row.kwErasedAt !== null;
 }
 
-/** The `erased` event of this subject that is in the stream already (a replay of the step). */
+/** The `erased` event of this subject that is in the stream already (a replay of the step); an event that says owned wins over one that does not. */
 async function earlierErasure(
   unit: Unit,
   entry: EntityEntry,
@@ -36,12 +36,15 @@ async function earlierErasure(
   subjectId: string,
 ): Promise<Partial<ErasedEventData> | undefined> {
   const events = await unit.events.readStream(stream);
+  let found: Partial<ErasedEventData> | undefined;
   for (const event of events) {
     if (event.type !== `${entry.ref}.erased`) continue;
     const data = event.data as Partial<ErasedEventData> | null;
-    if (data !== null && sameSubject(data.subjectId, subjectId)) return data;
+    if (data === null || !sameSubject(data.subjectId, subjectId)) continue;
+    if (data.owned === true) return data;
+    found ??= data;
   }
-  return undefined;
+  return found;
 }
 
 /** What erasing one stream did, for the steps that follow. */
@@ -68,6 +71,21 @@ export interface EraseStreamInput {
   readonly record: ErasureRecord;
   readonly writer: RunJobContext['writer'];
   readonly now: Temporal.Instant;
+  /**
+   * The erasure found this row as the subject's: the lookup of the owned rows named it, the
+   * references of the subject led to it and its data subject was the subject when they did, or a
+   * key it holds has a tombstone that this erasure recorded. Only such a row is erased when no
+   * subject owns it under its lock any more (its owner was cleared meanwhile); a row found only
+   * because it holds a value of the subject is left to whoever owns it, or to nobody, and loses
+   * the value. A nominated visit also decides again when this erasure answered the row earlier as
+   * a mere holder (not owned) and the row is the subject's now.
+   */
+  readonly nominated: boolean;
+  /**
+   * Runs inside the unit with the value keys about to be destroyed, before they are: the caller
+   * notes the keys whose tombstone it has not recorded and rolls the unit back before it commits.
+   */
+  readonly onValueKeys?: (keyIds: readonly string[]) => Promise<void>;
 }
 
 /**
@@ -77,7 +95,8 @@ export interface EraseStreamInput {
  * index rows are cleared like in any update; destroys the value keys of an owned row's secret and
  * verifier fields; and purges the stream records keyed by an owned row. The subject's keys are
  * shredded before this runs, so a value of the subject reads as absent and is cleared with the
- * row. The outcome is `skipped` when the stream is not a row of an entity that holds the subject's
+ * row. A row reaches this function from the lookup of the owned rows, from the references of the
+ * subject and from the key records of the subject, and is decided the same way for each. The outcome is `skipped` when the stream is not a row of an entity that holds the subject's
  * values, the row is gone, or this subject's `erased` event is in the stream already; a replay
  * still reports whether the row is owned, from that event.
  */
@@ -97,16 +116,25 @@ export async function eraseStream(unit: Unit, input: EraseStreamInput): Promise<
   });
   if (row === undefined) return untouched;
   const earlier = await earlierErasure(unit, entry, stream, record.subjectId);
-  if (earlier !== undefined) {
+  const subject = (path: string) => subjectAt(unit, registry, entry, row, path);
+  const { dataSubject } = entry.descriptor;
+  const resolved = dataSubject === null ? undefined : await subject(dataSubject);
+  // The one answer, read under the row's lock: the subject's, or nobody's when the erasure found
+  // the row as the subject's (the owner was cleared since: the row belongs to no living subject).
+  // A row of another subject, and a row that nobody owns and that only holds a value, are left alone.
+  const owned =
+    dataSubject !== null &&
+    (sameSubject(resolved, record.subjectId) || (resolved === undefined && input.nominated));
+  // An earlier answer of this erasure stands, except that a visit that found the row as the
+  // subject's decides again when the earlier answer treated the row as a mere holder (the holder
+  // may have been given to the subject since, while her keys were not yet destroyed).
+  if (earlier !== undefined && (earlier.owned === true || !input.nominated || !owned)) {
     return { ...untouched, outcome: 'replayed', owned: earlier.owned === true };
   }
   // An erased tombstone with no event of this subject's in its stream (the records of a
-  // state-history entity are not kept, or another subject's erasure erased the row) has nothing left to do.
-  if (isErased(row)) return untouched;
-
-  const subject = (path: string) => subjectAt(unit, registry, entry, row, path);
-  const { dataSubject } = entry.descriptor;
-  const owned = dataSubject !== null && sameSubject(await subject(dataSubject), record.subjectId);
+  // state-history entity are not kept, or another subject's erasure erased the row) has nothing
+  // left to do; it is still reported as the subject's when the lock says so.
+  if (isErased(row)) return owned ? { ...untouched, owned } : untouched;
   const fields: string[] = [];
   for (const { name, personal } of personalFieldsOf(entry.descriptor)) {
     if (sameSubject(await subject(personal.subject), record.subjectId)) fields.push(name);
@@ -117,12 +145,13 @@ export async function eraseStream(unit: Unit, input: EraseStreamInput): Promise<
   const valueKeys: string[] = [];
   if (owned) {
     const lifecycle = createValueKeyLifecycle(unit);
+    // Read under the row's lock, so a secret set meanwhile is among them; the gate sees them all first.
     for (const name of sealedFieldsOf(entry)) {
       const keyId = await lifecycle.keyOf(entry, stream.id, name, false);
-      if (keyId === undefined) continue;
-      await lifecycle.destroy(keyId);
-      valueKeys.push(keyId);
+      if (keyId !== undefined) valueKeys.push(keyId);
     }
+    await input.onValueKeys?.(valueKeys);
+    for (const keyId of valueKeys) await lifecycle.destroy(keyId);
     for (const streamEntry of registry.streams.values()) {
       const keyed = referenceTarget(streamEntry.key.ref, streamEntry.module);
       if (keyed !== null && `${keyed.module}.${keyed.entity}` === entry.ref) {

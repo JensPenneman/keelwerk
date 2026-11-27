@@ -45,5 +45,9 @@ export interface SubjectKeyStore {
     sealed: SealedValue,
     expected?: { readonly entity: string; readonly id: string; readonly field: string },
   ): Promise<Uint8Array | undefined>;
+  /** The binding the key was created with (entity, row id and field); undefined when it is destroyed. */
+  valueKeyBinding(
+    keyId: string,
+  ): Promise<{ readonly entity: string; readonly id: string; readonly field: string } | undefined>;
   destroyValueKey(keyId: string): Promise<void>;
 }

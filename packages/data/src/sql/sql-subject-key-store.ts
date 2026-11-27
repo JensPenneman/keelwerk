@@ -2,6 +2,7 @@
 import type { DataKey, StreamRef, SubjectKeyStore } from '@keelwerk/core';
 import { canonicalSubject, compareCodePoints, encodeAad, errors, newUuidV7 } from '@keelwerk/core';
 import { CompiledQuery, sql } from 'kysely';
+import { aadBinding } from './aad-binding.ts';
 import { decodeInstant } from './decode-instant.ts';
 import { encodeInstant } from './encode-instant.ts';
 import { decodeBytes } from './sql-bytes.ts';
@@ -53,9 +54,7 @@ export function sqlSubjectKeyStore(ctx: SqlUnitContext): SubjectKeyStore {
       );
     });
   };
-  const readValueKey = async (
-    keyId: string,
-  ): Promise<{ readonly material: Uint8Array; readonly aad: Uint8Array } | undefined> => {
+  const readValueKey = async (keyId: string) => {
     const record = await sqlGuard(async () =>
       ctx
         .scopedDb()
@@ -304,6 +303,7 @@ export function sqlSubjectKeyStore(ctx: SqlUnitContext): SubjectKeyStore {
       }
       return sqlOpen(stored.material, sealed.nonce, sealed.ciphertext, stored.aad);
     },
+    valueKeyBinding: async (keyId) => aadBinding((await readValueKey(keyId))?.aad),
     destroyValueKey: async (keyId) => {
       ctx.writable();
       await sqlGuard(async () => {

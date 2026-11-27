@@ -1,5 +1,5 @@
-import type { Scope, Unit } from '@keelwerk/core';
-import { consumers, erasure, reactionDispatcher } from '@keelwerk/events';
+import type { LedgerSink, Scope, Unit } from '@keelwerk/core';
+import { consumers, type ErasureOptions, erasure, reactionDispatcher } from '@keelwerk/events';
 import { createLocalClient } from '../../../src/harness/create-local-client.ts';
 import type { LoggedLine } from '../../../src/harness/logged-line.ts';
 import { recordingLogger } from '../../../src/harness/recording-logger.ts';
@@ -23,13 +23,19 @@ export async function stopQueues(): Promise<void> {
  * dispatcher, on a clock frozen at the start (a retry stays waiting until `advanceTo`), with one
  * person: the subject. `lines` holds every line the runtime logged.
  */
-export async function bootQueues() {
+export async function bootQueues(
+  options: {
+    readonly ledgers?: readonly LedgerSink[];
+    /** The test seams of the erasure worker. */
+    readonly erasure?: ErasureOptions;
+  } = {},
+) {
   const lines: LoggedLine[] = [];
   queuesControl.seen.length = 0;
   queuesControl.decided.length = 0;
   queuesControl.executed = 0;
   const start = Temporal.Now.instant();
-  const worker = erasure({ pollMs: 3_600_000 });
+  const worker = erasure({ pollMs: 3_600_000, ...options.erasure });
   const dispatcher = consumers({ consumers: [reactionDispatcher()], runs: ['asyncReactions'] });
   const runtime = await startTestRuntime(erasureQueuesApp, {
     adapter: 'pglite',
@@ -38,6 +44,7 @@ export async function bootQueues() {
     logger: recordingLogger(lines),
     workers: true,
     eventWorkers: [dispatcher, worker],
+    ...(options.ledgers === undefined ? {} : { ledgers: options.ledgers }),
   });
   current = runtime;
   const operator = createLocalClient(runtime, { principal: testOperator(), tenant: 'acme' });

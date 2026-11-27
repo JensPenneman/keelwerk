@@ -58,6 +58,12 @@ describe('the erasure and keyTombstone ledger records (F-20, S-176)', () => {
     expect(parseLedgerLine(tombstoneLine)).toEqual(tombstone);
   });
 
+  test('a key tombstone may name the erasure command that recorded it, and only as a text', () => {
+    const named: KeyTombstoneRecord = { ...tombstone, commandId: erasure.commandId };
+    expect(parseLedgerLine(encodeLedgerRecord(named))).toEqual(named);
+    expect(parseLedgerLine(JSON.stringify({ ...tombstone, commandId: 7 }))).toEqual(tombstone);
+  });
+
   test('golden: an erasure completion is one line of canonical JSON and parses back equal', () => {
     expect(encodeLedgerRecord(completed)).toBe(completedLine);
     expect(parseLedgerLine(completedLine)).toEqual(completed);

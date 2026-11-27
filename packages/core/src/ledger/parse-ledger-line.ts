@@ -103,7 +103,7 @@ function erasureCompletedOf(value: Record<string, unknown>): LedgerRecord | unde
 
 /** A key tombstone with every member of F-20 in place (S-176). */
 function keyTombstoneOf(value: Record<string, unknown>): LedgerRecord | undefined {
-  const { scopeId, keyId, recordedAt, reason } = value;
+  const { scopeId, keyId, recordedAt, reason, commandId } = value;
   if (!(isText(scopeId) && isText(keyId) && isInstant(recordedAt))) return undefined;
   if (!(isText(reason) && tombstoneReasons.has(reason))) return undefined;
   return {
@@ -112,6 +112,7 @@ function keyTombstoneOf(value: Record<string, unknown>): LedgerRecord | undefine
     keyId,
     recordedAt,
     reason: reason as 'erasure' | 'rotation' | 'tenantDeleted',
+    ...(isText(commandId) ? { commandId } : {}),
   };
 }
 

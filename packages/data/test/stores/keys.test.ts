@@ -112,8 +112,14 @@ test('a sealed value opens with its own key and is gone once the key is destroye
   expect(sealed.ciphertext).toHaveLength(plain.length + 16);
   expect(await memory.read(tenantScope, (unit) => unit.keys.openValue(sealed))).toEqual(plain);
   expect(await memory.read(tenantTwo, (unit) => unit.keys.openValue(sealed))).toBeUndefined();
+  expect(await memory.read(tenantScope, (unit) => unit.keys.valueKeyBinding(sealed.keyId))).toEqual(
+    binding,
+  );
   await memory.run(tenantScope, (unit) => unit.keys.destroyValueKey(sealed.keyId));
   expect(await memory.read(tenantScope, (unit) => unit.keys.openValue(sealed))).toBeUndefined();
+  expect(
+    await memory.read(tenantScope, (unit) => unit.keys.valueKeyBinding(sealed.keyId)),
+  ).toBeUndefined();
   await memory.run(tenantScope, (unit) => unit.keys.destroyValueKey(sealed.keyId));
 });
 

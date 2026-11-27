@@ -1,5 +1,5 @@
 import { postgresAdapter } from '@keelwerk/adapter-postgres';
-import { compareHlc, type DataAdapterFactory } from '@keelwerk/core';
+import { compareHlc } from '@keelwerk/core';
 import { afterAll, describe, expect, test, vi } from 'vitest';
 import type { LoggedLine } from '../../src/harness/logged-line.ts';
 import { recordingLogger } from '../../src/harness/recording-logger.ts';
@@ -7,74 +7,6 @@ import { createTestDatabase } from '../support/create-test-database.ts';
 import { startHookEndpoint } from './support/hook-endpoint.ts';
 import { bootHooks } from './support/hooks-kit.ts';
 import { drainHooks, effectOf, rowsOf } from './support/hooks-reads.ts';
-
-/**
- * Makes units meet: the first caller waits until a second one arrives (or `timeoutMs` passes), and
- * both go on together. `meetings` counts the pairs that met.
- */
-function meeting(timeoutMs: number) {
-  let waiting: (() => void) | undefined;
-  const state = { meetings: 0 };
-  return {
-    state,
-    meet: (): Promise<void> => {
-      if (waiting !== undefined) {
-        const partner = waiting;
-        waiting = undefined;
-        state.meetings += 1;
-        partner();
-        return Promise.resolve();
-      }
-      return new Promise<void>((resolve) => {
-        waiting = resolve;
-        setTimeout(() => {
-          if (waiting === resolve) waiting = undefined;
-          resolve();
-        }, timeoutMs);
-      });
-    },
-  };
-}
-
-/**
- * The adapter of `inner` whose units hold every read of an effect row that takes no lock until a
- * second unit has read one too: both units then know the effect as `requested` before either of them
- * writes, which is the interleaving the row lock of `settleEffect` exists for.
- */
-function holdingUnlockedEffectReads(
-  inner: DataAdapterFactory,
-  meet: () => Promise<void>,
-): DataAdapterFactory {
-  return {
-    ...inner,
-    create: (placement, env) => {
-      const adapter = inner.create(placement, env);
-      return {
-        ...adapter,
-        unit: (namespace, scope, fn, options) => {
-          return adapter.unit(
-            namespace,
-            scope,
-            (unit) =>
-              fn({
-                ...unit,
-                rows: {
-                  ...unit.rows,
-                  // The sealing layer above the adapter reads one row through `find`.
-                  find: async (descriptor, query) => {
-                    const found = await unit.rows.find(descriptor, query);
-                    if (descriptor.ref === 'core.effect' && query.forUpdate !== true) await meet();
-                    return found;
-                  },
-                },
-              }),
-            options,
-          );
-        },
-      };
-    },
-  };
-}
 
 describe('the settled record of an effect on PostgreSQL (7.9.6)', () => {
   const stops: (() => Promise<void>)[] = [];
@@ -111,16 +43,17 @@ describe('the settled record of an effect on PostgreSQL (7.9.6)', () => {
     expect(compareHlc(events[1]?.hlc as never, events[0]?.hlc as never)).toBe(1);
   });
 
-  test('two jobs that both read the effect as requested settle it once, and the second finds it settled under the row lock', {
+  test('two jobs for one effect settle it once: the second begin waits for the row lock of the first', {
     timeout: 180_000,
   }, async () => {
     // Every request is answered after a pause, so the executors of both jobs overlap.
     const endpoint = await startHookEndpoint(() => 200, 400);
     stops.push(() => endpoint.close());
     const database = await createTestDatabase('effect_settle_race');
-    const factory = postgresAdapter({ ownerUrl: database.adminUrl });
-    const { meet, state } = meeting(5000);
-    const external = { factory: holdingUnlockedEffectReads(factory, meet), url: database.appUrl };
+    const external = {
+      factory: postgresAdapter({ ownerUrl: database.adminUrl }),
+      url: database.appUrl,
+    };
     // P only requests: the effect and its job exist, and no worker takes them yet.
     const p = await bootHooks({
       adapter: 'memory',
@@ -146,7 +79,7 @@ describe('the settled record of an effect on PostgreSQL (7.9.6)', () => {
         key: { value: 'duplicate', onConflict: 'keep' },
       }),
     );
-    // The two jobs read the effect together at the start of their attempt, and again at the end of it.
+    // The two jobs begin together; the begin reads the effect under its row lock.
     const lines: LoggedLine[] = [];
     const r = await bootHooks({
       adapter: 'memory',
@@ -163,7 +96,6 @@ describe('the settled record of an effect on PostgreSQL (7.9.6)', () => {
       { timeout: 120_000, interval: 500 },
     );
     await drainHooks(r);
-    expect(state.meetings).toBeGreaterThanOrEqual(2);
     const effect = await effectOf(p, 'hooks.post');
     const events = await p.raw((unit) =>
       unit.events.readStream({ type: 'core.effect', id: String(effect?.id) }),
@@ -179,7 +111,7 @@ describe('the settled record of an effect on PostgreSQL (7.9.6)', () => {
     expect(deliveries).toHaveLength(1);
     // Created once and settled once: the continuation ran once.
     expect(Number(deliveries[0]?.version)).toBe(2);
-    // Without the lock the second settle fails at its append and the end unit has to be saved.
+    // Without the lock a second settle fails at its append and the end unit has to be saved.
     expect(lines.filter((line) => line.message === 'the end of the attempt failed')).toEqual([]);
   });
 });

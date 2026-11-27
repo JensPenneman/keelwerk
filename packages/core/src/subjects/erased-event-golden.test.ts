@@ -86,6 +86,7 @@ async function erasedEventFor(subjectId: string): Promise<NewEvent> {
     record: recordOf(subjectId),
     writer,
     now,
+    nominated: true,
   });
   const [event] = appended;
   if (event === undefined) throw new Error('no event was appended');

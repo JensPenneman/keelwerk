@@ -27,7 +27,10 @@ interface Sealing {
 function stubUnit(sealings: Sealing[] = []): Unit {
   return {
     namespace: { id: 'main' },
+    scope: { level: 'tenant' },
     keys: {
+      dataKey: () => Promise.resolve({}),
+      addRefs: () => Promise.resolve(),
       sealValue: (binding: Sealing['binding'], plain: Uint8Array) => {
         sealings.push({ binding, plain: new TextDecoder().decode(plain) });
         return Promise.resolve({

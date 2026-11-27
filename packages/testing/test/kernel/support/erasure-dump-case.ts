@@ -294,11 +294,13 @@ async function runErasureDumpCase(setup: DumpCase): Promise<void> {
     markers: erasedMarkers,
   });
   await expectDeferJobKept(queries);
-  await expectDeadlineJobHoldsEffectIdOnly(
-    queries,
-    [...forbidden, ...markers],
-    'after the erasure',
-  );
+  // The effect of the subject was settled by the erasure, which cancelled its deadline job (WP-138).
+  expect(
+    (await rowsOf(queries, 'kw_jobs')).filter((row) =>
+      String(row.key ?? '').startsWith('core.deadline:'),
+    ),
+    'the deadline job of the subject’s effect is gone after the erasure',
+  ).toEqual([]);
   // The ticket of the subject's session is purged with the rest of its principal's rows.
   expect(
     [...sectionsOf(after)].filter(
@@ -319,8 +321,8 @@ async function runErasureDumpCase(setup: DumpCase): Promise<void> {
     envelopes,
   });
 
-  // The gap that is known is found, and nothing else of the kind is: only the output of an effect
-  // opens.
+  // The gaps that are known are found, and nothing else of the kind is: with none open, no marker
+  // opens with a key that exists, the output of an effect included (WP-138).
   const evidence = { opened, effectOutput: marker.effectOutput };
   const claimedOpen: string[] = [];
   for (const gap of knownGaps as readonly KnownGap[]) {

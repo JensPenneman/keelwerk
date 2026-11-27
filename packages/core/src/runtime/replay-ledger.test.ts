@@ -92,6 +92,14 @@ describe('the ledger replay at connect', () => {
     expect(destroyed.every((entry) => entry.tenant === tenantId)).toBe(true);
   });
 
+  test('a key with a tombstone of each of two erasures is destroyed once, and one tombstone of it is appended', async () => {
+    const named = (commandId: string) => ({ ...tombstone('kx'), commandId }) as LedgerRecord;
+    const { run, destroyed, control } = setupReplayLedger({ sink: [named('c1'), named('c2')] });
+    await run();
+    expect(destroyed.filter((entry) => entry.keyId === 'kx')).toHaveLength(1);
+    expect(tombstonesOf(control).filter((keyId) => keyId === 'kx')).toHaveLength(1);
+  });
+
   test('a tenant that is neither bumped nor reconciled has no value key destroyed', async () => {
     const { run, destroyed } = setupReplayLedger({ control: [tombstone('v1')] });
     await run();

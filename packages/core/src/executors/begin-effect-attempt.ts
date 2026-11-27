@@ -10,15 +10,13 @@ import type { RunJobContext } from '../worker/run-job.ts';
 import { decodeShapeValue } from '../write-path/decode-shape-value.ts';
 import { abandonOnLostLease } from './abandon-on-lost-lease.ts';
 import { attemptErrorOf } from './attempt-error-of.ts';
+import { attemptRecordBound } from './attempt-record-bound.ts';
 import { declaredErrorCodesOf } from './declared-error-codes-of.ts';
 import type { EffectAttemptJob } from './effect-attempt-job.ts';
 import { effectJobError } from './effect-job-error.ts';
 import { latestAttemptRecords } from './latest-attempt-records.ts';
 import { recordAttempt } from './record-attempt.ts';
 import { settleKeepingContinuation } from './settle-keeping-continuation.ts';
-
-/** The latest attempt records the begin unit judges: two per attempt, and a policy bounds the attempts. */
-const recordBound = 1000;
 
 /** What the begin unit answers: a `BeganAttempt`, or that it settled an effect whose key was destroyed. */
 type BeginUnitResult = BeganAttempt | { readonly kind: 'erased' };
@@ -36,7 +34,7 @@ export type BeganAttempt =
 
 /**
  * The first unit of an attempt (D2, D1): in one read-write unit of the job's scope it reads the
- * effect and its attempt records and decides. A missing effect fails the job; an effect that is
+ * effect (under its row lock) and its attempt records and decides. A missing effect fails the job; an effect that is
  * no longer `requested` completes the job; an earlier attempt with a start record and no end record
  * may have acted, so the effect settles `abandoned` (`core.effect_outcome_unknown`) and the executor
  * is not called; no executor, a configuration that cannot be read, or an input member whose key
@@ -64,8 +62,10 @@ export async function beginEffectAttempt(
     stored.scope,
     async (unit): Promise<BeginUnitResult> => {
       if (descriptor === undefined) throw errors.internal('the app has no core.effect entity');
+      // Under the row's lock: an erasure that settles the effect commits first or waits for this unit.
       const row: StorageRow | undefined = await unit.rows.findOne(descriptor, {
         where: { op: 'eq', field: 'id', value: effectId },
+        forUpdate: true,
       });
       if (row === undefined) {
         await completeJob(unit, held, {
@@ -87,7 +87,7 @@ export async function beginEffectAttempt(
       const { records, started: startedAttempts } = await latestAttemptRecords(
         unit,
         effectId,
-        recordBound,
+        attemptRecordBound,
       );
       const { open } = abandonOnLostLease(records, attempt);
       const started = startedAttempts.size;

@@ -37,8 +37,9 @@ test('the stored erasure and tombstone records keep their member names and forms
     'type' | 'tenantId' | 'commandId' | 'subjectId' | 'epoch' | 'recordedAt'
   >();
   expectTypeOf<keyof KeyTombstoneRecord>().toEqualTypeOf<
-    'type' | 'scopeId' | 'keyId' | 'recordedAt' | 'reason'
+    'type' | 'scopeId' | 'keyId' | 'recordedAt' | 'reason' | 'commandId'
   >();
+  expectTypeOf<KeyTombstoneRecord['commandId']>().toEqualTypeOf<string | undefined>();
   expectTypeOf<ErasureRecord['recordedAt']>().toEqualTypeOf<string>();
   expectTypeOf<KeyTombstoneRecord['recordedAt']>().toEqualTypeOf<string>();
   expectTypeOf<KeyTombstoneRecord['reason']>().toEqualTypeOf<

@@ -1,10 +1,14 @@
+import { erasableSubjectPattern } from '../encryption/erasable-subject-pattern.ts';
+import { errors } from '../errors/errors.ts';
 import type { AnyField } from '../fields/field-def.ts';
 import type { RandomSource } from '../keys/random-source.ts';
 import type { EffectEntry } from '../registry/effect-entry.ts';
 import type { Registry } from '../registry/registry.ts';
 import type { Unit } from '../storage/unit.ts';
+import { canonicalSubject } from '../subjects/canonical-subject.ts';
 import { encodeEventValue } from '../write-path/encode-event-value.ts';
 import { effectDataSubject } from './effect-data-subject.ts';
+import { memberSubjectOf } from './member-subject-of.ts';
 import { personalMemberSealer } from './personal-member-sealer.ts';
 import { sealMembers } from './seal-members.ts';
 import { sealSecretMembers } from './seal-secret-members.ts';
@@ -26,7 +30,10 @@ export interface SealEffectInputInput {
  * The input as the `requested` record stores it (7.9.6, S-127): secret members through
  * `sealSecretMembers` (`{ entity: 'core.effect', id: effectId, prefix: '', refs: 'text' }`, M1's form,
  * unchanged); each present personal member sealed whole as a `$kwe` envelope under its subject's
- * data key, and the subject's reference `{ type: 'core.effect', id: effectId }` added once. Throws
+ * data key, and the subject's reference `{ type: 'core.effect', id: effectId }` added once. An effect
+ * that declares a `dataSubject` gets the reference of that subject whether or not a personal member
+ * is sealed, and is refused (`forbidden`) once the subject was erased, so the erasure always reaches
+ * its secrets and no effect is requested after it. Throws
  * `core.request_not_allowed` when a personal member has no subject path (a registry built without
  * compose), `validation` when the path resolves to nothing, `forbidden` when the subject was erased
  * and `internal` outside a tenant unit (`personalMemberSealer`).
@@ -48,7 +55,8 @@ export async function sealEffectInput(input: SealEffectInputInput): Promise<unkn
   );
   const { fields } = entry.input as { readonly fields?: Readonly<Record<string, AnyField>> };
   if (fields === undefined) return withSecrets;
-  return sealMembers(
+  const referenced = new Set<string>();
+  const sealed = await sealMembers(
     entry.input,
     withSecrets,
     personalMemberSealer({
@@ -61,8 +69,37 @@ export async function sealEffectInput(input: SealEffectInputInput): Promise<unkn
       id: effectId,
       ...(input.random === undefined ? {} : { random: input.random }),
       encode: encodeEventValue,
-      onSubject: (subject) => unit.keys.addRefs(subject, [{ type: 'core.effect', id: effectId }]),
+      onSubject: async (subject) => {
+        referenced.add(subject);
+        await unit.keys.addRefs(subject, [{ type: 'core.effect', id: effectId }]);
+      },
       pathOf: (_name, field) => effectDataSubject(entry, field),
     }),
   );
+  const subject =
+    entry.dataSubject === undefined
+      ? undefined
+      : await memberSubjectOf(
+          {
+            unit,
+            registry: input.registry,
+            module: entry.module,
+            input: input.input,
+            fields,
+            owner: entry.ref,
+          },
+          entry.dataSubject,
+        );
+  if (
+    subject !== undefined &&
+    !referenced.has(subject) &&
+    erasableSubjectPattern.test(canonicalSubject(subject)) &&
+    unit.scope.level === 'tenant'
+  ) {
+    if ((await unit.keys.dataKey(subject, { create: true })) === undefined) {
+      throw errors.forbidden('The data subject was erased: effects cannot be requested for it.');
+    }
+    await unit.keys.addRefs(subject, [{ type: 'core.effect', id: effectId }]);
+  }
+  return sealed;
 }

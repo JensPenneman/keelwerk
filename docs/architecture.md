@@ -8064,6 +8064,76 @@ Added 2026-11-26: the erasure removes the subject's id from the `principals` of 
 that matched only that subject, a closed kill switch included, matches no one else afterwards; a rule
 that names other principals keeps them.
 
+Added 2026-11-26: the erasure settles the effects of the subject. A requested effect that names the
+subject is settled in the unit that visits it, through the settle path of the performer: `failed`
+with `core.key_destroyed`, or, for an executor effect with an attempt that started and has no end
+record, `abandoned` with `core.effect_outcome_unknown`, because the destination may have been
+reached. Its continuation runs once and its deadline timer is cancelled. The end of a running
+attempt then finds the effect settled, writes only its end record and seals nothing. The erasure
+destroys the value keys of the secret members of the input and of the output of every effect record
+that names the subject. Every value key the erasure destroys has its tombstone in the control
+ledger and in every sink before the tenant unit that destroys it commits, and that unit destroys
+only tombstoned keys: a unit that meets a key without one rolls back, the tombstones of those keys
+are recorded outside any unit, and the unit runs again; every repeat must record at least one
+tombstone, or the pass ends with an error and the worker tries the record again later. The unit that
+purges the principals last sweeps the keys that an erasure recorded for the tenant after this
+erasure's own record in the control ledger (this erasure's, found again after a crash, or another
+erasure's): of those it destroys every key that still opens and was not made for a row of an entity
+of the app, that is a key made for a job, for a command's decision, for an effect record or for a
+receipt, or for an entity that the registry does not hold (the key record names the entity it was
+made for); a job that turned running after its key was tombstoned was kept by the purge and is
+swept. A row's key is never swept. An effect that declares a `dataSubject` is reached through that
+subject whether or not it has a personal member, and cannot be requested after the subject was
+erased (a subject that is not an erasable id is left alone); the begin of an attempt reads the
+effect under its row lock.
+
+A row reaches the unit that erases it from three sources: the lookup of the owned rows, the
+references of the subject (`kw_subject_refs`), and the keys that this erasure itself recorded a
+tombstone for (the record names the command of the erasure), that still open and were made for a
+row of an entity of the app (the key record names its entity and row id; this walk runs first, so
+that a row an earlier run of this erasure tombstoned is visited as the subject's before the
+references can lead to it as a mere holder, and a row that neither of the other two finds any more
+is still reached; a tombstone of another erasure names no row). The control ledger may hold one
+tombstone for a key per erasure: an erasure looks for its own by key and command, and appends it
+when only another erasure's stands for the key (after two erasures tombstoned one key the ledger
+holds a tombstone from each, and a sink holds at least one tombstone for the key, which is what a
+restore needs: the replay of a restore reads one record of the key and destroys the key once). The erasure finds a row as the subject's when the
+lookup or a key record of its own names it, or when the references lead to it and its data subject
+is the subject at the moment the page of the references is read; a row that the references lead
+to only because it holds a value of the subject is found as a holder of that value. The unit that visits a row reads under
+the row's lock whose row it is, and the answer it reads is the only one: a visit that found the row
+as the subject's decides again even when an earlier visit of this erasure answered the row as a
+mere holder (its holder may have been given to the subject since), while an earlier answer that
+the row was the subject's stands. A row found as the
+subject's is erased unless another subject owns it then; one that no subject owns then (its owner
+was cleared since the erasure found it) belongs to no living subject and is erased, with a
+tombstone that is true. A row that is only a holder of a value is never erased: the value is
+cleared, whoever owns the row and also if nobody does, and the row's key and the receipts of its
+principal stay. A row's keys are destroyed, and its id counts as a principal of the subject, only
+when it is erased. The unit leaves its answer in the `erased` event of the erasure and does nothing
+else for the row; a stream can hold two `erased` events of one erasure (first `owned` false, then
+`owned` true, when the row was found as a holder and then became the subject's), and an app's own
+reaction to that event runs for each. What follows from an answer runs afterwards, in units of its own that hold no
+row's lock: the purge of the principal that an erased row's id stands for (its receipts, jobs,
+stream tickets, request-rate buckets and the key its request records are sealed under) and of the
+receipts of the commands that wrote in it takes its locks in the order a command takes them (the
+receipt first), and the erased fingerprint of the receipts that stay is written in the same unit
+after the purge, with the version it read. Those units find their rows
+by the `erased` events of the erasure and not by a lookup of who owns what now, so a crash right
+after a row's unit, or a holder that moves afterwards, loses none of it. When an erasure has
+finished, no key opens of a row that the erasure found as the subject's, and a row for which this
+erasure recorded its own tombstone is found as the subject's by whichever source reaches it first,
+except the key of a row that another subject owns at the lock of its unit. That exception is open:
+such a row is not erased, because it is the other subject's, and when the erasure had already
+recorded a tombstone for that row's key, the tombstone stands although the key lives, so that a
+restore would destroy it. Three kinds of row are not found, and their keys open: a row that stopped being the subject's
+before the erasure read it, whether or not it holds a value of the subject (for a row with no
+personal value that is owned through a holder, the holder cleared before the lookup reads the
+row), a row whose key this erasure recorded a tombstone for and whose row is gone, and a row that
+became the subject's only after the walks had read it (a holder given to her after the lookup
+read the owners: the write is accepted, and the row stays hers, not erased). Effects of
+subjects that were erased under 0.2.0 stay requested with their secrets open.
+
 Added 2026-11-26: the purge of the principals deletes the request-rate buckets that they own (the
 bucket `core.principalRequestRate` of the id as a user and as a service, in every spelling of the
 subject); the buckets of another principal, of an action class and of the tenant stay. Two gaps
@@ -8124,8 +8194,8 @@ Added 2026-11-12: the purge. Before it completes the receipt, the worker purges,
 (after step 5, before step 6), the receipts, jobs, timers and stream tickets of the subject and of
 the rows it owns as principals. Of the jobs it removes only the command jobs and timers whose
 principal is the subject or a row it owns: a job another principal runs is kept, whoever caused
-it. It destroys the value keys of the secret members of the purged jobs in the same unit and
-records a `keyTombstone` for each (section 14.7.6). A receipt the erasure keeps holds a failure
+it. It destroys the value keys of the secret members of the purged jobs in the same unit, after
+recording a `keyTombstone` for each (section 14.7.6) before the unit that destroys them commits. A receipt the erasure keeps holds a failure
 only in its closed form (section 15.1.7).
 
 Added 2026-11-11 and 2026-11-12: the tenant scope. An erasure reaches the tenant scope only.

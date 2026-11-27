@@ -49,7 +49,21 @@ export async function isErasureFinished(
 ): Promise<boolean> {
   const { target } = found;
   const epoch = context.control.epochOf(target.scope);
-  const current = (await completionsAfter(context, record, seq)).filter(
+  // A second copy of the record, appended after the erasure completed (an attempt that outlived
+  // its lease), is the same erasure: the completions count from the first copy.
+  const [first] = await context.control.ledger.find(
+    [
+      {
+        type: 'erasure',
+        tenantId: record.tenantId,
+        commandId: record.commandId,
+        subjectId: canonicalSubject(record.subjectId),
+      },
+    ],
+    { limit: 1 },
+  );
+  const from = first !== undefined && first.seq < seq ? first.seq : seq;
+  const current = (await completionsAfter(context, record, from)).filter(
     (completion) => completion.epoch === epoch,
   );
   if (current.length === 0) return false;

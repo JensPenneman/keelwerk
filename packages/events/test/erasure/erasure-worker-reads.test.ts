@@ -1,3 +1,4 @@
+import { createControlLedger } from '@keelwerk/core';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { erasedEvents, finish, seed } from './support/erasure-helpers.ts';
 import { bootProbe, type Probe } from './support/erasure-kit.ts';
@@ -82,6 +83,21 @@ describe('what the worker reads of the ledgers (14.7.5, 14.7.6)', () => {
     await vi.waitFor(() => expect(second.reads.empty).toBeGreaterThan(emptyBefore + 1));
     await second.worker.stop(farOff());
     expect(second.steps).toEqual(before);
+  });
+
+  test('a second copy of the record, appended after the erasure completed, does not run it again', async () => {
+    const booted = await finishedErasure();
+    const ledger = createControlLedger(
+      booted.runtime.control.adapter,
+      booted.runtime.control.namespace,
+    );
+    const first = (await ledger.since(0n, 1000)).find(({ record }) => record.type === 'erasure');
+    if (first === undefined) throw new Error('no erasure record');
+    // An attempt that outlived its lease appends the record again, after the completion.
+    await ledger.append(first.record);
+    const second = await booted.startWorker();
+    expect(second.steps).toEqual([]);
+    expect(second.reads.finds).toBeGreaterThan(0);
   });
 
   test('a bump leaves one erased event per stream: the rerun adds none', async () => {

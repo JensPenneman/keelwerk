@@ -55,8 +55,10 @@ export async function endEffectAttempt(
     if (descriptor === undefined || entry === undefined) {
       throw errors.internal('the app has no core.effect entity');
     }
+    // Under the row's lock: an erasure that settles the effect meanwhile commits first or waits for this unit.
     const row = await unit.rows.findOne(descriptor, {
       where: { op: 'eq', field: 'id', value: effectId },
+      forUpdate: true,
     });
     const now = clock.now();
     const record = (error?: EffectAttemptError): Promise<void> =>
@@ -68,15 +70,19 @@ export async function endEffectAttempt(
         endedAt: now.toString(),
         ...(error === undefined ? {} : { error }),
       });
+    if (row?.status !== 'requested') {
+      // Settled meanwhile (an erasure of its subject): only the end record, and nothing is sealed.
+      await record();
+      await completeJob(unit, held, { kind: 'succeeded' });
+      return undefined;
+    }
     const settleTarget = (settled: Parameters<typeof settleEffect>[2]): Promise<boolean> =>
-      row === undefined
-        ? Promise.resolve(false)
-        : settleEffect(
-            unit,
-            { registry, entry, row, cause: stored, writer, clock, limits },
-            settled,
-            began.started,
-          );
+      settleEffect(
+        unit,
+        { registry, entry, row, cause: stored, writer, clock, limits },
+        settled,
+        began.started,
+      );
 
     let failure: unknown = result.ok ? undefined : result.error;
     let acted = !result.ok && result.acted === true;

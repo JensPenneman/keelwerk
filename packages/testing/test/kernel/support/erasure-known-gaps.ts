@@ -19,21 +19,13 @@ interface KnownGap {
 
 /**
  * The gaps the erasure leaves in M2, pinned so that the inventory says the truth and no one has to
- * rediscover them (14.7.5). Each one has its own design. The dump test asserts that every entry IS
+ * rediscover them (14.7.5). Each one has its own design. None is open now: the erasure destroys the
+ * value keys of the secret members of an effect's input and output (WP-138). The dump test asserts that every entry IS
  * found: the work package that closes one removes its entry, and the test fails until it does.
  * The personal values in derived data (receipt fingerprints, decision records, job keys,
  * ciphertext lengths) are closed by WP-130 and checked by positive assertions of the dump test.
  */
-const knownGaps: readonly KnownGap[] = [
-  {
-    name: 'the value key of a secret member of an effect output',
-    where:
-      'core__effect.output and the settled event in kw_events: the erasure destroys no value key of an effect record, so the output opens with the key that stays',
-    workPackage: 'WP-138',
-    found: (evidence) =>
-      evidence.opened.filter((line) => line.startsWith(`${evidence.effectOutput} opens`)),
-  },
-];
+const knownGaps: readonly KnownGap[] = [];
 
 export type { GapEvidence, KnownGap };
 export { knownGaps };

@@ -181,6 +181,13 @@ export function memoryKeyStore(ctx: MemoryUnitContext): SubjectKeyStore {
       }
       return memoryOpen(record.material, sealed.nonce, sealed.ciphertext, record.aad);
     },
+    valueKeyBinding: async (keyId) => {
+      const record = ctx.tx.read<ValueKey>(values()).get(keyId);
+      const [entity, id, field] = new TextDecoder().decode(record?.aad).split('\u0000');
+      return record === undefined || entity === undefined || id === undefined || field === undefined
+        ? undefined
+        : { entity, id, field };
+    },
     destroyValueKey: async (keyId) => {
       ctx.writable();
       if (!ctx.tx.read<ValueKey>(values()).has(keyId)) return;
